@@ -11,11 +11,21 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
  *   - No zoom and no pan yet — that comes in a later milestone.
  */
 
+declare global {
+  interface Window {
+    /** Set to true after the first render — used by the e2e smoke test. */
+    __APP_READY__?: boolean;
+  }
+}
+
 const EARTH_RADIUS = 1;
 const TEXTURE_URL = "/textures/earth_daymap.jpg";
 
-const canvas = document.querySelector("#globe");
-const loader = document.querySelector("#loader");
+const canvas = document.querySelector<HTMLCanvasElement>("#globe");
+if (!canvas) {
+  throw new Error("RoamingEye: #globe canvas element not found");
+}
+const loader = document.querySelector<HTMLElement>("#loader");
 
 // --- Renderer ---------------------------------------------------------------
 const renderer = new THREE.WebGLRenderer({
@@ -86,9 +96,15 @@ controls.enablePan = false; // MVP: no pan
 controls.rotateSpeed = 0.45;
 
 // --- Render loop ------------------------------------------------------------
+let signalledReady = false;
 renderer.setAnimationLoop(() => {
   controls.update();
   renderer.render(scene, camera);
+
+  if (!signalledReady) {
+    signalledReady = true;
+    window.__APP_READY__ = true;
+  }
 });
 
 // --- Resize handling --------------------------------------------------------
@@ -99,11 +115,11 @@ window.addEventListener("resize", () => {
 });
 
 // --- Helpers ----------------------------------------------------------------
-function hideLoader() {
+function hideLoader(): void {
   loader?.classList.add("is-hidden");
 }
 
-function createStarfield() {
+function createStarfield(): THREE.Points {
   const starCount = 1500;
   const positions = new Float32Array(starCount * 3);
 

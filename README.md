@@ -42,7 +42,7 @@ sources will remain open and properly attributed.
 
 ## 🚀 Getting started
 
-**Requirements:** [Node.js](https://nodejs.org/) 18+ and npm.
+**Requirements:** [Node.js](https://nodejs.org/) 20+ and npm.
 
 ```bash
 # 1. Install dependencies
@@ -67,12 +67,17 @@ npm run preview   # preview the production build locally
 
 ## 🧰 Tech stack
 
-| Concern        | Choice                                  |
-| -------------- | --------------------------------------- |
-| 3D rendering   | [Three.js](https://threejs.org/)        |
-| Build / dev    | [Vite](https://vitejs.dev/)             |
-| Controls       | Three.js `OrbitControls` (rotate-only)  |
-| Imagery        | NASA Blue Marble (public domain)        |
+| Concern       | Choice                                        |
+| ------------- | --------------------------------------------- |
+| Language      | [TypeScript](https://www.typescriptlang.org/) |
+| 3D rendering  | [Three.js](https://threejs.org/)              |
+| Build / dev   | [Vite](https://vitejs.dev/)                   |
+| Controls      | Three.js `OrbitControls` (rotate-only)        |
+| Unit tests    | [Vitest](https://vitest.dev/)                 |
+| E2E tests     | [Playwright](https://playwright.dev/)         |
+| Lint / format | ESLint + Prettier                             |
+| CI            | GitHub Actions                                |
+| Imagery       | NASA Blue Marble (public domain)              |
 
 ---
 
@@ -93,11 +98,14 @@ npm run preview   # preview the production build locally
 RoamingEye/
 ├─ index.html          # Landing page + overlay UI
 ├─ src/
-│  ├─ main.js          # Three.js scene: Earth, lighting, controls
+│  ├─ main.ts          # Three.js scene: Earth, lighting, controls
+│  ├─ lib/             # Pure, unit-tested utilities (geo/coordinate math)
 │  └─ style.css        # Layout and overlay styling
+├─ e2e/                # Playwright browser smoke tests
 ├─ public/
 │  └─ textures/        # NASA Blue Marble imagery
-├─ vite.config.js
+├─ .github/            # CI, issue/PR templates, contributing & security docs
+├─ vite.config.ts
 └─ package.json
 ```
 
@@ -106,9 +114,17 @@ RoamingEye/
 ## 🤝 Contributing
 
 RoamingEye is fully open source and contributions are welcome — whether that's
-code, data-source expertise, or design. Open an issue to discuss an idea, or send
-a pull request. If you work with open geospatial data and want to help, we'd
-especially love your input.
+code, data-source expertise, or design. Every change lands through a reviewed,
+CI-gated pull request.
+
+- **[CONTRIBUTING.md](.github/CONTRIBUTING.md)** — setup, workflow, testing, and
+  DCO sign-off.
+- **[GOVERNANCE.md](GOVERNANCE.md)** — roles, the trust ladder, and how decisions
+  get made.
+- **[Code of Conduct](.github/CODE_OF_CONDUCT.md)** — be kind.
+
+If you work with open geospatial data and want to help, we'd especially love
+your input.
 
 ## 📄 License
 
