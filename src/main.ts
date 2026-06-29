@@ -1,14 +1,21 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import {
+  LAYERS,
+  DATA_LATEST,
+  buildMonthRange,
+  type LayerId,
+  type YearMonth,
+} from "./lib/timeline";
+import { GlobeTextureManager } from "./textures/GlobeTextureManager";
+import { TimeSlider } from "./ui/TimeSlider";
+import { LayerSelector } from "./ui/LayerSelector";
 
 /**
- * RoamingEye — MVP
- * A single, grab-to-rotate 3D Earth rendered with NASA Blue Marble imagery.
- *
- * Scope of this milestone (intentionally minimal):
- *   - One textured sphere (the Earth), centered.
- *   - Drag / touch to rotate the globe in any direction.
- *   - No zoom and no pan yet — that comes in a later milestone.
+ * RoamingEye
+ * A grab-to-rotate 3D Earth whose surface is driven by a temporal scrubber:
+ * scrub month-by-month through NASA's monthly seasonal composites (vegetation,
+ * snow) to watch the planet's seasons shift across years.
  */
 
 declare global {
@@ -19,19 +26,19 @@ declare global {
 }
 
 const EARTH_RADIUS = 1;
-const TEXTURE_URL = "/textures/earth_daymap.jpg";
+const MONTHS_BACK = 60; // last 5 years, to start
 
 const canvas = document.querySelector<HTMLCanvasElement>("#globe");
 if (!canvas) {
   throw new Error("RoamingEye: #globe canvas element not found");
 }
-const loader = document.querySelector<HTMLElement>("#loader");
+const loaderEl = document.querySelector<HTMLElement>("#loader");
+const statusEl = document.querySelector<HTMLElement>("#timeline-status");
+const layerEl = document.querySelector<HTMLElement>("#layer-selector");
+const timelineEl = document.querySelector<HTMLElement>("#timeline");
 
 // --- Renderer ---------------------------------------------------------------
-const renderer = new THREE.WebGLRenderer({
-  canvas,
-  antialias: true,
-});
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 
@@ -62,30 +69,55 @@ scene.add(createStarfield());
 const earth = new THREE.Mesh(
   new THREE.SphereGeometry(EARTH_RADIUS, 96, 96),
   new THREE.MeshStandardMaterial({
-    color: 0x222222, // placeholder tint until the texture loads
+    color: 0x111418, // dark base shown over ocean / no-data areas
     roughness: 1,
     metalness: 0,
   })
 );
 scene.add(earth);
 
-const textureLoader = new THREE.TextureLoader();
-textureLoader.load(
-  TEXTURE_URL,
-  (texture) => {
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    earth.material.map = texture;
-    earth.material.color.set(0xffffff);
-    earth.material.needsUpdate = true;
-    hideLoader();
-  },
-  undefined,
-  (err) => {
-    console.error("Failed to load Earth texture:", err);
-    hideLoader();
+// --- Temporal imagery pipeline ----------------------------------------------
+const months: YearMonth[] = buildMonthRange(DATA_LATEST, MONTHS_BACK);
+let currentLayer: LayerId = "ndvi";
+let currentIndex = months.length - 1; // start at the most recent month
+let firstLoadDone = false;
+
+const textures = new GlobeTextureManager(
+  earth.material,
+  renderer.capabilities.getMaxAnisotropy(),
+  {
+    image: { width: 2048, height: 1024 },
+    onLoadingChange: (loading) => {
+      setStatus(loading ? "Loading imagery…" : "");
+      if (!loading && !firstLoadDone) {
+        firstLoadDone = true;
+        loaderEl?.classList.add("is-hidden");
+      }
+    },
+    onError: () => setStatus("No imagery for this month"),
   }
 );
+
+function refreshGlobe(): void {
+  textures.show(LAYERS[currentLayer], months[currentIndex]);
+}
+
+// --- UI ---------------------------------------------------------------------
+if (layerEl) {
+  new LayerSelector(layerEl, currentLayer, (id) => {
+    currentLayer = id;
+    refreshGlobe();
+  });
+}
+
+if (timelineEl) {
+  new TimeSlider(timelineEl, months, currentIndex, (index) => {
+    currentIndex = index;
+    refreshGlobe();
+  });
+}
+
+refreshGlobe(); // kick off the initial month
 
 // --- Controls (rotate only) -------------------------------------------------
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -115,8 +147,8 @@ window.addEventListener("resize", () => {
 });
 
 // --- Helpers ----------------------------------------------------------------
-function hideLoader(): void {
-  loader?.classList.add("is-hidden");
+function setStatus(text: string): void {
+  if (statusEl) statusEl.textContent = text;
 }
 
 function createStarfield(): THREE.Points {
