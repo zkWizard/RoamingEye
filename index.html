@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta
+      name="description"
+      content="RoamingEye — roam a high-fidelity 3D Earth from a satellite's-eye view."
+    />
+    <title>RoamingEye</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="globe"></canvas>
+
+      <header class="overlay overlay--top">
+        <h1 class="brand">Roaming<span>Eye</span></h1>
+      </header>
+
+      <footer class="overlay overlay--bottom">
+        <p class="hint">Grab the globe and drag to rotate</p>
+        <p class="attribution">
+          Imagery: NASA Blue Marble (public domain) ·
+          <a href="https://github.com/zkWizard/RoamingEye" target="_blank" rel="noopener"
+            >Open source</a
+          >
+        </p>
+      </footer>
+
+      <div id="loader" class="loader">
+        <div class="loader__spinner" aria-hidden="true"></div>
+        <p>Loading Earth…</p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
