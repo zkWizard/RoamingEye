@@ -102,7 +102,7 @@ export class TimeSlider {
     this.track.addEventListener("pointercancel", end);
 
     this.track.addEventListener("keydown", (e) => {
-      let next = this.index;
+      let next: number;
       switch (e.key) {
         case "ArrowLeft":
         case "ArrowDown":
