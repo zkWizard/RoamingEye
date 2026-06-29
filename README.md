@@ -8,17 +8,16 @@ orbit down to street-level terrain, and surface real information about whatever
 country, region, or feature you're looking at — all powered by **open mapping and
 geospatial data from researchers and institutions around the world**.
 
-This repository is at its **first MVP milestone**: a single landing page with a
-draggable, grab-to-rotate 3D Earth.
-
----
-
-## ✨ Current features (MVP)
+## ✨ Current features
 
 - A real, texture-mapped 3D Earth rendered with WebGL (Three.js)
 - **Grab and drag** to rotate the globe in any direction (mouse + touch)
-- Smooth inertia, responsive layout, and a starfield backdrop
-- Works on desktop and mobile
+- A **temporal scrubber** — a ruler-style timeline (one tick per month, labelled
+  by year) to scrub through the last 5 years of monthly satellite data and watch
+  the **seasons change** across the globe
+- **Switchable data layers**: vegetation (NDVI / EVI) and snow cover
+- Smooth inertia, responsive layout, and a starfield backdrop; works on desktop
+  and mobile
 
 > Zoom, pan, location info, and true elevation terrain are **on the roadmap** —
 > see below.
@@ -27,11 +26,22 @@ draggable, grab-to-rotate 3D Earth.
 
 ## 🛰️ Data & imagery
 
-The Earth texture is **NASA Blue Marble: Next Generation** — a true-color global
-composite derived from satellite observations.
+The globe is painted with **NASA GIBS** (Global Imagery Browse Services) monthly
+composites — cloud-free, gap-free, derived from the MODIS instrument on NASA's
+Terra satellite, and served with permissive CORS so the browser can load them
+directly into WebGL textures.
 
-- Source: [NASA Visible Earth — Blue Marble](https://visibleearth.nasa.gov/collection/1484/blue-marble)
-- License: **Public domain** (NASA imagery is generally free to use)
+- **Vegetation** — `MODIS_Terra_L3_NDVI_Monthly`, `MODIS_Terra_L3_EVI_Monthly`
+- **Snow cover** — `MODIS_Terra_L3_Snow_Cover_Monthly_Average_Pct`
+- Coverage: monthly, **2000 → present** (the scrubber starts with the most
+  recent 5 years)
+- Source: [NASA GIBS](https://nasa-gibs.github.io/gibs-api-docs/) ·
+  License: **Public domain** (NASA imagery is generally free to use)
+
+> Why not photographic true-color? Open, cloud-free, monthly _true-color_
+> imagery doesn't exist across multiple years — daily true-color mosaics are
+> cloudy and have orbital-swath gaps. Vegetation and snow indices are the
+> standard, purpose-built way to observe seasonal cycles over decades.
 
 Future terrain elevation is planned to use open datasets such as
 [GEBCO](https://www.gebco.net/) bathymetry/topography and
@@ -77,14 +87,18 @@ npm run preview   # preview the production build locally
 | E2E tests     | [Playwright](https://playwright.dev/)         |
 | Lint / format | ESLint + Prettier                             |
 | CI            | GitHub Actions                                |
-| Imagery       | NASA Blue Marble (public domain)              |
+| Imagery       | NASA GIBS / MODIS monthly (public domain)     |
 
 ---
 
 ## 🗺️ Roadmap
 
 - [x] **M0** — Grab-to-rotate 3D Earth (this MVP)
+- [x] **Temporal scrubber** — monthly seasonal composites (NDVI/EVI/snow) over
+      the last 5 years, with a ruler-style timeline
 - [ ] **M1** — Zoom in/out toward the surface, with sensible limits
+- [ ] Extend the timeline back to 2000 (and stream the current month as NASA
+      publishes it)
 - [ ] **M2** — Higher-resolution, tiled imagery that streams in as you zoom
 - [ ] **M3** — True elevation terrain (GEBCO / SRTM) for real 3D relief
 - [ ] **M4** — Click/tap a location to see details (country, region, features)
@@ -98,12 +112,14 @@ npm run preview   # preview the production build locally
 RoamingEye/
 ├─ index.html          # Landing page + overlay UI
 ├─ src/
-│  ├─ main.ts          # Three.js scene: Earth, lighting, controls
-│  ├─ lib/             # Pure, unit-tested utilities (geo/coordinate math)
+│  ├─ main.ts          # Three.js scene: Earth, lighting, controls, wiring
+│  ├─ lib/             # Pure, unit-tested logic (geo math, timeline model)
+│  ├─ textures/        # GIBS imagery loading, caching, application
+│  ├─ ui/              # Timeline scrubber + layer selector (DOM components)
 │  └─ style.css        # Layout and overlay styling
 ├─ e2e/                # Playwright browser smoke tests
 ├─ public/
-│  └─ textures/        # NASA Blue Marble imagery
+│  └─ textures/        # Static fallback imagery (NASA Blue Marble)
 ├─ .github/            # CI, issue/PR templates, contributing & security docs
 ├─ vite.config.ts
 └─ package.json

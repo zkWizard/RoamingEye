@@ -8,7 +8,7 @@
     />
     <meta
       name="description"
-      content="RoamingEye — roam a high-fidelity 3D Earth from a satellite's-eye view."
+      content="RoamingEye — roam a 3D Earth and scrub through monthly satellite data to watch the seasons change over years."
     />
     <title>RoamingEye</title>
     <link rel="stylesheet" href="/src/style.css" />
@@ -19,12 +19,21 @@
 
       <header class="overlay overlay--top">
         <h1 class="brand">Roaming<span>Eye</span></h1>
+        <p class="hint">Drag to rotate · scrub the timeline to change month</p>
       </header>
 
-      <footer class="overlay overlay--bottom">
-        <p class="hint">Grab the globe and drag to rotate</p>
+      <div class="overlay overlay--bottom">
+        <div id="controls" class="controls">
+          <div id="layer-selector"></div>
+          <div id="timeline"></div>
+          <div
+            id="timeline-status"
+            class="timeline-status"
+            aria-live="polite"
+          ></div>
+        </div>
         <p class="attribution">
-          Imagery: NASA Blue Marble (public domain) ·
+          Imagery: NASA GIBS · MODIS monthly composites (public domain) ·
           <a
             href="https://github.com/zkWizard/RoamingEye"
             target="_blank"
@@ -32,7 +41,7 @@
             >Open source</a
           >
         </p>
-      </footer>
+      </div>
 
       <div id="loader" class="loader">
         <div class="loader__spinner" aria-hidden="true"></div>
