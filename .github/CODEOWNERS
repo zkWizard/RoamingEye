@@ -1,0 +1,26 @@
+# CODEOWNERS — who must review changes to which areas.
+#
+# When "Require review from Code Owners" is enabled on the branch ruleset, a PR
+# touching a matched path cannot merge until a listed owner approves. Owners
+# must have write access to the repo. Last matching pattern wins, so keep the
+# specific rules below the general one.
+#
+# As the project grows, replace @zkWizard with team handles (e.g. @org/rendering)
+# and uncomment the area-based rules so review routes to domain experts.
+
+# Default owner for everything in the repo.
+*                       @zkWizard
+
+# --- Area ownership (uncomment & assign as maintainers come on board) ---------
+# Rendering / Three.js scene
+# /src/main.ts           @zkWizard
+# *.glsl                 @zkWizard
+
+# Geo / coordinate math & data pipeline
+# /src/lib/              @zkWizard
+
+# Build, CI, and security-sensitive config
+# /.github/              @zkWizard
+# /vite.config.ts        @zkWizard
+# /tsconfig.json         @zkWizard
+# /eslint.config.js      @zkWizard

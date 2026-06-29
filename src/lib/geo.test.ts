@@ -1,0 +1,54 @@
+import { describe, it, expect } from "vitest";
+import { latLngToVector3, greatCircleDistance } from "./geo";
+
+describe("latLngToVector3", () => {
+  it("maps (0, 0) to +Z on the unit sphere", () => {
+    const v = latLngToVector3(0, 0);
+    expect(v.x).toBeCloseTo(0);
+    expect(v.y).toBeCloseTo(0);
+    expect(v.z).toBeCloseTo(1);
+  });
+
+  it("maps the north pole to +Y", () => {
+    const v = latLngToVector3(90, 0);
+    expect(v.x).toBeCloseTo(0);
+    expect(v.y).toBeCloseTo(1);
+    expect(v.z).toBeCloseTo(0);
+  });
+
+  it("maps (0, 90) to +X", () => {
+    const v = latLngToVector3(0, 90);
+    expect(v.x).toBeCloseTo(1);
+    expect(v.y).toBeCloseTo(0);
+    expect(v.z).toBeCloseTo(0);
+  });
+
+  it("always lands on the sphere of the requested radius", () => {
+    const radius = 5;
+    for (const [lat, lon] of [
+      [12, 34],
+      [-45, 170],
+      [80, -120],
+    ]) {
+      expect(latLngToVector3(lat, lon, radius).length()).toBeCloseTo(radius);
+    }
+  });
+});
+
+describe("greatCircleDistance", () => {
+  it("is zero between a point and itself", () => {
+    expect(greatCircleDistance(40.7, -74, 40.7, -74)).toBeCloseTo(0);
+  });
+
+  it("spans half the circumference between antipodes", () => {
+    const r = 6_371_000;
+    const expected = Math.PI * r; // half the great circle
+    expect(greatCircleDistance(0, 0, 0, 180)).toBeCloseTo(expected, 0);
+  });
+
+  it("approximates the London↔New York distance (~5570 km)", () => {
+    const km = greatCircleDistance(51.5074, -0.1278, 40.7128, -74.006) / 1000;
+    expect(km).toBeGreaterThan(5500);
+    expect(km).toBeLessThan(5600);
+  });
+});

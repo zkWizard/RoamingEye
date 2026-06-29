@@ -7,6 +7,11 @@ dist/
 # Vite cache
 .vite/
 
+# Test artifacts
+playwright-report/
+test-results/
+coverage/
+
 # Logs
 *.log
 npm-debug.log*
