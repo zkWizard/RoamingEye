@@ -21,7 +21,7 @@
     "@playwright/test": "^1.48.0",
     "@types/node": "^22.8.0",
     "@types/three": "^0.169.0",
-    "eslint": "^9.13.0",
+    "eslint": "^10.6.0",
     "eslint-config-prettier": "^9.1.0",
     "prettier": "^3.3.3",
     "typescript": "^5.6.3",
