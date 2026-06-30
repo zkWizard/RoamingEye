@@ -238,10 +238,11 @@ if (searchEl) {
 }
 
 // --- Render loop ------------------------------------------------------------
-const clock = new THREE.Clock();
+const timer = new THREE.Timer();
 let signalledReady = false;
 renderer.setAnimationLoop(() => {
-  const delta = clock.getDelta();
+  timer.update();
+  const delta = timer.getDelta();
   flyer.update(delta);
   if (!flyer.isFlying) controls.update(); // flyer drives the camera while active
   highlight.update(camera.position.length()); // keep the marker a constant size
