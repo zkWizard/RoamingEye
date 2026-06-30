@@ -4,6 +4,7 @@ import {
   LAYERS,
   DATA_LATEST,
   buildMonthRange,
+  clampIndexToLayer,
   type LayerId,
   type YearMonth,
 } from "./lib/timeline";
@@ -167,19 +168,27 @@ function prefetchCurrentLayer(): void {
 }
 
 // --- UI ---------------------------------------------------------------------
+const timeSlider = timelineEl
+  ? new TimeSlider(timelineEl, months, currentIndex, (index) => {
+      currentIndex = index;
+      refreshGlobe();
+      if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
+    })
+  : null;
+
 if (layerEl) {
   new LayerSelector(layerEl, currentLayer, (id) => {
     currentLayer = id;
+    // Some layers (reanalysis, ocean) lag behind the MODIS composites — snap
+    // the timeline to a month this layer actually covers.
+    const snapped = clampIndexToLayer(months, currentIndex, LAYERS[id]);
+    if (snapped !== currentIndex) {
+      currentIndex = snapped;
+      timeSlider?.setIndex(snapped);
+      if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
+    }
     refreshGlobe();
     prefetchCurrentLayer();
-  });
-}
-
-if (timelineEl) {
-  new TimeSlider(timelineEl, months, currentIndex, (index) => {
-    currentIndex = index;
-    refreshGlobe();
-    if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
   });
 }
 
