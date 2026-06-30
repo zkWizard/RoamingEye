@@ -8,6 +8,13 @@ log captures milestones rather than every commit. Format loosely follows
 
 ### Added
 
+- **A much richer dataset** — 9 scientific layers across vegetation, temperature
+  (land/air/sea), water (precipitation, soil moisture), cryosphere, and
+  atmosphere, in a grouped layer picker. Lagging products snap the timeline to a
+  covered month.
+- **Open-data Providers page** — an in-app catalogue of ~33 agencies, archives,
+  and platforms across the open Earth-observation ecosystem.
+- **Resilient networking** — timeouts, backoff retries, abort for all data calls.
 - **High-resolution study regions** — search a place and a sharp ~30 m HLS
   true-colour patch drapes over it, driven by the timeline.
 - **Cloud-aware scene selection** — automatically picks the clearest satellite
