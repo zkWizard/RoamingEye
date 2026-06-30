@@ -24,7 +24,7 @@ import { StudyRegion } from "./scene/StudyRegion";
 import { StudyChip } from "./ui/StudyChip";
 import { loadCountryIndex } from "./lib/countryIndex";
 import { flyToDistance } from "./lib/navigation";
-import { regionAround, studyDate } from "./lib/imagery";
+import { regionAround } from "./lib/imagery";
 
 /**
  * RoamingEye
@@ -108,11 +108,19 @@ const highlight = new LocationHighlight();
 scene.add(highlight.object);
 
 // High-resolution study region: a sharp HLS patch draped over a searched area,
-// driven by the same timeline so you can watch it change over the years.
-const studyRegion = new StudyRegion(
-  renderer.capabilities.getMaxAnisotropy(),
-  (loading) => setStatus(loading ? "Loading high-res imagery…" : "")
-);
+// driven by the same timeline so you can watch it change over the years. It
+// auto-selects the clearest satellite pass for each month.
+function exitStudyRegion(): void {
+  studyRegion.hide();
+}
+const studyChip = studyChipEl
+  ? new StudyChip(studyChipEl, exitStudyRegion)
+  : null;
+const studyRegion = new StudyRegion(renderer.capabilities.getMaxAnisotropy(), {
+  onLoadingChange: (loading) =>
+    setStatus(loading ? "Loading high-res imagery…" : ""),
+  onStatus: (text) => studyChip?.setDetail(text),
+});
 scene.add(studyRegion.object);
 
 // --- Hover inspector (coordinate + country readout) -------------------------
@@ -171,8 +179,7 @@ if (timelineEl) {
   new TimeSlider(timelineEl, months, currentIndex, (index) => {
     currentIndex = index;
     refreshGlobe();
-    if (studyRegion.active)
-      studyRegion.setDate(studyDate(months[currentIndex]));
+    if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
   });
 }
 
@@ -213,10 +220,6 @@ controls.maxDistance = 4.5; // furthest zoom-out
 // --- Search + fly-to --------------------------------------------------------
 const flyer = new CameraFlyer(camera, controls);
 
-const studyChip = studyChipEl
-  ? new StudyChip(studyChipEl, () => studyRegion.hide())
-  : null;
-
 if (searchEl) {
   new SearchBox(searchEl, (result) => {
     flyer.flyTo(result.lat, result.lon, flyToDistance(result.boundingBox));
@@ -228,7 +231,7 @@ if (searchEl) {
     // Drape a high-res patch over the area, driven by the current timeline month.
     studyRegion.show(
       regionAround(result.lat, result.lon, 1.2),
-      studyDate(months[currentIndex])
+      months[currentIndex]
     );
     studyChip?.show(result.name);
   });
