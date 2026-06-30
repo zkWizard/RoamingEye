@@ -23,6 +23,7 @@ import { LocationHighlight } from "./scene/LocationHighlight";
 import { HoverInspector } from "./scene/HoverInspector";
 import { StudyRegion } from "./scene/StudyRegion";
 import { StudyChip } from "./ui/StudyChip";
+import { ProvidersPage } from "./ui/ProvidersPage";
 import { loadCountryIndex } from "./lib/countryIndex";
 import { flyToDistance } from "./lib/navigation";
 import { regionAround } from "./lib/imagery";
@@ -56,6 +57,8 @@ const toolbarEl = document.querySelector<HTMLElement>("#toolbar");
 const searchEl = document.querySelector<HTMLElement>("#search");
 const tooltipEl = document.querySelector<HTMLElement>("#hover-tooltip");
 const studyChipEl = document.querySelector<HTMLElement>("#study-chip");
+const providersPageEl = document.querySelector<HTMLElement>("#providers-page");
+const providersLinkEl = document.querySelector<HTMLElement>("#providers-link");
 
 // --- Renderer ---------------------------------------------------------------
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -244,6 +247,12 @@ if (searchEl) {
     );
     studyChip?.show(result.name);
   });
+}
+
+// --- Providers page ---------------------------------------------------------
+if (providersPageEl && providersLinkEl) {
+  const providers = new ProvidersPage(providersPageEl);
+  providersLinkEl.addEventListener("click", () => providers.open());
 }
 
 // --- Render loop ------------------------------------------------------------
