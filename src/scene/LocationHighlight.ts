@@ -16,6 +16,7 @@ export interface HighlightTarget {
 export class LocationHighlight {
   readonly object = new THREE.Group();
   private current: THREE.Group | undefined;
+  private marker: THREE.Mesh | undefined;
 
   show(target: HighlightTarget): void {
     this.clear();
@@ -44,7 +45,8 @@ export class LocationHighlight {
       );
     }
 
-    group.add(this.makeMarker(target.lat, target.lon));
+    this.marker = this.makeMarker(target.lat, target.lon);
+    group.add(this.marker);
     this.object.add(group);
     this.current = group;
   }
@@ -54,14 +56,26 @@ export class LocationHighlight {
     this.object.remove(this.current);
     disposeTree(this.current);
     this.current = undefined;
+    this.marker = undefined;
   }
 
-  private makeMarker(lat: number, lon: number): THREE.Object3D {
+  /**
+   * Keep the marker a roughly constant on-screen size at any zoom. Scaling by
+   * height above the surface (distance − globe radius), not distance to centre,
+   * so it shrinks correctly as you get right down to the surface.
+   */
+  update(cameraDistance: number): void {
+    const aboveSurface = Math.max(0, cameraDistance - GLOBE_RADIUS);
+    this.marker?.scale.setScalar(Math.max(0.0006, aboveSurface * 0.0045));
+  }
+
+  private makeMarker(lat: number, lon: number): THREE.Mesh {
     const marker = new THREE.Mesh(
-      new THREE.SphereGeometry(0.009, 16, 16),
+      new THREE.SphereGeometry(1, 16, 16), // unit sphere; sized via update()
       new THREE.MeshBasicMaterial({ color: 0xffd166 })
     );
-    marker.position.copy(latLngToVector3(lat, lon, GLOBE_RADIUS * 1.012));
+    marker.position.copy(latLngToVector3(lat, lon, GLOBE_RADIUS * 1.013));
+    marker.scale.setScalar(0.009);
     return marker;
   }
 }

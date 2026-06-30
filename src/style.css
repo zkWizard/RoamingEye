@@ -476,3 +476,76 @@ body {
     display: none;
   }
 }
+
+/* --- Study-region chip (top-center) ---------------------------------------- */
+.study-chip {
+  position: absolute;
+  top: clamp(0.75rem, 2vw, 1.25rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: none;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem 0.4rem 0.8rem;
+  font-size: 0.82rem;
+  color: var(--fg);
+  background: rgba(8, 12, 20, 0.72);
+  border: 1px solid rgba(255, 209, 102, 0.4);
+  border-radius: 999px;
+  backdrop-filter: blur(10px);
+  pointer-events: auto;
+}
+
+.study-chip.is-visible {
+  display: flex;
+}
+
+.study-chip__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffd166;
+  box-shadow: 0 0 8px #ffd166;
+  flex: none;
+}
+
+.study-chip__name {
+  color: #ffd166;
+}
+
+.study-chip__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.study-chip__close:hover {
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.study-chip__close svg {
+  width: 14px;
+  height: 14px;
+}
+
+@media (max-width: 540px) {
+  .study-chip {
+    font-size: 0.72rem;
+    max-width: 90vw;
+  }
+  .study-chip__text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

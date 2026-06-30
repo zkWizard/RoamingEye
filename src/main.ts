@@ -20,8 +20,11 @@ import { AtmosphereOverlay } from "./overlays/AtmosphereOverlay";
 import { CameraFlyer } from "./scene/CameraFlyer";
 import { LocationHighlight } from "./scene/LocationHighlight";
 import { HoverInspector } from "./scene/HoverInspector";
+import { StudyRegion } from "./scene/StudyRegion";
+import { StudyChip } from "./ui/StudyChip";
 import { loadCountryIndex } from "./lib/countryIndex";
 import { flyToDistance } from "./lib/navigation";
+import { regionAround, studyDate } from "./lib/imagery";
 
 /**
  * RoamingEye
@@ -51,6 +54,7 @@ const timelineEl = document.querySelector<HTMLElement>("#timeline");
 const toolbarEl = document.querySelector<HTMLElement>("#toolbar");
 const searchEl = document.querySelector<HTMLElement>("#search");
 const tooltipEl = document.querySelector<HTMLElement>("#hover-tooltip");
+const studyChipEl = document.querySelector<HTMLElement>("#study-chip");
 
 // --- Renderer ---------------------------------------------------------------
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -63,7 +67,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
   45,
   window.innerWidth / window.innerHeight,
-  0.1,
+  0.01, // near plane small enough to get right down to the surface
   100
 );
 camera.position.set(0, 0, 3.2);
@@ -102,6 +106,14 @@ for (const overlay of overlays) scene.add(overlay.object);
 
 const highlight = new LocationHighlight();
 scene.add(highlight.object);
+
+// High-resolution study region: a sharp HLS patch draped over a searched area,
+// driven by the same timeline so you can watch it change over the years.
+const studyRegion = new StudyRegion(
+  renderer.capabilities.getMaxAnisotropy(),
+  (loading) => setStatus(loading ? "Loading high-res imagery…" : "")
+);
+scene.add(studyRegion.object);
 
 // --- Hover inspector (coordinate + country readout) -------------------------
 if (tooltipEl) {
@@ -159,6 +171,8 @@ if (timelineEl) {
   new TimeSlider(timelineEl, months, currentIndex, (index) => {
     currentIndex = index;
     refreshGlobe();
+    if (studyRegion.active)
+      studyRegion.setDate(studyDate(months[currentIndex]));
   });
 }
 
@@ -193,11 +207,15 @@ controls.dampingFactor = 0.08;
 controls.enablePan = false; // keep the globe centred
 controls.rotateSpeed = 0.45;
 controls.zoomSpeed = 0.8;
-controls.minDistance = 1.25; // how close you can get to study a region
+controls.minDistance = 1.06; // get right down to a study region's surface
 controls.maxDistance = 4.5; // furthest zoom-out
 
 // --- Search + fly-to --------------------------------------------------------
 const flyer = new CameraFlyer(camera, controls);
+
+const studyChip = studyChipEl
+  ? new StudyChip(studyChipEl, () => studyRegion.hide())
+  : null;
 
 if (searchEl) {
   new SearchBox(searchEl, (result) => {
@@ -207,6 +225,12 @@ if (searchEl) {
       lon: result.lon,
       geometry: result.geometry,
     });
+    // Drape a high-res patch over the area, driven by the current timeline month.
+    studyRegion.show(
+      regionAround(result.lat, result.lon, 1.2),
+      studyDate(months[currentIndex])
+    );
+    studyChip?.show(result.name);
   });
 }
 
@@ -217,6 +241,7 @@ renderer.setAnimationLoop(() => {
   const delta = clock.getDelta();
   flyer.update(delta);
   if (!flyer.isFlying) controls.update(); // flyer drives the camera while active
+  highlight.update(camera.position.length()); // keep the marker a constant size
   renderer.render(scene, camera);
 
   if (!signalledReady) {
