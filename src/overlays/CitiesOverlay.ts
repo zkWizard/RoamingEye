@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { latLngToVector3 } from "../lib/geo";
+import { fetchJson } from "../lib/net";
 import { ICONS } from "../ui/icons";
 import { GLOBE_RADIUS, type MapOverlay } from "./types";
 
@@ -33,9 +34,7 @@ export class CitiesOverlay implements MapOverlay {
   }
 
   private async load(): Promise<void> {
-    const res = await fetch(this.url);
-    if (!res.ok) throw new Error(`cities: ${res.status}`);
-    const cities = (await res.json()) as City[];
+    const cities = await fetchJson<City[]>(this.url);
 
     const positions: number[] = [];
     for (const c of cities) {

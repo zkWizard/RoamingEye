@@ -1,176 +1,146 @@
-# RoamingEye 🌍
+<p align="center">
+  <img src="docs/banner.svg" alt="RoamingEye — open, global satellite imaging for every scientist on Earth" width="100%" />
+</p>
 
-**Roam a high-fidelity 3D Earth from a satellite's-eye view — right in your browser.**
+<p align="center">
+  <a href="https://github.com/zkWizard/RoamingEye/actions/workflows/ci.yml"><img src="https://github.com/zkWizard/RoamingEye/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <img src="https://img.shields.io/badge/license-MIT-4ea1ff.svg" alt="MIT License" />
+  <img src="https://img.shields.io/badge/data-100%25%20open-2ea043.svg" alt="100% open data" />
+  <img src="https://img.shields.io/badge/PRs-welcome-2ea043.svg" alt="PRs welcome" />
+  <img src="https://img.shields.io/badge/built%20with-Three.js%20%2B%20TypeScript-8b97ab.svg" alt="Built with Three.js + TypeScript" />
+</p>
 
-RoamingEye is an open-source project building a highly detailed, interactive 3D
-globe you can explore on both mobile and desktop. The long-term vision: zoom from
-orbit down to street-level terrain, and surface real information about whatever
-country, region, or feature you're looking at — all powered by **open mapping and
-geospatial data from researchers and institutions around the world**.
+# RoamingEye 🛰️🌍
 
-## ✨ Current features
+**Roam a high-fidelity 3D Earth, scrub through decades of satellite imagery, and zoom into any region at 30-metre detail — all powered entirely by open data, free for anyone, anywhere.**
 
-- A real, texture-mapped 3D Earth rendered with WebGL (Three.js)
-- **Grab and drag** to rotate the globe in any direction (mouse + touch)
-- A **temporal scrubber** — a ruler-style timeline (one tick per month, labelled
-  by year) to scrub through the last 5 years of monthly satellite data and watch
-  the **seasons change** across the globe
-- **Switchable data layers**: vegetation (NDVI / EVI) and snow cover
-- **Search any place** (top-right) — geocodes via OpenStreetMap, then **flies the
-  globe** to it and **highlights its administrative border**
-- **Overlay toolbar** (right side) — toggle a coordinate **grid**, national
-  **borders**, **cities**, and an **atmosphere** glow
-- **Zoom** in to study a specific region (e.g. a province of Spain) across years
-- **High-resolution study region** — searching a place drapes a sharp **30 m
-  true-color patch** (NASA HLS) over it that the timeline scrubs through, so you
-  can watch a specific area change year over year
-- A **hover readout** — coordinates and the country/territory under the cursor
-- Smooth inertia, responsive layout, and a starfield backdrop; works on desktop
-  and mobile
+RoamingEye is an open-source research instrument for planetary-scale observation. It turns the public satellite archives that humanity has already paid for — NASA's MODIS and Harmonized Landsat-Sentinel collections — into a fast, intuitive, browser-based globe that any researcher, educator, journalist, or curious person can use without an account, a license, or a fee.
 
-> True elevation terrain and full tiled zoom-everywhere are **on the roadmap** —
-> see below.
+> **Our thesis:** the ability to _watch the Earth change over time_ should not be locked behind expensive commercial platforms. The data is open. The tooling should be too.
 
 ---
 
-## 🛰️ Data & imagery
+## 🔭 Why this matters
 
-The globe is painted with **NASA GIBS** (Global Imagery Browse Services) monthly
-composites — cloud-free, gap-free, derived from the MODIS instrument on NASA's
-Terra satellite, and served with permissive CORS so the browser can load them
-directly into WebGL textures.
+Decades of Earth observation sit in open archives, but most of it is reached through specialist GIS software, API keys, and data-wrangling pipelines that exclude all but a handful of trained users. RoamingEye is an attempt to collapse that barrier: **point, drag, and scrub** — and the planet's recorded history is in front of you.
 
-- **Vegetation** — `MODIS_Terra_L3_NDVI_Monthly`, `MODIS_Terra_L3_EVI_Monthly`
-- **Snow cover** — `MODIS_Terra_L3_Snow_Cover_Monthly_Average_Pct`
-- **High-res study patch** — `HLS_S30_Nadir_BRDF_Adjusted_Reflectance` (~30 m,
-  2015→present; per-scene, so a date may be cloudy — step the timeline for clearer
-  passes)
-- Coverage: monthly, **2000 → present** (the scrubber starts with the most
-  recent 5 years)
-- Source: [NASA GIBS](https://nasa-gibs.github.io/gibs-api-docs/) ·
-  License: **Public domain** (NASA imagery is generally free to use)
-
-> Why not photographic true-color? Open, cloud-free, monthly _true-color_
-> imagery doesn't exist across multiple years — daily true-color mosaics are
-> cloudy and have orbital-swath gaps. Vegetation and snow indices are the
-> standard, purpose-built way to observe seasonal cycles over decades.
-
-**Overlays & search** use open vector data:
-
-- **Borders & cities** — [Natural Earth](https://www.naturalearthdata.com/)
-  (public domain), slimmed into `public/data/` by `scripts/prepare-data.mjs`.
-- **Geocoding** — [OpenStreetMap Nominatim](https://nominatim.org/) (data ©
-  OpenStreetMap contributors, ODbL). The public endpoint is rate-limited; a
-  production deployment should self-host or use a provider.
-
-Future terrain elevation is planned to use open datasets such as
-[GEBCO](https://www.gebco.net/) bathymetry/topography and
-[NASA SRTM](https://www.earthdata.nasa.gov/data/instruments/srtm). All data
-sources will remain open and properly attributed.
+It is built for, and by, the research community: every data source is open and cited, every imagery selection is provenance-tagged with the instrument and acquisition date, and the whole stack is MIT-licensed so any lab, classroom, or newsroom can fork and extend it.
 
 ---
 
-## 🚀 Getting started
+## ✨ What it does
+
+- 🌍 **A real 3D Earth** rendered with WebGL — grab to rotate, scroll to zoom from orbit down to the surface.
+- ⏳ **A temporal scrubber** — a ruler-style timeline that sweeps month-by-month through the last 5 years of monthly satellite composites, so you can _watch the seasons turn_ and trends emerge.
+- 🌱❄️🌡️ **A rich set of scientific layers** — 9 open NASA products across **vegetation** (NDVI, EVI), **temperature** (land surface, 2 m air, sea surface), **water** (precipitation, soil moisture), **cryosphere** (snow cover), and **atmosphere** (aerosols) — grouped in a clean picker and growing.
+- 📚 **An open-data Providers page** — a built-in catalogue of the ~33 agencies, archives, and platforms whose open data powers the project.
+- 🔎 **Search any place** — geocoded via OpenStreetMap; the globe flies there and highlights the administrative boundary.
+- 🛰️ **High-resolution study regions** — search a location and RoamingEye drapes a sharp **30 m true-colour patch** over it, _automatically selecting the clearest cloud-free satellite pass_ for each month. Scrub the timeline and watch that exact region change, year over year.
+- 🧭 **A live coordinate readout** — hover anywhere to read latitude/longitude and the country/territory under the cursor.
+- 🗺️ **Toggleable overlays** — coordinate grid, national borders, cities, and an atmosphere glow.
+
+---
+
+## 🧪 Built for research
+
+RoamingEye is designed around real scientific workflows. A few examples it already supports:
+
+| Field                               | What you can observe                                                       |
+| ----------------------------------- | -------------------------------------------------------------------------- |
+| **Vegetation phenology**            | Green-up and senescence cycles via monthly NDVI/EVI across years.          |
+| **Deforestation & land-use change** | Step a 30 m study patch over a forest frontier across consecutive years.   |
+| **Urban expansion**                 | Watch a city's footprint grow in high-resolution true colour.              |
+| **Drought & agriculture**           | Compare vegetation vigour between wet and dry years over a region.         |
+| **Snow & cryosphere**               | Track seasonal snow advance/retreat with monthly snow-cover composites.    |
+| **Disaster & event assessment**     | Pull the clearest pre/post imagery for a study area after a fire or flood. |
+
+Every high-resolution scene is labelled with its **instrument and acquisition date** (e.g. _Sentinel-2 · HLS S30 · 30 m · 2024-08-05_) so observations are reproducible and citable.
+
+---
+
+## 🛰️ Data & provenance
+
+100% open, public-domain or open-licensed data:
+
+| Source                        | Product                                             | Native resolution | Coverage            | License       |
+| ----------------------------- | --------------------------------------------------- | ----------------- | ------------------- | ------------- |
+| **NASA GIBS** (MODIS/Terra)   | Monthly vegetation (NDVI, EVI)                      | 1 km              | 2000 → present      | Public domain |
+| **NASA GIBS** (MODIS/Terra)   | Monthly snow cover                                  | 2 km              | 2000 → present      | Public domain |
+| **NASA GIBS** (HLS)           | High-res true colour (Sentinel-2 S30 / Landsat L30) | ~30 m             | 2013/2015 → present | Public domain |
+| **Natural Earth**             | National borders, populated places                  | 1:110m            | —                   | Public domain |
+| **OpenStreetMap** (Nominatim) | Geocoding & administrative boundaries               | —                 | —                   | ODbL          |
+
+See [`DATA_SOURCES.md`](DATA_SOURCES.md) for the full catalogue, layer identifiers, and scientific notes.
+
+> **An honest note on resolution.** Open data tops out at roughly **10 m** (Sentinel-2) to **30 m** (Landsat/HLS) for recent, frequently-revisited imagery. True sub-metre "street-level" imagery only exists in commercial archives, which are neither free nor global. RoamingEye deliberately stays within the open ecosystem — and a [tiled-streaming engine](docs/rfcs/RFC-001-tiled-imagery-streaming.md) to render that full resolution _everywhere_ is our flagship roadmap item.
+
+---
+
+## 🚀 Quickstart
 
 **Requirements:** [Node.js](https://nodejs.org/) 20+ and npm.
 
 ```bash
-# 1. Install dependencies
+git clone https://github.com/zkWizard/RoamingEye.git
+cd RoamingEye
 npm install
-
-# 2. Start the local dev server
-npm run dev
+npm run dev          # → http://localhost:5173
 ```
 
-Then open the URL Vite prints (default: <http://localhost:5173>).
-The dev server is also exposed on your local network, so you can open that same
-`http://<your-computer-ip>:5173` address on your phone to test mobile.
-
-### Other scripts
+The dev server is also exposed on your local network, so you can open the printed `http://<your-ip>:5173` address on a phone or tablet.
 
 ```bash
-npm run build     # production build into dist/
-npm run preview   # preview the production build locally
+npm run build        # type-check + production build
+npm run test         # unit tests (Vitest)
+npm run test:e2e     # browser smoke + feature tests (Playwright)
 ```
 
 ---
 
-## 🧰 Tech stack
+## 🏗️ How it works
 
-| Concern       | Choice                                        |
-| ------------- | --------------------------------------------- |
-| Language      | [TypeScript](https://www.typescriptlang.org/) |
-| 3D rendering  | [Three.js](https://threejs.org/)              |
-| Build / dev   | [Vite](https://vitejs.dev/)                   |
-| Controls      | Three.js `OrbitControls` (rotate + zoom)      |
-| Geocoding     | OpenStreetMap Nominatim                       |
-| Vector data   | Natural Earth (borders, cities)               |
-| Unit tests    | [Vitest](https://vitest.dev/)                 |
-| E2E tests     | [Playwright](https://playwright.dev/)         |
-| Lint / format | ESLint + Prettier                             |
-| CI            | GitHub Actions                                |
-| Imagery       | NASA GIBS / MODIS monthly (public domain)     |
+A lightweight, dependency-honest stack — no heavy GIS frameworks:
 
----
+- **[Three.js](https://threejs.org/)** for WebGL rendering, on a single textured globe.
+- **NASA GIBS WMS** for imagery, streamed straight into GPU textures (the service is CORS-open, so there's no backend).
+- Pure, unit-tested logic for the geodesy, timeline, scene selection, and geocoding; rendering and DOM kept separate from it.
+- **TypeScript**, **Vite**, **Vitest**, **Playwright**, **ESLint/Prettier**, and **GitHub Actions** CI.
 
-## 🗺️ Roadmap
-
-- [x] **M0** — Grab-to-rotate 3D Earth (this MVP)
-- [x] **Temporal scrubber** — monthly seasonal composites (NDVI/EVI/snow) over
-      the last 5 years, with a ruler-style timeline
-- [ ] **M1** — Zoom in/out toward the surface, with sensible limits
-- [ ] Extend the timeline back to 2000 (and stream the current month as NASA
-      publishes it)
-- [ ] **M2** — Higher-resolution, tiled imagery that streams in as you zoom
-- [x] **M5** — Search a place and "fly to" it, with border highlight
-- [x] Overlay toolbar — grid, borders, cities, atmosphere
-- [ ] **M3** — True elevation terrain (GEBCO / SRTM) for real 3D relief
-- [ ] **M4** — Click/tap a location to see details (country, region, features)
-- [ ] More overlays — land-cover classification, protected areas, drawn study regions
-
----
-
-## 📦 Project structure
-
-```
-RoamingEye/
-├─ index.html          # Landing page + overlay UI
-├─ src/
-│  ├─ main.ts          # Three.js scene: Earth, lighting, controls, wiring
-│  ├─ lib/             # Pure, unit-tested logic (geo, timeline, geojson, geocoding)
-│  ├─ textures/        # GIBS imagery loading, caching, application
-│  ├─ overlays/        # Toggleable map overlays (grid, borders, cities, atmosphere)
-│  ├─ scene/           # Camera fly-to + location highlight
-│  ├─ ui/              # Scrubber, layer selector, toolbar, search (DOM components)
-│  └─ style.css        # Layout and overlay styling
-├─ e2e/                # Playwright browser smoke tests
-├─ scripts/            # prepare-data.mjs (slims Natural Earth into public/data)
-├─ public/
-│  ├─ data/            # Slimmed borders + cities (Natural Earth, public domain)
-│  └─ textures/        # Static fallback imagery (NASA Blue Marble)
-├─ .github/            # CI, issue/PR templates, contributing & security docs
-├─ vite.config.ts
-└─ package.json
-```
+For a contributor's tour of the codebase, see [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ---
 
 ## 🤝 Contributing
 
-RoamingEye is fully open source and contributions are welcome — whether that's
-code, data-source expertise, or design. Every change lands through a reviewed,
-CI-gated pull request.
+**We are actively looking for collaborators** — Earth scientists, remote-sensing specialists, graphics engineers, designers, and data wranglers all have a place here.
 
-- **[CONTRIBUTING.md](.github/CONTRIBUTING.md)** — setup, workflow, testing, and
-  DCO sign-off.
-- **[GOVERNANCE.md](GOVERNANCE.md)** — roles, the trust ladder, and how decisions
-  get made.
-- **[Code of Conduct](.github/CODE_OF_CONDUCT.md)** — be kind.
+- 📘 Read [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md) — setup, workflow, and the (one-line, no-CLA) DCO sign-off.
+- 🏛️ [`GOVERNANCE.md`](GOVERNANCE.md) explains the trust ladder and how decisions get made.
+- 🌱 New to the project? Browse [**good first issues**](https://github.com/zkWizard/RoamingEye/labels/good%20first%20issue).
+- ➕ Want to add a dataset? [`docs/adding-a-data-layer.md`](docs/adding-a-data-layer.md) walks through it.
+- 🚩 **The flagship opportunity:** [**RFC-001 — Tiled imagery streaming**](docs/rfcs/RFC-001-tiled-imagery-streaming.md). Help us render full native resolution at any zoom, anywhere on Earth.
 
-If you work with open geospatial data and want to help, we'd especially love
-your input.
+Every change lands through a reviewed, CI-gated pull request. Be kind — see the [Code of Conduct](.github/CODE_OF_CONDUCT.md).
 
-## 📄 License
+---
 
-[MIT](./LICENSE) for the code. Imagery and data retain their respective licenses
-(see **Data & imagery** above).
+## 🗺️ Roadmap
+
+Now / Next / Later at a glance (full detail in [`ROADMAP.md`](ROADMAP.md)):
+
+- **Now** — robustness, cloud-aware scene selection, documentation, community onboarding.
+- **Next** — tiled imagery streaming (sharp zoom everywhere), more layers (land cover, surface temperature, fire), drawn study regions with charts.
+- **Later** — true 3D elevation terrain (GEBCO/SRTM), time-series analytics and export, shareable deep links to a place/date/layer.
+
+---
+
+## 📄 License & attribution
+
+- **Code:** [MIT](LICENSE).
+- **Imagery & data:** retain their own licenses (see the table above). Imagery courtesy of **NASA EOSDIS GIBS**; vector data **© Natural Earth**; geocoding **© OpenStreetMap contributors**.
+
+## 🙏 Acknowledgements
+
+RoamingEye stands entirely on the shoulders of the open Earth-observation community — the scientists and engineers at **NASA**, **ESA**, **USGS**, the **OpenStreetMap** project, and **Natural Earth**, who put planetary-scale data in the public domain. This project is simply a friendlier window onto their work.
+
+<p align="center"><em>Built in the open, for the planet. ⭐ Star the repo to follow along.</em></p>

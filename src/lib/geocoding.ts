@@ -1,4 +1,5 @@
 import type { GeoGeometry } from "./geojson";
+import { fetchJson } from "./net";
 
 /**
  * Geocoding via OpenStreetMap Nominatim — open, and it returns real
@@ -49,12 +50,12 @@ export async function geocode(
   query: string,
   signal?: AbortSignal
 ): Promise<GeoResult[]> {
-  const res = await fetch(buildSearchUrl(query), {
+  // One retry only — Nominatim's public endpoint is rate-limited.
+  const items = await fetchJson<NominatimItem[]>(buildSearchUrl(query), {
     signal,
-    headers: { Accept: "application/json" },
+    retries: 1,
+    timeoutMs: 12000,
   });
-  if (!res.ok) throw new Error(`geocode: ${res.status}`);
-  const items = (await res.json()) as NominatimItem[];
   return items.map(toResult);
 }
 

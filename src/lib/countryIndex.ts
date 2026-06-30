@@ -1,4 +1,5 @@
 import type { Position } from "./geojson";
+import { fetchJson } from "./net";
 
 /**
  * A fast point-in-country lookup built from the bundled Natural Earth borders.
@@ -121,8 +122,6 @@ export function buildCountryIndex(collection: RawCollection): CountryIndex {
 export async function loadCountryIndex(
   url = "/data/countries.geojson"
 ): Promise<CountryIndex> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`country index: ${res.status}`);
-  const collection = (await res.json()) as RawCollection;
+  const collection = await fetchJson<RawCollection>(url);
   return buildCountryIndex(collection);
 }

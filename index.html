@@ -15,7 +15,11 @@
   </head>
   <body>
     <div id="app">
-      <canvas id="globe"></canvas>
+      <canvas
+        id="globe"
+        aria-label="Interactive 3D globe — drag to rotate, scroll to zoom"
+        role="application"
+      ></canvas>
 
       <header class="overlay overlay--top">
         <h1 class="brand">Roaming<span>Eye</span></h1>
@@ -43,6 +47,10 @@
         <p class="attribution">
           Imagery: NASA GIBS · Borders &amp; places: Natural Earth · Search: ©
           OpenStreetMap ·
+          <button id="providers-link" type="button" class="attribution__link">
+            Data providers
+          </button>
+          ·
           <a
             href="https://github.com/zkWizard/RoamingEye"
             target="_blank"
@@ -51,6 +59,8 @@
           >
         </p>
       </div>
+
+      <div id="providers-page" class="providers" aria-hidden="true"></div>
 
       <div id="loader" class="loader">
         <div class="loader__spinner" aria-hidden="true"></div>

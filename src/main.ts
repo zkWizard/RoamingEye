@@ -4,6 +4,7 @@ import {
   LAYERS,
   DATA_LATEST,
   buildMonthRange,
+  clampIndexToLayer,
   type LayerId,
   type YearMonth,
 } from "./lib/timeline";
@@ -22,9 +23,10 @@ import { LocationHighlight } from "./scene/LocationHighlight";
 import { HoverInspector } from "./scene/HoverInspector";
 import { StudyRegion } from "./scene/StudyRegion";
 import { StudyChip } from "./ui/StudyChip";
+import { ProvidersPage } from "./ui/ProvidersPage";
 import { loadCountryIndex } from "./lib/countryIndex";
 import { flyToDistance } from "./lib/navigation";
-import { regionAround, studyDate } from "./lib/imagery";
+import { regionAround } from "./lib/imagery";
 
 /**
  * RoamingEye
@@ -55,6 +57,8 @@ const toolbarEl = document.querySelector<HTMLElement>("#toolbar");
 const searchEl = document.querySelector<HTMLElement>("#search");
 const tooltipEl = document.querySelector<HTMLElement>("#hover-tooltip");
 const studyChipEl = document.querySelector<HTMLElement>("#study-chip");
+const providersPageEl = document.querySelector<HTMLElement>("#providers-page");
+const providersLinkEl = document.querySelector<HTMLElement>("#providers-link");
 
 // --- Renderer ---------------------------------------------------------------
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -108,11 +112,19 @@ const highlight = new LocationHighlight();
 scene.add(highlight.object);
 
 // High-resolution study region: a sharp HLS patch draped over a searched area,
-// driven by the same timeline so you can watch it change over the years.
-const studyRegion = new StudyRegion(
-  renderer.capabilities.getMaxAnisotropy(),
-  (loading) => setStatus(loading ? "Loading high-res imagery…" : "")
-);
+// driven by the same timeline so you can watch it change over the years. It
+// auto-selects the clearest satellite pass for each month.
+function exitStudyRegion(): void {
+  studyRegion.hide();
+}
+const studyChip = studyChipEl
+  ? new StudyChip(studyChipEl, exitStudyRegion)
+  : null;
+const studyRegion = new StudyRegion(renderer.capabilities.getMaxAnisotropy(), {
+  onLoadingChange: (loading) =>
+    setStatus(loading ? "Loading high-res imagery…" : ""),
+  onStatus: (text) => studyChip?.setDetail(text),
+});
 scene.add(studyRegion.object);
 
 // --- Hover inspector (coordinate + country readout) -------------------------
@@ -159,20 +171,27 @@ function prefetchCurrentLayer(): void {
 }
 
 // --- UI ---------------------------------------------------------------------
+const timeSlider = timelineEl
+  ? new TimeSlider(timelineEl, months, currentIndex, (index) => {
+      currentIndex = index;
+      refreshGlobe();
+      if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
+    })
+  : null;
+
 if (layerEl) {
   new LayerSelector(layerEl, currentLayer, (id) => {
     currentLayer = id;
+    // Some layers (reanalysis, ocean) lag behind the MODIS composites — snap
+    // the timeline to a month this layer actually covers.
+    const snapped = clampIndexToLayer(months, currentIndex, LAYERS[id]);
+    if (snapped !== currentIndex) {
+      currentIndex = snapped;
+      timeSlider?.setIndex(snapped);
+      if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
+    }
     refreshGlobe();
     prefetchCurrentLayer();
-  });
-}
-
-if (timelineEl) {
-  new TimeSlider(timelineEl, months, currentIndex, (index) => {
-    currentIndex = index;
-    refreshGlobe();
-    if (studyRegion.active)
-      studyRegion.setDate(studyDate(months[currentIndex]));
   });
 }
 
@@ -213,10 +232,6 @@ controls.maxDistance = 4.5; // furthest zoom-out
 // --- Search + fly-to --------------------------------------------------------
 const flyer = new CameraFlyer(camera, controls);
 
-const studyChip = studyChipEl
-  ? new StudyChip(studyChipEl, () => studyRegion.hide())
-  : null;
-
 if (searchEl) {
   new SearchBox(searchEl, (result) => {
     flyer.flyTo(result.lat, result.lon, flyToDistance(result.boundingBox));
@@ -228,17 +243,24 @@ if (searchEl) {
     // Drape a high-res patch over the area, driven by the current timeline month.
     studyRegion.show(
       regionAround(result.lat, result.lon, 1.2),
-      studyDate(months[currentIndex])
+      months[currentIndex]
     );
     studyChip?.show(result.name);
   });
 }
 
+// --- Providers page ---------------------------------------------------------
+if (providersPageEl && providersLinkEl) {
+  const providers = new ProvidersPage(providersPageEl);
+  providersLinkEl.addEventListener("click", () => providers.open());
+}
+
 // --- Render loop ------------------------------------------------------------
-const clock = new THREE.Clock();
+const timer = new THREE.Timer();
 let signalledReady = false;
 renderer.setAnimationLoop(() => {
-  const delta = clock.getDelta();
+  timer.update();
+  const delta = timer.getDelta();
   flyer.update(delta);
   if (!flyer.isFlying) controls.update(); // flyer drives the camera while active
   highlight.update(camera.position.length()); // keep the marker a constant size
