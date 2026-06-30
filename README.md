@@ -21,10 +21,15 @@ geospatial data from researchers and institutions around the world**.
 - **Overlay toolbar** (right side) — toggle a coordinate **grid**, national
   **borders**, **cities**, and an **atmosphere** glow
 - **Zoom** in to study a specific region (e.g. a province of Spain) across years
+- **High-resolution study region** — searching a place drapes a sharp **30 m
+  true-color patch** (NASA HLS) over it that the timeline scrubs through, so you
+  can watch a specific area change year over year
+- A **hover readout** — coordinates and the country/territory under the cursor
 - Smooth inertia, responsive layout, and a starfield backdrop; works on desktop
   and mobile
 
-> True elevation terrain and deeper place info are **on the roadmap** — see below.
+> True elevation terrain and full tiled zoom-everywhere are **on the roadmap** —
+> see below.
 
 ---
 
@@ -37,6 +42,9 @@ directly into WebGL textures.
 
 - **Vegetation** — `MODIS_Terra_L3_NDVI_Monthly`, `MODIS_Terra_L3_EVI_Monthly`
 - **Snow cover** — `MODIS_Terra_L3_Snow_Cover_Monthly_Average_Pct`
+- **High-res study patch** — `HLS_S30_Nadir_BRDF_Adjusted_Reflectance` (~30 m,
+  2015→present; per-scene, so a date may be cloudy — step the timeline for clearer
+  passes)
 - Coverage: monthly, **2000 → present** (the scrubber starts with the most
   recent 5 years)
 - Source: [NASA GIBS](https://nasa-gibs.github.io/gibs-api-docs/) ·
