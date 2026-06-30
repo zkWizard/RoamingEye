@@ -445,3 +445,34 @@ body {
     font-size: 0.6rem;
   }
 }
+
+/* --- Hover readout (follows the cursor) ------------------------------------- */
+.hover-tooltip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 6;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--fg);
+  background: rgba(8, 12, 20, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  pointer-events: none; /* never intercept the globe drag */
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.hover-tooltip.is-visible {
+  opacity: 1;
+}
+
+/* Touch devices have no hover — don't show a stuck readout. */
+@media (hover: none) {
+  .hover-tooltip {
+    display: none;
+  }
+}

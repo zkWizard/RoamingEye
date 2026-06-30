@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { latLngToVector3, greatCircleDistance } from "./geo";
+import {
+  latLngToVector3,
+  vector3ToLatLng,
+  formatLatLng,
+  greatCircleDistance,
+} from "./geo";
 
 describe("latLngToVector3", () => {
   it("maps (0, 0) to +X on the unit sphere", () => {
@@ -39,6 +44,36 @@ describe("latLngToVector3", () => {
     ]) {
       expect(latLngToVector3(lat, lon, radius).length()).toBeCloseTo(radius);
     }
+  });
+});
+
+describe("vector3ToLatLng", () => {
+  it("round-trips lat/lng through the projection", () => {
+    for (const [lat, lon] of [
+      [0, 0],
+      [40.24, -3.69], // Toledo-ish
+      [-33.87, 151.21], // Sydney-ish
+      [64, -22], // Reykjavik-ish
+    ]) {
+      const back = vector3ToLatLng(latLngToVector3(lat, lon, 1));
+      expect(back.lat).toBeCloseTo(lat, 4);
+      expect(back.lon).toBeCloseTo(lon, 4);
+    }
+  });
+
+  it("is radius-independent", () => {
+    const back = vector3ToLatLng(latLngToVector3(12, 34, 7));
+    expect(back.lat).toBeCloseTo(12, 4);
+    expect(back.lon).toBeCloseTo(34, 4);
+  });
+});
+
+describe("formatLatLng", () => {
+  it("labels hemispheres", () => {
+    expect(formatLatLng({ lat: 40.24, lon: -3.69 })).toBe("40.24°N, 3.69°W");
+    expect(formatLatLng({ lat: -33.87, lon: 151.21 })).toBe(
+      "33.87°S, 151.21°E"
+    );
   });
 });
 

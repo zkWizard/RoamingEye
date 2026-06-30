@@ -19,6 +19,8 @@ import { CitiesOverlay } from "./overlays/CitiesOverlay";
 import { AtmosphereOverlay } from "./overlays/AtmosphereOverlay";
 import { CameraFlyer } from "./scene/CameraFlyer";
 import { LocationHighlight } from "./scene/LocationHighlight";
+import { HoverInspector } from "./scene/HoverInspector";
+import { loadCountryIndex } from "./lib/countryIndex";
 import { flyToDistance } from "./lib/navigation";
 
 /**
@@ -48,6 +50,7 @@ const layerEl = document.querySelector<HTMLElement>("#layer-selector");
 const timelineEl = document.querySelector<HTMLElement>("#timeline");
 const toolbarEl = document.querySelector<HTMLElement>("#toolbar");
 const searchEl = document.querySelector<HTMLElement>("#search");
+const tooltipEl = document.querySelector<HTMLElement>("#hover-tooltip");
 
 // --- Renderer ---------------------------------------------------------------
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -99,6 +102,16 @@ for (const overlay of overlays) scene.add(overlay.object);
 
 const highlight = new LocationHighlight();
 scene.add(highlight.object);
+
+// --- Hover inspector (coordinate + country readout) -------------------------
+if (tooltipEl) {
+  const inspector = new HoverInspector(canvas, camera, earth, tooltipEl);
+  loadCountryIndex()
+    .then((index) => inspector.setCountryIndex(index))
+    .catch((err) =>
+      console.warn("RoamingEye: country index failed to load", err)
+    );
+}
 
 // --- Temporal imagery pipeline ----------------------------------------------
 const months: YearMonth[] = buildMonthRange(DATA_LATEST, MONTHS_BACK);
