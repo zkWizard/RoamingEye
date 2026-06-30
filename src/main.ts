@@ -10,6 +10,16 @@ import {
 import { GlobeTextureManager } from "./textures/GlobeTextureManager";
 import { TimeSlider } from "./ui/TimeSlider";
 import { LayerSelector } from "./ui/LayerSelector";
+import { Toolbar } from "./ui/Toolbar";
+import { SearchBox } from "./ui/SearchBox";
+import type { MapOverlay } from "./overlays/types";
+import { GraticuleOverlay } from "./overlays/GraticuleOverlay";
+import { BordersOverlay } from "./overlays/BordersOverlay";
+import { CitiesOverlay } from "./overlays/CitiesOverlay";
+import { AtmosphereOverlay } from "./overlays/AtmosphereOverlay";
+import { CameraFlyer } from "./scene/CameraFlyer";
+import { LocationHighlight } from "./scene/LocationHighlight";
+import { flyToDistance } from "./lib/navigation";
 
 /**
  * RoamingEye
@@ -36,6 +46,8 @@ const loaderEl = document.querySelector<HTMLElement>("#loader");
 const statusEl = document.querySelector<HTMLElement>("#timeline-status");
 const layerEl = document.querySelector<HTMLElement>("#layer-selector");
 const timelineEl = document.querySelector<HTMLElement>("#timeline");
+const toolbarEl = document.querySelector<HTMLElement>("#toolbar");
+const searchEl = document.querySelector<HTMLElement>("#search");
 
 // --- Renderer ---------------------------------------------------------------
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -75,6 +87,18 @@ const earth = new THREE.Mesh(
   })
 );
 scene.add(earth);
+
+// --- Map overlays (toolbar-toggleable) --------------------------------------
+const overlays: MapOverlay[] = [
+  new GraticuleOverlay(),
+  new BordersOverlay(),
+  new CitiesOverlay(),
+  new AtmosphereOverlay(),
+];
+for (const overlay of overlays) scene.add(overlay.object);
+
+const highlight = new LocationHighlight();
+scene.add(highlight.object);
 
 // --- Temporal imagery pipeline ----------------------------------------------
 const months: YearMonth[] = buildMonthRange(DATA_LATEST, MONTHS_BACK);
@@ -128,18 +152,58 @@ if (timelineEl) {
 refreshGlobe(); // kick off the initial month
 prefetchCurrentLayer(); // warm the preview cache for instant scrubbing
 
-// --- Controls (rotate only) -------------------------------------------------
+// Toolbar overlays — load lazily on first enable, then toggle visibility.
+async function toggleOverlay(overlay: MapOverlay, on: boolean): Promise<void> {
+  if (on && overlay.ensureLoaded) {
+    try {
+      await overlay.ensureLoaded();
+    } catch (err) {
+      console.warn(`RoamingEye: overlay "${overlay.id}" failed to load`, err);
+    }
+  }
+  overlay.object.visible = on;
+}
+
+if (toolbarEl) {
+  new Toolbar(toolbarEl, overlays, (overlay, on) => {
+    void toggleOverlay(overlay, on);
+  });
+}
+for (const overlay of overlays) {
+  if (overlay.defaultOn) void toggleOverlay(overlay, true);
+}
+
+// --- Controls (rotate + zoom) -----------------------------------------------
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; // inertia for a natural "spin" feel
 controls.dampingFactor = 0.08;
-controls.enableZoom = false; // MVP: no zoom yet
-controls.enablePan = false; // MVP: no pan
+controls.enablePan = false; // keep the globe centred
 controls.rotateSpeed = 0.45;
+controls.zoomSpeed = 0.8;
+controls.minDistance = 1.25; // how close you can get to study a region
+controls.maxDistance = 4.5; // furthest zoom-out
+
+// --- Search + fly-to --------------------------------------------------------
+const flyer = new CameraFlyer(camera, controls);
+
+if (searchEl) {
+  new SearchBox(searchEl, (result) => {
+    flyer.flyTo(result.lat, result.lon, flyToDistance(result.boundingBox));
+    highlight.show({
+      lat: result.lat,
+      lon: result.lon,
+      geometry: result.geometry,
+    });
+  });
+}
 
 // --- Render loop ------------------------------------------------------------
+const clock = new THREE.Clock();
 let signalledReady = false;
 renderer.setAnimationLoop(() => {
-  controls.update();
+  const delta = clock.getDelta();
+  flyer.update(delta);
+  if (!flyer.isFlying) controls.update(); // flyer drives the camera while active
   renderer.render(scene, camera);
 
   if (!signalledReady) {

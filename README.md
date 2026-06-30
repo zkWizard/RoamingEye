@@ -16,11 +16,15 @@ geospatial data from researchers and institutions around the world**.
   by year) to scrub through the last 5 years of monthly satellite data and watch
   the **seasons change** across the globe
 - **Switchable data layers**: vegetation (NDVI / EVI) and snow cover
+- **Search any place** (top-right) — geocodes via OpenStreetMap, then **flies the
+  globe** to it and **highlights its administrative border**
+- **Overlay toolbar** (right side) — toggle a coordinate **grid**, national
+  **borders**, **cities**, and an **atmosphere** glow
+- **Zoom** in to study a specific region (e.g. a province of Spain) across years
 - Smooth inertia, responsive layout, and a starfield backdrop; works on desktop
   and mobile
 
-> Zoom, pan, location info, and true elevation terrain are **on the roadmap** —
-> see below.
+> True elevation terrain and deeper place info are **on the roadmap** — see below.
 
 ---
 
@@ -42,6 +46,14 @@ directly into WebGL textures.
 > imagery doesn't exist across multiple years — daily true-color mosaics are
 > cloudy and have orbital-swath gaps. Vegetation and snow indices are the
 > standard, purpose-built way to observe seasonal cycles over decades.
+
+**Overlays & search** use open vector data:
+
+- **Borders & cities** — [Natural Earth](https://www.naturalearthdata.com/)
+  (public domain), slimmed into `public/data/` by `scripts/prepare-data.mjs`.
+- **Geocoding** — [OpenStreetMap Nominatim](https://nominatim.org/) (data ©
+  OpenStreetMap contributors, ODbL). The public endpoint is rate-limited; a
+  production deployment should self-host or use a provider.
 
 Future terrain elevation is planned to use open datasets such as
 [GEBCO](https://www.gebco.net/) bathymetry/topography and
@@ -82,7 +94,9 @@ npm run preview   # preview the production build locally
 | Language      | [TypeScript](https://www.typescriptlang.org/) |
 | 3D rendering  | [Three.js](https://threejs.org/)              |
 | Build / dev   | [Vite](https://vitejs.dev/)                   |
-| Controls      | Three.js `OrbitControls` (rotate-only)        |
+| Controls      | Three.js `OrbitControls` (rotate + zoom)      |
+| Geocoding     | OpenStreetMap Nominatim                       |
+| Vector data   | Natural Earth (borders, cities)               |
 | Unit tests    | [Vitest](https://vitest.dev/)                 |
 | E2E tests     | [Playwright](https://playwright.dev/)         |
 | Lint / format | ESLint + Prettier                             |
@@ -100,9 +114,11 @@ npm run preview   # preview the production build locally
 - [ ] Extend the timeline back to 2000 (and stream the current month as NASA
       publishes it)
 - [ ] **M2** — Higher-resolution, tiled imagery that streams in as you zoom
+- [x] **M5** — Search a place and "fly to" it, with border highlight
+- [x] Overlay toolbar — grid, borders, cities, atmosphere
 - [ ] **M3** — True elevation terrain (GEBCO / SRTM) for real 3D relief
 - [ ] **M4** — Click/tap a location to see details (country, region, features)
-- [ ] **M5** — Search and "fly to" a place
+- [ ] More overlays — land-cover classification, protected areas, drawn study regions
 
 ---
 
@@ -113,12 +129,16 @@ RoamingEye/
 ├─ index.html          # Landing page + overlay UI
 ├─ src/
 │  ├─ main.ts          # Three.js scene: Earth, lighting, controls, wiring
-│  ├─ lib/             # Pure, unit-tested logic (geo math, timeline model)
+│  ├─ lib/             # Pure, unit-tested logic (geo, timeline, geojson, geocoding)
 │  ├─ textures/        # GIBS imagery loading, caching, application
-│  ├─ ui/              # Timeline scrubber + layer selector (DOM components)
+│  ├─ overlays/        # Toggleable map overlays (grid, borders, cities, atmosphere)
+│  ├─ scene/           # Camera fly-to + location highlight
+│  ├─ ui/              # Scrubber, layer selector, toolbar, search (DOM components)
 │  └─ style.css        # Layout and overlay styling
 ├─ e2e/                # Playwright browser smoke tests
+├─ scripts/            # prepare-data.mjs (slims Natural Earth into public/data)
 ├─ public/
+│  ├─ data/            # Slimmed borders + cities (Natural Earth, public domain)
 │  └─ textures/        # Static fallback imagery (NASA Blue Marble)
 ├─ .github/            # CI, issue/PR templates, contributing & security docs
 ├─ vite.config.ts

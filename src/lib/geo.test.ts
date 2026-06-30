@@ -2,11 +2,11 @@ import { describe, it, expect } from "vitest";
 import { latLngToVector3, greatCircleDistance } from "./geo";
 
 describe("latLngToVector3", () => {
-  it("maps (0, 0) to +Z on the unit sphere", () => {
+  it("maps (0, 0) to +X on the unit sphere", () => {
     const v = latLngToVector3(0, 0);
-    expect(v.x).toBeCloseTo(0);
+    expect(v.x).toBeCloseTo(1);
     expect(v.y).toBeCloseTo(0);
-    expect(v.z).toBeCloseTo(1);
+    expect(v.z).toBeCloseTo(0);
   });
 
   it("maps the north pole to +Y", () => {
@@ -16,11 +16,18 @@ describe("latLngToVector3", () => {
     expect(v.z).toBeCloseTo(0);
   });
 
-  it("maps (0, 90) to +X", () => {
+  it("maps (0, 90) to -Z", () => {
     const v = latLngToVector3(0, 90);
-    expect(v.x).toBeCloseTo(1);
+    expect(v.x).toBeCloseTo(0);
     expect(v.y).toBeCloseTo(0);
-    expect(v.z).toBeCloseTo(0);
+    expect(v.z).toBeCloseTo(-1);
+  });
+
+  it("keeps longitudes 180° apart antipodal in the XZ plane", () => {
+    const east = latLngToVector3(0, 90);
+    const west = latLngToVector3(0, -90);
+    expect(east.x).toBeCloseTo(-west.x);
+    expect(east.z).toBeCloseTo(-west.z);
   });
 
   it("always lands on the sphere of the requested radius", () => {

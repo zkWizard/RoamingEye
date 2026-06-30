@@ -14,6 +14,18 @@ export default tseslint.config(
       sourceType: "module",
     },
   },
+  // Node-run build scripts (plain JS) get Node globals.
+  {
+    files: ["scripts/**/*.{js,mjs}"],
+    languageOptions: {
+      globals: {
+        console: "readonly",
+        process: "readonly",
+        fetch: "readonly",
+        URL: "readonly",
+      },
+    },
+  },
   // Prettier last: turn off all formatting-related lint rules so Prettier owns
   // formatting and the two tools never fight.
   prettier
