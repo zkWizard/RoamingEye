@@ -86,7 +86,8 @@ const textures = new GlobeTextureManager(
   earth.material,
   renderer.capabilities.getMaxAnisotropy(),
   {
-    image: { width: 2048, height: 1024 },
+    preview: { width: 512, height: 256 }, // prefetched for every month → instant scrub
+    sharp: { width: 2048, height: 1024 }, // loaded for the settled month
     onLoadingChange: (loading) => {
       setStatus(loading ? "Loading imagery…" : "");
       if (!loading && !firstLoadDone) {
@@ -102,11 +103,18 @@ function refreshGlobe(): void {
   textures.show(LAYERS[currentLayer], months[currentIndex]);
 }
 
+// Prefetch a small preview of every month so scrubbing updates the globe live
+// at each month boundary, not just when the user stops dragging.
+function prefetchCurrentLayer(): void {
+  textures.prefetchPreviews(LAYERS[currentLayer], months);
+}
+
 // --- UI ---------------------------------------------------------------------
 if (layerEl) {
   new LayerSelector(layerEl, currentLayer, (id) => {
     currentLayer = id;
     refreshGlobe();
+    prefetchCurrentLayer();
   });
 }
 
@@ -118,6 +126,7 @@ if (timelineEl) {
 }
 
 refreshGlobe(); // kick off the initial month
+prefetchCurrentLayer(); // warm the preview cache for instant scrubbing
 
 // --- Controls (rotate only) -------------------------------------------------
 const controls = new OrbitControls(camera, renderer.domElement);

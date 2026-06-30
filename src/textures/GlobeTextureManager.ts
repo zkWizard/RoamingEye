@@ -9,18 +9,28 @@ import {
 /**
  * Loads NASA GIBS monthly composites and applies them to the globe material.
  *
- * Responsibilities:
- *  - Debounce rapid scrubbing so we don't fire a request per dragged pixel.
- *  - Ignore stale loads (only the latest selection wins).
- *  - LRU-cache decoded textures and dispose evicted ones to bound GPU memory.
+ * To make scrubbing feel real-time, this uses two resolutions:
+ *  - **Preview**: a small image for every month in the range, prefetched up
+ *    front and cached. Crossing into a new month while dragging is then an
+ *    instant cache hit, so the globe changes live at each boundary.
+ *  - **Sharp**: a full-resolution image loaded (debounced) only for the month
+ *    the user settles on, then swapped in to crisp up the view.
+ *
+ * It also ignores stale loads (only the latest selection wins) and disposes
+ * textures it no longer needs to bound GPU memory.
  */
 
 interface ManagerOptions {
-  image?: GibsImageOptions;
-  /** Max textures kept on the GPU before the least-recently-used is disposed. */
-  cacheSize?: number;
-  /** Debounce window for scrubbing, in ms. */
+  /** Small image size used for instant scrubbing (default 512×256). */
+  preview?: GibsImageOptions;
+  /** Full-resolution size for the settled month (default 2048×1024). */
+  sharp?: GibsImageOptions;
+  /** Max full-resolution textures kept before the least-recently-used is dropped. */
+  sharpCacheSize?: number;
+  /** Delay before loading the sharp upgrade after the user stops, in ms. */
   debounceMs?: number;
+  /** How many preview images to prefetch concurrently. */
+  prefetchConcurrency?: number;
   onLoadingChange?: (loading: boolean) => void;
   onError?: (key: string) => void;
 }
@@ -28,16 +38,25 @@ interface ManagerOptions {
 export class GlobeTextureManager {
   private readonly material: THREE.MeshStandardMaterial;
   private readonly loader = new THREE.TextureLoader();
-  private readonly cache = new Map<string, THREE.Texture>(); // insertion order == LRU
   private readonly anisotropy: number;
-  private readonly options: Required<
-    Omit<ManagerOptions, "onLoadingChange" | "onError" | "image">
-  > &
-    Pick<ManagerOptions, "onLoadingChange" | "onError" | "image">;
 
-  private requestSeq = 0;
-  private debounceTimer: ReturnType<typeof setTimeout> | undefined;
+  // Preview textures are kept for the whole current range; sharp textures are
+  // a small LRU set (insertion order == recency).
+  private readonly previewCache = new Map<string, THREE.Texture>();
+  private readonly sharpCache = new Map<string, THREE.Texture>();
+
+  private readonly preview: GibsImageOptions;
+  private readonly sharp: GibsImageOptions;
+  private readonly sharpCacheSize: number;
+  private readonly debounceMs: number;
+  private readonly prefetchConcurrency: number;
+  private readonly onLoadingChange?: (loading: boolean) => void;
+  private readonly onError?: (key: string) => void;
+
   private currentKey: string | undefined;
+  private sharpSeq = 0;
+  private sharpTimer: ReturnType<typeof setTimeout> | undefined;
+  private prefetchSeq = 0;
 
   constructor(
     material: THREE.MeshStandardMaterial,
@@ -46,68 +65,142 @@ export class GlobeTextureManager {
   ) {
     this.material = material;
     this.anisotropy = maxAnisotropy;
-    this.options = {
-      cacheSize: options.cacheSize ?? 12,
-      debounceMs: options.debounceMs ?? 150,
-      image: options.image,
-      onLoadingChange: options.onLoadingChange,
-      onError: options.onError,
-    };
+    this.preview = options.preview ?? { width: 512, height: 256 };
+    this.sharp = options.sharp ?? { width: 2048, height: 1024 };
+    this.sharpCacheSize = options.sharpCacheSize ?? 8;
+    this.debounceMs = options.debounceMs ?? 150;
+    this.prefetchConcurrency = options.prefetchConcurrency ?? 6;
+    this.onLoadingChange = options.onLoadingChange;
+    this.onError = options.onError;
   }
 
-  /** Request that the globe show the given layer + month (debounced). */
+  /**
+   * Show the given layer + month. Applies the best already-loaded texture
+   * immediately (so scrubbing is live), then upgrades to full resolution once
+   * the user settles.
+   */
   show(layer: LayerConfig, ym: YearMonth): void {
-    const key = `${layer.id}:${ym.year}-${ym.month}`;
+    const key = keyFor(layer.id, ym);
     if (key === this.currentKey) return;
     this.currentKey = key;
 
-    // Cached → apply immediately, no network, no debounce.
-    const cached = this.cache.get(key);
-    if (cached) {
-      this.touch(key, cached);
-      this.apply(cached);
-      this.options.onLoadingChange?.(false);
+    const sharp = this.sharpCache.get(key);
+    if (sharp) {
+      this.touchSharp(key, sharp);
+      this.apply(sharp);
+      this.cancelSharp();
+      this.onLoadingChange?.(false);
       return;
     }
 
-    this.options.onLoadingChange?.(true);
-    clearTimeout(this.debounceTimer);
-    const seq = ++this.requestSeq;
-    this.debounceTimer = setTimeout(
-      () => this.load(layer, ym, key, seq),
-      this.options.debounceMs
+    const preview = this.previewCache.get(key);
+    if (preview) {
+      this.apply(preview); // instant — this is what makes scrubbing real-time
+      this.onLoadingChange?.(false);
+    } else {
+      this.onLoadingChange?.(true); // nothing cached yet for this month
+    }
+
+    this.scheduleSharp(layer, ym, key);
+  }
+
+  /**
+   * Prefetch a small preview for every month in the range, so scrubbing is
+   * instant. Safe to call repeatedly (e.g. on layer change); a new call
+   * supersedes any in-flight prefetch and drops previews from other layers.
+   */
+  prefetchPreviews(layer: LayerConfig, months: YearMonth[]): void {
+    const seq = ++this.prefetchSeq;
+    this.disposePreviewsExcept(layer.id);
+
+    const pending = months.filter(
+      (ym) => !this.previewCache.has(keyFor(layer.id, ym))
+    );
+    let next = 0;
+    let active = 0;
+
+    const pump = (): void => {
+      if (seq !== this.prefetchSeq) return;
+      while (active < this.prefetchConcurrency && next < pending.length) {
+        const ym = pending[next++];
+        const key = keyFor(layer.id, ym);
+        active++;
+        this.loader.load(
+          gibsWmsUrl(layer, ym, this.preview),
+          (texture) => {
+            if (seq === this.prefetchSeq) {
+              this.prep(texture);
+              this.previewCache.set(key, texture);
+            } else {
+              texture.dispose();
+            }
+            active--;
+            pump();
+          },
+          undefined,
+          () => {
+            active--;
+            pump();
+          }
+        );
+      }
+    };
+
+    pump();
+  }
+
+  dispose(): void {
+    this.cancelSharp();
+    this.prefetchSeq++; // stop any in-flight prefetch pumps
+    for (const texture of this.previewCache.values()) texture.dispose();
+    for (const texture of this.sharpCache.values()) texture.dispose();
+    this.previewCache.clear();
+    this.sharpCache.clear();
+  }
+
+  // --- internals ------------------------------------------------------------
+
+  private scheduleSharp(layer: LayerConfig, ym: YearMonth, key: string): void {
+    this.cancelSharp();
+    const seq = ++this.sharpSeq;
+    this.sharpTimer = setTimeout(
+      () => this.loadSharp(layer, ym, key, seq),
+      this.debounceMs
     );
   }
 
-  private load(
+  private cancelSharp(): void {
+    clearTimeout(this.sharpTimer);
+  }
+
+  private loadSharp(
     layer: LayerConfig,
     ym: YearMonth,
     key: string,
     seq: number
   ): void {
-    const url = gibsWmsUrl(layer, ym, this.options.image);
     this.loader.load(
-      url,
+      gibsWmsUrl(layer, ym, this.sharp),
       (texture) => {
-        if (seq !== this.requestSeq) {
-          texture.dispose(); // a newer request superseded this one
+        // Drop if a newer selection or sharp request superseded this one.
+        if (seq !== this.sharpSeq || key !== this.currentKey) {
+          texture.dispose();
           return;
         }
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.anisotropy = this.anisotropy;
-        this.touch(key, texture);
-        this.evict();
+        this.prep(texture);
+        this.touchSharp(key, texture);
+        this.evictSharp();
         this.apply(texture);
-        this.options.onLoadingChange?.(false);
+        this.onLoadingChange?.(false);
       },
       undefined,
       () => {
-        // Network/imagery failure is recoverable and external — warn, don't
-        // error, so it doesn't trip the e2e "no console errors" smoke test.
+        // External/network failure is recoverable — warn, don't error, so it
+        // doesn't trip the e2e "no console errors" smoke test.
         console.warn(`RoamingEye: failed to load imagery for ${key}`);
-        if (seq === this.requestSeq) {
-          this.options.onLoadingChange?.(false);
-          this.options.onError?.(key);
+        if (key === this.currentKey) {
+          this.onLoadingChange?.(false);
+          this.onError?.(key);
         }
       }
     );
@@ -119,27 +212,37 @@ export class GlobeTextureManager {
     this.material.needsUpdate = true;
   }
 
-  /** Mark a key as most-recently-used. */
-  private touch(key: string, texture: THREE.Texture): void {
-    this.cache.delete(key);
-    this.cache.set(key, texture);
+  private prep(texture: THREE.Texture): void {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = this.anisotropy;
   }
 
-  /** Drop least-recently-used textures beyond the cache cap. */
-  private evict(): void {
-    while (this.cache.size > this.options.cacheSize) {
-      const oldest = this.cache.keys().next().value as string | undefined;
+  private touchSharp(key: string, texture: THREE.Texture): void {
+    this.sharpCache.delete(key);
+    this.sharpCache.set(key, texture);
+  }
+
+  private evictSharp(): void {
+    while (this.sharpCache.size > this.sharpCacheSize) {
+      const oldest = this.sharpCache.keys().next().value as string | undefined;
       if (oldest === undefined) break;
-      const texture = this.cache.get(oldest);
-      this.cache.delete(oldest);
-      // Never dispose the texture currently on screen.
+      const texture = this.sharpCache.get(oldest);
+      this.sharpCache.delete(oldest);
       if (texture && texture !== this.material.map) texture.dispose();
     }
   }
 
-  dispose(): void {
-    clearTimeout(this.debounceTimer);
-    for (const texture of this.cache.values()) texture.dispose();
-    this.cache.clear();
+  private disposePreviewsExcept(layerId: string): void {
+    const prefix = `${layerId}:`;
+    for (const [key, texture] of this.previewCache) {
+      if (!key.startsWith(prefix) && texture !== this.material.map) {
+        texture.dispose();
+        this.previewCache.delete(key);
+      }
+    }
   }
+}
+
+function keyFor(layerId: string, ym: YearMonth): string {
+  return `${layerId}:${ym.year}-${ym.month}`;
 }
