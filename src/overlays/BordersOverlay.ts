@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { latLngToVector3 } from "../lib/geo";
 import { geometryToRings, type GeoGeometry } from "../lib/geojson";
+import { fetchJson } from "../lib/net";
 import { ICONS } from "../ui/icons";
 import { GLOBE_RADIUS, type MapOverlay } from "./types";
 
@@ -32,9 +33,7 @@ export class BordersOverlay implements MapOverlay {
   }
 
   private async load(): Promise<void> {
-    const res = await fetch(this.url);
-    if (!res.ok) throw new Error(`borders: ${res.status}`);
-    const data = (await res.json()) as FeatureCollection;
+    const data = await fetchJson<FeatureCollection>(this.url);
 
     const positions: number[] = [];
     for (const feature of data.features) {
