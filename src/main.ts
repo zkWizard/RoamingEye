@@ -86,8 +86,8 @@ const textures = new GlobeTextureManager(
   earth.material,
   renderer.capabilities.getMaxAnisotropy(),
   {
-    preview: { width: 512, height: 256 }, // prefetched for every month → instant scrub
-    sharp: { width: 2048, height: 1024 }, // loaded for the settled month
+    preview: { width: 1024, height: 512 }, // prefetched for every month → instant, crisp scrub
+    sharp: { width: 2048, height: 1024 }, // loaded for the settled month (final refinement)
     onLoadingChange: (loading) => {
       setStatus(loading ? "Loading imagery…" : "");
       if (!loading && !firstLoadDone) {

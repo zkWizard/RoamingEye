@@ -129,7 +129,7 @@ export class GlobeTextureManager {
           gibsWmsUrl(layer, ym, this.preview),
           (texture) => {
             if (seq === this.prefetchSeq) {
-              this.prep(texture);
+              this.prep(texture, true);
               this.previewCache.set(key, texture);
             } else {
               texture.dispose();
@@ -187,7 +187,7 @@ export class GlobeTextureManager {
           texture.dispose();
           return;
         }
-        this.prep(texture);
+        this.prep(texture, false);
         this.touchSharp(key, texture);
         this.evictSharp();
         this.apply(texture);
@@ -212,9 +212,15 @@ export class GlobeTextureManager {
     this.material.needsUpdate = true;
   }
 
-  private prep(texture: THREE.Texture): void {
+  private prep(texture: THREE.Texture, isPreview: boolean): void {
     texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = this.anisotropy;
+    if (isPreview) {
+      // 60 of these are kept at once — skip mipmaps to keep GPU memory bounded.
+      texture.generateMipmaps = false;
+      texture.minFilter = THREE.LinearFilter;
+    } else {
+      texture.anisotropy = this.anisotropy; // crisp limb on the settled month
+    }
   }
 
   private touchSharp(key: string, texture: THREE.Texture): void {
