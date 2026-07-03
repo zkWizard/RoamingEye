@@ -128,17 +128,28 @@ if (timelineEl) {
 refreshGlobe(); // kick off the initial month
 prefetchCurrentLayer(); // warm the preview cache for instant scrubbing
 
-// --- Controls (rotate only) -------------------------------------------------
+// --- Controls (rotate + zoom) -------------------------------------------------
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; // inertia for a natural "spin" feel
 controls.dampingFactor = 0.08;
-controls.enableZoom = false; // MVP: no zoom yet
-controls.enablePan = false; // MVP: no pan
-controls.rotateSpeed = 0.45;
+controls.enableZoom = true;
+controls.zoomSpeed = 0.6; // gentle wheel/pinch steps
+controls.minDistance = 1.15 * EARTH_RADIUS; // stop just above the surface
+controls.maxDistance = 8 * EARTH_RADIUS; // keep the globe comfortably in frame
+controls.enablePan = false; // panning off-center is disorienting on a globe
+
+const BASE_ROTATE_SPEED = 0.45;
+const START_ALTITUDE = camera.position.length() - EARTH_RADIUS;
 
 // --- Render loop ------------------------------------------------------------
 let signalledReady = false;
 renderer.setAnimationLoop(() => {
+  // Slow rotation as the camera closes in, so close-up dragging stays
+  // controllable instead of whipping the surface past the viewport.
+  const altitude = camera.position.length() - EARTH_RADIUS;
+  controls.rotateSpeed =
+    BASE_ROTATE_SPEED * Math.min(1, Math.max(0.05, altitude / START_ALTITUDE));
+
   controls.update();
   renderer.render(scene, camera);
 
