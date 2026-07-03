@@ -1,0 +1,11 @@
+# Check out text files with LF everywhere so Prettier's format:check (which
+# enforces LF) gives the same result on Windows, macOS, Linux, and CI.
+* text=auto eol=lf
+
+# Binary assets — never translate line endings.
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.ico binary
+*.woff binary
+*.woff2 binary
