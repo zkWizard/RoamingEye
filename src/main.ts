@@ -10,6 +10,8 @@ import {
 import { GlobeTextureManager } from "./textures/GlobeTextureManager";
 import { TimeSlider } from "./ui/TimeSlider";
 import { LayerSelector } from "./ui/LayerSelector";
+import { ThemeToggle } from "./ui/ThemeToggle";
+import type { Theme } from "./lib/theme";
 
 /**
  * RoamingEye
@@ -63,7 +65,18 @@ sunLight.position.set(5, 3, 5);
 scene.add(sunLight);
 
 // --- Starfield backdrop -----------------------------------------------------
-scene.add(createStarfield());
+const starfield = createStarfield();
+scene.add(starfield);
+
+// Backdrop colors for the WebGL canvas, kept in sync with the page theme.
+const SPACE_BG = new THREE.Color(0x05070d); // matches --bg (dark)
+const DAY_BG = new THREE.Color(0xeaf0f8); // matches --bg (light)
+
+function applyTheme(theme: Theme): void {
+  const dark = theme === "dark";
+  renderer.setClearColor(dark ? SPACE_BG : DAY_BG, 1);
+  starfield.visible = dark; // stars only make sense against a night sky
+}
 
 // --- Earth ------------------------------------------------------------------
 const earth = new THREE.Mesh(
@@ -123,6 +136,13 @@ if (timelineEl) {
     currentIndex = index;
     refreshGlobe();
   });
+}
+
+// Theme toggle: syncs the WebGL backdrop to the light/dark choice. Constructing
+// it applies the initial theme immediately (calls applyTheme once).
+const themeEl = document.querySelector<HTMLElement>("#theme-toggle");
+if (themeEl) {
+  new ThemeToggle(themeEl, applyTheme);
 }
 
 refreshGlobe(); // kick off the initial month
