@@ -49,9 +49,15 @@ npm run dev        # start the local dev server (http://localhost:5173)
 | `npm run format`    | Auto-format with Prettier                               |
 | `npm run test`      | Run unit tests (Vitest)                                 |
 | `npm run test:e2e`  | Run the Playwright browser smoke tests                  |
+| `npm run verify`    | All CI checks except e2e (typecheck, lint, format, unit, build) |
+| `npm run verify:full` | `verify` plus the Playwright e2e suite — the full CI mirror |
 
-Before opening a PR, please run **`npm run lint && npm run typecheck && npm run test && npm run build`**
-locally — these are the same checks CI will run.
+Before opening a PR, please run **`npm run verify`** locally — these are the
+same checks CI runs.
+
+> **Interim gate:** hosted CI is temporarily unavailable for this repository.
+> Until it's restored, maintainers run `npm run verify:full` locally on the
+> merge result before merging any PR. PRs are still required for every change.
 
 ---
 
