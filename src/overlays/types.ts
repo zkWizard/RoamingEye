@@ -1,4 +1,4 @@
-import type { Object3D } from "three";
+import type { Object3D, PerspectiveCamera } from "three";
 
 /**
  * A toggleable map overlay. Each overlay owns a Three.js object added to the
@@ -16,6 +16,8 @@ export interface MapOverlay {
   readonly defaultOn?: boolean;
   /** Lazily fetch/build whatever the overlay needs (called once, on first enable). */
   ensureLoaded?(): Promise<void>;
+  /** Per-frame hook for view-dependent overlays (throttle internally). */
+  update?(camera: PerspectiveCamera, viewportHeightPx: number): void;
 }
 
 /** Globe radius (unit sphere). Overlays sit just above it to avoid z-fighting. */
