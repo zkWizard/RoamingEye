@@ -40,17 +40,17 @@ npm run dev        # start the local dev server (http://localhost:5173)
 
 ### Useful scripts
 
-| Script              | What it does                                            |
-| ------------------- | ------------------------------------------------------- |
-| `npm run dev`       | Start the Vite dev server with hot reload               |
-| `npm run build`     | Type-check (`tsc`) **and** build the production bundle  |
-| `npm run typecheck` | Type-check only (Vite does **not** type-check on build) |
-| `npm run lint`      | Run ESLint                                              |
-| `npm run format`    | Auto-format with Prettier                               |
-| `npm run test`      | Run unit tests (Vitest)                                 |
-| `npm run test:e2e`  | Run the Playwright browser smoke tests                  |
-| `npm run verify`    | All CI checks except e2e (typecheck, lint, format, unit, build) |
-| `npm run verify:full` | `verify` plus the Playwright e2e suite — the full CI mirror |
+| Script                | What it does                                                    |
+| --------------------- | --------------------------------------------------------------- |
+| `npm run dev`         | Start the Vite dev server with hot reload                       |
+| `npm run build`       | Type-check (`tsc`) **and** build the production bundle          |
+| `npm run typecheck`   | Type-check only (Vite does **not** type-check on build)         |
+| `npm run lint`        | Run ESLint                                                      |
+| `npm run format`      | Auto-format with Prettier                                       |
+| `npm run test`        | Run unit tests (Vitest)                                         |
+| `npm run test:e2e`    | Run the Playwright browser smoke tests                          |
+| `npm run verify`      | All CI checks except e2e (typecheck, lint, format, unit, build) |
+| `npm run verify:full` | `verify` plus the Playwright e2e suite — the full CI mirror     |
 
 Before opening a PR, please run **`npm run verify`** locally — these are the
 same checks CI runs.

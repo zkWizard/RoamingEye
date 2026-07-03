@@ -1,6 +1,5 @@
-dist/
-node_modules/
-playwright-report/
-test-results/
-public/
-package-lock.json
+# Local tool configuration -- not part of the shipped codebase.
+.claude/
+
+# Generated datasets (scripts/prepare-data.mjs) -- kept minified on purpose.
+public/data/
