@@ -2,10 +2,8 @@ import * as THREE from "three";
 import { latLngToVector3, vector3ToLatLng } from "../lib/geo";
 import {
   gibsWmtsTileUrl,
-  levelForDegPerPixel,
+  selectLodTiles,
   tileBounds,
-  tilesInView,
-  visibleArcDegrees,
   type TileAddress,
 } from "../lib/tiles";
 import type { LayerConfig, YearMonth } from "../lib/timeline";
@@ -13,13 +11,14 @@ import { ICONS } from "../ui/icons";
 import { GLOBE_RADIUS, type MapOverlay } from "./types";
 
 /**
- * RFC-001 milestone 2: single-level tiled imagery streaming.
+ * RFC-001 milestones 2–4: quadtree-LOD tiled imagery streaming.
  *
- * When enabled, the visible part of the globe is re-draped with WMTS tiles at
- * the finest level the current camera height justifies — so zooming in shows
- * the layer at (up to) its native resolution instead of magnifying the single
- * 2048-px base texture. One fixed LOD per view; quadtree subdivision, culling
- * refinements, and parent-tile fallback are milestones 3-5.
+ * When enabled, the visible part of the globe is re-draped with WMTS tiles
+ * selected by screen-space error (lib/tiles.ts selectLodTiles): the quadtree
+ * is descended per view, tiles beyond the horizon are culled, and each tile
+ * subdivides until its texels match device pixels at *its own* distance from
+ * the camera — fine at the nadir, coarser toward the limb, up to the layer's
+ * native resolution. Parent-tile fallback while children load is milestone 5.
  *
  * Tiles are keyed by (layer, time, level, row, col); an LRU texture cache
  * bounds GPU memory, and a generation counter drops stale loads when the view
@@ -34,8 +33,6 @@ const TEXTURE_CACHE_SIZE = 64;
 const MAX_INFLIGHT = 6;
 /** Curved-patch resolution; tiles at level ≥ 3 span ≤ 22.5°, so 12 is smooth. */
 const MESH_SEGMENTS = 12;
-/** Over-fetch factor around the exact visible window (rotation headroom). */
-const VIEW_MARGIN = 1.35;
 
 export class TiledImageryOverlay implements MapOverlay {
   readonly id = "hd";
@@ -86,34 +83,31 @@ export class TiledImageryOverlay implements MapOverlay {
 
     const distance = camera.position.length();
     const subpoint = vector3ToLatLng(camera.position);
-    const arcDeg = visibleArcDegrees(distance, camera.fov);
 
-    // Pick the level whose texels roughly match device pixels on screen.
-    const target = arcDeg / Math.max(1, viewportHeightPx);
-    const level = levelForDegPerPixel(target, this.layer.wmts.maxLevel);
-    if (level < MIN_LEVEL) {
-      // The base texture is already this sharp — show nothing, save memory.
-      this.clearMeshes();
-      this.lastSignature = "";
-      return;
-    }
-
-    const latSpan = arcDeg * VIEW_MARGIN;
-    const lonSpan =
-      (arcDeg * VIEW_MARGIN * camera.aspect) /
-      Math.max(0.2, Math.cos(subpoint.lat * (Math.PI / 180)));
     const center = `${subpoint.lat.toFixed(1)}:${subpoint.lon.toFixed(1)}`;
-    const signature = `${this.layer.id}:${this.time}:${level}:${center}:${latSpan.toFixed(1)}`;
+    const signature = `${this.layer.id}:${this.time}:${center}:${distance.toFixed(2)}`;
     if (signature === this.lastSignature) return;
     this.lastSignature = signature;
 
-    const wanted = tilesInView(
-      subpoint.lat,
-      subpoint.lon,
-      latSpan,
-      Math.min(360, lonSpan),
-      level
+    // Adaptive LOD: quadtree descent with horizon culling and per-tile
+    // screen-space-error subdivision (see lib/tiles.ts).
+    const wanted = selectLodTiles(
+      {
+        lat: subpoint.lat,
+        lon: subpoint.lon,
+        distance,
+        fovDeg: camera.fov,
+        aspect: camera.aspect,
+        viewportHeightPx,
+      },
+      MIN_LEVEL,
+      this.layer.wmts.maxLevel
     );
+    if (wanted.length === 0) {
+      // The base texture is already this sharp — show nothing, save memory.
+      this.clearMeshes();
+      return;
+    }
     this.reconcile(wanted);
   }
 
