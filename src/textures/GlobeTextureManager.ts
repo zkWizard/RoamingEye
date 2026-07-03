@@ -27,6 +27,9 @@ interface ManagerOptions {
   sharp?: GibsImageOptions;
   /** Max full-resolution textures kept before the least-recently-used is dropped. */
   sharpCacheSize?: number;
+  /** Max preview textures kept (LRU). Layers reaching back decades would
+   * otherwise accumulate hundreds of megabytes of GPU textures. */
+  previewCacheSize?: number;
   /** Delay before loading the sharp upgrade after the user stops, in ms. */
   debounceMs?: number;
   /** How many preview images to prefetch concurrently. */
@@ -48,6 +51,7 @@ export class GlobeTextureManager {
   private readonly preview: GibsImageOptions;
   private readonly sharp: GibsImageOptions;
   private readonly sharpCacheSize: number;
+  private readonly previewCacheSize: number;
   private readonly debounceMs: number;
   private readonly prefetchConcurrency: number;
   private readonly onLoadingChange?: (loading: boolean) => void;
@@ -68,6 +72,7 @@ export class GlobeTextureManager {
     this.preview = options.preview ?? { width: 512, height: 256 };
     this.sharp = options.sharp ?? { width: 2048, height: 1024 };
     this.sharpCacheSize = options.sharpCacheSize ?? 8;
+    this.previewCacheSize = options.previewCacheSize ?? 120;
     this.debounceMs = options.debounceMs ?? 150;
     this.prefetchConcurrency = options.prefetchConcurrency ?? 6;
     this.onLoadingChange = options.onLoadingChange;
@@ -95,6 +100,7 @@ export class GlobeTextureManager {
 
     const preview = this.previewCache.get(key);
     if (preview) {
+      this.touchPreview(key, preview); // keep hot months at the LRU tail
       this.apply(preview); // instant — this is what makes scrubbing real-time
       this.onLoadingChange?.(false);
     } else {
@@ -137,6 +143,7 @@ export class GlobeTextureManager {
             if (seq === this.prefetchSeq) {
               this.prep(texture, true);
               this.previewCache.set(key, texture);
+              this.evictPreviews();
             } else {
               texture.dispose();
             }
@@ -221,11 +228,28 @@ export class GlobeTextureManager {
   private prep(texture: THREE.Texture, isPreview: boolean): void {
     texture.colorSpace = THREE.SRGBColorSpace;
     if (isPreview) {
-      // 60 of these are kept at once — skip mipmaps to keep GPU memory bounded.
+      // The preview cache holds up to previewCacheSize of these — skip
+      // mipmaps to keep each one cheap.
       texture.generateMipmaps = false;
       texture.minFilter = THREE.LinearFilter;
     } else {
       texture.anisotropy = this.anisotropy; // crisp limb on the settled month
+    }
+  }
+
+  private touchPreview(key: string, texture: THREE.Texture): void {
+    this.previewCache.delete(key);
+    this.previewCache.set(key, texture);
+  }
+
+  private evictPreviews(): void {
+    while (this.previewCache.size > this.previewCacheSize) {
+      const oldest = this.previewCache.keys().next().value as
+        string | undefined;
+      if (oldest === undefined) break;
+      const texture = this.previewCache.get(oldest);
+      this.previewCache.delete(oldest);
+      if (texture && texture !== this.material.map) texture.dispose();
     }
   }
 

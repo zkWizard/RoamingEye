@@ -2,16 +2,18 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import {
   LAYERS,
-  DATA_LATEST,
-  buildMonthRange,
   clampIndexToLayer,
+  monthRangeForLayer,
   ymToIndex,
+  formatYm,
+  gibsWmsUrl,
   type LayerId,
   type YearMonth,
 } from "./lib/timeline";
 import { encodeViewState, decodeViewState } from "./lib/viewState";
 import { latLngToVector3, vector3ToLatLng } from "./lib/geo";
 import { ShareButton } from "./ui/ShareButton";
+import { ExportControls } from "./ui/ExportControls";
 import { GlobeTextureManager } from "./textures/GlobeTextureManager";
 import { TimeSlider } from "./ui/TimeSlider";
 import { LayerSelector } from "./ui/LayerSelector";
@@ -49,7 +51,6 @@ declare global {
 }
 
 const EARTH_RADIUS = 1;
-const MONTHS_BACK = 60; // last 5 years, to start
 
 const canvas = document.querySelector<HTMLCanvasElement>("#globe");
 if (!canvas) {
@@ -66,6 +67,8 @@ const tooltipEl = document.querySelector<HTMLElement>("#hover-tooltip");
 const studyChipEl = document.querySelector<HTMLElement>("#study-chip");
 const providersPageEl = document.querySelector<HTMLElement>("#providers-page");
 const providersLinkEl = document.querySelector<HTMLElement>("#providers-link");
+const provenanceEl = document.querySelector<HTMLElement>("#provenance");
+const exportEl = document.querySelector<HTMLElement>("#export");
 
 // --- Renderer ---------------------------------------------------------------
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -146,12 +149,14 @@ if (tooltipEl) {
 }
 
 // --- Temporal imagery pipeline ----------------------------------------------
-const months: YearMonth[] = buildMonthRange(DATA_LATEST, MONTHS_BACK);
-
 // Restore a shared view (layer, month, camera) from the URL hash, if present —
-// links reproduce exactly what the sender was looking at.
+// links reproduce exactly what the sender was looking at. Each layer exposes
+// its full published record (MERRA-2 reaches back to 1980), so `months` is
+// per-layer (the hash layer is resolved first) and the slider rebuilds on
+// layer switch.
 const initialView = decodeViewState(window.location.hash);
 let currentLayer: LayerId = initialView.layer ?? "ndvi";
+let months: YearMonth[] = monthRangeForLayer(LAYERS[currentLayer]);
 let currentIndex = months.length - 1; // default: the most recent month
 if (initialView.month) {
   const restored = ymToIndex(initialView.month) - ymToIndex(months[0]);
@@ -184,46 +189,97 @@ const textures = new GlobeTextureManager(
 
 function refreshGlobe(): void {
   textures.show(LAYERS[currentLayer], months[currentIndex]);
+  updateProvenance();
 }
 
-// Prefetch a small preview of every month so scrubbing updates the globe live
-// at each month boundary, not just when the user stops dragging.
-function prefetchCurrentLayer(): void {
-  textures.prefetchPreviews(LAYERS[currentLayer], months);
+// Prefetch previews so scrubbing updates the globe live at month boundaries.
+// Full-record layers hold 550+ months — warming them all at once would pin
+// hundreds of MB of textures, so warm the recent decade and extend backwards
+// on demand as the user scrubs into older months.
+const PREFETCH_CHUNK = 120;
+let warmedStart = Number.MAX_SAFE_INTEGER;
+
+function prefetchFrom(index: number): void {
+  const start = Math.max(0, index);
+  if (start >= warmedStart) return;
+  warmedStart = start;
+  textures.prefetchPreviews(LAYERS[currentLayer], months.slice(start));
+}
+
+function resetPrefetch(): void {
+  warmedStart = Number.MAX_SAFE_INTEGER;
+  prefetchFrom(months.length - PREFETCH_CHUNK);
+}
+
+function ensureWarm(index: number): void {
+  if (index - 24 < warmedStart) prefetchFrom(index - PREFETCH_CHUNK);
 }
 
 // --- UI ---------------------------------------------------------------------
-const timeSlider = timelineEl
-  ? new TimeSlider(timelineEl, months, currentIndex, (index) => {
-      currentIndex = index;
-      refreshGlobe();
-      if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
-      scheduleHashSync();
-    })
-  : null;
+// The slider is rebuilt on layer switch because each layer's month range
+// differs (its constructor clears the container).
+function buildTimeline(): void {
+  if (!timelineEl) return;
+  new TimeSlider(timelineEl, months, currentIndex, (index) => {
+    currentIndex = index;
+    refreshGlobe();
+    ensureWarm(index);
+    if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
+    scheduleHashSync();
+  });
+}
+buildTimeline();
 
 const legend = legendEl ? new Legend(legendEl, currentLayer) : undefined;
 
 if (layerEl) {
   new LayerSelector(layerEl, currentLayer, (id) => {
+    const selected = months[currentIndex];
     currentLayer = id;
     legend?.setLayer(id);
-    // Some layers (reanalysis, ocean) lag behind the MODIS composites — snap
-    // the timeline to a month this layer actually covers.
-    const snapped = clampIndexToLayer(months, currentIndex, LAYERS[id]);
-    if (snapped !== currentIndex) {
-      currentIndex = snapped;
-      timeSlider?.setIndex(snapped);
-      if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
-    }
+    months = monthRangeForLayer(LAYERS[id]);
+    // Keep the same calendar month selected where the new layer covers it;
+    // clamp into range otherwise (reanalysis/ocean products start/lag apart).
+    const mapped = ymToIndex(selected) - ymToIndex(months[0]);
+    currentIndex = Math.min(months.length - 1, Math.max(0, mapped));
+    currentIndex = clampIndexToLayer(months, currentIndex, LAYERS[id]);
+    buildTimeline();
+    if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
     refreshGlobe();
-    prefetchCurrentLayer();
+    resetPrefetch();
     scheduleHashSync();
   });
 }
 
 refreshGlobe(); // kick off the initial month
-prefetchCurrentLayer(); // warm the preview cache for instant scrubbing
+resetPrefetch(); // warm the preview cache for instant scrubbing
+
+// --- Provenance & export ------------------------------------------------------
+function updateProvenance(): void {
+  if (!provenanceEl) return;
+  const layer = LAYERS[currentLayer];
+  provenanceEl.textContent = `${layer.wmsLayer} · ${formatYm(months[currentIndex])}`;
+}
+
+if (exportEl) {
+  new ExportControls(exportEl, {
+    downloadPng: () => {
+      // Render a fresh frame and read the canvas in the same task — the
+      // drawing buffer isn't preserved between frames.
+      renderer.render(scene, camera);
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const ym = months[currentIndex];
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `roamingeye_${currentLayer}_${ym.year}-${String(ym.month).padStart(2, "0")}.png`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }, "image/png");
+    },
+    imageryUrl: () => gibsWmsUrl(LAYERS[currentLayer], months[currentIndex]),
+  });
+}
 
 // Toolbar overlays — load lazily on first enable, then toggle visibility.
 async function toggleOverlay(overlay: MapOverlay, on: boolean): Promise<void> {

@@ -11,6 +11,7 @@ import {
   indexToFraction,
   gibsWmsUrl,
   clampIndexToLayer,
+  monthRangeForLayer,
   LAYERS,
   DATA_LATEST,
 } from "./timeline";
@@ -140,5 +141,28 @@ describe("gibsWmsUrl", () => {
     );
     expect(url).toContain("WIDTH=1024");
     expect(url).toContain("HEIGHT=512");
+  });
+});
+
+describe("monthRangeForLayer", () => {
+  it("spans the layer's full record, start to latest", () => {
+    const range = monthRangeForLayer(LAYERS.ndvi); // 2000-03 → DATA_LATEST
+    expect(range[0]).toEqual({ year: 2000, month: 3 });
+    expect(range[range.length - 1]).toEqual(DATA_LATEST);
+    expect(range.length).toBeGreaterThan(300); // 26+ years of months
+  });
+
+  it("respects a layer's own latest month", () => {
+    const range = monthRangeForLayer(LAYERS.airtemp); // 1980-01 → 2026-03
+    expect(range[0]).toEqual({ year: 1980, month: 1 });
+    expect(range[range.length - 1]).toEqual({ year: 2026, month: 3 });
+    expect(range.length).toBe((2026 - 1980) * 12 + 3);
+  });
+
+  it("is consecutive with no gaps", () => {
+    const range = monthRangeForLayer(LAYERS.sst);
+    for (let i = 1; i < range.length; i++) {
+      expect(ymToIndex(range[i])).toBe(ymToIndex(range[i - 1]) + 1);
+    }
   });
 });
