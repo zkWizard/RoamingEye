@@ -130,6 +130,17 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
       { color: "#8f3a1f", at: 1 }, // dust storms / smoke plumes
     ],
   },
+  terrain: {
+    measures: "Elevation (shaded relief)",
+    minLabel: "lowlands",
+    maxLabel: "high peaks",
+    stops: [
+      { color: "#3e7d47", at: 0 }, // low plains read green
+      { color: "#b6a86a", at: 0.35 },
+      { color: "#8a6a4a", at: 0.65 },
+      { color: "#e8e4dc", at: 1 }, // snow-capped elevations
+    ],
+  },
 };
 
 /** Build the CSS `linear-gradient(...)` for a legend's stops. */
