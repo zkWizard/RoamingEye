@@ -30,6 +30,7 @@ body {
   position: fixed;
   inset: 0;
   width: 100vw;
+  height: 100vh; /* fallback for browsers without dvh (and iOS reflow jank) */
   height: 100dvh;
 }
 
