@@ -238,6 +238,53 @@ body {
   }
 }
 
+/* Legend: what the colors on the globe mean */
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.legend__row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.legend__measures {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+.legend__scale {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.legend__bar {
+  width: clamp(120px, 28vw, 220px);
+  height: 10px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.legend__end {
+  font-size: 0.7rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.legend__caption {
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
 /* Timeline ruler */
 .timeline {
   display: flex;
@@ -494,6 +541,11 @@ body {
   }
   .toolbar__label {
     font-size: 0.6rem;
+  }
+  /* Keep the panel compact on small phones: the caption repeats what the
+     scale already shows, so it's the first thing to go. */
+  .legend__caption {
+    display: none;
   }
 }
 
