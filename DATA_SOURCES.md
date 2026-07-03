@@ -24,6 +24,7 @@ straight into the browser with no backend or API key.
 | `MERRA2_..._Aerosol_Optical_Thickness_550nm...`  | MERRA-2 reanalysis | Aerosols (AOD)    | ~50 km      | Monthly, 1980→   | Dust, smoke, air quality.                                     |
 | `HLS_S30_Nadir_BRDF_Adjusted_Reflectance`        | Sentinel-2 (HLS)   | True colour       | ~30 m       | Per-scene, 2015→ | High-res; per-orbit, so coverage is date-specific.            |
 | `HLS_L30_Nadir_BRDF_Adjusted_Reflectance`        | Landsat 8/9 (HLS)  | True colour       | ~30 m       | Per-scene, 2013→ | High-res fallback for the study patch.                        |
+| `ASTER_GDEM_Color_Shaded_Relief`                 | ASTER GDEM         | Terrain relief    | ~30 m       | Static           | Color shaded relief; no time dimension.                       |
 
 ### How the layers are used
 
@@ -74,3 +75,16 @@ administrative boundary polygon**, which is highlighted on the globe.
 RoamingEye targets the open tiers. Reaching native resolution _everywhere_ (not
 just in a focused study patch) requires tiled streaming — see
 [RFC-001](docs/rfcs/RFC-001-tiled-imagery-streaming.md).
+
+## Seismicity — USGS
+
+The live earthquakes overlay streams the **USGS Earthquake Hazards Program**
+GeoJSON summary feed (M4.5+, last 30 days — ~400 kB, CORS-open, public domain,
+no key):
+
+`https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_month.geojson`
+
+Markers are sized by magnitude and colored by hypocenter depth using the
+seismological convention — shallow (< 70 km) red, intermediate (70–300 km)
+amber, deep (> 300 km) blue — so plate boundaries and subduction zones read
+directly off the globe.

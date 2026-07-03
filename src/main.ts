@@ -18,6 +18,7 @@ import { GraticuleOverlay } from "./overlays/GraticuleOverlay";
 import { BordersOverlay } from "./overlays/BordersOverlay";
 import { CitiesOverlay } from "./overlays/CitiesOverlay";
 import { AtmosphereOverlay } from "./overlays/AtmosphereOverlay";
+import { EarthquakesOverlay } from "./overlays/EarthquakesOverlay";
 import { CameraFlyer } from "./scene/CameraFlyer";
 import { LocationHighlight } from "./scene/LocationHighlight";
 import { HoverInspector } from "./scene/HoverInspector";
@@ -105,6 +106,7 @@ const overlays: MapOverlay[] = [
   new BordersOverlay(),
   new CitiesOverlay(),
   new AtmosphereOverlay(),
+  new EarthquakesOverlay(),
 ];
 for (const overlay of overlays) scene.add(overlay.object);
 

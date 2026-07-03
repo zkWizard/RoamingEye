@@ -80,7 +80,7 @@ export class GlobeTextureManager {
    * the user settles.
    */
   show(layer: LayerConfig, ym: YearMonth): void {
-    const key = keyFor(layer.id, ym);
+    const key = keyFor(layer, ym);
     if (key === this.currentKey) return;
     this.currentKey = key;
 
@@ -113,9 +113,15 @@ export class GlobeTextureManager {
     const seq = ++this.prefetchSeq;
     this.disposePreviewsExcept(layer.id);
 
-    const pending = months.filter(
-      (ym) => !this.previewCache.has(keyFor(layer.id, ym))
-    );
+    // Dedupe by cache key: a static layer maps every month to the same key, so
+    // it must enter the queue once, not once per month.
+    const queued = new Set<string>();
+    const pending = months.filter((ym) => {
+      const key = keyFor(layer, ym);
+      if (this.previewCache.has(key) || queued.has(key)) return false;
+      queued.add(key);
+      return true;
+    });
     let next = 0;
     let active = 0;
 
@@ -123,7 +129,7 @@ export class GlobeTextureManager {
       if (seq !== this.prefetchSeq) return;
       while (active < this.prefetchConcurrency && next < pending.length) {
         const ym = pending[next++];
-        const key = keyFor(layer.id, ym);
+        const key = keyFor(layer, ym);
         active++;
         this.loader.load(
           gibsWmsUrl(layer, ym, this.preview),
@@ -249,6 +255,10 @@ export class GlobeTextureManager {
   }
 }
 
-function keyFor(layerId: string, ym: YearMonth): string {
-  return `${layerId}:${ym.year}-${ym.month}`;
+function keyFor(layer: LayerConfig, ym: YearMonth): string {
+  // Static (time-less) layers map every month to one cache entry, so scrubbing
+  // never refetches them and prefetch fetches them exactly once.
+  return layer.static
+    ? `${layer.id}:static`
+    : `${layer.id}:${ym.year}-${ym.month}`;
 }
