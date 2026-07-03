@@ -245,6 +245,16 @@ export function isAvailable(layer: LayerConfig, ym: YearMonth): boolean {
   return compareYm(ym, layer.start) >= 0 && compareYm(ym, DATA_LATEST) <= 0;
 }
 
+/**
+ * Every published month for a layer, oldest → newest — the layer's full
+ * scientific record (MERRA-2 layers reach back to 1980), not a fixed window.
+ */
+export function monthRangeForLayer(layer: LayerConfig): YearMonth[] {
+  const latest = layer.latest ?? DATA_LATEST;
+  const count = ymToIndex(latest) - ymToIndex(layer.start) + 1;
+  return buildMonthRange(latest, Math.max(1, count));
+}
+
 // --- Slider position mapping ------------------------------------------------
 
 /** Map a 0..1 track fraction to a clamped index in [0, count - 1]. */

@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: >-
+  If you use RoamingEye in your research, please cite it as below. When citing
+  a specific view, include the full URL of the view (the address bar encodes
+  layer, month, and camera position) and the acquisition details shown in the
+  app, so the observation is reproducible.
+title: "RoamingEye: an open-data 3D Earth for temporal satellite observation"
+type: software
+authors:
+  - name: "The RoamingEye contributors"
+    website: "https://github.com/zkWizard/RoamingEye/graphs/contributors"
+repository-code: "https://github.com/zkWizard/RoamingEye"
+url: "https://github.com/zkWizard/RoamingEye"
+license: MIT
+version: 0.1.0
+date-released: "2026-07-02"
+abstract: >-
+  RoamingEye is a browser-based, open-source 3D Earth for exploring decades of
+  monthly satellite observations — vegetation indices, temperatures, water,
+  cryosphere, and atmosphere layers from NASA GIBS — with high-resolution
+  (30 m) study regions, live seismicity, and shareable, reproducible view
+  links. All data sources are open and provenance-tagged.
+keywords:
+  - earth observation
+  - remote sensing
+  - satellite imagery
+  - geoscience
+  - visualization
+  - open data
+  - MODIS
+  - NASA GIBS

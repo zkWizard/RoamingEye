@@ -134,6 +134,27 @@ Now / Next / Later at a glance (full detail in [`ROADMAP.md`](ROADMAP.md)):
 
 ---
 
+## 🎓 How to cite
+
+If RoamingEye is useful in your research, please cite it — the repository ships a
+[`CITATION.cff`](CITATION.cff) that GitHub renders as a ready-made citation
+(**"Cite this repository"** in the sidebar), in APA and BibTeX form.
+
+When citing a **specific observation**, include:
+
+1. the **view URL** from the address bar — it encodes the layer, month, and
+   camera position, so readers can reproduce exactly what you saw;
+2. the **product and acquisition details** shown in the app (e.g.
+   `MODIS_Terra_L3_NDVI_Monthly · May 2026`, or the study-region chip's
+   `Sentinel-2 · HLS S30 · 30 m · 2026-05-11`);
+3. the underlying **data source** per [`DATA_SOURCES.md`](DATA_SOURCES.md) —
+   NASA GIBS imagery is public domain, but citing the instrument teams is good
+   practice.
+
+> A Zenodo DOI (for stable, versioned citations) is planned — maintainers: mint
+> one by connecting the repo at [zenodo.org](https://zenodo.org/account/settings/github/)
+> and cutting a release; the DOI badge then goes here.
+
 ## 📄 License & attribution
 
 - **Code:** [MIT](LICENSE).
