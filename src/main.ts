@@ -13,6 +13,7 @@ import {
 import { encodeViewState, decodeViewState } from "./lib/viewState";
 import { latLngToVector3, vector3ToLatLng, formatLatLng } from "./lib/geo";
 import { buildProbeCsv, PROBE_SCALES } from "./lib/probe";
+import { refreshDataLatest } from "./lib/freshness";
 import { isAbortError } from "./lib/net";
 import { ProbeSampler } from "./probe/ProbeSampler";
 import { ProbePanel } from "./ui/ProbePanel";
@@ -308,6 +309,28 @@ if (layerEl) {
 
 refreshGlobe(); // kick off the initial month
 resetPrefetch(); // warm the preview cache for instant scrubbing
+
+// --- Timeline freshness -------------------------------------------------------
+// NASA publishes a new month of composites every few weeks; probe GIBS once at
+// boot and grow the timeline to the newest published month, so the deployed
+// site stays current without a code bump (see lib/freshness.ts).
+void refreshDataLatest().then((grew) => {
+  if (!grew) return;
+  // Layers with their own `latest` (lagging reanalysis) are unaffected.
+  if (LAYERS[currentLayer].latest) return;
+  const selected = months[currentIndex];
+  const wasAtEnd = currentIndex === months.length - 1;
+  months = monthRangeForLayer(LAYERS[currentLayer]);
+  // Follow the newest month if the user was already on it (the default view);
+  // otherwise stay on whatever month they had selected.
+  currentIndex = wasAtEnd
+    ? months.length - 1
+    : Math.max(0, ymToIndex(selected) - ymToIndex(months[0]));
+  buildTimeline();
+  refreshGlobe();
+  resetPrefetch();
+  scheduleHashSync();
+});
 
 // --- Provenance & export ------------------------------------------------------
 function updateProvenance(): void {

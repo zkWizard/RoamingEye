@@ -8,6 +8,10 @@ log captures milestones rather than every commit. Format loosely follows
 
 ### Added
 
+- **Self-updating timeline** — at boot the app asks GIBS (WMTS
+  DescribeDomains) for the newest published month and grows the timeline to
+  it, so the deployed site stays current as NASA publishes new composites —
+  no code bump required.
 - **Probe v2: area averaging & anomaly view** — the probe now samples either
   the clicked point or the mean of a ~1° region (8×8 grid), and can chart the
   de-seasonalized anomaly (value minus that location's calendar-month mean) —
