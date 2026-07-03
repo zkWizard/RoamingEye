@@ -5,6 +5,10 @@ import {
   buildColormapLut,
   invertColormap,
   medianValid,
+  meanValid,
+  gridPoints,
+  monthlyClimatology,
+  anomalySeries,
   seriesStats,
   scaleValue,
   formatProbeValue,
@@ -86,6 +90,74 @@ describe("medianValid", () => {
   });
 });
 
+describe("meanValid", () => {
+  it("averages the valid samples", () => {
+    expect(meanValid([0.2, 0.4, null, 0.6])).toBeCloseTo(0.4);
+  });
+
+  it("returns null when too little of the grid is data", () => {
+    // 1 of 8 valid < 25% — a nearly-all-ocean box.
+    expect(meanValid([0.5, null, null, null, null, null, null, null])).toBe(
+      null
+    );
+    // 2 of 8 = exactly 25% — coastal box still counts.
+    expect(
+      meanValid([0.5, 0.7, null, null, null, null, null, null])
+    ).toBeCloseTo(0.6);
+  });
+
+  it("returns null for an empty grid", () => {
+    expect(meanValid([])).toBeNull();
+  });
+});
+
+describe("gridPoints", () => {
+  const bounds = { south: 0, north: 4, west: 10, east: 14 };
+
+  it("lays out n×n cell centers strictly inside the box", () => {
+    const points = gridPoints(bounds, 4);
+    expect(points).toHaveLength(16);
+    for (const p of points) {
+      expect(p.lat).toBeGreaterThan(bounds.south);
+      expect(p.lat).toBeLessThan(bounds.north);
+      expect(p.lon).toBeGreaterThan(bounds.west);
+      expect(p.lon).toBeLessThan(bounds.east);
+    }
+    // First cell center sits half a cell in from the corner.
+    expect(points[0]).toEqual({ lat: 0.5, lon: 10.5 });
+  });
+});
+
+describe("climatology & anomalies", () => {
+  // Two years of a two-season cycle: Jan low, Jul high — with a drought Jul.
+  const months = [
+    { year: 2020, month: 1 },
+    { year: 2020, month: 7 },
+    { year: 2021, month: 1 },
+    { year: 2021, month: 7 },
+  ];
+  const values = [0.2, 0.8, 0.2, 0.4]; // 2021 Jul is anomalously low
+
+  it("computes the per-calendar-month mean", () => {
+    const clim = monthlyClimatology(months, values);
+    expect(clim[0]).toBeCloseTo(0.2); // January
+    expect(clim[6]).toBeCloseTo(0.6); // July: (0.8 + 0.4) / 2
+    expect(clim[3]).toBeNull(); // no April data
+  });
+
+  it("subtracts the seasonal cycle, exposing the anomaly", () => {
+    const anomalies = anomalySeries(months, values);
+    expect(anomalies[0]).toBeCloseTo(0); // ordinary January
+    expect(anomalies[1]).toBeCloseTo(0.2); // good July
+    expect(anomalies[3]).toBeCloseTo(-0.2); // drought July
+  });
+
+  it("propagates nulls through the anomaly series", () => {
+    const anomalies = anomalySeries(months, [0.2, null, 0.2, 0.4]);
+    expect(anomalies[1]).toBeNull();
+  });
+});
+
 describe("seriesStats", () => {
   it("computes min/max/mean over valid months only", () => {
     const stats = seriesStats([0.2, null, 0.4, 0.6, null]);
@@ -117,17 +189,19 @@ describe("scales", () => {
 });
 
 describe("buildProbeCsv", () => {
+  const meta = {
+    layerLabel: "Vegetation (NDVI)",
+    wmsLayer: "MODIS_Terra_L3_NDVI_Monthly",
+    lat: -3.4653,
+    lon: -62.2159,
+    scale: PROBE_SCALES.ndvi,
+    mode: "point" as const,
+    imageWidth: 1024,
+    imageHeight: 512,
+    generatedIso: "2026-07-03T12:00:00Z",
+  };
   const csv = buildProbeCsv(
-    {
-      layerLabel: "Vegetation (NDVI)",
-      wmsLayer: "MODIS_Terra_L3_NDVI_Monthly",
-      lat: -3.4653,
-      lon: -62.2159,
-      scale: PROBE_SCALES.ndvi,
-      imageWidth: 1024,
-      imageHeight: 512,
-      generatedIso: "2026-07-03T12:00:00Z",
-    },
+    meta,
     [
       { year: 2000, month: 3 },
       { year: 2000, month: 4 },
@@ -140,13 +214,44 @@ describe("buildProbeCsv", () => {
     expect(csv).toContain("# lat: -3.4653");
     expect(csv).toContain("APPROXIMATE");
     expect(csv).toContain("# generated: 2026-07-03T12:00:00Z");
+    expect(csv).toContain("point probe");
   });
 
-  it("writes one row per month, empty for no-data", () => {
+  it("writes one row per month with anomaly, empty for no-data", () => {
     const rows = csv
       .trim()
       .split("\n")
       .filter((l) => !l.startsWith("#"));
-    expect(rows).toEqual(["year_month,value", "2000-03,0.8123", "2000-04,"]);
+    // Single March sample → March climatology = itself → anomaly 0.
+    expect(rows).toEqual([
+      "year_month,value,anomaly",
+      "2000-03,0.8123,0.0000",
+      "2000-04,,",
+    ]);
+  });
+
+  it("writes values on the layer scale (snow fractions become percent)", () => {
+    const snowCsv = buildProbeCsv(
+      { ...meta, scale: PROBE_SCALES.snow },
+      [{ year: 2001, month: 1 }],
+      [0.62]
+    );
+    expect(snowCsv).toContain("2001-01,62.0000,0.0000");
+  });
+
+  it("records the region bounds in area mode", () => {
+    const areaCsv = buildProbeCsv(
+      {
+        ...meta,
+        mode: "area" as const,
+        sampledBounds: { south: -4, north: -3, west: -63, east: -62 },
+      },
+      [{ year: 2001, month: 1 }],
+      [0.5]
+    );
+    expect(areaCsv).toContain("area probe");
+    expect(areaCsv).toContain(
+      "# region: -4.000,-63.000,-3.000,-62.000 (S,W,N,E)"
+    );
   });
 });

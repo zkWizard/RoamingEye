@@ -8,6 +8,12 @@ log captures milestones rather than every commit. Format loosely follows
 
 ### Added
 
+- **Probe v2: area averaging & anomaly view** — the probe now samples either
+  the clicked point or the mean of a ~1° region (8×8 grid), and can chart the
+  de-seasonalized anomaly (value minus that location's calendar-month mean) —
+  droughts and trends without the seasonal cycle in the way. CSVs gain an
+  `anomaly` column, record region bounds, and now write values on the layer's
+  physical scale (snow-cover CSVs are really percent).
 - **Comparison mode** — pin any month and sweep a draggable divider against
   the live timeline month: pre/post change detection (eruptions, droughts,
   decade-apart snowlines) on the same view, with the split included in PNG

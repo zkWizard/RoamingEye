@@ -459,7 +459,15 @@ if (compareEl && compareDividerEl) {
 if (probeEl) {
   const PROBE_IMAGE = { width: 1024, height: 512 }; // = preview size → HTTP cache hits
   let probeAbort: AbortController | undefined;
-  const panel = new ProbePanel(probeEl, () => probeAbort?.abort());
+  let probeTarget: { lat: number; lon: number } | undefined;
+  const panel = new ProbePanel(
+    probeEl,
+    () => probeAbort?.abort(),
+    // Mode toggle (point ↔ area) re-samples the same location.
+    () => {
+      if (probeTarget) runProbe(probeTarget.lat, probeTarget.lon);
+    }
+  );
   const sampler = new ProbeSampler(PROBE_IMAGE);
   closeProbe = () => {
     probeAbort?.abort();
@@ -468,7 +476,12 @@ if (probeEl) {
 
   const runProbe = (lat: number, lon: number): void => {
     const layer = LAYERS[currentLayer];
+    const mode = panel.mode;
+    probeTarget = { lat, lon };
     panel.open(layer.label, formatLatLng({ lat, lon }));
+    if (mode === "area") {
+      panel.setSubtitle(`~1° area around ${formatLatLng({ lat, lon })}`);
+    }
     if (layer.static) {
       panel.setStatus(
         "This layer has no time dimension — pick a monthly layer to chart a series."
@@ -485,6 +498,7 @@ if (probeEl) {
     let lastDraw = 0;
     sampler
       .sample(layer, probeMonths, lat, lon, {
+        mode,
         signal: abort.signal,
         onValue: (index, value) => panel.setValue(index, value),
         onProgress: (done, total) => {
@@ -507,6 +521,9 @@ if (probeEl) {
                 lat,
                 lon,
                 scale,
+                mode,
+                sampledBounds:
+                  mode === "area" ? sampler.areaBounds(lat, lon) : undefined,
                 imageWidth: PROBE_IMAGE.width,
                 imageHeight: PROBE_IMAGE.height,
                 generatedIso: new Date().toISOString(),
@@ -514,7 +531,7 @@ if (probeEl) {
               probeMonths,
               values
             ),
-          `roamingeye_probe_${layer.id}_${lat.toFixed(3)}_${lon.toFixed(3)}.csv`
+          `roamingeye_probe_${mode}_${layer.id}_${lat.toFixed(3)}_${lon.toFixed(3)}.csv`
         );
       })
       .catch((err) => {

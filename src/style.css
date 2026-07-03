@@ -1028,6 +1028,37 @@ body {
   width: 16px;
   height: 16px;
 }
+.probe__options {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.probe__segment {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  background: var(--accent-faint);
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+}
+
+.probe__segment-btn {
+  font: inherit;
+  font-size: 0.7rem;
+  padding: 0.2rem 0.6rem;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.probe__segment-btn[aria-pressed="true"] {
+  color: #fff;
+  background: var(--accent);
+}
+
 .probe__chart {
   width: 100%;
   height: 150px;

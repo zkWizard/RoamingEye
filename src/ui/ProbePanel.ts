@@ -1,18 +1,30 @@
 import {
+  anomalySeries,
   formatProbeValue,
   seriesStats,
   scaleValue,
   type ProbeScale,
 } from "../lib/probe";
+import type { ProbeMode } from "../probe/ProbeSampler";
 import type { YearMonth } from "../lib/timeline";
 import { ICONS } from "./icons";
 
 /**
- * The point-probe result card: a time-series chart of the sampled values at a
+ * The probe result card: a time-series chart of the sampled values at a
  * clicked location, a status/stat line, and a CSV download. Fills in
  * progressively as the sampler streams values, so long records feel alive
  * rather than stuck behind a spinner.
+ *
+ * Two toggles shape the analysis:
+ *  - Mode: "Point" (the clicked pixel) vs "Area" (mean over a ~1° box) —
+ *    switching re-samples via the onModeChange callback.
+ *  - View: "Values" vs "Anomaly" (minus the calendar-month climatology) —
+ *    a pure re-render; the anomaly is where droughts and trends stop hiding
+ *    behind the seasonal cycle.
  */
+
+type ProbeView = "values" | "anomaly";
+
 export class ProbePanel {
   private readonly root: HTMLElement;
   private readonly title: HTMLElement;
@@ -20,22 +32,27 @@ export class ProbePanel {
   private readonly canvas: HTMLCanvasElement;
   private readonly status: HTMLElement;
   private readonly downloadBtn: HTMLButtonElement;
+  private readonly modeButtons = new Map<ProbeMode, HTMLButtonElement>();
+  private readonly viewButtons = new Map<ProbeView, HTMLButtonElement>();
 
   private months: YearMonth[] = [];
   private values: (number | null)[] = [];
   private scale: ProbeScale | undefined;
   private csv: (() => string) | undefined;
   private csvFilename = "probe.csv";
+  private view: ProbeView = "values";
+  private modeValue: ProbeMode = "point";
 
   constructor(
     container: HTMLElement,
-    private readonly onClose?: () => void
+    private readonly onClose?: () => void,
+    private readonly onModeChange?: (mode: ProbeMode) => void
   ) {
     this.root = container;
     this.root.classList.add("probe");
     this.root.setAttribute("aria-hidden", "true");
     this.root.setAttribute("role", "dialog");
-    this.root.setAttribute("aria-label", "Point time-series probe");
+    this.root.setAttribute("aria-label", "Time-series probe");
 
     const header = document.createElement("div");
     header.className = "probe__header";
@@ -59,6 +76,30 @@ export class ProbePanel {
     });
 
     header.append(heading, closeBtn);
+
+    // Mode (re-samples) and view (re-renders) segmented toggles.
+    const options = document.createElement("div");
+    options.className = "probe__options";
+    options.append(
+      this.buildSegment(
+        "Sampling",
+        [
+          ["point", "Point"],
+          ["area", "Area ~1°"],
+        ],
+        this.modeButtons,
+        (mode) => this.selectMode(mode as ProbeMode)
+      ),
+      this.buildSegment(
+        "View",
+        [
+          ["values", "Values"],
+          ["anomaly", "Anomaly"],
+        ],
+        this.viewButtons,
+        (view) => this.selectView(view as ProbeView)
+      )
+    );
 
     this.canvas = document.createElement("canvas");
     this.canvas.className = "probe__chart";
@@ -84,11 +125,17 @@ export class ProbePanel {
 
     footer.append(this.downloadBtn, caveat);
 
-    this.root.append(header, this.canvas, this.status, footer);
+    this.root.append(header, options, this.canvas, this.status, footer);
+    this.reflectToggles();
   }
 
   get isOpen(): boolean {
     return this.root.classList.contains("is-open");
+  }
+
+  /** The active sampling mode (sticky across probes). */
+  get mode(): ProbeMode {
+    return this.modeValue;
   }
 
   /** Open (or refocus) the panel for a new probe. */
@@ -112,6 +159,10 @@ export class ProbePanel {
 
   setStatus(text: string): void {
     this.status.textContent = text;
+  }
+
+  setSubtitle(text: string): void {
+    this.subtitle.textContent = text;
   }
 
   /** Provide the full month range up front; values stream in via setValue. */
@@ -151,6 +202,53 @@ export class ProbePanel {
     );
   }
 
+  // --- Toggles -----------------------------------------------------------------
+
+  private buildSegment(
+    label: string,
+    entries: [string, string][],
+    registry: Map<string, HTMLButtonElement>,
+    onSelect: (key: string) => void
+  ): HTMLElement {
+    const group = document.createElement("div");
+    group.className = "probe__segment";
+    group.setAttribute("role", "group");
+    group.setAttribute("aria-label", label);
+    for (const [key, text] of entries) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "probe__segment-btn";
+      button.textContent = text;
+      button.addEventListener("click", () => onSelect(key));
+      registry.set(key, button);
+      group.appendChild(button);
+    }
+    return group;
+  }
+
+  private selectMode(mode: ProbeMode): void {
+    if (mode === this.modeValue) return;
+    this.modeValue = mode;
+    this.reflectToggles();
+    this.onModeChange?.(mode); // the app re-runs sampling in the new mode
+  }
+
+  private selectView(view: ProbeView): void {
+    if (view === this.view) return;
+    this.view = view;
+    this.reflectToggles();
+    this.draw();
+  }
+
+  private reflectToggles(): void {
+    for (const [key, btn] of this.modeButtons) {
+      btn.setAttribute("aria-pressed", String(key === this.modeValue));
+    }
+    for (const [key, btn] of this.viewButtons) {
+      btn.setAttribute("aria-pressed", String(key === this.view));
+    }
+  }
+
   private downloadCsv(): void {
     if (!this.csv) return;
     const blob = new Blob([this.csv()], { type: "text/csv" });
@@ -178,30 +276,49 @@ export class ProbePanel {
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, cssWidth, cssHeight);
 
-    const pad = { left: 34, right: 8, top: 8, bottom: 18 };
+    const pad = { left: 40, right: 8, top: 8, bottom: 18 };
     const plotW = cssWidth - pad.left - pad.right;
     const plotH = cssHeight - pad.top - pad.bottom;
     const n = this.months.length;
-
     ctx.font = "10px system-ui, sans-serif";
 
-    // Axes & gridlines: 0, ½ and full scale.
+    // The plotted series and its 0..1 plot mapping. Values plot the raw
+    // gradient position; anomalies plot on a symmetric band around zero.
+    const anomaly = this.view === "anomaly";
+    const series = anomaly
+      ? anomalySeries(this.months, this.values)
+      : this.values;
+    let toPlot = (v: number): number => v;
+    let axisLabel = (t: number): string =>
+      this.scale ? formatProbeValue(scaleValue(t, this.scale), this.scale) : "";
+    if (anomaly) {
+      const maxAbs = Math.max(
+        0.05,
+        ...series.filter((v): v is number => v !== null).map(Math.abs)
+      );
+      toPlot = (v) => (v + maxAbs) / (2 * maxAbs);
+      axisLabel = (t) => {
+        if (!this.scale) return "";
+        const scaled = (t * 2 - 1) * maxAbs * (this.scale.max - this.scale.min);
+        const sign = scaled > 0 ? "+" : "";
+        return `${sign}${formatProbeValue(scaled, this.scale)}`;
+      };
+    }
+
+    // Axes & gridlines: bottom, middle (zero for anomalies), top.
     ctx.strokeStyle = fg;
     ctx.fillStyle = fg;
     for (const t of [0, 0.5, 1]) {
       const y = pad.top + (1 - t) * plotH;
-      ctx.globalAlpha = 0.15;
+      ctx.globalAlpha = anomaly && t === 0.5 ? 0.4 : 0.15;
       ctx.beginPath();
       ctx.moveTo(pad.left, y);
       ctx.lineTo(pad.left + plotW, y);
       ctx.stroke();
       ctx.globalAlpha = 0.7;
-      if (this.scale) {
-        const label = formatProbeValue(scaleValue(t, this.scale), this.scale);
-        ctx.textAlign = "right";
-        ctx.textBaseline = "middle";
-        ctx.fillText(label, pad.left - 5, y);
-      }
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      ctx.fillText(axisLabel(t), pad.left - 5, y);
     }
 
     // Year ticks: aim for ~6 labels across the record.
@@ -235,13 +352,13 @@ export class ProbePanel {
       let penDown = false;
       ctx.beginPath();
       for (let i = 0; i < n; i++) {
-        const v = this.values[i];
+        const v = series[i];
         if (v === null) {
           penDown = false;
           continue;
         }
         const x = pad.left + (i / (n - 1)) * plotW;
-        const y = pad.top + (1 - v) * plotH;
+        const y = pad.top + (1 - toPlot(v)) * plotH;
         if (penDown) ctx.lineTo(x, y);
         else ctx.moveTo(x, y);
         penDown = true;
