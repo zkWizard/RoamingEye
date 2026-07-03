@@ -331,6 +331,58 @@ body {
   }
 }
 
+/* --- Share view (top-right, under the search box) ---------------------------- */
+.share {
+  position: absolute;
+  top: calc(clamp(0.75rem, 2vw, 1.25rem) + 52px);
+  right: clamp(0.75rem, 2vw, 1.25rem);
+  z-index: 4;
+  pointer-events: auto;
+}
+
+.share-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--fg);
+  background: rgba(8, 12, 20, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.share-button:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.share-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.share-button__icon {
+  display: flex;
+  width: 15px;
+  height: 15px;
+}
+
+.share-button__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.share-button--copied {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* --- Search (top-right) ----------------------------------------------------- */
 .search {
   position: absolute;

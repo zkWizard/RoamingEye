@@ -5,9 +5,13 @@ import {
   DATA_LATEST,
   buildMonthRange,
   clampIndexToLayer,
+  ymToIndex,
   type LayerId,
   type YearMonth,
 } from "./lib/timeline";
+import { encodeViewState, decodeViewState } from "./lib/viewState";
+import { latLngToVector3, vector3ToLatLng } from "./lib/geo";
+import { ShareButton } from "./ui/ShareButton";
 import { GlobeTextureManager } from "./textures/GlobeTextureManager";
 import { TimeSlider } from "./ui/TimeSlider";
 import { LayerSelector } from "./ui/LayerSelector";
@@ -139,8 +143,22 @@ if (tooltipEl) {
 
 // --- Temporal imagery pipeline ----------------------------------------------
 const months: YearMonth[] = buildMonthRange(DATA_LATEST, MONTHS_BACK);
-let currentLayer: LayerId = "ndvi";
-let currentIndex = months.length - 1; // start at the most recent month
+
+// Restore a shared view (layer, month, camera) from the URL hash, if present —
+// links reproduce exactly what the sender was looking at.
+const initialView = decodeViewState(window.location.hash);
+let currentLayer: LayerId = initialView.layer ?? "ndvi";
+let currentIndex = months.length - 1; // default: the most recent month
+if (initialView.month) {
+  const restored = ymToIndex(initialView.month) - ymToIndex(months[0]);
+  if (restored >= 0 && restored < months.length) currentIndex = restored;
+}
+currentIndex = clampIndexToLayer(months, currentIndex, LAYERS[currentLayer]);
+if (initialView.camera) {
+  const { lat, lon, alt } = initialView.camera;
+  camera.position.copy(latLngToVector3(lat, lon, EARTH_RADIUS + alt));
+}
+
 let firstLoadDone = false;
 
 const textures = new GlobeTextureManager(
@@ -176,6 +194,7 @@ const timeSlider = timelineEl
       currentIndex = index;
       refreshGlobe();
       if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
+      scheduleHashSync();
     })
   : null;
 
@@ -192,6 +211,7 @@ if (layerEl) {
     }
     refreshGlobe();
     prefetchCurrentLayer();
+    scheduleHashSync();
   });
 }
 
@@ -229,8 +249,43 @@ controls.zoomSpeed = 0.8;
 controls.minDistance = 1.06; // get right down to a study region's surface
 controls.maxDistance = 4.5; // furthest zoom-out
 
+// --- Shareable view state (URL hash) ------------------------------------------
+// The hash always reflects the current view, so the address bar is a citable,
+// reproducible link at any moment. Writes are debounced and use replaceState
+// to avoid spamming session history while dragging.
+function currentViewState() {
+  const subpoint = vector3ToLatLng(camera.position);
+  return {
+    layer: currentLayer,
+    month: months[currentIndex],
+    camera: {
+      lat: subpoint.lat,
+      lon: subpoint.lon,
+      alt: camera.position.length() - EARTH_RADIUS,
+    },
+  };
+}
+
+let hashTimer: ReturnType<typeof setTimeout> | undefined;
+function scheduleHashSync(): void {
+  clearTimeout(hashTimer);
+  hashTimer = setTimeout(() => {
+    history.replaceState(null, "", `#${encodeViewState(currentViewState())}`);
+  }, 400);
+}
+
+const shareEl = document.querySelector<HTMLElement>("#share");
+if (shareEl) {
+  new ShareButton(
+    shareEl,
+    () =>
+      `${location.origin}${location.pathname}#${encodeViewState(currentViewState())}`
+  );
+}
+
 // --- Search + fly-to --------------------------------------------------------
 const flyer = new CameraFlyer(camera, controls);
+controls.addEventListener("change", scheduleHashSync);
 
 if (searchEl) {
   new SearchBox(searchEl, (result) => {
@@ -258,11 +313,16 @@ if (providersPageEl && providersLinkEl) {
 // --- Render loop ------------------------------------------------------------
 const timer = new THREE.Timer();
 let signalledReady = false;
+let wasFlying = false;
 renderer.setAnimationLoop(() => {
   timer.update();
   const delta = timer.getDelta();
   flyer.update(delta);
   if (!flyer.isFlying) controls.update(); // flyer drives the camera while active
+  // Flights move the camera without OrbitControls events — sync the shareable
+  // hash once when a fly-to lands.
+  if (wasFlying && !flyer.isFlying) scheduleHashSync();
+  wasFlying = flyer.isFlying;
   highlight.update(camera.position.length()); // keep the marker a constant size
   renderer.render(scene, camera);
 
