@@ -14,6 +14,8 @@ import { encodeViewState, decodeViewState } from "./lib/viewState";
 import { latLngToVector3, vector3ToLatLng } from "./lib/geo";
 import { ShareButton } from "./ui/ShareButton";
 import { ExportControls } from "./ui/ExportControls";
+import { ThemeToggle } from "./ui/ThemeToggle";
+import type { Theme } from "./lib/theme";
 import { GlobeTextureManager } from "./textures/GlobeTextureManager";
 import { TimeSlider } from "./ui/TimeSlider";
 import { LayerSelector } from "./ui/LayerSelector";
@@ -96,7 +98,26 @@ sunLight.position.set(5, 3, 5);
 scene.add(sunLight);
 
 // --- Starfield backdrop -----------------------------------------------------
-scene.add(createStarfield());
+const starfield = createStarfield();
+scene.add(starfield);
+
+// --- Theme (light/dark) -------------------------------------------------------
+// The DOM theme is CSS-variable driven; the WebGL side mirrors it here: a
+// space-dark or daylight clear color, and stars only against a night sky.
+const SPACE_BG = new THREE.Color(0x05070d); // matches --bg (dark)
+const DAY_BG = new THREE.Color(0xeaf0f8); // matches --bg (light)
+
+function applyTheme(theme: Theme): void {
+  const dark = theme === "dark";
+  renderer.setClearColor(dark ? SPACE_BG : DAY_BG, 1);
+  starfield.visible = dark;
+}
+
+const themeEl = document.querySelector<HTMLElement>("#theme-toggle");
+if (themeEl) {
+  // Constructing the toggle applies the initial theme (calls applyTheme once).
+  new ThemeToggle(themeEl, applyTheme);
+}
 
 // --- Earth ------------------------------------------------------------------
 const earth = new THREE.Mesh(
