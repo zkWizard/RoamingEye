@@ -8,6 +8,10 @@ log captures milestones rather than every commit. Format loosely follows
 
 ### Added
 
+- **Plate-tectonics context pack** — tectonic plate boundaries (Bird 2003) and
+  ~1,200 Holocene volcanoes (Smithsonian Global Volcanism Program), colored by
+  eruption recency, as toggleable overlays alongside the live earthquakes —
+  the full plate-tectonics narrative on one globe.
 - **A much richer dataset** — 9 scientific layers across vegetation, temperature
   (land/air/sea), water (precipitation, soil moisture), cryosphere, and
   atmosphere, in a grouped layer picker. Lagging products snap the timeline to a
