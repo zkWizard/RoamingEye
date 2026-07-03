@@ -2,12 +2,20 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import {
   LAYERS,
-  DATA_LATEST,
-  buildMonthRange,
   clampIndexToLayer,
+  monthRangeForLayer,
+  ymToIndex,
+  formatYm,
+  gibsWmsUrl,
   type LayerId,
   type YearMonth,
 } from "./lib/timeline";
+import { encodeViewState, decodeViewState } from "./lib/viewState";
+import { latLngToVector3, vector3ToLatLng } from "./lib/geo";
+import { ShareButton } from "./ui/ShareButton";
+import { ExportControls } from "./ui/ExportControls";
+import { ThemeToggle } from "./ui/ThemeToggle";
+import type { Theme } from "./lib/theme";
 import { GlobeTextureManager } from "./textures/GlobeTextureManager";
 import { TimeSlider } from "./ui/TimeSlider";
 import { LayerSelector } from "./ui/LayerSelector";
@@ -19,6 +27,7 @@ import { GraticuleOverlay } from "./overlays/GraticuleOverlay";
 import { BordersOverlay } from "./overlays/BordersOverlay";
 import { CitiesOverlay } from "./overlays/CitiesOverlay";
 import { AtmosphereOverlay } from "./overlays/AtmosphereOverlay";
+import { EarthquakesOverlay } from "./overlays/EarthquakesOverlay";
 import { CameraFlyer } from "./scene/CameraFlyer";
 import { LocationHighlight } from "./scene/LocationHighlight";
 import { HoverInspector } from "./scene/HoverInspector";
@@ -44,7 +53,6 @@ declare global {
 }
 
 const EARTH_RADIUS = 1;
-const MONTHS_BACK = 60; // last 5 years, to start
 
 const canvas = document.querySelector<HTMLCanvasElement>("#globe");
 if (!canvas) {
@@ -61,6 +69,8 @@ const tooltipEl = document.querySelector<HTMLElement>("#hover-tooltip");
 const studyChipEl = document.querySelector<HTMLElement>("#study-chip");
 const providersPageEl = document.querySelector<HTMLElement>("#providers-page");
 const providersLinkEl = document.querySelector<HTMLElement>("#providers-link");
+const provenanceEl = document.querySelector<HTMLElement>("#provenance");
+const exportEl = document.querySelector<HTMLElement>("#export");
 
 // --- Renderer ---------------------------------------------------------------
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -88,7 +98,26 @@ sunLight.position.set(5, 3, 5);
 scene.add(sunLight);
 
 // --- Starfield backdrop -----------------------------------------------------
-scene.add(createStarfield());
+const starfield = createStarfield();
+scene.add(starfield);
+
+// --- Theme (light/dark) -------------------------------------------------------
+// The DOM theme is CSS-variable driven; the WebGL side mirrors it here: a
+// space-dark or daylight clear color, and stars only against a night sky.
+const SPACE_BG = new THREE.Color(0x05070d); // matches --bg (dark)
+const DAY_BG = new THREE.Color(0xeaf0f8); // matches --bg (light)
+
+function applyTheme(theme: Theme): void {
+  const dark = theme === "dark";
+  renderer.setClearColor(dark ? SPACE_BG : DAY_BG, 1);
+  starfield.visible = dark;
+}
+
+const themeEl = document.querySelector<HTMLElement>("#theme-toggle");
+if (themeEl) {
+  // Constructing the toggle applies the initial theme (calls applyTheme once).
+  new ThemeToggle(themeEl, applyTheme);
+}
 
 // --- Earth ------------------------------------------------------------------
 const earth = new THREE.Mesh(
@@ -107,6 +136,7 @@ const overlays: MapOverlay[] = [
   new BordersOverlay(),
   new CitiesOverlay(),
   new AtmosphereOverlay(),
+  new EarthquakesOverlay(),
 ];
 for (const overlay of overlays) scene.add(overlay.object);
 
@@ -140,9 +170,25 @@ if (tooltipEl) {
 }
 
 // --- Temporal imagery pipeline ----------------------------------------------
-const months: YearMonth[] = buildMonthRange(DATA_LATEST, MONTHS_BACK);
-let currentLayer: LayerId = "ndvi";
-let currentIndex = months.length - 1; // start at the most recent month
+// Restore a shared view (layer, month, camera) from the URL hash, if present —
+// links reproduce exactly what the sender was looking at. Each layer exposes
+// its full published record (MERRA-2 reaches back to 1980), so `months` is
+// per-layer (the hash layer is resolved first) and the slider rebuilds on
+// layer switch.
+const initialView = decodeViewState(window.location.hash);
+let currentLayer: LayerId = initialView.layer ?? "ndvi";
+let months: YearMonth[] = monthRangeForLayer(LAYERS[currentLayer]);
+let currentIndex = months.length - 1; // default: the most recent month
+if (initialView.month) {
+  const restored = ymToIndex(initialView.month) - ymToIndex(months[0]);
+  if (restored >= 0 && restored < months.length) currentIndex = restored;
+}
+currentIndex = clampIndexToLayer(months, currentIndex, LAYERS[currentLayer]);
+if (initialView.camera) {
+  const { lat, lon, alt } = initialView.camera;
+  camera.position.copy(latLngToVector3(lat, lon, EARTH_RADIUS + alt));
+}
+
 let firstLoadDone = false;
 
 const textures = new GlobeTextureManager(
@@ -164,44 +210,97 @@ const textures = new GlobeTextureManager(
 
 function refreshGlobe(): void {
   textures.show(LAYERS[currentLayer], months[currentIndex]);
+  updateProvenance();
 }
 
-// Prefetch a small preview of every month so scrubbing updates the globe live
-// at each month boundary, not just when the user stops dragging.
-function prefetchCurrentLayer(): void {
-  textures.prefetchPreviews(LAYERS[currentLayer], months);
+// Prefetch previews so scrubbing updates the globe live at month boundaries.
+// Full-record layers hold 550+ months — warming them all at once would pin
+// hundreds of MB of textures, so warm the recent decade and extend backwards
+// on demand as the user scrubs into older months.
+const PREFETCH_CHUNK = 120;
+let warmedStart = Number.MAX_SAFE_INTEGER;
+
+function prefetchFrom(index: number): void {
+  const start = Math.max(0, index);
+  if (start >= warmedStart) return;
+  warmedStart = start;
+  textures.prefetchPreviews(LAYERS[currentLayer], months.slice(start));
+}
+
+function resetPrefetch(): void {
+  warmedStart = Number.MAX_SAFE_INTEGER;
+  prefetchFrom(months.length - PREFETCH_CHUNK);
+}
+
+function ensureWarm(index: number): void {
+  if (index - 24 < warmedStart) prefetchFrom(index - PREFETCH_CHUNK);
 }
 
 // --- UI ---------------------------------------------------------------------
-const timeSlider = timelineEl
-  ? new TimeSlider(timelineEl, months, currentIndex, (index) => {
-      currentIndex = index;
-      refreshGlobe();
-      if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
-    })
-  : null;
+// The slider is rebuilt on layer switch because each layer's month range
+// differs (its constructor clears the container).
+function buildTimeline(): void {
+  if (!timelineEl) return;
+  new TimeSlider(timelineEl, months, currentIndex, (index) => {
+    currentIndex = index;
+    refreshGlobe();
+    ensureWarm(index);
+    if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
+    scheduleHashSync();
+  });
+}
+buildTimeline();
 
 const legend = legendEl ? new Legend(legendEl, currentLayer) : undefined;
 
 if (layerEl) {
   new LayerSelector(layerEl, currentLayer, (id) => {
+    const selected = months[currentIndex];
     currentLayer = id;
     legend?.setLayer(id);
-    // Some layers (reanalysis, ocean) lag behind the MODIS composites — snap
-    // the timeline to a month this layer actually covers.
-    const snapped = clampIndexToLayer(months, currentIndex, LAYERS[id]);
-    if (snapped !== currentIndex) {
-      currentIndex = snapped;
-      timeSlider?.setIndex(snapped);
-      if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
-    }
+    months = monthRangeForLayer(LAYERS[id]);
+    // Keep the same calendar month selected where the new layer covers it;
+    // clamp into range otherwise (reanalysis/ocean products start/lag apart).
+    const mapped = ymToIndex(selected) - ymToIndex(months[0]);
+    currentIndex = Math.min(months.length - 1, Math.max(0, mapped));
+    currentIndex = clampIndexToLayer(months, currentIndex, LAYERS[id]);
+    buildTimeline();
+    if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
     refreshGlobe();
-    prefetchCurrentLayer();
+    resetPrefetch();
+    scheduleHashSync();
   });
 }
 
 refreshGlobe(); // kick off the initial month
-prefetchCurrentLayer(); // warm the preview cache for instant scrubbing
+resetPrefetch(); // warm the preview cache for instant scrubbing
+
+// --- Provenance & export ------------------------------------------------------
+function updateProvenance(): void {
+  if (!provenanceEl) return;
+  const layer = LAYERS[currentLayer];
+  provenanceEl.textContent = `${layer.wmsLayer} · ${formatYm(months[currentIndex])}`;
+}
+
+if (exportEl) {
+  new ExportControls(exportEl, {
+    downloadPng: () => {
+      // Render a fresh frame and read the canvas in the same task — the
+      // drawing buffer isn't preserved between frames.
+      renderer.render(scene, camera);
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const ym = months[currentIndex];
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `roamingeye_${currentLayer}_${ym.year}-${String(ym.month).padStart(2, "0")}.png`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }, "image/png");
+    },
+    imageryUrl: () => gibsWmsUrl(LAYERS[currentLayer], months[currentIndex]),
+  });
+}
 
 // Toolbar overlays — load lazily on first enable, then toggle visibility.
 async function toggleOverlay(overlay: MapOverlay, on: boolean): Promise<void> {
@@ -234,8 +333,43 @@ controls.zoomSpeed = 0.8;
 controls.minDistance = 1.06; // get right down to a study region's surface
 controls.maxDistance = 4.5; // furthest zoom-out
 
+// --- Shareable view state (URL hash) ------------------------------------------
+// The hash always reflects the current view, so the address bar is a citable,
+// reproducible link at any moment. Writes are debounced and use replaceState
+// to avoid spamming session history while dragging.
+function currentViewState() {
+  const subpoint = vector3ToLatLng(camera.position);
+  return {
+    layer: currentLayer,
+    month: months[currentIndex],
+    camera: {
+      lat: subpoint.lat,
+      lon: subpoint.lon,
+      alt: camera.position.length() - EARTH_RADIUS,
+    },
+  };
+}
+
+let hashTimer: ReturnType<typeof setTimeout> | undefined;
+function scheduleHashSync(): void {
+  clearTimeout(hashTimer);
+  hashTimer = setTimeout(() => {
+    history.replaceState(null, "", `#${encodeViewState(currentViewState())}`);
+  }, 400);
+}
+
+const shareEl = document.querySelector<HTMLElement>("#share");
+if (shareEl) {
+  new ShareButton(
+    shareEl,
+    () =>
+      `${location.origin}${location.pathname}#${encodeViewState(currentViewState())}`
+  );
+}
+
 // --- Search + fly-to --------------------------------------------------------
 const flyer = new CameraFlyer(camera, controls);
+controls.addEventListener("change", scheduleHashSync);
 
 if (searchEl) {
   new SearchBox(searchEl, (result) => {
@@ -263,11 +397,16 @@ if (providersPageEl && providersLinkEl) {
 // --- Render loop ------------------------------------------------------------
 const timer = new THREE.Timer();
 let signalledReady = false;
+let wasFlying = false;
 renderer.setAnimationLoop(() => {
   timer.update();
   const delta = timer.getDelta();
   flyer.update(delta);
   if (!flyer.isFlying) controls.update(); // flyer drives the camera while active
+  // Flights move the camera without OrbitControls events — sync the shareable
+  // hash once when a fly-to lands.
+  if (wasFlying && !flyer.isFlying) scheduleHashSync();
+  wasFlying = flyer.isFlying;
   highlight.update(camera.position.length()); // keep the marker a constant size
   renderer.render(scene, camera);
 

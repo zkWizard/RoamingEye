@@ -277,6 +277,28 @@ export const PROVIDERS: Provider[] = [
       "Reanalysis and land-surface modelling — source of our air-temperature, aerosol, precipitation and soil-moisture layers.",
   },
   {
+    name: "USGS Earthquake Hazards Program",
+    org: "USGS",
+    region: "USA",
+    group: "Open datasets & services",
+    url: "https://earthquake.usgs.gov/earthquakes/feed/",
+    license: "Public domain",
+    use: "core",
+    description:
+      "Real-time global seismicity feeds — source of our live earthquakes overlay (M4.5+, last 30 days).",
+  },
+  {
+    name: "ASTER GDEM",
+    org: "NASA / METI (Japan)",
+    region: "USA / Japan",
+    group: "Open datasets & services",
+    url: "https://www.earthdata.nasa.gov/data/instruments/aster",
+    license: "Public domain",
+    use: "core",
+    description:
+      "Global digital elevation model from the ASTER instrument — source of our shaded-relief terrain layer.",
+  },
+  {
     name: "ESA WorldCover",
     org: "ESA",
     region: "Global",

@@ -19,10 +19,16 @@ export type LayerId =
   | "sst"
   | "precip"
   | "soil"
-  | "aerosol";
+  | "aerosol"
+  | "terrain";
 
 export type LayerCategory =
-  "Vegetation" | "Temperature" | "Water" | "Cryosphere" | "Atmosphere";
+  | "Vegetation"
+  | "Temperature"
+  | "Water"
+  | "Cryosphere"
+  | "Atmosphere"
+  | "Terrain";
 
 /** A calendar month. `month` is 1-12 (1 = January). */
 export interface YearMonth {
@@ -41,6 +47,9 @@ export interface LayerConfig {
   /** Most recent month available (defaults to DATA_LATEST). Reanalysis and
    * some products lag further behind than the MODIS composites. */
   latest?: YearMonth;
+  /** True for datasets with no time dimension (e.g. elevation): one image
+   * regardless of the selected month, and no TIME param in GIBS URLs. */
+  static?: boolean;
   description: string;
 }
 
@@ -146,6 +155,16 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     latest: { year: 2026, month: 3 },
     description: "Aerosol optical thickness — dust, smoke, and air quality.",
   },
+  terrain: {
+    id: "terrain",
+    label: "Terrain (shaded relief)",
+    category: "Terrain",
+    wmsLayer: "ASTER_GDEM_Color_Shaded_Relief",
+    start: { year: 2000, month: 3 }, // static dataset — the timeline has no effect
+    static: true,
+    description:
+      "ASTER GDEM color shaded relief — landforms, mountain belts, and basins.",
+  },
 };
 
 /** Display order within the picker (grouped by category). */
@@ -159,6 +178,7 @@ export const LAYER_ORDER: LayerId[] = [
   "soil",
   "snow",
   "aerosol",
+  "terrain",
 ];
 
 export const CATEGORY_ORDER: LayerCategory[] = [
@@ -167,6 +187,7 @@ export const CATEGORY_ORDER: LayerCategory[] = [
   "Water",
   "Cryosphere",
   "Atmosphere",
+  "Terrain",
 ];
 
 /** Layers grouped by category, in display order. */
@@ -245,6 +266,16 @@ export function isAvailable(layer: LayerConfig, ym: YearMonth): boolean {
   return compareYm(ym, layer.start) >= 0 && compareYm(ym, DATA_LATEST) <= 0;
 }
 
+/**
+ * Every published month for a layer, oldest → newest — the layer's full
+ * scientific record (MERRA-2 layers reach back to 1980), not a fixed window.
+ */
+export function monthRangeForLayer(layer: LayerConfig): YearMonth[] {
+  const latest = layer.latest ?? DATA_LATEST;
+  const count = ymToIndex(latest) - ymToIndex(layer.start) + 1;
+  return buildMonthRange(latest, Math.max(1, count));
+}
+
 // --- Slider position mapping ------------------------------------------------
 
 /** Map a 0..1 track fraction to a clamped index in [0, count - 1]. */
@@ -270,7 +301,8 @@ export interface GibsImageOptions {
 
 /**
  * Build a GIBS WMS GetMap URL for a full equirectangular (EPSG:4326) image of
- * the given layer and month. Months are addressed by their first day.
+ * the given layer and month. Months are addressed by their first day; static
+ * (time-less) layers get no TIME param.
  */
 export function gibsWmsUrl(
   layer: LayerConfig,
@@ -278,7 +310,6 @@ export function gibsWmsUrl(
   options: GibsImageOptions = {}
 ): string {
   const { width = 2048, height = 1024, format = "image/jpeg" } = options;
-  const time = `${ym.year}-${String(ym.month).padStart(2, "0")}-01`;
 
   const params = new URLSearchParams({
     SERVICE: "WMS",
@@ -290,8 +321,10 @@ export function gibsWmsUrl(
     WIDTH: String(width),
     HEIGHT: String(height),
     FORMAT: format,
-    TIME: time,
   });
+  if (!layer.static) {
+    params.set("TIME", `${ym.year}-${String(ym.month).padStart(2, "0")}-01`);
+  }
 
   return `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?${params.toString()}`;
 }

@@ -63,16 +63,23 @@ export class TimeSlider {
 
   private renderTicks(): void {
     const count = this.months.length;
+    // Ranges spanning decades thin out: month ticks only while they're
+    // readable, and year labels every N years so they never collide.
+    const showMonthTicks = count <= 120;
+    const years = Math.ceil(count / 12);
+    const labelEvery = years > 30 ? 5 : years > 15 ? 2 : 1;
+
     this.months.forEach((ym, i) => {
       const fraction = indexToFraction(i, count);
       const isYear = ym.month === 1 || i === 0;
+      if (!isYear && !showMonthTicks) return;
 
       const tick = document.createElement("div");
       tick.className = `timeline__tick ${isYear ? "timeline__tick--year" : "timeline__tick--month"}`;
       tick.style.left = `${fraction * 100}%`;
       this.track.appendChild(tick);
 
-      if (isYear) {
+      if (isYear && (i === 0 || ym.year % labelEvery === 0)) {
         const label = document.createElement("span");
         label.className = "timeline__year";
         label.style.left = `${fraction * 100}%`;

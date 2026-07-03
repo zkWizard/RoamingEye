@@ -18,9 +18,9 @@ test("toolbar exposes overlay toggles and flips their state", async ({
   page,
 }) => {
   const items = page.locator(".toolbar__item");
-  await expect(items).toHaveCount(4);
+  await expect(items).toHaveCount(5);
 
-  const borders = items.nth(1); // Grid, Borders, Cities, Atmosphere
+  const borders = items.nth(1); // Grid, Borders, Cities, Atmosphere, Quakes
   const before = await borders.getAttribute("aria-pressed");
   await borders.click();
   await expect(borders).toHaveAttribute(
