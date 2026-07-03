@@ -138,9 +138,9 @@ export class TimeSlider {
     this.update(fractionToIndex(fraction, this.months.length), true);
   }
 
-  /** Programmatically move the handle (e.g. when restoring state). */
+  /** Programmatically move the handle without firing onChange. */
   setIndex(index: number): void {
-    this.update(Math.min(this.months.length - 1, Math.max(0, index)), true);
+    this.update(Math.min(this.months.length - 1, Math.max(0, index)), false);
   }
 
   private update(index: number, emit: boolean): void {

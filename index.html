@@ -15,12 +15,24 @@
   </head>
   <body>
     <div id="app">
-      <canvas id="globe"></canvas>
+      <canvas
+        id="globe"
+        aria-label="Interactive 3D globe — drag to rotate, scroll to zoom"
+        role="application"
+      ></canvas>
 
       <header class="overlay overlay--top">
         <h1 class="brand">Roaming<span>Eye</span></h1>
         <p class="hint">Drag to rotate · scrub the timeline to change month</p>
       </header>
+
+      <div id="search" class="search"></div>
+
+      <aside id="toolbar" class="toolbar" aria-label="Map overlays"></aside>
+
+      <div id="hover-tooltip" class="hover-tooltip" aria-hidden="true"></div>
+
+      <div id="study-chip" class="study-chip"></div>
 
       <div class="overlay overlay--bottom">
         <div id="controls" class="controls">
@@ -33,7 +45,12 @@
           ></div>
         </div>
         <p class="attribution">
-          Imagery: NASA GIBS · MODIS monthly composites (public domain) ·
+          Imagery: NASA GIBS · Borders &amp; places: Natural Earth · Search: ©
+          OpenStreetMap ·
+          <button id="providers-link" type="button" class="attribution__link">
+            Data providers
+          </button>
+          ·
           <a
             href="https://github.com/zkWizard/RoamingEye"
             target="_blank"
@@ -42,6 +59,8 @@
           >
         </p>
       </div>
+
+      <div id="providers-page" class="providers" aria-hidden="true"></div>
 
       <div id="loader" class="loader">
         <div class="loader__spinner" aria-hidden="true"></div>

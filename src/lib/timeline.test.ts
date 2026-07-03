@@ -10,6 +10,7 @@ import {
   fractionToIndex,
   indexToFraction,
   gibsWmsUrl,
+  clampIndexToLayer,
   LAYERS,
   DATA_LATEST,
 } from "./timeline";
@@ -97,6 +98,23 @@ describe("slider position mapping", () => {
     for (const i of [0, 7, 30, 59]) {
       expect(fractionToIndex(indexToFraction(i, count), count)).toBe(i);
     }
+  });
+});
+
+describe("clampIndexToLayer", () => {
+  const months = buildMonthRange({ year: 2026, month: 5 }, 60); // Jun 2021 → May 2026
+
+  it("keeps the index for a layer that covers the latest month", () => {
+    expect(clampIndexToLayer(months, 59, LAYERS.ndvi)).toBe(59);
+  });
+
+  it("snaps back to a covered month for a lagging layer", () => {
+    const idx = clampIndexToLayer(months, 59, LAYERS.precip); // latest 2026-01
+    expect(months[idx]).toEqual({ year: 2026, month: 1 });
+  });
+
+  it("leaves earlier indices untouched", () => {
+    expect(clampIndexToLayer(months, 10, LAYERS.precip)).toBe(10);
   });
 });
 
