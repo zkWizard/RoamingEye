@@ -13,6 +13,7 @@ import { TimeSlider } from "./ui/TimeSlider";
 import { LayerSelector } from "./ui/LayerSelector";
 import { Toolbar } from "./ui/Toolbar";
 import { SearchBox } from "./ui/SearchBox";
+import { Legend } from "./ui/Legend";
 import type { MapOverlay } from "./overlays/types";
 import { GraticuleOverlay } from "./overlays/GraticuleOverlay";
 import { BordersOverlay } from "./overlays/BordersOverlay";
@@ -53,6 +54,7 @@ if (!canvas) {
 const loaderEl = document.querySelector<HTMLElement>("#loader");
 const statusEl = document.querySelector<HTMLElement>("#timeline-status");
 const layerEl = document.querySelector<HTMLElement>("#layer-selector");
+const legendEl = document.querySelector<HTMLElement>("#legend");
 const timelineEl = document.querySelector<HTMLElement>("#timeline");
 const toolbarEl = document.querySelector<HTMLElement>("#toolbar");
 const searchEl = document.querySelector<HTMLElement>("#search");
@@ -181,9 +183,12 @@ const timeSlider = timelineEl
     })
   : null;
 
+const legend = legendEl ? new Legend(legendEl, currentLayer) : undefined;
+
 if (layerEl) {
   new LayerSelector(layerEl, currentLayer, (id) => {
     currentLayer = id;
+    legend?.setLayer(id);
     // Some layers (reanalysis, ocean) lag behind the MODIS composites — snap
     // the timeline to a month this layer actually covers.
     const snapped = clampIndexToLayer(months, currentIndex, LAYERS[id]);
