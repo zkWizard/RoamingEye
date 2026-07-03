@@ -23,7 +23,8 @@ export class CitiesOverlay implements MapOverlay {
   private loadPromise: Promise<void> | undefined;
 
   constructor(
-    private readonly url = "/data/cities.json",
+    // BASE_URL-aware so the fetch works when the site is hosted on a subpath.
+    private readonly url = `${import.meta.env.BASE_URL}data/cities.json`,
     private readonly radius = GLOBE_RADIUS * 1.004
   ) {
     this.object.visible = false;

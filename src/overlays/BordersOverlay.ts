@@ -22,7 +22,8 @@ export class BordersOverlay implements MapOverlay {
   private loadPromise: Promise<void> | undefined;
 
   constructor(
-    private readonly url = "/data/countries.geojson",
+    // BASE_URL-aware so the fetch works when the site is hosted on a subpath.
+    private readonly url = `${import.meta.env.BASE_URL}data/countries.geojson`,
     private readonly radius = GLOBE_RADIUS * 1.0015
   ) {
     this.object.visible = false;

@@ -120,7 +120,8 @@ export function buildCountryIndex(collection: RawCollection): CountryIndex {
 }
 
 export async function loadCountryIndex(
-  url = "/data/countries.geojson"
+  // BASE_URL-aware so the fetch works when the site is hosted on a subpath.
+  url = `${import.meta.env.BASE_URL}data/countries.geojson`
 ): Promise<CountryIndex> {
   const collection = await fetchJson<RawCollection>(url);
   return buildCountryIndex(collection);
