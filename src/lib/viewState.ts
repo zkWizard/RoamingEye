@@ -21,6 +21,11 @@ export interface ViewState {
   layer?: LayerId;
   month?: YearMonth;
   camera?: CameraState;
+  /** An open time-series probe at this point — the link reproduces the chart. */
+  probe?: { lat: number; lon: number };
+  /** An active comparison pinned to this month (the timeline month is the
+   * other side) — the link reproduces the A/B view. */
+  pin?: YearMonth;
 }
 
 const MONTH_RE = /^(\d{4})-(\d{2})$/;
@@ -43,6 +48,18 @@ export function encodeViewState(state: ViewState): string {
     params.set("lat", state.camera.lat.toFixed(2));
     params.set("lon", state.camera.lon.toFixed(2));
     params.set("alt", state.camera.alt.toFixed(2));
+  }
+  if (state.probe) {
+    params.set(
+      "probe",
+      `${state.probe.lat.toFixed(4)},${state.probe.lon.toFixed(4)}`
+    );
+  }
+  if (state.pin) {
+    params.set(
+      "pin",
+      `${state.pin.year}-${String(state.pin.month).padStart(2, "0")}`
+    );
   }
   return params.toString();
 }
@@ -89,6 +106,28 @@ export function decodeViewState(hash: string): ViewState {
     alt <= 20
   ) {
     state.camera = { lat, lon, alt };
+  }
+
+  const probe = params.get("probe")?.split(",");
+  if (probe?.length === 2) {
+    const [plat, plon] = probe.map(Number);
+    if (
+      Number.isFinite(plat) &&
+      Number.isFinite(plon) &&
+      Math.abs(plat) <= 90 &&
+      Math.abs(plon) <= 180
+    ) {
+      state.probe = { lat: plat, lon: plon };
+    }
+  }
+
+  const pin = params.get("pin")?.match(MONTH_RE);
+  if (pin) {
+    const year = Number(pin[1]);
+    const month = Number(pin[2]);
+    if (year >= 1900 && year <= 2200 && month >= 1 && month <= 12) {
+      state.pin = { year, month };
+    }
   }
 
   return state;

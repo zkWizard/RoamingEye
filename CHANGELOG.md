@@ -8,6 +8,10 @@ log captures milestones rather than every commit. Format loosely follows
 
 ### Added
 
+- **Analysis deep links** — the shareable URL now encodes an open probe
+  (`probe=lat,lon`) and an active comparison pin (`pin=YYYY-MM`), so a link
+  reproduces the whole analysis — chart, CSV and A/B divider included — not
+  just the camera view.
 - **Self-updating timeline** — at boot the app asks GIBS (WMTS
   DescribeDomains) for the newest published month and grows the timeline to
   it, so the deployed site stays current as NASA publishes new composites —
