@@ -8,6 +8,10 @@ log captures milestones rather than every commit. Format loosely follows
 
 ### Added
 
+- **Comparison mode** — pin any month and sweep a draggable divider against
+  the live timeline month: pre/post change detection (eruptions, droughts,
+  decade-apart snowlines) on the same view, with the split included in PNG
+  exports.
 - **Tiled imagery streaming (RFC-001, milestones 1–2)** — an "HD tiles"
   toggle re-drapes the visible globe with GIBS WMTS tiles at the level the
   zoom justifies, up to each layer's native resolution (terrain reaches
