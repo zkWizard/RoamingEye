@@ -27,6 +27,12 @@ console.log("Publishing dist/ to gh-pages …");
 if (existsSync("dist/.git"))
   rmSync("dist/.git", { recursive: true, force: true });
 run("git init -q", { cwd: "dist" });
+// The throwaway dist repo has no identity of its own — inherit the outer
+// repo's (git commit refuses to run without one).
+const userName = run("git config user.name");
+const userEmail = run("git config user.email");
+run(`git config user.name "${userName}"`, { cwd: "dist" });
+run(`git config user.email "${userEmail}"`, { cwd: "dist" });
 run("git checkout -qb gh-pages", { cwd: "dist" });
 run("git add -A", { cwd: "dist" });
 run(`git commit -q -m "Deploy ${sha}"`, { cwd: "dist" });

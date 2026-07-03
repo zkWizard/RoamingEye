@@ -14,6 +14,8 @@
 
 **Roam a high-fidelity 3D Earth, scrub through decades of satellite imagery, and zoom into any region at 30-metre detail — all powered entirely by open data, free for anyone, anywhere.**
 
+<p align="center"><strong>🌐 Live: <a href="https://zkwizard.github.io/RoamingEye/">zkwizard.github.io/RoamingEye</a></strong> — no account, no install, no fee.</p>
+
 RoamingEye is an open-source research instrument for planetary-scale observation. It turns the public satellite archives that humanity has already paid for — NASA's MODIS and Harmonized Landsat-Sentinel collections — into a fast, intuitive, browser-based globe that any researcher, educator, journalist, or curious person can use without an account, a license, or a fee.
 
 > **Our thesis:** the ability to _watch the Earth change over time_ should not be locked behind expensive commercial platforms. The data is open. The tooling should be too.
