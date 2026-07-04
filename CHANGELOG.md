@@ -8,6 +8,11 @@ log captures milestones rather than every commit. Format loosely follows
 
 ### Added
 
+- **Point time-series probe** — click anywhere on the globe to chart the active
+  layer's value at that point across its full published record (up to 46 years,
+  monthly), with a provenance-stamped CSV download. Values are reconstructed by
+  inverting the layer's colormap on the streamed imagery and labeled
+  approximate throughout.
 - **Plate-tectonics context pack** — tectonic plate boundaries (Bird 2003) and
   ~1,200 Holocene volcanoes (Smithsonian Global Volcanism Program), colored by
   eruption recency, as toggleable overlays alongside the live earthquakes —

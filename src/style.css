@@ -852,6 +852,110 @@ body {
   }
 }
 
+/* --- Point probe panel ------------------------------------------------------- */
+.probe {
+  position: absolute;
+  top: 50%;
+  left: clamp(0.75rem, 2vw, 1.25rem);
+  transform: translateY(-50%);
+  z-index: 6;
+  display: none;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(400px, calc(100vw - 2rem));
+  padding: 0.9rem 1rem;
+  color: var(--fg);
+  background: var(--panel-bg-strong);
+  border: 1px solid var(--accent-ring);
+  border-radius: 14px;
+  backdrop-filter: blur(12px);
+  pointer-events: auto;
+}
+.probe.is-open {
+  display: flex;
+}
+.probe__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.probe__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.probe__subtitle {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.probe__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  color: var(--fg);
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.probe__close:hover {
+  background: var(--accent-soft);
+}
+.probe__close svg {
+  width: 16px;
+  height: 16px;
+}
+.probe__chart {
+  width: 100%;
+  height: 150px;
+  display: block;
+}
+.probe__status {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.probe__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+.probe__download {
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.8rem;
+  color: #fff;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.probe__download:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.probe__caveat {
+  margin: 0;
+  font-size: 0.68rem;
+  color: var(--muted);
+  text-align: right;
+}
+
+@media (max-width: 640px) {
+  .probe {
+    top: auto;
+    bottom: 11rem;
+    left: 50%;
+    transform: translate(-50%, 0);
+  }
+}
+
 /* --- Attribution link button ----------------------------------------------- */
 .attribution__link {
   font: inherit;

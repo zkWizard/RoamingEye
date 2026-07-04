@@ -11,7 +11,11 @@ import {
   type YearMonth,
 } from "./lib/timeline";
 import { encodeViewState, decodeViewState } from "./lib/viewState";
-import { latLngToVector3, vector3ToLatLng } from "./lib/geo";
+import { latLngToVector3, vector3ToLatLng, formatLatLng } from "./lib/geo";
+import { buildProbeCsv, PROBE_SCALES } from "./lib/probe";
+import { isAbortError } from "./lib/net";
+import { ProbeSampler } from "./probe/ProbeSampler";
+import { ProbePanel } from "./ui/ProbePanel";
 import { ShareButton } from "./ui/ShareButton";
 import { ExportControls } from "./ui/ExportControls";
 import { ThemeToggle } from "./ui/ThemeToggle";
@@ -70,6 +74,7 @@ const searchEl = document.querySelector<HTMLElement>("#search");
 const tooltipEl = document.querySelector<HTMLElement>("#hover-tooltip");
 const studyChipEl = document.querySelector<HTMLElement>("#study-chip");
 const providersPageEl = document.querySelector<HTMLElement>("#providers-page");
+const probeEl = document.querySelector<HTMLElement>("#probe-panel");
 const providersLinkEl = document.querySelector<HTMLElement>("#providers-link");
 const provenanceEl = document.querySelector<HTMLElement>("#provenance");
 const exportEl = document.querySelector<HTMLElement>("#export");
@@ -259,8 +264,13 @@ buildTimeline();
 
 const legend = legendEl ? new Legend(legendEl, currentLayer) : undefined;
 
+// Assigned by the probe section below; the layer selector closes any open
+// probe because its chart belongs to the previous layer.
+let closeProbe: (() => void) | undefined;
+
 if (layerEl) {
   new LayerSelector(layerEl, currentLayer, (id) => {
+    closeProbe?.();
     const selected = months[currentIndex];
     currentLayer = id;
     legend?.setLayer(id);
@@ -391,6 +401,102 @@ if (searchEl) {
       months[currentIndex]
     );
     studyChip?.show(result.name);
+  });
+}
+
+// --- Point probe (click → time series) ----------------------------------------
+// Click anywhere on the globe to chart the active layer's approximate value at
+// that point across its full published record, with a provenance-stamped CSV.
+// Values come from inverting the layer's colormap on the same preview imagery
+// the scrubber prefetches (see lib/probe.ts) — labeled approximate throughout.
+if (probeEl) {
+  const PROBE_IMAGE = { width: 1024, height: 512 }; // = preview size → HTTP cache hits
+  let probeAbort: AbortController | undefined;
+  const panel = new ProbePanel(probeEl, () => probeAbort?.abort());
+  const sampler = new ProbeSampler(PROBE_IMAGE);
+  closeProbe = () => {
+    probeAbort?.abort();
+    panel.close();
+  };
+
+  const runProbe = (lat: number, lon: number): void => {
+    const layer = LAYERS[currentLayer];
+    panel.open(layer.label, formatLatLng({ lat, lon }));
+    if (layer.static) {
+      panel.setStatus(
+        "This layer has no time dimension — pick a monthly layer to chart a series."
+      );
+      return;
+    }
+
+    probeAbort?.abort();
+    const abort = (probeAbort = new AbortController());
+    const probeMonths = monthRangeForLayer(layer);
+    const scale = PROBE_SCALES[layer.id];
+    panel.beginSeries(probeMonths, scale);
+
+    let lastDraw = 0;
+    sampler
+      .sample(layer, probeMonths, lat, lon, {
+        signal: abort.signal,
+        onValue: (index, value) => panel.setValue(index, value),
+        onProgress: (done, total) => {
+          panel.setStatus(`Sampling ${done}/${total} months…`);
+          const now = performance.now();
+          if (now - lastDraw > 150 || done === total) {
+            lastDraw = now;
+            panel.refresh();
+          }
+        },
+      })
+      .then((values) => {
+        if (abort.signal.aborted) return;
+        panel.finish(
+          () =>
+            buildProbeCsv(
+              {
+                layerLabel: layer.label,
+                wmsLayer: layer.wmsLayer,
+                lat,
+                lon,
+                scale,
+                imageWidth: PROBE_IMAGE.width,
+                imageHeight: PROBE_IMAGE.height,
+                generatedIso: new Date().toISOString(),
+              },
+              probeMonths,
+              values
+            ),
+          `roamingeye_probe_${layer.id}_${lat.toFixed(3)}_${lon.toFixed(3)}.csv`
+        );
+      })
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        console.warn("RoamingEye: probe sampling failed", err);
+        panel.setStatus("Sampling failed — check the connection and retry.");
+      });
+  };
+
+  // A click is a pointer that barely travels; anything longer is a rotate/zoom.
+  const probeRaycaster = new THREE.Raycaster();
+  let probeDownX = 0;
+  let probeDownY = 0;
+  canvas.addEventListener("pointerdown", (e) => {
+    probeDownX = e.clientX;
+    probeDownY = e.clientY;
+  });
+  canvas.addEventListener("pointerup", (e) => {
+    if (Math.hypot(e.clientX - probeDownX, e.clientY - probeDownY) > 6) return;
+    const rect = canvas.getBoundingClientRect();
+    const ndc = new THREE.Vector2(
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -((e.clientY - rect.top) / rect.height) * 2 + 1
+    );
+    probeRaycaster.setFromCamera(ndc, camera);
+    const hit = probeRaycaster.intersectObject(earth, false)[0];
+    if (!hit) return;
+    const { lat, lon } = vector3ToLatLng(hit.point);
+    runProbe(lat, lon);
   });
 }
 

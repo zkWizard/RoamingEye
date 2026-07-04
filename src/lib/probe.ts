@@ -1,0 +1,255 @@
+import type { LegendStop } from "./legend";
+import type { LayerId, YearMonth } from "./timeline";
+
+/**
+ * Point time-series probe: the pure math for turning "the color of a pixel in
+ * a GIBS monthly composite" back into an approximate data value.
+ *
+ * The imagery RoamingEye streams is *rendered* (a colormap applied to the
+ * underlying science data), so the probe inverts that colormap: find where on
+ * the legend gradient a sampled RGB sits, and map that position onto the
+ * layer's value scale. The result is an **approximation** — good for trends,
+ * seasonality, and anomalies at a point; not a substitute for the underlying
+ * L3 product — and every output labels it as such.
+ *
+ * Everything here is render-free and unit-tested (see probe.test.ts); the
+ * browser-side image fetching/decoding lives in probe/ProbeSampler.ts.
+ */
+
+export interface Rgb {
+  r: number;
+  g: number;
+  b: number;
+}
+
+// --- Equirectangular pixel mapping -------------------------------------------
+
+/**
+ * Map a lat/lon to the pixel holding it in an equirectangular image covering
+ * lat [-90, 90] / lon [-180, 180] (the GIBS full-globe GetMap layout).
+ * Clamped one pixel in from the borders so a 3×3 neighborhood is always valid.
+ */
+export function latLonToPixel(
+  lat: number,
+  lon: number,
+  width: number,
+  height: number
+): { x: number; y: number } {
+  const fx = ((lon + 180) / 360) * width;
+  const fy = ((90 - lat) / 180) * height;
+  const clamp = (v: number, max: number): number =>
+    Math.min(max - 2, Math.max(1, Math.floor(v)));
+  return { x: clamp(fx, width), y: clamp(fy, height) };
+}
+
+// --- Colormap inversion -------------------------------------------------------
+
+/** Parse "#rrggbb" into 0-255 channels. */
+export function hexToRgb(hex: string): Rgb {
+  const n = parseInt(hex.replace("#", ""), 16);
+  return { r: (n >> 16) & 0xff, g: (n >> 8) & 0xff, b: n & 0xff };
+}
+
+/**
+ * Densely sample a legend gradient into a lookup table of `size` colors, so
+ * inversion is a nearest-neighbor search. Stops must be sorted by `at`
+ * spanning 0 → 1 (as LEGENDS guarantees).
+ */
+export function buildColormapLut(stops: LegendStop[], size = 256): Rgb[] {
+  const colors = stops.map((s) => hexToRgb(s.color));
+  const lut: Rgb[] = [];
+  for (let i = 0; i < size; i++) {
+    const t = size === 1 ? 0 : i / (size - 1);
+    let hi = stops.findIndex((s) => s.at >= t);
+    if (hi < 0) hi = stops.length - 1;
+    const lo = Math.max(0, hi === 0 ? 0 : hi - 1);
+    const span = stops[hi].at - stops[lo].at;
+    const f = span > 0 ? (t - stops[lo].at) / span : 0;
+    lut.push({
+      r: Math.round(colors[lo].r + (colors[hi].r - colors[lo].r) * f),
+      g: Math.round(colors[lo].g + (colors[hi].g - colors[lo].g) * f),
+      b: Math.round(colors[lo].b + (colors[hi].b - colors[lo].b) * f),
+    });
+  }
+  return lut;
+}
+
+/**
+ * How far (Euclidean RGB) a sampled color may sit from the legend gradient and
+ * still count as data. Beyond this it's treated as no-data — ocean fill,
+ * missing months, and the black background all land far outside the gradient.
+ * Roomy enough to absorb JPEG compression noise (± ~10 per channel).
+ */
+export const NO_DATA_DISTANCE = 60;
+
+/**
+ * Invert a sampled color to its 0..1 position along the legend gradient, or
+ * null when the color isn't on the gradient (no-data).
+ */
+export function invertColormap(
+  rgb: Rgb,
+  lut: Rgb[],
+  maxDistance = NO_DATA_DISTANCE
+): number | null {
+  let best = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < lut.length; i++) {
+    const d = Math.hypot(rgb.r - lut[i].r, rgb.g - lut[i].g, rgb.b - lut[i].b);
+    if (d < bestDist) {
+      bestDist = d;
+      best = i;
+    }
+  }
+  if (bestDist > maxDistance) return null;
+  return lut.length === 1 ? 0 : best / (lut.length - 1);
+}
+
+/**
+ * Median of the valid inversions from a pixel neighborhood — robust to JPEG
+ * ringing and mixed coastline pixels. Null unless a majority of the
+ * neighborhood is valid data (5 of a 3×3 block).
+ */
+export function medianValid(
+  values: (number | null)[],
+  minValid = 5
+): number | null {
+  const valid = values.filter((v): v is number => v !== null);
+  if (valid.length < Math.min(minValid, values.length)) return null;
+  valid.sort((a, b) => a - b);
+  const mid = Math.floor(valid.length / 2);
+  return valid.length % 2 ? valid[mid] : (valid[mid - 1] + valid[mid]) / 2;
+}
+
+// --- Value scales -------------------------------------------------------------
+
+export interface ProbeScale {
+  /** Axis label, e.g. "NDVI (approx.)". */
+  label: string;
+  min: number;
+  max: number;
+  /** Unit suffix for display, e.g. "%" (empty for dimensionless). */
+  unit: string;
+  /**
+   * True when min/max carry physical meaning (NDVI 0–1, snow 0–100 %).
+   * False means the value is a fraction of the color scale — still faithful
+   * for trends and seasonality, but not in physical units.
+   */
+  calibrated: boolean;
+}
+
+/** Fraction-of-scale fallback for layers without a trusted physical range. */
+const scaleFraction = (label: string): ProbeScale => ({
+  label,
+  min: 0,
+  max: 1,
+  unit: "",
+  calibrated: false,
+});
+
+export const PROBE_SCALES: Record<LayerId, ProbeScale> = {
+  ndvi: { label: "NDVI (approx.)", min: 0, max: 1, unit: "", calibrated: true },
+  evi: { label: "EVI (approx.)", min: 0, max: 1, unit: "", calibrated: true },
+  snow: {
+    label: "Snow cover (approx.)",
+    min: 0,
+    max: 100,
+    unit: "%",
+    calibrated: true,
+  },
+  lst: scaleFraction("Land surface temp (fraction of scale, cold → hot)"),
+  airtemp: scaleFraction("Air temp (fraction of scale, cold → hot)"),
+  sst: scaleFraction("Sea surface temp (fraction of scale, polar → tropical)"),
+  precip: scaleFraction("Precipitation (fraction of scale, dry → wet)"),
+  soil: scaleFraction("Soil moisture (fraction of scale, dry → saturated)"),
+  aerosol: scaleFraction("Aerosol optical depth (fraction of scale)"),
+  terrain: scaleFraction("Elevation (fraction of scale)"),
+};
+
+/** Map a 0..1 gradient position onto a layer's value scale. */
+export function scaleValue(t: number, scale: ProbeScale): number {
+  return scale.min + t * (scale.max - scale.min);
+}
+
+/** Display formatting: 3 significant digits + unit ("0.63", "78 %"). */
+export function formatProbeValue(value: number, scale: ProbeScale): string {
+  const digits = scale.max - scale.min > 10 ? 0 : 2;
+  return `${value.toFixed(digits)}${scale.unit ? ` ${scale.unit}` : ""}`;
+}
+
+// --- Series statistics ---------------------------------------------------------
+
+export interface SeriesStats {
+  min: number;
+  max: number;
+  mean: number;
+  /** Months with data (non-null). */
+  count: number;
+}
+
+export function seriesStats(values: (number | null)[]): SeriesStats | null {
+  const valid = values.filter((v): v is number => v !== null);
+  if (valid.length === 0) return null;
+  let min = Infinity;
+  let max = -Infinity;
+  let sum = 0;
+  for (const v of valid) {
+    if (v < min) min = v;
+    if (v > max) max = v;
+    sum += v;
+  }
+  return { min, max, mean: sum / valid.length, count: valid.length };
+}
+
+// --- CSV export -----------------------------------------------------------------
+
+export interface ProbeCsvMeta {
+  layerLabel: string;
+  wmsLayer: string;
+  lat: number;
+  lon: number;
+  scale: ProbeScale;
+  /** Source image size the pixel was sampled from. */
+  imageWidth: number;
+  imageHeight: number;
+  /** ISO timestamp for the provenance header. */
+  generatedIso: string;
+}
+
+/**
+ * Build the probe CSV: provenance as `#` comment headers, then one row per
+ * month (empty value = no data). Reproducibility is the point — the header
+ * states exactly what was sampled, how, and that values are approximate.
+ */
+export function buildProbeCsv(
+  meta: ProbeCsvMeta,
+  months: YearMonth[],
+  values: (number | null)[]
+): string {
+  const ymStr = (ym: YearMonth): string =>
+    `${ym.year}-${String(ym.month).padStart(2, "0")}`;
+  const lines = [
+    `# RoamingEye point probe — APPROXIMATE values`,
+    `# method: colormap inversion of NASA GIBS rendered imagery (${meta.imageWidth}x${meta.imageHeight} equirectangular GetMap)`,
+    `# caveat: reconstructed from public imagery colors; use the underlying L3 product for measurement-grade work`,
+    `# layer: ${meta.layerLabel}`,
+    `# gibs_layer: ${meta.wmsLayer}`,
+    `# lat: ${meta.lat.toFixed(4)}`,
+    `# lon: ${meta.lon.toFixed(4)}`,
+    `# value: ${meta.scale.label}${meta.scale.unit ? ` [${meta.scale.unit}]` : ""} (${
+      meta.scale.calibrated
+        ? "approximate physical scale"
+        : "fraction of color scale"
+    })`,
+    `# imagery: NASA GIBS (public domain), https://gibs.earthdata.nasa.gov`,
+    `# generated: ${meta.generatedIso}`,
+    `# tool: RoamingEye, https://github.com/zkWizard/RoamingEye`,
+    `year_month,value`,
+  ];
+  for (let i = 0; i < months.length; i++) {
+    const v = values[i];
+    lines.push(
+      `${ymStr(months[i])},${v === null || v === undefined ? "" : v.toFixed(4)}`
+    );
+  }
+  return lines.join("\n") + "\n";
+}
