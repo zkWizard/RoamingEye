@@ -88,3 +88,33 @@ Markers are sized by magnitude and colored by hypocenter depth using the
 seismological convention — shallow (< 70 km) red, intermediate (70–300 km)
 amber, deep (> 300 km) blue — so plate boundaries and subduction zones read
 directly off the globe.
+
+## Plate boundaries — Bird (2003)
+
+The plate-boundaries overlay draws the standard digital plate model:
+
+> Bird, P. (2003). An updated digital model of plate boundaries. _Geochemistry,
+> Geophysics, Geosystems_, 4(3), 1027. doi:[10.1029/2001GC000252](https://doi.org/10.1029/2001GC000252)
+
+accessed via the open [tectonicplates](https://github.com/fraxen/tectonicplates)
+GeoJSON digitization (Open Data Commons Attribution licence), slimmed by
+`scripts/prepare-data.mjs` into `public/data/plate-boundaries.geojson`
+(241 boundary segments, name + geometry only).
+
+## Volcanoes — Smithsonian Global Volcanism Program
+
+The volcanoes overlay shows every Holocene volcano in the Smithsonian
+Institution's **Volcanoes of the World** database (open data, attribution
+required), fetched from the GVP WFS endpoint
+(`https://webservices.volcano.si.edu/geoserver/GVP-VOTW/ows`) and slimmed by
+`scripts/prepare-data.mjs` into `public/data/volcanoes.json` (~1,200 volcanoes:
+name, coordinates, type, elevation, last eruption year, country).
+
+Markers are colored by how recently each volcano erupted: since 1900 (hot
+orange), 1 CE–1899 (amber), or Holocene-evidence only (violet). Cite as:
+
+> Global Volcanism Program. Volcanoes of the World. Smithsonian Institution.
+> https://volcano.si.edu/
+
+Together, **earthquakes + volcanoes + plate boundaries** (plus the shaded-relief
+terrain layer) put the whole plate-tectonics narrative on one globe.

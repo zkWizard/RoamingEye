@@ -28,6 +28,8 @@ import { BordersOverlay } from "./overlays/BordersOverlay";
 import { CitiesOverlay } from "./overlays/CitiesOverlay";
 import { AtmosphereOverlay } from "./overlays/AtmosphereOverlay";
 import { EarthquakesOverlay } from "./overlays/EarthquakesOverlay";
+import { PlateBoundariesOverlay } from "./overlays/PlateBoundariesOverlay";
+import { VolcanoesOverlay } from "./overlays/VolcanoesOverlay";
 import { CameraFlyer } from "./scene/CameraFlyer";
 import { LocationHighlight } from "./scene/LocationHighlight";
 import { HoverInspector } from "./scene/HoverInspector";
@@ -136,6 +138,10 @@ const overlays: MapOverlay[] = [
   new BordersOverlay(),
   new CitiesOverlay(),
   new AtmosphereOverlay(),
+  // The geology trio — plate boundaries, volcanoes, and live seismicity line
+  // up on the globe to tell the plate-tectonics story.
+  new PlateBoundariesOverlay(),
+  new VolcanoesOverlay(),
   new EarthquakesOverlay(),
 ];
 for (const overlay of overlays) scene.add(overlay.object);

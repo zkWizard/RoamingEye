@@ -288,6 +288,28 @@ export const PROVIDERS: Provider[] = [
       "Real-time global seismicity feeds — source of our live earthquakes overlay (M4.5+, last 30 days).",
   },
   {
+    name: "Smithsonian Global Volcanism Program",
+    org: "Smithsonian Institution",
+    region: "USA",
+    group: "Open datasets & services",
+    url: "https://volcano.si.edu/",
+    license: "Open (attribution)",
+    use: "core",
+    description:
+      "Volcanoes of the World — the authoritative Holocene volcano database; source of our volcanoes overlay (~1,200 volcanoes with eruption history).",
+  },
+  {
+    name: "Bird (2003) plate boundaries",
+    org: "P. Bird / open community digitization",
+    region: "Global",
+    group: "Open datasets & services",
+    url: "https://github.com/fraxen/tectonicplates",
+    license: "ODC-By",
+    use: "core",
+    description:
+      "The standard digital model of tectonic plate boundaries (G³, 2003) — source of our plate-boundaries overlay.",
+  },
+  {
     name: "ASTER GDEM",
     org: "NASA / METI (Japan)",
     region: "USA / Japan",

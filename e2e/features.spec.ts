@@ -18,15 +18,37 @@ test("toolbar exposes overlay toggles and flips their state", async ({
   page,
 }) => {
   const items = page.locator(".toolbar__item");
-  await expect(items).toHaveCount(5);
+  await expect(items).toHaveCount(7);
 
-  const borders = items.nth(1); // Grid, Borders, Cities, Atmosphere, Quakes
+  // Grid, Borders, Cities, Atmosphere, Plates, Volcanoes, Quakes
+  const borders = items.nth(1);
   const before = await borders.getAttribute("aria-pressed");
   await borders.click();
   await expect(borders).toHaveAttribute(
     "aria-pressed",
     before === "true" ? "false" : "true"
   );
+});
+
+test("geology overlays load their bundled datasets on first enable", async ({
+  page,
+}) => {
+  // Plates and volcanoes are served from public/data — no third-party calls.
+  const platesLoaded = page.waitForResponse("**/data/plate-boundaries.geojson");
+  await page.locator('.toolbar__item[title="Plates"]').click();
+  expect((await platesLoaded).ok()).toBe(true);
+
+  const volcanoesLoaded = page.waitForResponse("**/data/volcanoes.json");
+  await page.locator('.toolbar__item[title="Volcanoes"]').click();
+  expect((await volcanoesLoaded).ok()).toBe(true);
+
+  await expect(page.locator('.toolbar__item[title="Plates"]')).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  await expect(
+    page.locator('.toolbar__item[title="Volcanoes"]')
+  ).toHaveAttribute("aria-pressed", "true");
 });
 
 test("hovering the globe shows a coordinate readout", async ({ page }) => {
