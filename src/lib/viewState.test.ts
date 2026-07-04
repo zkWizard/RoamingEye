@@ -66,3 +66,32 @@ describe("decodeViewState", () => {
     expect(decodeViewState("#lat=0&lon=0&alt=999").camera).toBeUndefined();
   });
 });
+
+describe("analysis deep links (probe + pin)", () => {
+  it("round-trips an open probe and a comparison pin", () => {
+    const state = {
+      layer: "soil" as const,
+      month: { year: 2024, month: 1 },
+      probe: { lat: 8.0, lon: 40.0 },
+      pin: { year: 2020, month: 1 },
+    };
+    expect(decodeViewState(encodeViewState(state))).toEqual(state);
+  });
+
+  it("encodes probe coordinates compactly", () => {
+    expect(encodeViewState({ probe: { lat: -3.46534, lon: -62.21591 } })).toBe(
+      "probe=-3.4653%2C-62.2159"
+    );
+    expect(encodeViewState({ pin: { year: 2019, month: 7 } })).toBe(
+      "pin=2019-07"
+    );
+  });
+
+  it("drops malformed probe and pin values", () => {
+    expect(decodeViewState("#probe=999,0").probe).toBeUndefined();
+    expect(decodeViewState("#probe=banana").probe).toBeUndefined();
+    expect(decodeViewState("#probe=1,2,3").probe).toBeUndefined();
+    expect(decodeViewState("#pin=2024-13").pin).toBeUndefined();
+    expect(decodeViewState("#pin=notamonth").pin).toBeUndefined();
+  });
+});

@@ -396,6 +396,10 @@ controls.maxDistance = 4.5; // furthest zoom-out
 // The hash always reflects the current view, so the address bar is a citable,
 // reproducible link at any moment. Writes are debounced and use replaceState
 // to avoid spamming session history while dragging.
+// An open probe's location, mirrored into the shareable hash — a link then
+// reproduces the analysis, not just the view. Maintained by the probe section.
+let probeShare: { lat: number; lon: number } | undefined;
+
 function currentViewState() {
   const subpoint = vector3ToLatLng(camera.position);
   return {
@@ -406,6 +410,8 @@ function currentViewState() {
       lon: subpoint.lon,
       alt: camera.position.length() - EARTH_RADIUS,
     },
+    probe: probeShare,
+    pin: compare.active ? compare.pinned : undefined,
   };
 }
 
@@ -465,13 +471,29 @@ if (compareEl && compareDividerEl) {
       compare.enable(layer, months[currentIndex]);
       compareControls?.showDivider(months[currentIndex], compare.split);
       compareControls?.setLiveMonth(months[currentIndex]);
+      scheduleHashSync();
       return true;
     },
-    onDisable: () => compare.disable(),
+    onDisable: () => {
+      compare.disable();
+      scheduleHashSync();
+    },
     onSplitChange: (fraction) => {
       compare.split = fraction;
     },
   });
+
+  // Restore a shared comparison: the pinned month from the URL, when the
+  // active layer's record covers it.
+  const pin = initialView.pin;
+  if (pin && !LAYERS[currentLayer].static) {
+    const pinIndex = ymToIndex(pin) - ymToIndex(months[0]);
+    if (pinIndex >= 0 && pinIndex < months.length) {
+      compare.enable(LAYERS[currentLayer], pin);
+      compareControls.restore(pin, compare.split);
+      compareControls.setLiveMonth(months[currentIndex]);
+    }
+  }
 }
 
 // --- Point probe (click → time series) ----------------------------------------
@@ -485,7 +507,11 @@ if (probeEl) {
   let probeTarget: { lat: number; lon: number } | undefined;
   const panel = new ProbePanel(
     probeEl,
-    () => probeAbort?.abort(),
+    () => {
+      probeAbort?.abort();
+      probeShare = undefined;
+      scheduleHashSync();
+    },
     // Mode toggle (point ↔ area) re-samples the same location.
     () => {
       if (probeTarget) runProbe(probeTarget.lat, probeTarget.lon);
@@ -494,6 +520,7 @@ if (probeEl) {
   const sampler = new ProbeSampler(PROBE_IMAGE);
   closeProbe = () => {
     probeAbort?.abort();
+    probeShare = undefined;
     panel.close();
   };
 
@@ -501,6 +528,8 @@ if (probeEl) {
     const layer = LAYERS[currentLayer];
     const mode = panel.mode;
     probeTarget = { lat, lon };
+    probeShare = { lat, lon };
+    scheduleHashSync();
     panel.open(layer.label, formatLatLng({ lat, lon }));
     if (mode === "area") {
       panel.setSubtitle(`~1° area around ${formatLatLng({ lat, lon })}`);
@@ -563,6 +592,19 @@ if (probeEl) {
         panel.setStatus("Sampling failed — check the connection and retry.");
       });
   };
+
+  // Restore a shared probe: rerun the sampling at the linked point so the
+  // recipient sees the same chart the sender did. Deferred until the first
+  // globe imagery has landed — the probe's ~300 fetches would otherwise
+  // compete with the initial load on the same connection pool.
+  if (initialView.probe) {
+    const target = initialView.probe;
+    const restoreWhenReady = (): void => {
+      if (firstLoadDone) runProbe(target.lat, target.lon);
+      else setTimeout(restoreWhenReady, 300);
+    };
+    restoreWhenReady();
+  }
 
   // A click is a pointer that barely travels; anything longer is a rotate/zoom.
   const probeRaycaster = new THREE.Raycaster();

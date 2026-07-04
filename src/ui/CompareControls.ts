@@ -90,6 +90,15 @@ export class CompareControls {
     if (this.active) this.setActive(false);
   }
 
+  /**
+   * Restore an already-running comparison (deep link): reflect the active
+   * state and show the divider without going through the enable callback.
+   */
+  restore(pinned: YearMonth, split: number): void {
+    this.setActive(true);
+    this.showDivider(pinned, split);
+  }
+
   private pinnedMonth: YearMonth | undefined;
   private liveMonth: YearMonth | undefined;
 
