@@ -6,6 +6,8 @@ log captures milestones rather than every commit. Format loosely follows
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-03 · the research-instrument release
+
 ### Added
 
 - **Comparison mode** — pin any month and sweep a draggable divider against
