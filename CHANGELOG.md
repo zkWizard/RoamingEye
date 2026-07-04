@@ -10,6 +10,16 @@ log captures milestones rather than every commit. Format loosely follows
 
 ### Added
 
+- **Tiled imagery streaming (RFC-001, milestones 1–2)** — an "HD tiles"
+  toggle re-drapes the visible globe with GIBS WMTS tiles at the level the
+  zoom justifies, up to each layer's native resolution (terrain reaches
+  ~31 m). Pure, unit-tested tile math (`lib/tiles.ts`); single fixed LOD per
+  view — quadtree subdivision is milestone 3.
+
+## [0.2.0] — 2026-07-03 · the research-instrument release
+
+### Added
+
 - **Point time-series probe** — click anywhere on the globe to chart the active
   layer's value at that point across its full published record (up to 46 years,
   monthly), with a provenance-stamped CSV download. Values are reconstructed by

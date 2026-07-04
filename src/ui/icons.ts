@@ -25,6 +25,9 @@ export const ICONS = {
   volcanoes: wrap(
     `<path d="M9.5 9 4 20h16L14.5 9"/><path d="M9.5 9c1 .9 2-.9 2.5 0s1.7.9 2.5 0"/><path d="M12 5.5v0M9 3.5v0M15 3.5v0"/>`
   ),
+  hd: wrap(
+    `<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7.5 9.5v5M11 9.5v5M7.5 12H11"/><path d="M14 9.5v5h1.8a2.5 2.5 0 0 0 0-5H14Z"/>`
+  ),
   search: wrap(`<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>`),
   close: wrap(`<path d="M18 6 6 18M6 6l12 12"/>`),
   pin: wrap(

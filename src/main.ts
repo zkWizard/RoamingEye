@@ -34,6 +34,7 @@ import { AtmosphereOverlay } from "./overlays/AtmosphereOverlay";
 import { EarthquakesOverlay } from "./overlays/EarthquakesOverlay";
 import { PlateBoundariesOverlay } from "./overlays/PlateBoundariesOverlay";
 import { VolcanoesOverlay } from "./overlays/VolcanoesOverlay";
+import { TiledImageryOverlay } from "./overlays/TiledImageryOverlay";
 import { CameraFlyer } from "./scene/CameraFlyer";
 import { LocationHighlight } from "./scene/LocationHighlight";
 import { HoverInspector } from "./scene/HoverInspector";
@@ -138,7 +139,15 @@ const earth = new THREE.Mesh(
 scene.add(earth);
 
 // --- Map overlays (toolbar-toggleable) --------------------------------------
+// Tiled streaming (RFC-001 milestone 2): re-drapes the visible globe with
+// WMTS tiles at the level the zoom justifies. Fed the current layer/month by
+// refreshGlobe(), driven per-frame from the render loop.
+const hdTiles = new TiledImageryOverlay(
+  renderer.capabilities.getMaxAnisotropy()
+);
+
 const overlays: MapOverlay[] = [
+  hdTiles,
   new GraticuleOverlay(),
   new BordersOverlay(),
   new CitiesOverlay(),
@@ -221,6 +230,7 @@ const textures = new GlobeTextureManager(
 
 function refreshGlobe(): void {
   textures.show(LAYERS[currentLayer], months[currentIndex]);
+  hdTiles.setView(LAYERS[currentLayer], months[currentIndex]);
   updateProvenance();
 }
 
@@ -520,6 +530,7 @@ renderer.setAnimationLoop(() => {
   if (wasFlying && !flyer.isFlying) scheduleHashSync();
   wasFlying = flyer.isFlying;
   highlight.update(camera.position.length()); // keep the marker a constant size
+  for (const overlay of overlays) overlay.update?.(camera, window.innerHeight);
   renderer.render(scene, camera);
 
   if (!signalledReady) {

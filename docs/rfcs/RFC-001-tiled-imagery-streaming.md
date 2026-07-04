@@ -1,6 +1,8 @@
 # RFC-001 — Tiled Imagery Streaming (Level-of-Detail Globe)
 
-- **Status:** Draft / open for contributors
+- **Status:** In progress — milestones 1–2 landed (`src/lib/tiles.ts` +
+  `src/overlays/TiledImageryOverlay.ts`, the "HD tiles" toggle); milestones
+  3–6 open for contributors (see the tracking issue).
 - **Scope:** Large (flagship). A great project for a contributor or small group.
 - **Champions wanted:** graphics / WebGL engineers, remote-sensing folks.
 
