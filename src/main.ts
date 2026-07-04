@@ -16,6 +16,8 @@ import { buildProbeCsv, PROBE_SCALES } from "./lib/probe";
 import { isAbortError } from "./lib/net";
 import { ProbeSampler } from "./probe/ProbeSampler";
 import { ProbePanel } from "./ui/ProbePanel";
+import { CompareController } from "./scene/CompareController";
+import { CompareControls } from "./ui/CompareControls";
 import { ShareButton } from "./ui/ShareButton";
 import { ExportControls } from "./ui/ExportControls";
 import { ThemeToggle } from "./ui/ThemeToggle";
@@ -76,6 +78,9 @@ const tooltipEl = document.querySelector<HTMLElement>("#hover-tooltip");
 const studyChipEl = document.querySelector<HTMLElement>("#study-chip");
 const providersPageEl = document.querySelector<HTMLElement>("#providers-page");
 const probeEl = document.querySelector<HTMLElement>("#probe-panel");
+const compareEl = document.querySelector<HTMLElement>("#compare");
+const compareDividerEl =
+  document.querySelector<HTMLElement>("#compare-divider");
 const providersLinkEl = document.querySelector<HTMLElement>("#providers-link");
 const provenanceEl = document.querySelector<HTMLElement>("#provenance");
 const exportEl = document.querySelector<HTMLElement>("#export");
@@ -267,6 +272,7 @@ function buildTimeline(): void {
     refreshGlobe();
     ensureWarm(index);
     if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
+    compareControls?.setLiveMonth(months[currentIndex]);
     scheduleHashSync();
   });
 }
@@ -274,13 +280,15 @@ buildTimeline();
 
 const legend = legendEl ? new Legend(legendEl, currentLayer) : undefined;
 
-// Assigned by the probe section below; the layer selector closes any open
-// probe because its chart belongs to the previous layer.
+// Assigned by the probe/compare sections below; the layer selector closes
+// both because their contents belong to the previous layer.
 let closeProbe: (() => void) | undefined;
+let compareControls: CompareControls | undefined;
 
 if (layerEl) {
   new LayerSelector(layerEl, currentLayer, (id) => {
     closeProbe?.();
+    compareControls?.exit();
     const selected = months[currentIndex];
     currentLayer = id;
     legend?.setLayer(id);
@@ -312,8 +320,10 @@ if (exportEl) {
   new ExportControls(exportEl, {
     downloadPng: () => {
       // Render a fresh frame and read the canvas in the same task — the
-      // drawing buffer isn't preserved between frames.
-      renderer.render(scene, camera);
+      // drawing buffer isn't preserved between frames. An active comparison
+      // exports exactly what's on screen, divider split included.
+      if (compare.showing) compare.renderSplit(renderer, scene, camera);
+      else renderer.render(scene, camera);
       canvas.toBlob((blob) => {
         if (!blob) return;
         const ym = months[currentIndex];
@@ -411,6 +421,33 @@ if (searchEl) {
       months[currentIndex]
     );
     studyChip?.show(result.name);
+  });
+}
+
+// --- Comparison mode (A/B of two months) ---------------------------------------
+// Scrub to the "before" month, hit Compare to pin it on the left; the timeline
+// keeps driving the right side. Rendered as two scissored passes per frame
+// with the globe texture swapped (see CompareController).
+const compare = new CompareController(
+  earth.material,
+  renderer.capabilities.getMaxAnisotropy(),
+  (ready) => setStatus(ready ? "" : "Comparison imagery failed to load")
+);
+
+if (compareEl && compareDividerEl) {
+  compareControls = new CompareControls(compareEl, compareDividerEl, {
+    onEnable: () => {
+      const layer = LAYERS[currentLayer];
+      if (layer.static) return false; // one image regardless of month
+      compare.enable(layer, months[currentIndex]);
+      compareControls?.showDivider(months[currentIndex], compare.split);
+      compareControls?.setLiveMonth(months[currentIndex]);
+      return true;
+    },
+    onDisable: () => compare.disable(),
+    onSplitChange: (fraction) => {
+      compare.split = fraction;
+    },
   });
 }
 
@@ -531,7 +568,8 @@ renderer.setAnimationLoop(() => {
   wasFlying = flyer.isFlying;
   highlight.update(camera.position.length()); // keep the marker a constant size
   for (const overlay of overlays) overlay.update?.(camera, window.innerHeight);
-  renderer.render(scene, camera);
+  if (compare.showing) compare.renderSplit(renderer, scene, camera);
+  else renderer.render(scene, camera);
 
   if (!signalledReady) {
     signalledReady = true;
