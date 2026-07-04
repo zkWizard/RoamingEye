@@ -6,6 +6,8 @@ log captures milestones rather than every commit. Format loosely follows
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-03 · the research-instrument release
+
 ### Added
 
 - **Tiled imagery streaming (RFC-001, milestones 1–2)** — an "HD tiles"
