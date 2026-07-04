@@ -20,11 +20,12 @@ log captures milestones rather than every commit. Format loosely follows
   the live timeline month: pre/post change detection (eruptions, droughts,
   decade-apart snowlines) on the same view, with the split included in PNG
   exports.
-- **Tiled imagery streaming (RFC-001, milestones 1–2)** — an "HD tiles"
-  toggle re-drapes the visible globe with GIBS WMTS tiles at the level the
-  zoom justifies, up to each layer's native resolution (terrain reaches
-  ~31 m). Pure, unit-tested tile math (`lib/tiles.ts`); single fixed LOD per
-  view — quadtree subdivision is milestone 3.
+- **Tiled imagery streaming (RFC-001, milestones 1–4)** — an "HD tiles"
+  toggle re-drapes the visible globe with GIBS WMTS tiles selected by
+  **quadtree screen-space error**: fine at the nadir, coarser toward the
+  limb, horizon-culled, up to each layer's native resolution (terrain
+  reaches ~31 m). Pure, unit-tested tile math (`lib/tiles.ts`); parent-tile
+  fallback is milestone 5.
 
 ## [0.2.0] — 2026-07-03 · the research-instrument release
 

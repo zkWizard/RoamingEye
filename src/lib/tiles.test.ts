@@ -11,6 +11,10 @@ import {
   visibleArcDegrees,
   tilesInView,
   gibsWmtsTileUrl,
+  centralAngleRad,
+  angleToTileRad,
+  selectLodTiles,
+  type TileAddress,
 } from "./tiles";
 
 describe("tile grid", () => {
@@ -161,6 +165,101 @@ describe("tilesInView", () => {
     const tiles = tilesInView(0, 0, 40, 80, 4);
     const keys = tiles.map((t) => `${t.row}:${t.col}`);
     expect(new Set(keys).size).toBe(keys.length);
+  });
+});
+
+describe("centralAngleRad / angleToTileRad", () => {
+  it("computes great-circle central angles", () => {
+    expect(centralAngleRad(0, 0, 0, 0)).toBe(0);
+    expect(centralAngleRad(90, 0, -90, 0)).toBeCloseTo(Math.PI);
+    expect(centralAngleRad(0, 0, 0, 90)).toBeCloseTo(Math.PI / 2);
+  });
+
+  it("is zero for a point inside the tile", () => {
+    const tile = tileForLatLon(45, -120, 5);
+    expect(angleToTileRad(45, -120, tile)).toBe(0);
+  });
+
+  it("measures across the antimeridian, not the long way round", () => {
+    // Tile hugging the antimeridian from the east; point just west of it.
+    const tile = tileForLatLon(0, -179, 5);
+    const angle = angleToTileRad(0, 179, tile);
+    expect(angle).toBeLessThan(3 * (Math.PI / 180)); // a couple of degrees
+  });
+});
+
+describe("selectLodTiles", () => {
+  const view = (distance: number, lat = 36, lon = -112) => ({
+    lat,
+    lon,
+    distance,
+    fovDeg: 45,
+    aspect: 1.56,
+    viewportHeightPx: 900,
+  });
+
+  /** True when `a` is an ancestor of `b` in the quadtree. */
+  const isAncestor = (a: TileAddress, b: TileAddress): boolean => {
+    if (a.level >= b.level) return false;
+    const shift = b.level - a.level;
+    return b.row >> shift === a.row && b.col >> shift === a.col;
+  };
+
+  it("returns nothing from far away (base texture is already as sharp)", () => {
+    expect(selectLodTiles(view(4.5), 3, 11)).toEqual([]);
+  });
+
+  it("subdivides adaptively: nadir finer than the view edge", () => {
+    // Mid-height view: the FOV window is wide enough that the edge tiles sit
+    // meaningfully farther from the camera than the nadir tiles.
+    const tiles = selectLodTiles(view(1.3), 3, 11);
+    expect(tiles.length).toBeGreaterThan(4);
+    // Sorted nearest-first: the subpoint tile leads and is the finest.
+    const nadirLevel = tiles[0].level;
+    const coarsest = Math.min(...tiles.map((t) => t.level));
+    expect(angleToTileRad(36, -112, tiles[0])).toBe(0);
+    expect(coarsest).toBeLessThan(nadirLevel); // mixed levels = adaptive
+    for (const t of tiles) expect(t.level).toBeLessThanOrEqual(nadirLevel);
+  });
+
+  it("culls to the FOV cone: a low camera loads far fewer tiles than the horizon cap", () => {
+    // At d = 1.08 the horizon cap is ~22° wide but the 45° FOV shows only a
+    // few degrees — frustum culling must keep the selection tight.
+    const tiles = selectLodTiles(view(1.08), 3, 11);
+    expect(tiles.length).toBeGreaterThan(4);
+    expect(tiles.length).toBeLessThan(100);
+    const maxGamma = Math.max(...tiles.map((t) => angleToTileRad(36, -112, t)));
+    expect(maxGamma).toBeLessThan(10 * (Math.PI / 180));
+  });
+
+  it("emits a non-overlapping leaf set", () => {
+    const tiles = selectLodTiles(view(1.15), 3, 11);
+    for (const a of tiles) {
+      for (const b of tiles) {
+        if (a === b) continue;
+        expect(isAncestor(a, b)).toBe(false);
+      }
+    }
+  });
+
+  it("never selects past the horizon, even with FOV headroom", () => {
+    const d = 1.3;
+    const horizon = Math.acos(1 / d) + tileSpanDegrees(11) * (Math.PI / 180);
+    for (const t of selectLodTiles(view(d), 3, 11)) {
+      expect(angleToTileRad(36, -112, t)).toBeLessThanOrEqual(horizon);
+    }
+  });
+
+  it("respects the cap, keeping the tiles nearest the subpoint", () => {
+    const tiles = selectLodTiles(view(1.08), 3, 11, 5);
+    expect(tiles).toHaveLength(5);
+    expect(angleToTileRad(36, -112, tiles[0])).toBe(0);
+  });
+
+  it("clamps to the layer's max level", () => {
+    const tiles = selectLodTiles(view(1.02), 3, 5);
+    expect(tiles.length).toBeGreaterThan(0);
+    for (const t of tiles) expect(t.level).toBeLessThanOrEqual(5);
   });
 });
 
