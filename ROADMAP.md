@@ -16,6 +16,10 @@ especially love help.
 - Hover coordinate + country readout.
 - High-resolution study regions with **cloud-aware clearest-pass selection**.
 - Resilient networking and graceful degradation.
+- **Point time-series probe** — click anywhere → full-record chart + CSV with
+  provenance (approximate colormap-inversion values, labeled as such).
+- **Plate-tectonics context pack** — Bird 2003 plate boundaries + Smithsonian
+  GVP Holocene volcanoes + live USGS seismicity.
 
 ## 🔵 Now
 

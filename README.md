@@ -16,6 +16,12 @@
 
 <p align="center"><strong>🌐 Live: <a href="https://zkwizard.github.io/RoamingEye/">zkwizard.github.io/RoamingEye</a></strong> — no account, no install, no fee.</p>
 
+<p align="center">
+  <img src="docs/demo.gif" alt="Scrubbing two years of monthly NDVI composites on the RoamingEye globe" width="720" />
+  <br />
+  <em>Two years of monthly vegetation composites, scrubbed live. Every month since 2000 is one keypress away.</em>
+</p>
+
 RoamingEye is an open-source research instrument for planetary-scale observation. It turns the public satellite archives that humanity has already paid for — NASA's MODIS and Harmonized Landsat-Sentinel collections — into a fast, intuitive, browser-based globe that any researcher, educator, journalist, or curious person can use without an account, a license, or a fee.
 
 > **Our thesis:** the ability to _watch the Earth change over time_ should not be locked behind expensive commercial platforms. The data is open. The tooling should be too.
@@ -38,6 +44,8 @@ It is built for, and by, the research community: every data source is open and c
 - 📚 **An open-data Providers page** — a built-in catalogue of the ~33 agencies, archives, and platforms whose open data powers the project.
 - 🔎 **Search any place** — geocoded via OpenStreetMap; the globe flies there and highlights the administrative boundary.
 - 🛰️ **High-resolution study regions** — search a location and RoamingEye drapes a sharp **30 m true-colour patch** over it, _automatically selecting the clearest cloud-free satellite pass_ for each month. Scrub the timeline and watch that exact region change, year over year.
+- 📈 **A point time-series probe** — click anywhere on the globe and chart that layer's value at that point across its full record (26–46 years), with a provenance-stamped CSV download. Approximate by design (colormap inversion), honest about it everywhere.
+- 🌋 **A plate-tectonics context pack** — Bird (2003) plate boundaries, ~1,200 Smithsonian GVP Holocene volcanoes colored by eruption recency, and live USGS seismicity (M4.5+, colored by depth) on one globe.
 - 🧭 **A live coordinate readout** — hover anywhere to read latitude/longitude and the country/territory under the cursor.
 - 🗺️ **Toggleable overlays** — coordinate grid, national borders, cities, and an atmosphere glow.
 
@@ -45,7 +53,10 @@ It is built for, and by, the research community: every data source is open and c
 
 ## 🧪 Built for research
 
-RoamingEye is designed around real scientific workflows. A few examples it already supports:
+RoamingEye is designed around real scientific workflows — see
+[**docs/research-recipes.md**](docs/research-recipes.md) for five step-by-step
+walkthroughs (drought signals, LST trends, the plate-tectonics lecture view,
+snowpack tracking, deforestation figures). A few examples it already supports:
 
 | Field                               | What you can observe                                                       |
 | ----------------------------------- | -------------------------------------------------------------------------- |
@@ -55,6 +66,8 @@ RoamingEye is designed around real scientific workflows. A few examples it alrea
 | **Drought & agriculture**           | Compare vegetation vigour between wet and dry years over a region.         |
 | **Snow & cryosphere**               | Track seasonal snow advance/retreat with monthly snow-cover composites.    |
 | **Disaster & event assessment**     | Pull the clearest pre/post imagery for a study area after a fire or flood. |
+| **Point time series**               | Click a site → 26-year chart + CSV for drought, greening, or LST trends.   |
+| **Plate tectonics & geohazards**    | Plate boundaries + Holocene volcanoes + live seismicity on the terrain.    |
 
 Every high-resolution scene is labelled with its **instrument and acquisition date** (e.g. _Sentinel-2 · HLS S30 · 30 m · 2024-08-05_) so observations are reproducible and citable.
 

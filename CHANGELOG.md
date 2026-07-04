@@ -6,6 +6,8 @@ log captures milestones rather than every commit. Format loosely follows
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-03 · the research-instrument release
+
 ### Added
 
 - **Point time-series probe** — click anywhere on the globe to chart the active
@@ -38,6 +40,9 @@ log captures milestones rather than every commit. Format loosely follows
 - **Switchable layers** — vegetation (NDVI / EVI) and snow cover.
 - **Resilient networking** — timeouts, backoff retries, and graceful degradation
   for all open-data calls.
+- **Launch package** — README demo GIF (`scripts/capture-demo.mjs` regenerates
+  it), five step-by-step [research recipes](docs/research-recipes.md), release
+  notes, and community post drafts under `docs/launch/`.
 - Project docs: README, `ARCHITECTURE.md`, `DATA_SOURCES.md`, `ROADMAP.md`,
   `docs/adding-a-data-layer.md`, and `RFC-001` (tiled imagery streaming).
 - Governance & CI: contributing/governance/security docs, DCO, GitHub Actions

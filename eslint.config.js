@@ -14,8 +14,9 @@ export default tseslint.config(
       sourceType: "module",
     },
   },
-  // Node-run build scripts (plain JS) get Node globals. `window` appears only
-  // inside Playwright page callbacks, which execute in the browser.
+  // Node-run build scripts (plain JS) get Node globals. The browser globals
+  // (`window`, canvas/decode APIs) appear only inside Playwright page
+  // callbacks, which execute in the browser.
   {
     files: ["scripts/**/*.{js,mjs}"],
     languageOptions: {
@@ -24,7 +25,12 @@ export default tseslint.config(
         process: "readonly",
         fetch: "readonly",
         URL: "readonly",
+        Buffer: "readonly",
         window: "readonly",
+        document: "readonly",
+        createImageBitmap: "readonly",
+        OffscreenCanvas: "readonly",
+        btoa: "readonly",
       },
     },
   },
