@@ -6,6 +6,8 @@ log captures milestones rather than every commit. Format loosely follows
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-03 · the research-instrument release
+
 ### Added
 
 - **Probe v2: area averaging & anomaly view** — the probe now samples either
