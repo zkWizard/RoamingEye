@@ -61,9 +61,17 @@ export interface LayerConfig {
 /**
  * The most recent month with published data. Monthly composites lag the
  * current month (the current month isn't finalised until it ends), so this
- * trails "today". Bump it as NASA publishes new months.
+ * trails "today". A live binding: freshness.ts probes GIBS at boot and
+ * extends it when NASA has published newer months than this compiled-in
+ * baseline (which should still be bumped occasionally so cold boots start
+ * close to the truth).
  */
-export const DATA_LATEST: YearMonth = { year: 2026, month: 5 };
+export let DATA_LATEST: YearMonth = { year: 2026, month: 5 };
+
+/** Move the runtime latest forward (never backward) — see lib/freshness.ts. */
+export function extendDataLatest(ym: YearMonth): void {
+  if (compareYm(ym, DATA_LATEST) > 0) DATA_LATEST = ym;
+}
 
 export const MONTH_NAMES = [
   "Jan",
