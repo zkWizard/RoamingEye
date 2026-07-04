@@ -1,3 +1,4 @@
+import type { Bounds } from "./imagery";
 import type { LegendStop } from "./legend";
 import type { LayerId, YearMonth } from "./timeline";
 
@@ -120,6 +121,83 @@ export function medianValid(
   return valid.length % 2 ? valid[mid] : (valid[mid - 1] + valid[mid]) / 2;
 }
 
+/**
+ * Mean of the valid samples from an area grid — the region statistic. Null
+ * when too little of the grid is data (a mostly-ocean box has no land story
+ * to tell); the default tolerates coastal boxes (¼ land is enough).
+ */
+export function meanValid(
+  values: (number | null)[],
+  minValidFraction = 0.25
+): number | null {
+  const valid = values.filter((v): v is number => v !== null);
+  if (values.length === 0 || valid.length / values.length < minValidFraction) {
+    return null;
+  }
+  return valid.reduce((sum, v) => sum + v, 0) / valid.length;
+}
+
+// --- Area sampling grid ---------------------------------------------------------
+
+/**
+ * Cell-center grid of n×n lat/lon points inside a bounding box — the sample
+ * layout for area (region-mean) probing. Cell centers, not corners, so all
+ * points are strictly inside the box.
+ */
+export function gridPoints(
+  bounds: Bounds,
+  n: number
+): { lat: number; lon: number }[] {
+  const points: { lat: number; lon: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    const lat = bounds.south + ((i + 0.5) / n) * (bounds.north - bounds.south);
+    for (let j = 0; j < n; j++) {
+      const lon = bounds.west + ((j + 0.5) / n) * (bounds.east - bounds.west);
+      points.push({ lat, lon });
+    }
+  }
+  return points;
+}
+
+// --- Seasonal climatology & anomalies --------------------------------------------
+
+/**
+ * Mean value per calendar month (index 0 = January) across the whole series —
+ * the seasonal climatology. Entries with no data in any year stay null.
+ */
+export function monthlyClimatology(
+  months: YearMonth[],
+  values: (number | null)[]
+): (number | null)[] {
+  const sums = new Array<number>(12).fill(0);
+  const counts = new Array<number>(12).fill(0);
+  for (let i = 0; i < months.length; i++) {
+    const v = values[i];
+    if (v === null || v === undefined) continue;
+    sums[months[i].month - 1] += v;
+    counts[months[i].month - 1]++;
+  }
+  return sums.map((sum, m) => (counts[m] > 0 ? sum / counts[m] : null));
+}
+
+/**
+ * De-seasonalized series: each month minus its calendar-month climatology.
+ * This is where droughts, heatwaves, and greening trends stop hiding behind
+ * the seasonal cycle.
+ */
+export function anomalySeries(
+  months: YearMonth[],
+  values: (number | null)[],
+  climatology = monthlyClimatology(months, values)
+): (number | null)[] {
+  return months.map((ym, i) => {
+    const v = values[i];
+    const clim = climatology[ym.month - 1];
+    if (v === null || v === undefined || clim === null) return null;
+    return v - clim;
+  });
+}
+
 // --- Value scales -------------------------------------------------------------
 
 export interface ProbeScale {
@@ -208,6 +286,10 @@ export interface ProbeCsvMeta {
   lat: number;
   lon: number;
   scale: ProbeScale;
+  /** "point" (3×3 px median) or "area" (grid mean over sampledBounds). */
+  mode: "point" | "area";
+  /** The averaged region, present in area mode. */
+  sampledBounds?: Bounds;
   /** Source image size the pixel was sampled from. */
   imageWidth: number;
   imageHeight: number;
@@ -217,38 +299,49 @@ export interface ProbeCsvMeta {
 
 /**
  * Build the probe CSV: provenance as `#` comment headers, then one row per
- * month (empty value = no data). Reproducibility is the point — the header
- * states exactly what was sampled, how, and that values are approximate.
+ * month (empty value = no data). Values arrive as 0..1 gradient positions and
+ * are written on the layer's scale (so a snow-cover CSV really is percent);
+ * the anomaly column is the value minus its calendar-month climatology, in
+ * the same units. Reproducibility is the point — the header states exactly
+ * what was sampled, how, and that values are approximate.
  */
 export function buildProbeCsv(
   meta: ProbeCsvMeta,
   months: YearMonth[],
-  values: (number | null)[]
+  values: (number | null)[],
+  anomalies: (number | null)[] = anomalySeries(months, values)
 ): string {
   const ymStr = (ym: YearMonth): string =>
     `${ym.year}-${String(ym.month).padStart(2, "0")}`;
+  const span = meta.scale.max - meta.scale.min;
+  const cell = (v: number | null | undefined, offset: number): string =>
+    v === null || v === undefined ? "" : (offset + v * span).toFixed(4);
+  const region = meta.sampledBounds
+    ? `${meta.sampledBounds.south.toFixed(3)},${meta.sampledBounds.west.toFixed(3)},${meta.sampledBounds.north.toFixed(3)},${meta.sampledBounds.east.toFixed(3)} (S,W,N,E)`
+    : undefined;
   const lines = [
-    `# RoamingEye point probe — APPROXIMATE values`,
+    `# RoamingEye ${meta.mode} probe — APPROXIMATE values`,
     `# method: colormap inversion of NASA GIBS rendered imagery (${meta.imageWidth}x${meta.imageHeight} equirectangular GetMap)`,
     `# caveat: reconstructed from public imagery colors; use the underlying L3 product for measurement-grade work`,
     `# layer: ${meta.layerLabel}`,
     `# gibs_layer: ${meta.wmsLayer}`,
     `# lat: ${meta.lat.toFixed(4)}`,
     `# lon: ${meta.lon.toFixed(4)}`,
+    ...(region ? [`# region: ${region}`] : []),
     `# value: ${meta.scale.label}${meta.scale.unit ? ` [${meta.scale.unit}]` : ""} (${
       meta.scale.calibrated
         ? "approximate physical scale"
         : "fraction of color scale"
     })`,
+    `# anomaly: value minus this location's mean for the same calendar month (same units)`,
     `# imagery: NASA GIBS (public domain), https://gibs.earthdata.nasa.gov`,
     `# generated: ${meta.generatedIso}`,
     `# tool: RoamingEye, https://github.com/zkWizard/RoamingEye`,
-    `year_month,value`,
+    `year_month,value,anomaly`,
   ];
   for (let i = 0; i < months.length; i++) {
-    const v = values[i];
     lines.push(
-      `${ymStr(months[i])},${v === null || v === undefined ? "" : v.toFixed(4)}`
+      `${ymStr(months[i])},${cell(values[i], meta.scale.min)},${cell(anomalies[i], 0)}`
     );
   }
   return lines.join("\n") + "\n";
