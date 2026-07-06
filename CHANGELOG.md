@@ -8,6 +8,11 @@ log captures milestones rather than every commit. Format loosely follows
 
 ### Added
 
+- **Give-feedback funnel** — a three-question feedback issue form (what you
+  tried / what got in the way / what would bring you back, with an optional
+  15-minute-call opt-in for researchers), linked from the in-app attribution
+  bar and the README. Feedback issues are labeled `feedback` /
+  `research-user`.
 - **HD tile streaming on by default (RFC-001 complete, milestone 6)** — the
   quadtree tiler is now the primary rendering path (toolbar-toggleable as
   before); the single full-globe texture stays underneath as the far-zoom
