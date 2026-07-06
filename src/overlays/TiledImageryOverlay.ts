@@ -1,38 +1,53 @@
 import * as THREE from "three";
 import { latLngToVector3, vector3ToLatLng } from "../lib/geo";
 import {
+  ancestorOf,
+  ancestorUvRect,
   gibsWmtsTileUrl,
   selectLodTiles,
   tileBounds,
+  textureBudgetBytes,
+  TILE_TEXTURE_BYTES,
   type TileAddress,
+  type UvRect,
 } from "../lib/tiles";
 import type { LayerConfig, YearMonth } from "../lib/timeline";
 import { ICONS } from "../ui/icons";
 import { GLOBE_RADIUS, type MapOverlay } from "./types";
 
 /**
- * RFC-001 milestones 2–4: quadtree-LOD tiled imagery streaming.
+ * RFC-001 milestones 2–5: quadtree-LOD tiled imagery streaming.
  *
  * When enabled, the visible part of the globe is re-draped with WMTS tiles
  * selected by screen-space error (lib/tiles.ts selectLodTiles): the quadtree
  * is descended per view, tiles beyond the horizon are culled, and each tile
  * subdivides until its texels match device pixels at *its own* distance from
  * the camera — fine at the nadir, coarser toward the limb, up to the layer's
- * native resolution. Parent-tile fallback while children load is milestone 5.
+ * native resolution.
  *
- * Tiles are keyed by (layer, time, level, row, col); an LRU texture cache
- * bounds GPU memory, and a generation counter drops stale loads when the view
- * or timeline moves on.
+ * While a tile's own texture loads, the tile shows the nearest cached
+ * ancestor cropped to its footprint (parent-tile fallback) — zooming refines
+ * progressively instead of opening holes. Tiles are keyed by
+ * (layer, time, level, row, col); the LRU texture cache is bounded by a
+ * device-scaled GPU-memory budget (textures on screen are never evicted),
+ * and a generation counter drops stale loads when the view moves on.
  */
 
 /** Tiles only activate when finer than the base texture (level 2 ≈ 2048 px). */
 const MIN_LEVEL = 3;
-/** LRU texture budget (~1 MB of GPU memory per 512² tile). */
-const TEXTURE_CACHE_SIZE = 64;
 /** Concurrent tile requests. */
 const MAX_INFLIGHT = 6;
 /** Curved-patch resolution; tiles at level ≥ 3 span ≤ 22.5°, so 12 is smooth. */
 const MESH_SEGMENTS = 12;
+
+/** A tile currently draped on the globe. */
+interface ShownTile {
+  mesh: THREE.Mesh;
+  /** Cache key of the texture the mesh displays (an ancestor's, if provisional). */
+  textureKey: string;
+  /** True while showing an ancestor stand-in instead of the tile's own texture. */
+  provisional: boolean;
+}
 
 export class TiledImageryOverlay implements MapOverlay {
   readonly id = "hd";
@@ -42,9 +57,13 @@ export class TiledImageryOverlay implements MapOverlay {
 
   private readonly loader = new THREE.TextureLoader();
   private readonly textures = new Map<string, THREE.Texture>(); // LRU
-  private readonly meshes = new Map<string, THREE.Mesh>(); // currently shown
+  private readonly shown = new Map<string, ShownTile>(); // by address key
   private readonly loading = new Set<string>();
   private queue: { key: string; url: string; tile: TileAddress }[] = [];
+  private wantedKeys = new Set<string>();
+  private readonly budgetBytes = textureBudgetBytes(
+    (navigator as Navigator & { deviceMemory?: number }).deviceMemory
+  );
 
   private layer: LayerConfig | undefined;
   private time: string | null = null;
@@ -106,6 +125,7 @@ export class TiledImageryOverlay implements MapOverlay {
     if (wanted.length === 0) {
       // The base texture is already this sharp — show nothing, save memory.
       this.clearMeshes();
+      this.wantedKeys.clear();
       return;
     }
     this.reconcile(wanted);
@@ -117,42 +137,48 @@ export class TiledImageryOverlay implements MapOverlay {
   private invalidate(): void {
     this.generation++;
     this.queue = [];
+    this.wantedKeys.clear();
     this.clearMeshes();
     this.lastSignature = "";
     // Cached textures for other keys stay — scrubbing back is instant.
   }
 
   private clearMeshes(): void {
-    for (const mesh of this.meshes.values()) {
-      this.object.remove(mesh);
-      mesh.geometry.dispose();
-      (mesh.material as THREE.MeshBasicMaterial).dispose();
-      // Textures belong to the LRU cache, not the mesh — not disposed here.
-    }
-    this.meshes.clear();
+    for (const key of [...this.shown.keys()]) this.removeShown(key);
+  }
+
+  private removeShown(addrKey: string): void {
+    const entry = this.shown.get(addrKey);
+    if (!entry) return;
+    this.object.remove(entry.mesh);
+    entry.mesh.geometry.dispose();
+    (entry.mesh.material as THREE.MeshBasicMaterial).dispose();
+    // Textures belong to the LRU cache, not the mesh — not disposed here.
+    this.shown.delete(addrKey);
   }
 
   private reconcile(wanted: TileAddress[]): void {
     if (!this.layer?.wmts) return;
-    const wantedKeys = new Set(wanted.map((t) => this.keyFor(t)));
+    const wantedByAddr = new Map(wanted.map((t) => [addrKey(t), t]));
 
-    for (const [key, mesh] of this.meshes) {
-      if (wantedKeys.has(key)) continue;
-      this.object.remove(mesh);
-      mesh.geometry.dispose();
-      (mesh.material as THREE.MeshBasicMaterial).dispose();
-      this.meshes.delete(key);
+    for (const key of [...this.shown.keys()]) {
+      if (!wantedByAddr.has(key)) this.removeShown(key);
     }
 
+    this.wantedKeys = new Set(wanted.map((t) => this.keyFor(t)));
     this.queue = [];
-    for (const tile of wanted) {
+    for (const [akey, tile] of wantedByAddr) {
       const key = this.keyFor(tile);
-      if (this.meshes.has(key)) continue;
+      const entry = this.shown.get(akey);
+      if (entry && !entry.provisional && entry.textureKey === key) continue;
+
       const cached = this.textures.get(key);
       if (cached) {
         this.touch(key, cached);
-        this.addMesh(key, tile, cached);
-      } else if (!this.loading.has(key)) {
+        this.show(tile, key, cached, null);
+        continue;
+      }
+      if (!this.loading.has(key)) {
         this.queue.push({
           key,
           url: gibsWmtsTileUrl(
@@ -164,8 +190,26 @@ export class TiledImageryOverlay implements MapOverlay {
           tile,
         });
       }
+      // No texture yet: drape the nearest cached ancestor over this tile's
+      // footprint so zooming refines instead of opening a hole (milestone 5).
+      if (!entry) this.showFallback(tile);
     }
     this.pump();
+  }
+
+  /** Show `tile` with the nearest cached ancestor texture, if any exists. */
+  private showFallback(tile: TileAddress): void {
+    for (let up = 1; up <= tile.level - 1; up++) {
+      const anc = ancestorOf(tile, up);
+      if (!anc) return;
+      const key = this.keyFor(anc);
+      const texture = this.textures.get(key);
+      if (texture) {
+        this.touch(key, texture);
+        this.show(tile, key, texture, ancestorUvRect(tile, up), true);
+        return;
+      }
+    }
   }
 
   private pump(): void {
@@ -184,14 +228,18 @@ export class TiledImageryOverlay implements MapOverlay {
             texture.colorSpace = THREE.SRGBColorSpace;
             texture.anisotropy = this.maxAnisotropy;
             this.touch(job.key, texture);
+            // Only drape it if the view still wants it — the camera may have
+            // moved on while the request was in flight (it stays cached).
+            if (this.wantedKeys.has(job.key)) {
+              this.show(job.tile, job.key, texture, null);
+            }
             this.evict();
-            this.addMesh(job.key, job.tile, texture);
           }
           this.pump();
         },
         undefined,
         () => {
-          // Missing tiles (ocean-only, over-zoom, outages) just stay base-res.
+          // Missing tiles (ocean-only, over-zoom, outages) keep the fallback.
           this.loading.delete(job.key);
           this.pump();
         }
@@ -199,13 +247,22 @@ export class TiledImageryOverlay implements MapOverlay {
     }
   }
 
-  private addMesh(
-    key: string,
+  /**
+   * Drape `tile` with `texture` (cropped to `uvRect` when it belongs to an
+   * ancestor), replacing whatever the tile currently shows.
+   */
+  private show(
     tile: TileAddress,
-    texture: THREE.Texture
+    textureKey: string,
+    texture: THREE.Texture,
+    uvRect: UvRect | null,
+    provisional = false
   ): void {
-    if (this.meshes.has(key)) return;
+    const akey = addrKey(tile);
+    this.removeShown(akey);
+
     const b = tileBounds(tile);
+    const rect = uvRect ?? { u0: 0, v0: 0, u1: 1, v1: 1 };
     const positions: number[] = [];
     const uvs: number[] = [];
     const indices: number[] = [];
@@ -219,7 +276,10 @@ export class TiledImageryOverlay implements MapOverlay {
         const lon = b.west + (b.east - b.west) * u;
         const p = latLngToVector3(lat, lon, radius);
         positions.push(p.x, p.y, p.z);
-        uvs.push(u, v);
+        uvs.push(
+          rect.u0 + (rect.u1 - rect.u0) * u,
+          rect.v0 + (rect.v1 - rect.v0) * v
+        );
       }
     }
     const stride = MESH_SEGMENTS + 1;
@@ -245,7 +305,7 @@ export class TiledImageryOverlay implements MapOverlay {
         side: THREE.DoubleSide, // robust against patch winding orientation
       })
     );
-    this.meshes.set(key, mesh);
+    this.shown.set(akey, { mesh, textureKey, provisional });
     this.object.add(mesh);
   }
 
@@ -258,18 +318,27 @@ export class TiledImageryOverlay implements MapOverlay {
     this.textures.set(key, texture);
   }
 
+  /**
+   * Evict least-recently-used textures until the cache fits the GPU-memory
+   * budget. Textures currently draped on the globe (including as fallback
+   * sources) are skipped, never evicted.
+   */
   private evict(): void {
-    while (this.textures.size > TEXTURE_CACHE_SIZE) {
-      const oldest = this.textures.keys().next().value as string | undefined;
-      if (oldest === undefined) break;
-      if (this.meshes.has(oldest)) {
-        // Oldest is on screen — re-mark it hot instead of evicting.
-        const tex = this.textures.get(oldest);
-        if (tex) this.touch(oldest, tex);
-        break;
-      }
-      this.textures.get(oldest)?.dispose();
-      this.textures.delete(oldest);
+    let bytes = this.textures.size * TILE_TEXTURE_BYTES;
+    if (bytes <= this.budgetBytes) return;
+    const inUse = new Set<string>();
+    for (const entry of this.shown.values()) inUse.add(entry.textureKey);
+    for (const key of [...this.textures.keys()]) {
+      if (bytes <= this.budgetBytes) break;
+      if (inUse.has(key)) continue;
+      this.textures.get(key)?.dispose();
+      this.textures.delete(key);
+      bytes -= TILE_TEXTURE_BYTES;
     }
   }
+}
+
+/** Time-independent identity of a tile slot on the globe. */
+function addrKey(tile: TileAddress): string {
+  return `${tile.level}:${tile.row}:${tile.col}`;
 }

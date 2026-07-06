@@ -14,6 +14,10 @@ import {
   centralAngleRad,
   angleToTileRad,
   selectLodTiles,
+  ancestorOf,
+  ancestorUvRect,
+  TILE_TEXTURE_BYTES,
+  textureBudgetBytes,
   type TileAddress,
 } from "./tiles";
 
@@ -260,6 +264,87 @@ describe("selectLodTiles", () => {
     const tiles = selectLodTiles(view(1.02), 3, 5);
     expect(tiles.length).toBeGreaterThan(0);
     for (const t of tiles) expect(t.level).toBeLessThanOrEqual(5);
+  });
+});
+
+describe("ancestorOf", () => {
+  it("halves row/col per level up", () => {
+    const tile: TileAddress = { level: 5, row: 13, col: 27 };
+    expect(ancestorOf(tile, 1)).toEqual({ level: 4, row: 6, col: 13 });
+    expect(ancestorOf(tile, 2)).toEqual({ level: 3, row: 3, col: 6 });
+    expect(ancestorOf(tile, 5)).toEqual({ level: 0, row: 0, col: 0 });
+  });
+
+  it("returns null above the root or for levelsUp < 1", () => {
+    expect(ancestorOf({ level: 2, row: 1, col: 1 }, 3)).toBeNull();
+    expect(ancestorOf({ level: 2, row: 1, col: 1 }, 0)).toBeNull();
+  });
+
+  it("the ancestor's bounds contain the tile's bounds", () => {
+    const tile: TileAddress = { level: 6, row: 41, col: 99 };
+    for (let up = 1; up <= 6; up++) {
+      const anc = ancestorOf(tile, up);
+      expect(anc).not.toBeNull();
+      if (!anc) continue;
+      const tb = tileBounds(tile);
+      const ab = tileBounds(anc);
+      expect(tb.north).toBeLessThanOrEqual(ab.north);
+      expect(tb.south).toBeGreaterThanOrEqual(ab.south);
+      expect(tb.west).toBeGreaterThanOrEqual(ab.west);
+      expect(tb.east).toBeLessThanOrEqual(ab.east);
+    }
+  });
+});
+
+describe("ancestorUvRect", () => {
+  it("one level up: quadrants, with v flipped (row 0 = north = top of image)", () => {
+    // North-west child of its parent → left half, top half (v ∈ [0.5, 1]).
+    expect(ancestorUvRect({ level: 3, row: 2, col: 4 }, 1)).toEqual({
+      u0: 0,
+      u1: 0.5,
+      v0: 0.5,
+      v1: 1,
+    });
+    // South-east child → right half, bottom half.
+    expect(ancestorUvRect({ level: 3, row: 3, col: 5 }, 1)).toEqual({
+      u0: 0.5,
+      u1: 1,
+      v0: 0,
+      v1: 0.5,
+    });
+  });
+
+  it("matches the geographic fraction of the ancestor's bounds", () => {
+    const tile: TileAddress = { level: 6, row: 41, col: 99 };
+    for (let up = 1; up <= 4; up++) {
+      const anc = ancestorOf(tile, up);
+      if (!anc) continue;
+      const rect = ancestorUvRect(tile, up);
+      const tb = tileBounds(tile);
+      const ab = tileBounds(anc);
+      const spanLon = ab.east - ab.west;
+      const spanLat = ab.north - ab.south;
+      expect(rect.u0).toBeCloseTo((tb.west - ab.west) / spanLon);
+      expect(rect.u1).toBeCloseTo((tb.east - ab.west) / spanLon);
+      expect(rect.v0).toBeCloseTo((tb.south - ab.south) / spanLat);
+      expect(rect.v1).toBeCloseTo((tb.north - ab.south) / spanLat);
+    }
+  });
+});
+
+describe("texture cache budgeting", () => {
+  it("one tile is ~1.3 MiB (512² RGBA + mips)", () => {
+    expect(TILE_TEXTURE_BYTES).toBeGreaterThan(1024 * 1024);
+    expect(TILE_TEXTURE_BYTES).toBeLessThan(1.5 * 1024 * 1024);
+  });
+
+  it("scales with device memory, clamped to [48, 192] MiB", () => {
+    const mib = 1024 * 1024;
+    expect(textureBudgetBytes(4)).toBe(96 * mib);
+    expect(textureBudgetBytes(8)).toBe(192 * mib);
+    expect(textureBudgetBytes(64)).toBe(192 * mib); // clamp high
+    expect(textureBudgetBytes(1)).toBe(48 * mib); // clamp low
+    expect(textureBudgetBytes(undefined)).toBe(96 * mib); // Safari/Firefox
   });
 });
 

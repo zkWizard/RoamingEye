@@ -314,6 +314,71 @@ export function selectLodTiles(
   return emitted.slice(0, cap).map((e) => e.tile);
 }
 
+// --- Parent-tile fallback & cache budgeting (RFC-001 milestone 5) -------------
+
+/**
+ * The ancestor of a tile `levelsUp` levels coarser, or null when no such
+ * ancestor exists (at or above the root). `levelsUp` must be ≥ 1 — a tile is
+ * not its own ancestor.
+ */
+export function ancestorOf(
+  tile: TileAddress,
+  levelsUp: number
+): TileAddress | null {
+  if (levelsUp < 1 || levelsUp > tile.level) return null;
+  const n = 2 ** levelsUp;
+  return {
+    level: tile.level - levelsUp,
+    row: Math.floor(tile.row / n),
+    col: Math.floor(tile.col / n),
+  };
+}
+
+/** A sub-rectangle of a texture, in UV space (v = 0 at the image bottom). */
+export interface UvRect {
+  u0: number;
+  v0: number;
+  u1: number;
+  v1: number;
+}
+
+/**
+ * Where a tile's footprint sits inside its ancestor's texture, as a UV
+ * rectangle. Rows count from the north (WMTS) while v counts from the south
+ * (GL convention with the default flipY texture upload), hence the flip.
+ */
+export function ancestorUvRect(tile: TileAddress, levelsUp: number): UvRect {
+  const n = 2 ** levelsUp;
+  const colOffset = tile.col % n;
+  const rowOffset = tile.row % n;
+  return {
+    u0: colOffset / n,
+    u1: (colOffset + 1) / n,
+    v0: 1 - (rowOffset + 1) / n,
+    v1: 1 - rowOffset / n,
+  };
+}
+
+/**
+ * GPU bytes held by one cached tile texture: 512² RGBA texels plus the ~1/3
+ * overhead of its mipmap chain.
+ */
+export const TILE_TEXTURE_BYTES = Math.round(
+  TILE_SIZE * TILE_SIZE * 4 * (4 / 3)
+);
+
+/**
+ * The tile-texture cache budget for a device, in bytes: ~24 MiB per GiB of
+ * reported device memory, clamped to [48, 192] MiB. Callers pass
+ * `navigator.deviceMemory` (absent on Safari/Firefox — the 4 GiB default
+ * lands on a 96 MiB budget, about 70 tiles).
+ */
+export function textureBudgetBytes(deviceMemoryGb: number | undefined): number {
+  const gb = deviceMemoryGb ?? 4;
+  const mib = Math.min(192, Math.max(48, gb * 24));
+  return mib * 1024 * 1024;
+}
+
 /**
  * Build a GIBS WMTS REST tile URL. Timed layers address a month by its first
  * day; static (time-less) layers omit the time path segment entirely.
