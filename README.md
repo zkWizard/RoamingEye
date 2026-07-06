@@ -94,7 +94,7 @@ See [`DATA_SOURCES.md`](DATA_SOURCES.md) for the full catalogue, layer identifie
 
 ## 🚀 Quickstart
 
-**Requirements:** [Node.js](https://nodejs.org/) 20+ and npm.
+**Requirements:** [Node.js](https://nodejs.org/) 20.19+ (or 22.12+) and npm.
 
 ```bash
 git clone https://github.com/zkWizard/RoamingEye.git
