@@ -6,6 +6,14 @@ log captures milestones rather than every commit. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+
+- **HD tiles: parent-tile fallback & cache budgeting (RFC-001, milestone 5)** —
+  while a tile's own imagery loads, it shows the nearest cached coarser tile
+  cropped to its footprint, so zooming refines progressively instead of
+  opening holes; the tile-texture cache is now bounded by a GPU-memory budget
+  scaled to the device (48–192 MiB), and on-screen textures are never evicted.
+
 ## [0.2.0] — 2026-07-03 · the research-instrument release
 
 ### Added
@@ -34,11 +42,6 @@ log captures milestones rather than every commit. Format loosely follows
   limb, horizon-culled, up to each layer's native resolution (terrain
   reaches ~31 m). Pure, unit-tested tile math (`lib/tiles.ts`); parent-tile
   fallback is milestone 5.
-
-## [0.2.0] — 2026-07-03 · the research-instrument release
-
-### Added
-
 - **Point time-series probe** — click anywhere on the globe to chart the active
   layer's value at that point across its full published record (up to 46 years,
   monthly), with a provenance-stamped CSV download. Values are reconstructed by
