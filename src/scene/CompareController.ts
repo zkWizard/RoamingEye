@@ -81,11 +81,16 @@ export class CompareController {
   /**
    * Two scissored passes: pinned month left of the divider, live month right.
    * Call in place of the normal `renderer.render` when `showing`.
+   *
+   * `liveOnly` objects (e.g. streamed HD tiles, which always show the live
+   * month) are hidden during the pinned pass so the "before" side never
+   * wears "after" imagery.
    */
   renderSplit(
     renderer: THREE.WebGLRenderer,
     scene: THREE.Scene,
-    camera: THREE.Camera
+    camera: THREE.Camera,
+    liveOnly: THREE.Object3D[] = []
   ): void {
     if (!this.texture) return;
     const size = renderer.getSize(new THREE.Vector2());
@@ -94,14 +99,17 @@ export class CompareController {
     // Swapping between two loaded textures reuses the same shader program;
     // only a null↔texture change would require a material rebuild.
     const needsRebuild = live === null;
+    const liveOnlyVisible = liveOnly.map((o) => o.visible);
 
     renderer.setScissorTest(true);
 
     this.material.map = this.texture;
+    for (const o of liveOnly) o.visible = false;
     if (needsRebuild) this.material.needsUpdate = true;
     renderer.setScissor(0, 0, splitX, size.y);
     renderer.render(scene, camera);
 
+    liveOnly.forEach((o, i) => (o.visible = liveOnlyVisible[i]));
     this.material.map = live;
     if (needsRebuild) this.material.needsUpdate = true;
     renderer.setScissor(splitX, 0, size.x - splitX, size.y);

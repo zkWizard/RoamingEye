@@ -39,6 +39,7 @@ It is built for, and by, the research community: every data source is open and c
 ## ✨ What it does
 
 - 🌍 **A real 3D Earth** rendered with WebGL — grab to rotate, scroll to zoom from orbit down to the surface.
+- 🔬 **Native-resolution tile streaming, on by default** — zoom in and the visible globe re-drapes itself with WMTS tiles chosen by screen-space error, up to each layer's native resolution (terrain reaches ~31 m), with parent-tile fallback so detail refines instead of popping.
 - ⏳ **A temporal scrubber** — a ruler-style timeline that sweeps month-by-month through the last 5 years of monthly satellite composites, so you can _watch the seasons turn_ and trends emerge.
 - 🌱❄️🌡️ **A rich set of scientific layers** — 9 open NASA products across **vegetation** (NDVI, EVI), **temperature** (land surface, 2 m air, sea surface), **water** (precipitation, soil moisture), **cryosphere** (snow cover), and **atmosphere** (aerosols) — grouped in a clean picker and growing.
 - 📚 **An open-data Providers page** — a built-in catalogue of the ~33 agencies, archives, and platforms whose open data powers the project.
@@ -87,7 +88,7 @@ Every high-resolution scene is labelled with its **instrument and acquisition da
 
 See [`DATA_SOURCES.md`](DATA_SOURCES.md) for the full catalogue, layer identifiers, and scientific notes.
 
-> **An honest note on resolution.** Open data tops out at roughly **10 m** (Sentinel-2) to **30 m** (Landsat/HLS) for recent, frequently-revisited imagery. True sub-metre "street-level" imagery only exists in commercial archives, which are neither free nor global. RoamingEye deliberately stays within the open ecosystem — and a [tiled-streaming engine](docs/rfcs/RFC-001-tiled-imagery-streaming.md) to render that full resolution _everywhere_ is our flagship roadmap item.
+> **An honest note on resolution.** Open data tops out at roughly **10 m** (Sentinel-2) to **30 m** (Landsat/HLS) for recent, frequently-revisited imagery. True sub-metre "street-level" imagery only exists in commercial archives, which are neither free nor global. RoamingEye deliberately stays within the open ecosystem — and its [tiled-streaming engine](docs/rfcs/RFC-001-tiled-imagery-streaming.md) renders each layer's full native resolution wherever you zoom, by default.
 
 ---
 
@@ -133,7 +134,7 @@ For a contributor's tour of the codebase, see [`ARCHITECTURE.md`](ARCHITECTURE.m
 - 🏛️ [`GOVERNANCE.md`](GOVERNANCE.md) explains the trust ladder and how decisions get made.
 - 🌱 New to the project? Browse [**good first issues**](https://github.com/zkWizard/RoamingEye/labels/good%20first%20issue).
 - ➕ Want to add a dataset? [`docs/adding-a-data-layer.md`](docs/adding-a-data-layer.md) walks through it.
-- 🚩 **The flagship opportunity:** [**RFC-001 — Tiled imagery streaming**](docs/rfcs/RFC-001-tiled-imagery-streaming.md). Help us render full native resolution at any zoom, anywhere on Earth.
+- 🚩 **The flagship engine:** [**RFC-001 — Tiled imagery streaming**](docs/rfcs/RFC-001-tiled-imagery-streaming.md) shipped — and its follow-ons (tile-edge skirts, polar handling, Sentinel-2 at 10 m) are great graphics projects. See the [roadmap](ROADMAP.md).
 
 Every change lands through a reviewed, CI-gated pull request. Be kind — see the [Code of Conduct](.github/CODE_OF_CONDUCT.md).
 

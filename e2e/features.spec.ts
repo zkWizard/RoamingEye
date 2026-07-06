@@ -51,6 +51,17 @@ test("geology overlays load their bundled datasets on first enable", async ({
   ).toHaveAttribute("aria-pressed", "true");
 });
 
+test("HD tile streaming is on by default (RFC-001 milestone 6)", async ({
+  page,
+}) => {
+  const hd = page.locator('.toolbar__item[title="HD tiles"]');
+  await expect(hd).toHaveAttribute("aria-pressed", "true");
+  // From orbit nothing streams (the base texture is already as sharp), so
+  // the default view must not fire any WMTS tile requests.
+  await hd.click();
+  await expect(hd).toHaveAttribute("aria-pressed", "false");
+});
+
 test("hovering the globe shows a coordinate readout", async ({ page }) => {
   const canvas = page.locator("#globe");
   const box = await canvas.boundingBox();

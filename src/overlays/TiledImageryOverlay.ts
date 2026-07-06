@@ -11,26 +11,37 @@ import {
   type TileAddress,
   type UvRect,
 } from "../lib/tiles";
-import type { LayerConfig, YearMonth } from "../lib/timeline";
+import {
+  addMonths,
+  compareYm,
+  DATA_LATEST,
+  type LayerConfig,
+  type YearMonth,
+} from "../lib/timeline";
 import { ICONS } from "../ui/icons";
 import { GLOBE_RADIUS, type MapOverlay } from "./types";
 
 /**
- * RFC-001 milestones 2–5: quadtree-LOD tiled imagery streaming.
+ * RFC-001 milestones 2–6: quadtree-LOD tiled imagery streaming.
  *
- * When enabled, the visible part of the globe is re-draped with WMTS tiles
+ * On by default: the visible part of the globe is re-draped with WMTS tiles
  * selected by screen-space error (lib/tiles.ts selectLodTiles): the quadtree
  * is descended per view, tiles beyond the horizon are culled, and each tile
  * subdivides until its texels match device pixels at *its own* distance from
  * the camera — fine at the nadir, coarser toward the limb, up to the layer's
- * native resolution.
+ * native resolution. The single full-globe texture remains underneath as the
+ * far-zoom level 0 (it matches quadtree level ~2), so from orbit nothing
+ * streams at all.
  *
  * While a tile's own texture loads, the tile shows the nearest cached
  * ancestor cropped to its footprint (parent-tile fallback) — zooming refines
- * progressively instead of opening holes. Tiles are keyed by
+ * progressively instead of opening holes. Scrubbing the timeline keeps the
+ * previous month's tiles draped until each replacement lands (no flash back
+ * to base resolution), and once a view settles the adjacent months' tiles
+ * are prefetched so stepping through time in HD is warm. Tiles are keyed by
  * (layer, time, level, row, col); the LRU texture cache is bounded by a
  * device-scaled GPU-memory budget (textures on screen are never evicted),
- * and a generation counter drops stale loads when the view moves on.
+ * and a generation counter drops stale loads when the layer changes.
  */
 
 /** Tiles only activate when finer than the base texture (level 2 ≈ 2048 px). */
@@ -39,6 +50,8 @@ const MIN_LEVEL = 3;
 const MAX_INFLIGHT = 6;
 /** Curved-patch resolution; tiles at level ≥ 3 span ≤ 22.5°, so 12 is smooth. */
 const MESH_SEGMENTS = 12;
+/** Once a view settles, warm this many nearest tiles for the ±1 months. */
+const PREFETCH_TILES = 12;
 
 /** A tile currently draped on the globe. */
 interface ShownTile {
@@ -54,6 +67,8 @@ export class TiledImageryOverlay implements MapOverlay {
   readonly label = "HD tiles";
   readonly icon = ICONS.hd;
   readonly object = new THREE.Group();
+  /** Streaming is the default rendering path (RFC-001 milestone 6). */
+  readonly defaultOn = true;
 
   private readonly loader = new THREE.TextureLoader();
   private readonly textures = new Map<string, THREE.Texture>(); // LRU
@@ -67,6 +82,8 @@ export class TiledImageryOverlay implements MapOverlay {
 
   private layer: LayerConfig | undefined;
   private time: string | null = null;
+  private ym: YearMonth | undefined;
+  private lastWanted: TileAddress[] = [];
   private generation = 0;
   private lastSignature = "";
   private lastUpdate = 0;
@@ -81,13 +98,17 @@ export class TiledImageryOverlay implements MapOverlay {
 
   /** Point the tiler at a layer + month (called on layer/timeline changes). */
   setView(layer: LayerConfig, ym: YearMonth): void {
-    const time = layer.static
-      ? null
-      : `${ym.year}-${String(ym.month).padStart(2, "0")}-01`;
+    const time = layer.static ? null : timeString(ym);
     if (this.layer?.id === layer.id && this.time === time) return;
+    const layerChanged = this.layer !== undefined && this.layer.id !== layer.id;
     this.layer = layer;
     this.time = time;
-    this.invalidate();
+    this.ym = layer.static ? undefined : ym;
+    // A month change keeps the previous month draped until replacements land
+    // (warm scrub); a layer change clears — another product's colormap on the
+    // globe would be misleading, and the base texture swaps from cache anyway.
+    if (layerChanged) this.invalidate();
+    else this.retime();
   }
 
   /**
@@ -126,6 +147,7 @@ export class TiledImageryOverlay implements MapOverlay {
       // The base texture is already this sharp — show nothing, save memory.
       this.clearMeshes();
       this.wantedKeys.clear();
+      this.lastWanted = [];
       return;
     }
     this.reconcile(wanted);
@@ -133,14 +155,30 @@ export class TiledImageryOverlay implements MapOverlay {
 
   // --- internals -------------------------------------------------------------
 
-  /** Drop everything shown/queued (layer or month changed). */
+  /** Drop everything shown/queued and abandon in-flight loads (layer changed). */
   private invalidate(): void {
     this.generation++;
     this.queue = [];
     this.wantedKeys.clear();
+    this.lastWanted = [];
     this.clearMeshes();
     this.lastSignature = "";
-    // Cached textures for other keys stay — scrubbing back is instant.
+    // Cached textures for other keys stay — switching back is instant.
+  }
+
+  /**
+   * The month moved within the same layer: keep every draped tile as a
+   * provisional stand-in (the old month is far better than a base-res flash)
+   * and let reconcile() replace each one as the new month's texture lands.
+   * In-flight loads are kept too — they complete into the cache, which is
+   * exactly what keeps scrubbing back a month instant.
+   */
+  private retime(): void {
+    for (const entry of this.shown.values()) entry.provisional = true;
+    this.queue = [];
+    this.wantedKeys.clear();
+    this.lastWanted = [];
+    this.lastSignature = ""; // force a reconcile on the next update()
   }
 
   private clearMeshes(): void {
@@ -166,6 +204,7 @@ export class TiledImageryOverlay implements MapOverlay {
     }
 
     this.wantedKeys = new Set(wanted.map((t) => this.keyFor(t)));
+    this.lastWanted = wanted;
     this.queue = [];
     for (const [akey, tile] of wantedByAddr) {
       const key = this.keyFor(tile);
@@ -197,6 +236,43 @@ export class TiledImageryOverlay implements MapOverlay {
     this.pump();
   }
 
+  /**
+   * Queue the nearest visible tiles for the previous/next month, cache-only
+   * (completed loads never match wantedKeys, so nothing is draped). Months
+   * outside the layer's published record are skipped; the LRU budget still
+   * governs, and prefetched entries are evictable since nothing shows them.
+   */
+  private enqueuePrefetch(): void {
+    if (!this.layer?.wmts || !this.ym || this.lastWanted.length === 0) return;
+    // Only fill genuine cache headroom: prefetching past the budget would
+    // evict, go idle, and re-prefetch in a cycle.
+    let headroom = Math.floor(
+      this.budgetBytes / TILE_TEXTURE_BYTES - this.textures.size
+    );
+    for (const delta of [-1, 1]) {
+      const neighbor = addMonths(this.ym, delta);
+      if (compareYm(neighbor, this.layer.start) < 0) continue;
+      if (compareYm(neighbor, this.layer.latest ?? DATA_LATEST) > 0) continue;
+      const time = timeString(neighbor);
+      for (const tile of this.lastWanted.slice(0, PREFETCH_TILES)) {
+        if (headroom <= 0) return;
+        const key = this.keyFor(tile, time);
+        if (this.textures.has(key) || this.loading.has(key)) continue;
+        headroom--;
+        this.queue.push({
+          key,
+          url: gibsWmtsTileUrl(
+            this.layer.wmsLayer,
+            time,
+            this.layer.wmts,
+            tile
+          ),
+          tile,
+        });
+      }
+    }
+  }
+
   /** Show `tile` with the nearest cached ancestor texture, if any exists. */
   private showFallback(tile: TileAddress): void {
     for (let up = 1; up <= tile.level - 1; up++) {
@@ -213,6 +289,11 @@ export class TiledImageryOverlay implements MapOverlay {
   }
 
   private pump(): void {
+    // Idle — every wanted tile has loaded (or failed). Warm the cache for the
+    // adjacent months so stepping the timeline in HD swaps instantly.
+    if (this.queue.length === 0 && this.loading.size === 0) {
+      this.enqueuePrefetch();
+    }
     while (this.loading.size < MAX_INFLIGHT && this.queue.length > 0) {
       const job = this.queue.shift();
       if (!job) break;
@@ -309,8 +390,8 @@ export class TiledImageryOverlay implements MapOverlay {
     this.object.add(mesh);
   }
 
-  private keyFor(tile: TileAddress): string {
-    return `${this.layer?.id}:${this.time}:${tile.level}:${tile.row}:${tile.col}`;
+  private keyFor(tile: TileAddress, time: string | null = this.time): string {
+    return `${this.layer?.id}:${time}:${tile.level}:${tile.row}:${tile.col}`;
   }
 
   private touch(key: string, texture: THREE.Texture): void {
@@ -341,4 +422,9 @@ export class TiledImageryOverlay implements MapOverlay {
 /** Time-independent identity of a tile slot on the globe. */
 function addrKey(tile: TileAddress): string {
   return `${tile.level}:${tile.row}:${tile.col}`;
+}
+
+/** GIBS WMTS time path segment for a month (addressed by its first day). */
+function timeString(ym: YearMonth): string {
+  return `${ym.year}-${String(ym.month).padStart(2, "0")}-01`;
 }
