@@ -1,0 +1,60 @@
+name: Give feedback
+description: Tried RoamingEye? Three quick questions — rough notes welcome.
+title: "[Feedback]: "
+labels: ["feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Thanks for trying RoamingEye! This form is three questions and takes
+        about two minutes. Honest, unpolished answers are the most useful
+        kind — "it was confusing" or "it didn't do the thing I needed" is
+        exactly what we want to hear.
+  - type: textarea
+    id: what-you-tried
+    attributes:
+      label: What did you try to do?
+      description: >
+        The task in your own words — e.g. "check how NDVI at my field site
+        changed since 2010", "make a before/after figure of a fire scar",
+        "show plate boundaries to my intro class".
+    validations:
+      required: true
+  - type: textarea
+    id: what-blocked-you
+    attributes:
+      label: What got in the way?
+      description: >
+        Anything that slowed you down, confused you, or stopped you — missing
+        data, unclear UI, wrong values, slowness. "Nothing" is a valid answer.
+    validations:
+      required: true
+  - type: textarea
+    id: what-would-bring-you-back
+    attributes:
+      label: What would make you come back?
+      description: >
+        The one change or addition that would make this part of your actual
+        workflow (or your teaching).
+    validations:
+      required: true
+  - type: input
+    id: field
+    attributes:
+      label: Your field / role (optional)
+      placeholder: "e.g. PhD student, hydrology · postdoc, remote sensing · lecturer, physical geography"
+  - type: input
+    id: view-link
+    attributes:
+      label: A link to what you were looking at (optional)
+      description: >
+        Paste the URL from your address bar — it encodes the layer, month,
+        camera, probe, and comparison, so we can see exactly what you saw.
+  - type: checkboxes
+    id: call
+    attributes:
+      label: Quick chat?
+      options:
+        - label: >-
+            I'm open to a 15-minute call about how I'd use this in my
+            research or teaching (we'll coordinate by replying to this issue).
