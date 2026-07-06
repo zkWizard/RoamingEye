@@ -144,9 +144,9 @@ Every change lands through a reviewed, CI-gated pull request. Be kind — see th
 
 Now / Next / Later at a glance (full detail in [`ROADMAP.md`](ROADMAP.md)):
 
-- **Now** — robustness, cloud-aware scene selection, documentation, community onboarding.
-- **Next** — tiled imagery streaming (sharp zoom everywhere), more layers (land cover, surface temperature, fire), drawn study regions with charts.
-- **Later** — true 3D elevation terrain (GEBCO/SRTM), time-series analytics and export, shareable deep links to a place/date/layer.
+- **Now** — contributor onboarding, overlay polish (city labels, colour keys for the geology overlays), mobile layout.
+- **Next** — more scientific layers (land cover, fire/thermal anomalies), 🚩 drawn study regions with time-series charts, tile-edge polish for HD streaming.
+- **Later** — true 3D elevation terrain (GEBCO/SRTM), time-series analytics (trends, change points), Sentinel-2 at 10 m, annotation & collaboration, offline field mode.
 
 ---
 
