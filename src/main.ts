@@ -145,8 +145,9 @@ const earth = new THREE.Mesh(
 scene.add(earth);
 
 // --- Map overlays (toolbar-toggleable) --------------------------------------
-// Tiled streaming (RFC-001 milestone 2): re-drapes the visible globe with
-// WMTS tiles at the level the zoom justifies. Fed the current layer/month by
+// Tiled streaming (RFC-001, on by default): re-drapes the visible globe with
+// WMTS tiles at the level the zoom justifies; the single full-globe texture
+// below acts as the far-zoom level 0. Fed the current layer/month by
 // refreshGlobe(), driven per-frame from the render loop.
 const hdTiles = new TiledImageryOverlay(
   renderer.capabilities.getMaxAnisotropy()
@@ -345,8 +346,11 @@ if (exportEl) {
       // Render a fresh frame and read the canvas in the same task — the
       // drawing buffer isn't preserved between frames. An active comparison
       // exports exactly what's on screen, divider split included.
-      if (compare.showing) compare.renderSplit(renderer, scene, camera);
-      else renderer.render(scene, camera);
+      if (compare.showing) {
+        compare.renderSplit(renderer, scene, camera, [hdTiles.object]);
+      } else {
+        renderer.render(scene, camera);
+      }
       canvas.toBlob((blob) => {
         if (!blob) return;
         const ym = months[currentIndex];
@@ -650,8 +654,13 @@ renderer.setAnimationLoop(() => {
   wasFlying = flyer.isFlying;
   highlight.update(camera.position.length()); // keep the marker a constant size
   for (const overlay of overlays) overlay.update?.(camera, window.innerHeight);
-  if (compare.showing) compare.renderSplit(renderer, scene, camera);
-  else renderer.render(scene, camera);
+  // HD tiles stream the live month, so they only belong on the live side of
+  // a comparison split (the pinned side falls back to its full-globe texture).
+  if (compare.showing) {
+    compare.renderSplit(renderer, scene, camera, [hdTiles.object]);
+  } else {
+    renderer.render(scene, camera);
+  }
 
   if (!signalledReady) {
     signalledReady = true;

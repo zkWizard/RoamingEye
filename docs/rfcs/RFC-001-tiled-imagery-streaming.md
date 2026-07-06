@@ -1,11 +1,14 @@
 # RFC-001 — Tiled Imagery Streaming (Level-of-Detail Globe)
 
-- **Status:** In progress — milestones 1–5 landed (`src/lib/tiles.ts` +
-  `src/overlays/TiledImageryOverlay.ts`, the "HD tiles" toggle, with quadtree
-  screen-space-error LOD, horizon culling, parent-tile fallback while children
-  load, and a device-scaled GPU-memory cache budget); milestone 6
-  (timeline/layer wiring, single-texture retirement) open for contributors
-  (see the tracking issue).
+- **Status:** ✅ **Shipped** — all six milestones landed (`src/lib/tiles.ts` +
+  `src/overlays/TiledImageryOverlay.ts`). HD tile streaming is **on by
+  default**: quadtree screen-space-error LOD, horizon culling, parent-tile
+  fallback while children load, a device-scaled GPU-memory cache budget,
+  warm month scrubbing (stale tiles stay draped until replacements land, and
+  the ±1 months prefetch when idle). The single full-globe texture was kept
+  as the far-zoom level 0, exactly as proposed below. Follow-on ideas
+  (tile-edge skirts, polar reprojection, Sentinel-2 10 m) belong in new
+  issues/RFCs.
 - **Scope:** Large (flagship). A great project for a contributor or small group.
 - **Champions wanted:** graphics / WebGL engineers, remote-sensing folks.
 
@@ -109,6 +112,8 @@ across small time steps.
 
 ## How to get involved
 
-Comment on the tracking issue, or open a PR against milestone 1 (the pure tile
-math) — it's self-contained, fully testable, and unblocks everything else.
-Discussion and refinements to this RFC are very welcome.
+The RFC is fully implemented, but the frontier moved rather than closed:
+tile-edge skirts at LOD boundaries, better polar handling, and direct
+Sentinel-2 (10 m) integration are all natural follow-ons — open an issue or
+a fresh RFC. Refinements to the tiler itself are very welcome as ordinary
+PRs (`lib/tiles.ts` is pure and fully unit-tested; start there).

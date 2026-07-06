@@ -8,6 +8,15 @@ log captures milestones rather than every commit. Format loosely follows
 
 ### Added
 
+- **HD tile streaming on by default (RFC-001 complete, milestone 6)** — the
+  quadtree tiler is now the primary rendering path (toolbar-toggleable as
+  before); the single full-globe texture stays underneath as the far-zoom
+  level 0. Scrubbing the timeline keeps the previous month's tiles draped
+  until each replacement lands — no flash back to base resolution — and once
+  a view settles, the adjacent months' tiles prefetch so stepping through
+  time in HD is instant. In comparison mode, HD tiles (which stream the live
+  month) are hidden on the pinned side of the divider so the "before" half
+  never wears "after" imagery.
 - **HD tiles: parent-tile fallback & cache budgeting (RFC-001, milestone 5)** —
   while a tile's own imagery loads, it shows the nearest cached coarser tile
   cropped to its footprint, so zooming refines progressively instead of
