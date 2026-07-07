@@ -32,6 +32,8 @@ export class ProbePanel {
   private readonly canvas: HTMLCanvasElement;
   private readonly status: HTMLElement;
   private readonly downloadBtn: HTMLButtonElement;
+  private readonly copyBtn: HTMLButtonElement;
+  private copyResetTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly modeButtons = new Map<ProbeMode, HTMLButtonElement>();
   private readonly viewButtons = new Map<ProbeView, HTMLButtonElement>();
 
@@ -118,12 +120,19 @@ export class ProbePanel {
     this.downloadBtn.disabled = true;
     this.downloadBtn.addEventListener("click", () => this.downloadCsv());
 
+    this.copyBtn = document.createElement("button");
+    this.copyBtn.type = "button";
+    this.copyBtn.className = "probe__download";
+    this.copyBtn.textContent = "Copy CSV";
+    this.copyBtn.disabled = true;
+    this.copyBtn.addEventListener("click", () => this.copyCsv());
+
     const caveat = document.createElement("p");
     caveat.className = "probe__caveat";
     caveat.textContent =
       "Approximate: values reconstructed from imagery colors.";
 
-    footer.append(this.downloadBtn, caveat);
+    footer.append(this.downloadBtn, this.copyBtn, caveat);
 
     this.root.append(header, options, this.canvas, this.status, footer);
     this.reflectToggles();
@@ -146,6 +155,8 @@ export class ProbePanel {
     this.values = [];
     this.csv = undefined;
     this.downloadBtn.disabled = true;
+    this.copyBtn.disabled = true;
+    this.copyBtn.textContent = "Copy CSV";
     this.setStatus("Sampling…");
     this.root.classList.add("is-open");
     this.root.setAttribute("aria-hidden", "false");
@@ -187,6 +198,7 @@ export class ProbePanel {
     this.csv = csv;
     this.csvFilename = filename;
     this.downloadBtn.disabled = false;
+    this.copyBtn.disabled = false;
     this.draw();
 
     const stats = seriesStats(this.values);
@@ -257,6 +269,24 @@ export class ProbePanel {
     a.download = this.csvFilename;
     a.click();
     URL.revokeObjectURL(a.href);
+  }
+
+  /** Copy the same provenance-stamped CSV the download produces. */
+  private copyCsv(): void {
+    if (!this.csv) return;
+    navigator.clipboard
+      .writeText(this.csv())
+      .then(() => this.flashCopyLabel("Copied ✓"))
+      // Clipboard access can be denied (permissions policy, insecure context).
+      .catch(() => this.flashCopyLabel("Copy failed"));
+  }
+
+  private flashCopyLabel(text: string): void {
+    this.copyBtn.textContent = text;
+    clearTimeout(this.copyResetTimer);
+    this.copyResetTimer = setTimeout(() => {
+      this.copyBtn.textContent = "Copy CSV";
+    }, 1600);
   }
 
   // --- Chart -----------------------------------------------------------------
