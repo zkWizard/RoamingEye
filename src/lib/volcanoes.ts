@@ -36,6 +36,24 @@ export function eruptionClass(lastEruptionYear: number | null): EruptionClass {
 }
 
 /**
+ * Human-readable "most recent eruption" phrase, honest about the data:
+ * a null year means Holocene evidence only, and negative years are BCE.
+ */
+export function lastEruptionLabel(lastEruptionYear: number | null): string {
+  if (lastEruptionYear === null) return "Holocene evidence only";
+  if (lastEruptionYear >= 1) return `last erupted ${lastEruptionYear}`;
+  return `last erupted ${Math.abs(lastEruptionYear)} BCE`;
+}
+
+/** Tooltip text for a hovered marker, e.g. "Etna · Stratovolcano · last erupted 2025". */
+export function volcanoHoverLabel(volcano: Volcano): string {
+  const parts = [volcano.name];
+  if (volcano.type) parts.push(volcano.type);
+  parts.push(lastEruptionLabel(volcano.lastEruptionYear));
+  return parts.join(" · ");
+}
+
+/**
  * Parse the slimmed volcano list, dropping malformed entries rather than
  * throwing — a partially usable file still renders.
  */

@@ -4,11 +4,12 @@ import { fetchJson } from "../lib/net";
 import {
   parseVolcanoList,
   eruptionClass,
+  volcanoHoverLabel,
   type EruptionClass,
   type Volcano,
 } from "../lib/volcanoes";
 import { ICONS } from "../ui/icons";
-import { GLOBE_RADIUS, type MapOverlay } from "./types";
+import { GLOBE_RADIUS, type HoverPointSource, type MapOverlay } from "./types";
 
 /**
  * Holocene volcanoes from the Smithsonian Global Volcanism Program.
@@ -32,6 +33,8 @@ export class VolcanoesOverlay implements MapOverlay {
   readonly object = new THREE.Group();
 
   private loadPromise: Promise<void> | undefined;
+  /** Set once loaded — lets the HoverInspector describe the marker under the cursor. */
+  hoverSource: HoverPointSource | undefined;
 
   constructor(
     // BASE_URL-aware so the fetch works when the site is hosted on a subpath.
@@ -47,7 +50,13 @@ export class VolcanoesOverlay implements MapOverlay {
 
   private async load(): Promise<void> {
     const volcanoes = parseVolcanoList(await fetchJson<unknown>(this.url));
-    this.object.add(this.buildPoints(volcanoes));
+    const points = this.buildPoints(volcanoes);
+    this.object.add(points);
+    this.hoverSource = {
+      points,
+      describe: (index) =>
+        volcanoes[index] ? volcanoHoverLabel(volcanoes[index]) : undefined,
+    };
   }
 
   private buildPoints(volcanoes: Volcano[]): THREE.Points {

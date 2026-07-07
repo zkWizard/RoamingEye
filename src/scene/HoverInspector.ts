@@ -1,15 +1,28 @@
 import * as THREE from "three";
 import { vector3ToLatLng, formatLatLng } from "../lib/geo";
 import type { CountryIndex } from "../lib/countryIndex";
+import type { HoverPointSource } from "../overlays/types";
+
+// Hit radius around a point marker, in world units — a little wider than the
+// markers themselves (~0.022) feel, so they don't demand pixel-perfect aim.
+const POINT_THRESHOLD = 0.012;
+
+// A marker hit may sit slightly beyond the earth hit near the limb (markers
+// float just above the surface); anything farther than this is on the far
+// side of the globe and ignored.
+const FAR_SIDE_SLACK = 0.05;
 
 /**
  * Shows a small readout near the cursor for whatever point of the globe is
  * under it — coordinates always, plus the country/territory once the lookup
- * index is available. Hidden while dragging (rotate/zoom) or off the globe.
+ * index is available. Overlay point markers (cities, volcanoes) registered
+ * via addPointSource take precedence with their own text. Hidden while
+ * dragging (rotate/zoom) or off the globe.
  */
 export class HoverInspector {
   private readonly raycaster = new THREE.Raycaster();
   private readonly ndc = new THREE.Vector2();
+  private readonly sources: Array<() => HoverPointSource | undefined> = [];
   private countryIndex: CountryIndex | undefined;
   private pointerDown = false;
 
@@ -19,6 +32,7 @@ export class HoverInspector {
     private readonly earth: THREE.Mesh,
     private readonly tooltip: HTMLElement
   ) {
+    this.raycaster.params.Points.threshold = POINT_THRESHOLD;
     canvas.addEventListener("pointermove", (e) => this.onMove(e));
     canvas.addEventListener("pointerleave", () => this.hide());
     canvas.addEventListener("pointerdown", () => {
@@ -34,6 +48,14 @@ export class HoverInspector {
     this.countryIndex = index;
   }
 
+  /**
+   * Register overlay markers to name on hover. Sources load lazily, so this
+   * takes a getter that may return undefined until the overlay has data.
+   */
+  addPointSource(source: () => HoverPointSource | undefined): void {
+    this.sources.push(source);
+  }
+
   private onMove(event: PointerEvent): void {
     if (this.pointerDown) return; // don't distract while rotating/zooming
 
@@ -43,6 +65,11 @@ export class HoverInspector {
     this.raycaster.setFromCamera(this.ndc, this.camera);
 
     const hit = this.raycaster.intersectObject(this.earth, false)[0];
+    const marker = this.pickMarker(hit?.distance);
+    if (marker) {
+      this.show(marker, event.clientX, event.clientY);
+      return;
+    }
     if (!hit) {
       this.hide();
       return;
@@ -54,6 +81,32 @@ export class HoverInspector {
     if (country) text += ` · ${country}`;
 
     this.show(text, event.clientX, event.clientY);
+  }
+
+  /** Text for the nearest visible overlay marker under the cursor, if any. */
+  private pickMarker(earthDistance: number | undefined): string | undefined {
+    let best: { distance: number; text: string } | undefined;
+    for (const get of this.sources) {
+      const source = get();
+      if (!source || !isShown(source.points)) continue;
+      // Intersections come back sorted nearest-first.
+      for (const hit of this.raycaster.intersectObject(source.points, false)) {
+        if (hit.index === undefined) continue;
+        if (
+          earthDistance !== undefined &&
+          hit.distance > earthDistance + FAR_SIDE_SLACK
+        ) {
+          break; // this and everything after is behind the globe
+        }
+        if (best && hit.distance >= best.distance) break;
+        const text = source.describe(hit.index);
+        if (text) {
+          best = { distance: hit.distance, text };
+          break;
+        }
+      }
+    }
+    return best?.text;
   }
 
   private show(text: string, x: number, y: number): void {
@@ -76,4 +129,12 @@ export class HoverInspector {
     this.tooltip.classList.remove("is-visible");
     this.tooltip.setAttribute("aria-hidden", "true");
   }
+}
+
+/** Overlays toggle visibility on their group, so check the whole ancestry. */
+function isShown(object: THREE.Object3D): boolean {
+  for (let o: THREE.Object3D | null = object; o; o = o.parent) {
+    if (!o.visible) return false;
+  }
+  return true;
 }
