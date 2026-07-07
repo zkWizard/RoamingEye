@@ -37,8 +37,8 @@ to the live site and the issue tracker.
 - [ ] **Demo GIF/video ≤ 30 s** — the money shot is scrubbing years of NDVI, then
       zooming into an HD study region. The README GIF works; a fresh capture at
       current quality is worth an hour.
-- [ ] **Technical write-up** — working title: *"Streaming NASA's satellite archive
-      to a 3D globe in the browser — with no backend."* The RFC-001 story
+- [ ] **Technical write-up** — working title: _"Streaming NASA's satellite archive
+      to a 3D globe in the browser — with no backend."_ The RFC-001 story
       (screen-space-error quadtree, parent-tile fallback, GPU memory budget,
       all against a public WMTS endpoint) is genuinely interesting to graphics
       and infra people — exactly the contributors we want. Publish on a blog or
@@ -55,10 +55,10 @@ improves the next.
 
 1. **Show HN** — primary. Draft title (≤ 80 chars):
    > Show HN: RoamingEye – scrub decades of NASA satellite imagery on a 3D globe
-   First comment (from the maintainer, immediately): what it is, the open-data
-   thesis (30 m ceiling, stated honestly), the no-backend architecture in two
-   sentences, and "we're looking for contributors — good first issues here."
-   HN rewards the honest-limitations paragraph more than any feature list.
+   > First comment (from the maintainer, immediately): what it is, the open-data
+   > thesis (30 m ceiling, stated honestly), the no-backend architecture in two
+   > sentences, and "we're looking for contributors — good first issues here."
+   > HN rewards the honest-limitations paragraph more than any feature list.
 2. **r/gis and r/remotesensing** — the practitioner audience. Lead with a
    research recipe (drought signal or deforestation patch), not the tech stack.
    Read each sub's self-promo rules first; both allow OSS shares with engagement.
@@ -80,7 +80,7 @@ improves the next.
 ## 4. First 48 hours after each post
 
 - Reply to every substantive comment within the hour where possible — thread
-  velocity decides HN/Reddit ranking, and responsiveness *is* the pitch to
+  velocity decides HN/Reddit ranking, and responsiveness _is_ the pitch to
   potential contributors.
 - Watch the live site: GIBS rate limiting or a traffic-triggered bug during the
   launch window is the worst case. Have the graceful-degradation story ready.
