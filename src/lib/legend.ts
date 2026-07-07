@@ -1,4 +1,6 @@
 import type { LayerId } from "./timeline";
+import { DEPTH_CLASS_COLORS } from "./earthquakes";
+import { ERUPTION_CLASS_COLORS } from "./volcanoes";
 
 /**
  * Legend model: what the colors on the globe mean, per data layer.
@@ -147,4 +149,47 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
 export function gradientCss(stops: LegendStop[]): string {
   const parts = stops.map((s) => `${s.color} ${Math.round(s.at * 100)}%`);
   return `linear-gradient(to right, ${parts.join(", ")})`;
+}
+
+/** One swatch + label in an overlay's color key. */
+export interface OverlayKeyEntry {
+  color: string;
+  label: string;
+}
+
+export interface OverlayKeySpec {
+  /** What the colors encode, in plain words. */
+  title: string;
+  entries: OverlayKeyEntry[];
+}
+
+/**
+ * Color keys for overlays whose markers are color-coded (beyond the data
+ * layer the gradient legend covers). Colors are the same constants the
+ * overlays render with, so the key can never drift from the globe.
+ */
+export const OVERLAY_KEYS: Record<"quakes" | "volcanoes", OverlayKeySpec> = {
+  quakes: {
+    title: "Quake depth",
+    entries: [
+      { color: DEPTH_CLASS_COLORS.shallow, label: "< 70 km" },
+      { color: DEPTH_CLASS_COLORS.intermediate, label: "70–300 km" },
+      { color: DEPTH_CLASS_COLORS.deep, label: "> 300 km" },
+    ],
+  },
+  volcanoes: {
+    title: "Last eruption",
+    entries: [
+      { color: ERUPTION_CLASS_COLORS.recent, label: "since 1900" },
+      { color: ERUPTION_CLASS_COLORS.historic, label: "1 CE–1899" },
+      { color: ERUPTION_CLASS_COLORS.holocene, label: "Holocene only" },
+    ],
+  },
+};
+
+/** Key spec for an overlay id, or undefined for overlays without one. */
+export function overlayKeyFor(id: string): OverlayKeySpec | undefined {
+  return id in OVERLAY_KEYS
+    ? OVERLAY_KEYS[id as keyof typeof OVERLAY_KEYS]
+    : undefined;
 }

@@ -100,6 +100,22 @@ function screenPointFor(
   return { x: ((ndcX + 1) / 2) * width, y: ((1 - ndcY) / 2) * height };
 }
 
+test("toggling volcanoes surfaces its color key in the legend", async ({
+  page,
+}) => {
+  const volcanoes = page.locator('.toolbar__item[title="Volcanoes"]');
+  const key = page.locator(".legend__key");
+
+  await expect(key).toHaveCount(0);
+  await volcanoes.click();
+  await expect(key).toHaveCount(1);
+  await expect(key).toContainText("Last eruption");
+  await expect(key).toContainText("since 1900");
+
+  await volcanoes.click();
+  await expect(key).toHaveCount(0);
+});
+
 test("hovering a volcano marker shows its details", async ({ page }) => {
   const volcanoesLoaded = page.waitForResponse("**/data/volcanoes.json");
   await page.locator('.toolbar__item[title="Volcanoes"]').click();

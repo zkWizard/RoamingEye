@@ -38,6 +38,17 @@ export function depthClass(depthKm: number): DepthClass {
 }
 
 /**
+ * Marker color per depth class (seismological convention: shallow red,
+ * intermediate amber, deep blue). Shared by the overlay and the legend so
+ * the on-globe colors and the key can never drift apart.
+ */
+export const DEPTH_CLASS_COLORS: Record<DepthClass, string> = {
+  shallow: "#ff5a4e",
+  intermediate: "#ffb347",
+  deep: "#5aa0ff",
+};
+
+/**
  * Parse the USGS GeoJSON summary feed, dropping malformed features rather
  * than throwing — a partially usable feed still renders.
  */

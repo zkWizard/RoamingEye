@@ -6,7 +6,9 @@ import { fetchJson } from "../lib/net";
 import {
   parseEarthquakeFeed,
   depthClass,
+  DEPTH_CLASS_COLORS,
   USGS_FEED_URL,
+  type DepthClass,
   type Earthquake,
 } from "../lib/earthquakes";
 
@@ -17,13 +19,15 @@ import {
  * PointsMaterials) and color encodes hypocenter depth using the seismological
  * convention: shallow = red, intermediate = amber, deep = blue. Together they
  * trace plate boundaries and subduction zones — the geology audience's map.
+ * The hex values live in lib/earthquakes.ts, shared with the legend key.
  */
 
-const DEPTH_COLORS: Record<ReturnType<typeof depthClass>, THREE.Color> = {
-  shallow: new THREE.Color("#ff5a4e"),
-  intermediate: new THREE.Color("#ffb347"),
-  deep: new THREE.Color("#5aa0ff"),
-};
+const DEPTH_COLORS = Object.fromEntries(
+  Object.entries(DEPTH_CLASS_COLORS).map(([k, hex]) => [
+    k,
+    new THREE.Color(hex),
+  ])
+) as Record<DepthClass, THREE.Color>;
 
 /** Magnitude buckets → point size (unit-sphere scene units), largest first. */
 const SIZE_BUCKETS: { min: number; size: number }[] = [

@@ -383,11 +383,15 @@ async function toggleOverlay(overlay: MapOverlay, on: boolean): Promise<void> {
 
 if (toolbarEl) {
   new Toolbar(toolbarEl, overlays, (overlay, on) => {
+    legend?.setOverlayKey(overlay.id, on);
     void toggleOverlay(overlay, on);
   });
 }
 for (const overlay of overlays) {
-  if (overlay.defaultOn) void toggleOverlay(overlay, true);
+  if (overlay.defaultOn) {
+    legend?.setOverlayKey(overlay.id, true);
+    void toggleOverlay(overlay, true);
+  }
 }
 
 // --- Controls (rotate + zoom) -----------------------------------------------

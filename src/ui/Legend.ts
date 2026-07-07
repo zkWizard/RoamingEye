@@ -1,10 +1,12 @@
 import { LAYERS, type LayerId } from "../lib/timeline";
-import { LEGENDS, gradientCss } from "../lib/legend";
+import { LEGENDS, gradientCss, overlayKeyFor } from "../lib/legend";
 
 /**
  * A compact key for the active data layer: a color-scale bar with end labels
  * and a one-line plain-language description, so first-time visitors know what
- * the colors on the globe mean without hunting for tooltips.
+ * the colors on the globe mean without hunting for tooltips. Overlays with
+ * color-coded markers (quakes, volcanoes) contribute their own key rows
+ * while toggled on.
  */
 export class Legend {
   private readonly measures: HTMLSpanElement;
@@ -12,6 +14,8 @@ export class Legend {
   private readonly minLabel: HTMLSpanElement;
   private readonly maxLabel: HTMLSpanElement;
   private readonly caption: HTMLParagraphElement;
+  private readonly keys: HTMLDivElement;
+  private readonly keyRows = new Map<string, HTMLElement>();
 
   constructor(container: HTMLElement, initial: LayerId) {
     container.classList.add("legend");
@@ -41,8 +45,50 @@ export class Legend {
     row.className = "legend__row";
     row.append(this.measures, scale);
 
-    container.append(row, this.caption);
+    this.keys = document.createElement("div");
+    this.keys.className = "legend__keys";
+
+    container.append(row, this.keys, this.caption);
     this.setLayer(initial);
+  }
+
+  /**
+   * Show or hide the color key for an overlay (driven by its toolbar
+   * toggle). Overlays without a key are ignored.
+   */
+  setOverlayKey(id: string, on: boolean): void {
+    const existing = this.keyRows.get(id);
+    if (!on) {
+      existing?.remove();
+      this.keyRows.delete(id);
+      return;
+    }
+    if (existing) return;
+    const spec = overlayKeyFor(id);
+    if (!spec) return;
+
+    const key = document.createElement("div");
+    key.className = "legend__key";
+
+    const title = document.createElement("span");
+    title.className = "legend__key-title";
+    title.textContent = spec.title;
+    key.append(title);
+
+    for (const entry of spec.entries) {
+      const item = document.createElement("span");
+      item.className = "legend__key-item";
+      const swatch = document.createElement("span");
+      swatch.className = "legend__swatch";
+      swatch.style.background = entry.color;
+      const label = document.createElement("span");
+      label.textContent = entry.label;
+      item.append(swatch, label);
+      key.append(item);
+    }
+
+    this.keys.append(key);
+    this.keyRows.set(id, key);
   }
 
   /** Point the legend at a different data layer. */
