@@ -8,7 +8,9 @@ export class Toolbar {
   constructor(
     container: HTMLElement,
     overlays: MapOverlay[],
-    onToggle: (overlay: MapOverlay, on: boolean) => void
+    onToggle: (overlay: MapOverlay, on: boolean) => void,
+    // Initial pressed state (e.g. a restored session); defaults to defaultOn.
+    isOn: (overlay: MapOverlay) => boolean = (o) => Boolean(o.defaultOn)
   ) {
     container.classList.add("toolbar");
     container.setAttribute("role", "group");
@@ -19,7 +21,7 @@ export class Toolbar {
       button.type = "button";
       button.className = "toolbar__item";
       button.title = overlay.label;
-      button.setAttribute("aria-pressed", String(Boolean(overlay.defaultOn)));
+      button.setAttribute("aria-pressed", String(isOn(overlay)));
       button.innerHTML =
         `<span class="toolbar__icon">${overlay.icon}</span>` +
         `<span class="toolbar__label">${overlay.label}</span>`;
