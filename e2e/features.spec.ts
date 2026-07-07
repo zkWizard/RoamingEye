@@ -289,6 +289,31 @@ test("rendering pauses while the tab is hidden and resumes on return", async ({
     .toBe(true);
 });
 
+test("recovers from a lost WebGL context", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(err.message));
+
+  // Same-type getContext returns the app's live context; simulate GPU loss.
+  await page.evaluate(() => {
+    const gl = document
+      .querySelector<HTMLCanvasElement>("#globe")!
+      .getContext("webgl2") as WebGL2RenderingContext;
+    const ext = gl.getExtension("WEBGL_lose_context");
+    if (!ext) throw new Error("WEBGL_lose_context unavailable");
+    ext.loseContext();
+    setTimeout(() => ext.restoreContext(), 600);
+  });
+
+  await expect(page.locator("#timeline-status")).toContainText(
+    "Graphics context lost"
+  );
+  await expect(page.locator("#timeline-status")).not.toContainText(
+    "Graphics context lost",
+    { timeout: 10_000 }
+  );
+  expect(errors).toEqual([]);
+});
+
 declare global {
   interface Window {
     __APP_READY__?: boolean;

@@ -797,6 +797,20 @@ if (shortcutsPageEl) {
   });
 }
 
+// --- WebGL context loss/recovery ---------------------------------------------
+// A GPU reset, driver update, or aggressive mobile backgrounding can kill the
+// context mid-session. preventDefault() on `lost` tells the browser we intend
+// to handle restoration; three.js re-uploads GPU resources on `restored`, and
+// a refreshGlobe() re-drives the texture pipeline for the current view.
+canvas.addEventListener("webglcontextlost", (e) => {
+  e.preventDefault();
+  setStatus("Graphics context lost — recovering…");
+});
+canvas.addEventListener("webglcontextrestored", () => {
+  setStatus("");
+  refreshGlobe();
+});
+
 // --- Render loop ------------------------------------------------------------
 const timer = new THREE.Timer();
 let signalledReady = false;
