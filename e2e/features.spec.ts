@@ -100,6 +100,25 @@ function screenPointFor(
   return { x: ((ndcX + 1) / 2) * width, y: ((1 - ndcY) / 2) * height };
 }
 
+test("? opens the keyboard-shortcuts overlay and Esc closes it", async ({
+  page,
+}) => {
+  const overlay = page.locator("#shortcuts-page");
+  await expect(overlay).not.toHaveClass(/is-open/);
+
+  await page.keyboard.press("?");
+  await expect(overlay).toHaveClass(/is-open/);
+  await expect(overlay).toContainText("Keyboard shortcuts");
+  await expect(overlay).toContainText("Jump a year back / forward");
+
+  await page.keyboard.press("Escape");
+  await expect(overlay).not.toHaveClass(/is-open/);
+
+  // The ? button in the header hint opens it too.
+  await page.locator("#shortcuts-link").click();
+  await expect(overlay).toHaveClass(/is-open/);
+});
+
 test("toggling volcanoes surfaces its color key in the legend", async ({
   page,
 }) => {

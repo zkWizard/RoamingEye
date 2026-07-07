@@ -63,6 +63,15 @@
         <h1 class="brand">Roaming<span>Eye</span></h1>
         <p class="hint">
           Drag to rotate · scrub the timeline · ←/→ keys step months
+          <button
+            id="shortcuts-link"
+            type="button"
+            class="hint__shortcuts"
+            title="Keyboard shortcuts (?)"
+            aria-label="Keyboard shortcuts"
+          >
+            ?
+          </button>
         </p>
         <div id="theme-toggle" class="theme-toggle-mount"></div>
       </header>
@@ -121,6 +130,8 @@
       </div>
 
       <div id="providers-page" class="providers" aria-hidden="true"></div>
+
+      <div id="shortcuts-page" class="shortcuts" aria-hidden="true"></div>
 
       <div id="loader" class="loader">
         <div class="loader__spinner" aria-hidden="true"></div>
