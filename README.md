@@ -94,7 +94,7 @@ See [`DATA_SOURCES.md`](DATA_SOURCES.md) for the full catalogue, layer identifie
 
 ## 🚀 Quickstart
 
-**Requirements:** [Node.js](https://nodejs.org/) 20+ and npm.
+**Requirements:** [Node.js](https://nodejs.org/) 20.19+ (or 22.12+) and npm.
 
 ```bash
 git clone https://github.com/zkWizard/RoamingEye.git
@@ -130,6 +130,7 @@ For a contributor's tour of the codebase, see [`ARCHITECTURE.md`](ARCHITECTURE.m
 
 **We are actively looking for collaborators** — Earth scientists, remote-sensing specialists, graphics engineers, designers, and data wranglers all have a place here.
 
+- 🗣️ **Used RoamingEye in your research or teaching? [Give feedback](https://github.com/zkWizard/RoamingEye/issues/new?template=feedback.yml)** — three questions, two minutes, rough notes welcome. Open to a 15-minute chat about your workflow? Say so in the form; what researchers tell us directly shapes the [roadmap](ROADMAP.md).
 - 📘 Read [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md) — setup, workflow, and the (one-line, no-CLA) DCO sign-off.
 - 🏛️ [`GOVERNANCE.md`](GOVERNANCE.md) explains the trust ladder and how decisions get made.
 - 🌱 New to the project? Browse [**good first issues**](https://github.com/zkWizard/RoamingEye/labels/good%20first%20issue).
