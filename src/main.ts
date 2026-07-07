@@ -44,6 +44,7 @@ import { LocationHighlight } from "./scene/LocationHighlight";
 import { HoverInspector } from "./scene/HoverInspector";
 import { RegionDrawer } from "./scene/RegionDrawer";
 import { RegionButton } from "./ui/RegionButton";
+import { ErrorToast } from "./ui/ErrorToast";
 import type { Bounds } from "./lib/imagery";
 import { StudyRegion } from "./scene/StudyRegion";
 import { StudyChip } from "./ui/StudyChip";
@@ -796,6 +797,20 @@ if (shortcutsPageEl) {
     shortcuts.toggle();
   });
 }
+
+// --- Uncaught-error surface -----------------------------------------------------
+// Failures must be visible in the field, not just in the console. Expected
+// noise (aborted fetches from scrubbing/typing fast) is filtered out.
+const errorToast = new ErrorToast();
+window.addEventListener("error", (e) => {
+  errorToast.show(`Something went wrong: ${e.message}`);
+});
+window.addEventListener("unhandledrejection", (e) => {
+  if (isAbortError(e.reason)) return;
+  const message =
+    e.reason instanceof Error ? e.reason.message : String(e.reason);
+  errorToast.show(`Something went wrong: ${message}`);
+});
 
 // --- WebGL context loss/recovery ---------------------------------------------
 // A GPU reset, driver update, or aggressive mobile backgrounding can kill the

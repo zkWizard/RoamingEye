@@ -314,6 +314,19 @@ test("recovers from a lost WebGL context", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("uncaught errors surface a dismissible toast", async ({ page }) => {
+  await page.evaluate(() => {
+    setTimeout(() => {
+      throw new Error("e2e synthetic failure");
+    }, 0);
+  });
+  const toast = page.locator(".error-toast");
+  await expect(toast).toBeVisible();
+  await expect(toast).toContainText("e2e synthetic failure");
+  await toast.locator(".error-toast__close").click();
+  await expect(toast).toBeHidden();
+});
+
 declare global {
   interface Window {
     __APP_READY__?: boolean;
