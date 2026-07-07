@@ -7,6 +7,9 @@ import {
   medianValid,
   meanValid,
   gridPoints,
+  dragBounds,
+  boundsUsable,
+  regionGridSize,
   monthlyClimatology,
   anomalySeries,
   seriesStats,
@@ -252,5 +255,49 @@ describe("buildProbeCsv", () => {
     expect(areaCsv).toContain(
       "# region: -4.000,-63.000,-3.000,-62.000 (S,W,N,E)"
     );
+  });
+});
+
+describe("dragBounds", () => {
+  it("normalizes corners regardless of drag direction", () => {
+    const expected = { south: -5, north: 10, west: 20, east: 40 };
+    expect(dragBounds({ lat: -5, lon: 20 }, { lat: 10, lon: 40 })).toEqual(
+      expected
+    );
+    expect(dragBounds({ lat: 10, lon: 40 }, { lat: -5, lon: 20 })).toEqual(
+      expected
+    );
+  });
+
+  it("clamps latitudes away from the poles", () => {
+    const b = dragBounds({ lat: -89.9, lon: 0 }, { lat: 89.9, lon: 10 });
+    expect(b.south).toBe(-85);
+    expect(b.north).toBe(85);
+  });
+});
+
+describe("boundsUsable", () => {
+  it("rejects stray clicks and accepts real boxes", () => {
+    expect(boundsUsable({ south: 0, north: 0.05, west: 0, east: 0.05 })).toBe(
+      false
+    );
+    expect(boundsUsable({ south: 0, north: 1, west: 0, east: 0.1 })).toBe(
+      false
+    );
+    expect(boundsUsable({ south: 0, north: 1, west: 0, east: 1 })).toBe(true);
+  });
+});
+
+describe("regionGridSize", () => {
+  it("scales with the box span within bounds", () => {
+    expect(regionGridSize({ south: 0, north: 1, west: 0, east: 1 })).toBe(8); // small boxes stay dense
+    expect(regionGridSize({ south: 0, north: 4, west: 0, east: 4 })).toBe(16);
+    expect(regionGridSize({ south: -20, north: 20, west: -30, east: 30 })).toBe(
+      28
+    ); // continental boxes cap
+  });
+
+  it("uses the larger of the two spans", () => {
+    expect(regionGridSize({ south: 0, north: 0.5, west: 0, east: 5 })).toBe(20);
   });
 });

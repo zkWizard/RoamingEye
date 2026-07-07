@@ -33,4 +33,7 @@ export const ICONS = {
   pin: wrap(
     `<path d="M12 21s7-5.5 7-11a7 7 0 1 0-14 0c0 5.5 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/>`
   ),
+  draw: wrap(
+    `<path d="M4 8V6.5A2.5 2.5 0 0 1 6.5 4H8M16 4h1.5A2.5 2.5 0 0 1 20 6.5V8M20 16v1.5a2.5 2.5 0 0 1-2.5 2.5H16M8 20H6.5A2.5 2.5 0 0 1 4 17.5V16"/><path d="M11 4h2M11 20h2M4 11v2M20 11v2"/>`
+  ),
 } as const;
