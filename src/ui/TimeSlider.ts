@@ -64,10 +64,13 @@ export class TimeSlider {
   private renderTicks(): void {
     const count = this.months.length;
     // Ranges spanning decades thin out: month ticks only while they're
-    // readable, and year labels every N years so they never collide.
+    // readable, and year labels sized to the track's actual width so they
+    // never collide — a 360px phone gets far fewer labels than a desktop.
     const showMonthTicks = count <= 120;
     const years = Math.ceil(count / 12);
-    const labelEvery = years > 30 ? 5 : years > 15 ? 2 : 1;
+    const trackWidth = this.track.clientWidth || 640;
+    const labelBudget = Math.max(2, Math.floor(trackWidth / 40));
+    const labelEvery = Math.max(1, Math.ceil(years / labelBudget));
 
     this.months.forEach((ym, i) => {
       const fraction = indexToFraction(i, count);
