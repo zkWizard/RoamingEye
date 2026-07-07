@@ -364,6 +364,40 @@ test("modals trap focus and restore it on close", async ({ page }) => {
   await expect(page.locator("#shortcuts-link")).toBeFocused();
 });
 
+test("restores the last session; a URL hash still wins", async ({ page }) => {
+  // Change the working context: EVI layer + Grid overlay.
+  await page.locator(".layer-selector__trigger").click();
+  await page
+    .locator(".layer-selector__option", { hasText: "Vegetation (EVI)" })
+    .click();
+  await page.locator('.toolbar__item[title="Grid"]').click();
+  await page.waitForTimeout(700); // debounced persistence
+
+  // Plain revisit (no hash): the session restores. waitUntil commit — the
+  // boot prefetch can hold the load event back; __APP_READY__ is the gate.
+  await page.goto("/", { waitUntil: "commit" });
+  await page.waitForFunction(() => window.__APP_READY__ === true, null, {
+    timeout: 30_000,
+  });
+  await expect(page.locator(".layer-selector__current")).toHaveText(
+    "Vegetation (EVI)"
+  );
+  await expect(page.locator('.toolbar__item[title="Grid"]')).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+
+  // An explicit hash outranks the stored session.
+  await page.goto("/#layer=snow", { waitUntil: "commit" });
+  await page.reload({ waitUntil: "commit" });
+  await page.waitForFunction(() => window.__APP_READY__ === true, null, {
+    timeout: 30_000,
+  });
+  await expect(page.locator(".layer-selector__current")).toHaveText(
+    "Snow cover"
+  );
+});
+
 declare global {
   interface Window {
     __APP_READY__?: boolean;

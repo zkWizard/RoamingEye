@@ -45,6 +45,12 @@ import { HoverInspector } from "./scene/HoverInspector";
 import { RegionDrawer } from "./scene/RegionDrawer";
 import { RegionButton } from "./ui/RegionButton";
 import { ErrorToast } from "./ui/ErrorToast";
+import {
+  SESSION_STORAGE_KEY,
+  serializeSession,
+  parseSession,
+  type SessionState,
+} from "./lib/sessionState";
 import type { Bounds } from "./lib/imagery";
 import { StudyRegion } from "./scene/StudyRegion";
 import { StudyChip } from "./ui/StudyChip";
@@ -215,13 +221,25 @@ if (tooltipEl) {
 // per-layer (the hash layer is resolved first) and the slider rebuilds on
 // layer switch.
 const initialView = decodeViewState(window.location.hash);
-let currentLayer: LayerId = initialView.layer ?? "ndvi";
+// The last session's working context (layer/month/overlays) restores on a
+// plain revisit; an explicit URL hash always wins. localStorage can throw
+// (private mode) — degrade to defaults, never break boot.
+function loadStoredSession(): SessionState {
+  try {
+    return parseSession(window.localStorage.getItem(SESSION_STORAGE_KEY));
+  } catch {
+    return {};
+  }
+}
+const storedSession = loadStoredSession();
+let currentLayer: LayerId = initialView.layer ?? storedSession.layer ?? "ndvi";
 let months: YearMonth[] = monthRangeForLayer(LAYERS[currentLayer]);
 let currentIndex = months.length - 1; // default: the most recent month
-if (initialView.month) {
-  // Nearest-entry mapping (not raw month arithmetic) so annual layers'
-  // non-consecutive timelines restore correctly too.
-  currentIndex = nearestMonthIndex(months, initialView.month);
+// Nearest-entry mapping (not raw month arithmetic) so annual layers'
+// non-consecutive timelines restore correctly too.
+const restoredMonth = initialView.month ?? storedSession.month;
+if (restoredMonth) {
+  currentIndex = nearestMonthIndex(months, restoredMonth);
 }
 currentIndex = clampIndexToLayer(months, currentIndex, LAYERS[currentLayer]);
 if (initialView.camera) {
@@ -384,6 +402,28 @@ if (exportEl) {
   });
 }
 
+// Intended overlay on/off state — tracked separately from object.visible
+// (which lags behind async lazy loads) so persistence is race-free. A stored
+// list (even empty) is authoritative; otherwise the defaults apply.
+const overlayState = new Set<string>(
+  storedSession.overlays ?? overlays.filter((o) => o.defaultOn).map((o) => o.id)
+);
+
+function saveSession(): void {
+  try {
+    window.localStorage.setItem(
+      SESSION_STORAGE_KEY,
+      serializeSession({
+        layer: currentLayer,
+        month: months[currentIndex],
+        overlays: [...overlayState],
+      })
+    );
+  } catch {
+    // Private mode / storage disabled — persistence is best-effort.
+  }
+}
+
 // Toolbar overlays — load lazily on first enable, then toggle visibility.
 async function toggleOverlay(overlay: MapOverlay, on: boolean): Promise<void> {
   if (on && overlay.ensureLoaded) {
@@ -397,13 +437,21 @@ async function toggleOverlay(overlay: MapOverlay, on: boolean): Promise<void> {
 }
 
 if (toolbarEl) {
-  new Toolbar(toolbarEl, overlays, (overlay, on) => {
-    legend?.setOverlayKey(overlay.id, on);
-    void toggleOverlay(overlay, on);
-  });
+  new Toolbar(
+    toolbarEl,
+    overlays,
+    (overlay, on) => {
+      if (on) overlayState.add(overlay.id);
+      else overlayState.delete(overlay.id);
+      saveSession();
+      legend?.setOverlayKey(overlay.id, on);
+      void toggleOverlay(overlay, on);
+    },
+    (overlay) => overlayState.has(overlay.id)
+  );
 }
 for (const overlay of overlays) {
-  if (overlay.defaultOn) {
+  if (overlayState.has(overlay.id)) {
     legend?.setOverlayKey(overlay.id, true);
     void toggleOverlay(overlay, true);
   }
@@ -447,6 +495,7 @@ function scheduleHashSync(): void {
   clearTimeout(hashTimer);
   hashTimer = setTimeout(() => {
     history.replaceState(null, "", `#${encodeViewState(currentViewState())}`);
+    saveSession();
   }, 400);
 }
 
