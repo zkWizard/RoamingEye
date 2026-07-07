@@ -56,10 +56,13 @@ export class SearchBox {
     this.controller = controller;
     try {
       const results = await geocode(query, controller.signal);
-      if (!controller.signal.aborted) this.render(results);
+      if (controller.signal.aborted) return;
+      if (results.length === 0) this.renderMessage("No matches");
+      else this.render(results);
     } catch (err) {
       if (!(err instanceof DOMException && err.name === "AbortError")) {
         console.warn("RoamingEye: search failed", err);
+        this.renderMessage("Search unavailable — check connection");
       }
     }
   }
@@ -86,6 +89,17 @@ export class SearchBox {
       this.results.appendChild(li);
     }
     this.results.classList.toggle("is-open", results.length > 0);
+  }
+
+  /** A single non-interactive status row (failure / no matches). */
+  private renderMessage(text: string): void {
+    this.results.innerHTML = "";
+    const li = document.createElement("li");
+    li.className = "search__message";
+    li.setAttribute("aria-live", "polite");
+    li.textContent = text;
+    this.results.appendChild(li);
+    this.results.classList.add("is-open");
   }
 
   private closeResults(): void {
