@@ -258,8 +258,40 @@ test("hovering a city dot shows its name", async ({ page }) => {
   }).toPass({ timeout: 10_000 });
 });
 
+test("rendering pauses while the tab is hidden and resumes on return", async ({
+  page,
+}) => {
+  await expect
+    .poll(() => page.evaluate(() => window.__RENDER_ACTIVE__))
+    .toBe(true);
+
+  // Fake backgrounding: override document.hidden, fire visibilitychange.
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      get: () => true,
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect
+    .poll(() => page.evaluate(() => window.__RENDER_ACTIVE__))
+    .toBe(false);
+
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      get: () => false,
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect
+    .poll(() => page.evaluate(() => window.__RENDER_ACTIVE__))
+    .toBe(true);
+});
+
 declare global {
   interface Window {
     __APP_READY__?: boolean;
+    __RENDER_ACTIVE__?: boolean;
   }
 }
