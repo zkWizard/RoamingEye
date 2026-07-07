@@ -55,3 +55,21 @@ export function parseCityList(json: unknown): City[] {
 export function cityHoverLabel(city: City): string {
   return city.country ? `${city.name} · ${city.country}` : city.name;
 }
+
+/** How many cities get a name label at close zoom (the biggest N by population). */
+export const LABEL_COUNT = 30;
+
+/**
+ * Opacity for the city-name labels at a camera distance (globe radius 1):
+ * fully visible when close, gone when zoomed out, a linear fade between —
+ * so the globe never becomes label soup from orbit.
+ */
+export function labelOpacity(
+  cameraDistance: number,
+  near = 1.7,
+  far = 2.15
+): number {
+  if (cameraDistance >= far) return 0;
+  if (cameraDistance <= near) return 1;
+  return (far - cameraDistance) / (far - near);
+}

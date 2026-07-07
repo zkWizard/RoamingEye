@@ -1456,3 +1456,30 @@ body {
   color: var(--muted);
   line-height: 1.4;
 }
+
+/* --- City name labels (close zoom, Cities overlay) ---------------------------- */
+.city-labels {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1; /* above the canvas, below the UI overlays */
+}
+
+.city-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+  color: var(--fg);
+  white-space: nowrap;
+  text-shadow:
+    0 0 4px var(--bg),
+    0 0 2px var(--bg),
+    0 1px 2px var(--bg);
+}
+
+.city-label--capital {
+  font-weight: 700;
+}

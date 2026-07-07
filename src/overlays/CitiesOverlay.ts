@@ -1,11 +1,30 @@
 import * as THREE from "three";
 import { latLngToVector3 } from "../lib/geo";
 import { fetchJson } from "../lib/net";
-import { parseCityList, cityHoverLabel } from "../lib/cities";
+import {
+  parseCityList,
+  cityHoverLabel,
+  labelOpacity,
+  LABEL_COUNT,
+} from "../lib/cities";
 import { ICONS } from "../ui/icons";
 import { GLOBE_RADIUS, type HoverPointSource, type MapOverlay } from "./types";
 
-/** Major populated places from Natural Earth (public domain), as glowing dots. */
+/** A label must face the camera at least this much to show (hides the limb). */
+const FRONT_FACING_DOT = 0.25;
+
+interface CityLabel {
+  el: HTMLSpanElement;
+  position: THREE.Vector3;
+  /** Unit surface normal at the city — for the far-side test. */
+  normal: THREE.Vector3;
+}
+
+/**
+ * Major populated places from Natural Earth (public domain), as glowing dots.
+ * At close zoom the biggest cities get DOM name labels, projected to screen
+ * space each frame and hidden on the globe's far side.
+ */
 export class CitiesOverlay implements MapOverlay {
   readonly id = "cities";
   readonly label = "Cities";
@@ -15,6 +34,11 @@ export class CitiesOverlay implements MapOverlay {
   private loadPromise: Promise<void> | undefined;
   /** Set once loaded — lets the HoverInspector name the dot under the cursor. */
   hoverSource: HoverPointSource | undefined;
+
+  private labelLayer: HTMLDivElement | undefined;
+  private labels: CityLabel[] = [];
+  private readonly projected = new THREE.Vector3();
+  private readonly cameraDir = new THREE.Vector3();
 
   constructor(
     // BASE_URL-aware so the fetch works when the site is hosted on a subpath.
@@ -26,6 +50,33 @@ export class CitiesOverlay implements MapOverlay {
 
   ensureLoaded(): Promise<void> {
     return (this.loadPromise ??= this.load());
+  }
+
+  /** Project the label positions for the current view (render-loop hook). */
+  update(camera: THREE.PerspectiveCamera, viewportHeightPx: number): void {
+    const layer = this.labelLayer;
+    if (!layer) return;
+    const opacity = this.object.visible
+      ? labelOpacity(camera.position.length())
+      : 0;
+    if (opacity === 0) {
+      layer.hidden = true;
+      return;
+    }
+    layer.hidden = false;
+    layer.style.opacity = opacity.toFixed(2);
+
+    const width = window.innerWidth;
+    this.cameraDir.copy(camera.position).normalize();
+    for (const label of this.labels) {
+      const facing = label.normal.dot(this.cameraDir) > FRONT_FACING_DOT;
+      label.el.hidden = !facing;
+      if (!facing) continue;
+      this.projected.copy(label.position).project(camera);
+      const x = ((this.projected.x + 1) / 2) * width;
+      const y = ((1 - this.projected.y) / 2) * viewportHeightPx;
+      label.el.style.transform = `translate(-50%, -130%) translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+    }
   }
 
   private async load(): Promise<void> {
@@ -57,6 +108,29 @@ export class CitiesOverlay implements MapOverlay {
       describe: (index) =>
         cities[index] ? cityHoverLabel(cities[index]) : undefined,
     };
+
+    // Name labels for the biggest cities (the file is sorted by population).
+    const layer = document.createElement("div");
+    layer.className = "city-labels";
+    layer.hidden = true;
+    layer.setAttribute("aria-hidden", "true");
+    for (const city of cities.slice(0, LABEL_COUNT)) {
+      const el = document.createElement("span");
+      el.className = city.capital
+        ? "city-label city-label--capital"
+        : "city-label";
+      el.textContent = city.name;
+      el.hidden = true;
+      layer.appendChild(el);
+      const position = latLngToVector3(city.lat, city.lon, this.radius);
+      this.labels.push({
+        el,
+        position,
+        normal: position.clone().normalize(),
+      });
+    }
+    (document.querySelector("#app") ?? document.body).appendChild(layer);
+    this.labelLayer = layer;
   }
 }
 

@@ -154,6 +154,31 @@ test("hovering a volcano marker shows its details", async ({ page }) => {
   }).toPass({ timeout: 10_000 });
 });
 
+test("city labels appear at close zoom and not from orbit", async ({
+  page,
+}) => {
+  const citiesLoaded = page.waitForResponse("**/data/cities.json");
+  await page.locator('.toolbar__item[title="Cities"]').click();
+  await citiesLoaded;
+
+  // Default view is from orbit (camera distance 3.2) — no labels.
+  const layer = page.locator(".city-labels");
+  await expect(layer).toBeHidden();
+
+  // Wheel-zoom toward the surface; OrbitControls needs a few frames of
+  // damping, so poll until the label layer fades in.
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("no viewport");
+  await page.mouse.move(viewport.width / 2, viewport.height / 2);
+  await expect(async () => {
+    await page.mouse.wheel(0, -400);
+    await expect(layer).toBeVisible({ timeout: 400 });
+  }).toPass({ timeout: 15_000 });
+
+  // South America fills the default view — a top-30 city label must show.
+  await expect(page.locator(".city-label:visible").first()).toBeVisible();
+});
+
 test("hovering a city dot shows its name", async ({ page }) => {
   const citiesLoaded = page.waitForResponse("**/data/cities.json");
   await page.locator('.toolbar__item[title="Cities"]').click();

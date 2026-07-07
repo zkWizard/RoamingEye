@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { parseCityList, cityHoverLabel } from "./cities";
+import {
+  parseCityList,
+  cityHoverLabel,
+  labelOpacity,
+  LABEL_COUNT,
+} from "./cities";
 
 const city = (overrides: object = {}) => ({
   name: "Tokyo",
@@ -49,6 +54,31 @@ describe("parseCityList", () => {
       city({ country: 42, pop: "many", capital: "yes" }),
     ]);
     expect(list[0]).toMatchObject({ country: null, pop: null, capital: false });
+  });
+});
+
+describe("labelOpacity", () => {
+  it("is fully opaque at close zoom", () => {
+    expect(labelOpacity(1.06)).toBe(1);
+    expect(labelOpacity(1.7)).toBe(1);
+  });
+
+  it("is zero from orbit (including the default view at 3.2)", () => {
+    expect(labelOpacity(2.15)).toBe(0);
+    expect(labelOpacity(3.2)).toBe(0);
+    expect(labelOpacity(4.5)).toBe(0);
+  });
+
+  it("fades linearly between the thresholds", () => {
+    const mid = labelOpacity((1.7 + 2.15) / 2);
+    expect(mid).toBeGreaterThan(0.49);
+    expect(mid).toBeLessThan(0.51);
+    expect(labelOpacity(2.0)).toBeGreaterThan(labelOpacity(2.1));
+  });
+
+  it("labels a bounded number of cities", () => {
+    expect(LABEL_COUNT).toBeGreaterThan(0);
+    expect(LABEL_COUNT).toBeLessThanOrEqual(50);
   });
 });
 
