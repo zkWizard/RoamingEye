@@ -1483,3 +1483,55 @@ body {
 .city-label--capital {
   font-weight: 700;
 }
+
+/* --- Small-phone layout (issue #24) -------------------------------------------
+   At ≤540px the vertical right-side toolbar becomes a horizontal, scrollable
+   bottom app bar (thumb-reachable, and it can no longer overlap the controls
+   panel), the bottom overlay shifts up to make room, the brand shrinks so the
+   search box fits beside it, and the keyboard hint line (meaningless on
+   touch) disappears. */
+@media (max-width: 540px) {
+  .brand {
+    font-size: 1.15rem;
+  }
+
+  .hint {
+    display: none;
+  }
+
+  .search {
+    width: min(320px, 62vw);
+  }
+
+  .toolbar {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    transform: none;
+    flex-direction: row;
+    gap: 0.25rem;
+    padding: 0.3rem 0.5rem calc(0.3rem + env(safe-area-inset-bottom));
+    border-radius: 14px 14px 0 0;
+    border-bottom: none;
+    overflow-x: auto;
+  }
+
+  .toolbar__item {
+    flex: none;
+  }
+
+  .overlay--bottom {
+    bottom: 3.6rem;
+    padding-bottom: 0.4rem;
+  }
+
+  .controls {
+    gap: 0.6rem;
+    padding: 0.7rem 0.8rem 0.8rem;
+  }
+
+  .probe {
+    bottom: 14rem;
+  }
+}
