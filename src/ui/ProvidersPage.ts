@@ -1,4 +1,5 @@
 import { PROVIDERS, PROVIDER_GROUPS, type ProviderUse } from "../lib/providers";
+import { FocusTrap } from "./modal";
 import { ICONS } from "./icons";
 
 const USE_LABEL: Record<ProviderUse, string> = {
@@ -13,6 +14,7 @@ const USE_LABEL: Record<ProviderUse, string> = {
  */
 export class ProvidersPage {
   private readonly container: HTMLElement;
+  private readonly trap = new FocusTrap();
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -98,9 +100,16 @@ export class ProvidersPage {
 
   open(): void {
     this.container.classList.add("is-open");
+    this.container.setAttribute("aria-hidden", "false");
+    this.trap.activate(
+      this.container.querySelector(".providers__panel") as HTMLElement
+    );
   }
 
   close(): void {
+    if (!this.container.classList.contains("is-open")) return;
     this.container.classList.remove("is-open");
+    this.container.setAttribute("aria-hidden", "true");
+    this.trap.deactivate();
   }
 }

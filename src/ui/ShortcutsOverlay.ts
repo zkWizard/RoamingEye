@@ -1,4 +1,5 @@
 import { SHORTCUT_GROUPS } from "../lib/shortcuts";
+import { FocusTrap } from "./modal";
 import { ICONS } from "./icons";
 
 /**
@@ -9,6 +10,7 @@ import { ICONS } from "./icons";
 export class ShortcutsOverlay {
   private readonly container: HTMLElement;
   private readonly closeButton: HTMLButtonElement;
+  private readonly trap = new FocusTrap();
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -78,11 +80,15 @@ export class ShortcutsOverlay {
   open(): void {
     this.container.classList.add("is-open");
     this.container.setAttribute("aria-hidden", "false");
-    this.closeButton.focus();
+    this.trap.activate(
+      this.container.querySelector(".shortcuts__panel") as HTMLElement
+    );
   }
 
   close(): void {
+    if (!this.isOpen) return;
     this.container.classList.remove("is-open");
     this.container.setAttribute("aria-hidden", "true");
+    this.trap.deactivate();
   }
 }
