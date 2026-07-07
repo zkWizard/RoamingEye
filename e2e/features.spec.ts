@@ -342,6 +342,28 @@ test("search shows failure and no-results states", async ({ page }) => {
   await expect(page.locator(".search__message")).toHaveCount(0);
 });
 
+test("modals trap focus and restore it on close", async ({ page }) => {
+  await page.locator("#shortcuts-link").click();
+  const overlay = page.locator("#shortcuts-page");
+  await expect(overlay).toHaveClass(/is-open/);
+
+  // Tab several times: focus must stay inside the panel.
+  for (let i = 0; i < 5; i++) {
+    await page.keyboard.press("Tab");
+    const inside = await page.evaluate(() =>
+      document
+        .querySelector("#shortcuts-page")!
+        .contains(document.activeElement)
+    );
+    expect(inside).toBe(true);
+  }
+
+  // Close: focus returns to the opener.
+  await page.keyboard.press("Escape");
+  await expect(overlay).not.toHaveClass(/is-open/);
+  await expect(page.locator("#shortcuts-link")).toBeFocused();
+});
+
 declare global {
   interface Window {
     __APP_READY__?: boolean;
