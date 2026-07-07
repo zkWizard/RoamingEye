@@ -209,6 +209,37 @@ test("city labels appear at close zoom and not from orbit", async ({
   await expect(page.locator(".city-label:visible").first()).toBeVisible();
 });
 
+test("drawing a region opens its monthly-mean chart", async ({ page }) => {
+  await page.locator(".draw-button").click();
+  await expect(page.locator(".draw-button")).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("no viewport");
+  const cx = viewport.width / 2;
+  const cy = viewport.height / 2;
+  await page.mouse.move(cx - 60, cy - 60);
+  await page.mouse.down();
+  await page.mouse.move(cx + 60, cy + 60, { steps: 8 });
+  await page.mouse.up();
+
+  // The drawer disarms itself and the chart opens as a region probe.
+  await expect(page.locator(".draw-button")).toHaveAttribute(
+    "aria-pressed",
+    "false"
+  );
+  const probe = page.locator("#probe-panel");
+  await expect(probe).toHaveClass(/is-open/);
+  await expect(probe).toContainText("Drawn region · mean over");
+  // The Point/Area toggle doesn't apply to a drawn box.
+  await expect(page.locator(".probe__segment").first()).toBeHidden();
+  await expect(probe.locator(".probe__status")).toContainText(
+    /Sampling|months|No data/
+  );
+});
+
 test("hovering a city dot shows its name", async ({ page }) => {
   const citiesLoaded = page.waitForResponse("**/data/cities.json");
   await page.locator('.toolbar__item[title="Cities"]').click();

@@ -12,6 +12,7 @@ import {
   medianValid,
   meanValid,
   gridPoints,
+  regionGridSize,
   type Rgb,
 } from "../lib/probe";
 import { regionAround, type Bounds } from "../lib/imagery";
@@ -35,14 +36,14 @@ import type { LayerId } from "../lib/timeline";
  * a probe over recent years typically costs no network at all.
  */
 
-export type ProbeMode = "point" | "area";
+export type ProbeMode = "point" | "area" | "region";
 
 /** Ground span of the area-mode box, in degrees of latitude. */
 export const AREA_SPAN_DEG = 1.0;
 const AREA_GRID = 8;
 
 export interface SampleOptions {
-  mode?: ProbeMode;
+  mode?: "point" | "area";
   signal?: AbortSignal;
   /** Called as months complete (done counts monotonically to total). */
   onProgress?: (done: number, total: number) => void;
@@ -78,6 +79,48 @@ export class ProbeSampler {
     options: SampleOptions = {}
   ): Promise<(number | null)[]> {
     const { mode = "point", signal, onProgress, onValue } = options;
+    // Median for a tight pixel block; mean with a lower validity bar for a
+    // geographic grid (a coastal region box is still a valid region).
+    const combine =
+      mode === "point"
+        ? (inversions: (number | null)[]) => medianValid(inversions)
+        : (inversions: (number | null)[]) => meanValid(inversions);
+    return this.run(layer, months, this.pixelsFor(mode, lat, lon), combine, {
+      signal,
+      onProgress,
+      onValue,
+    });
+  }
+
+  /**
+   * Sample a layer's mean over an arbitrary drawn region across the given
+   * months — the flagship "drawn study region" statistic. Same colormap
+   * inversion and caveats as the point probe; the grid resolution adapts to
+   * the box size (see lib/probe.regionGridSize).
+   */
+  async sampleRegion(
+    layer: LayerConfig,
+    months: YearMonth[],
+    bounds: Bounds,
+    options: Omit<SampleOptions, "mode"> = {}
+  ): Promise<(number | null)[]> {
+    return this.run(
+      layer,
+      months,
+      this.dedupedPixels(gridPoints(bounds, regionGridSize(bounds))),
+      (inversions) => meanValid(inversions),
+      options
+    );
+  }
+
+  private async run(
+    layer: LayerConfig,
+    months: YearMonth[],
+    pixels: { x: number; y: number }[],
+    combine: (inversions: (number | null)[]) => number | null,
+    options: Omit<SampleOptions, "mode">
+  ): Promise<(number | null)[]> {
+    const { signal, onProgress, onValue } = options;
     const spec = LEGENDS[layer.id as LayerId];
     if (spec.kind === "classes") {
       // Class-coded layers have no continuous colormap to invert; the app
@@ -87,20 +130,12 @@ export class ProbeSampler {
       );
     }
     const lut = buildColormapLut(spec.stops);
-    const pixels = this.pixelsFor(mode, lat, lon);
 
     const canvas = document.createElement("canvas");
     canvas.width = pixels.length;
     canvas.height = 1;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) throw new Error("RoamingEye: 2d canvas context unavailable");
-
-    // Median for a tight pixel block; mean with a lower validity bar for a
-    // geographic grid (a coastal region box is still a valid region).
-    const combine =
-      mode === "point"
-        ? (inversions: (number | null)[]) => medianValid(inversions)
-        : (inversions: (number | null)[]) => meanValid(inversions);
 
     const values: (number | null)[] = new Array(months.length).fill(null);
     let done = 0;
@@ -133,7 +168,7 @@ export class ProbeSampler {
 
   /** The set of source pixels a mode reads (deduped for coarse images). */
   private pixelsFor(
-    mode: ProbeMode,
+    mode: "point" | "area",
     lat: number,
     lon: number
   ): { x: number; y: number }[] {
@@ -146,9 +181,17 @@ export class ProbeSampler {
       }
       return block;
     }
+    return this.dedupedPixels(gridPoints(this.areaBounds(lat, lon), AREA_GRID));
+  }
+
+  /** Geographic grid points → unique image pixels (coarse images collapse). */
+  private dedupedPixels(
+    points: { lat: number; lon: number }[]
+  ): { x: number; y: number }[] {
+    const { width, height } = this.imageSize;
     const seen = new Set<string>();
     const pixels: { x: number; y: number }[] = [];
-    for (const p of gridPoints(this.areaBounds(lat, lon), AREA_GRID)) {
+    for (const p of points) {
       const px = latLonToPixel(p.lat, p.lon, width, height);
       const key = `${px.x}:${px.y}`;
       if (seen.has(key)) continue;

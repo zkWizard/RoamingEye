@@ -42,6 +42,9 @@ import { TiledImageryOverlay } from "./overlays/TiledImageryOverlay";
 import { CameraFlyer } from "./scene/CameraFlyer";
 import { LocationHighlight } from "./scene/LocationHighlight";
 import { HoverInspector } from "./scene/HoverInspector";
+import { RegionDrawer } from "./scene/RegionDrawer";
+import { RegionButton } from "./ui/RegionButton";
+import type { Bounds } from "./lib/imagery";
 import { StudyRegion } from "./scene/StudyRegion";
 import { StudyChip } from "./ui/StudyChip";
 import { ProvidersPage } from "./ui/ProvidersPage";
@@ -526,11 +529,34 @@ if (probeEl) {
   const PROBE_IMAGE = { width: 1024, height: 512 }; // = preview size → HTTP cache hits
   let probeAbort: AbortController | undefined;
   let probeTarget: { lat: number; lon: number } | undefined;
+
+  // Drawn study regions (the #26 flagship): arm via the "Draw region"
+  // button, drag a box on the globe, and its monthly mean charts in the
+  // probe panel. OrbitControls pauses while the drawer owns the drag.
+  const drawEl = document.querySelector<HTMLElement>("#draw");
+  let regionButton: RegionButton | undefined;
+  const drawer = new RegionDrawer(canvas, camera, earth, {
+    onModeChange: (armed) => {
+      controls.enabled = !armed;
+      regionButton?.setActive(armed);
+      setStatus(armed ? "Drag on the globe to draw a region" : "");
+    },
+    onComplete: (bounds) => runRegionProbe(bounds),
+  });
+  scene.add(drawer.object);
+  if (drawEl) {
+    regionButton = new RegionButton(drawEl, (on) => drawer.setArmed(on));
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") drawer.setArmed(false);
+  });
+
   const panel = new ProbePanel(
     probeEl,
     () => {
       probeAbort?.abort();
       probeShare = undefined;
+      drawer.clear();
       scheduleHashSync();
     },
     // Mode toggle (point ↔ area) re-samples the same location.
@@ -542,6 +568,8 @@ if (probeEl) {
   closeProbe = () => {
     probeAbort?.abort();
     probeShare = undefined;
+    drawer.setArmed(false);
+    drawer.clear();
     panel.close();
   };
 
@@ -550,8 +578,10 @@ if (probeEl) {
     const mode = panel.mode;
     probeTarget = { lat, lon };
     probeShare = { lat, lon };
+    drawer.clear(); // a point probe replaces any drawn-region chart
     scheduleHashSync();
     panel.open(layer.label, formatLatLng({ lat, lon }));
+    panel.setModeToggleVisible(true);
     if (mode === "area") {
       panel.setSubtitle(`~1° area around ${formatLatLng({ lat, lon })}`);
     }
@@ -620,6 +650,82 @@ if (probeEl) {
       });
   };
 
+  // Chart the monthly mean of a drawn region — same pipeline as the point
+  // probe, sampling a grid over the box instead of one location.
+  const runRegionProbe = (bounds: Bounds): void => {
+    const layer = LAYERS[currentLayer];
+    probeTarget = undefined; // the mode toggle is hidden for region charts
+    probeShare = undefined;
+    scheduleHashSync();
+    panel.open(
+      layer.label,
+      `Drawn region · mean over ${formatLatLng({ lat: bounds.south, lon: bounds.west })} → ` +
+        formatLatLng({ lat: bounds.north, lon: bounds.east })
+    );
+    panel.setModeToggleVisible(false);
+    if (layer.static) {
+      panel.setStatus(
+        "This layer has no time dimension — pick a monthly layer to chart a series."
+      );
+      return;
+    }
+    if (layer.categorical) {
+      panel.setStatus(
+        "This layer shows classes, not a measurement — there is no numeric series to chart."
+      );
+      return;
+    }
+
+    probeAbort?.abort();
+    const abort = (probeAbort = new AbortController());
+    const probeMonths = monthRangeForLayer(layer);
+    const scale = PROBE_SCALES[layer.id];
+    panel.beginSeries(probeMonths, scale);
+
+    let lastDraw = 0;
+    sampler
+      .sampleRegion(layer, probeMonths, bounds, {
+        signal: abort.signal,
+        onValue: (index, value) => panel.setValue(index, value),
+        onProgress: (done, total) => {
+          panel.setStatus(`Sampling ${done}/${total} months…`);
+          const now = performance.now();
+          if (now - lastDraw > 150 || done === total) {
+            lastDraw = now;
+            panel.refresh();
+          }
+        },
+      })
+      .then((values) => {
+        if (abort.signal.aborted) return;
+        panel.finish(
+          () =>
+            buildProbeCsv(
+              {
+                layerLabel: layer.label,
+                wmsLayer: layer.wmsLayer,
+                lat: (bounds.south + bounds.north) / 2,
+                lon: (bounds.west + bounds.east) / 2,
+                scale,
+                mode: "region",
+                sampledBounds: bounds,
+                imageWidth: PROBE_IMAGE.width,
+                imageHeight: PROBE_IMAGE.height,
+                generatedIso: new Date().toISOString(),
+              },
+              probeMonths,
+              values
+            ),
+          `roamingeye_region_${layer.id}_${bounds.south.toFixed(2)}_${bounds.west.toFixed(2)}_${bounds.north.toFixed(2)}_${bounds.east.toFixed(2)}.csv`
+        );
+      })
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        console.warn("RoamingEye: region sampling failed", err);
+        panel.setStatus("Sampling failed — check the connection and retry.");
+      });
+  };
+
   // Restore a shared probe: rerun the sampling at the linked point so the
   // recipient sees the same chart the sender did. Deferred until the first
   // globe imagery has landed — the probe's ~300 fetches would otherwise
@@ -637,11 +743,14 @@ if (probeEl) {
   const probeRaycaster = new THREE.Raycaster();
   let probeDownX = 0;
   let probeDownY = 0;
+  let probeSuppressed = false;
   canvas.addEventListener("pointerdown", (e) => {
     probeDownX = e.clientX;
     probeDownY = e.clientY;
+    probeSuppressed = drawer.active; // that gesture belongs to the drawer
   });
   canvas.addEventListener("pointerup", (e) => {
+    if (probeSuppressed) return;
     if (Math.hypot(e.clientX - probeDownX, e.clientY - probeDownY) > 6) return;
     const rect = canvas.getBoundingClientRect();
     const ndc = new THREE.Vector2(

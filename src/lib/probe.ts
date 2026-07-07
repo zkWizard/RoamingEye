@@ -137,6 +137,50 @@ export function meanValid(
   return valid.reduce((sum, v) => sum + v, 0) / valid.length;
 }
 
+// --- Drawn-region helpers ---------------------------------------------------------
+
+/**
+ * Normalize the two corners of a drag into a bounding box. Latitudes clamp to
+ * ±85° (the poles hold no GIBS detail and degenerate the equirectangular
+ * grid). Longitude takes the direct min→max span — a drawn box does not wrap
+ * the antimeridian.
+ */
+export function dragBounds(
+  a: { lat: number; lon: number },
+  b: { lat: number; lon: number }
+): Bounds {
+  const clampLat = (lat: number): number => Math.min(85, Math.max(-85, lat));
+  return {
+    south: clampLat(Math.min(a.lat, b.lat)),
+    north: clampLat(Math.max(a.lat, b.lat)),
+    west: Math.min(a.lon, b.lon),
+    east: Math.max(a.lon, b.lon),
+  };
+}
+
+/** Whether a drawn box is big enough to mean something (not a stray click). */
+export function boundsUsable(bounds: Bounds, minSpanDeg = 0.2): boolean {
+  return (
+    bounds.north - bounds.south >= minSpanDeg &&
+    bounds.east - bounds.west >= minSpanDeg
+  );
+}
+
+/**
+ * Sampling-grid resolution for a drawn region: aim for one cell per ~0.25°,
+ * clamped so small boxes still average well and continental boxes stay cheap
+ * (n×n samples; 28² = 784 pixel reads at most).
+ */
+export function regionGridSize(
+  bounds: Bounds,
+  degPerCell = 0.25,
+  min = 8,
+  max = 28
+): number {
+  const span = Math.max(bounds.north - bounds.south, bounds.east - bounds.west);
+  return Math.min(max, Math.max(min, Math.ceil(span / degPerCell)));
+}
+
 // --- Area sampling grid ---------------------------------------------------------
 
 /**
@@ -289,9 +333,10 @@ export interface ProbeCsvMeta {
   lat: number;
   lon: number;
   scale: ProbeScale;
-  /** "point" (3×3 px median) or "area" (grid mean over sampledBounds). */
-  mode: "point" | "area";
-  /** The averaged region, present in area mode. */
+  /** "point" (3×3 px median), "area" (~1° grid mean), or "region" (a
+   * user-drawn box, grid mean over sampledBounds). */
+  mode: "point" | "area" | "region";
+  /** The averaged region, present in area and region modes. */
   sampledBounds?: Bounds;
   /** Source image size the pixel was sampled from. */
   imageWidth: number;

@@ -1555,3 +1555,55 @@ body {
 .legend__scale[hidden] {
   display: none;
 }
+
+/* --- Draw-region button (top-left, under the theme toggle) -------------------- */
+.draw {
+  position: absolute;
+  top: calc(clamp(1rem, 3vw, 2rem) + 150px);
+  left: clamp(1rem, 3vw, 2rem);
+  z-index: 4;
+  pointer-events: auto;
+}
+
+.draw-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--fg);
+  background: var(--panel-bg);
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.draw-button:hover {
+  border-color: var(--control-border-hover);
+}
+
+.draw-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.draw-button[aria-pressed="true"] {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.draw-button__icon svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+
+.probe__segment[hidden] {
+  display: none;
+}

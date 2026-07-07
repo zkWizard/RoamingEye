@@ -145,8 +145,8 @@ Every change lands through a reviewed, CI-gated pull request. Be kind — see th
 
 Now / Next / Later at a glance (full detail in [`ROADMAP.md`](ROADMAP.md)):
 
-- **Now** — contributor onboarding, overlay polish (city labels, colour keys for the geology overlays), mobile layout.
-- **Next** — more scientific layers (land cover, fire/thermal anomalies), 🚩 drawn study regions with time-series charts, tile-edge polish for HD streaming.
+- **Now** — contributor onboarding; recently shipped: overlay polish (city labels, hover details, colour keys), mobile layout, annual land cover, 🚩 drawn study regions with time-series charts.
+- **Next** — more scientific layers (fire/thermal anomalies), tile-edge polish for HD streaming.
 - **Later** — true 3D elevation terrain (GEBCO/SRTM), time-series analytics (trends, change points), Sentinel-2 at 10 m, annotation & collaboration, offline field mode.
 
 ---

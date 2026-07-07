@@ -6,6 +6,9 @@ import {
   type ProbeScale,
 } from "../lib/probe";
 import type { ProbeMode } from "../probe/ProbeSampler";
+
+/** The user-toggleable sampling modes (regions are drawn, not toggled). */
+type PanelMode = Exclude<ProbeMode, "region">;
 import type { YearMonth } from "../lib/timeline";
 import { ICONS } from "./icons";
 
@@ -34,7 +37,8 @@ export class ProbePanel {
   private readonly downloadBtn: HTMLButtonElement;
   private readonly copyBtn: HTMLButtonElement;
   private copyResetTimer: ReturnType<typeof setTimeout> | undefined;
-  private readonly modeButtons = new Map<ProbeMode, HTMLButtonElement>();
+  private readonly modeButtons = new Map<PanelMode, HTMLButtonElement>();
+  private modeSegment!: HTMLElement;
   private readonly viewButtons = new Map<ProbeView, HTMLButtonElement>();
 
   private months: YearMonth[] = [];
@@ -43,12 +47,12 @@ export class ProbePanel {
   private csv: (() => string) | undefined;
   private csvFilename = "probe.csv";
   private view: ProbeView = "values";
-  private modeValue: ProbeMode = "point";
+  private modeValue: PanelMode = "point";
 
   constructor(
     container: HTMLElement,
     private readonly onClose?: () => void,
-    private readonly onModeChange?: (mode: ProbeMode) => void
+    private readonly onModeChange?: (mode: PanelMode) => void
   ) {
     this.root = container;
     this.root.classList.add("probe");
@@ -82,16 +86,17 @@ export class ProbePanel {
     // Mode (re-samples) and view (re-renders) segmented toggles.
     const options = document.createElement("div");
     options.className = "probe__options";
+    this.modeSegment = this.buildSegment(
+      "Sampling",
+      [
+        ["point", "Point"],
+        ["area", "Area ~1°"],
+      ],
+      this.modeButtons,
+      (mode) => this.selectMode(mode as PanelMode)
+    );
     options.append(
-      this.buildSegment(
-        "Sampling",
-        [
-          ["point", "Point"],
-          ["area", "Area ~1°"],
-        ],
-        this.modeButtons,
-        (mode) => this.selectMode(mode as ProbeMode)
-      ),
+      this.modeSegment,
       this.buildSegment(
         "View",
         [
@@ -143,8 +148,16 @@ export class ProbePanel {
   }
 
   /** The active sampling mode (sticky across probes). */
-  get mode(): ProbeMode {
+  get mode(): PanelMode {
     return this.modeValue;
+  }
+
+  /**
+   * Show/hide the Point/Area sampling toggle. Drawn-region charts hide it —
+   * their sampling footprint is the drawn box, not a mode.
+   */
+  setModeToggleVisible(visible: boolean): void {
+    this.modeSegment.hidden = !visible;
   }
 
   /** Open (or refocus) the panel for a new probe. */
@@ -238,7 +251,7 @@ export class ProbePanel {
     return group;
   }
 
-  private selectMode(mode: ProbeMode): void {
+  private selectMode(mode: PanelMode): void {
     if (mode === this.modeValue) return;
     this.modeValue = mode;
     this.reflectToggles();
