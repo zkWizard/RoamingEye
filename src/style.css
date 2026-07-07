@@ -375,6 +375,47 @@ body {
   color: var(--muted);
 }
 
+/* Color keys contributed by toggled-on overlays (quake depth, volcano recency) */
+.legend__keys {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.legend__keys:empty {
+  display: none;
+}
+
+.legend__key {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.legend__key-title {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.legend__key-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.legend__swatch {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  border: 1px solid var(--control-border);
+}
+
 /* Timeline ruler */
 .timeline {
   display: flex;

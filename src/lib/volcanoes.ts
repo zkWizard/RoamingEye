@@ -36,6 +36,17 @@ export function eruptionClass(lastEruptionYear: number | null): EruptionClass {
 }
 
 /**
+ * Marker color per recency class (recent hot orange, historic amber,
+ * Holocene-only muted violet). Shared by the overlay and the legend so the
+ * on-globe colors and the key can never drift apart.
+ */
+export const ERUPTION_CLASS_COLORS: Record<EruptionClass, string> = {
+  recent: "#ff6b35",
+  historic: "#ffc46b",
+  holocene: "#b49ae0",
+};
+
+/**
  * Human-readable "most recent eruption" phrase, honest about the data:
  * a null year means Holocene evidence only, and negative years are BCE.
  */

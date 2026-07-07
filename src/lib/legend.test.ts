@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { LEGENDS, gradientCss } from "./legend";
+import { LEGENDS, OVERLAY_KEYS, gradientCss, overlayKeyFor } from "./legend";
 import { LAYER_ORDER } from "./timeline";
+import { DEPTH_CLASS_COLORS } from "./earthquakes";
+import { ERUPTION_CLASS_COLORS } from "./volcanoes";
 
 describe("LEGENDS", () => {
   it("covers every data layer", () => {
@@ -34,6 +36,45 @@ describe("LEGENDS", () => {
         expect(stop.color).toMatch(/^#[0-9a-f]{6}$/i);
       }
     }
+  });
+});
+
+describe("OVERLAY_KEYS", () => {
+  it("has a titled, non-empty key per color-coded overlay", () => {
+    for (const [id, spec] of Object.entries(OVERLAY_KEYS)) {
+      expect(spec.title.length, id).toBeGreaterThan(0);
+      expect(spec.entries.length, id).toBeGreaterThanOrEqual(2);
+      for (const entry of spec.entries) {
+        expect(entry.color, id).toMatch(/^#[0-9a-f]{6}$/i);
+        expect(entry.label.length, id).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("keys use the exact colors the overlays render with", () => {
+    expect(OVERLAY_KEYS.quakes.entries.map((e) => e.color)).toEqual(
+      Object.values(DEPTH_CLASS_COLORS)
+    );
+    expect(OVERLAY_KEYS.volcanoes.entries.map((e) => e.color)).toEqual(
+      Object.values(ERUPTION_CLASS_COLORS)
+    );
+  });
+
+  it("covers the seismological depth classes in order", () => {
+    expect(OVERLAY_KEYS.quakes.entries.map((e) => e.label)).toEqual([
+      "< 70 km",
+      "70–300 km",
+      "> 300 km",
+    ]);
+  });
+});
+
+describe("overlayKeyFor", () => {
+  it("resolves known overlay ids and rejects the rest", () => {
+    expect(overlayKeyFor("quakes")).toBe(OVERLAY_KEYS.quakes);
+    expect(overlayKeyFor("volcanoes")).toBe(OVERLAY_KEYS.volcanoes);
+    expect(overlayKeyFor("cities")).toBeUndefined();
+    expect(overlayKeyFor("")).toBeUndefined();
   });
 });
 

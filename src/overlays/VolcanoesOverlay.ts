@@ -5,6 +5,7 @@ import {
   parseVolcanoList,
   eruptionClass,
   volcanoHoverLabel,
+  ERUPTION_CLASS_COLORS,
   type EruptionClass,
   type Volcano,
 } from "../lib/volcanoes";
@@ -18,13 +19,15 @@ import { GLOBE_RADIUS, type HoverPointSource, type MapOverlay } from "./types";
  * (since 1900) hot orange, the written record (1 CE–1899) amber, and
  * Holocene-evidence-only a muted violet — so active arcs pop while the full
  * Holocene population still traces the plate boundaries.
+ * The hex values live in lib/volcanoes.ts, shared with the legend key.
  */
 
-const CLASS_COLORS: Record<EruptionClass, THREE.Color> = {
-  recent: new THREE.Color("#ff6b35"),
-  historic: new THREE.Color("#ffc46b"),
-  holocene: new THREE.Color("#b49ae0"),
-};
+const CLASS_COLORS = Object.fromEntries(
+  Object.entries(ERUPTION_CLASS_COLORS).map(([k, hex]) => [
+    k,
+    new THREE.Color(hex),
+  ])
+) as Record<EruptionClass, THREE.Color>;
 
 export class VolcanoesOverlay implements MapOverlay {
   readonly id = "volcanoes";
