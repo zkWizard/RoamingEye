@@ -1659,3 +1659,11 @@ body {
   width: 14px;
   height: 14px;
 }
+
+/* Search status row: failure / no-matches feedback (issue #74) */
+.search__message {
+  padding: 0.55rem 0.75rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  list-style: none;
+}

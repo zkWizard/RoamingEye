@@ -327,6 +327,21 @@ test("uncaught errors surface a dismissible toast", async ({ page }) => {
   await expect(toast).toBeHidden();
 });
 
+test("search shows failure and no-results states", async ({ page }) => {
+  // Force a network failure without touching the real geocoder.
+  await page.route("**nominatim**", (route) => route.abort());
+  const input = page.locator(".search__input");
+  await input.fill("reykjavik");
+  await expect(page.locator(".search__message")).toContainText(
+    "Search unavailable",
+    { timeout: 15_000 }
+  );
+
+  // Next keystroke clears the message row.
+  await input.fill("r");
+  await expect(page.locator(".search__message")).toHaveCount(0);
+});
+
 declare global {
   interface Window {
     __APP_READY__?: boolean;
