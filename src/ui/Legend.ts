@@ -16,6 +16,8 @@ export class Legend {
   private readonly caption: HTMLParagraphElement;
   private readonly keys: HTMLDivElement;
   private readonly keyRows = new Map<string, HTMLElement>();
+  private readonly classes: HTMLDivElement;
+  private scaleRow!: HTMLElement;
 
   constructor(container: HTMLElement, initial: LayerId) {
     container.classList.add("legend");
@@ -45,10 +47,14 @@ export class Legend {
     row.className = "legend__row";
     row.append(this.measures, scale);
 
+    this.classes = document.createElement("div");
+    this.classes.className = "legend__classes";
+
     this.keys = document.createElement("div");
     this.keys.className = "legend__keys";
 
-    container.append(row, this.keys, this.caption);
+    container.append(row, this.classes, this.keys, this.caption);
+    this.scaleRow = scale;
     this.setLayer(initial);
   }
 
@@ -95,6 +101,28 @@ export class Legend {
   setLayer(id: LayerId): void {
     const spec = LEGENDS[id];
     this.measures.textContent = spec.measures;
+    this.caption.textContent = LAYERS[id].description;
+
+    // Categorical layers get named class swatches instead of a gradient bar.
+    const categorical = spec.kind === "classes";
+    this.scaleRow.hidden = categorical;
+    this.classes.hidden = !categorical;
+    this.classes.replaceChildren();
+    if (categorical) {
+      for (const entry of spec.classes) {
+        const item = document.createElement("span");
+        item.className = "legend__key-item";
+        const swatch = document.createElement("span");
+        swatch.className = "legend__swatch";
+        swatch.style.background = entry.color;
+        const label = document.createElement("span");
+        label.textContent = entry.label;
+        item.append(swatch, label);
+        this.classes.append(item);
+      }
+      return;
+    }
+
     this.bar.style.background = gradientCss(spec.stops);
     this.bar.setAttribute(
       "aria-label",
@@ -102,6 +130,5 @@ export class Legend {
     );
     this.minLabel.textContent = spec.minLabel;
     this.maxLabel.textContent = spec.maxLabel;
-    this.caption.textContent = LAYERS[id].description;
   }
 }

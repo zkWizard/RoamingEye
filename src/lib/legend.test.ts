@@ -14,13 +14,15 @@ describe("LEGENDS", () => {
   it("has non-empty labels and measure text", () => {
     for (const spec of Object.values(LEGENDS)) {
       expect(spec.measures.length).toBeGreaterThan(0);
+      if (spec.kind === "classes") continue;
       expect(spec.minLabel.length).toBeGreaterThan(0);
       expect(spec.maxLabel.length).toBeGreaterThan(0);
     }
   });
 
-  it("spans the full 0..1 range with sorted stops", () => {
+  it("spans the full 0..1 range with sorted stops (gradient legends)", () => {
     for (const [id, spec] of Object.entries(LEGENDS)) {
+      if (spec.kind === "classes") continue;
       expect(spec.stops.length, id).toBeGreaterThanOrEqual(2);
       expect(spec.stops[0].at, id).toBe(0);
       expect(spec.stops[spec.stops.length - 1].at, id).toBe(1);
@@ -32,10 +34,28 @@ describe("LEGENDS", () => {
 
   it("uses valid hex colors", () => {
     for (const spec of Object.values(LEGENDS)) {
-      for (const stop of spec.stops) {
-        expect(stop.color).toMatch(/^#[0-9a-f]{6}$/i);
+      const colors =
+        spec.kind === "classes"
+          ? spec.classes.map((c) => c.color)
+          : spec.stops.map((s) => s.color);
+      for (const color of colors) {
+        expect(color).toMatch(/^#[0-9a-f]{6}$/i);
       }
     }
+  });
+
+  it("gives the categorical land-cover layer all 17 IGBP classes", () => {
+    const spec = LEGENDS.landcover;
+    expect(spec.kind).toBe("classes");
+    if (spec.kind !== "classes") return;
+    // 17 IGBP classes + Unclassified, each named.
+    expect(spec.classes).toHaveLength(18);
+    for (const entry of spec.classes) {
+      expect(entry.label.length).toBeGreaterThan(0);
+    }
+    const labels = spec.classes.map((c) => c.label.toLowerCase());
+    expect(labels.some((l) => l.includes("cropland"))).toBe(true);
+    expect(labels.some((l) => l.includes("urban"))).toBe(true);
   });
 });
 

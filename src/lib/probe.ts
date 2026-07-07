@@ -240,6 +240,9 @@ export const PROBE_SCALES: Record<LayerId, ProbeScale> = {
   precip: scaleFraction("Precipitation (fraction of scale, dry → wet)"),
   soil: scaleFraction("Soil moisture (fraction of scale, dry → saturated)"),
   aerosol: scaleFraction("Aerosol optical depth (fraction of scale)"),
+  // Categorical — the probe declines to chart it (see main.ts), but the
+  // record stays exhaustive per LayerId.
+  landcover: scaleFraction("Land-cover class (categorical)"),
   terrain: scaleFraction("Elevation (fraction of scale)"),
 };
 

@@ -16,7 +16,9 @@ export interface LegendStop {
   at: number;
 }
 
-export interface LegendSpec {
+/** Continuous layers: a gradient bar with min/max end labels. */
+export interface GradientLegendSpec {
+  kind?: "gradient";
   /** What the scale measures, in plain words. */
   measures: string;
   /** Label under the low end of the bar. */
@@ -26,6 +28,15 @@ export interface LegendSpec {
   /** Gradient stops, sorted by `at`, spanning 0 → 1. */
   stops: LegendStop[];
 }
+
+/** Categorical layers (e.g. land cover): named class swatches, no gradient. */
+export interface ClassLegendSpec {
+  kind: "classes";
+  measures: string;
+  classes: { color: string; label: string }[];
+}
+
+export type LegendSpec = GradientLegendSpec | ClassLegendSpec;
 
 export const LEGENDS: Record<LayerId, LegendSpec> = {
   ndvi: {
@@ -130,6 +141,32 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
       { color: "#e8c977", at: 0.35 },
       { color: "#d88a3f", at: 0.7 },
       { color: "#8f3a1f", at: 1 }, // dust storms / smoke plumes
+    ],
+  },
+  landcover: {
+    kind: "classes",
+    measures: "Land-cover class (IGBP)",
+    // The 17 IGBP classes + Unclassified, colored exactly as GIBS renders
+    // them (colormaps/v1.3/MODIS_IGBP_Land_Cover_Type.xml).
+    classes: [
+      { color: "#218a21", label: "Evergreen needleleaf forest" },
+      { color: "#31cc31", label: "Evergreen broadleaf forest" },
+      { color: "#98cc31", label: "Deciduous needleleaf forest" },
+      { color: "#96fa96", label: "Deciduous broadleaf forest" },
+      { color: "#8dba8d", label: "Mixed forest" },
+      { color: "#ba8d8d", label: "Closed shrubland" },
+      { color: "#f5deb3", label: "Open shrubland" },
+      { color: "#daeb9d", label: "Woody savanna" },
+      { color: "#ffd500", label: "Savanna" },
+      { color: "#f0b967", label: "Grassland" },
+      { color: "#4783b5", label: "Permanent wetland" },
+      { color: "#faef73", label: "Cropland" },
+      { color: "#ff0000", label: "Urban & built-up" },
+      { color: "#999356", label: "Cropland/natural mosaic" },
+      { color: "#ffffff", label: "Permanent snow & ice" },
+      { color: "#bfbfbd", label: "Barren" },
+      { color: "#86cae3", label: "Water" },
+      { color: "#646464", label: "Unclassified" },
     ],
   },
   terrain: {

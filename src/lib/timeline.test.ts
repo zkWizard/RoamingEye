@@ -12,6 +12,8 @@ import {
   gibsWmsUrl,
   clampIndexToLayer,
   monthRangeForLayer,
+  nearestMonthIndex,
+  formatTimelineLabel,
   LAYERS,
   DATA_LATEST,
 } from "./timeline";
@@ -164,5 +166,56 @@ describe("monthRangeForLayer", () => {
     for (let i = 1; i < range.length; i++) {
       expect(ymToIndex(range[i])).toBe(ymToIndex(range[i - 1]) + 1);
     }
+  });
+});
+
+describe("annual cadence (land cover)", () => {
+  it("builds one January entry per year, oldest → newest", () => {
+    const range = monthRangeForLayer(LAYERS.landcover); // 2001 → 2024, P1Y
+    expect(range).toHaveLength(24);
+    expect(range[0]).toEqual({ year: 2001, month: 1 });
+    expect(range[range.length - 1]).toEqual({ year: 2024, month: 1 });
+    for (const ym of range) expect(ym.month).toBe(1);
+  });
+
+  it("addresses GIBS by January 1st of the selected year", () => {
+    const url = gibsWmsUrl(LAYERS.landcover, { year: 2020, month: 1 });
+    expect(url).toContain("TIME=2020-01-01");
+    expect(url).toContain(
+      "LAYERS=MODIS_Combined_L3_IGBP_Land_Cover_Type_Annual"
+    );
+  });
+
+  it("labels annual entries with the bare year", () => {
+    expect(
+      formatTimelineLabel(LAYERS.landcover, { year: 2019, month: 1 })
+    ).toBe("2019");
+    expect(formatTimelineLabel(LAYERS.ndvi, { year: 2019, month: 6 })).toBe(
+      "Jun 2019"
+    );
+  });
+});
+
+describe("nearestMonthIndex", () => {
+  it("maps a month to the nearest annual entry", () => {
+    const range = monthRangeForLayer(LAYERS.landcover);
+    expect(nearestMonthIndex(range, { year: 2010, month: 5 })).toBe(9); // 2010
+    expect(nearestMonthIndex(range, { year: 2010, month: 11 })).toBe(10); // → 2011
+  });
+
+  it("clamps to the record ends", () => {
+    const range = monthRangeForLayer(LAYERS.landcover);
+    expect(nearestMonthIndex(range, { year: 1990, month: 6 })).toBe(0);
+    expect(nearestMonthIndex(range, { year: 2030, month: 6 })).toBe(
+      range.length - 1
+    );
+  });
+
+  it("is exact for consecutive monthly ranges", () => {
+    const range = monthRangeForLayer(LAYERS.airtemp);
+    expect(nearestMonthIndex(range, { year: 1980, month: 1 })).toBe(0);
+    expect(nearestMonthIndex(range, { year: 1985, month: 7 })).toBe(
+      ymToIndex({ year: 1985, month: 7 }) - ymToIndex({ year: 1980, month: 1 })
+    );
   });
 });

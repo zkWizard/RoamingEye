@@ -1535,3 +1535,23 @@ body {
     bottom: 14rem;
   }
 }
+
+/* Categorical layer legend: named class swatches instead of a gradient */
+.legend__classes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.2rem 0.65rem;
+  max-width: 60ch;
+  margin: 0 auto;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.legend__classes[hidden] {
+  display: none;
+}
+
+.legend__scale[hidden] {
+  display: none;
+}

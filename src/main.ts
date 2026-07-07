@@ -4,8 +4,9 @@ import {
   LAYERS,
   clampIndexToLayer,
   monthRangeForLayer,
+  nearestMonthIndex,
+  formatTimelineLabel,
   ymToIndex,
-  formatYm,
   gibsWmsUrl,
   type LayerId,
   type YearMonth,
@@ -212,8 +213,9 @@ let currentLayer: LayerId = initialView.layer ?? "ndvi";
 let months: YearMonth[] = monthRangeForLayer(LAYERS[currentLayer]);
 let currentIndex = months.length - 1; // default: the most recent month
 if (initialView.month) {
-  const restored = ymToIndex(initialView.month) - ymToIndex(months[0]);
-  if (restored >= 0 && restored < months.length) currentIndex = restored;
+  // Nearest-entry mapping (not raw month arithmetic) so annual layers'
+  // non-consecutive timelines restore correctly too.
+  currentIndex = nearestMonthIndex(months, initialView.month);
 }
 currentIndex = clampIndexToLayer(months, currentIndex, LAYERS[currentLayer]);
 if (initialView.camera) {
@@ -274,14 +276,20 @@ function ensureWarm(index: number): void {
 // differs (its constructor clears the container).
 function buildTimeline(): void {
   if (!timelineEl) return;
-  new TimeSlider(timelineEl, months, currentIndex, (index) => {
-    currentIndex = index;
-    refreshGlobe();
-    ensureWarm(index);
-    if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
-    compareControls?.setLiveMonth(months[currentIndex]);
-    scheduleHashSync();
-  });
+  new TimeSlider(
+    timelineEl,
+    months,
+    currentIndex,
+    (index) => {
+      currentIndex = index;
+      refreshGlobe();
+      ensureWarm(index);
+      if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
+      compareControls?.setLiveMonth(months[currentIndex]);
+      scheduleHashSync();
+    },
+    (ym) => formatTimelineLabel(LAYERS[currentLayer], ym)
+  );
 }
 buildTimeline();
 
@@ -300,10 +308,10 @@ if (layerEl) {
     currentLayer = id;
     legend?.setLayer(id);
     months = monthRangeForLayer(LAYERS[id]);
-    // Keep the same calendar month selected where the new layer covers it;
-    // clamp into range otherwise (reanalysis/ocean products start/lag apart).
-    const mapped = ymToIndex(selected) - ymToIndex(months[0]);
-    currentIndex = Math.min(months.length - 1, Math.max(0, mapped));
+    // Keep the closest calendar month selected where the new layer covers it;
+    // clamp into range otherwise (reanalysis/ocean products start/lag apart,
+    // annual layers step by year).
+    currentIndex = nearestMonthIndex(months, selected);
     currentIndex = clampIndexToLayer(months, currentIndex, LAYERS[id]);
     buildTimeline();
     if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
@@ -331,7 +339,7 @@ void refreshDataLatest().then((grew) => {
   // otherwise stay on whatever month they had selected.
   currentIndex = wasAtEnd
     ? months.length - 1
-    : Math.max(0, ymToIndex(selected) - ymToIndex(months[0]));
+    : nearestMonthIndex(months, selected);
   buildTimeline();
   refreshGlobe();
   resetPrefetch();
@@ -342,7 +350,7 @@ void refreshDataLatest().then((grew) => {
 function updateProvenance(): void {
   if (!provenanceEl) return;
   const layer = LAYERS[currentLayer];
-  provenanceEl.textContent = `${layer.wmsLayer} · ${formatYm(months[currentIndex])}`;
+  provenanceEl.textContent = `${layer.wmsLayer} · ${formatTimelineLabel(layer, months[currentIndex])}`;
 }
 
 if (exportEl) {
@@ -550,6 +558,12 @@ if (probeEl) {
     if (layer.static) {
       panel.setStatus(
         "This layer has no time dimension — pick a monthly layer to chart a series."
+      );
+      return;
+    }
+    if (layer.categorical) {
+      panel.setStatus(
+        "This layer shows classes, not a measurement — there is no numeric series to chart."
       );
       return;
     }
