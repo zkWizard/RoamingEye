@@ -44,6 +44,7 @@ import { HoverInspector } from "./scene/HoverInspector";
 import { StudyRegion } from "./scene/StudyRegion";
 import { StudyChip } from "./ui/StudyChip";
 import { ProvidersPage } from "./ui/ProvidersPage";
+import { ShortcutsOverlay } from "./ui/ShortcutsOverlay";
 import { loadCountryIndex } from "./lib/countryIndex";
 import { flyToDistance } from "./lib/navigation";
 import { regionAround } from "./lib/imagery";
@@ -645,6 +646,30 @@ if (probeEl) {
 if (providersPageEl && providersLinkEl) {
   const providers = new ProvidersPage(providersPageEl);
   providersLinkEl.addEventListener("click", () => providers.open());
+}
+
+// --- Keyboard shortcuts overlay -----------------------------------------------
+const shortcutsPageEl = document.querySelector<HTMLElement>("#shortcuts-page");
+if (shortcutsPageEl) {
+  const shortcuts = new ShortcutsOverlay(shortcutsPageEl);
+  document
+    .querySelector<HTMLElement>("#shortcuts-link")
+    ?.addEventListener("click", () => shortcuts.open());
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "?") return;
+    const target = e.target as HTMLElement | null;
+    // Don't hijack typing (e.g. the search box).
+    if (
+      target &&
+      (target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable)
+    ) {
+      return;
+    }
+    e.preventDefault();
+    shortcuts.toggle();
+  });
 }
 
 // --- Render loop ------------------------------------------------------------
