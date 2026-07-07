@@ -64,6 +64,8 @@ declare global {
   interface Window {
     /** Set to true after the first render — used by the e2e smoke test. */
     __APP_READY__?: boolean;
+    /** Whether the render loop is running (false while the tab is hidden). */
+    __RENDER_ACTIVE__?: boolean;
   }
 }
 
@@ -799,7 +801,7 @@ if (shortcutsPageEl) {
 const timer = new THREE.Timer();
 let signalledReady = false;
 let wasFlying = false;
-renderer.setAnimationLoop(() => {
+const renderFrame = (): void => {
   timer.update();
   const delta = timer.getDelta();
   flyer.update(delta);
@@ -821,6 +823,23 @@ renderer.setAnimationLoop(() => {
   if (!signalledReady) {
     signalledReady = true;
     window.__APP_READY__ = true;
+  }
+};
+renderer.setAnimationLoop(renderFrame);
+window.__RENDER_ACTIVE__ = true;
+
+// Pause rendering while the tab is hidden — no reason to burn GPU/battery on
+// a globe nobody can see. Data work (freshness probe, in-flight sampling) is
+// untouched; only drawing stops. The timer resets on resume so the hidden gap
+// never lands as one giant delta (which would teleport an in-flight flight).
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    renderer.setAnimationLoop(null);
+    window.__RENDER_ACTIVE__ = false;
+  } else {
+    timer.reset();
+    renderer.setAnimationLoop(renderFrame);
+    window.__RENDER_ACTIVE__ = true;
   }
 });
 
