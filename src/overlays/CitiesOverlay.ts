@@ -1,17 +1,9 @@
 import * as THREE from "three";
 import { latLngToVector3 } from "../lib/geo";
 import { fetchJson } from "../lib/net";
+import { parseCityList, cityHoverLabel } from "../lib/cities";
 import { ICONS } from "../ui/icons";
-import { GLOBE_RADIUS, type MapOverlay } from "./types";
-
-interface City {
-  name: string;
-  lat: number;
-  lon: number;
-  country: string | null;
-  pop: number | null;
-  capital: boolean;
-}
+import { GLOBE_RADIUS, type HoverPointSource, type MapOverlay } from "./types";
 
 /** Major populated places from Natural Earth (public domain), as glowing dots. */
 export class CitiesOverlay implements MapOverlay {
@@ -21,6 +13,8 @@ export class CitiesOverlay implements MapOverlay {
   readonly object = new THREE.Group();
 
   private loadPromise: Promise<void> | undefined;
+  /** Set once loaded — lets the HoverInspector name the dot under the cursor. */
+  hoverSource: HoverPointSource | undefined;
 
   constructor(
     // BASE_URL-aware so the fetch works when the site is hosted on a subpath.
@@ -35,7 +29,7 @@ export class CitiesOverlay implements MapOverlay {
   }
 
   private async load(): Promise<void> {
-    const cities = await fetchJson<City[]>(this.url);
+    const cities = parseCityList(await fetchJson<unknown>(this.url));
 
     const positions: number[] = [];
     for (const c of cities) {
@@ -56,7 +50,13 @@ export class CitiesOverlay implements MapOverlay {
       transparent: true,
       depthWrite: false,
     });
-    this.object.add(new THREE.Points(geometry, material));
+    const points = new THREE.Points(geometry, material);
+    this.object.add(points);
+    this.hoverSource = {
+      points,
+      describe: (index) =>
+        cities[index] ? cityHoverLabel(cities[index]) : undefined,
+    };
   }
 }
 

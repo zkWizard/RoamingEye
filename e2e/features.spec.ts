@@ -75,6 +75,68 @@ test("hovering the globe shows a coordinate readout", async ({ page }) => {
   await expect(tooltip).toContainText("°");
 });
 
+/**
+ * Screen position of a lat/lon on the default view (camera at (0, 0, 3.2)
+ * looking at the origin, fov 45°) — mirrors lib/geo.latLngToVector3 plus a
+ * standard perspective projection, so tests can aim the mouse at a marker.
+ */
+function screenPointFor(
+  lat: number,
+  lon: number,
+  width: number,
+  height: number
+): { x: number; y: number } {
+  const DEG2RAD = Math.PI / 180;
+  const phi = (90 - lat) * DEG2RAD;
+  const theta = (lon + 180) * DEG2RAD;
+  const r = 1.005; // marker altitude — close enough for both overlays
+  const x = -r * Math.sin(phi) * Math.cos(theta);
+  const y = r * Math.cos(phi);
+  const z = r * Math.sin(phi) * Math.sin(theta);
+  const f = 1 / Math.tan((45 / 2) * DEG2RAD);
+  const zCam = z - 3.2;
+  const ndcX = (f / (width / height)) * (x / -zCam);
+  const ndcY = f * (y / -zCam);
+  return { x: ((ndcX + 1) / 2) * width, y: ((1 - ndcY) / 2) * height };
+}
+
+test("hovering a volcano marker shows its details", async ({ page }) => {
+  const volcanoesLoaded = page.waitForResponse("**/data/volcanoes.json");
+  await page.locator('.toolbar__item[title="Volcanoes"]').click();
+  await volcanoesLoaded;
+
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("no viewport");
+  // Darwin volcano, Galápagos (-0.18, -91.28) — near the default view centre.
+  const pt = screenPointFor(-0.18, -91.28, viewport.width, viewport.height);
+
+  const tooltip = page.locator("#hover-tooltip");
+  let jitter = 0;
+  await expect(async () => {
+    // Re-fire pointermove each retry (the first may precede the data parse).
+    await page.mouse.move(pt.x + (jitter ^= 1), pt.y);
+    await expect(tooltip).toContainText(/last erupted/, { timeout: 300 });
+  }).toPass({ timeout: 10_000 });
+});
+
+test("hovering a city dot shows its name", async ({ page }) => {
+  const citiesLoaded = page.waitForResponse("**/data/cities.json");
+  await page.locator('.toolbar__item[title="Cities"]').click();
+  await citiesLoaded;
+
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("no viewport");
+  // Quito (-0.213, -78.502) — isolated enough that no other dot can win.
+  const pt = screenPointFor(-0.213, -78.502, viewport.width, viewport.height);
+
+  const tooltip = page.locator("#hover-tooltip");
+  let jitter = 0;
+  await expect(async () => {
+    await page.mouse.move(pt.x + (jitter ^= 1), pt.y);
+    await expect(tooltip).toContainText("Quito · Ecuador", { timeout: 300 });
+  }).toPass({ timeout: 10_000 });
+});
+
 declare global {
   interface Window {
     __APP_READY__?: boolean;

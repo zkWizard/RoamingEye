@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { parseVolcanoList, eruptionClass } from "./volcanoes";
+import {
+  parseVolcanoList,
+  eruptionClass,
+  lastEruptionLabel,
+  volcanoHoverLabel,
+} from "./volcanoes";
 
 const volcano = (overrides: object = {}) => ({
   name: "Etna",
@@ -74,5 +79,35 @@ describe("eruptionClass", () => {
     expect(eruptionClass(0)).toBe("holocene");
     expect(eruptionClass(-4360)).toBe("holocene"); // BCE eruptions
     expect(eruptionClass(null)).toBe("holocene");
+  });
+});
+
+describe("lastEruptionLabel", () => {
+  it("states CE years plainly", () => {
+    expect(lastEruptionLabel(2025)).toBe("last erupted 2025");
+    expect(lastEruptionLabel(79)).toBe("last erupted 79");
+  });
+
+  it("marks BCE years", () => {
+    expect(lastEruptionLabel(-6850)).toBe("last erupted 6850 BCE");
+  });
+
+  it("is honest about undated volcanoes", () => {
+    expect(lastEruptionLabel(null)).toBe("Holocene evidence only");
+  });
+});
+
+describe("volcanoHoverLabel", () => {
+  it("joins name, type, and eruption recency", () => {
+    expect(volcanoHoverLabel(parseVolcanoList([volcano()])[0])).toBe(
+      "Etna · Stratovolcano · last erupted 2025"
+    );
+  });
+
+  it("skips a missing type", () => {
+    const v = parseVolcanoList([
+      volcano({ type: null, lastEruptionYear: null }),
+    ])[0];
+    expect(volcanoHoverLabel(v)).toBe("Etna · Holocene evidence only");
   });
 });

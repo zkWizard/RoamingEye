@@ -153,16 +153,18 @@ const hdTiles = new TiledImageryOverlay(
   renderer.capabilities.getMaxAnisotropy()
 );
 
+const citiesOverlay = new CitiesOverlay();
+const volcanoesOverlay = new VolcanoesOverlay();
 const overlays: MapOverlay[] = [
   hdTiles,
   new GraticuleOverlay(),
   new BordersOverlay(),
-  new CitiesOverlay(),
+  citiesOverlay,
   new AtmosphereOverlay(),
   // The geology trio — plate boundaries, volcanoes, and live seismicity line
   // up on the globe to tell the plate-tectonics story.
   new PlateBoundariesOverlay(),
-  new VolcanoesOverlay(),
+  volcanoesOverlay,
   new EarthquakesOverlay(),
 ];
 for (const overlay of overlays) scene.add(overlay.object);
@@ -189,6 +191,8 @@ scene.add(studyRegion.object);
 // --- Hover inspector (coordinate + country readout) -------------------------
 if (tooltipEl) {
   const inspector = new HoverInspector(canvas, camera, earth, tooltipEl);
+  inspector.addPointSource(() => citiesOverlay.hoverSource);
+  inspector.addPointSource(() => volcanoesOverlay.hoverSource);
   loadCountryIndex()
     .then((index) => inspector.setCountryIndex(index))
     .catch((err) =>
