@@ -100,6 +100,36 @@ function screenPointFor(
   return { x: ((ndcX + 1) / 2) * width, y: ((1 - ndcY) / 2) * height };
 }
 
+test("land-cover layer steps by year with a class-swatch legend", async ({
+  page,
+}) => {
+  await page.locator(".layer-selector__trigger").click();
+  await page
+    .locator(".layer-selector__option", { hasText: "Land cover" })
+    .click();
+
+  // Annual cadence: the readout is a bare year, newest first.
+  await expect(page.locator(".timeline__readout")).toHaveText(/^\d{4}$/);
+
+  // Categorical legend: class swatches, no gradient bar.
+  await expect(page.locator(".legend__scale")).toBeHidden();
+  const classes = page.locator(".legend__classes .legend__key-item");
+  await expect(classes).toHaveCount(18);
+  await expect(page.locator(".legend__classes")).toContainText("Cropland");
+
+  // Provenance names the layer and the year.
+  await expect(page.locator("#provenance")).toContainText(
+    /MODIS_Combined_L3_IGBP_Land_Cover_Type_Annual · \d{4}$/
+  );
+
+  // Stepping the timeline moves a whole year.
+  const track = page.locator(".timeline__track");
+  await track.focus();
+  const year = Number(await page.locator(".timeline__readout").textContent());
+  await page.keyboard.press("ArrowLeft");
+  await expect(page.locator(".timeline__readout")).toHaveText(String(year - 1));
+});
+
 test("? opens the keyboard-shortcuts overlay and Esc closes it", async ({
   page,
 }) => {

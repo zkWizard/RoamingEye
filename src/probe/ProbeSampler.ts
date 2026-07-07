@@ -78,7 +78,15 @@ export class ProbeSampler {
     options: SampleOptions = {}
   ): Promise<(number | null)[]> {
     const { mode = "point", signal, onProgress, onValue } = options;
-    const lut = buildColormapLut(LEGENDS[layer.id as LayerId].stops);
+    const spec = LEGENDS[layer.id as LayerId];
+    if (spec.kind === "classes") {
+      // Class-coded layers have no continuous colormap to invert; the app
+      // declines to probe them before getting here (see main.ts).
+      throw new Error(
+        `RoamingEye: layer "${layer.id}" is categorical — nothing to sample`
+      );
+    }
+    const lut = buildColormapLut(spec.stops);
     const pixels = this.pixelsFor(mode, lat, lon);
 
     const canvas = document.createElement("canvas");

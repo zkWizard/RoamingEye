@@ -22,6 +22,7 @@ export type LayerId =
   | "precip"
   | "soil"
   | "aerosol"
+  | "landcover"
   | "terrain";
 
 export type LayerCategory =
@@ -30,6 +31,7 @@ export type LayerCategory =
   | "Water"
   | "Cryosphere"
   | "Atmosphere"
+  | "Land"
   | "Terrain";
 
 /** A calendar month. `month` is 1-12 (1 = January). */
@@ -55,6 +57,12 @@ export interface LayerConfig {
   /** True for datasets with no time dimension (e.g. elevation): one image
    * regardless of the selected month, and no TIME param in GIBS URLs. */
   static?: boolean;
+  /** Publishing cadence. Annual products (e.g. land cover) get one timeline
+   * entry per year — addressed by January 1st in GIBS TIME params. */
+  cadence?: "annual";
+  /** True for class-coded (categorical) layers: the legend shows swatches
+   * instead of a gradient, and the probe has no numeric series to chart. */
+  categorical?: boolean;
   description: string;
 }
 
@@ -177,6 +185,20 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     latest: { year: 2026, month: 3 },
     description: "Aerosol optical thickness — dust, smoke, and air quality.",
   },
+  landcover: {
+    id: "landcover",
+    label: "Land cover (IGBP)",
+    category: "Land",
+    // Verified against GIBS WMTS capabilities: annual, 2001-01-01/2024-01-01/P1Y.
+    wmsLayer: "MODIS_Combined_L3_IGBP_Land_Cover_Type_Annual",
+    wmts: { set: "500m", maxLevel: 7, ext: "png" },
+    start: { year: 2001, month: 1 },
+    latest: { year: 2024, month: 1 },
+    cadence: "annual",
+    categorical: true,
+    description:
+      "Annual land-cover classification (17 IGBP classes, MODIS MCD12Q1).",
+  },
   terrain: {
     id: "terrain",
     label: "Terrain (shaded relief)",
@@ -201,6 +223,7 @@ export const LAYER_ORDER: LayerId[] = [
   "soil",
   "snow",
   "aerosol",
+  "landcover",
   "terrain",
 ];
 
@@ -210,6 +233,7 @@ export const CATEGORY_ORDER: LayerCategory[] = [
   "Water",
   "Cryosphere",
   "Atmosphere",
+  "Land",
   "Terrain",
 ];
 
@@ -292,11 +316,43 @@ export function isAvailable(layer: LayerConfig, ym: YearMonth): boolean {
 /**
  * Every published month for a layer, oldest → newest — the layer's full
  * scientific record (MERRA-2 layers reach back to 1980), not a fixed window.
+ * Annual layers get one entry per year (its January), so the same scrubber
+ * steps by year.
  */
 export function monthRangeForLayer(layer: LayerConfig): YearMonth[] {
   const latest = layer.latest ?? DATA_LATEST;
+  if (layer.cadence === "annual") {
+    const out: YearMonth[] = [];
+    for (let year = layer.start.year; year <= latest.year; year++) {
+      out.push({ year, month: 1 });
+    }
+    return out.length > 0 ? out : [{ year: layer.start.year, month: 1 }];
+  }
   const count = ymToIndex(latest) - ymToIndex(layer.start) + 1;
   return buildMonthRange(latest, Math.max(1, count));
+}
+
+/**
+ * Index of the timeline entry closest to a calendar month. Unlike raw
+ * month-index arithmetic this works for annual layers, whose entries are
+ * not consecutive months.
+ */
+export function nearestMonthIndex(months: YearMonth[], ym: YearMonth): number {
+  let best = 0;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < months.length; i++) {
+    const dist = Math.abs(ymToIndex(months[i]) - ymToIndex(ym));
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = i;
+    }
+  }
+  return best;
+}
+
+/** Scrubber/provenance label: bare year for annual layers, "Mon YYYY" else. */
+export function formatTimelineLabel(layer: LayerConfig, ym: YearMonth): string {
+  return layer.cadence === "annual" ? String(ym.year) : formatYm(ym);
 }
 
 // --- Slider position mapping ------------------------------------------------

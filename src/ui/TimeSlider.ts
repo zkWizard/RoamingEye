@@ -25,7 +25,9 @@ export class TimeSlider {
     container: HTMLElement,
     months: YearMonth[],
     initialIndex: number,
-    onChange: (index: number, ym: YearMonth) => void
+    onChange: (index: number, ym: YearMonth) => void,
+    // Annual layers label entries "2024" rather than "Jan 2024".
+    private readonly formatLabel: (ym: YearMonth) => string = formatYm
   ) {
     this.months = months;
     this.onChange = onChange;
@@ -160,9 +162,9 @@ export class TimeSlider {
     const fraction = indexToFraction(index, this.months.length);
 
     this.handle.style.left = `${fraction * 100}%`;
-    this.readout.textContent = formatYm(ym);
+    this.readout.textContent = this.formatLabel(ym);
     this.track.setAttribute("aria-valuenow", String(index));
-    this.track.setAttribute("aria-valuetext", formatYm(ym));
+    this.track.setAttribute("aria-valuetext", this.formatLabel(ym));
 
     if (emit && changed) this.onChange(index, ym);
   }

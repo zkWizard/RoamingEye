@@ -15,7 +15,7 @@ import {
   buildProbeCsv,
   PROBE_SCALES,
 } from "./probe";
-import { LEGENDS } from "./legend";
+import { LEGENDS, type GradientLegendSpec } from "./legend";
 
 describe("latLonToPixel", () => {
   it("maps the equirectangular corners and center", () => {
@@ -40,13 +40,12 @@ describe("hexToRgb", () => {
 });
 
 describe("buildColormapLut / invertColormap", () => {
-  const lut = buildColormapLut(LEGENDS.ndvi.stops);
+  const ndvi = LEGENDS.ndvi as GradientLegendSpec;
+  const lut = buildColormapLut(ndvi.stops);
 
   it("endpoints match the first and last stops", () => {
-    expect(lut[0]).toEqual(hexToRgb(LEGENDS.ndvi.stops[0].color));
-    expect(lut[lut.length - 1]).toEqual(
-      hexToRgb(LEGENDS.ndvi.stops.at(-1)!.color)
-    );
+    expect(lut[0]).toEqual(hexToRgb(ndvi.stops[0].color));
+    expect(lut[lut.length - 1]).toEqual(hexToRgb(ndvi.stops.at(-1)!.color));
   });
 
   it("round-trips: the LUT color at t inverts back to ≈t", () => {
