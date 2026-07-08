@@ -16,6 +16,7 @@ import { latLngToVector3, vector3ToLatLng, formatLatLng } from "./lib/geo";
 import { buildProbeCsv, PROBE_SCALES } from "./lib/probe";
 import { refreshDataLatest } from "./lib/freshness";
 import { isAbortError } from "./lib/net";
+import { nextPixelRatio } from "./lib/perf";
 import { ProbeSampler } from "./probe/ProbeSampler";
 import { ProbePanel } from "./ui/ProbePanel";
 import { CompareController } from "./scene/CompareController";
@@ -913,6 +914,28 @@ canvas.addEventListener("webglcontextrestored", () => {
   refreshGlobe();
 });
 
+// --- Adaptive resolution -------------------------------------------------------
+// Weak GPUs (old lab machines, software rendering) can't hold 60 fps at full
+// devicePixelRatio. Measure FPS over ~2 s windows and trade resolution for
+// interactivity (pure decision logic in lib/perf.ts).
+const MAX_PIXEL_RATIO = Math.min(window.devicePixelRatio, 2);
+let fpsWindowStart = performance.now();
+let fpsFrames = 0;
+function adaptResolution(now: number): void {
+  fpsFrames++;
+  const elapsed = now - fpsWindowStart;
+  if (elapsed < 2000) return;
+  const fps = (fpsFrames * 1000) / elapsed;
+  fpsWindowStart = now;
+  fpsFrames = 0;
+  const current = renderer.getPixelRatio();
+  const target = nextPixelRatio(current, fps, undefined, MAX_PIXEL_RATIO);
+  if (target !== current) {
+    renderer.setPixelRatio(target);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+}
+
 // --- Render loop ------------------------------------------------------------
 const timer = new THREE.Timer();
 let signalledReady = false;
@@ -940,6 +963,7 @@ const renderFrame = (): void => {
     signalledReady = true;
     window.__APP_READY__ = true;
   }
+  adaptResolution(performance.now());
 };
 renderer.setAnimationLoop(renderFrame);
 window.__RENDER_ACTIVE__ = true;
@@ -954,6 +978,9 @@ document.addEventListener("visibilitychange", () => {
     window.__RENDER_ACTIVE__ = false;
   } else {
     timer.reset();
+    // Restart the FPS window too — the hidden gap must not read as low FPS.
+    fpsWindowStart = performance.now();
+    fpsFrames = 0;
     renderer.setAnimationLoop(renderFrame);
     window.__RENDER_ACTIVE__ = true;
   }
