@@ -4,9 +4,56 @@ All notable changes to RoamingEye. The project is pre-1.0 and moving fast; this
 log captures milestones rather than every commit. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [1.0.0] — 2026-07-08 · the launch release
+
+Three same-day development rounds turned the viewer into a hardened research
+instrument: an analysis flagship, nine capability features, and sixteen
+robustness fixes — every one landed with tests (unit 164 → 222, e2e 4 → 23).
 
 ### Added
+
+- **🚩 Drawn study regions with time-series charts** — arm "Draw region",
+  drag a box on the globe, and the probe panel charts that region's monthly
+  mean across the layer's full record, with the provenance-stamped CSV
+  recording the exact bounds. The step from viewer to analysis tool.
+- **Land cover (IGBP) layer** — MODIS MCD12Q1 annual classification
+  (2001→2024): the catalog's first annual-cadence layer (the scrubber steps
+  by year) and first categorical layer (the legend shows 18 named class
+  swatches in GIBS's exact colors).
+- **Hover identification** — city dots ("Tokyo · Japan") and volcano markers
+  ("Etna · Stratovolcano · last erupted 2025") name themselves under the
+  cursor; empty globe still reads coordinates + country.
+- **In-app color keys** — toggling Quakes or Volcanoes adds a swatch key
+  (depth classes / eruption recency) to the legend, sharing the exact
+  constants the overlays render with.
+- **City name labels at close zoom** (top 30 by population, far side culled),
+  **keyboard-shortcuts overlay** (press ?), **probe copy-CSV button**, and
+  **arrow-key navigation for the layer picker**.
+- **Session restore** — layer, month, and enabled overlays persist across
+  visits (a shared URL hash still wins).
+- **Mobile layout** — the toolbar becomes a bottom app bar at phone widths;
+  timeline year labels adapt to the track's real width.
+
+### Robustness & performance
+
+- **WebGL resilience** — a friendly explanation page when WebGL is
+  unavailable, and in-place recovery from GPU context loss.
+- **Failure visibility** — uncaught errors surface as a dismissible toast;
+  imagery failures offer a Retry (fixing a latent bug where a failed month
+  could never reload); search distinguishes "No matches" from "Search
+  unavailable".
+- **Resource discipline** — rendering pauses in hidden tabs; pixel ratio
+  adapts under sustained low FPS; three.js ships as its own long-cached
+  chunk (app payload 167 → 33 kB gzip) with size budgets enforced on every
+  build; recent geocode queries serve from an LRU instead of re-hitting
+  rate-limited Nominatim.
+- **Accessibility** — modals trap and restore focus; camera flights respect
+  prefers-reduced-motion.
+- **Guarded foundations** — the bundled data files are validated by the real
+  parsers in CI, and every feature e2e test doubles as an
+  uncaught-exception canary.
+
+### Earlier in this cycle
 
 - **Give-feedback funnel** — a three-question feedback issue form (what you
   tried / what got in the way / what would bring you back, with an optional
