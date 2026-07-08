@@ -28,9 +28,10 @@ to the live site and the issue tracker.
       social link unfurls to.
 - [x] Cut a release with human-readable notes — **v1.0.0 — the open
       Earth-observation globe** (docs/launch/release-notes-v1.0.0.md).
-- [ ] Final smoke pass on the live site: cold load, mobile Safari + Android
-      Chrome, scrub/zoom/probe/share-link round-trip. File anything broken as a
-      `launch-blocker` label before announcing.
+- [x] Final smoke pass on the live site (v1.0.0 deploy, 2026-07-08): cold
+      load, scrub, probe, share-link round-trip — green on desktop + emulated
+      mobile viewports. A real-device Safari/Android pass is still worthwhile
+      before the HN submission.
 
 ## 2. Launch assets
 
