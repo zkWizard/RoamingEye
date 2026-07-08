@@ -16,7 +16,9 @@ export class CameraFlyer {
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
-    private readonly controls: OrbitControls
+    private readonly controls: OrbitControls,
+    /** prefers-reduced-motion: place the camera instantly, no tween. */
+    private readonly instant = false
   ) {}
 
   /** True while a flight is in progress (the loop should not also drive controls). */
@@ -30,6 +32,13 @@ export class CameraFlyer {
       .copy(latLngToVector3(lat, lon, 1))
       .normalize()
       .multiplyScalar(distance);
+    if (this.instant) {
+      // Reduced motion: land at the destination in a single step.
+      this.camera.position.copy(this.endPos);
+      this.camera.lookAt(0, 0, 0);
+      this.controls.update();
+      return;
+    }
     this.duration = duration;
     this.elapsed = 0;
     this.active = true;
