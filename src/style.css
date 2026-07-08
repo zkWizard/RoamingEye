@@ -1667,3 +1667,25 @@ body {
   color: var(--muted);
   list-style: none;
 }
+
+/* WebGL-unavailable fallback (shown inside the loader, issue #87) */
+.loader__fallback {
+  max-width: 34rem;
+  padding: 0 1.5rem;
+  text-align: center;
+}
+
+.loader__fallback h2 {
+  font-size: 1.3rem;
+  color: var(--fg);
+}
+
+.loader__fallback p {
+  margin-top: 0.8rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.loader__fallback a {
+  color: var(--accent);
+}

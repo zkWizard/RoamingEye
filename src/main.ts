@@ -101,7 +101,30 @@ const provenanceEl = document.querySelector<HTMLElement>("#provenance");
 const exportEl = document.querySelector<HTMLElement>("#export");
 
 // --- Renderer ---------------------------------------------------------------
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+// WebGL can be unavailable (blocked by policy, ancient drivers, disabled
+// hardware acceleration) — the constructor throws. Show a human explanation
+// in the loader instead of a blank page and a console stack.
+function webglUnavailable(err: unknown): never {
+  if (loaderEl) {
+    loaderEl.classList.remove("is-hidden");
+    loaderEl.innerHTML = `
+      <div class="loader__fallback">
+        <h2>RoamingEye needs WebGL</h2>
+        <p>Your browser blocked or doesn't support WebGL, which draws the 3D
+        globe. Try enabling hardware acceleration in your browser settings,
+        updating your graphics drivers, or a current version of Chrome,
+        Firefox, Edge, or Safari.</p>
+        <p><a href="https://get.webgl.org/" target="_blank" rel="noopener">Test WebGL support →</a></p>
+      </div>`;
+  }
+  throw err instanceof Error ? err : new Error(String(err));
+}
+let renderer: THREE.WebGLRenderer;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+} catch (err) {
+  webglUnavailable(err);
+}
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 
