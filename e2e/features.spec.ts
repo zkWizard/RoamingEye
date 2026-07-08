@@ -7,11 +7,24 @@ import { test, expect } from "@playwright/test";
  * manually rather than gated in CI.
  */
 
+// Every feature test doubles as an uncaught-exception canary: interactions
+// (draw, zoom, modals, layer switches) must never throw to the page.
+let pageErrors: string[] = [];
+
 test.beforeEach(async ({ page }) => {
+  pageErrors = [];
+  page.on("pageerror", (err) => pageErrors.push(err.message));
   await page.goto("/");
   await page.waitForFunction(() => window.__APP_READY__ === true, null, {
     timeout: 30_000,
   });
+});
+
+test.afterEach(() => {
+  // The error-toast test throws deliberately; everything else must be clean.
+  expect(
+    pageErrors.filter((m) => !m.includes("e2e synthetic failure"))
+  ).toEqual([]);
 });
 
 test("toolbar exposes overlay toggles and flips their state", async ({
