@@ -548,7 +548,13 @@ if (shareEl) {
 }
 
 // --- Search + fly-to --------------------------------------------------------
-const flyer = new CameraFlyer(camera, controls);
+// Vestibular safety: users who set prefers-reduced-motion get an instant
+// reposition instead of an animated flight (CSS already respects it).
+const flyer = new CameraFlyer(
+  camera,
+  controls,
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches
+);
 controls.addEventListener("change", scheduleHashSync);
 
 if (searchEl) {
