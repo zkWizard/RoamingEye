@@ -1708,3 +1708,16 @@ body {
 .status-retry[hidden] {
   display: none;
 }
+
+/* Short desktop windows (issue #93): a vertically-centred toolbar collides
+   with the top-right button column (Share/Save/Compare) and steals their
+   clicks. Anchor it below the buttons and let it scroll internally. */
+@media (min-width: 541px) and (max-height: 820px) {
+  .toolbar {
+    top: 200px;
+    bottom: auto;
+    transform: none;
+    max-height: calc(100vh - 530px);
+    overflow-y: auto;
+  }
+}

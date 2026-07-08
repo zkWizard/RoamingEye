@@ -434,6 +434,43 @@ test("layer picker is arrow-key navigable", async ({ page }) => {
   );
 });
 
+test("comparison mode pins a month and sweeps a divider", async ({ page }) => {
+  const button = page.locator(".compare-button");
+  await button.click();
+  await expect(button).toHaveAttribute("aria-pressed", "true");
+
+  const divider = page.locator(".compare-divider");
+  await expect(divider).toHaveClass(/is-visible/);
+  await expect(divider.locator(".compare-divider__chip--pinned")).toContainText(
+    "pinned"
+  );
+
+  // Sweep: dragging the divider moves the split position.
+  const before = await divider.evaluate((el) => el.style.left);
+  const box = await divider.boundingBox();
+  if (!box) throw new Error("divider has no bounding box");
+  await page.mouse.move(box.x + box.width / 2, box.y + 300);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 180, box.y + 300, {
+    steps: 6,
+  });
+  await page.mouse.up();
+  const after = await divider.evaluate((el) => el.style.left);
+  expect(after).not.toBe(before);
+
+  // Disabling cleans the divider up.
+  await button.click();
+  await expect(button).toHaveAttribute("aria-pressed", "false");
+  await expect(divider).not.toHaveClass(/is-visible/);
+
+  // Static layers have no time dimension — compare must refuse.
+  await page.locator(".layer-selector__trigger").click();
+  await page.locator(".layer-selector__option", { hasText: "Terrain" }).click();
+  await button.click();
+  await expect(button).toHaveAttribute("aria-pressed", "false");
+  await expect(divider).not.toHaveClass(/is-visible/);
+});
+
 declare global {
   interface Window {
     __APP_READY__?: boolean;
