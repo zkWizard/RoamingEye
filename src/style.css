@@ -1689,3 +1689,22 @@ body {
 .loader__fallback a {
   color: var(--accent);
 }
+
+/* Imagery-failure retry, next to the status line (issue #88) */
+.status-retry {
+  align-self: center; /* the controls panel is a column flex */
+  margin-left: 0.5rem;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-strong);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  cursor: pointer;
+}
+
+.status-retry[hidden] {
+  display: none;
+}

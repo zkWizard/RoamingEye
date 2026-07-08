@@ -398,6 +398,28 @@ test("restores the last session; a URL hash still wins", async ({ page }) => {
   );
 });
 
+test("imagery failure offers a retry that recovers", async ({ page }) => {
+  // Kill GIBS, then step to a month whose sharp texture isn't loaded yet.
+  await page.route("**gibs.earthdata.nasa.gov**", (route) => route.abort());
+  await page.locator(".timeline__track").focus();
+  await page.keyboard.press("ArrowLeft");
+
+  const retry = page.locator(".status-retry");
+  await expect(retry).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator("#timeline-status")).toContainText(
+    "Imagery failed to load"
+  );
+
+  // Network back: retry re-drives the pipeline and the failure clears.
+  await page.unroute("**gibs.earthdata.nasa.gov**");
+  await retry.click();
+  await expect(retry).toBeHidden();
+  await expect(page.locator("#timeline-status")).not.toContainText(
+    "Imagery failed to load",
+    { timeout: 20_000 }
+  );
+});
+
 declare global {
   interface Window {
     __APP_READY__?: boolean;
