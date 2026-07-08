@@ -285,11 +285,26 @@ const textures = new GlobeTextureManager(
         loaderEl?.classList.add("is-hidden");
       }
     },
-    onError: () => setStatus("No imagery for this month"),
+    onError: () => {
+      // Could be genuinely absent data or a GIBS hiccup — offer the retry.
+      setStatus("Imagery failed to load");
+      retryBtn.hidden = false;
+    },
   }
 );
 
+// Failed imagery is not cached (see GlobeTextureManager), so retrying is
+// simply re-driving the pipeline for the current view.
+const retryBtn = document.createElement("button");
+retryBtn.type = "button";
+retryBtn.className = "status-retry";
+retryBtn.textContent = "Retry";
+retryBtn.hidden = true;
+statusEl?.insertAdjacentElement("afterend", retryBtn);
+retryBtn.addEventListener("click", () => refreshGlobe());
+
 function refreshGlobe(): void {
+  retryBtn.hidden = true;
   textures.show(LAYERS[currentLayer], months[currentIndex]);
   hdTiles.setView(LAYERS[currentLayer], months[currentIndex]);
   updateProvenance();
