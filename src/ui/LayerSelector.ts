@@ -11,6 +11,9 @@ export class LayerSelector {
   private readonly current: HTMLElement;
   private readonly panel: HTMLElement;
   private readonly options = new Map<LayerId, HTMLButtonElement>();
+  /** Option buttons in visual order, for arrow-key navigation. */
+  private readonly optionOrder: HTMLButtonElement[] = [];
+  private selected: LayerId;
 
   constructor(
     container: HTMLElement,
@@ -18,6 +21,7 @@ export class LayerSelector {
     onChange: (id: LayerId) => void
   ) {
     this.container = container;
+    this.selected = initial;
     container.classList.add("layer-selector");
 
     this.trigger = document.createElement("button");
@@ -57,6 +61,7 @@ export class LayerSelector {
           onChange(id);
         });
         this.options.set(id, option);
+        this.optionOrder.push(option);
         group.appendChild(option);
       }
       this.panel.appendChild(group);
@@ -64,6 +69,33 @@ export class LayerSelector {
     container.appendChild(this.panel);
 
     this.trigger.addEventListener("click", () => this.toggle());
+    // Listbox keyboard support: arrows move focus (wrapping), Home/End jump;
+    // Enter/Space activate natively (the options are buttons), Esc closes.
+    this.panel.addEventListener("keydown", (e) => {
+      const current = this.optionOrder.indexOf(
+        document.activeElement as HTMLButtonElement
+      );
+      let next: number;
+      switch (e.key) {
+        case "ArrowDown":
+          next = (current + 1) % this.optionOrder.length;
+          break;
+        case "ArrowUp":
+          next =
+            (current - 1 + this.optionOrder.length) % this.optionOrder.length;
+          break;
+        case "Home":
+          next = 0;
+          break;
+        case "End":
+          next = this.optionOrder.length - 1;
+          break;
+        default:
+          return;
+      }
+      e.preventDefault();
+      this.optionOrder[next]?.focus();
+    });
     document.addEventListener("pointerdown", (e) => {
       if (!container.contains(e.target as Node)) this.close();
     });
@@ -82,6 +114,7 @@ export class LayerSelector {
   private open(): void {
     this.panel.classList.add("is-open");
     this.trigger.setAttribute("aria-expanded", "true");
+    this.options.get(this.selected)?.focus();
   }
 
   private close(): void {
@@ -90,6 +123,7 @@ export class LayerSelector {
   }
 
   private select(id: LayerId): void {
+    this.selected = id;
     this.current.textContent = LAYERS[id].label;
     for (const [optionId, button] of this.options) {
       button.setAttribute("aria-selected", String(optionId === id));

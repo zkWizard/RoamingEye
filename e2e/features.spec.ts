@@ -420,6 +420,20 @@ test("imagery failure offers a retry that recovers", async ({ page }) => {
   );
 });
 
+test("layer picker is arrow-key navigable", async ({ page }) => {
+  await page.locator(".layer-selector__trigger").click();
+  // The selected option (NDVI) receives focus on open.
+  await expect(
+    page.locator('.layer-selector__option[aria-selected="true"]')
+  ).toBeFocused();
+
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".layer-selector__current")).toHaveText(
+    "Vegetation (EVI)"
+  );
+});
+
 declare global {
   interface Window {
     __APP_READY__?: boolean;
