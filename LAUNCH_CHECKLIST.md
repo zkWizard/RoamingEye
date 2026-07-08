@@ -26,26 +26,25 @@ to the live site and the issue tracker.
       Social preview. Upload a 1280×640 raster (a globe screenshot with the
       banner tagline beats the default auto-card). This is what every HN/Reddit/
       social link unfurls to.
-- [ ] Cut a release with human-readable notes (the CHANGELOG has the material) —
-      "v1.0: the open Earth-observation globe" reads better than a commit list.
+- [x] Cut a release with human-readable notes — **v1.0.0 — the open
+      Earth-observation globe** (docs/launch/release-notes-v1.0.0.md).
 - [ ] Final smoke pass on the live site: cold load, mobile Safari + Android
       Chrome, scrub/zoom/probe/share-link round-trip. File anything broken as a
       `launch-blocker` label before announcing.
 
 ## 2. Launch assets
 
-- [ ] **Demo GIF/video ≤ 30 s** — the money shot is scrubbing years of NDVI, then
-      zooming into an HD study region. The README GIF works; a fresh capture at
-      current quality is worth an hour.
+- [x] **Demo GIF/video ≤ 30 s** — regenerated at v1.0.0 quality
+      (scripts/capture-demo.mjs → docs/demo.gif).
 - [ ] **Technical write-up** — working title: _"Streaming NASA's satellite archive
       to a 3D globe in the browser — with no backend."_ The RFC-001 story
       (screen-space-error quadtree, parent-tile fallback, GPU memory budget,
       all against a public WMTS endpoint) is genuinely interesting to graphics
       and infra people — exactly the contributors we want. Publish on a blog or
       dev.to; it doubles as the HN submission or first comment.
-- [ ] **Maintainer comment template** — a 3-sentence "what it is / what's open
-      data's ceiling / what help we want" reply, ready to paste when questions
-      repeat across channels.
+- [x] **Maintainer comment template** —
+      docs/launch/maintainer-comment-template.md, with per-channel closing
+      lines.
 
 ## 3. Channels (in order)
 
