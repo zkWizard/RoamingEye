@@ -198,7 +198,18 @@ describe("scales", () => {
   it("marks physical vs fraction-of-scale layers", () => {
     expect(PROBE_SCALES.ndvi.calibrated).toBe(true);
     expect(PROBE_SCALES.snow.calibrated).toBe(true);
-    expect(PROBE_SCALES.lst.calibrated).toBe(false);
+    // Calibrated from GIBS colormap metadata (see lib/colormap.ts).
+    expect(PROBE_SCALES.lst.calibrated).toBe(true);
+    expect(PROBE_SCALES.lst.unit).toBe("K");
+    // Terrain's shaded-relief legend stays inversion-ambiguous — honest
+    // fraction-of-scale, no fake Kelvin.
+    expect(PROBE_SCALES.terrain.calibrated).toBe(false);
+  });
+
+  it("maps calibrated physical scales onto real values", () => {
+    // Mid-ramp air temperature: 220 + 0.5 × (310 − 220) = 265 K.
+    expect(scaleValue(0.5, PROBE_SCALES.airtemp)).toBe(265);
+    expect(formatProbeValue(scaleValue(0.5, PROBE_SCALES.airtemp), PROBE_SCALES.airtemp)).toBe("265 K");
   });
 
   it("formats values with the unit", () => {

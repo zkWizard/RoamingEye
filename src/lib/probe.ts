@@ -293,6 +293,14 @@ const scaleFraction = (label: string): ProbeScale => ({
   calibrated: false,
 });
 
+/**
+ * Physical ranges below were derived 2026-07-09 from the colormap metadata
+ * GIBS itself renders the tiles with (colormaps/v1.3 — see lib/colormap.ts),
+ * every ramp verified linear-in-value (worst deviation 0.16%, SST).
+ * Precipitation converts GIBS's kg/m²/s to mm/day (SCALE_CONVERSIONS).
+ * The weekly contract suite re-derives all six from the live documents, so
+ * an upstream palette change fails CI instead of silently mis-scaling.
+ */
 export const PROBE_SCALES: Record<LayerId, ProbeScale> = {
   ndvi: { label: "NDVI (approx.)", min: 0, max: 1, unit: "", calibrated: true },
   evi: { label: "EVI (approx.)", min: 0, max: 1, unit: "", calibrated: true },
@@ -303,12 +311,48 @@ export const PROBE_SCALES: Record<LayerId, ProbeScale> = {
     unit: "%",
     calibrated: true,
   },
-  lst: scaleFraction("Land surface temp (fraction of scale, cold → hot)"),
-  airtemp: scaleFraction("Air temp (fraction of scale, cold → hot)"),
-  sst: scaleFraction("Sea surface temp (fraction of scale, polar → tropical)"),
-  precip: scaleFraction("Precipitation (fraction of scale, dry → wet)"),
-  soil: scaleFraction("Soil moisture (fraction of scale, dry → saturated)"),
-  aerosol: scaleFraction("Aerosol optical depth (fraction of scale)"),
+  lst: {
+    label: "Land surface temp (approx.)",
+    min: 200,
+    max: 350,
+    unit: "K",
+    calibrated: true,
+  },
+  airtemp: {
+    label: "Air temp 2 m (approx.)",
+    min: 220,
+    max: 310,
+    unit: "K",
+    calibrated: true,
+  },
+  sst: {
+    label: "Sea surface temp (approx.)",
+    min: 0,
+    max: 32,
+    unit: "°C",
+    calibrated: true,
+  },
+  precip: {
+    label: "Precipitation rate (approx.)",
+    min: 0,
+    max: 43.2, // 5.0e-4 kg/m²/s × 86 400 s/day
+    unit: "mm/day",
+    calibrated: true,
+  },
+  soil: {
+    label: "Soil moisture (approx.)",
+    min: 0,
+    max: 50,
+    unit: "kg/m²",
+    calibrated: true,
+  },
+  aerosol: {
+    label: "Aerosol optical depth 550 nm (approx.)",
+    min: 0,
+    max: 0.9,
+    unit: "",
+    calibrated: true,
+  },
   // Categorical — the probe declines to chart it (see main.ts), but the
   // record stays exhaustive per LayerId.
   landcover: scaleFraction("Land-cover class (categorical)"),
