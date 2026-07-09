@@ -57,7 +57,7 @@ import { StudyRegion } from "./scene/StudyRegion";
 import { StudyChip } from "./ui/StudyChip";
 import { ProvidersPage } from "./ui/ProvidersPage";
 import { ShortcutsOverlay } from "./ui/ShortcutsOverlay";
-import { loadCountryIndex } from "./lib/countryIndex";
+import { loadAdmin1Index, loadCountryIndex } from "./lib/countryIndex";
 import { flyToDistance, rotateSpeedForDistance } from "./lib/navigation";
 import { legalLonBounds, regionAround } from "./lib/imagery";
 
@@ -232,7 +232,17 @@ if (tooltipEl) {
   inspector.addPointSource(() => citiesOverlay.hoverSource);
   inspector.addPointSource(() => volcanoesOverlay.hoverSource);
   loadCountryIndex()
-    .then((index) => inspector.setCountryIndex(index))
+    .then((index) => {
+      inspector.setCountryIndex(index);
+      // Admin-1 (province/state) is ~1.3 MB gzipped — load it only after the
+      // small country index has landed, so it never competes with boot. The
+      // hover upgrades in place: coords → country → province, country.
+      loadAdmin1Index()
+        .then((admin1) => inspector.setAdmin1Index(admin1))
+        .catch((err) =>
+          console.warn("RoamingEye: admin-1 index failed to load", err)
+        );
+    })
     .catch((err) =>
       console.warn("RoamingEye: country index failed to load", err)
     );

@@ -1,6 +1,10 @@
 import * as THREE from "three";
 import { vector3ToLatLng, formatLatLng } from "../lib/geo";
-import type { CountryIndex } from "../lib/countryIndex";
+import type {
+  Admin1Region,
+  CountryIndex,
+  RegionIndex,
+} from "../lib/countryIndex";
 import type { HoverPointSource } from "../overlays/types";
 
 // Hit radius around a point marker, in world units — a little wider than the
@@ -24,6 +28,7 @@ export class HoverInspector {
   private readonly ndc = new THREE.Vector2();
   private readonly sources: Array<() => HoverPointSource | undefined> = [];
   private countryIndex: CountryIndex | undefined;
+  private admin1Index: RegionIndex<Admin1Region> | undefined;
   private pointerDown = false;
 
   constructor(
@@ -46,6 +51,10 @@ export class HoverInspector {
 
   setCountryIndex(index: CountryIndex): void {
     this.countryIndex = index;
+  }
+
+  setAdmin1Index(index: RegionIndex<Admin1Region>): void {
+    this.admin1Index = index;
   }
 
   /**
@@ -77,8 +86,17 @@ export class HoverInspector {
 
     const point = vector3ToLatLng(hit.point);
     let text = formatLatLng(point);
-    const country = this.countryIndex?.lookup(point.lat, point.lon);
-    if (country) text += ` · ${country}`;
+    // Prefer the province/state ("Ontario, Canada") — first-level admin is
+    // how field sites and records are organized; fall back to the country
+    // alone where admin-1 has no coverage (ocean, some microstates), and to
+    // bare coordinates until the indexes lazy-load.
+    const admin1 = this.admin1Index?.lookup(point.lat, point.lon);
+    if (admin1) {
+      text += ` · ${admin1.name}, ${admin1.country}`;
+    } else {
+      const country = this.countryIndex?.lookup(point.lat, point.lon);
+      if (country) text += ` · ${country}`;
+    }
 
     this.show(text, event.clientX, event.clientY);
   }
