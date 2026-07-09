@@ -3,7 +3,9 @@ import { latLngToVector3, vector3ToLatLng } from "../lib/geo";
 import {
   ancestorOf,
   ancestorUvRect,
+  clampedTileBounds,
   gibsWmtsTileUrl,
+  meshSegmentsForSpan,
   selectLodTiles,
   tileBounds,
   textureBudgetBytes,
@@ -44,12 +46,12 @@ import { GLOBE_RADIUS, type MapOverlay } from "./types";
  * and a generation counter drops stale loads when the layer changes.
  */
 
-/** Tiles only activate when finer than the base texture (level 2 ≈ 2048 px). */
-const MIN_LEVEL = 3;
+/** Tiles only activate when finer than the base texture: the 2048-px globe
+ * is 0.176°/px, and level 2 of the GIBS pyramid (0.141°/px) is the first
+ * level sharper than that. */
+const MIN_LEVEL = 2;
 /** Concurrent tile requests. */
 const MAX_INFLIGHT = 6;
-/** Curved-patch resolution; tiles at level ≥ 3 span ≤ 22.5°, so 12 is smooth. */
-const MESH_SEGMENTS = 12;
 /** Once a view settles, warm this many nearest tiles for the ±1 months. */
 const PREFETCH_TILES = 12;
 
@@ -342,30 +344,36 @@ export class TiledImageryOverlay implements MapOverlay {
     const akey = addrKey(tile);
     this.removeShown(akey);
 
-    const b = tileBounds(tile);
+    // Mesh vertices cover the on-globe (clamped) footprint; UV fractions are
+    // measured against the full grid-space tile, which automatically crops
+    // the padding of edge tiles that overhang +180°/−90° (see lib/tiles.ts).
+    const raw = tileBounds(tile);
+    const b = clampedTileBounds(tile);
     const rect = uvRect ?? { u0: 0, v0: 0, u1: 1, v1: 1 };
     const positions: number[] = [];
     const uvs: number[] = [];
     const indices: number[] = [];
     const radius = GLOBE_RADIUS * 1.0008; // above the globe, below line overlays
+    const segsU = meshSegmentsForSpan(b.east - b.west);
+    const segsV = meshSegmentsForSpan(b.north - b.south);
 
-    for (let i = 0; i <= MESH_SEGMENTS; i++) {
-      const v = i / MESH_SEGMENTS;
-      const lat = b.south + (b.north - b.south) * v;
-      for (let j = 0; j <= MESH_SEGMENTS; j++) {
-        const u = j / MESH_SEGMENTS;
-        const lon = b.west + (b.east - b.west) * u;
+    for (let i = 0; i <= segsV; i++) {
+      const lat = b.south + ((b.north - b.south) * i) / segsV;
+      const vFrac = (lat - raw.south) / (raw.north - raw.south);
+      for (let j = 0; j <= segsU; j++) {
+        const lon = b.west + ((b.east - b.west) * j) / segsU;
+        const uFrac = (lon - raw.west) / (raw.east - raw.west);
         const p = latLngToVector3(lat, lon, radius);
         positions.push(p.x, p.y, p.z);
         uvs.push(
-          rect.u0 + (rect.u1 - rect.u0) * u,
-          rect.v0 + (rect.v1 - rect.v0) * v
+          rect.u0 + (rect.u1 - rect.u0) * uFrac,
+          rect.v0 + (rect.v1 - rect.v0) * vFrac
         );
       }
     }
-    const stride = MESH_SEGMENTS + 1;
-    for (let i = 0; i < MESH_SEGMENTS; i++) {
-      for (let j = 0; j < MESH_SEGMENTS; j++) {
+    const stride = segsU + 1;
+    for (let i = 0; i < segsV; i++) {
+      for (let j = 0; j < segsU; j++) {
         const a = i * stride + j;
         indices.push(a, a + stride, a + 1, a + 1, a + stride, a + stride + 1);
       }

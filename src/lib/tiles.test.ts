@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  TILE_SIZE,
+  clampedTileBounds,
+  meshSegmentsForSpan,
   tileGridSize,
   tileSpanDegrees,
   degreesPerPixel,
@@ -21,42 +22,79 @@ import {
   type TileAddress,
 } from "./tiles";
 
-describe("tile grid", () => {
-  it("level 0 is 2×1 tiles of 180° each; every level doubles", () => {
-    expect(tileGridSize(0)).toEqual({ rows: 1, cols: 2 });
-    expect(tileGridSize(1)).toEqual({ rows: 2, cols: 4 });
-    expect(tileGridSize(6)).toEqual({ rows: 64, cols: 128 });
-    expect(tileSpanDegrees(0)).toBe(180);
-    expect(tileSpanDegrees(3)).toBe(22.5);
+describe("tile grid (the real GIBS EPSG:4326 pyramid — regression #141)", () => {
+  it("matches GetCapabilities: 0.5625°/px at level 0, halving per level", () => {
+    expect(degreesPerPixel(0)).toBe(0.5625);
+    expect(degreesPerPixel(5)).toBeCloseTo(0.5625 / 32);
+    expect(tileSpanDegrees(0)).toBe(288);
+    expect(tileSpanDegrees(3)).toBe(36);
+    expect(tileSpanDegrees(6)).toBe(4.5);
   });
 
-  it("resolution halves per level", () => {
-    expect(degreesPerPixel(0)).toBeCloseTo(180 / TILE_SIZE);
-    expect(degreesPerPixel(5)).toBeCloseTo(180 / 32 / TILE_SIZE);
+  it("matrices are the capabilities' ceil-covers, not a power-of-two quadtree", () => {
+    // Verbatim from the live 1km TileMatrixSet (MatrixWidth×MatrixHeight).
+    expect(tileGridSize(0)).toEqual({ rows: 1, cols: 2 });
+    expect(tileGridSize(1)).toEqual({ rows: 2, cols: 3 });
+    expect(tileGridSize(2)).toEqual({ rows: 3, cols: 5 });
+    expect(tileGridSize(3)).toEqual({ rows: 5, cols: 10 });
+    expect(tileGridSize(4)).toEqual({ rows: 10, cols: 20 });
+    expect(tileGridSize(6)).toEqual({ rows: 40, cols: 80 });
   });
 });
 
 describe("tileBounds", () => {
-  it("level 0: the two root tiles split the map at the prime meridian", () => {
+  it("grid space is anchored at −180/+90; edge tiles overhang the map", () => {
     expect(tileBounds({ level: 0, row: 0, col: 0 })).toEqual({
       north: 90,
-      south: -90,
+      south: -198, // overhangs the south — padding in the imagery
       west: -180,
-      east: 0,
+      east: 108,
     });
     expect(tileBounds({ level: 0, row: 0, col: 1 })).toEqual({
       north: 90,
-      south: -90,
-      west: 0,
-      east: 180,
+      south: -198,
+      west: 108,
+      east: 396, // overhangs the east
     });
   });
 
+  it("clampedTileBounds trims the overhang to the world", () => {
+    expect(clampedTileBounds({ level: 0, row: 0, col: 1 })).toEqual({
+      north: 90,
+      south: -90,
+      west: 108,
+      east: 180,
+    });
+    // Level 2 bottom row: raw south 90 − 3·72 = −126 → clamped to the pole.
+    expect(clampedTileBounds({ level: 2, row: 2, col: 0 }).south).toBe(-90);
+    // Interior tiles are untouched.
+    const interior = { level: 4, row: 5, col: 7 };
+    expect(clampedTileBounds(interior)).toEqual(tileBounds(interior));
+  });
+
   it("row 0 is the northernmost row (WMTS convention)", () => {
-    const top = tileBounds({ level: 2, row: 0, col: 0 });
-    expect(top.north).toBe(90);
-    const bottom = tileBounds({ level: 2, row: 3, col: 0 });
-    expect(bottom.south).toBe(-90);
+    expect(tileBounds({ level: 2, row: 0, col: 0 }).north).toBe(90);
+  });
+
+  it("pins the empirically verified fixtures from the #141 diagnosis", () => {
+    // Fetching 1km/3/2/5 from GIBS returns the Congo Basin: exactly
+    // (18°N–18°S, 0°–36°E) — a 36°-span level-3 tile.
+    expect(clampedTileBounds({ level: 3, row: 2, col: 5 })).toEqual({
+      north: 18,
+      south: -18,
+      west: 0,
+      east: 36,
+    });
+    // The Canadian Maritimes point that exposed the bug now addresses a tile
+    // that actually contains it.
+    const tile = tileForLatLon(42.5, -60, 3);
+    expect(tile).toEqual({ level: 3, row: 1, col: 3 });
+    expect(tileBounds(tile)).toEqual({
+      north: 54,
+      south: 18,
+      west: -72,
+      east: -36,
+    });
   });
 });
 
@@ -94,9 +132,18 @@ describe("tileForLatLon", () => {
   });
 });
 
+describe("meshSegmentsForSpan", () => {
+  it("scales with span (~2°/segment) within sane bounds", () => {
+    expect(meshSegmentsForSpan(72)).toBe(36); // level-2 tile
+    expect(meshSegmentsForSpan(36)).toBe(18);
+    expect(meshSegmentsForSpan(4.5)).toBe(8); // floor: tiny tiles stay cheap
+    expect(meshSegmentsForSpan(288)).toBe(48); // cap
+  });
+});
+
 describe("levelForDegPerPixel", () => {
   it("picks the coarsest level meeting the target", () => {
-    // Level 0 texel = 0.3516°: anything coarser needs level 0.
+    // Level 0 texel = 0.5625°: anything coarser needs level 0.
     expect(levelForDegPerPixel(1, 6)).toBe(0);
     expect(levelForDegPerPixel(degreesPerPixel(3), 6)).toBe(3);
     // Slightly finer than level 3 → level 4.
