@@ -1,16 +1,25 @@
 import type { Bounds } from "./imagery";
 
 /**
- * WMTS tile math for RFC-001 (tiled imagery streaming), milestone 1.
+ * WMTS tile math for RFC-001 (tiled imagery streaming).
  *
  * NASA GIBS serves EPSG:4326 (geographic) tiles in named tile-matrix sets
- * ("2km", "1km", "500m", … "15.625m"). The scheme: level 0 is 2 columns × 1
- * row of 512-px tiles covering the whole ±90°/±180° map (each tile spans
- * 180°×180°); every level doubles both counts. Row 0 is the northernmost row
- * (WMTS convention), column 0 starts at -180°.
+ * ("2km", "1km", "500m", … "31.25m"), all sharing one pyramid defined by
+ * their GetCapabilities: **0.5625°/pixel at level 0**, halving per level, in
+ * 512-px tiles — so a tile spans 288°/2^level. Matrices are the minimal
+ * ceil-cover of the ±180°/±90° extent (level 0: 2×1, level 1: 3×2, level 2:
+ * 5×3, level 3: 10×5, then doubling), which means **edge tiles overhang the
+ * map**: the rightmost column and bottom row extend past +180°/−90° and are
+ * padded in the imagery. Row 0 is the northernmost row (WMTS convention),
+ * column 0 starts at −180°; the grid origin is the −180/+90 corner.
+ *
+ * This was originally (and wrongly) coded as a clean power-of-two quadtree
+ * of 180°-rooted tiles — every draped tile carried imagery from the wrong
+ * place (#141). The convention here is verified level-by-level against the
+ * live capabilities by contract/gibs-catalog.contract.test.ts.
  *
  * Everything here is pure and render-free (see tiles.test.ts); the mesh /
- * texture plumbing lives in overlays/TiledImageryOverlay.ts (milestone 2).
+ * texture plumbing lives in overlays/TiledImageryOverlay.ts.
  */
 
 export const TILE_SIZE = 512;
@@ -31,28 +40,63 @@ export interface WmtsConfig {
   ext: "png" | "jpg";
 }
 
-/** Rows/columns in the tile grid at a level (cols = 2·rows). */
-export function tileGridSize(level: number): { rows: number; cols: number } {
-  const rows = 2 ** level;
-  return { rows, cols: rows * 2 };
-}
+/**
+ * Ground resolution at level 0 of every GIBS EPSG:4326 matrix set, from the
+ * live GetCapabilities: ScaleDenominator 223 632 905.6 × 0.28 mm/px ÷
+ * 111 319.49 m/° = 0.5625 °/px. Do not "simplify" to a 180°-rooted quadtree —
+ * that was the #141 bug, and the contract test pins this pyramid to GIBS.
+ */
+export const LEVEL0_DEG_PER_PIXEL = 0.5625;
 
-/** Degrees of latitude/longitude spanned by one tile edge at a level. */
-export function tileSpanDegrees(level: number): number {
-  return 180 / 2 ** level;
-}
-
-/** Ground resolution of a tile texel, in degrees per pixel. */
+/** Ground resolution of a tile texel at a level, in degrees per pixel. */
 export function degreesPerPixel(level: number): number {
-  return tileSpanDegrees(level) / TILE_SIZE;
+  return LEVEL0_DEG_PER_PIXEL / 2 ** level;
 }
 
-/** Geographic bounds of a tile. */
+/** Degrees spanned by one tile edge at a level (288° at level 0). */
+export function tileSpanDegrees(level: number): number {
+  return TILE_SIZE * degreesPerPixel(level);
+}
+
+/**
+ * Rows/columns in the tile grid at a level: the minimal ceil-cover of the
+ * ±180°/±90° extent (2×1, 3×2, 5×3, 10×5, 20×10, …). Edge tiles overhang.
+ */
+export function tileGridSize(level: number): { rows: number; cols: number } {
+  const span = tileSpanDegrees(level);
+  return { rows: Math.ceil(180 / span), cols: Math.ceil(360 / span) };
+}
+
+/**
+ * Geographic bounds of a tile in grid space — the last column/row overhang
+ * past +180°/−90° (that part of the imagery is padding). Use
+ * {@link clampedTileBounds} for the on-globe footprint.
+ */
 export function tileBounds({ level, row, col }: TileAddress): Bounds {
   const span = tileSpanDegrees(level);
   const north = 90 - row * span;
   const west = -180 + col * span;
   return { north, south: north - span, west, east: west + span };
+}
+
+/** A tile's bounds intersected with the world — what actually drapes. */
+export function clampedTileBounds(tile: TileAddress): Bounds {
+  const b = tileBounds(tile);
+  return {
+    north: b.north,
+    south: Math.max(-90, b.south),
+    west: b.west,
+    east: Math.min(180, b.east),
+  };
+}
+
+/**
+ * Mesh resolution for a curved patch of the given angular span: ~2° of arc
+ * per segment keeps the chord sag below the drape offset (no z-fighting with
+ * the globe), bounded so tiny tiles stay cheap and huge ones stay sane.
+ */
+export function meshSegmentsForSpan(spanDeg: number): number {
+  return Math.min(48, Math.max(8, Math.ceil(spanDeg / 2)));
 }
 
 /** Wrap any longitude into [-180, 180). */
@@ -226,7 +270,8 @@ export function angleToTileRad(
   lon: number,
   tile: TileAddress
 ): number {
-  const b = tileBounds(tile);
+  // Clamped: an edge tile's overhang is padding, not surface to measure to.
+  const b = clampedTileBounds(tile);
   const nearLat = Math.min(b.north, Math.max(b.south, lat));
   let best = Infinity;
   for (const candidate of [lon, lon - 360, lon + 360]) {
@@ -296,19 +341,31 @@ export function selectLodTiles(
     const gamma = angleToTileRad(view.lat, view.lon, tile);
     if (gamma > visibleRad) return; // beyond the limb or the frustum — cull
     if (needsFiner(tile, gamma)) {
+      // Spans halve and grids share the −180/+90 origin, so children are the
+      // 2×2 block at (2r, 2c) — but the ceil-cover child grid can be smaller
+      // than 2× the parent's (3 cols → 5, not 6): children outside it would
+      // be entirely off-world, so they're skipped.
       const { level, row, col } = tile;
-      visit({ level: level + 1, row: row * 2, col: col * 2 });
-      visit({ level: level + 1, row: row * 2, col: col * 2 + 1 });
-      visit({ level: level + 1, row: row * 2 + 1, col: col * 2 });
-      visit({ level: level + 1, row: row * 2 + 1, col: col * 2 + 1 });
+      const child = tileGridSize(level + 1);
+      for (const r of [row * 2, row * 2 + 1]) {
+        for (const c of [col * 2, col * 2 + 1]) {
+          if (r < child.rows && c < child.cols) {
+            visit({ level: level + 1, row: r, col: c });
+          }
+        }
+      }
       return;
     }
     // A leaf. Coarser than minLevel means the base texture already matches
     // this sharpness — draw nothing here.
     if (tile.level >= minLevel) emitted.push({ tile, gamma });
   };
-  visit({ level: 0, row: 0, col: 0 });
-  visit({ level: 0, row: 0, col: 1 });
+  const roots = tileGridSize(0);
+  for (let row = 0; row < roots.rows; row++) {
+    for (let col = 0; col < roots.cols; col++) {
+      visit({ level: 0, row, col });
+    }
+  }
 
   emitted.sort((a, b) => a.gamma - b.gamma);
   return emitted.slice(0, cap).map((e) => e.tile);
