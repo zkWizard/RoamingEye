@@ -6,11 +6,12 @@ import {
 } from "../lib/timeline";
 import { LEGENDS } from "../lib/legend";
 import {
+  areaWeight,
   buildColormapLut,
   invertColormap,
   latLonToPixel,
   medianValid,
-  meanValid,
+  weightedMeanValid,
   gridPoints,
   regionGridSize,
   type Rgb,
@@ -37,6 +38,13 @@ import type { LayerId } from "../lib/timeline";
  */
 
 export type ProbeMode = "point" | "area" | "region";
+
+/** An image pixel to sample plus the geographic area weight it represents. */
+interface WeightedPixel {
+  x: number;
+  y: number;
+  weight: number;
+}
 
 /** Ground span of the area-mode box, in degrees of latitude. */
 export const AREA_SPAN_DEG = 1.0;
@@ -79,12 +87,14 @@ export class ProbeSampler {
     options: SampleOptions = {}
   ): Promise<(number | null)[]> {
     const { mode = "point", signal, onProgress, onValue } = options;
-    // Median for a tight pixel block; mean with a lower validity bar for a
-    // geographic grid (a coastal region box is still a valid region).
+    // Median for a tight pixel block; cos(lat) area-weighted mean with a
+    // lower validity bar for a geographic grid (a coastal region box is
+    // still a valid region).
     const combine =
       mode === "point"
         ? (inversions: (number | null)[]) => medianValid(inversions)
-        : (inversions: (number | null)[]) => meanValid(inversions);
+        : (inversions: (number | null)[], weights: number[]) =>
+            weightedMeanValid(inversions, weights);
     return this.run(layer, months, this.pixelsFor(mode, lat, lon), combine, {
       signal,
       onProgress,
@@ -108,7 +118,7 @@ export class ProbeSampler {
       layer,
       months,
       this.dedupedPixels(gridPoints(bounds, regionGridSize(bounds))),
-      (inversions) => meanValid(inversions),
+      (inversions, weights) => weightedMeanValid(inversions, weights),
       options
     );
   }
@@ -116,8 +126,11 @@ export class ProbeSampler {
   private async run(
     layer: LayerConfig,
     months: YearMonth[],
-    pixels: { x: number; y: number }[],
-    combine: (inversions: (number | null)[]) => number | null,
+    pixels: WeightedPixel[],
+    combine: (
+      inversions: (number | null)[],
+      weights: number[]
+    ) => number | null,
     options: Omit<SampleOptions, "mode">
   ): Promise<(number | null)[]> {
     const { signal, onProgress, onValue } = options;
@@ -171,43 +184,50 @@ export class ProbeSampler {
     mode: "point" | "area",
     lat: number,
     lon: number
-  ): { x: number; y: number }[] {
+  ): WeightedPixel[] {
     const { width, height } = this.imageSize;
     if (mode === "point") {
       const { x, y } = latLonToPixel(lat, lon, width, height);
-      const block: { x: number; y: number }[] = [];
+      const block: WeightedPixel[] = [];
       for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) block.push({ x: x + dx, y: y + dy });
+        for (let dx = -1; dx <= 1; dx++)
+          block.push({ x: x + dx, y: y + dy, weight: 1 });
       }
       return block;
     }
     return this.dedupedPixels(gridPoints(this.areaBounds(lat, lon), AREA_GRID));
   }
 
-  /** Geographic grid points → unique image pixels (coarse images collapse). */
+  /**
+   * Geographic grid points → unique image pixels. On coarse images several
+   * grid points collapse onto one pixel; that pixel then carries their summed
+   * cos(lat) area weight, so the dedup never distorts the region statistic.
+   */
   private dedupedPixels(
     points: { lat: number; lon: number }[]
-  ): { x: number; y: number }[] {
+  ): WeightedPixel[] {
     const { width, height } = this.imageSize;
-    const seen = new Set<string>();
-    const pixels: { x: number; y: number }[] = [];
+    const byPixel = new Map<string, WeightedPixel>();
     for (const p of points) {
       const px = latLonToPixel(p.lat, p.lon, width, height);
       const key = `${px.x}:${px.y}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      pixels.push(px);
+      const existing = byPixel.get(key);
+      if (existing) existing.weight += areaWeight(p.lat);
+      else byPixel.set(key, { ...px, weight: areaWeight(p.lat) });
     }
-    return pixels;
+    return [...byPixel.values()];
   }
 
   private async sampleMonth(
     layer: LayerConfig,
     ym: YearMonth,
-    pixels: { x: number; y: number }[],
+    pixels: WeightedPixel[],
     lut: Rgb[],
     ctx: CanvasRenderingContext2D,
-    combine: (inversions: (number | null)[]) => number | null,
+    combine: (
+      inversions: (number | null)[],
+      weights: number[]
+    ) => number | null,
     signal?: AbortSignal
   ): Promise<number | null> {
     let bitmap: ImageBitmap;
@@ -242,6 +262,9 @@ export class ProbeSampler {
         )
       );
     }
-    return combine(inversions);
+    return combine(
+      inversions,
+      pixels.map((p) => p.weight)
+    );
   }
 }
