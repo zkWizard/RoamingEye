@@ -21,6 +21,13 @@ export const HIRES_LAYER = {
   label: "High-res (HLS · 30 m)",
   wmsLayer: "HLS_S30_Nadir_BRDF_Adjusted_Reflectance",
   nativeMeters: 30,
+  // The cited source dataset (see DatasetRef in lib/timeline.ts).
+  dataset: {
+    shortName: "HLSS30",
+    version: "2.0",
+    doi: "10.5067/HLS/HLSS30.002",
+    title: "HLS Sentinel-2 Surface Reflectance Daily Global 30m",
+  },
 } as const;
 
 /**

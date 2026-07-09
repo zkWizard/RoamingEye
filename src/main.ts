@@ -743,6 +743,7 @@ if (probeEl) {
               {
                 layerLabel: layer.label,
                 wmsLayer: layer.wmsLayer,
+                dataset: layer.dataset,
                 lat,
                 lon,
                 scale,
@@ -826,6 +827,7 @@ if (probeEl) {
               {
                 layerLabel: layer.label,
                 wmsLayer: layer.wmsLayer,
+                dataset: layer.dataset,
                 lat: (bounds.south + bounds.north) / 2,
                 lon: (bounds.west + bounds.east) / 2,
                 scale,

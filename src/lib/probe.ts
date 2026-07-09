@@ -1,6 +1,6 @@
 import type { Bounds } from "./imagery";
 import type { LegendStop } from "./legend";
-import type { LayerId, YearMonth } from "./timeline";
+import type { DatasetRef, LayerId, YearMonth } from "./timeline";
 
 /**
  * Point time-series probe: the pure math for turning "the color of a pixel in
@@ -451,6 +451,8 @@ export function seriesStats(values: (number | null)[]): SeriesStats | null {
 export interface ProbeCsvMeta {
   layerLabel: string;
   wmsLayer: string;
+  /** The layer's cited source dataset (see DatasetRef in lib/timeline.ts). */
+  dataset?: DatasetRef;
   lat: number;
   lon: number;
   scale: ProbeScale;
@@ -516,6 +518,14 @@ export function buildProbeCsv(
     `# caveat: reconstructed from public imagery colors; use the underlying L3 product for measurement-grade work`,
     `# layer: ${meta.layerLabel}`,
     `# gibs_layer: ${meta.wmsLayer}`,
+    // Cite the data, not the picture: the rendered imagery derives from a
+    // dataset with its own DOI and citation (NASA data-use guidance).
+    ...(meta.dataset
+      ? [
+          `# data_product: ${meta.dataset.shortName} v${meta.dataset.version} — ${meta.dataset.title}`,
+          `# data_doi: https://doi.org/${meta.dataset.doi}`,
+        ]
+      : []),
     `# lat: ${meta.lat.toFixed(4)}`,
     `# lon: ${meta.lon.toFixed(4)}`,
     ...(region ? [`# region: ${region}`] : []),
