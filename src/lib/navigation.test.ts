@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   flyToDistance,
+  rotateSpeedForDistance,
+  BASE_ROTATE_SPEED,
   MIN_FLY_DISTANCE,
   MAX_FLY_DISTANCE,
 } from "./navigation";
@@ -27,5 +29,35 @@ describe("flyToDistance", () => {
     const huge = flyToDistance([-55, 70, -170, 170]); // continent-scale
     expect(huge).toBeLessThanOrEqual(MAX_FLY_DISTANCE);
     expect(huge).toBeGreaterThanOrEqual(MIN_FLY_DISTANCE);
+  });
+});
+
+describe("rotateSpeedForDistance", () => {
+  it("keeps the boot-view feel unchanged (calibration point)", () => {
+    expect(rotateSpeedForDistance(3.2)).toBeCloseTo(BASE_ROTATE_SPEED, 5);
+  });
+
+  it("slows dramatically at surface zoom (OrbitControls minDistance)", () => {
+    const surface = rotateSpeedForDistance(1.06);
+    expect(surface).toBeLessThan(BASE_ROTATE_SPEED / 30);
+    expect(surface).toBeGreaterThan(0); // never a dead stop
+  });
+
+  it("never gets faster than the old constant at far zoom-out", () => {
+    expect(rotateSpeedForDistance(4.5)).toBe(BASE_ROTATE_SPEED);
+  });
+
+  it("is monotonically non-decreasing with distance", () => {
+    let prev = 0;
+    for (let d = 1.06; d <= 4.5; d += 0.05) {
+      const speed = rotateSpeedForDistance(d);
+      expect(speed).toBeGreaterThanOrEqual(prev);
+      prev = speed;
+    }
+  });
+
+  it("floors gracefully for degenerate distances at/below the surface", () => {
+    expect(rotateSpeedForDistance(1)).toBe(0.01);
+    expect(rotateSpeedForDistance(0.5)).toBe(0.01);
   });
 });

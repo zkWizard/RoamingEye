@@ -58,7 +58,7 @@ import { StudyChip } from "./ui/StudyChip";
 import { ProvidersPage } from "./ui/ProvidersPage";
 import { ShortcutsOverlay } from "./ui/ShortcutsOverlay";
 import { loadCountryIndex } from "./lib/countryIndex";
-import { flyToDistance } from "./lib/navigation";
+import { flyToDistance, rotateSpeedForDistance } from "./lib/navigation";
 import { legalLonBounds, regionAround } from "./lib/imagery";
 
 /**
@@ -503,7 +503,9 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; // inertia for a natural "spin" feel
 controls.dampingFactor = 0.08;
 controls.enablePan = false; // keep the globe centred
-controls.rotateSpeed = 0.45;
+// rotateSpeed is re-derived from the camera altitude every frame (see the
+// render loop): constant speed flings the camera when zoomed to the surface.
+controls.rotateSpeed = rotateSpeedForDistance(camera.position.length());
 controls.zoomSpeed = 0.8;
 controls.minDistance = 1.06; // get right down to a study region's surface
 controls.maxDistance = 4.5; // furthest zoom-out
@@ -989,6 +991,9 @@ const renderFrame = (): void => {
   timer.update();
   const delta = timer.getDelta();
   flyer.update(delta);
+  // Drag speed follows the camera altitude, so the ground under the cursor
+  // tracks the drag at street-level zoom and orbit alike.
+  controls.rotateSpeed = rotateSpeedForDistance(camera.position.length());
   if (!flyer.isFlying) controls.update(); // flyer drives the camera while active
   // Flights move the camera without OrbitControls events — sync the shareable
   // hash once when a fly-to lands.
