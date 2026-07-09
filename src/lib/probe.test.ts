@@ -5,7 +5,8 @@ import {
   buildColormapLut,
   invertColormap,
   medianValid,
-  meanValid,
+  weightedMeanValid,
+  areaWeight,
   gridPoints,
   dragBounds,
   boundsUsable,
@@ -95,24 +96,48 @@ describe("medianValid", () => {
   });
 });
 
-describe("meanValid", () => {
-  it("averages the valid samples", () => {
-    expect(meanValid([0.2, 0.4, null, 0.6])).toBeCloseTo(0.4);
+describe("weightedMeanValid", () => {
+  const ones = (n: number): number[] => new Array<number>(n).fill(1);
+
+  it("averages the valid samples (uniform weights = plain mean)", () => {
+    expect(weightedMeanValid([0.2, 0.4, null, 0.6], ones(4))).toBeCloseTo(0.4);
   });
 
-  it("returns null when too little of the grid is data", () => {
-    // 1 of 8 valid < 25% — a nearly-all-ocean box.
-    expect(meanValid([0.5, null, null, null, null, null, null, null])).toBe(
-      null
-    );
-    // 2 of 8 = exactly 25% — coastal box still counts.
+  it("weights samples by their area share", () => {
+    // A value of 1 at the equator (weight cos 0° = 1) and 0 at 60°N
+    // (weight cos 60° = 0.5): the weighted mean is 1·1/(1+0.5) = 2/3 —
+    // not the unweighted 0.5.
     expect(
-      meanValid([0.5, 0.7, null, null, null, null, null, null])
+      weightedMeanValid([1, 0], [areaWeight(0), areaWeight(60)])
+    ).toBeCloseTo(2 / 3);
+  });
+
+  it("is invariant under weighting when all values are equal", () => {
+    expect(weightedMeanValid([0.3, 0.3, 0.3], [1, 0.5, 0.25])).toBeCloseTo(0.3);
+  });
+
+  it("matches the unweighted mean for an equator-symmetric grid", () => {
+    // Mirrored latitudes carry mirrored (equal) weights, so a +φ/−φ pair
+    // averages exactly as it would unweighted.
+    const w = [areaWeight(45), areaWeight(-45)];
+    expect(weightedMeanValid([0.2, 0.8], w)).toBeCloseTo(0.5);
+  });
+
+  it("gates on the valid *area* fraction, not the sample count", () => {
+    // Three of four samples valid — but they're tiny polar slivers holding
+    // 13% of the box's area. Count-based gating would pass this; area-based
+    // gating correctly refuses to call it a region mean.
+    expect(
+      weightedMeanValid([null, 0.5, 0.5, 0.5], [1.0, 0.05, 0.05, 0.05])
+    ).toBeNull();
+    // 2 of 8 equal-weight cells = exactly 25% — coastal box still counts.
+    expect(
+      weightedMeanValid([0.5, 0.7, null, null, null, null, null, null], ones(8))
     ).toBeCloseTo(0.6);
   });
 
   it("returns null for an empty grid", () => {
-    expect(meanValid([])).toBeNull();
+    expect(weightedMeanValid([], [])).toBeNull();
   });
 });
 
@@ -198,7 +223,23 @@ describe("scales", () => {
   it("marks physical vs fraction-of-scale layers", () => {
     expect(PROBE_SCALES.ndvi.calibrated).toBe(true);
     expect(PROBE_SCALES.snow.calibrated).toBe(true);
-    expect(PROBE_SCALES.lst.calibrated).toBe(false);
+    // Calibrated from GIBS colormap metadata (see lib/colormap.ts).
+    expect(PROBE_SCALES.lst.calibrated).toBe(true);
+    expect(PROBE_SCALES.lst.unit).toBe("K");
+    // Terrain's shaded-relief legend stays inversion-ambiguous — honest
+    // fraction-of-scale, no fake Kelvin.
+    expect(PROBE_SCALES.terrain.calibrated).toBe(false);
+  });
+
+  it("maps calibrated physical scales onto real values", () => {
+    // Mid-ramp air temperature: 220 + 0.5 × (310 − 220) = 265 K.
+    expect(scaleValue(0.5, PROBE_SCALES.airtemp)).toBe(265);
+    expect(
+      formatProbeValue(
+        scaleValue(0.5, PROBE_SCALES.airtemp),
+        PROBE_SCALES.airtemp
+      )
+    ).toBe("265 K");
   });
 
   it("formats values with the unit", () => {

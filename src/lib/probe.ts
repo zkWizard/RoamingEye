@@ -122,19 +122,39 @@ export function medianValid(
 }
 
 /**
- * Mean of the valid samples from an area grid — the region statistic. Null
- * when too little of the grid is data (a mostly-ocean box has no land story
- * to tell); the default tolerates coastal boxes (¼ land is enough).
+ * Area-weighted mean of the valid samples from a geographic grid — the region
+ * statistic. On an equal-angle lat/lon grid the area a sample represents
+ * shrinks with cos(latitude); averaging without weights biases every
+ * latitude-spanning box toward its poleward rows (the canonical gridded-data
+ * mistake — see xarray's area-weighted-temperature example). Null when too
+ * little of the grid's *area* is data (a mostly-ocean box has no land story
+ * to tell); the default tolerates coastal boxes (¼ of the area is enough).
  */
-export function meanValid(
+export function weightedMeanValid(
   values: (number | null)[],
+  weights: number[],
   minValidFraction = 0.25
 ): number | null {
-  const valid = values.filter((v): v is number => v !== null);
-  if (values.length === 0 || valid.length / values.length < minValidFraction) {
+  let totalWeight = 0;
+  let validWeight = 0;
+  let sum = 0;
+  for (let i = 0; i < values.length; i++) {
+    const w = weights[i];
+    totalWeight += w;
+    const v = values[i];
+    if (v === null) continue;
+    validWeight += w;
+    sum += v * w;
+  }
+  if (totalWeight <= 0 || validWeight / totalWeight < minValidFraction) {
     return null;
   }
-  return valid.reduce((sum, v) => sum + v, 0) / valid.length;
+  return sum / validWeight;
+}
+
+/** The cos(latitude) area weight of a sample on an equal-angle grid. */
+export function areaWeight(lat: number): number {
+  return Math.cos((lat * Math.PI) / 180);
 }
 
 // --- Drawn-region helpers ---------------------------------------------------------
@@ -293,6 +313,14 @@ const scaleFraction = (label: string): ProbeScale => ({
   calibrated: false,
 });
 
+/**
+ * Physical ranges below were derived 2026-07-09 from the colormap metadata
+ * GIBS itself renders the tiles with (colormaps/v1.3 — see lib/colormap.ts),
+ * every ramp verified linear-in-value (worst deviation 0.16%, SST).
+ * Precipitation converts GIBS's kg/m²/s to mm/day (SCALE_CONVERSIONS).
+ * The weekly contract suite re-derives all six from the live documents, so
+ * an upstream palette change fails CI instead of silently mis-scaling.
+ */
 export const PROBE_SCALES: Record<LayerId, ProbeScale> = {
   ndvi: { label: "NDVI (approx.)", min: 0, max: 1, unit: "", calibrated: true },
   evi: { label: "EVI (approx.)", min: 0, max: 1, unit: "", calibrated: true },
@@ -303,12 +331,48 @@ export const PROBE_SCALES: Record<LayerId, ProbeScale> = {
     unit: "%",
     calibrated: true,
   },
-  lst: scaleFraction("Land surface temp (fraction of scale, cold → hot)"),
-  airtemp: scaleFraction("Air temp (fraction of scale, cold → hot)"),
-  sst: scaleFraction("Sea surface temp (fraction of scale, polar → tropical)"),
-  precip: scaleFraction("Precipitation (fraction of scale, dry → wet)"),
-  soil: scaleFraction("Soil moisture (fraction of scale, dry → saturated)"),
-  aerosol: scaleFraction("Aerosol optical depth (fraction of scale)"),
+  lst: {
+    label: "Land surface temp (approx.)",
+    min: 200,
+    max: 350,
+    unit: "K",
+    calibrated: true,
+  },
+  airtemp: {
+    label: "Air temp 2 m (approx.)",
+    min: 220,
+    max: 310,
+    unit: "K",
+    calibrated: true,
+  },
+  sst: {
+    label: "Sea surface temp (approx.)",
+    min: 0,
+    max: 32,
+    unit: "°C",
+    calibrated: true,
+  },
+  precip: {
+    label: "Precipitation rate (approx.)",
+    min: 0,
+    max: 43.2, // 5.0e-4 kg/m²/s × 86 400 s/day
+    unit: "mm/day",
+    calibrated: true,
+  },
+  soil: {
+    label: "Soil moisture (approx.)",
+    min: 0,
+    max: 50,
+    unit: "kg/m²",
+    calibrated: true,
+  },
+  aerosol: {
+    label: "Aerosol optical depth 550 nm (approx.)",
+    min: 0,
+    max: 0.9,
+    unit: "",
+    calibrated: true,
+  },
   // Categorical — the probe declines to chart it (see main.ts), but the
   // record stays exhaustive per LayerId.
   landcover: scaleFraction("Land-cover class (categorical)"),
@@ -405,7 +469,9 @@ export function buildProbeCsv(
     : undefined;
   const lines = [
     `# RoamingEye ${meta.mode} probe — APPROXIMATE values`,
-    `# method: colormap inversion of NASA GIBS rendered imagery (${meta.imageWidth}x${meta.imageHeight} equirectangular GetMap)`,
+    `# method: colormap inversion of NASA GIBS rendered imagery (${meta.imageWidth}x${meta.imageHeight} equirectangular GetMap)${
+      meta.mode === "point" ? "" : "; area-weighted (cos latitude) grid mean"
+    }`,
     `# caveat: reconstructed from public imagery colors; use the underlying L3 product for measurement-grade work`,
     `# layer: ${meta.layerLabel}`,
     `# gibs_layer: ${meta.wmsLayer}`,
