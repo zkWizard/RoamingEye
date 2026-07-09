@@ -4,12 +4,38 @@ All notable changes to RoamingEye. This log captures milestones rather than
 every commit. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [1.0.1] — 2026-07-09
 
 Two post-launch robustness rounds aimed at the standards a shared research
 instrument is held to: policy citizenship, scientific correctness at the
 edges, quantified honesty — and, in round two (#122–#128, PRs #129–#136),
-adversarial verification of our own defenses.
+adversarial verification of our own defenses. Capped by a round of fixes
+from first-day user testing, including one critical correctness bug.
+
+### Fixed — user-testing round (issues #139, #141, #142)
+
+- **HD tiles draped imagery from the wrong place on Earth (critical)** —
+  since the feature first shipped, every HD tile carried imagery for the
+  wrong location: the tiler assumed a 180°-per-tile quadtree, but GIBS's
+  EPSG:4326 matrix sets are 0.5625°/px at level 0 (tiles span 288°/2^L)
+  with ceil-cover grids whose edge tiles overhang as padding. A displaced
+  Earth still looks like Earth, so it survived until users cross-checked
+  against the hover tooltip ("mousing over Africa shows Canada") and the
+  zoom-in transition (North America becoming South America). The pyramid is
+  now derived from GIBS's live GetCapabilities, the misaddressed tiles from
+  the diagnosis are pinned as regression tests, and a contract test verifies
+  our grid level-by-level against the live spec for all four matrix sets.
+  ([#143](https://github.com/zkWizard/RoamingEye/pull/143))
+- **Drag rotation scales with camera altitude** — rotating the globe while
+  zoomed in no longer flings the view across continents; drag speed tracks
+  the ground distance under the cursor.
+  ([#140](https://github.com/zkWizard/RoamingEye/pull/140))
+- **Hover readout names the province/state** — the tooltip now reports the
+  admin-1 region (e.g. "Ontario, Canada"), not just the country.
+  ([#144](https://github.com/zkWizard/RoamingEye/pull/144))
+- **Visual-suite stability** — the transient status line is excluded from
+  screenshots, with fresh baselines, so the advisory visual job stops
+  flaking. ([#145](https://github.com/zkWizard/RoamingEye/pull/145))
 
 ### Round 5 highlights (#122–#128)
 

@@ -12,8 +12,8 @@ authors:
 repository-code: "https://github.com/zkWizard/RoamingEye"
 url: "https://github.com/zkWizard/RoamingEye"
 license: MIT
-version: 1.0.0
-date-released: "2026-07-08"
+version: 1.0.1
+date-released: "2026-07-09"
 abstract: >-
   RoamingEye is a browser-based, open-source 3D Earth for exploring decades of
   monthly satellite observations — vegetation indices, temperatures, water,
