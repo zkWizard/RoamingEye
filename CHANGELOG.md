@@ -6,11 +6,42 @@ every commit. Format loosely follows
 
 ## [Unreleased]
 
-A post-launch robustness round (#105–#112, PRs #113–#120) aimed at the
-standards a shared research instrument is held to: policy citizenship,
-scientific correctness at the edges, and quantified honesty.
+Two post-launch robustness rounds aimed at the standards a shared research
+instrument is held to: policy citizenship, scientific correctness at the
+edges, quantified honesty — and, in round two (#122–#128, PRs #129–#136),
+adversarial verification of our own defenses.
 
-### Fixed
+### Round 5 highlights (#122–#128)
+
+- **Status-aware retries** — definitive 4xx (a 404 month is a normal answer,
+  asked ~550× per chart) fails fast without burning the retry budget;
+  `Retry-After` on 429/503 overrides our backoff, capped at 30 s.
+- **Property-based fuzzing** (fast-check) over every boundary parser — which
+  caught **two real bugs in its first hour**: `Number()` throwing on exotic
+  non-JSON values (feed parsers weren't total), and `#layer=toString`
+  escaping the catalog guard because `in` walks the prototype chain (fixed
+  with `Object.hasOwn`, both in URL hashes and stored sessions).
+- **Enforced accessibility** — axe-core WCAG 2.x A/AA scans across seven app
+  states in both themes; serious/critical violations fail CI. Its first run
+  caught a real one (the layer-picker listbox had no accessible name).
+- **Chaos e2e** — a seeded 60-action storm (scrub/switch/compare/draw/search
+  mid-everything) with settle-healthy assertions and deterministic replay
+  via `CHAOS_SEED`.
+- **Weekly GIBS catalog contract check** — every hard-coded layer identifier,
+  matrix set, and time dimension validated against NASA's live capabilities,
+  with an auto-filed drift issue.
+- **Visual-regression scaffolding (advisory)** — screenshot coverage of the
+  scientific chrome with the canvas masked and the timeline frozen; a
+  non-blocking CI job plus a baseline-update dispatch workflow.
+- **Supply-chain gates** — `lockfile-lint` (registry + HTTPS + integrity)
+  and a two-tier dependency-license allowlist enforcing "100% open".
+
+Unit tests 293 → 314; e2e 24 → 33 (chaos + 7 axe states); plus 12 live
+catalog contract assertions weekly.
+
+### Round 4 (#105–#112)
+
+#### Fixed
 
 - **Antimeridian correctness** — a study region drawn across the dateline
   (Fiji, the Bering Strait) now charts the few degrees you swept, not a
@@ -22,7 +53,7 @@ scientific correctness at the edges, and quantified honesty.
   HTML) is now caught at the fetch boundary with the actual exception message
   surfaced, instead of failing downstream as opaque decode errors.
 
-### Robustness
+#### Robustness
 
 - **Offline awareness** — a quiet banner while disconnected, sub-millisecond
   fast-fail instead of burning 45 s of retries per request, and automatic
