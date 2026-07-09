@@ -1,6 +1,7 @@
 import type { LayerId } from "./timeline";
 import { DEPTH_CLASS_COLORS } from "./earthquakes";
 import { ERUPTION_CLASS_COLORS } from "./volcanoes";
+import { PROBE_SCALES, formatProbeValue, scaleValue } from "./probe";
 
 /**
  * Legend model: what the colors on the globe mean, per data layer.
@@ -186,6 +187,24 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
 export function gradientCss(stops: LegendStop[]): string {
   const parts = stops.map((s) => `${s.color} ${Math.round(s.at * 100)}%`);
   return `linear-gradient(to right, ${parts.join(", ")})`;
+}
+
+/**
+ * Numeric ticks for a layer's gradient bar — min/mid/max in the layer's
+ * physical units, straight from PROBE_SCALES so the legend and the probe can
+ * never disagree about what a color is worth. Null for categorical layers
+ * (class swatches, not a gradient) and for uncalibrated ones (terrain):
+ * a color bar without trustworthy numbers shows none rather than fake ones.
+ */
+export function legendTicks(
+  id: LayerId
+): { min: string; mid: string; max: string } | null {
+  if (LEGENDS[id].kind === "classes") return null;
+  const scale = PROBE_SCALES[id];
+  if (!scale.calibrated) return null;
+  const fmt = (t: number): string =>
+    formatProbeValue(scaleValue(t, scale), scale);
+  return { min: fmt(0), mid: fmt(0.5), max: fmt(1) };
 }
 
 /** One swatch + label in an overlay's color key. */
