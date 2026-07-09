@@ -201,6 +201,33 @@ describe("feed parsers (USGS / GVP / Natural Earth)", () => {
     }
   );
 
+  it("survives exotic non-JSON values in numeric fields (regression)", () => {
+    // Caught by this suite's first CI run (seed 736499456): Number() THROWS
+    // on objects with no primitive conversion — the parsers weren't total.
+    const exotic = [Object.create(null) as unknown, Symbol("s"), () => 0];
+    for (const value of exotic) {
+      expect(
+        parseEarthquakeFeed({
+          features: [
+            {
+              geometry: { coordinates: [value, value, value] },
+              properties: { mag: value, time: value },
+            },
+          ],
+        })
+      ).toEqual([]);
+      expect(parseCityList([{ name: "X", lat: value, lon: value }])).toEqual(
+        []
+      );
+      expect(parseVolcanoList([{ name: "X", lat: value, lon: value }])).toEqual(
+        []
+      );
+      expect(
+        parseSession(JSON.stringify({ month: { year: 2024, month: 5 } }))
+      ).toEqual({ month: { year: 2024, month: 5 } });
+    }
+  });
+
   it("feeds shaped like the real thing survive field-level corruption", () => {
     // Structure-aware fuzzing: valid USGS envelopes with arbitrary values in
     // the fields — the "almost valid" inputs random JSON almost never hits.

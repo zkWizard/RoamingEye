@@ -20,6 +20,11 @@ export interface City {
  * Parse the slimmed city list, dropping malformed entries rather than
  * throwing — a partially usable file still renders.
  */
+/** Number() that cannot throw: exotic values (null-prototype objects,
+ * symbols) read as NaN instead of a TypeError — found by the fuzz suite. */
+const toNumber = (v: unknown): number =>
+  typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+
 export function parseCityList(json: unknown): City[] {
   if (!Array.isArray(json)) return [];
 
@@ -27,8 +32,8 @@ export function parseCityList(json: unknown): City[] {
   for (const entry of json as Record<string, unknown>[]) {
     if (typeof entry !== "object" || entry === null) continue;
     const name = entry.name;
-    const lat = Number(entry.lat);
-    const lon = Number(entry.lon);
+    const lat = toNumber(entry.lat);
+    const lon = toNumber(entry.lon);
     if (
       typeof name !== "string" ||
       name.length === 0 ||
