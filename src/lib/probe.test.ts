@@ -9,6 +9,8 @@ import {
   gridPoints,
   dragBounds,
   boundsUsable,
+  crossesAntimeridian,
+  normalizeLon,
   regionGridSize,
   monthlyClimatology,
   anomalySeries,
@@ -128,6 +130,20 @@ describe("gridPoints", () => {
     }
     // First cell center sits half a cell in from the corner.
     expect(points[0]).toEqual({ lat: 0.5, lon: 10.5 });
+  });
+
+  it("normalizes longitudes for a box crossing the antimeridian", () => {
+    // A 4°-wide Fiji box in continuous longitudes: 178 → 182.
+    const seam = { south: -18, north: -14, west: 178, east: 182 };
+    const points = gridPoints(seam, 4);
+    expect(points).toHaveLength(16);
+    const lons = [...new Set(points.map((p) => p.lon))].sort((a, b) => a - b);
+    // Cell centers 178.5, 179.5, 180.5→-179.5, 181.5→-178.5 — both sides of
+    // the seam, all in [-180, 180), and symmetric with the equivalent box at
+    // Greenwich (the pixel math sees ordinary longitudes).
+    expect(lons).toEqual([-179.5, -178.5, 178.5, 179.5]);
+    const greenwich = gridPoints({ ...seam, west: -2, east: 2 }, 4);
+    expect(greenwich.map((p) => p.lat)).toEqual(points.map((p) => p.lat));
   });
 });
 
@@ -283,6 +299,22 @@ describe("buildProbeCsv", () => {
       "# region: -4.000,-63.000,-3.000,-62.000 (S,W,N,E)"
     );
   });
+
+  it("marks an antimeridian-crossing region unambiguously", () => {
+    const seamCsv = buildProbeCsv(
+      {
+        ...meta,
+        mode: "region" as const,
+        sampledBounds: { south: -18, north: -14, west: 178, east: 182 },
+      },
+      [{ year: 2001, month: 1 }],
+      [0.5]
+    );
+    // Normalized longitudes, west > east — the RFC 7946 bbox convention.
+    expect(seamCsv).toContain(
+      "# region: -18.000,178.000,-14.000,-178.000 (S,W,N,E) — crosses the antimeridian (west > east)"
+    );
+  });
 });
 
 describe("dragBounds", () => {
@@ -300,6 +332,34 @@ describe("dragBounds", () => {
     const b = dragBounds({ lat: -89.9, lon: 0 }, { lat: 89.9, lon: 10 });
     expect(b.south).toBe(-85);
     expect(b.north).toBe(85);
+  });
+
+  it("takes the short arc across the antimeridian", () => {
+    // A drag from 178°E across the seam to 178°W is a 4° box, not 356°.
+    const b = dragBounds({ lat: -18, lon: 178 }, { lat: -16, lon: -178 });
+    expect(b).toEqual({ south: -18, north: -16, west: 178, east: 182 });
+    // Direction-independent, like the non-crossing case.
+    expect(dragBounds({ lat: -16, lon: -178 }, { lat: -18, lon: 178 })).toEqual(
+      b
+    );
+    expect(crossesAntimeridian(b)).toBe(true);
+  });
+
+  it("leaves wide but non-crossing drags alone", () => {
+    const b = dragBounds({ lat: 0, lon: -80 }, { lat: 10, lon: 80 });
+    expect(b).toEqual({ south: 0, north: 10, west: -80, east: 80 });
+    expect(crossesAntimeridian(b)).toBe(false);
+  });
+});
+
+describe("normalizeLon", () => {
+  it("wraps continuous longitudes into [-180, 180)", () => {
+    expect(normalizeLon(181)).toBe(-179);
+    expect(normalizeLon(-181)).toBe(179);
+    expect(normalizeLon(360)).toBe(0);
+    expect(normalizeLon(540)).toBe(-180);
+    expect(normalizeLon(179.5)).toBe(179.5);
+    expect(normalizeLon(-180)).toBe(-180);
   });
 });
 

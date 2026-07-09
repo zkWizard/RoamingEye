@@ -1664,6 +1664,26 @@ body {
   height: 14px;
 }
 
+/* Offline banner (issue #106) — quiet and persistent, above the timeline */
+.offline-banner {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 11;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.78rem;
+  color: var(--fg);
+  background: var(--panel-bg-strong);
+  border: 1px solid var(--warn-border);
+  border-radius: 999px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.offline-banner[hidden] {
+  display: none;
+}
+
 /* Search status row: failure / no-matches feedback (issue #74) */
 .search__message {
   padding: 0.55rem 0.75rem;
