@@ -86,6 +86,12 @@ near plane is small (0.01) so you can get right down to the surface.
 - **E2E (Playwright):** browser smoke (page loads, WebGL context, no console
   errors) plus feature checks (toolbar, hover). Search and high-res imagery hit
   third-party services and are verified manually rather than gated in CI.
+- **Accessibility (axe-core):** every meaningful UI state (base, picker,
+  probe, modals, compare — both themes) is scanned against the WCAG 2.x
+  A/AA rule tags in the e2e job; serious/critical violations fail CI,
+  moderate/minor log as advisory. The WebGL canvas is excluded (axe can't
+  see into a pixel buffer); its accessible equivalents — coordinate
+  readout, provenance line — are scanned DOM.
 
 ## Operations
 
