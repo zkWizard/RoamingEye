@@ -1,10 +1,17 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from "vite";
+import pkg from "./package.json";
 
 export default defineConfig({
   // Serve from a subpath when deploying (e.g. GitHub Pages project sites live
   // at /<repo>/). Dev and tests keep the root default.
   base: process.env.DEPLOY_BASE || "/",
+  // The running app knows its own version — stamped into CSV/PNG exports so
+  // research artifacts stay traceable to the software that produced them
+  // (FAIR4RS R1.2). Single source of truth: package.json.
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   server: {
     host: true, // expose on the local network so you can test on a phone
     port: 5173,

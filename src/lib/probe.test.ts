@@ -21,6 +21,7 @@ import {
   PROBE_SCALES,
 } from "./probe";
 import { LEGENDS, type GradientLegendSpec } from "./legend";
+import { decodeViewState } from "./viewState";
 
 describe("latLonToPixel", () => {
   it("maps the equirectangular corners and center", () => {
@@ -255,6 +256,32 @@ describe("buildProbeCsv", () => {
       [0.62]
     );
     expect(snowCsv).toContain("2001-01,62.0000,0.0000");
+  });
+
+  it("stamps tool version and reproduction URL when provided", () => {
+    const stamped = buildProbeCsv(
+      {
+        ...meta,
+        toolVersion: "1.0.0",
+        viewUrl:
+          "https://zkwizard.github.io/RoamingEye/#layer=ndvi&t=2026-05&probe=-3.4653,-62.2159",
+      },
+      [{ year: 2001, month: 1 }],
+      [0.5]
+    );
+    expect(stamped).toContain("# tool_version: 1.0.0");
+    expect(stamped).toContain(
+      "# view_url: https://zkwizard.github.io/RoamingEye/#layer=ndvi&t=2026-05&probe=-3.4653,-62.2159"
+    );
+    // The stamped link must actually reproduce the view it claims to.
+    const hash = stamped.match(/# view_url: [^#\n]*#(.*)/)?.[1] ?? "";
+    const restored = decodeViewState(hash);
+    expect(restored.layer).toBe("ndvi");
+    expect(restored.month).toEqual({ year: 2026, month: 5 });
+    expect(restored.probe).toEqual({ lat: -3.4653, lon: -62.2159 });
+    // Headers stay optional — a meta without them produces no empty lines.
+    expect(csv).not.toContain("# tool_version");
+    expect(csv).not.toContain("# view_url");
   });
 
   it("records the region bounds in area mode", () => {

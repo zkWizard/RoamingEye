@@ -368,6 +368,11 @@ export interface ProbeCsvMeta {
   imageHeight: number;
   /** ISO timestamp for the provenance header. */
   generatedIso: string;
+  /** App version (package.json) that produced this file — the inversion
+   * method can evolve between releases, so exports carry their origin. */
+  toolVersion?: string;
+  /** Deep link that reproduces the exact chart (layer, month, probe). */
+  viewUrl?: string;
 }
 
 /**
@@ -416,6 +421,8 @@ export function buildProbeCsv(
     `# imagery: NASA GIBS (public domain), https://gibs.earthdata.nasa.gov`,
     `# generated: ${meta.generatedIso}`,
     `# tool: RoamingEye, https://github.com/zkWizard/RoamingEye`,
+    ...(meta.toolVersion ? [`# tool_version: ${meta.toolVersion}`] : []),
+    ...(meta.viewUrl ? [`# view_url: ${meta.viewUrl}`] : []),
     `year_month,value,anomaly`,
   ];
   for (let i = 0; i < months.length; i++) {

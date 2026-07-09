@@ -1346,6 +1346,10 @@ body {
   align-items: center;
   gap: 0.4rem;
 }
+.providers__version {
+  margin-left: auto;
+  opacity: 0.8;
+}
 
 /* --- Keyboard shortcuts overlay (modal) -------------------------------------- */
 .shortcuts {

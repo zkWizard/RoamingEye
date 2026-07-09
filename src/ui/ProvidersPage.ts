@@ -40,6 +40,7 @@ export class ProvidersPage {
           <span><i class="providers__dot providers__dot--core"></i> ${USE_LABEL.core}</span>
           <span><i class="providers__dot providers__dot--underlying"></i> ${USE_LABEL.underlying}</span>
           <span><i class="providers__dot providers__dot--ecosystem"></i> ${USE_LABEL.ecosystem}</span>
+          <span class="providers__version">RoamingEye v${__APP_VERSION__}</span>
         </footer>
       </div>`;
 
