@@ -18,6 +18,12 @@ export default defineConfig({
   // Stable names (no platform suffix): the suite runs on Linux only.
   snapshotPathTemplate: "{testDir}/__screenshots__/{arg}{ext}",
   expect: {
+    // Generous stability window: shots wait for two consecutive identical
+    // frames, and cold-cache boots in CI (e.g. the annual land-cover
+    // texture) can keep transients alive past the 5 s default. The loop
+    // exits the moment the page settles, so the ceiling costs nothing on
+    // healthy runs.
+    timeout: 20_000,
     toHaveScreenshot: {
       animations: "disabled",
       maxDiffPixels: 100,
