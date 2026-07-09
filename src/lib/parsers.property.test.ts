@@ -201,6 +201,17 @@ describe("feed parsers (USGS / GVP / Natural Earth)", () => {
     }
   );
 
+  it("prototype-chain names never pass the layer guard (regression)", () => {
+    // Caught by the decodeViewState property (seed 1100653994): `in` walks
+    // the prototype chain, so #layer=toString escaped the catalog check.
+    for (const name of ["toString", "constructor", "__proto__", "valueOf"]) {
+      expect(decodeViewState(`layer=${name}`).layer).toBeUndefined();
+      expect(
+        parseSession(JSON.stringify({ layer: name })).layer
+      ).toBeUndefined();
+    }
+  });
+
   it("survives exotic non-JSON values in numeric fields (regression)", () => {
     // Caught by this suite's first CI run (seed 736499456): Number() THROWS
     // on objects with no primitive conversion — the parsers weren't total.

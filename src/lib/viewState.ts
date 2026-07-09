@@ -31,7 +31,10 @@ export interface ViewState {
 const MONTH_RE = /^(\d{4})-(\d{2})$/;
 
 function isLayerId(value: string): value is LayerId {
-  return value in LAYERS;
+  // Object.hasOwn, not `in`: the `in` operator walks the prototype chain, so
+  // a crafted hash like #layer=toString would pass the guard and smuggle a
+  // non-layer into app state — found by the fuzz suite (seed 1100653994).
+  return Object.hasOwn(LAYERS, value);
 }
 
 /** Encode a view state as a URL-hash payload (no leading `#`). */
