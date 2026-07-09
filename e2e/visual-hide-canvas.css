@@ -1,0 +1,6 @@
+/* Injected into every visual-regression screenshot (stylePath): the WebGL
+   canvas is imagery-variable and never part of a baseline. */
+#globe,
+.loader {
+  visibility: hidden !important;
+}

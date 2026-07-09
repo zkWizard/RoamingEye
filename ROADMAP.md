@@ -37,7 +37,8 @@ especially love help.
 ## 🔵 Now
 
 - Hardening, documentation, and contributor onboarding.
-- Visual-regression test scaffolding (advisory).
+- ✅ Visual-regression test scaffolding (advisory) — shipped: `e2e/visual.spec.ts`,
+  the advisory `visual` CI job, and the baseline-update workflow.
 - 🌱 More overlay polish (labels for cities/graticule; legends for index colour scales).
 
 ## 🟢 Next

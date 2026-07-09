@@ -12,6 +12,9 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./e2e",
+  // Visual regression runs as its own advisory suite (see
+  // playwright.visual.config.ts), never in the blocking e2e gate.
+  testIgnore: "**/visual.spec.ts",
   // Each page load prefetches the imagery cache, so run serially to avoid
   // network saturation making the suite flaky.
   fullyParallel: false,
