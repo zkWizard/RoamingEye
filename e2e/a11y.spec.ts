@@ -63,6 +63,14 @@ test("base UI is axe-clean (dark theme)", async ({ page }) => {
 
 test("base UI is axe-clean (light theme)", async ({ page }) => {
   await page.locator(".theme-toggle").click();
+  // Theme colors CSS-transition for 0.3s; scanning mid-blend reports
+  // contrast ratios that exist for a few frames only (caught in CI:
+  // fg #a9acb2 on bg #2d7deb — both mid-transition blends). Let the
+  // palette settle before auditing it.
+  await page.waitForFunction(() => {
+    const bg = getComputedStyle(document.body).backgroundColor;
+    return bg === "rgb(234, 240, 248)"; // --bg (light), transition finished
+  });
   await scan(page, "base/light");
 });
 
