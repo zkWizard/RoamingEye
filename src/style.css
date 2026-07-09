@@ -1118,7 +1118,10 @@ body {
 }
 
 .probe__segment-btn[aria-pressed="true"] {
-  color: #fff;
+  /* --on-accent, not #fff: white on the dark theme's light-blue accent is
+     2.66:1 at this size (axe, WCAG 1.4.3); the paired token clears AA in
+     both themes. */
+  color: var(--on-accent);
   background: var(--accent);
 }
 
@@ -1142,7 +1145,9 @@ body {
   font: inherit;
   font-size: 0.78rem;
   padding: 0.35rem 0.8rem;
-  color: #fff;
+  /* --on-accent, not #fff — same WCAG 1.4.3 fix as the segment buttons;
+     this one only dodged the axe scan because it renders post-sampling. */
+  color: var(--on-accent);
   background: var(--accent);
   border: 1px solid var(--accent);
   border-radius: 999px;
