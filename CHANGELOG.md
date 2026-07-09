@@ -4,6 +4,73 @@ All notable changes to RoamingEye. This log captures milestones rather than
 every commit. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+Round 6 (issues #147–#153, PRs #154–#160 + this wrap-up): science-grade
+rigor. Where earlier rounds hardened the app against the network and the
+browser, this one holds the _numbers_ to the standard a reviewer would:
+correct spherical statistics, physical units, stated uncertainty, and a
+citation chain that reaches the datasets themselves. Grounded in community
+practice — xarray's area-weighting guidance, NASA's data-citation policy,
+GIBS's own machine-readable metadata, and JOSS review criteria.
+
+### Fixed
+
+- **Region means are no longer latitude-biased** — drawn-region and ~1° area
+  probes averaged an equal-angle grid with equal weights, overweighting
+  poleward rows by up to cos 30°/cos 70° ≈ 2.5× across a 30–70°N box (the
+  canonical gridded-data mistake). Sample weights are now cos(latitude),
+  carried through coarse-image pixel dedup; the ocean-box validity gate
+  measures valid _area_; CSVs name the estimator in `# method:`. (#147)
+
+### Science
+
+- **Six layers upgraded from "fraction of color scale" to physical units** —
+  land-surface temp (200–350 K), 2 m air temp (220–310 K), SST (0–32 °C),
+  precipitation (0–43.2 mm/day), soil moisture (0–50 kg/m²), and aerosol
+  optical depth (0–0.9) — derived from the colormap documents GIBS itself
+  renders with, every ramp verified linear-in-value (worst deviation
+  0.16 %). A weekly contract test re-derives all six from the live XML, so
+  an upstream palette re-render fails CI instead of silently mis-scaling
+  every probe. (#148)
+- **Quantified uncertainty everywhere** — CSV decimals now follow the
+  colormap quantization step instead of a fixed four; every export states
+  `# uncertainty: ±<half-step>`; the probe panel says "±0.002 per value"
+  right where the numbers are; area/region CSVs gain a `valid_fraction`
+  coverage column, so a 25 %-valid month no longer prints like a full
+  one. (#149)
+- **Quantitative legends** — gradient bars gained min/mid/max value ticks in
+  physical units, from the same scales the probe reports (legend and probe
+  can never disagree); uncalibrated layers show no ticks rather than fake
+  ones. (#150)
+
+### FAIR / citation
+
+- **Cite the data, not the picture** — every layer (plus the HLS study
+  patch) now pins its source dataset (short name, version, DOI — resolved
+  live via GIBS layer-metadata → CMR): CSVs carry `# data_product` /
+  `# data_doi` headers, the providers page gained a "Citing the data"
+  section with GIBS's requested acknowledgment verbatim, and a weekly
+  contract test verifies the layer→product mapping and that every DOI
+  still resolves. (#151)
+- **README: "Citing RoamingEye and its data"** — the three citable objects
+  spelled out (tool / imagery service / datasets), a per-dataset DOI table
+  drift-guarded by a unit test against the layer config, and a JOSS-style
+  statement of need. (#152)
+
+### Robustness
+
+- **Long-session soak (advisory)** — a leak canary for field-day sessions:
+  repeated working cycles (layer switches, scrubs, probes, overlay
+  toggles) must leave the renderer's GPU-resource counters within a fixed
+  budget of the post-boot baseline, with no late-session compounding.
+  Own CI job + `npm run test:soak`; first CI run measured 14 → 35 textures
+  over 6 cycles against a budget of 80. (#153)
+
+Unit tests 314 → 351; live contract assertions 22 → 44 (probe scales +
+data citations, weekly); one new advisory CI job; visual baselines
+regenerated for the legend's new value-tick row.
+
 ## [1.0.1] — 2026-07-09
 
 Two post-launch robustness rounds aimed at the standards a shared research
