@@ -119,8 +119,18 @@ context is acquired, and nothing throws to the console.
 > **Note on WebGL in CI:** browsers in CI have no real GPU and fall back to
 > software rendering (SwiftShader), which is slower and pixel-different from real
 > hardware. That's why our e2e tests assert _behavior_ (context acquired, no
-> errors), not _pixels_. Visual-regression (screenshot) testing is on the
-> roadmap and will start out non-blocking.
+> errors), not _pixels_.
+
+**Visual regression (advisory).** The scientific chrome — legends, timeline,
+picker, toolbar, modals — is screenshot-tested in
+[`e2e/visual.spec.ts`](../e2e/visual.spec.ts), run by the `visual` CI job
+(`continue-on-error`: a diff posts a report artifact but never blocks a
+merge). The WebGL canvas is hidden during shots and the timeline is frozen,
+so only deliberate UI changes should ever diff. **Baselines are Linux (CI)
+renders** — don't regenerate them locally. When your PR intentionally changes
+the UI: run the **"Update visual baselines"** workflow from the Actions tab
+against your branch, download the `visual-baselines` artifact, and commit its
+contents to `e2e/__screenshots__/`.
 
 ---
 
