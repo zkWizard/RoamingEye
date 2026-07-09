@@ -74,6 +74,8 @@ declare global {
     __APP_READY__?: boolean;
     /** Whether the render loop is running (false while the tab is hidden). */
     __RENDER_ACTIVE__?: boolean;
+    /** GPU-resource counters for the soak e2e's leak canary. */
+    __RENDERER_STATS__?: () => { textures: number; geometries: number };
   }
 }
 
@@ -1033,6 +1035,13 @@ const renderFrame = (): void => {
 };
 renderer.setAnimationLoop(renderFrame);
 window.__RENDER_ACTIVE__ = true;
+// Read-only GPU-resource counters for the soak e2e (see e2e/soak.spec.ts):
+// un-disposed textures/geometries survive GC and accumulate until the WebGL
+// context dies, so the leak canary watches the renderer's own bookkeeping.
+window.__RENDERER_STATS__ = () => ({
+  textures: renderer.info.memory.textures,
+  geometries: renderer.info.memory.geometries,
+});
 
 // Pause rendering while the tab is hidden — no reason to burn GPU/battery on
 // a globe nobody can see. Data work (freshness probe, in-flight sampling) is
