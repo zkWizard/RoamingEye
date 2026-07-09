@@ -15,7 +15,7 @@ import { encodeViewState, decodeViewState } from "./lib/viewState";
 import { latLngToVector3, vector3ToLatLng, formatLatLng } from "./lib/geo";
 import { buildProbeCsv, PROBE_SCALES } from "./lib/probe";
 import { refreshDataLatest } from "./lib/freshness";
-import { isAbortError } from "./lib/net";
+import { isAbortError, isOnline, OfflineError } from "./lib/net";
 import { nextPixelRatio } from "./lib/perf";
 import { ProbeSampler } from "./probe/ProbeSampler";
 import { ProbePanel } from "./ui/ProbePanel";
@@ -901,10 +901,36 @@ window.addEventListener("error", (e) => {
 });
 window.addEventListener("unhandledrejection", (e) => {
   if (isAbortError(e.reason)) return;
+  // Offline fast-fails are expected while disconnected — the banner below
+  // already tells that story; a toast per background prefetch would be spam.
+  if (e.reason instanceof OfflineError) return;
   const message =
     e.reason instanceof Error ? e.reason.message : String(e.reason);
   errorToast.show(`Something went wrong: ${message}`);
 });
+
+// --- Connectivity awareness ------------------------------------------------------
+// Field connectivity churns (trains, planes, remote sites). While offline the
+// fetch layer fast-fails (see lib/net.ts OfflineError) and a quiet banner says
+// why nothing new is loading; on reconnect the banner drops and the current
+// view refreshes itself — failed months aren't cached, so a refreshGlobe()
+// genuinely refetches.
+const offlineBanner = document.createElement("div");
+offlineBanner.className = "offline-banner";
+offlineBanner.setAttribute("role", "status");
+offlineBanner.textContent = "Offline — showing last loaded imagery";
+offlineBanner.hidden = true;
+document.body.appendChild(offlineBanner);
+
+window.addEventListener("offline", () => {
+  offlineBanner.hidden = false;
+});
+window.addEventListener("online", () => {
+  offlineBanner.hidden = true;
+  refreshGlobe();
+  if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
+});
+if (!isOnline()) offlineBanner.hidden = false;
 
 // --- WebGL context loss/recovery ---------------------------------------------
 // A GPU reset, driver update, or aggressive mobile backgrounding can kill the
