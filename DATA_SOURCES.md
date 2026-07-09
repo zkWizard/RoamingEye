@@ -48,11 +48,15 @@ global scale — which is why they drive the timeline.
 
 ## Vector data — Natural Earth
 
-[Natural Earth](https://www.naturalearthdata.com/) (public domain), at 1:110m,
-slimmed into `public/data/` by `scripts/prepare-data.mjs`:
+[Natural Earth](https://www.naturalearthdata.com/) (public domain), slimmed
+into `public/data/` by `scripts/prepare-data.mjs`:
 
 - `ne_110m_admin_0_countries` → national borders overlay + hover country lookup.
 - `ne_110m_populated_places_simple` → cities overlay.
+- `ne_10m_admin_1_states_provinces` → hover province/state lookup ("Ontario,
+  Canada"). Lookup-only (never drawn), so the linework is snapped to a 0.05°
+  (~5 km) grid to keep the lazy-loaded file small; within ~5 km of a boundary
+  the hover may name the neighbouring region.
 
 ## Geocoding — OpenStreetMap Nominatim
 
