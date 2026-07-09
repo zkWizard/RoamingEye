@@ -1337,6 +1337,29 @@ body {
   color: var(--muted);
   line-height: 1.45;
 }
+
+/* "Citing the data": per-dataset DOI list + the GIBS acknowledgment. */
+.providers__datasets {
+  margin: 0.6rem 0 0 1.1rem;
+  padding: 0;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.providers__datasets a {
+  color: var(--accent);
+}
+
+.providers__ack {
+  margin: 0.75rem 0 0;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--muted);
+  border-left: 3px solid var(--control-border);
+}
+
 .providers__legend {
   display: flex;
   flex-wrap: wrap;

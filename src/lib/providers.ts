@@ -8,7 +8,34 @@
  * Kept as data so it can power the in-app Providers page and stay accurate.
  */
 
+import { LAYERS, LAYER_ORDER, type DatasetRef } from "./timeline";
+import { HIRES_LAYER } from "./imagery";
+
 export type ProviderUse = "core" | "underlying" | "ecosystem";
+
+/** GIBS's requested acknowledgment, verbatim (Worldview/GIBS FAQ). */
+export const GIBS_ACKNOWLEDGMENT =
+  "We acknowledge the use of imagery provided by services from NASA's " +
+  "Global Imagery Browse Services (GIBS), part of NASA's Earth Science " +
+  "Data and Information System (ESDIS).";
+
+/**
+ * The source datasets behind the app's layers, deduplicated by DOI (NDVI/EVI
+ * share a product; so do the two GLDAS layers), each with the layer labels
+ * it powers — the model for the providers page's "Citing the data" list.
+ */
+export function citedDatasets(): { dataset: DatasetRef; usedBy: string[] }[] {
+  const byDoi = new Map<string, { dataset: DatasetRef; usedBy: string[] }>();
+  const add = (dataset: DatasetRef | undefined, label: string): void => {
+    if (!dataset) return;
+    const entry = byDoi.get(dataset.doi);
+    if (entry) entry.usedBy.push(label);
+    else byDoi.set(dataset.doi, { dataset, usedBy: [label] });
+  };
+  for (const id of LAYER_ORDER) add(LAYERS[id].dataset, LAYERS[id].label);
+  add(HIRES_LAYER.dataset, HIRES_LAYER.label);
+  return [...byDoi.values()];
+}
 
 export interface Provider {
   name: string;

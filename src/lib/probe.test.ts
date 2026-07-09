@@ -277,6 +277,31 @@ describe("buildProbeCsv", () => {
     expect(csv).toContain("point probe");
   });
 
+  it("cites the source dataset when the layer names one", () => {
+    const cited = buildProbeCsv(
+      {
+        ...meta,
+        dataset: {
+          shortName: "MOD13A3",
+          version: "061",
+          doi: "10.5067/MODIS/MOD13A3.061",
+          title: "MODIS/Terra Vegetation Indices Monthly L3 Global 1km",
+        },
+      },
+      [{ year: 2001, month: 1 }],
+      [0.5]
+    );
+    expect(cited).toContain(
+      "# data_product: MOD13A3 v061 — MODIS/Terra Vegetation Indices Monthly L3 Global 1km"
+    );
+    expect(cited).toContain(
+      "# data_doi: https://doi.org/10.5067/MODIS/MOD13A3.061"
+    );
+    // Without a dataset the headers are simply absent — never empty lines.
+    expect(csv).not.toContain("# data_product");
+    expect(csv).not.toContain("# data_doi");
+  });
+
   it("writes one row per month with anomaly, empty for no-data", () => {
     const rows = csv
       .trim()
