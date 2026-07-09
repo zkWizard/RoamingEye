@@ -113,9 +113,7 @@ describe("weightedMeanValid", () => {
   });
 
   it("is invariant under weighting when all values are equal", () => {
-    expect(
-      weightedMeanValid([0.3, 0.3, 0.3], [1, 0.5, 0.25])
-    ).toBeCloseTo(0.3);
+    expect(weightedMeanValid([0.3, 0.3, 0.3], [1, 0.5, 0.25])).toBeCloseTo(0.3);
   });
 
   it("matches the unweighted mean for an equator-symmetric grid", () => {
