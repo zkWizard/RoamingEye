@@ -32,6 +32,8 @@ RoamingEye is an open-source research instrument for planetary-scale observation
 
 Decades of Earth observation sit in open archives, but most of it is reached through specialist GIS software, API keys, and data-wrangling pipelines that exclude all but a handful of trained users. RoamingEye is an attempt to collapse that barrier: **point, drag, and scrub** — and the planet's recorded history is in front of you.
 
+**Statement of need.** Researchers, educators, and students need a way to _look at_ multi-decadal satellite records — to form hypotheses, check a site before pulling L3 granules, or teach a seasonal cycle — without a login, an SDK, or a GIS seat. Worldview is NASA-hosted and 2D; Google Earth Engine requires accounts and code. RoamingEye fills the gap in between: a zero-install, fully open-source, provenance-first 3D globe that runs in the browser, cites every dataset it renders, and exports reproducible, uncertainty-labelled time series.
+
 It is built for, and by, the research community: every data source is open and cited, every imagery selection is provenance-tagged with the instrument and acquisition date, and the whole stack is MIT-licensed so any lab, classroom, or newsroom can fork and extend it.
 
 ---
@@ -151,22 +153,51 @@ Now / Next / Later at a glance (full detail in [`ROADMAP.md`](ROADMAP.md)):
 
 ---
 
-## 🎓 How to cite
+## 🎓 Citing RoamingEye and its data
 
-If RoamingEye is useful in your research, please cite it — the repository ships a
-[`CITATION.cff`](CITATION.cff) that GitHub renders as a ready-made citation
-(**"Cite this repository"** in the sidebar), in APA and BibTeX form.
+Work made with RoamingEye involves **three citable objects** — the tool, the
+imagery service, and the datasets. Doing all three right takes two minutes:
 
-When citing a **specific observation**, include:
+**1. The tool.** The repository ships a [`CITATION.cff`](CITATION.cff) that
+GitHub renders as a ready-made citation (**"Cite this repository"** in the
+sidebar, APA and BibTeX). When citing a **specific observation**, include the
+**view URL** from the address bar — it encodes the layer, month, and camera
+position, so readers reproduce exactly what you saw — and the acquisition
+details shown in the app (e.g. the study-region chip's
+`Sentinel-2 · HLS S30 · 30 m · 2026-05-11`). CSV exports already carry all of
+this in their `#` provenance headers, including `# view_url` and
+`# tool_version`.
 
-1. the **view URL** from the address bar — it encodes the layer, month, and
-   camera position, so readers can reproduce exactly what you saw;
-2. the **product and acquisition details** shown in the app (e.g.
-   `MODIS_Terra_L3_NDVI_Monthly · May 2026`, or the study-region chip's
-   `Sentinel-2 · HLS S30 · 30 m · 2026-05-11`);
-3. the underlying **data source** per [`DATA_SOURCES.md`](DATA_SOURCES.md) —
-   NASA GIBS imagery is public domain, but citing the instrument teams is good
-   practice.
+**2. The imagery service.** NASA asks users of GIBS to include this
+acknowledgment verbatim:
+
+> We acknowledge the use of imagery provided by services from NASA's Global
+> Imagery Browse Services (GIBS), part of NASA's Earth Science Data and
+> Information System (ESDIS).
+
+**3. The data.** GIBS renders _datasets_ that carry their own DOIs and
+citations — [NASA's data-use guidance](https://www.earthdata.nasa.gov/engage/open-data-services-software-policies/data-use-guidance)
+asks publications to cite them directly (each DOI resolves to a landing page
+with the full citation; CSV exports name theirs in `# data_product` /
+`# data_doi`):
+
+| Layer(s)                     | Dataset                                       | DOI                                                                    |
+| ---------------------------- | --------------------------------------------- | ---------------------------------------------------------------------- |
+| Vegetation (NDVI, EVI)       | MOD13A3 v061                                  | [10.5067/MODIS/MOD13A3.061](https://doi.org/10.5067/MODIS/MOD13A3.061) |
+| Land surface temp            | MOD11C3 v061                                  | [10.5067/MODIS/MOD11C3.061](https://doi.org/10.5067/MODIS/MOD11C3.061) |
+| Air temperature (2 m)        | MERRA-2 M2TMNXSLV v5.12.4                     | [10.5067/AP1B0BA5PD2K](https://doi.org/10.5067/AP1B0BA5PD2K)           |
+| Sea surface temp             | MODIS Aqua L3 SST Thermal Monthly 9km v2019.0 | [10.5067/MODSA-MO9D9](https://doi.org/10.5067/MODSA-MO9D9)             |
+| Precipitation, soil moisture | GLDAS_NOAH025_M v2.1                          | [10.5067/SXAVCZFAQLNO](https://doi.org/10.5067/SXAVCZFAQLNO)           |
+| Snow cover                   | MOD10CM v61                                   | [10.5067/MODIS/MOD10CM.061](https://doi.org/10.5067/MODIS/MOD10CM.061) |
+| Aerosols (AOD)               | MERRA-2 M2TMNXAER v5.12.4                     | [10.5067/FH9A0MLJPC7N](https://doi.org/10.5067/FH9A0MLJPC7N)           |
+| Land cover (IGBP)            | MCD12Q1 v061                                  | [10.5067/MODIS/MCD12Q1.061](https://doi.org/10.5067/MODIS/MCD12Q1.061) |
+| Terrain (shaded relief)      | ASTGTM v003                                   | [10.5067/ASTER/ASTGTM.003](https://doi.org/10.5067/ASTER/ASTGTM.003)   |
+| High-res study patch         | HLSS30 v2.0                                   | [10.5067/HLS/HLSS30.002](https://doi.org/10.5067/HLS/HLSS30.002)       |
+
+This table is generated from the same layer configuration the app runs on and
+is drift-guarded by a unit test — if a layer's source product changes, CI
+fails until the docs follow. The in-app **Data providers** page (footer link)
+shows the same list.
 
 > A Zenodo DOI (for stable, versioned citations) is planned — maintainers: mint
 > one by connecting the repo at [zenodo.org](https://zenodo.org/account/settings/github/)
