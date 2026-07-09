@@ -1,4 +1,10 @@
-import { PROVIDERS, PROVIDER_GROUPS, type ProviderUse } from "../lib/providers";
+import {
+  PROVIDERS,
+  PROVIDER_GROUPS,
+  GIBS_ACKNOWLEDGMENT,
+  citedDatasets,
+  type ProviderUse,
+} from "../lib/providers";
 import { FocusTrap } from "./modal";
 import { ICONS } from "./icons";
 
@@ -45,6 +51,42 @@ export class ProvidersPage {
       </div>`;
 
     const body = container.querySelector(".providers__body") as HTMLElement;
+
+    // "Citing the data" — the datasets a publication must cite (each DOI
+    // links to its landing page, which carries the full citation), plus
+    // GIBS's requested acknowledgment. CSV exports carry the same DOIs in
+    // their # data_doi headers.
+    const citing = document.createElement("section");
+    citing.className = "providers__group providers__citing";
+    const citingTitle = document.createElement("h3");
+    citingTitle.className = "providers__group-title";
+    citingTitle.textContent = "Citing the data";
+    const citingIntro = document.createElement("p");
+    citingIntro.className = "providers__desc";
+    citingIntro.textContent =
+      "Publishing work made with RoamingEye? Cite the source datasets " +
+      "(each DOI resolves to its citation), and acknowledge the imagery " +
+      "service:";
+    const list = document.createElement("ul");
+    list.className = "providers__datasets";
+    for (const { dataset, usedBy } of citedDatasets()) {
+      const item = document.createElement("li");
+      const link = document.createElement("a");
+      link.href = `https://doi.org/${dataset.doi}`;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = `${dataset.shortName} v${dataset.version}`;
+      const rest = document.createElement("span");
+      rest.textContent = ` — ${dataset.title} (${usedBy.join(", ")})`;
+      item.append(link, rest);
+      list.appendChild(item);
+    }
+    const ack = document.createElement("blockquote");
+    ack.className = "providers__ack";
+    ack.textContent = `“${GIBS_ACKNOWLEDGMENT}”`;
+    citing.append(citingTitle, citingIntro, list, ack);
+    body.appendChild(citing);
+
     for (const group of PROVIDER_GROUPS) {
       const inGroup = PROVIDERS.filter((p) => p.group === group);
       const section = document.createElement("section");

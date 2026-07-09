@@ -1,6 +1,6 @@
 import type { Bounds } from "./imagery";
 import type { LegendStop } from "./legend";
-import type { LayerId, YearMonth } from "./timeline";
+import type { DatasetRef, LayerId, YearMonth } from "./timeline";
 
 /**
  * Point time-series probe: the pure math for turning "the color of a pixel in
@@ -122,19 +122,39 @@ export function medianValid(
 }
 
 /**
- * Mean of the valid samples from an area grid — the region statistic. Null
- * when too little of the grid is data (a mostly-ocean box has no land story
- * to tell); the default tolerates coastal boxes (¼ land is enough).
+ * Area-weighted mean of the valid samples from a geographic grid — the region
+ * statistic. On an equal-angle lat/lon grid the area a sample represents
+ * shrinks with cos(latitude); averaging without weights biases every
+ * latitude-spanning box toward its poleward rows (the canonical gridded-data
+ * mistake — see xarray's area-weighted-temperature example). Null when too
+ * little of the grid's *area* is data (a mostly-ocean box has no land story
+ * to tell); the default tolerates coastal boxes (¼ of the area is enough).
  */
-export function meanValid(
+export function weightedMeanValid(
   values: (number | null)[],
+  weights: number[],
   minValidFraction = 0.25
 ): number | null {
-  const valid = values.filter((v): v is number => v !== null);
-  if (values.length === 0 || valid.length / values.length < minValidFraction) {
+  let totalWeight = 0;
+  let validWeight = 0;
+  let sum = 0;
+  for (let i = 0; i < values.length; i++) {
+    const w = weights[i];
+    totalWeight += w;
+    const v = values[i];
+    if (v === null) continue;
+    validWeight += w;
+    sum += v * w;
+  }
+  if (totalWeight <= 0 || validWeight / totalWeight < minValidFraction) {
     return null;
   }
-  return valid.reduce((sum, v) => sum + v, 0) / valid.length;
+  return sum / validWeight;
+}
+
+/** The cos(latitude) area weight of a sample on an equal-angle grid. */
+export function areaWeight(lat: number): number {
+  return Math.cos((lat * Math.PI) / 180);
 }
 
 // --- Drawn-region helpers ---------------------------------------------------------
@@ -293,6 +313,14 @@ const scaleFraction = (label: string): ProbeScale => ({
   calibrated: false,
 });
 
+/**
+ * Physical ranges below were derived 2026-07-09 from the colormap metadata
+ * GIBS itself renders the tiles with (colormaps/v1.3 — see lib/colormap.ts),
+ * every ramp verified linear-in-value (worst deviation 0.16%, SST).
+ * Precipitation converts GIBS's kg/m²/s to mm/day (SCALE_CONVERSIONS).
+ * The weekly contract suite re-derives all six from the live documents, so
+ * an upstream palette change fails CI instead of silently mis-scaling.
+ */
 export const PROBE_SCALES: Record<LayerId, ProbeScale> = {
   ndvi: { label: "NDVI (approx.)", min: 0, max: 1, unit: "", calibrated: true },
   evi: { label: "EVI (approx.)", min: 0, max: 1, unit: "", calibrated: true },
@@ -303,12 +331,48 @@ export const PROBE_SCALES: Record<LayerId, ProbeScale> = {
     unit: "%",
     calibrated: true,
   },
-  lst: scaleFraction("Land surface temp (fraction of scale, cold → hot)"),
-  airtemp: scaleFraction("Air temp (fraction of scale, cold → hot)"),
-  sst: scaleFraction("Sea surface temp (fraction of scale, polar → tropical)"),
-  precip: scaleFraction("Precipitation (fraction of scale, dry → wet)"),
-  soil: scaleFraction("Soil moisture (fraction of scale, dry → saturated)"),
-  aerosol: scaleFraction("Aerosol optical depth (fraction of scale)"),
+  lst: {
+    label: "Land surface temp (approx.)",
+    min: 200,
+    max: 350,
+    unit: "K",
+    calibrated: true,
+  },
+  airtemp: {
+    label: "Air temp 2 m (approx.)",
+    min: 220,
+    max: 310,
+    unit: "K",
+    calibrated: true,
+  },
+  sst: {
+    label: "Sea surface temp (approx.)",
+    min: 0,
+    max: 32,
+    unit: "°C",
+    calibrated: true,
+  },
+  precip: {
+    label: "Precipitation rate (approx.)",
+    min: 0,
+    max: 43.2, // 5.0e-4 kg/m²/s × 86 400 s/day
+    unit: "mm/day",
+    calibrated: true,
+  },
+  soil: {
+    label: "Soil moisture (approx.)",
+    min: 0,
+    max: 50,
+    unit: "kg/m²",
+    calibrated: true,
+  },
+  aerosol: {
+    label: "Aerosol optical depth 550 nm (approx.)",
+    min: 0,
+    max: 0.9,
+    unit: "",
+    calibrated: true,
+  },
   // Categorical — the probe declines to chart it (see main.ts), but the
   // record stays exhaustive per LayerId.
   landcover: scaleFraction("Land-cover class (categorical)"),
@@ -324,6 +388,38 @@ export function scaleValue(t: number, scale: ProbeScale): number {
 export function formatProbeValue(value: number, scale: ProbeScale): string {
   const digits = scale.max - scale.min > 10 ? 0 : 2;
   return `${value.toFixed(digits)}${scale.unit ? ` ${scale.unit}` : ""}`;
+}
+
+// --- Quantified uncertainty ------------------------------------------------------
+
+/** LUT resolution the inversion runs at (buildColormapLut's default). */
+export const PROBE_LUT_SIZE = 256;
+
+/**
+ * The value resolution of the colormap inversion: one LUT step on the
+ * layer's scale. Values can't be known finer than this — the quantization
+ * floor of the method (compression noise sits on top; see
+ * probe.accuracy.test.ts for the measured end-to-end bounds).
+ */
+export function quantizationStep(scale: ProbeScale): number {
+  return (scale.max - scale.min) / (PROBE_LUT_SIZE - 1);
+}
+
+/**
+ * Decimals that honestly represent the quantization step — enough to
+ * resolve it, none implying precision the method doesn't have (the old
+ * fixed 4 decimals printed 0.6338 from a ±0.002 measurement).
+ */
+export function csvDecimals(scale: ProbeScale): number {
+  const step = quantizationStep(scale);
+  if (step <= 0) return 0;
+  return Math.max(0, Math.ceil(-Math.log10(step)));
+}
+
+/** "±0.002" / "±0.2 %" — half the quantization step, one significant digit. */
+export function uncertaintyText(scale: ProbeScale): string {
+  const half = quantizationStep(scale) / 2;
+  return `±${half.toPrecision(1)}${scale.unit ? ` ${scale.unit}` : ""}`;
 }
 
 // --- Series statistics ---------------------------------------------------------
@@ -355,6 +451,8 @@ export function seriesStats(values: (number | null)[]): SeriesStats | null {
 export interface ProbeCsvMeta {
   layerLabel: string;
   wmsLayer: string;
+  /** The layer's cited source dataset (see DatasetRef in lib/timeline.ts). */
+  dataset?: DatasetRef;
   lat: number;
   lon: number;
   scale: ProbeScale;
@@ -387,13 +485,22 @@ export function buildProbeCsv(
   meta: ProbeCsvMeta,
   months: YearMonth[],
   values: (number | null)[],
-  anomalies: (number | null)[] = anomalySeries(months, values)
+  anomalies: (number | null)[] = anomalySeries(months, values),
+  validFractions?: number[]
 ): string {
   const ymStr = (ym: YearMonth): string =>
     `${ym.year}-${String(ym.month).padStart(2, "0")}`;
   const span = meta.scale.max - meta.scale.min;
+  // Decimals follow the quantization step — printing more digits than the
+  // method resolves is false precision (the pre-#149 fixed 4 decimals
+  // printed 0.6338 from a ±0.002 measurement).
+  const decimals = csvDecimals(meta.scale);
   const cell = (v: number | null | undefined, offset: number): string =>
-    v === null || v === undefined ? "" : (offset + v * span).toFixed(4);
+    v === null || v === undefined ? "" : (offset + v * span).toFixed(decimals);
+  // Coverage column for averaged modes: how much of the box's *area* held
+  // data each month — a 25%-coverage mean and a 100% one should never look
+  // alike downstream.
+  const fractions = meta.mode !== "point" && validFractions;
   // Crossing boxes print normalized longitudes with west > east — the
   // GeoJSON (RFC 7946 §5.2) convention for an antimeridian-spanning bbox.
   const region = meta.sampledBounds
@@ -405,10 +512,20 @@ export function buildProbeCsv(
     : undefined;
   const lines = [
     `# RoamingEye ${meta.mode} probe — APPROXIMATE values`,
-    `# method: colormap inversion of NASA GIBS rendered imagery (${meta.imageWidth}x${meta.imageHeight} equirectangular GetMap)`,
+    `# method: colormap inversion of NASA GIBS rendered imagery (${meta.imageWidth}x${meta.imageHeight} equirectangular GetMap)${
+      meta.mode === "point" ? "" : "; area-weighted (cos latitude) grid mean"
+    }`,
     `# caveat: reconstructed from public imagery colors; use the underlying L3 product for measurement-grade work`,
     `# layer: ${meta.layerLabel}`,
     `# gibs_layer: ${meta.wmsLayer}`,
+    // Cite the data, not the picture: the rendered imagery derives from a
+    // dataset with its own DOI and citation (NASA data-use guidance).
+    ...(meta.dataset
+      ? [
+          `# data_product: ${meta.dataset.shortName} v${meta.dataset.version} — ${meta.dataset.title}`,
+          `# data_doi: https://doi.org/${meta.dataset.doi}`,
+        ]
+      : []),
     `# lat: ${meta.lat.toFixed(4)}`,
     `# lon: ${meta.lon.toFixed(4)}`,
     ...(region ? [`# region: ${region}`] : []),
@@ -418,16 +535,23 @@ export function buildProbeCsv(
         : "fraction of color scale"
     })`,
     `# anomaly: value minus this location's mean for the same calendar month (same units)`,
+    `# uncertainty: ${uncertaintyText(meta.scale)} colormap quantization (compression noise on top; see the probe accuracy suite for end-to-end bounds)`,
+    ...(fractions
+      ? [
+          `# valid_fraction: share of the sampled area that held data that month (area-weighted)`,
+        ]
+      : []),
     `# imagery: NASA GIBS (public domain), https://gibs.earthdata.nasa.gov`,
     `# generated: ${meta.generatedIso}`,
     `# tool: RoamingEye, https://github.com/zkWizard/RoamingEye`,
     ...(meta.toolVersion ? [`# tool_version: ${meta.toolVersion}`] : []),
     ...(meta.viewUrl ? [`# view_url: ${meta.viewUrl}`] : []),
-    `year_month,value,anomaly`,
+    `year_month,value,anomaly${fractions ? ",valid_fraction" : ""}`,
   ];
   for (let i = 0; i < months.length; i++) {
     lines.push(
-      `${ymStr(months[i])},${cell(values[i], meta.scale.min)},${cell(anomalies[i], 0)}`
+      `${ymStr(months[i])},${cell(values[i], meta.scale.min)},${cell(anomalies[i], 0)}` +
+        (fractions ? `,${(validFractions[i] ?? 0).toFixed(2)}` : "")
     );
   }
   return lines.join("\n") + "\n";

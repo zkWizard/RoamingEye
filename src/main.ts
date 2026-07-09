@@ -737,7 +737,7 @@ if (probeEl) {
           }
         },
       })
-      .then((values) => {
+      .then(({ values, validFractions }) => {
         if (abort.signal.aborted) return;
         panel.finish(
           () =>
@@ -745,6 +745,7 @@ if (probeEl) {
               {
                 layerLabel: layer.label,
                 wmsLayer: layer.wmsLayer,
+                dataset: layer.dataset,
                 lat,
                 lon,
                 scale,
@@ -758,7 +759,9 @@ if (probeEl) {
                 viewUrl: currentShareUrl(),
               },
               probeMonths,
-              values
+              values,
+              undefined,
+              validFractions
             ),
           `roamingeye_probe_${mode}_${layer.id}_${lat.toFixed(3)}_${lon.toFixed(3)}.csv`
         );
@@ -818,7 +821,7 @@ if (probeEl) {
           }
         },
       })
-      .then((values) => {
+      .then(({ values, validFractions }) => {
         if (abort.signal.aborted) return;
         panel.finish(
           () =>
@@ -826,6 +829,7 @@ if (probeEl) {
               {
                 layerLabel: layer.label,
                 wmsLayer: layer.wmsLayer,
+                dataset: layer.dataset,
                 lat: (bounds.south + bounds.north) / 2,
                 lon: (bounds.west + bounds.east) / 2,
                 scale,
@@ -838,7 +842,9 @@ if (probeEl) {
                 viewUrl: currentShareUrl(),
               },
               probeMonths,
-              values
+              values,
+              undefined,
+              validFractions
             ),
           `roamingeye_region_${layer.id}_${bounds.south.toFixed(2)}_${normalizeLon(bounds.west).toFixed(2)}_${bounds.north.toFixed(2)}_${normalizeLon(bounds.east).toFixed(2)}.csv`
         );

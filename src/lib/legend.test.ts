@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { LEGENDS, OVERLAY_KEYS, gradientCss, overlayKeyFor } from "./legend";
+import {
+  LEGENDS,
+  OVERLAY_KEYS,
+  gradientCss,
+  legendTicks,
+  overlayKeyFor,
+} from "./legend";
+import { PROBE_SCALES } from "./probe";
 import { LAYER_ORDER } from "./timeline";
 import { DEPTH_CLASS_COLORS } from "./earthquakes";
 import { ERUPTION_CLASS_COLORS } from "./volcanoes";
@@ -95,6 +102,42 @@ describe("overlayKeyFor", () => {
     expect(overlayKeyFor("volcanoes")).toBe(OVERLAY_KEYS.volcanoes);
     expect(overlayKeyFor("cities")).toBeUndefined();
     expect(overlayKeyFor("")).toBeUndefined();
+  });
+});
+
+describe("legendTicks", () => {
+  it("prints min/mid/max in the layer's units for calibrated gradients", () => {
+    expect(legendTicks("ndvi")).toEqual({
+      min: "0.00",
+      mid: "0.50",
+      max: "1.00",
+    });
+    expect(legendTicks("snow")).toEqual({
+      min: "0 %",
+      mid: "50 %",
+      max: "100 %",
+    });
+  });
+
+  it("shows nothing rather than fake numbers for uncalibrated layers", () => {
+    // Terrain's shaded relief is inversion-ambiguous — honestly unticked.
+    expect(legendTicks("terrain")).toBeNull();
+  });
+
+  it("declines categorical layers (class swatches, not a gradient)", () => {
+    expect(legendTicks("landcover")).toBeNull();
+  });
+
+  it("ticks every calibrated gradient layer, exactly", () => {
+    // The rule, not a snapshot: ticks ⟺ calibrated gradient. Stays true as
+    // more layers gain colormap-derived physical scales.
+    for (const [id, spec] of Object.entries(LEGENDS)) {
+      const scale = PROBE_SCALES[id as keyof typeof PROBE_SCALES];
+      const expectTicks = spec.kind !== "classes" && scale.calibrated;
+      expect(legendTicks(id as keyof typeof PROBE_SCALES) !== null, id).toBe(
+        expectTicks
+      );
+    }
   });
 });
 

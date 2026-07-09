@@ -5,7 +5,8 @@ import {
   buildColormapLut,
   invertColormap,
   medianValid,
-  meanValid,
+  weightedMeanValid,
+  areaWeight,
   gridPoints,
   dragBounds,
   boundsUsable,
@@ -18,6 +19,9 @@ import {
   scaleValue,
   formatProbeValue,
   buildProbeCsv,
+  quantizationStep,
+  csvDecimals,
+  uncertaintyText,
   PROBE_SCALES,
 } from "./probe";
 import { LEGENDS, type GradientLegendSpec } from "./legend";
@@ -95,24 +99,48 @@ describe("medianValid", () => {
   });
 });
 
-describe("meanValid", () => {
-  it("averages the valid samples", () => {
-    expect(meanValid([0.2, 0.4, null, 0.6])).toBeCloseTo(0.4);
+describe("weightedMeanValid", () => {
+  const ones = (n: number): number[] => new Array<number>(n).fill(1);
+
+  it("averages the valid samples (uniform weights = plain mean)", () => {
+    expect(weightedMeanValid([0.2, 0.4, null, 0.6], ones(4))).toBeCloseTo(0.4);
   });
 
-  it("returns null when too little of the grid is data", () => {
-    // 1 of 8 valid < 25% — a nearly-all-ocean box.
-    expect(meanValid([0.5, null, null, null, null, null, null, null])).toBe(
-      null
-    );
-    // 2 of 8 = exactly 25% — coastal box still counts.
+  it("weights samples by their area share", () => {
+    // A value of 1 at the equator (weight cos 0° = 1) and 0 at 60°N
+    // (weight cos 60° = 0.5): the weighted mean is 1·1/(1+0.5) = 2/3 —
+    // not the unweighted 0.5.
     expect(
-      meanValid([0.5, 0.7, null, null, null, null, null, null])
+      weightedMeanValid([1, 0], [areaWeight(0), areaWeight(60)])
+    ).toBeCloseTo(2 / 3);
+  });
+
+  it("is invariant under weighting when all values are equal", () => {
+    expect(weightedMeanValid([0.3, 0.3, 0.3], [1, 0.5, 0.25])).toBeCloseTo(0.3);
+  });
+
+  it("matches the unweighted mean for an equator-symmetric grid", () => {
+    // Mirrored latitudes carry mirrored (equal) weights, so a +φ/−φ pair
+    // averages exactly as it would unweighted.
+    const w = [areaWeight(45), areaWeight(-45)];
+    expect(weightedMeanValid([0.2, 0.8], w)).toBeCloseTo(0.5);
+  });
+
+  it("gates on the valid *area* fraction, not the sample count", () => {
+    // Three of four samples valid — but they're tiny polar slivers holding
+    // 13% of the box's area. Count-based gating would pass this; area-based
+    // gating correctly refuses to call it a region mean.
+    expect(
+      weightedMeanValid([null, 0.5, 0.5, 0.5], [1.0, 0.05, 0.05, 0.05])
+    ).toBeNull();
+    // 2 of 8 equal-weight cells = exactly 25% — coastal box still counts.
+    expect(
+      weightedMeanValid([0.5, 0.7, null, null, null, null, null, null], ones(8))
     ).toBeCloseTo(0.6);
   });
 
   it("returns null for an empty grid", () => {
-    expect(meanValid([])).toBeNull();
+    expect(weightedMeanValid([], [])).toBeNull();
   });
 });
 
@@ -198,12 +226,45 @@ describe("scales", () => {
   it("marks physical vs fraction-of-scale layers", () => {
     expect(PROBE_SCALES.ndvi.calibrated).toBe(true);
     expect(PROBE_SCALES.snow.calibrated).toBe(true);
-    expect(PROBE_SCALES.lst.calibrated).toBe(false);
+    // Calibrated from GIBS colormap metadata (see lib/colormap.ts).
+    expect(PROBE_SCALES.lst.calibrated).toBe(true);
+    expect(PROBE_SCALES.lst.unit).toBe("K");
+    // Terrain's shaded-relief legend stays inversion-ambiguous — honest
+    // fraction-of-scale, no fake Kelvin.
+    expect(PROBE_SCALES.terrain.calibrated).toBe(false);
+  });
+
+  it("maps calibrated physical scales onto real values", () => {
+    // Mid-ramp air temperature: 220 + 0.5 × (310 − 220) = 265 K.
+    expect(scaleValue(0.5, PROBE_SCALES.airtemp)).toBe(265);
+    expect(
+      formatProbeValue(
+        scaleValue(0.5, PROBE_SCALES.airtemp),
+        PROBE_SCALES.airtemp
+      )
+    ).toBe("265 K");
   });
 
   it("formats values with the unit", () => {
     expect(formatProbeValue(78.4, PROBE_SCALES.snow)).toBe("78 %");
     expect(formatProbeValue(0.634, PROBE_SCALES.ndvi)).toBe("0.63");
+  });
+});
+
+describe("quantified uncertainty", () => {
+  it("derives the quantization step from the LUT resolution", () => {
+    expect(quantizationStep(PROBE_SCALES.ndvi)).toBeCloseTo(1 / 255);
+    expect(quantizationStep(PROBE_SCALES.snow)).toBeCloseTo(100 / 255);
+  });
+
+  it("chooses decimals that resolve the step without inventing precision", () => {
+    expect(csvDecimals(PROBE_SCALES.ndvi)).toBe(3); // step ≈ 0.004
+    expect(csvDecimals(PROBE_SCALES.snow)).toBe(1); // step ≈ 0.4 %
+  });
+
+  it("states ± half a step with the unit", () => {
+    expect(uncertaintyText(PROBE_SCALES.ndvi)).toBe("±0.002");
+    expect(uncertaintyText(PROBE_SCALES.snow)).toBe("±0.2 %");
   });
 });
 
@@ -236,15 +297,42 @@ describe("buildProbeCsv", () => {
     expect(csv).toContain("point probe");
   });
 
+  it("cites the source dataset when the layer names one", () => {
+    const cited = buildProbeCsv(
+      {
+        ...meta,
+        dataset: {
+          shortName: "MOD13A3",
+          version: "061",
+          doi: "10.5067/MODIS/MOD13A3.061",
+          title: "MODIS/Terra Vegetation Indices Monthly L3 Global 1km",
+        },
+      },
+      [{ year: 2001, month: 1 }],
+      [0.5]
+    );
+    expect(cited).toContain(
+      "# data_product: MOD13A3 v061 — MODIS/Terra Vegetation Indices Monthly L3 Global 1km"
+    );
+    expect(cited).toContain(
+      "# data_doi: https://doi.org/10.5067/MODIS/MOD13A3.061"
+    );
+    // Without a dataset the headers are simply absent — never empty lines.
+    expect(csv).not.toContain("# data_product");
+    expect(csv).not.toContain("# data_doi");
+  });
+
   it("writes one row per month with anomaly, empty for no-data", () => {
     const rows = csv
       .trim()
       .split("\n")
       .filter((l) => !l.startsWith("#"));
     // Single March sample → March climatology = itself → anomaly 0.
+    // Three decimals: NDVI's quantization step is 1/255 ≈ 0.004 — printing
+    // the old fixed 4 was precision the method doesn't have.
     expect(rows).toEqual([
       "year_month,value,anomaly",
-      "2000-03,0.8123,0.0000",
+      "2000-03,0.812,0.000",
       "2000-04,,",
     ]);
   });
@@ -255,7 +343,44 @@ describe("buildProbeCsv", () => {
       [{ year: 2001, month: 1 }],
       [0.62]
     );
-    expect(snowCsv).toContain("2001-01,62.0000,0.0000");
+    // One decimal: snow's step is 100/255 ≈ 0.4 %.
+    expect(snowCsv).toContain("2001-01,62.0,0.0");
+  });
+
+  it("states the quantization uncertainty in the header", () => {
+    expect(csv).toContain("# uncertainty: ±0.002 colormap quantization");
+  });
+
+  it("adds a valid_fraction column for averaged modes only", () => {
+    const regionCsv = buildProbeCsv(
+      {
+        ...meta,
+        mode: "region" as const,
+        sampledBounds: { south: -4, north: -3, west: -63, east: -62 },
+      },
+      [
+        { year: 2001, month: 1 },
+        { year: 2001, month: 2 },
+      ],
+      [0.5, null],
+      undefined,
+      [0.87, 0.1]
+    );
+    expect(regionCsv).toContain("# valid_fraction:");
+    expect(regionCsv).toContain("year_month,value,anomaly,valid_fraction");
+    expect(regionCsv).toContain("2001-01,0.500,0.000,0.87");
+    // A null month keeps its fraction — 0.10 explains *why* it's null.
+    expect(regionCsv).toContain("2001-02,,,0.10");
+    // Point mode: no coverage column even if fractions are passed.
+    const pointCsv = buildProbeCsv(
+      meta,
+      [{ year: 2001, month: 1 }],
+      [0.5],
+      undefined,
+      [1]
+    );
+    expect(pointCsv).toContain("year_month,value,anomaly\n");
+    expect(pointCsv).not.toContain("valid_fraction");
   });
 
   it("stamps tool version and reproduction URL when provided", () => {

@@ -40,12 +40,32 @@ export interface YearMonth {
   month: number;
 }
 
+/**
+ * The source dataset a GIBS layer renders — the thing a publication must
+ * cite (NASA's data-use guidance: cite the dataset, not the picture).
+ * Resolved 2026-07-09 via GIBS layer-metadata → CMR (by shortName+version;
+ * stale conceptIds 404 after DAAC migrations) and pinned here; the weekly
+ * citation contract re-checks the mapping and that every DOI still resolves.
+ */
+export interface DatasetRef {
+  /** Product short name (e.g. "MOD13A3"). */
+  shortName: string;
+  /** Product version as CMR publishes it (e.g. "061"). */
+  version: string;
+  /** Dataset DOI, without the resolver prefix (e.g. "10.5067/…"). */
+  doi: string;
+  /** CMR collection title, for the providers page. */
+  title: string;
+}
+
 export interface LayerConfig {
   id: LayerId;
   label: string;
   category: LayerCategory;
   /** GIBS WMS layer identifier. */
   wmsLayer: string;
+  /** The underlying cited dataset (see DatasetRef). */
+  dataset?: DatasetRef;
   /** WMTS serving parameters for tiled streaming (RFC-001). Conservative
    * matrix sets: over-zooming a layer's published levels 404s per tile. */
   wmts?: WmtsConfig;
@@ -102,6 +122,12 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     label: "Vegetation (NDVI)",
     category: "Vegetation",
     wmsLayer: "MODIS_Terra_L3_NDVI_Monthly",
+    dataset: {
+      shortName: "MOD13A3",
+      version: "061",
+      doi: "10.5067/MODIS/MOD13A3.061",
+      title: "MODIS/Terra Vegetation Indices Monthly L3 Global 1km",
+    },
     wmts: { set: "1km", maxLevel: 6, ext: "png" },
     start: { year: 2000, month: 3 },
     description: "Vegetation greenness — the classic seasonal-cycle signal.",
@@ -111,6 +137,12 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     label: "Vegetation (EVI)",
     category: "Vegetation",
     wmsLayer: "MODIS_Terra_L3_EVI_Monthly",
+    dataset: {
+      shortName: "MOD13A3",
+      version: "061",
+      doi: "10.5067/MODIS/MOD13A3.061",
+      title: "MODIS/Terra Vegetation Indices Monthly L3 Global 1km",
+    },
     wmts: { set: "1km", maxLevel: 6, ext: "png" },
     start: { year: 2000, month: 3 },
     description:
@@ -121,6 +153,12 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     label: "Land surface temp",
     category: "Temperature",
     wmsLayer: "MODIS_Terra_L3_Land_Surface_Temp_Monthly_Day",
+    dataset: {
+      shortName: "MOD11C3",
+      version: "061",
+      doi: "10.5067/MODIS/MOD11C3.061",
+      title: "MODIS/Terra LST/Emissivity Monthly L3 Global 0.05Deg CMG",
+    },
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 2000, month: 3 },
     description: "Daytime land-surface temperature (MODIS/Terra).",
@@ -130,6 +168,12 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     label: "Air temperature (2 m)",
     category: "Temperature",
     wmsLayer: "MERRA2_2m_Air_Temperature_Monthly",
+    dataset: {
+      shortName: "M2TMNXSLV",
+      version: "5.12.4",
+      doi: "10.5067/AP1B0BA5PD2K",
+      title: "MERRA-2 tavgM_2d_slv_Nx: Monthly Single-Level Diagnostics",
+    },
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 1980, month: 1 },
     latest: { year: 2026, month: 3 },
@@ -140,6 +184,12 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     label: "Sea surface temp",
     category: "Temperature",
     wmsLayer: "MODIS_Aqua_L3_SST_Thermal_9km_Day_Monthly",
+    dataset: {
+      shortName: "MODIS_AQUA_L3_SST_THERMAL_MONTHLY_9KM_DAYTIME_V2019.0",
+      version: "2019.0",
+      doi: "10.5067/MODSA-MO9D9",
+      title: "MODIS Aqua L3 SST Thermal IR Monthly 9km Daytime",
+    },
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 2002, month: 7 },
     latest: { year: 2026, month: 3 },
@@ -150,6 +200,12 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     label: "Precipitation",
     category: "Water",
     wmsLayer: "GLDAS_Surface_Total_Precipitation_Rate_Monthly",
+    dataset: {
+      shortName: "GLDAS_NOAH025_M",
+      version: "2.1",
+      doi: "10.5067/SXAVCZFAQLNO",
+      title: "GLDAS Noah Land Surface Model L4 monthly 0.25°",
+    },
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 2000, month: 1 },
     latest: { year: 2026, month: 1 },
@@ -160,6 +216,12 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     label: "Soil moisture",
     category: "Water",
     wmsLayer: "GLDAS_Underground_Soil_Moisture_Monthly",
+    dataset: {
+      shortName: "GLDAS_NOAH025_M",
+      version: "2.1",
+      doi: "10.5067/SXAVCZFAQLNO",
+      title: "GLDAS Noah Land Surface Model L4 monthly 0.25°",
+    },
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 2000, month: 1 },
     latest: { year: 2026, month: 1 },
@@ -170,6 +232,12 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     label: "Snow cover",
     category: "Cryosphere",
     wmsLayer: "MODIS_Terra_L3_Snow_Cover_Monthly_Average_Pct",
+    dataset: {
+      shortName: "MOD10CM",
+      version: "61",
+      doi: "10.5067/MODIS/MOD10CM.061",
+      title: "MODIS/Terra Snow Cover Monthly L3 Global 0.05Deg CMG",
+    },
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 2000, month: 3 },
     description:
@@ -180,6 +248,12 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     label: "Aerosols (AOD)",
     category: "Atmosphere",
     wmsLayer: "MERRA2_Total_Aerosol_Optical_Thickness_550nm_Extinction_Monthly",
+    dataset: {
+      shortName: "M2TMNXAER",
+      version: "5.12.4",
+      doi: "10.5067/FH9A0MLJPC7N",
+      title: "MERRA-2 tavgM_2d_aer_Nx: Monthly Aerosol Diagnostics",
+    },
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 1980, month: 1 },
     latest: { year: 2026, month: 3 },
@@ -191,6 +265,12 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     category: "Land",
     // Verified against GIBS WMTS capabilities: annual, 2001-01-01/2024-01-01/P1Y.
     wmsLayer: "MODIS_Combined_L3_IGBP_Land_Cover_Type_Annual",
+    dataset: {
+      shortName: "MCD12Q1",
+      version: "061",
+      doi: "10.5067/MODIS/MCD12Q1.061",
+      title: "MODIS Land Cover Type Yearly L3 Global 500m",
+    },
     wmts: { set: "500m", maxLevel: 7, ext: "png" },
     start: { year: 2001, month: 1 },
     latest: { year: 2024, month: 1 },
@@ -204,6 +284,12 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     label: "Terrain (shaded relief)",
     category: "Terrain",
     wmsLayer: "ASTER_GDEM_Color_Shaded_Relief",
+    dataset: {
+      shortName: "ASTGTM",
+      version: "003",
+      doi: "10.5067/ASTER/ASTGTM.003",
+      title: "ASTER Global Digital Elevation Model V003",
+    },
     wmts: { set: "31.25m", maxLevel: 11, ext: "jpg" },
     start: { year: 2000, month: 3 }, // static dataset — the timeline has no effect
     static: true,

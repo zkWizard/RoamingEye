@@ -391,6 +391,33 @@ body {
   white-space: nowrap;
 }
 
+/* The gradient bar plus its numeric axis (calibrated layers only). */
+.legend__bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.legend__values {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.65rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.legend__values[hidden] {
+  display: none;
+}
+
+.legend__value:nth-child(2) {
+  text-align: center;
+}
+
+.legend__value:last-child {
+  text-align: right;
+}
+
 .legend__caption {
   text-align: center;
   font-size: 0.72rem;
@@ -1337,6 +1364,29 @@ body {
   color: var(--muted);
   line-height: 1.45;
 }
+
+/* "Citing the data": per-dataset DOI list + the GIBS acknowledgment. */
+.providers__datasets {
+  margin: 0.6rem 0 0 1.1rem;
+  padding: 0;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.providers__datasets a {
+  color: var(--accent);
+}
+
+.providers__ack {
+  margin: 0.75rem 0 0;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--muted);
+  border-left: 3px solid var(--control-border);
+}
+
 .providers__legend {
   display: flex;
   flex-wrap: wrap;

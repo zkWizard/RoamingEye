@@ -6,11 +6,12 @@ import {
 } from "../lib/timeline";
 import { LEGENDS } from "../lib/legend";
 import {
+  areaWeight,
   buildColormapLut,
   invertColormap,
   latLonToPixel,
   medianValid,
-  meanValid,
+  weightedMeanValid,
   gridPoints,
   regionGridSize,
   type Rgb,
@@ -37,6 +38,22 @@ import type { LayerId } from "../lib/timeline";
  */
 
 export type ProbeMode = "point" | "area" | "region";
+
+/** An image pixel to sample plus the geographic area weight it represents. */
+interface WeightedPixel {
+  x: number;
+  y: number;
+  weight: number;
+}
+
+/** A sampled series plus, per month, how much of the sampled area held data. */
+export interface SampleResult {
+  values: (number | null)[];
+  /** Area-weighted share of valid samples per month (0..1; 0 for a month
+   * whose image failed to load) — coverage honesty for the CSV's
+   * valid_fraction column. */
+  validFractions: number[];
+}
 
 /** Ground span of the area-mode box, in degrees of latitude. */
 export const AREA_SPAN_DEG = 1.0;
@@ -77,14 +94,16 @@ export class ProbeSampler {
     lat: number,
     lon: number,
     options: SampleOptions = {}
-  ): Promise<(number | null)[]> {
+  ): Promise<SampleResult> {
     const { mode = "point", signal, onProgress, onValue } = options;
-    // Median for a tight pixel block; mean with a lower validity bar for a
-    // geographic grid (a coastal region box is still a valid region).
+    // Median for a tight pixel block; cos(lat) area-weighted mean with a
+    // lower validity bar for a geographic grid (a coastal region box is
+    // still a valid region).
     const combine =
       mode === "point"
         ? (inversions: (number | null)[]) => medianValid(inversions)
-        : (inversions: (number | null)[]) => meanValid(inversions);
+        : (inversions: (number | null)[], weights: number[]) =>
+            weightedMeanValid(inversions, weights);
     return this.run(layer, months, this.pixelsFor(mode, lat, lon), combine, {
       signal,
       onProgress,
@@ -103,12 +122,12 @@ export class ProbeSampler {
     months: YearMonth[],
     bounds: Bounds,
     options: Omit<SampleOptions, "mode"> = {}
-  ): Promise<(number | null)[]> {
+  ): Promise<SampleResult> {
     return this.run(
       layer,
       months,
       this.dedupedPixels(gridPoints(bounds, regionGridSize(bounds))),
-      (inversions) => meanValid(inversions),
+      (inversions, weights) => weightedMeanValid(inversions, weights),
       options
     );
   }
@@ -116,10 +135,13 @@ export class ProbeSampler {
   private async run(
     layer: LayerConfig,
     months: YearMonth[],
-    pixels: { x: number; y: number }[],
-    combine: (inversions: (number | null)[]) => number | null,
+    pixels: WeightedPixel[],
+    combine: (
+      inversions: (number | null)[],
+      weights: number[]
+    ) => number | null,
     options: Omit<SampleOptions, "mode">
-  ): Promise<(number | null)[]> {
+  ): Promise<SampleResult> {
     const { signal, onProgress, onValue } = options;
     const spec = LEGENDS[layer.id as LayerId];
     if (spec.kind === "classes") {
@@ -138,6 +160,7 @@ export class ProbeSampler {
     if (!ctx) throw new Error("RoamingEye: 2d canvas context unavailable");
 
     const values: (number | null)[] = new Array(months.length).fill(null);
+    const validFractions: number[] = new Array(months.length).fill(0);
     let done = 0;
     let next = 0;
 
@@ -145,7 +168,7 @@ export class ProbeSampler {
       while (next < months.length) {
         if (signal?.aborted) throw new DOMException("aborted", "AbortError");
         const index = next++;
-        values[index] = await this.sampleMonth(
+        const month = await this.sampleMonth(
           layer,
           months[index],
           pixels,
@@ -154,6 +177,8 @@ export class ProbeSampler {
           combine,
           signal
         );
+        values[index] = month.value;
+        validFractions[index] = month.validFraction;
         done++;
         onValue?.(index, values[index]);
         onProgress?.(done, months.length);
@@ -163,7 +188,7 @@ export class ProbeSampler {
     await Promise.all(
       Array.from({ length: Math.min(this.concurrency, months.length) }, worker)
     );
-    return values;
+    return { values, validFractions };
   }
 
   /** The set of source pixels a mode reads (deduped for coarse images). */
@@ -171,45 +196,52 @@ export class ProbeSampler {
     mode: "point" | "area",
     lat: number,
     lon: number
-  ): { x: number; y: number }[] {
+  ): WeightedPixel[] {
     const { width, height } = this.imageSize;
     if (mode === "point") {
       const { x, y } = latLonToPixel(lat, lon, width, height);
-      const block: { x: number; y: number }[] = [];
+      const block: WeightedPixel[] = [];
       for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) block.push({ x: x + dx, y: y + dy });
+        for (let dx = -1; dx <= 1; dx++)
+          block.push({ x: x + dx, y: y + dy, weight: 1 });
       }
       return block;
     }
     return this.dedupedPixels(gridPoints(this.areaBounds(lat, lon), AREA_GRID));
   }
 
-  /** Geographic grid points → unique image pixels (coarse images collapse). */
+  /**
+   * Geographic grid points → unique image pixels. On coarse images several
+   * grid points collapse onto one pixel; that pixel then carries their summed
+   * cos(lat) area weight, so the dedup never distorts the region statistic.
+   */
   private dedupedPixels(
     points: { lat: number; lon: number }[]
-  ): { x: number; y: number }[] {
+  ): WeightedPixel[] {
     const { width, height } = this.imageSize;
-    const seen = new Set<string>();
-    const pixels: { x: number; y: number }[] = [];
+    const byPixel = new Map<string, WeightedPixel>();
     for (const p of points) {
       const px = latLonToPixel(p.lat, p.lon, width, height);
       const key = `${px.x}:${px.y}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      pixels.push(px);
+      const existing = byPixel.get(key);
+      if (existing) existing.weight += areaWeight(p.lat);
+      else byPixel.set(key, { ...px, weight: areaWeight(p.lat) });
     }
-    return pixels;
+    return [...byPixel.values()];
   }
 
   private async sampleMonth(
     layer: LayerConfig,
     ym: YearMonth,
-    pixels: { x: number; y: number }[],
+    pixels: WeightedPixel[],
     lut: Rgb[],
     ctx: CanvasRenderingContext2D,
-    combine: (inversions: (number | null)[]) => number | null,
+    combine: (
+      inversions: (number | null)[],
+      weights: number[]
+    ) => number | null,
     signal?: AbortSignal
-  ): Promise<number | null> {
+  ): Promise<{ value: number | null; validFraction: number }> {
     let bitmap: ImageBitmap;
     try {
       const blob = await fetchBlob(
@@ -222,7 +254,8 @@ export class ProbeSampler {
       bitmap = await createImageBitmap(blob);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") throw err;
-      return null; // a missing month is a gap in the chart, not a failure
+      // A missing month is a gap in the chart, not a failure.
+      return { value: null, validFraction: 0 };
     }
 
     // Copy each source pixel into a 1-px-tall strip and read it in one call.
@@ -242,6 +275,21 @@ export class ProbeSampler {
         )
       );
     }
-    return combine(inversions);
+    // Coverage alongside the statistic: the (area-weighted) share of the
+    // sampled grid that held data — combine-independent, so point mode's
+    // unit weights reduce it to a plain count share.
+    let totalWeight = 0;
+    let validWeight = 0;
+    for (let i = 0; i < pixels.length; i++) {
+      totalWeight += pixels[i].weight;
+      if (inversions[i] !== null) validWeight += pixels[i].weight;
+    }
+    return {
+      value: combine(
+        inversions,
+        pixels.map((p) => p.weight)
+      ),
+      validFraction: totalWeight > 0 ? validWeight / totalWeight : 0,
+    };
   }
 }
