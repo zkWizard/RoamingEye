@@ -50,11 +50,25 @@ async function scan(page: Page, state: string): Promise<void> {
   );
 }
 
-test.beforeEach(async ({ page }) => {
+// Theme is pinned through the app's own localStorage override, before load:
+// headless CI reports prefers-color-scheme light, so the boot default would
+// silently invert which palette each test audits — and toggling at runtime
+// races the 0.3s palette transition (axe once flagged a mid-blend contrast
+// ratio that exists for a few frames only).
+async function boot(page: Page, theme: "dark" | "light"): Promise<void> {
+  await page.addInitScript(
+    (t) => localStorage.setItem("roamingeye:theme", t),
+    theme
+  );
   await page.goto("/");
   await page.waitForFunction(() => window.__APP_READY__ === true, null, {
     timeout: 30_000,
   });
+}
+
+test.beforeEach(async ({ page }, testInfo) => {
+  // The light-theme test boots itself; everything else audits dark.
+  if (!testInfo.title.includes("light theme")) await boot(page, "dark");
 });
 
 test("base UI is axe-clean (dark theme)", async ({ page }) => {
@@ -62,15 +76,7 @@ test("base UI is axe-clean (dark theme)", async ({ page }) => {
 });
 
 test("base UI is axe-clean (light theme)", async ({ page }) => {
-  await page.locator(".theme-toggle").click();
-  // Theme colors CSS-transition for 0.3s; scanning mid-blend reports
-  // contrast ratios that exist for a few frames only (caught in CI:
-  // fg #a9acb2 on bg #2d7deb — both mid-transition blends). Let the
-  // palette settle before auditing it.
-  await page.waitForFunction(() => {
-    const bg = getComputedStyle(document.body).backgroundColor;
-    return bg === "rgb(234, 240, 248)"; // --bg (light), transition finished
-  });
+  await boot(page, "light");
   await scan(page, "base/light");
 });
 
