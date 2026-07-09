@@ -13,7 +13,7 @@ import {
 } from "./lib/timeline";
 import { encodeViewState, decodeViewState } from "./lib/viewState";
 import { latLngToVector3, vector3ToLatLng, formatLatLng } from "./lib/geo";
-import { buildProbeCsv, PROBE_SCALES } from "./lib/probe";
+import { buildProbeCsv, normalizeLon, PROBE_SCALES } from "./lib/probe";
 import { refreshDataLatest } from "./lib/freshness";
 import { isAbortError, isOnline, OfflineError } from "./lib/net";
 import { nextPixelRatio } from "./lib/perf";
@@ -59,7 +59,7 @@ import { ProvidersPage } from "./ui/ProvidersPage";
 import { ShortcutsOverlay } from "./ui/ShortcutsOverlay";
 import { loadCountryIndex } from "./lib/countryIndex";
 import { flyToDistance } from "./lib/navigation";
-import { regionAround } from "./lib/imagery";
+import { legalLonBounds, regionAround } from "./lib/imagery";
 
 /**
  * RoamingEye
@@ -566,8 +566,11 @@ if (searchEl) {
       geometry: result.geometry,
     });
     // Drape a high-res patch over the area, driven by the current timeline month.
+    // legalLonBounds: a WMS BBOX can't cross ±180°, so near-dateline searches
+    // (Fiji, the Aleutians) slide the box to abut the seam instead of sending
+    // an illegal request.
     studyRegion.show(
-      regionAround(result.lat, result.lon, 1.2),
+      legalLonBounds(regionAround(result.lat, result.lon, 1.2)),
       months[currentIndex]
     );
     studyChip?.show(result.name);
@@ -756,8 +759,10 @@ if (probeEl) {
     scheduleHashSync();
     panel.open(
       layer.label,
-      `Drawn region · mean over ${formatLatLng({ lat: bounds.south, lon: bounds.west })} → ` +
-        formatLatLng({ lat: bounds.north, lon: bounds.east })
+      // normalizeLon: a box drawn across the antimeridian carries continuous
+      // longitudes (east > 180); display them as real coordinates.
+      `Drawn region · mean over ${formatLatLng({ lat: bounds.south, lon: normalizeLon(bounds.west) })} → ` +
+        formatLatLng({ lat: bounds.north, lon: normalizeLon(bounds.east) })
     );
     panel.setModeToggleVisible(false);
     if (layer.static) {
@@ -813,7 +818,7 @@ if (probeEl) {
               probeMonths,
               values
             ),
-          `roamingeye_region_${layer.id}_${bounds.south.toFixed(2)}_${bounds.west.toFixed(2)}_${bounds.north.toFixed(2)}_${bounds.east.toFixed(2)}.csv`
+          `roamingeye_region_${layer.id}_${bounds.south.toFixed(2)}_${normalizeLon(bounds.west).toFixed(2)}_${bounds.north.toFixed(2)}_${normalizeLon(bounds.east).toFixed(2)}.csv`
         );
       })
       .catch((err) => {

@@ -27,6 +27,11 @@ export const HIRES_LAYER = {
  * A bounded study region centred on a point, sized to stay genuinely
  * high-resolution (a small span, even if the searched place is large). Longitude
  * span widens with latitude so the ground footprint stays roughly square.
+ *
+ * Near the antimeridian the box is expressed in continuous longitudes
+ * (west < -180 or east > 180) so it stays centred on the point — correct for
+ * sampling (lib/probe normalizes) and sphere meshes (trig is periodic).
+ * WMS GetMap consumers must pass it through `legalLonBounds` first.
  */
 export function regionAround(
   latDeg: number,
@@ -39,6 +44,21 @@ export function regionAround(
   const cos = Math.max(0.15, Math.cos(latDeg * (Math.PI / 180)));
   const lonHalf = Math.min(30, half / cos);
   return { south, north, west: lonDeg - lonHalf, east: lonDeg + lonHalf };
+}
+
+/**
+ * Slide a bounds' longitudes into the legal WMS EPSG:4326 range. A GetMap
+ * BBOX cannot cross ±180°, so a box that overflows the seam is shifted to
+ * abut it — same size, and the point it was built around stays inside (just
+ * no longer centred). The honest trade-off until seam-stitched double
+ * requests exist; without it a near-dateline search sends an illegal BBOX.
+ */
+export function legalLonBounds(bounds: Bounds): Bounds {
+  const width = bounds.east - bounds.west;
+  if (width >= 360) return { ...bounds, west: -180, east: 180 };
+  if (bounds.west < -180) return { ...bounds, west: -180, east: -180 + width };
+  if (bounds.east > 180) return { ...bounds, west: 180 - width, east: 180 };
+  return bounds;
 }
 
 export interface RegionImageOptions {

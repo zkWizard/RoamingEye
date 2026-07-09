@@ -139,22 +139,45 @@ export function meanValid(
 
 // --- Drawn-region helpers ---------------------------------------------------------
 
+/** Wrap any longitude into [-180, 180). Pure and periodic-safe. */
+export function normalizeLon(lon: number): number {
+  return ((((lon + 180) % 360) + 360) % 360) - 180;
+}
+
+/**
+ * Whether a bounds' longitudes cross the antimeridian. Crossing boxes use
+ * the continuous-longitude convention: `east > 180`, with `east - west`
+ * still the true (short-arc) width — sphere trig is periodic, so outline
+ * meshes render such boxes correctly as-is.
+ */
+export function crossesAntimeridian(bounds: Bounds): boolean {
+  return bounds.east > 180 || bounds.west < -180;
+}
+
 /**
  * Normalize the two corners of a drag into a bounding box. Latitudes clamp to
  * ±85° (the poles hold no GIBS detail and degenerate the equirectangular
- * grid). Longitude takes the direct min→max span — a drawn box does not wrap
- * the antimeridian.
+ * grid). Longitude takes the **short arc**: a drag across the antimeridian
+ * (Fiji, the Bering Strait) yields the few degrees the user swept — expressed
+ * in continuous longitudes with `east > 180` — never the ~358° band around
+ * the rest of the planet that a naive min→max would produce.
  */
 export function dragBounds(
   a: { lat: number; lon: number },
   b: { lat: number; lon: number }
 ): Bounds {
   const clampLat = (lat: number): number => Math.min(85, Math.max(-85, lat));
+  let west = Math.min(a.lon, b.lon);
+  let east = Math.max(a.lon, b.lon);
+  if (east - west > 180) {
+    // The drag went the other way around — across the seam.
+    [west, east] = [east, west + 360];
+  }
   return {
     south: clampLat(Math.min(a.lat, b.lat)),
     north: clampLat(Math.max(a.lat, b.lat)),
-    west: Math.min(a.lon, b.lon),
-    east: Math.max(a.lon, b.lon),
+    west,
+    east,
   };
 }
 
@@ -186,7 +209,9 @@ export function regionGridSize(
 /**
  * Cell-center grid of n×n lat/lon points inside a bounding box — the sample
  * layout for area (region-mean) probing. Cell centers, not corners, so all
- * points are strictly inside the box.
+ * points are strictly inside the box. Longitudes are emitted normalized to
+ * [-180, 180), so a box in continuous longitudes (crossing the antimeridian,
+ * `east > 180`) samples the correct pixels on both sides of the seam.
  */
 export function gridPoints(
   bounds: Bounds,
@@ -197,7 +222,7 @@ export function gridPoints(
     const lat = bounds.south + ((i + 0.5) / n) * (bounds.north - bounds.south);
     for (let j = 0; j < n; j++) {
       const lon = bounds.west + ((j + 0.5) / n) * (bounds.east - bounds.west);
-      points.push({ lat, lon });
+      points.push({ lat, lon: normalizeLon(lon) });
     }
   }
   return points;
@@ -364,8 +389,14 @@ export function buildProbeCsv(
   const span = meta.scale.max - meta.scale.min;
   const cell = (v: number | null | undefined, offset: number): string =>
     v === null || v === undefined ? "" : (offset + v * span).toFixed(4);
+  // Crossing boxes print normalized longitudes with west > east — the
+  // GeoJSON (RFC 7946 §5.2) convention for an antimeridian-spanning bbox.
   const region = meta.sampledBounds
-    ? `${meta.sampledBounds.south.toFixed(3)},${meta.sampledBounds.west.toFixed(3)},${meta.sampledBounds.north.toFixed(3)},${meta.sampledBounds.east.toFixed(3)} (S,W,N,E)`
+    ? `${meta.sampledBounds.south.toFixed(3)},${normalizeLon(meta.sampledBounds.west).toFixed(3)},${meta.sampledBounds.north.toFixed(3)},${normalizeLon(meta.sampledBounds.east).toFixed(3)} (S,W,N,E)${
+        crossesAntimeridian(meta.sampledBounds)
+          ? " — crosses the antimeridian (west > east)"
+          : ""
+      }`
     : undefined;
   const lines = [
     `# RoamingEye ${meta.mode} probe — APPROXIMATE values`,
