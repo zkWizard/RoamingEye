@@ -52,6 +52,11 @@ export const DEPTH_CLASS_COLORS: Record<DepthClass, string> = {
  * Parse the USGS GeoJSON summary feed, dropping malformed features rather
  * than throwing — a partially usable feed still renders.
  */
+/** Number() that cannot throw: exotic values (null-prototype objects,
+ * symbols) read as NaN instead of a TypeError — found by the fuzz suite. */
+const toNumber = (v: unknown): number =>
+  typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+
 export function parseEarthquakeFeed(json: unknown): Earthquake[] {
   if (typeof json !== "object" || json === null) return [];
   const features = (json as { features?: unknown }).features;
@@ -63,9 +68,9 @@ export function parseEarthquakeFeed(json: unknown): Earthquake[] {
     const props = feature?.properties;
     if (!Array.isArray(coords) || coords.length < 3 || !props) continue;
 
-    const [lon, lat, depthKm] = coords.map(Number);
-    const magnitude = Number(props.mag);
-    const time = Number(props.time);
+    const [lon, lat, depthKm] = coords.map(toNumber);
+    const magnitude = toNumber(props.mag);
+    const time = toNumber(props.time);
     if (
       !Number.isFinite(lat) ||
       !Number.isFinite(lon) ||
