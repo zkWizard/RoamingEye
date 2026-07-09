@@ -19,6 +19,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:contract": "vitest run --config vitest.contract.config.ts",
+    "test:soak": "playwright test --config playwright.soak.config.ts",
     "verify": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build",
     "verify:full": "npm run verify && npm run test:e2e",
     "deploy": "node scripts/deploy.mjs"
