@@ -46,8 +46,10 @@ export function parseSession(raw: unknown): SessionState {
 
   if (typeof o.month === "object" && o.month !== null) {
     const m = o.month as Record<string, unknown>;
-    const year = Number(m.year);
-    const month = Number(m.month);
+    // Direct typeof guard rather than Number(): exotic objects (null
+    // prototype, symbols) make Number() throw — found by the fuzz suite.
+    const year = typeof m.year === "number" ? m.year : NaN;
+    const month = typeof m.month === "number" ? m.month : NaN;
     if (
       Number.isInteger(year) &&
       year >= 1900 &&

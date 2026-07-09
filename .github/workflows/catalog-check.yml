@@ -1,0 +1,66 @@
+name: Catalog check
+
+# Weekly contract check: every layer we hard-code must still exist in NASA
+# GIBS's live WMTS capabilities, with the tile-matrix set we request and a
+# time dimension where we scrub one. Single-strike reporting (capabilities
+# either list a layer or they don't — this isn't flaky; the test retries its
+# one fetch in-run), same auto-issue pattern as health-check.yml.
+on:
+  schedule:
+    - cron: "41 6 * * 2" # Tuesdays 06:41 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: GIBS catalog contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run test:contract
+
+  report:
+    name: File / resolve the drift issue
+    needs: contract
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TITLE: "GIBS catalog drift detected"
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Report drift, close on recovery
+        run: |
+          set -u
+          open_issue=$(gh issue list --label health --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number // empty')
+
+          if [ "${{ needs.contract.result }}" = "success" ]; then
+            if [ -n "$open_issue" ]; then
+              gh issue close "$open_issue" --comment "Catalog contract is green again ([run]($RUN_URL))."
+            fi
+            exit 0
+          fi
+
+          body="The weekly GIBS catalog contract check failed — a hard-coded
+          layer identifier, tile-matrix set, or time dimension no longer
+          matches NASA's live WMTS capabilities. The failing assertion names
+          the layer and what's missing.
+
+          Run: $RUN_URL"
+
+          if [ -n "$open_issue" ]; then
+            gh issue comment "$open_issue" --body "$body"
+          else
+            gh issue create --title "$TITLE" --label health --label robustness --body "$body"
+          fi

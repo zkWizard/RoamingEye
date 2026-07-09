@@ -18,6 +18,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:contract": "vitest run --config vitest.contract.config.ts",
     "verify": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build",
     "verify:full": "npm run verify && npm run test:e2e",
     "deploy": "node scripts/deploy.mjs"
@@ -30,6 +31,7 @@
     "@types/three": "^0.185.0",
     "eslint": "^10.6.0",
     "eslint-config-prettier": "^10.1.8",
+    "fast-check": "^4.9.0",
     "gifenc": "^1.0.3",
     "prettier": "^3.9.4",
     "typescript": "^6.0.3",
