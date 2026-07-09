@@ -327,6 +327,26 @@ test("recovers from a lost WebGL context", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("offline shows a banner, reconnect clears it and recovers", async ({
+  page,
+  context,
+}) => {
+  const banner = page.locator(".offline-banner");
+  await expect(banner).toBeHidden();
+
+  // Chromium's setOffline drives navigator.onLine and the online/offline
+  // events — the same signals the app listens to in the field.
+  await context.setOffline(true);
+  await expect(banner).toBeVisible();
+  await expect(banner).toContainText("Offline");
+
+  await context.setOffline(false);
+  await expect(banner).toBeHidden();
+  // Reconnect re-drives the texture pipeline; the app must settle back to a
+  // loaded, quiet state (no stuck "Loading…" and no retry pill).
+  await expect(page.locator(".status-retry")).toBeHidden({ timeout: 20_000 });
+});
+
 test("uncaught errors surface a dismissible toast", async ({ page }) => {
   await page.evaluate(() => {
     setTimeout(() => {

@@ -26,6 +26,114 @@ export function isAbortError(err: unknown): boolean {
   return err instanceof DOMException && err.name === "AbortError";
 }
 
+// --- Response payload validation ---------------------------------------------
+//
+// GIBS WMS answers malformed requests with a ServiceExceptionReport XML body
+// under HTTP 200 (the WMS 1.3.0 default), and captive portals/proxies serve
+// HTML "200 OK" pages. Left unchecked, those bodies fail far downstream —
+// opaque JSON parse errors, or garbage decoded into a globe texture. The
+// checks below name the problem at the fetch boundary instead.
+
+/** What a caller expects the response body to be. */
+export type ExpectedPayload = "json" | "image";
+
+/**
+ * Whether a content-type could plausibly be the expected payload. Deliberately
+ * permissive — static hosts disagree on the type for .json/.geojson files
+ * (text/plain, application/octet-stream, and a missing header all occur in
+ * the wild), so only types that can *never* be the payload are rejected:
+ * HTML error pages for both, XML for both (WMS exceptions), JSON for imagery.
+ */
+export function isAcceptableContentType(
+  contentType: string | null,
+  expected: ExpectedPayload
+): boolean {
+  if (!contentType) return true; // some CDNs strip it; let the parser decide
+  const ct = contentType.toLowerCase();
+  if (ct.includes("html") || ct.includes("xml")) return false;
+  if (expected === "image" && ct.includes("json")) return false;
+  return true;
+}
+
+/**
+ * Pull the human-readable message out of a WMS ServiceExceptionReport — it
+ * names the actual mistake (bad TIME, unknown layer, over-zoomed level),
+ * which is gold when debugging a data-layer configuration.
+ */
+export function extractServiceException(xml: string): string | null {
+  // `(?:\s[^>]*)?` keeps <ServiceExceptionReport> from matching as an
+  // attribute-less <ServiceException>.
+  const match = xml.match(
+    /<ServiceException(?:\s[^>]*)?>([\s\S]*?)<\/ServiceException>/i
+  );
+  const text = match?.[1].trim();
+  return text ? text.slice(0, 300) : null;
+}
+
+/**
+ * A response whose body cannot be the requested payload. Definitive — the
+ * server answered, just not with data — so it is thrown after the retry loop
+ * completes and never consumes retry attempts (retrying can't fix a
+ * ServiceException).
+ */
+export class ResponseTypeError extends Error {
+  constructor(
+    url: string,
+    readonly contentType: string | null,
+    detail?: string
+  ) {
+    super(
+      `Unexpected content-type "${contentType ?? "(none)"}" for ${url}` +
+        (detail ? ` — ${detail}` : "")
+    );
+    this.name = "ResponseTypeError";
+  }
+}
+
+/** Throw a named error if the response body can't be the expected payload. */
+async function assertPayloadType(
+  res: Response,
+  url: string,
+  expected: ExpectedPayload
+): Promise<void> {
+  const contentType = res.headers.get("content-type");
+  if (isAcceptableContentType(contentType, expected)) return;
+  let detail: string | undefined;
+  if (contentType?.toLowerCase().includes("xml")) {
+    try {
+      detail = extractServiceException(await res.text()) ?? undefined;
+    } catch {
+      // Body unreadable — the content-type alone still names the problem.
+    }
+  }
+  throw new ResponseTypeError(url, contentType, detail);
+}
+
+// --- Connectivity ---------------------------------------------------------------
+
+/**
+ * Thrown instead of attempting a request while the browser reports offline —
+ * failing in <1 ms rather than burning the full timeout + backoff budget on
+ * a request that cannot succeed. main.ts owns the user-facing banner and the
+ * automatic refresh when connectivity returns.
+ */
+export class OfflineError extends Error {
+  constructor(url: string) {
+    super(`Offline — not attempting ${url}`);
+    this.name = "OfflineError";
+  }
+}
+
+/**
+ * Browser connectivity as reported by the UA. `navigator.onLine === false`
+ * is trustworthy ("definitely offline"); `true` merely means "not known to
+ * be offline", so requests still carry their own timeouts. Outside a browser
+ * (unit tests, tooling) this reads as online.
+ */
+export function isOnline(): boolean {
+  return typeof navigator === "undefined" || navigator.onLine !== false;
+}
+
 const delay = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -59,6 +167,8 @@ export async function fetchWithRetry(
   const { retries = 2, timeoutMs = 15000, backoffMs = 400, signal } = options;
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
+    // Checked per attempt: connectivity can drop between backoff waits.
+    if (!isOnline()) throw new OfflineError(url);
     try {
       return await fetchWithTimeout(url, timeoutMs, signal);
     } catch (err) {
@@ -76,6 +186,7 @@ export async function fetchJson<T>(
   options: FetchOptions = {}
 ): Promise<T> {
   const res = await fetchWithRetry(url, options);
+  await assertPayloadType(res, url, "json");
   return (await res.json()) as T;
 }
 
@@ -85,5 +196,6 @@ export async function fetchBlob(
   options: FetchOptions = {}
 ): Promise<Blob> {
   const res = await fetchWithRetry(url, options);
+  await assertPayloadType(res, url, "image");
   return res.blob();
 }
