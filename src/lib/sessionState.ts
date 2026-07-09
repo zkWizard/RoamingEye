@@ -40,14 +40,18 @@ export function parseSession(raw: unknown): SessionState {
   const o = json as Record<string, unknown>;
   const out: SessionState = {};
 
-  if (typeof o.layer === "string" && o.layer in LAYERS) {
+  // Object.hasOwn, not `in`: `in` walks the prototype chain, so a corrupted
+  // session with layer "toString" would pass — same bug class as viewState.
+  if (typeof o.layer === "string" && Object.hasOwn(LAYERS, o.layer)) {
     out.layer = o.layer as LayerId;
   }
 
   if (typeof o.month === "object" && o.month !== null) {
     const m = o.month as Record<string, unknown>;
-    const year = Number(m.year);
-    const month = Number(m.month);
+    // Direct typeof guard rather than Number(): exotic objects (null
+    // prototype, symbols) make Number() throw — found by the fuzz suite.
+    const year = typeof m.year === "number" ? m.year : NaN;
+    const month = typeof m.month === "number" ? m.month : NaN;
     if (
       Number.isInteger(year) &&
       year >= 1900 &&
