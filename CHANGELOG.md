@@ -8,7 +8,7 @@ every commit. Format loosely follows
 
 Round 6 (issues #147–#153, PRs #154–#160 + this wrap-up): science-grade
 rigor. Where earlier rounds hardened the app against the network and the
-browser, this one holds the *numbers* to the standard a reviewer would:
+browser, this one holds the _numbers_ to the standard a reviewer would:
 correct spherical statistics, physical units, stated uncertainty, and a
 citation chain that reaches the datasets themselves. Grounded in community
 practice — xarray's area-weighting guidance, NASA's data-citation policy,
@@ -21,7 +21,7 @@ GIBS's own machine-readable metadata, and JOSS review criteria.
   poleward rows by up to cos 30°/cos 70° ≈ 2.5× across a 30–70°N box (the
   canonical gridded-data mistake). Sample weights are now cos(latitude),
   carried through coarse-image pixel dedup; the ocean-box validity gate
-  measures valid *area*; CSVs name the estimator in `# method:`. (#147)
+  measures valid _area_; CSVs name the estimator in `# method:`. (#147)
 
 ### Science
 
