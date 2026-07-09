@@ -40,7 +40,9 @@ export function parseSession(raw: unknown): SessionState {
   const o = json as Record<string, unknown>;
   const out: SessionState = {};
 
-  if (typeof o.layer === "string" && o.layer in LAYERS) {
+  // Object.hasOwn, not `in`: `in` walks the prototype chain, so a corrupted
+  // session with layer "toString" would pass — same bug class as viewState.
+  if (typeof o.layer === "string" && Object.hasOwn(LAYERS, o.layer)) {
     out.layer = o.layer as LayerId;
   }
 
