@@ -122,19 +122,39 @@ export function medianValid(
 }
 
 /**
- * Mean of the valid samples from an area grid — the region statistic. Null
- * when too little of the grid is data (a mostly-ocean box has no land story
- * to tell); the default tolerates coastal boxes (¼ land is enough).
+ * Area-weighted mean of the valid samples from a geographic grid — the region
+ * statistic. On an equal-angle lat/lon grid the area a sample represents
+ * shrinks with cos(latitude); averaging without weights biases every
+ * latitude-spanning box toward its poleward rows (the canonical gridded-data
+ * mistake — see xarray's area-weighted-temperature example). Null when too
+ * little of the grid's *area* is data (a mostly-ocean box has no land story
+ * to tell); the default tolerates coastal boxes (¼ of the area is enough).
  */
-export function meanValid(
+export function weightedMeanValid(
   values: (number | null)[],
+  weights: number[],
   minValidFraction = 0.25
 ): number | null {
-  const valid = values.filter((v): v is number => v !== null);
-  if (values.length === 0 || valid.length / values.length < minValidFraction) {
+  let totalWeight = 0;
+  let validWeight = 0;
+  let sum = 0;
+  for (let i = 0; i < values.length; i++) {
+    const w = weights[i];
+    totalWeight += w;
+    const v = values[i];
+    if (v === null) continue;
+    validWeight += w;
+    sum += v * w;
+  }
+  if (totalWeight <= 0 || validWeight / totalWeight < minValidFraction) {
     return null;
   }
-  return valid.reduce((sum, v) => sum + v, 0) / valid.length;
+  return sum / validWeight;
+}
+
+/** The cos(latitude) area weight of a sample on an equal-angle grid. */
+export function areaWeight(lat: number): number {
+  return Math.cos((lat * Math.PI) / 180);
 }
 
 // --- Drawn-region helpers ---------------------------------------------------------
@@ -449,7 +469,9 @@ export function buildProbeCsv(
     : undefined;
   const lines = [
     `# RoamingEye ${meta.mode} probe — APPROXIMATE values`,
-    `# method: colormap inversion of NASA GIBS rendered imagery (${meta.imageWidth}x${meta.imageHeight} equirectangular GetMap)`,
+    `# method: colormap inversion of NASA GIBS rendered imagery (${meta.imageWidth}x${meta.imageHeight} equirectangular GetMap)${
+      meta.mode === "point" ? "" : "; area-weighted (cos latitude) grid mean"
+    }`,
     `# caveat: reconstructed from public imagery colors; use the underlying L3 product for measurement-grade work`,
     `# layer: ${meta.layerLabel}`,
     `# gibs_layer: ${meta.wmsLayer}`,
