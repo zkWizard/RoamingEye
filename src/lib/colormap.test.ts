@@ -103,7 +103,9 @@ describe("linearityDeviation", () => {
 
 describe("calibrated scales bookkeeping", () => {
   it("every colormap-calibrated layer is marked calibrated with real units", () => {
-    for (const id of Object.keys(COLORMAP_DOCS) as (keyof typeof COLORMAP_DOCS)[]) {
+    for (const id of Object.keys(
+      COLORMAP_DOCS
+    ) as (keyof typeof COLORMAP_DOCS)[]) {
       expect(PROBE_SCALES[id].calibrated).toBe(true);
       expect(PROBE_SCALES[id].max).toBeGreaterThan(PROBE_SCALES[id].min);
     }

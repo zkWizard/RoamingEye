@@ -209,7 +209,12 @@ describe("scales", () => {
   it("maps calibrated physical scales onto real values", () => {
     // Mid-ramp air temperature: 220 + 0.5 × (310 − 220) = 265 K.
     expect(scaleValue(0.5, PROBE_SCALES.airtemp)).toBe(265);
-    expect(formatProbeValue(scaleValue(0.5, PROBE_SCALES.airtemp), PROBE_SCALES.airtemp)).toBe("265 K");
+    expect(
+      formatProbeValue(
+        scaleValue(0.5, PROBE_SCALES.airtemp),
+        PROBE_SCALES.airtemp
+      )
+    ).toBe("265 K");
   });
 
   it("formats values with the unit", () => {
