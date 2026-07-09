@@ -134,6 +134,55 @@ export function isOnline(): boolean {
   return typeof navigator === "undefined" || navigator.onLine !== false;
 }
 
+// --- HTTP status classification -------------------------------------------------
+//
+// Not every failure deserves a retry. A 404 for a month with no published
+// composite is a *normal answer* (the probe asks ~550 of them per chart) —
+// retrying it doubles our load on NASA GIBS for nothing. Conversely a 429
+// tells us exactly when to come back; ignoring Retry-After and hammering on
+// our own schedule is the opposite of API citizenship (RFC 9110 §10.2.3).
+
+/** A non-OK HTTP response, carrying the status so callers can branch. */
+export class HttpError extends Error {
+  constructor(
+    url: string,
+    readonly status: number,
+    /** Server-requested wait before retrying, already capped. */
+    readonly retryAfterMs?: number
+  ) {
+    super(`HTTP ${status} for ${url}`);
+    this.name = "HttpError";
+  }
+}
+
+/** Statuses a retry cannot fix — the server understood and said no. */
+const DEFINITIVE_STATUSES = new Set([400, 401, 403, 404, 405, 410, 414, 422]);
+
+export function isDefinitiveStatus(status: number): boolean {
+  return DEFINITIVE_STATUSES.has(status);
+}
+
+/** Ceiling on server-requested waits — a hostile or clock-skewed
+ * Retry-After must never hang the app. */
+export const RETRY_AFTER_CAP_MS = 30_000;
+
+/**
+ * Parse a Retry-After header (delta-seconds or HTTP-date) into a capped
+ * delay in ms; null when absent or malformed. Injectable clock for tests.
+ */
+export function parseRetryAfter(
+  header: string | null,
+  capMs = RETRY_AFTER_CAP_MS,
+  now: () => number = () => Date.now()
+): number | null {
+  const trimmed = header?.trim();
+  if (!trimmed) return null;
+  if (/^\d+$/.test(trimmed)) return Math.min(Number(trimmed) * 1000, capMs);
+  const date = Date.parse(trimmed);
+  if (Number.isNaN(date)) return null;
+  return Math.min(Math.max(0, date - now()), capMs);
+}
+
 const delay = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -151,7 +200,13 @@ async function fetchWithTimeout(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+    if (!res.ok) {
+      throw new HttpError(
+        url,
+        res.status,
+        parseRetryAfter(res.headers.get("retry-after")) ?? undefined
+      );
+    }
     return res;
   } finally {
     clearTimeout(timer);
@@ -159,7 +214,12 @@ async function fetchWithTimeout(
   }
 }
 
-/** Fetch with a timeout and bounded exponential-backoff retries. */
+/**
+ * Fetch with a timeout and bounded exponential-backoff retries. Definitive
+ * HTTP failures (4xx that a retry can't fix) throw immediately without
+ * consuming the retry budget; a Retry-After header (429, 503) overrides our
+ * backoff for that wait, capped at RETRY_AFTER_CAP_MS.
+ */
 export async function fetchWithRetry(
   url: string,
   options: FetchOptions = {}
@@ -174,7 +234,16 @@ export async function fetchWithRetry(
     } catch (err) {
       lastError = err;
       if (signal?.aborted || isAbortError(err)) throw err;
-      if (attempt < retries) await delay(backoffDelay(attempt, backoffMs));
+      if (err instanceof HttpError && isDefinitiveStatus(err.status)) {
+        throw err;
+      }
+      if (attempt < retries) {
+        const wait =
+          err instanceof HttpError && err.retryAfterMs !== undefined
+            ? err.retryAfterMs
+            : backoffDelay(attempt, backoffMs);
+        await delay(wait);
+      }
     }
   }
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
