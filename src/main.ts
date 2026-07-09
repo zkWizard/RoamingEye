@@ -432,7 +432,9 @@ if (exportEl) {
         const ym = months[currentIndex];
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = `roamingeye_${currentLayer}_${ym.year}-${String(ym.month).padStart(2, "0")}.png`;
+        // Version in the filename: a figure in a slide deck stays traceable
+        // to the software that rendered it, months later.
+        a.download = `roamingeye_${currentLayer}_${ym.year}-${String(ym.month).padStart(2, "0")}_v${__APP_VERSION__}.png`;
         a.click();
         URL.revokeObjectURL(a.href);
       }, "image/png");
@@ -538,13 +540,15 @@ function scheduleHashSync(): void {
   }, 400);
 }
 
+/** The shareable deep link for the current view — the reproduction URL that
+ * goes on the clipboard and into every CSV export's provenance header. */
+function currentShareUrl(): string {
+  return `${location.origin}${location.pathname}#${encodeViewState(currentViewState())}`;
+}
+
 const shareEl = document.querySelector<HTMLElement>("#share");
 if (shareEl) {
-  new ShareButton(
-    shareEl,
-    () =>
-      `${location.origin}${location.pathname}#${encodeViewState(currentViewState())}`
-  );
+  new ShareButton(shareEl, currentShareUrl);
 }
 
 // --- Search + fly-to --------------------------------------------------------
@@ -733,6 +737,8 @@ if (probeEl) {
                 imageWidth: PROBE_IMAGE.width,
                 imageHeight: PROBE_IMAGE.height,
                 generatedIso: new Date().toISOString(),
+                toolVersion: __APP_VERSION__,
+                viewUrl: currentShareUrl(),
               },
               probeMonths,
               values
@@ -809,6 +815,8 @@ if (probeEl) {
                 imageWidth: PROBE_IMAGE.width,
                 imageHeight: PROBE_IMAGE.height,
                 generatedIso: new Date().toISOString(),
+                toolVersion: __APP_VERSION__,
+                viewUrl: currentShareUrl(),
               },
               probeMonths,
               values
