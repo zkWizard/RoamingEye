@@ -5,11 +5,15 @@ import {
   fetchBlob,
   fetchJson,
   fetchWithRetry,
+  HttpError,
   isAbortError,
   isAcceptableContentType,
+  isDefinitiveStatus,
   isOnline,
   OfflineError,
+  parseRetryAfter,
   ResponseTypeError,
+  RETRY_AFTER_CAP_MS,
 } from "./net";
 
 describe("backoffDelay", () => {
@@ -80,6 +84,110 @@ describe("extractServiceException", () => {
   it("returns null when no exception element is present", () => {
     expect(extractServiceException("<html>gateway error</html>")).toBeNull();
     expect(extractServiceException("")).toBeNull();
+  });
+});
+
+describe("status classification", () => {
+  it("marks statuses a retry cannot fix as definitive", () => {
+    for (const s of [400, 401, 403, 404, 405, 410, 414, 422]) {
+      expect(isDefinitiveStatus(s), `status ${s}`).toBe(true);
+    }
+    for (const s of [408, 425, 429, 500, 502, 503, 504]) {
+      expect(isDefinitiveStatus(s), `status ${s}`).toBe(false);
+    }
+  });
+});
+
+describe("parseRetryAfter", () => {
+  it("parses delta-seconds, capped", () => {
+    expect(parseRetryAfter("2")).toBe(2000);
+    expect(parseRetryAfter("9999")).toBe(RETRY_AFTER_CAP_MS);
+  });
+
+  it("parses an HTTP-date relative to now, clamped to [0, cap]", () => {
+    const now = Date.parse("2026-07-08T12:00:00Z");
+    const clock = (): number => now;
+    expect(
+      parseRetryAfter(
+        "Wed, 08 Jul 2026 12:00:05 GMT",
+        RETRY_AFTER_CAP_MS,
+        clock
+      )
+    ).toBe(5000);
+    // A date in the past means "retry now", never a negative wait.
+    expect(
+      parseRetryAfter(
+        "Wed, 08 Jul 2026 11:00:00 GMT",
+        RETRY_AFTER_CAP_MS,
+        clock
+      )
+    ).toBe(0);
+  });
+
+  it("returns null for absent or malformed headers", () => {
+    expect(parseRetryAfter(null)).toBeNull();
+    expect(parseRetryAfter("")).toBeNull();
+    expect(parseRetryAfter("soon")).toBeNull();
+  });
+});
+
+describe("retry semantics by status", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  const respondStatus = (
+    status: number,
+    calls: { count: number },
+    headers: Record<string, string> = {}
+  ): void => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        calls.count++;
+        // new Response() rejects some statuses in init; a minimal literal
+        // covers everything fetchWithTimeout reads.
+        return { ok: false, status, headers: new Headers(headers) } as Response;
+      })
+    );
+  };
+
+  it("throws a 404 immediately with the status attached — no retries", async () => {
+    const calls = { count: 0 };
+    respondStatus(404, calls);
+    const err = await fetchWithRetry("https://gibs.test/missing-month", {
+      retries: 3,
+      backoffMs: 1,
+    }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(HttpError);
+    expect((err as HttpError).status).toBe(404);
+    expect(calls.count).toBe(1);
+  });
+
+  it("retries a 503 through the backoff budget", async () => {
+    const calls = { count: 0 };
+    respondStatus(503, calls);
+    await expect(
+      fetchWithRetry("https://gibs.test/wms", { retries: 2, backoffMs: 1 })
+    ).rejects.toBeInstanceOf(HttpError);
+    expect(calls.count).toBe(3);
+  });
+
+  it("waits the server's Retry-After before retrying a 429", async () => {
+    vi.useFakeTimers();
+    const calls = { count: 0 };
+    respondStatus(429, calls, { "retry-after": "2" });
+    const pending = fetchWithRetry("https://api.test/limited", {
+      retries: 1,
+      backoffMs: 1,
+    }).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(calls.count).toBe(1); // still honoring the server's wait
+    await vi.advanceTimersByTimeAsync(1);
+    const err = await pending;
+    expect((err as HttpError).status).toBe(429);
+    expect(calls.count).toBe(2);
   });
 });
 
