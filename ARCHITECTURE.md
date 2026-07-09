@@ -87,6 +87,18 @@ near plane is small (0.01) so you can get right down to the surface.
   errors) plus feature checks (toolbar, hover). Search and high-res imagery hit
   third-party services and are verified manually rather than gated in CI.
 
+## Operations
+
+The deployed site and its upstream data services can degrade without any
+commit landing here, so a scheduled workflow
+(`.github/workflows/health-check.yml`) probes them daily: the live GitHub
+Pages site, a GIBS WMS GetMap (an XML body with HTTP 200 is a
+ServiceException and counts as down), Nominatim (one policy-compliant
+request), and the USGS feed. Two consecutive failures open a single issue
+labeled `health`; the next green run closes it. Run it on demand from the
+Actions tab (`workflow_dispatch`), including with an override site URL to
+exercise the failure path.
+
 ## Conventions
 
 - TypeScript strict mode; pure functions for logic, classes for stateful

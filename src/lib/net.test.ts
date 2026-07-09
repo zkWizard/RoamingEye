@@ -4,8 +4,11 @@ import {
   extractServiceException,
   fetchBlob,
   fetchJson,
+  fetchWithRetry,
   isAbortError,
   isAcceptableContentType,
+  isOnline,
+  OfflineError,
   ResponseTypeError,
 } from "./net";
 
@@ -77,6 +80,49 @@ describe("extractServiceException", () => {
   it("returns null when no exception element is present", () => {
     expect(extractServiceException("<html>gateway error</html>")).toBeNull();
     expect(extractServiceException("")).toBeNull();
+  });
+});
+
+describe("offline fast-fail", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("reads as online outside a browser", () => {
+    expect(isOnline()).toBe(true);
+  });
+
+  it("trusts navigator.onLine === false", () => {
+    vi.stubGlobal("navigator", { onLine: false });
+    expect(isOnline()).toBe(false);
+  });
+
+  it("fails in <50ms with no fetch attempts while offline", async () => {
+    vi.stubGlobal("navigator", { onLine: false });
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const started = performance.now();
+    await expect(
+      fetchWithRetry("https://gibs.test/wms", { retries: 3 })
+    ).rejects.toBeInstanceOf(OfflineError);
+    expect(performance.now() - started).toBeLessThan(50);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("stops retrying when connectivity drops mid-backoff", async () => {
+    const nav = { onLine: true };
+    vi.stubGlobal("navigator", nav);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        nav.onLine = false; // the network vanishes after the first attempt
+        throw new TypeError("network error");
+      })
+    );
+    await expect(
+      fetchWithRetry("https://gibs.test/wms", { retries: 2, backoffMs: 1 })
+    ).rejects.toBeInstanceOf(OfflineError);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
 
