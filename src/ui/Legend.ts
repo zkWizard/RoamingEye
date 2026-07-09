@@ -1,5 +1,10 @@
 import { LAYERS, type LayerId } from "../lib/timeline";
-import { LEGENDS, gradientCss, overlayKeyFor } from "../lib/legend";
+import {
+  LEGENDS,
+  gradientCss,
+  legendTicks,
+  overlayKeyFor,
+} from "../lib/legend";
 
 /**
  * A compact key for the active data layer: a color-scale bar with end labels
@@ -13,6 +18,10 @@ export class Legend {
   private readonly bar: HTMLDivElement;
   private readonly minLabel: HTMLSpanElement;
   private readonly maxLabel: HTMLSpanElement;
+  private values!: HTMLDivElement;
+  private readonly valueTicks: Partial<
+    Record<"min" | "mid" | "max", HTMLSpanElement>
+  > = {};
   private readonly caption: HTMLParagraphElement;
   private readonly keys: HTMLDivElement;
   private readonly keyRows = new Map<string, HTMLElement>();
@@ -32,10 +41,25 @@ export class Legend {
     this.bar.className = "legend__bar";
     this.bar.setAttribute("role", "img");
 
+    // Numeric min/mid/max under the gradient (calibrated layers only) —
+    // the values that turn the color bar from illustration into an axis.
+    this.values = document.createElement("div");
+    this.values.className = "legend__values";
+    for (const key of ["min", "mid", "max"] as const) {
+      const tick = document.createElement("span");
+      tick.className = "legend__value";
+      this.valueTicks[key] = tick;
+      this.values.append(tick);
+    }
+
+    const barWrap = document.createElement("div");
+    barWrap.className = "legend__bar-wrap";
+    barWrap.append(this.bar, this.values);
+
     this.maxLabel = document.createElement("span");
     this.maxLabel.className = "legend__end";
 
-    scale.append(this.minLabel, this.bar, this.maxLabel);
+    scale.append(this.minLabel, barWrap, this.maxLabel);
 
     this.measures = document.createElement("span");
     this.measures.className = "legend__measures";
@@ -124,11 +148,21 @@ export class Legend {
     }
 
     this.bar.style.background = gradientCss(spec.stops);
-    this.bar.setAttribute(
-      "aria-label",
-      `Color scale from ${spec.minLabel} to ${spec.maxLabel}`
-    );
     this.minLabel.textContent = spec.minLabel;
     this.maxLabel.textContent = spec.maxLabel;
+
+    // Physical-value ticks (nothing rather than fake numbers for
+    // uncalibrated layers); the bar's accessible name carries them too.
+    const ticks = legendTicks(id);
+    this.values.hidden = ticks === null;
+    this.valueTicks.min!.textContent = ticks?.min ?? "";
+    this.valueTicks.mid!.textContent = ticks?.mid ?? "";
+    this.valueTicks.max!.textContent = ticks?.max ?? "";
+    this.bar.setAttribute(
+      "aria-label",
+      ticks
+        ? `Color scale from ${spec.minLabel} (${ticks.min}) to ${spec.maxLabel} (${ticks.max})`
+        : `Color scale from ${spec.minLabel} to ${spec.maxLabel}`
+    );
   }
 }

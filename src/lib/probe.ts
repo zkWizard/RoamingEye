@@ -390,6 +390,38 @@ export function formatProbeValue(value: number, scale: ProbeScale): string {
   return `${value.toFixed(digits)}${scale.unit ? ` ${scale.unit}` : ""}`;
 }
 
+// --- Quantified uncertainty ------------------------------------------------------
+
+/** LUT resolution the inversion runs at (buildColormapLut's default). */
+export const PROBE_LUT_SIZE = 256;
+
+/**
+ * The value resolution of the colormap inversion: one LUT step on the
+ * layer's scale. Values can't be known finer than this — the quantization
+ * floor of the method (compression noise sits on top; see
+ * probe.accuracy.test.ts for the measured end-to-end bounds).
+ */
+export function quantizationStep(scale: ProbeScale): number {
+  return (scale.max - scale.min) / (PROBE_LUT_SIZE - 1);
+}
+
+/**
+ * Decimals that honestly represent the quantization step — enough to
+ * resolve it, none implying precision the method doesn't have (the old
+ * fixed 4 decimals printed 0.6338 from a ±0.002 measurement).
+ */
+export function csvDecimals(scale: ProbeScale): number {
+  const step = quantizationStep(scale);
+  if (step <= 0) return 0;
+  return Math.max(0, Math.ceil(-Math.log10(step)));
+}
+
+/** "±0.002" / "±0.2 %" — half the quantization step, one significant digit. */
+export function uncertaintyText(scale: ProbeScale): string {
+  const half = quantizationStep(scale) / 2;
+  return `±${half.toPrecision(1)}${scale.unit ? ` ${scale.unit}` : ""}`;
+}
+
 // --- Series statistics ---------------------------------------------------------
 
 export interface SeriesStats {
@@ -453,13 +485,22 @@ export function buildProbeCsv(
   meta: ProbeCsvMeta,
   months: YearMonth[],
   values: (number | null)[],
-  anomalies: (number | null)[] = anomalySeries(months, values)
+  anomalies: (number | null)[] = anomalySeries(months, values),
+  validFractions?: number[]
 ): string {
   const ymStr = (ym: YearMonth): string =>
     `${ym.year}-${String(ym.month).padStart(2, "0")}`;
   const span = meta.scale.max - meta.scale.min;
+  // Decimals follow the quantization step — printing more digits than the
+  // method resolves is false precision (the pre-#149 fixed 4 decimals
+  // printed 0.6338 from a ±0.002 measurement).
+  const decimals = csvDecimals(meta.scale);
   const cell = (v: number | null | undefined, offset: number): string =>
-    v === null || v === undefined ? "" : (offset + v * span).toFixed(4);
+    v === null || v === undefined ? "" : (offset + v * span).toFixed(decimals);
+  // Coverage column for averaged modes: how much of the box's *area* held
+  // data each month — a 25%-coverage mean and a 100% one should never look
+  // alike downstream.
+  const fractions = meta.mode !== "point" && validFractions;
   // Crossing boxes print normalized longitudes with west > east — the
   // GeoJSON (RFC 7946 §5.2) convention for an antimeridian-spanning bbox.
   const region = meta.sampledBounds
@@ -494,16 +535,23 @@ export function buildProbeCsv(
         : "fraction of color scale"
     })`,
     `# anomaly: value minus this location's mean for the same calendar month (same units)`,
+    `# uncertainty: ${uncertaintyText(meta.scale)} colormap quantization (compression noise on top; see the probe accuracy suite for end-to-end bounds)`,
+    ...(fractions
+      ? [
+          `# valid_fraction: share of the sampled area that held data that month (area-weighted)`,
+        ]
+      : []),
     `# imagery: NASA GIBS (public domain), https://gibs.earthdata.nasa.gov`,
     `# generated: ${meta.generatedIso}`,
     `# tool: RoamingEye, https://github.com/zkWizard/RoamingEye`,
     ...(meta.toolVersion ? [`# tool_version: ${meta.toolVersion}`] : []),
     ...(meta.viewUrl ? [`# view_url: ${meta.viewUrl}`] : []),
-    `year_month,value,anomaly`,
+    `year_month,value,anomaly${fractions ? ",valid_fraction" : ""}`,
   ];
   for (let i = 0; i < months.length; i++) {
     lines.push(
-      `${ymStr(months[i])},${cell(values[i], meta.scale.min)},${cell(anomalies[i], 0)}`
+      `${ymStr(months[i])},${cell(values[i], meta.scale.min)},${cell(anomalies[i], 0)}` +
+        (fractions ? `,${(validFractions[i] ?? 0).toFixed(2)}` : "")
     );
   }
   return lines.join("\n") + "\n";

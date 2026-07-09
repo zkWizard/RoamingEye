@@ -735,7 +735,7 @@ if (probeEl) {
           }
         },
       })
-      .then((values) => {
+      .then(({ values, validFractions }) => {
         if (abort.signal.aborted) return;
         panel.finish(
           () =>
@@ -757,7 +757,9 @@ if (probeEl) {
                 viewUrl: currentShareUrl(),
               },
               probeMonths,
-              values
+              values,
+              undefined,
+              validFractions
             ),
           `roamingeye_probe_${mode}_${layer.id}_${lat.toFixed(3)}_${lon.toFixed(3)}.csv`
         );
@@ -817,7 +819,7 @@ if (probeEl) {
           }
         },
       })
-      .then((values) => {
+      .then(({ values, validFractions }) => {
         if (abort.signal.aborted) return;
         panel.finish(
           () =>
@@ -838,7 +840,9 @@ if (probeEl) {
                 viewUrl: currentShareUrl(),
               },
               probeMonths,
-              values
+              values,
+              undefined,
+              validFractions
             ),
           `roamingeye_region_${layer.id}_${bounds.south.toFixed(2)}_${normalizeLon(bounds.west).toFixed(2)}_${bounds.north.toFixed(2)}_${normalizeLon(bounds.east).toFixed(2)}.csv`
         );

@@ -3,6 +3,7 @@ import {
   formatProbeValue,
   seriesStats,
   scaleValue,
+  uncertaintyText,
   type ProbeScale,
 } from "../lib/probe";
 import type { ProbeMode } from "../probe/ProbeSampler";
@@ -223,7 +224,10 @@ export class ProbePanel {
     const fmt = (t: number): string => formatProbeValue(scaleValue(t, s), s);
     this.setStatus(
       `${stats.count} of ${this.months.length} months · ` +
-        `min ${fmt(stats.min)} · mean ${fmt(stats.mean)} · max ${fmt(stats.max)}`
+        `min ${fmt(stats.min)} · mean ${fmt(stats.mean)} · max ${fmt(stats.max)}` +
+        // Each value is only known to the colormap's quantization step —
+        // say so right where the numbers are.
+        ` · ${uncertaintyText(s)} per value`
     );
   }
 

@@ -391,6 +391,33 @@ body {
   white-space: nowrap;
 }
 
+/* The gradient bar plus its numeric axis (calibrated layers only). */
+.legend__bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.legend__values {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.65rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.legend__values[hidden] {
+  display: none;
+}
+
+.legend__value:nth-child(2) {
+  text-align: center;
+}
+
+.legend__value:last-child {
+  text-align: right;
+}
+
 .legend__caption {
   text-align: center;
   font-size: 0.72rem;
