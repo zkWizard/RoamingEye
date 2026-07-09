@@ -1,0 +1,42 @@
+name: CodeQL
+
+# Static security analysis of our own code — complements the npm-audit job in
+# ci.yml, which only covers dependencies' *known* CVEs. Same hardening rules
+# as ci.yml: pinned action SHAs, least privilege, secret-free.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # Weekly re-scan (Mondays 06:23 UTC): newly published query packs catch
+    # issues in unchanged code, so a quiet repo still gets fresh coverage.
+    - cron: "23 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (JavaScript/TypeScript)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Required to upload results to the repository's Security tab.
+      security-events: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
+        with:
+          # The JS/TS extractor reads sources directly — no build needed.
+          languages: javascript-typescript
+          queries: security-and-quality
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
+        with:
+          category: "/language:javascript-typescript"

@@ -23,7 +23,18 @@ RoamingEye is a client-side web application. The most relevant categories are:
 - Anything that could compromise a contributor's machine via the build or test
   tooling.
 
+## Automated scanning
+
+Two automated layers run on every pull request and push to `main`:
+
+- **CodeQL** (`.github/workflows/codeql.yml`) statically analyses our own
+  TypeScript with GitHub's `security-and-quality` suite, plus a weekly
+  re-scan so newly published queries cover unchanged code. Alerts land in
+  this repository's [Security tab](https://github.com/zkWizard/RoamingEye/security/code-scanning).
+- **`npm audit`** (in `ci.yml`) fails CI on high/critical advisories in our
+  dependency tree, and Dependabot keeps dependencies current.
+
 ## Supported versions
 
-The project is pre-1.0 and moving fast. Only the latest `main` is supported; fixes
-land there and flow into the next release.
+Only the latest release and `main` are supported; fixes land on `main` and
+flow into the next release.
