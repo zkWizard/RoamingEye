@@ -86,6 +86,12 @@ near plane is small (0.01) so you can get right down to the surface.
 - **E2E (Playwright):** browser smoke (page loads, WebGL context, no console
   errors) plus feature checks (toolbar, hover). Search and high-res imagery hit
   third-party services and are verified manually rather than gated in CI.
+- **Accessibility (axe-core):** every meaningful UI state (base, picker,
+  probe, modals, compare — both themes) is scanned against the WCAG 2.x
+  A/AA rule tags in the e2e job; serious/critical violations fail CI,
+  moderate/minor log as advisory. The WebGL canvas is excluded (axe can't
+  see into a pixel buffer); its accessible equivalents — coordinate
+  readout, provenance line — are scanned DOM.
 
 ## Operations
 
@@ -98,6 +104,14 @@ request), and the USGS feed. Two consecutive failures open a single issue
 labeled `health`; the next green run closes it. Run it on demand from the
 Actions tab (`workflow_dispatch`), including with an override site URL to
 exercise the failure path.
+
+A second scheduled workflow (`.github/workflows/catalog-check.yml`, weekly)
+runs the **catalog contract test** (`contract/`, `npm run test:contract`):
+every hard-coded GIBS layer identifier must still exist in the live WMTS
+capabilities, with our tile-matrix set and a time dimension where we scrub
+one — so an upstream rename or retirement files an issue before a user sees
+a black globe. Contract tests are network-touching by design and never run
+in the offline unit suite.
 
 ## Conventions
 

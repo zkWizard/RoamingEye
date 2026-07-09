@@ -68,6 +68,11 @@ export function volcanoHoverLabel(volcano: Volcano): string {
  * Parse the slimmed volcano list, dropping malformed entries rather than
  * throwing — a partially usable file still renders.
  */
+/** Number() that cannot throw: exotic values (null-prototype objects,
+ * symbols) read as NaN instead of a TypeError — found by the fuzz suite. */
+const toNumber = (v: unknown): number =>
+  typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+
 export function parseVolcanoList(json: unknown): Volcano[] {
   if (!Array.isArray(json)) return [];
 
@@ -75,8 +80,8 @@ export function parseVolcanoList(json: unknown): Volcano[] {
   for (const entry of json as Record<string, unknown>[]) {
     if (typeof entry !== "object" || entry === null) continue;
     const name = entry.name;
-    const lat = Number(entry.lat);
-    const lon = Number(entry.lon);
+    const lat = toNumber(entry.lat);
+    const lon = toNumber(entry.lon);
     if (
       typeof name !== "string" ||
       name.length === 0 ||

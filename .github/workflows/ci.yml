@@ -122,3 +122,28 @@ jobs:
       - run: npm ci
       # Fails only on high/critical advisories to avoid blocking PRs on noise.
       - run: npm audit --audit-level=high
+
+  supply-chain:
+    name: Supply-chain gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 20
+          cache: npm
+      # Every lockfile entry must resolve to registry.npmjs.org over HTTPS
+      # with an integrity hash — a poisoned lockfile edit (mirror host,
+      # http:// downgrade) fails here, because humans don't read 10k-line
+      # lockfile diffs. Tool versions pinned for determinism.
+      - name: Lockfile host/protocol/integrity lint
+        run: npx --yes lockfile-lint@4.14.1 --path package-lock.json --allowed-hosts npm --validate-https --validate-integrity
+      - run: npm ci
+      # "100% open" is enforced, not asserted. Shipped code (production
+      # tree) is held to strictly MIT-compatible permissive licenses; the
+      # dev tree additionally admits weak-copyleft tooling (MPL-2.0 — e.g.
+      # axe-core) and open data/doc licenses, none of which we distribute.
+      - name: License allowlist (shipped code)
+        run: npx --yes license-checker-rseidelsohn@4.4.2 --production --onlyAllow "MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;CC0-1.0;Unlicense"
+      - name: License allowlist (full dev tree)
+        run: npx --yes license-checker-rseidelsohn@4.4.2 --onlyAllow "MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;CC0-1.0;CC-BY-4.0;Unlicense;BlueOak-1.0.0;MPL-2.0;Python-2.0"
