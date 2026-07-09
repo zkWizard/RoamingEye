@@ -109,6 +109,31 @@ async function assertPayloadType(
   throw new ResponseTypeError(url, contentType, detail);
 }
 
+// --- Connectivity ---------------------------------------------------------------
+
+/**
+ * Thrown instead of attempting a request while the browser reports offline —
+ * failing in <1 ms rather than burning the full timeout + backoff budget on
+ * a request that cannot succeed. main.ts owns the user-facing banner and the
+ * automatic refresh when connectivity returns.
+ */
+export class OfflineError extends Error {
+  constructor(url: string) {
+    super(`Offline — not attempting ${url}`);
+    this.name = "OfflineError";
+  }
+}
+
+/**
+ * Browser connectivity as reported by the UA. `navigator.onLine === false`
+ * is trustworthy ("definitely offline"); `true` merely means "not known to
+ * be offline", so requests still carry their own timeouts. Outside a browser
+ * (unit tests, tooling) this reads as online.
+ */
+export function isOnline(): boolean {
+  return typeof navigator === "undefined" || navigator.onLine !== false;
+}
+
 const delay = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -142,6 +167,8 @@ export async function fetchWithRetry(
   const { retries = 2, timeoutMs = 15000, backoffMs = 400, signal } = options;
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
+    // Checked per attempt: connectivity can drop between backoff waits.
+    if (!isOnline()) throw new OfflineError(url);
     try {
       return await fetchWithTimeout(url, timeoutMs, signal);
     } catch (err) {
