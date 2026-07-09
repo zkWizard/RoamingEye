@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 
 /**
  * Visual regression for the scientific chrome — legends, timeline, picker,
@@ -7,10 +7,15 @@ import { test, expect } from "@playwright/test";
  * theme or viewport nobody manually re-checked.
  *
  * Determinism rules:
+ *  - the theme is pinned through the app's own localStorage override
+ *    (headless CI reports prefers-color-scheme: light, so relying on the
+ *    boot default silently inverted dark/light shots);
  *  - the WebGL canvas is hidden via injected style (imagery varies by fetch
- *    and month; the UI panels blur a deterministic page background instead);
+ *    and month; the UI panels sit on a deterministic page background);
  *  - the boot freshness probe is blocked and the month pinned by deep link,
  *    so the timeline doesn't shift when NASA publishes a new month;
+ *  - the render loop is stopped through the app's hidden-tab path (per-frame
+ *    compositing under SwiftShader defeats Playwright's stability check);
  *  - Linux-only (baselines are CI renders; font rasterization differs per
  *    OS). Regenerate via the "Update visual baselines" dispatch workflow.
  *
@@ -24,18 +29,24 @@ test.skip(
 );
 
 const FIXED_VIEW = "#layer=ndvi&t=2020-06&lat=0.00&lon=0.00&alt=2.20";
-// stylePath (not inline style): supported by this Playwright's
-// toHaveScreenshot; hides the imagery-variable canvas in every shot.
 const shot = {
   stylePath: fileURLToPath(
     new URL("./visual-hide-canvas.css", import.meta.url)
   ),
 };
 
-test.beforeEach(async ({ page }) => {
+async function boot(
+  page: Page,
+  theme: "dark" | "light" = "dark",
+  hash: string = FIXED_VIEW
+): Promise<void> {
+  await page.addInitScript(
+    (t) => localStorage.setItem("roamingeye:theme", t),
+    theme
+  );
   // Freeze the timeline: no freshness growth, pinned month via the hash.
   await page.route("**DescribeDomains**", (route) => route.abort());
-  await page.goto(`/${FIXED_VIEW}`);
+  await page.goto(`/${hash}`);
   await page.waitForFunction(() => window.__APP_READY__ === true, null, {
     timeout: 30_000,
   });
@@ -50,9 +61,10 @@ test.beforeEach(async ({ page }) => {
   await page.waitForFunction(() => window.__RENDER_ACTIVE__ === false, null, {
     timeout: 5_000,
   });
-});
+}
 
 test("controls panel (timeline + selector), dark", async ({ page }) => {
+  await boot(page, "dark");
   await expect(page.locator(".controls")).toHaveScreenshot(
     "controls-dark.png",
     shot
@@ -60,7 +72,7 @@ test("controls panel (timeline + selector), dark", async ({ page }) => {
 });
 
 test("controls panel, light theme", async ({ page }) => {
-  await page.locator(".theme-toggle").click();
+  await boot(page, "light");
   await expect(page.locator(".controls")).toHaveScreenshot(
     "controls-light.png",
     shot
@@ -68,6 +80,7 @@ test("controls panel, light theme", async ({ page }) => {
 });
 
 test("layer picker open", async ({ page }) => {
+  await boot(page, "dark");
   await page.locator(".layer-selector__trigger").click();
   await expect(page.locator(".layer-selector__panel")).toHaveScreenshot(
     "layer-picker.png",
@@ -76,6 +89,7 @@ test("layer picker open", async ({ page }) => {
 });
 
 test("legend, gradient layer", async ({ page }) => {
+  await boot(page, "dark");
   await expect(page.locator("#legend")).toHaveScreenshot(
     "legend-gradient.png",
     shot
@@ -83,10 +97,7 @@ test("legend, gradient layer", async ({ page }) => {
 });
 
 test("legend, categorical layer (land cover)", async ({ page }) => {
-  await page.goto("/#layer=landcover&t=2020-01");
-  await page.waitForFunction(() => window.__APP_READY__ === true, null, {
-    timeout: 30_000,
-  });
+  await boot(page, "dark", "#layer=landcover&t=2020-01");
   await expect(page.locator("#legend")).toHaveScreenshot(
     "legend-classes.png",
     shot
@@ -94,6 +105,7 @@ test("legend, categorical layer (land cover)", async ({ page }) => {
 });
 
 test("toolbar, desktop", async ({ page }) => {
+  await boot(page, "dark");
   await expect(page.locator("#toolbar")).toHaveScreenshot(
     "toolbar-desktop.png",
     shot
@@ -101,6 +113,7 @@ test("toolbar, desktop", async ({ page }) => {
 });
 
 test("toolbar, phone width (bottom app bar)", async ({ page }) => {
+  await boot(page, "dark");
   await page.setViewportSize({ width: 375, height: 812 });
   await expect(page.locator("#toolbar")).toHaveScreenshot(
     "toolbar-mobile.png",
@@ -109,6 +122,7 @@ test("toolbar, phone width (bottom app bar)", async ({ page }) => {
 });
 
 test("providers modal panel", async ({ page }) => {
+  await boot(page, "dark");
   await page.locator("#providers-link").click();
   await expect(page.locator(".providers__panel")).toHaveScreenshot(
     "providers-panel.png",
@@ -117,6 +131,7 @@ test("providers modal panel", async ({ page }) => {
 });
 
 test("shortcuts overlay", async ({ page }) => {
+  await boot(page, "dark");
   await page.locator("#shortcuts-link").click();
   await expect(page.locator("#shortcuts-page")).toHaveScreenshot(
     "shortcuts.png",
