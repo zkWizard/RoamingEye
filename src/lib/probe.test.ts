@@ -19,6 +19,9 @@ import {
   scaleValue,
   formatProbeValue,
   buildProbeCsv,
+  quantizationStep,
+  csvDecimals,
+  uncertaintyText,
   PROBE_SCALES,
 } from "./probe";
 import { LEGENDS, type GradientLegendSpec } from "./legend";
@@ -232,6 +235,23 @@ describe("scales", () => {
   });
 });
 
+describe("quantified uncertainty", () => {
+  it("derives the quantization step from the LUT resolution", () => {
+    expect(quantizationStep(PROBE_SCALES.ndvi)).toBeCloseTo(1 / 255);
+    expect(quantizationStep(PROBE_SCALES.snow)).toBeCloseTo(100 / 255);
+  });
+
+  it("chooses decimals that resolve the step without inventing precision", () => {
+    expect(csvDecimals(PROBE_SCALES.ndvi)).toBe(3); // step ≈ 0.004
+    expect(csvDecimals(PROBE_SCALES.snow)).toBe(1); // step ≈ 0.4 %
+  });
+
+  it("states ± half a step with the unit", () => {
+    expect(uncertaintyText(PROBE_SCALES.ndvi)).toBe("±0.002");
+    expect(uncertaintyText(PROBE_SCALES.snow)).toBe("±0.2 %");
+  });
+});
+
 describe("buildProbeCsv", () => {
   const meta = {
     layerLabel: "Vegetation (NDVI)",
@@ -267,9 +287,11 @@ describe("buildProbeCsv", () => {
       .split("\n")
       .filter((l) => !l.startsWith("#"));
     // Single March sample → March climatology = itself → anomaly 0.
+    // Three decimals: NDVI's quantization step is 1/255 ≈ 0.004 — printing
+    // the old fixed 4 was precision the method doesn't have.
     expect(rows).toEqual([
       "year_month,value,anomaly",
-      "2000-03,0.8123,0.0000",
+      "2000-03,0.812,0.000",
       "2000-04,,",
     ]);
   });
@@ -280,7 +302,44 @@ describe("buildProbeCsv", () => {
       [{ year: 2001, month: 1 }],
       [0.62]
     );
-    expect(snowCsv).toContain("2001-01,62.0000,0.0000");
+    // One decimal: snow's step is 100/255 ≈ 0.4 %.
+    expect(snowCsv).toContain("2001-01,62.0,0.0");
+  });
+
+  it("states the quantization uncertainty in the header", () => {
+    expect(csv).toContain("# uncertainty: ±0.002 colormap quantization");
+  });
+
+  it("adds a valid_fraction column for averaged modes only", () => {
+    const regionCsv = buildProbeCsv(
+      {
+        ...meta,
+        mode: "region" as const,
+        sampledBounds: { south: -4, north: -3, west: -63, east: -62 },
+      },
+      [
+        { year: 2001, month: 1 },
+        { year: 2001, month: 2 },
+      ],
+      [0.5, null],
+      undefined,
+      [0.87, 0.1]
+    );
+    expect(regionCsv).toContain("# valid_fraction:");
+    expect(regionCsv).toContain("year_month,value,anomaly,valid_fraction");
+    expect(regionCsv).toContain("2001-01,0.500,0.000,0.87");
+    // A null month keeps its fraction — 0.10 explains *why* it's null.
+    expect(regionCsv).toContain("2001-02,,,0.10");
+    // Point mode: no coverage column even if fractions are passed.
+    const pointCsv = buildProbeCsv(
+      meta,
+      [{ year: 2001, month: 1 }],
+      [0.5],
+      undefined,
+      [1]
+    );
+    expect(pointCsv).toContain("year_month,value,anomaly\n");
+    expect(pointCsv).not.toContain("valid_fraction");
   });
 
   it("stamps tool version and reproduction URL when provided", () => {
