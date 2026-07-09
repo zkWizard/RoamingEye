@@ -1,6 +1,16 @@
-/* Injected into every visual-regression screenshot (stylePath): the WebGL
-   canvas is imagery-variable and never part of a baseline. */
+/* Injected into every visual-regression screenshot (stylePath). */
+
+/* The WebGL canvas is imagery-variable and never part of a baseline. */
 #globe,
 .loader {
   visibility: hidden !important;
+}
+
+/* backdrop-filter recomposites nondeterministically per frame under CI's
+   software rendering (SwiftShader), so Playwright's two-consecutive-shots
+   stability check never converges. The blur only samples the flat page
+   background here anyway (the canvas above is hidden). */
+* {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }

@@ -39,6 +39,17 @@ test.beforeEach(async ({ page }) => {
   await page.waitForFunction(() => window.__APP_READY__ === true, null, {
     timeout: 30_000,
   });
+  // Stop the render loop through the app's own hidden-tab path: per-frame
+  // WebGL work recomposites nondeterministically under SwiftShader, and
+  // Playwright's stability check (two consecutive identical shots) never
+  // converges while anything repaints.
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", { value: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await page.waitForFunction(() => window.__RENDER_ACTIVE__ === false, null, {
+    timeout: 5_000,
+  });
 });
 
 test("controls panel (timeline + selector), dark", async ({ page }) => {
