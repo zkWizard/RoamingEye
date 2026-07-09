@@ -99,6 +99,14 @@ labeled `health`; the next green run closes it. Run it on demand from the
 Actions tab (`workflow_dispatch`), including with an override site URL to
 exercise the failure path.
 
+A second scheduled workflow (`.github/workflows/catalog-check.yml`, weekly)
+runs the **catalog contract test** (`contract/`, `npm run test:contract`):
+every hard-coded GIBS layer identifier must still exist in the live WMTS
+capabilities, with our tile-matrix set and a time dimension where we scrub
+one — so an upstream rename or retirement files an issue before a user sees
+a black globe. Contract tests are network-touching by design and never run
+in the offline unit suite.
+
 ## Conventions
 
 - TypeScript strict mode; pure functions for logic, classes for stateful
