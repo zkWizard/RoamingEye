@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { regionAround, gibsRegionUrl, studyDate } from "./imagery";
+import {
+  regionAround,
+  legalLonBounds,
+  gibsRegionUrl,
+  studyDate,
+} from "./imagery";
 
 describe("regionAround", () => {
   it("centres a span on the point", () => {
@@ -19,6 +24,48 @@ describe("regionAround", () => {
   it("clamps near the poles", () => {
     const b = regionAround(89, 0, 4);
     expect(b.north).toBeLessThanOrEqual(85);
+  });
+
+  it("stays centred across the antimeridian (continuous longitudes)", () => {
+    // Taveuni, Fiji sits at ~179.9°E: the box must straddle the seam, not
+    // stop at it.
+    const b = regionAround(-16.8, 179.9, 1.2);
+    expect((b.west + b.east) / 2).toBeCloseTo(179.9);
+    expect(b.east).toBeGreaterThan(180);
+  });
+});
+
+describe("legalLonBounds", () => {
+  it("slides an east-overflowing box to abut the seam, same size", () => {
+    const b = legalLonBounds({
+      south: -17,
+      north: -16,
+      west: 179.5,
+      east: 180.5,
+    });
+    expect(b).toEqual({ south: -17, north: -16, west: 179, east: 180 });
+  });
+
+  it("slides a west-overflowing box to abut the seam, same size", () => {
+    const b = legalLonBounds({
+      south: 51,
+      north: 53,
+      west: -180.7,
+      east: -178.7,
+    });
+    expect(b.west).toBe(-180);
+    expect(b.east).toBeCloseTo(-178);
+  });
+
+  it("leaves legal boxes untouched", () => {
+    const legal = { south: 40, north: 41, west: -4, east: -3 };
+    expect(legalLonBounds(legal)).toEqual(legal);
+  });
+
+  it("caps a degenerate over-wide box at the full range", () => {
+    expect(
+      legalLonBounds({ south: 0, north: 1, west: -200, east: 200 })
+    ).toEqual({ south: 0, north: 1, west: -180, east: 180 });
   });
 });
 
