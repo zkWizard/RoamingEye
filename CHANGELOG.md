@@ -1,8 +1,51 @@
 # Changelog
 
-All notable changes to RoamingEye. The project is pre-1.0 and moving fast; this
-log captures milestones rather than every commit. Format loosely follows
+All notable changes to RoamingEye. This log captures milestones rather than
+every commit. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
+
+## [Unreleased]
+
+A post-launch robustness round (#105–#112, PRs #113–#120) aimed at the
+standards a shared research instrument is held to: policy citizenship,
+scientific correctness at the edges, and quantified honesty.
+
+### Fixed
+
+- **Antimeridian correctness** — a study region drawn across the dateline
+  (Fiji, the Bering Strait) now charts the few degrees you swept, not a
+  silent ~358° band around the rest of the planet: short-arc drag bounds,
+  seam-safe grid sampling, an unambiguous CSV `# region:` header (RFC 7946
+  west > east convention), and legal WMS boxes for near-dateline searches.
+- **Fail fast on non-imagery responses** — GIBS WMS answers malformed
+  requests with ServiceException XML under HTTP 200; that (and captive-portal
+  HTML) is now caught at the fetch boundary with the actual exception message
+  surfaced, instead of failing downstream as opaque decode errors.
+
+### Robustness
+
+- **Offline awareness** — a quiet banner while disconnected, sub-millisecond
+  fast-fail instead of burning 45 s of retries per request, and automatic
+  view refresh on reconnect.
+- **Nominatim policy compliance** — a single-flight gate guarantees ≤1
+  request/second to the shared OSM geocoder (bursts collapse to the latest
+  query), alongside the existing result LRU.
+- **CI-enforced probe accuracy bounds** — every gradient legend now has
+  quantified roundtrip-error guards (clean ≤0.01 of scale; documented
+  per-layer bounds under JPEG-like noise), monotonicity and no-data
+  separation checks; a legend edit that degrades chart/CSV accuracy fails CI
+  naming the layer and the worst spot.
+- **FAIR export provenance** — every probe CSV carries `# tool_version` and a
+  `# view_url` deep link that reproduces the exact chart; PNG filenames carry
+  the version; the Providers page names the running build (FAIR4RS R1.2).
+- **Daily health check** — a scheduled workflow probes the live site and the
+  upstream open-data services (GIBS, Nominatim, USGS) and files a single
+  auto-closing issue after two consecutive failures.
+- **CodeQL static analysis** — GitHub's security-and-quality suite on every
+  PR plus a weekly re-scan, complementing `npm audit`'s dependency coverage.
+
+Unit tests 222 → 293; e2e 23 → 24 (offline cycle, under the zero-pageerror
+canary).
 
 ## [1.0.0] — 2026-07-08 · the launch release
 
