@@ -41,6 +41,9 @@ export class LayerSelector {
     this.panel = document.createElement("div");
     this.panel.className = "layer-selector__panel";
     this.panel.setAttribute("role", "listbox");
+    // A role=listbox is an ARIA input and must carry an accessible name
+    // (WCAG 4.1.2) — the first violation the axe gate caught.
+    this.panel.setAttribute("aria-label", "Data layer");
     for (const { category, ids } of layersByCategory()) {
       const group = document.createElement("div");
       group.className = "layer-selector__group";
