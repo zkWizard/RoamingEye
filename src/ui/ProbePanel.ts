@@ -399,6 +399,17 @@ export class ProbePanel {
     }
     ctx.globalAlpha = 1;
 
+    // The Sen's slope trend line + CI band, under the data line. Drawn only
+    // for a significant, testable trend so no misleading line runs through
+    // noise. Computed on the *plotted* series (gradient positions or anomaly
+    // units), so the line matches the points regardless of view; the
+    // seasonal Mann-Kendall p is scale-invariant, and subtracting a
+    // per-season climatology (the anomaly view) leaves within-season ranks
+    // and Sen's slope unchanged.
+    if (n > 1 && this.scale) {
+      this.drawTrend(ctx, series, toPlot, pad, plotW, plotH, n, accent);
+    }
+
     // The series itself — line segments broken at no-data gaps.
     if (n > 1) {
       ctx.strokeStyle = accent;
@@ -420,5 +431,83 @@ export class ProbePanel {
       }
       ctx.stroke();
     }
+  }
+
+  /**
+   * Overlay the Sen's slope line and its 95% CI band. The line is anchored
+   * at the series' median point (median value at median time — the standard
+   * Sen's-line intercept) and is straight in time; endpoints are clipped to
+   * the plot so a steep slope can't paint outside the axes.
+   */
+  private drawTrend(
+    ctx: CanvasRenderingContext2D,
+    series: (number | null)[],
+    toPlot: (v: number) => number,
+    pad: { left: number; top: number; right: number; bottom: number },
+    plotW: number,
+    plotH: number,
+    n: number,
+    accent: string
+  ): void {
+    const scale = this.scale;
+    if (!scale) return;
+    const trend = trendSummary(this.months, series, scale);
+    if (!trend.significant) return;
+
+    const times = this.months.map((m) => m.year + (m.month - 1) / 12);
+    const validV: number[] = [];
+    const validT: number[] = [];
+    for (let i = 0; i < n; i++) {
+      if (series[i] !== null) {
+        validV.push(series[i] as number);
+        validT.push(times[i]);
+      }
+    }
+    if (validV.length < 2) return;
+    const med = (a: number[]): number => {
+      const s = [...a].sort((x, y) => x - y);
+      const m = Math.floor(s.length / 2);
+      return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+    };
+    const medT = med(validT);
+    const medV = med(validV);
+
+    // y (in plot pixels) of a line with the given per-year slope, evaluated
+    // at plot index i (time linear in index for a contiguous monthly series).
+    const yAt = (i: number, slopePerYear: number): number => {
+      const v = medV + slopePerYear * (times[i] - medT);
+      return pad.top + (1 - toPlot(v)) * plotH;
+    };
+    const x0 = pad.left;
+    const x1 = pad.left + plotW;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(pad.left, pad.top, plotW, plotH);
+    ctx.clip();
+
+    // CI band between the lower- and upper-slope lines.
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = accent;
+    ctx.beginPath();
+    ctx.moveTo(x0, yAt(0, trend.lowerPerYear));
+    ctx.lineTo(x1, yAt(n - 1, trend.lowerPerYear));
+    ctx.lineTo(x1, yAt(n - 1, trend.upperPerYear));
+    ctx.lineTo(x0, yAt(0, trend.upperPerYear));
+    ctx.closePath();
+    ctx.fill();
+
+    // The Sen's slope line itself — dashed, so it reads as a fit, not data.
+    ctx.globalAlpha = 0.85;
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 1.25;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(x0, yAt(0, trend.slopePerYear));
+    ctx.lineTo(x1, yAt(n - 1, trend.slopePerYear));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    ctx.globalAlpha = 1;
   }
 }
