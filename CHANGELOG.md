@@ -4,6 +4,13 @@ All notable changes to RoamingEye. This log captures milestones rather than
 every commit. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+- **Timeline month steppers** — a ‹ › button pair at the bottom-right of the
+  controls panel steps the timeline one month (one year on annual layers)
+  per click — precise moves the drag handle can't do on decades-long
+  records. The buttons disable at either end of a layer's published range.
+
 ## [1.1.0] — 2026-07-10
 
 The first feature release since launch: two rounds of instrument-grade

@@ -249,6 +249,7 @@ body {
 /* --- Controls: layer selector + timeline ----------------------------------- */
 .controls {
   pointer-events: auto; /* this region is interactive, unlike the overlay */
+  position: relative; /* anchors .timeline__steps to the panel corner */
   width: min(880px, 94vw);
   margin: 0 auto 0.75rem;
   display: flex;
@@ -546,6 +547,50 @@ body {
   pointer-events: none; /* the track handles all pointer input */
 }
 
+/* Prev/next steppers: precise single-month moves where the drag handle is
+   coarse. Anchored to the panel's bottom-right corner (the status and
+   provenance lines are centered, so the corner is free). */
+.timeline__steps {
+  position: absolute;
+  right: 0.9rem;
+  bottom: 0.75rem;
+  display: flex;
+  gap: 0.35rem;
+}
+
+.timeline__step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--fg);
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.timeline__step svg {
+  width: 16px;
+  height: 16px;
+}
+
+.timeline__step:hover:not(:disabled) {
+  border-color: var(--control-border-hover);
+}
+
+.timeline__step:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.timeline__step:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .timeline-status {
   min-height: 1rem;
   text-align: center;
@@ -556,6 +601,14 @@ body {
 @media (max-width: 540px) {
   .timeline__year {
     font-size: 0.6rem;
+  }
+
+  /* Narrow screens: the centered provenance line needs the full width, so
+     the steppers drop into the flow, right-aligned under the track. */
+  .timeline__steps {
+    position: static;
+    align-self: flex-end;
+    margin-top: -0.2rem;
   }
 }
 
