@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { appConsoleErrors } from "./console-errors";
 
 /**
  * Chaos interaction test: a seeded storm of realistic-but-impatient actions —
@@ -172,14 +173,11 @@ test("survives a seeded interaction storm and settles healthy", async ({
   });
   await expect(page.locator(".timeline__readout")).not.toHaveText("");
 
-  // Zero uncaught exceptions; console errors limited to the blocked
-  // third-party geocoder (deliberate) and imagery fetches the storm aborted.
+  // Zero uncaught exceptions; console errors limited to third-party resource
+  // failures — the blocked geocoder (deliberate), storm-aborted imagery
+  // fetches, and transient GIBS tile CORS/timeout hiccups (see
+  // console-errors.ts). A genuine app fault still fails.
   expect(pageErrors, `seed ${SEED}\n${log.join(" → ")}`).toEqual([]);
-  const unexpected = consoleErrors.filter(
-    (m) =>
-      !m.includes("net::ERR_FAILED") &&
-      !m.includes("Failed to load resource") &&
-      !m.includes("ERR_ABORTED")
-  );
+  const unexpected = appConsoleErrors(consoleErrors);
   expect(unexpected, `seed ${SEED}`).toEqual([]);
 });
