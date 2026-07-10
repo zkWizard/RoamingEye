@@ -373,7 +373,8 @@ function buildTimeline(): void {
       compareControls?.setLiveMonth(months[currentIndex]);
       scheduleHashSync();
     },
-    (ym) => formatTimelineLabel(LAYERS[currentLayer], ym)
+    (ym) => formatTimelineLabel(LAYERS[currentLayer], ym),
+    LAYERS[currentLayer].cadence === "annual" ? "year" : "month"
   );
 }
 buildTimeline();

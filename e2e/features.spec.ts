@@ -147,6 +147,28 @@ test("land-cover layer steps by year with a class-swatch legend", async ({
   await expect(page.locator(".timeline__readout")).toHaveText(String(year - 1));
 });
 
+test("timeline stepper buttons move one month and disable at the ends", async ({
+  page,
+}) => {
+  const readout = page.locator(".timeline__readout");
+  const prev = page.locator('.timeline__step[aria-label^="Previous"]');
+  const next = page.locator('.timeline__step[aria-label^="Next"]');
+
+  // Boot lands on the newest month, so forward is a dead end and back isn't.
+  await expect(next).toBeDisabled();
+  await expect(prev).toBeEnabled();
+
+  const start = await readout.textContent();
+  await prev.click();
+  await expect(readout).not.toHaveText(start ?? "");
+  await expect(next).toBeEnabled();
+
+  // Stepping forward again returns to the newest month and re-disables.
+  await next.click();
+  await expect(readout).toHaveText(start ?? "");
+  await expect(next).toBeDisabled();
+});
+
 test("? opens the keyboard-shortcuts overlay and Esc closes it", async ({
   page,
 }) => {

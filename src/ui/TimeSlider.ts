@@ -4,11 +4,13 @@ import {
   indexToFraction,
   formatYm,
 } from "../lib/timeline";
+import { ICONS } from "./icons";
 
 /**
  * A horizontal ruler-style time scrubber: one major tick per year (labelled),
  * twelve minor ticks per year (months), and a draggable handle. Supports mouse,
- * touch (Pointer Events), and keyboard.
+ * touch (Pointer Events), and keyboard. A prev/next button pair steps one
+ * entry at a time — precise where the drag handle is coarse.
  */
 export class TimeSlider {
   private readonly months: YearMonth[];
@@ -17,6 +19,8 @@ export class TimeSlider {
   private readonly track: HTMLDivElement;
   private readonly handle: HTMLDivElement;
   private readonly readout: HTMLDivElement;
+  private readonly prevBtn: HTMLButtonElement;
+  private readonly nextBtn: HTMLButtonElement;
 
   private index: number;
   private dragging = false;
@@ -27,7 +31,9 @@ export class TimeSlider {
     initialIndex: number,
     onChange: (index: number, ym: YearMonth) => void,
     // Annual layers label entries "2024" rather than "Jan 2024".
-    private readonly formatLabel: (ym: YearMonth) => string = formatYm
+    private readonly formatLabel: (ym: YearMonth) => string = formatYm,
+    // Annual layers step by year, so the buttons say so.
+    stepUnit: "month" | "year" = "month"
   ) {
     this.months = months;
     this.onChange = onChange;
@@ -59,8 +65,37 @@ export class TimeSlider {
     this.handle.className = "timeline__handle";
     this.track.appendChild(this.handle);
 
+    const steps = document.createElement("div");
+    steps.className = "timeline__steps";
+    this.prevBtn = this.makeStep(
+      ICONS.chevronLeft,
+      `Previous ${stepUnit} (←)`,
+      -1
+    );
+    this.nextBtn = this.makeStep(ICONS.chevronRight, `Next ${stepUnit} (→)`, 1);
+    steps.append(this.prevBtn, this.nextBtn);
+    container.appendChild(steps);
+
     this.attachEvents();
     this.update(this.index, false);
+  }
+
+  private makeStep(
+    icon: string,
+    label: string,
+    delta: number
+  ): HTMLButtonElement {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "timeline__step";
+    btn.innerHTML = icon;
+    btn.setAttribute("aria-label", label);
+    btn.title = label;
+    btn.addEventListener("click", () => {
+      const next = this.index + delta;
+      this.update(Math.min(this.months.length - 1, Math.max(0, next)), true);
+    });
+    return btn;
   }
 
   private renderTicks(): void {
@@ -165,6 +200,8 @@ export class TimeSlider {
     this.readout.textContent = this.formatLabel(ym);
     this.track.setAttribute("aria-valuenow", String(index));
     this.track.setAttribute("aria-valuetext", this.formatLabel(ym));
+    this.prevBtn.disabled = index === 0;
+    this.nextBtn.disabled = index === this.months.length - 1;
 
     if (emit && changed) this.onChange(index, ym);
   }
