@@ -1,6 +1,7 @@
 import type { Bounds } from "./imagery";
 import type { LegendStop } from "./legend";
 import type { DatasetRef, LayerId, YearMonth } from "./timeline";
+import { trendSummary, trendCsvHeaders } from "./trend";
 
 /**
  * Point time-series probe: the pure math for turning "the color of a pixel in
@@ -501,6 +502,12 @@ export function buildProbeCsv(
   // data each month — a 25%-coverage mean and a 100% one should never look
   // alike downstream.
   const fractions = meta.mode !== "point" && validFractions;
+  // Trend runs on physical values (slope in scale units), not gradient
+  // positions; headers are empty when the record is too short to test.
+  const physical = values.map((v) =>
+    v === null || v === undefined ? null : meta.scale.min + v * span
+  );
+  const trend = trendSummary(months, physical, meta.scale);
   // Crossing boxes print normalized longitudes with west > east — the
   // GeoJSON (RFC 7946 §5.2) convention for an antimeridian-spanning bbox.
   const region = meta.sampledBounds
@@ -536,6 +543,7 @@ export function buildProbeCsv(
     })`,
     `# anomaly: value minus this location's mean for the same calendar month (same units)`,
     `# uncertainty: ${uncertaintyText(meta.scale)} colormap quantization (compression noise on top; see the probe accuracy suite for end-to-end bounds)`,
+    ...trendCsvHeaders(trend),
     ...(fractions
       ? [
           `# valid_fraction: share of the sampled area that held data that month (area-weighted)`,
