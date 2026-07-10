@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { appConsoleErrors } from "./console-errors";
 
 /**
  * Chaos interaction test: a seeded storm of realistic-but-impatient actions —
@@ -172,23 +173,11 @@ test("survives a seeded interaction storm and settles healthy", async ({
   });
   await expect(page.locator(".timeline__readout")).not.toHaveText("");
 
-  // Zero uncaught exceptions; console errors limited to the blocked
-  // third-party geocoder (deliberate), imagery fetches the storm aborted, and
-  // transient GIBS tile CORS hiccups. GIBS's WMTS endpoint intermittently
-  // omits the Access-Control-Allow-Origin header under load — an upstream
-  // infrastructure condition, not an app fault — which read as
-  // "blocked by CORS policy" console errors and flaked this gate; scope the
-  // exclusion to GIBS tile loads so a genuine app CORS misconfig still fails.
+  // Zero uncaught exceptions; console errors limited to third-party resource
+  // failures — the blocked geocoder (deliberate), storm-aborted imagery
+  // fetches, and transient GIBS tile CORS/timeout hiccups (see
+  // console-errors.ts). A genuine app fault still fails.
   expect(pageErrors, `seed ${SEED}\n${log.join(" → ")}`).toEqual([]);
-  const gibsCorsHiccup = (m: string): boolean =>
-    m.includes("blocked by CORS policy") &&
-    m.includes("gibs.earthdata.nasa.gov");
-  const unexpected = consoleErrors.filter(
-    (m) =>
-      !m.includes("net::ERR_FAILED") &&
-      !m.includes("Failed to load resource") &&
-      !m.includes("ERR_ABORTED") &&
-      !gibsCorsHiccup(m)
-  );
+  const unexpected = appConsoleErrors(consoleErrors);
   expect(unexpected, `seed ${SEED}`).toEqual([]);
 });
