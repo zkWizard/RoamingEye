@@ -32,6 +32,7 @@ import { Toolbar } from "./ui/Toolbar";
 import { SearchBox } from "./ui/SearchBox";
 import { Legend } from "./ui/Legend";
 import type { MapOverlay } from "./overlays/types";
+import { UserLocationOverlay } from "./overlays/UserLocationOverlay";
 import { GraticuleOverlay } from "./overlays/GraticuleOverlay";
 import { BordersOverlay } from "./overlays/BordersOverlay";
 import { CitiesOverlay } from "./overlays/CitiesOverlay";
@@ -193,8 +194,15 @@ const hdTiles = new TiledImageryOverlay(
   renderer.capabilities.getMaxAnisotropy()
 );
 
+// Surfaced early so the geolocation overlay can report a denied permission.
+const errorToast = new ErrorToast();
+
 const citiesOverlay = new CitiesOverlay();
 const volcanoesOverlay = new VolcanoesOverlay();
+// "You are here" — opt-in geolocation pin; denial reverts its toggle + toasts.
+const userLocationOverlay = new UserLocationOverlay((message) =>
+  errorToast.show(message)
+);
 const overlays: MapOverlay[] = [
   hdTiles,
   new GraticuleOverlay(),
@@ -206,6 +214,7 @@ const overlays: MapOverlay[] = [
   new PlateBoundariesOverlay(),
   volcanoesOverlay,
   new EarthquakesOverlay(),
+  userLocationOverlay,
 ];
 for (const overlay of overlays) scene.add(overlay.object);
 
@@ -233,6 +242,7 @@ if (tooltipEl) {
   const inspector = new HoverInspector(canvas, camera, earth, tooltipEl);
   inspector.addPointSource(() => citiesOverlay.hoverSource);
   inspector.addPointSource(() => volcanoesOverlay.hoverSource);
+  inspector.addPointSource(() => userLocationOverlay.hoverSource);
   loadCountryIndex()
     .then((index) => {
       inspector.setCountryIndex(index);
@@ -458,8 +468,14 @@ if (exportEl) {
 // Intended overlay on/off state — tracked separately from object.visible
 // (which lags behind async lazy loads) so persistence is race-free. A stored
 // list (even empty) is authoritative; otherwise the defaults apply.
+const ephemeralOverlayIds = new Set(
+  overlays.filter((o) => o.ephemeral).map((o) => o.id)
+);
 const overlayState = new Set<string>(
-  storedSession.overlays ?? overlays.filter((o) => o.defaultOn).map((o) => o.id)
+  (
+    storedSession.overlays ??
+    overlays.filter((o) => o.defaultOn).map((o) => o.id)
+  ).filter((id) => !ephemeralOverlayIds.has(id))
 );
 
 function saveSession(): void {
@@ -478,27 +494,46 @@ function saveSession(): void {
 }
 
 // Toolbar overlays — load lazily on first enable, then toggle visibility.
-async function toggleOverlay(overlay: MapOverlay, on: boolean): Promise<void> {
+// Returns whether the overlay is now in the requested state: an enable whose
+// lazy load fails (e.g. geolocation denied) stays off so the caller can revert.
+async function toggleOverlay(
+  overlay: MapOverlay,
+  on: boolean
+): Promise<boolean> {
   if (on && overlay.ensureLoaded) {
     try {
       await overlay.ensureLoaded();
     } catch (err) {
       console.warn(`RoamingEye: overlay "${overlay.id}" failed to load`, err);
+      overlay.object.visible = false;
+      return false;
     }
   }
   overlay.object.visible = on;
+  return true;
 }
 
 if (toolbarEl) {
-  new Toolbar(
+  const toolbar = new Toolbar(
     toolbarEl,
     overlays,
     (overlay, on) => {
-      if (on) overlayState.add(overlay.id);
-      else overlayState.delete(overlay.id);
-      saveSession();
+      // Ephemeral overlays (geolocation) are never persisted — a returning
+      // visitor shouldn't be silently re-prompted for their location.
+      if (!overlay.ephemeral) {
+        if (on) overlayState.add(overlay.id);
+        else overlayState.delete(overlay.id);
+        saveSession();
+      }
       legend?.setOverlayKey(overlay.id, on);
-      void toggleOverlay(overlay, on);
+      void toggleOverlay(overlay, on).then((ok) => {
+        if (on && !ok) {
+          // The enable didn't take (permission denied, load error) — snap the
+          // button back and drop the (already-toasted) key.
+          toolbar.setPressed(overlay.id, false);
+          legend?.setOverlayKey(overlay.id, false);
+        }
+      });
     },
     (overlay) => overlayState.has(overlay.id)
   );
@@ -928,7 +963,8 @@ if (shortcutsPageEl) {
 // --- Uncaught-error surface -----------------------------------------------------
 // Failures must be visible in the field, not just in the console. Expected
 // noise (aborted fetches from scrubbing/typing fast) is filtered out.
-const errorToast = new ErrorToast();
+// (errorToast is constructed early, up by the overlays, so the geolocation
+// overlay can report a denied permission through it.)
 window.addEventListener("error", (e) => {
   errorToast.show(`Something went wrong: ${e.message}`);
 });

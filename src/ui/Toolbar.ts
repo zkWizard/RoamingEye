@@ -5,6 +5,8 @@ import type { MapOverlay } from "../overlays/types";
  * flips each overlay's on/off state.
  */
 export class Toolbar {
+  private readonly buttons = new Map<string, HTMLButtonElement>();
+
   constructor(
     container: HTMLElement,
     overlays: MapOverlay[],
@@ -32,7 +34,16 @@ export class Toolbar {
         onToggle(overlay, on);
       });
 
+      this.buttons.set(overlay.id, button);
       container.appendChild(button);
     }
+  }
+
+  /**
+   * Reflect an overlay's pressed state without firing onToggle — for when an
+   * enable can't complete (e.g. geolocation denied), so the button snaps back.
+   */
+  setPressed(overlayId: string, on: boolean): void {
+    this.buttons.get(overlayId)?.setAttribute("aria-pressed", String(on));
   }
 }
