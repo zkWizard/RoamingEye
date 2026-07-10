@@ -4,7 +4,17 @@ All notable changes to RoamingEye. This log captures milestones rather than
 every commit. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [1.1.0] — 2026-07-10
+
+The first feature release since launch: two rounds of instrument-grade
+science and documentation (below), plus a small, friendly UX touch —
+
+- **"You are here" geolocation pin (opt-in)** — a **My location** toolbar
+  toggle drops a red pin at the visitor's own location (the browser
+  permission prompt is the consent gate — nothing is requested until you
+  click) with a "You are here!" hover label. Denial reverts the toggle and
+  explains why; the choice is never persisted, so a returning visitor is
+  never silently re-prompted. ([#178](https://github.com/zkWizard/RoamingEye/pull/178))
 
 Round 7 (issues #162–#168, #170; PRs #169, #173, #174, #171, #172, #176 +
 the e2e-resilience fix #175 and this wrap-up): **instrument-grade methods** —
