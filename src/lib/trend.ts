@@ -196,6 +196,8 @@ export interface TrendSummary extends MannKendallResult {
   nPairs: number;
   /** Sen's slope × 10, for readable reporting ("per decade"). */
   perDecade: number;
+  /** Enough record to run a meaningful test (≥ 3 years in a season). */
+  testable: boolean;
   /** Significant at α = 0.05 with enough record to test. */
   significant: boolean;
   /** "rising" | "falling" | "flat" — the reportable direction. */
@@ -246,8 +248,45 @@ export function trendSummary(
     upperPerYear: sen.upperPerYear,
     nPairs: sen.nPairs,
     perDecade: sen.slopePerYear * 10,
+    testable: enoughRecord,
     significant,
     direction,
     unit: scale.unit,
   };
+}
+
+/** Human-readable name of the estimator, for CSV headers and docs. */
+export const TREND_METHOD_LABEL =
+  "seasonal Mann-Kendall (Hirsch-Slack) + Sen's slope";
+
+/** Format a per-decade rate with sign, adaptive precision, and unit. */
+export function formatPerDecade(perDecade: number, unit: string): string {
+  const mag = Math.abs(perDecade);
+  const digits = mag >= 10 ? 1 : mag >= 1 ? 2 : 3;
+  const sign = perDecade > 0 ? "+" : perDecade < 0 ? "−" : "";
+  return `${sign}${mag.toFixed(digits)}${unit ? ` ${unit}` : ""}/decade`;
+}
+
+/**
+ * One-line trend clause for the probe panel status: an insufficient-record
+ * note, a significant slope with its p-value, or an explicit no-trend.
+ */
+export function trendClause(t: TrendSummary): string {
+  if (!t.testable) return "trend: insufficient record";
+  if (!t.significant)
+    return `no significant trend (p = ${t.pValue.toFixed(2)})`;
+  return `trend ${formatPerDecade(t.perDecade, t.unit)} · p = ${t.pValue.toFixed(3)}`;
+}
+
+/** CSV provenance headers for the trend (empty when the record is too short). */
+export function trendCsvHeaders(t: TrendSummary): string[] {
+  if (!t.testable) return [];
+  const ci = `(95% CI ${formatPerDecade(t.lowerPerYear * 10, t.unit)} – ${formatPerDecade(t.upperPerYear * 10, t.unit)})`;
+  return [
+    `# trend_method: ${TREND_METHOD_LABEL}`,
+    `# trend_sens_slope: ${formatPerDecade(t.perDecade, t.unit)} ${ci}`,
+    `# trend_tau: ${t.tau.toFixed(3)}`,
+    `# trend_p_value: ${t.pValue.toFixed(4)}`,
+    `# trend_significant: ${t.significant} (alpha ${TREND_ALPHA})`,
+  ];
 }

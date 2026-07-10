@@ -6,6 +6,7 @@ import {
   uncertaintyText,
   type ProbeScale,
 } from "../lib/probe";
+import { trendSummary, trendClause } from "../lib/trend";
 import type { ProbeMode } from "../probe/ProbeSampler";
 
 /** The user-toggleable sampling modes (regions are drawn, not toggled). */
@@ -222,12 +223,19 @@ export class ProbePanel {
     }
     const s = this.scale;
     const fmt = (t: number): string => formatProbeValue(scaleValue(t, s), s);
+    // Trend runs on physical values (slope in scale units/year), not the
+    // 0..1 gradient positions the chart stores.
+    const physical = this.values.map((v) =>
+      v === null ? null : scaleValue(v, s)
+    );
+    const trend = trendSummary(this.months, physical, s);
     this.setStatus(
       `${stats.count} of ${this.months.length} months · ` +
         `min ${fmt(stats.min)} · mean ${fmt(stats.mean)} · max ${fmt(stats.max)}` +
         // Each value is only known to the colormap's quantization step —
         // say so right where the numbers are.
-        ` · ${uncertaintyText(s)} per value`
+        ` · ${uncertaintyText(s)} per value` +
+        ` · ${trendClause(trend)}`
     );
   }
 
