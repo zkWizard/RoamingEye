@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { appConsoleErrors } from "./console-errors";
 
 /**
  * Smoke tests — the highest-value e2e layer for a WebGL app.
@@ -8,12 +9,16 @@ import { test, expect } from "@playwright/test";
  * missing/zero-sized canvas, and a WebGL context that never initialises.
  */
 
-test("loads without console errors or page errors", async ({ page }) => {
-  const errors: string[] = [];
+test("loads without app console errors or page errors", async ({ page }) => {
+  // Page errors (uncaught app exceptions) are always fatal; console errors are
+  // triaged so a third-party imagery hiccup (GIBS tile CORS/timeout) doesn't
+  // flake the gate — the app degrades gracefully on tile-load failure.
+  const consoleErrors: string[] = [];
+  const pageErrors: string[] = [];
   page.on("console", (msg) => {
-    if (msg.type() === "error") errors.push(msg.text());
+    if (msg.type() === "error") consoleErrors.push(msg.text());
   });
-  page.on("pageerror", (err) => errors.push(err.message));
+  page.on("pageerror", (err) => pageErrors.push(err.message));
 
   await page.goto("/");
 
@@ -22,7 +27,9 @@ test("loads without console errors or page errors", async ({ page }) => {
     timeout: 30_000,
   });
 
-  expect(errors, `Console/page errors: ${errors.join("\n")}`).toEqual([]);
+  expect(pageErrors, `Page errors: ${pageErrors.join("\n")}`).toEqual([]);
+  const appErrors = appConsoleErrors(consoleErrors);
+  expect(appErrors, `App console errors: ${appErrors.join("\n")}`).toEqual([]);
 });
 
 test("renders a sized canvas with a live WebGL context", async ({ page }) => {
