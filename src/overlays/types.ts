@@ -14,6 +14,12 @@ export interface MapOverlay {
   readonly object: Object3D;
   /** Whether the overlay starts enabled. */
   readonly defaultOn?: boolean;
+  /**
+   * Never persisted to (or restored from) the saved session. For overlays that
+   * must be a fresh, explicit opt-in every visit — e.g. geolocation, which may
+   * not prompt without a user gesture and shouldn't surprise a returning user.
+   */
+  readonly ephemeral?: boolean;
   /** Lazily fetch/build whatever the overlay needs (called once, on first enable). */
   ensureLoaded?(): Promise<void>;
   /** Per-frame hook for view-dependent overlays (throttle internally). */

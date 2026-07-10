@@ -31,9 +31,13 @@ test("toolbar exposes overlay toggles and flips their state", async ({
   page,
 }) => {
   const items = page.locator(".toolbar__item");
-  await expect(items).toHaveCount(8);
+  // HD tiles, Grid, Borders, Cities, Atmosphere, Plates, Volcanoes, Quakes,
+  // My location.
+  await expect(items).toHaveCount(9);
+  await expect(page.locator('.toolbar__item[title="My location"]')).toHaveCount(
+    1
+  );
 
-  // HD tiles, Grid, Borders, Cities, Atmosphere, Plates, Volcanoes, Quakes
   const borders = page.locator('.toolbar__item[title="Borders"]');
   const before = await borders.getAttribute("aria-pressed");
   await borders.click();
