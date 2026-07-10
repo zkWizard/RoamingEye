@@ -6,8 +6,57 @@ every commit. Format loosely follows
 
 ## [Unreleased]
 
-Round 6 (issues #147–#153, PRs #154–#160 + this wrap-up): science-grade
-rigor. Where earlier rounds hardened the app against the network and the
+Round 7 (issues #162–#168, #170; PRs #169, #173, #174, #171, #172, #176 +
+the e2e-resilience fix #175 and this wrap-up): **instrument-grade methods** —
+the statistical rigor, external validation, and documentation a tool needs to
+be cited in the literature. Grounded in community practice: the seasonal
+Mann-Kendall test (Hirsch & Slack 1982) and Sen's slope (Gilbert 1987), NDVI
+validation practice (RMSE vs a reference), and ESIP's machine-readable
+citation guidelines.
+
+### Science
+
+- **Trend detection — seasonal Mann-Kendall + Sen's slope** — the field-
+  standard nonparametric trend test, with the seasonal correction that stops
+  the annual cycle masquerading as a trend, plus Sen's slope (units/decade)
+  and its 95% CI. Surfaced in the probe panel ("trend +0.18 NDVI/decade ·
+  p = 0.004"), in `# trend_*` CSV headers, and drawn as a dashed slope line +
+  CI band on the chart. Pure, unit- and property-tested. (#162, #163, #164,
+  #168)
+- **End-to-end inversion validation** — the probe's colormap inversion is now
+  measured against GIBS's authoritative colormap and reported per layer:
+  aerosol RMSE 0.13, SST 5.1 °C, soil 8.2 kg/m², air temp 19.0 K, precip
+  20.4 mm/day, LST no-data. These are honest and, for several layers, poor —
+  our legend gradients are coarse approximations, so absolute values on those
+  layers carry large uncertainty and the probe is reliable there for
+  _relative_ analysis. Published transparently in
+  [docs/validation.md](docs/validation.md), CI-guarded against drift, with the
+  accuracy fix tracked as #170. (#165)
+
+### FAIR / citation
+
+- **Machine-readable citations** — one-click BibTeX and RIS export for the
+  tool and every source dataset (DOIs and all), per ESIP guidelines. (#166)
+- **METHODS.md** — a methods & limitations handbook (probe pipeline, area
+  weighting, uncertainty, the trend method, the measured inversion accuracy,
+  and what the tool does _not_ do), drift-guarded so its figures track the
+  code. (#167)
+
+### Robustness
+
+- **e2e resilience to third-party imagery failures** — the "no console
+  errors" gates now tolerate transient NASA GIBS tile CORS/timeout hiccups
+  (an upstream condition the app degrades gracefully around) while keeping
+  genuine app exceptions strict. (#175)
+
+Unit tests 351 → ~375 (trend, validation, citation, methods-doc, plus a
+property suite); contract assertions extended with the weekly inversion-
+accuracy check; CodeQL caught and we fixed a real incomplete-escaping bug in
+the BibTeX generator.
+
+### Round 6 (issues #147–#153, PRs #154–#161): science-grade rigor
+
+Where earlier rounds hardened the app against the network and the
 browser, this one holds the _numbers_ to the standard a reviewer would:
 correct spherical statistics, physical units, stated uncertainty, and a
 citation chain that reaches the datasets themselves. Grounded in community
