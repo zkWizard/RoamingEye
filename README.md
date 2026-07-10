@@ -59,7 +59,11 @@ It is built for, and by, the research community: every data source is open and c
 RoamingEye is designed around real scientific workflows — see
 [**docs/research-recipes.md**](docs/research-recipes.md) for five step-by-step
 walkthroughs (drought signals, LST trends, the plate-tectonics lecture view,
-snowpack tracking, deforestation figures). A few examples it already supports:
+snowpack tracking, deforestation figures). For **how the tool computes what it
+shows and where it stops being trustworthy** — the probe pipeline, area
+weighting, uncertainty, the seasonal Mann-Kendall / Sen's slope trend test, and
+the measured per-layer inversion accuracy — read [**METHODS.md**](METHODS.md).
+A few examples it already supports:
 
 | Field                               | What you can observe                                                       |
 | ----------------------------------- | -------------------------------------------------------------------------- |
