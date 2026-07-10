@@ -21,9 +21,26 @@ export const TOOL_CITATION = {
   license: "MIT",
 } as const;
 
-/** Escape the handful of characters that break a BibTeX field. */
+/**
+ * Escape the characters that break a BibTeX/LaTeX field. Single pass over a
+ * char class that INCLUDES the backslash escape character itself — mapping
+ * each char to its complete escape so an inserted `\textbackslash{}` isn't
+ * re-mangled by the brace rules (and so the escaping is complete, not partial:
+ * a stray backslash can't slip through unescaped).
+ */
+const BIBTEX_ESCAPES: Record<string, string> = {
+  "\\": "\\textbackslash{}",
+  "{": "\\{",
+  "}": "\\}",
+  "#": "\\#",
+  $: "\\$",
+  "%": "\\%",
+  "&": "\\&",
+  _: "\\_",
+};
+
 function bibtexEscape(s: string): string {
-  return s.replace(/([{}%&$#_])/g, "\\$1");
+  return s.replace(/[\\{}#$%&_]/g, (c) => BIBTEX_ESCAPES[c]);
 }
 
 /** BibTeX @software entry for the tool. */

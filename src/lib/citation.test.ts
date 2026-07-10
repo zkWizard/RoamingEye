@@ -35,6 +35,13 @@ describe("BibTeX", () => {
     const bib = bibtexDataset({ ...ndvi, title: "A & B {test} 50%" });
     expect(bib).toContain("A \\& B \\{test\\} 50\\%");
   });
+
+  it("escapes the backslash completely (no stray escape char slips through)", () => {
+    const bib = bibtexDataset({ ...ndvi, title: "path\\to#x" });
+    // The backslash becomes \textbackslash{} and its braces are NOT re-escaped;
+    // the # is escaped. No unescaped backslash-then-special remains.
+    expect(bib).toContain("path\\textbackslash{}to\\#x");
+  });
 });
 
 describe("RIS", () => {
