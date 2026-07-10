@@ -23,6 +23,41 @@ export interface ColormapRamp {
   bins: { lo: number; hi: number }[];
 }
 
+/** A continuous-legend entry: the RGB GIBS renders, and the value it means. */
+export interface ColormapEntry {
+  rgb: { r: number; g: number; b: number };
+  /** Midpoint of the entry's value range, in the colormap's own units. */
+  value: number;
+}
+
+/**
+ * Pair every continuous-legend entry's RGB with its value (range midpoint) —
+ * the ground truth for "what does this color mean", used to validate the
+ * probe's inversion end to end (see the inversion-validation contract). Open
+ * end-cap entries ("< 200", "≥ 350") carry no finite range and are skipped.
+ */
+export function parseColormapEntries(xml: string): ColormapEntry[] {
+  const legend = /<Legend type="continuous"[\s\S]*?<\/Legend>/.exec(xml)?.[0];
+  if (!legend) return [];
+  const entries: ColormapEntry[] = [];
+  const num = "-?[\\d.]+(?:e[+-]?\\d+)?";
+  for (const tag of legend.match(/<LegendEntry\b[^>]*\/?>/g) ?? []) {
+    const rgbM = /rgb="(\d+),(\d+),(\d+)"/.exec(tag);
+    const rangeM = new RegExp(
+      `tooltip="\\s*(${num})\\s*[–—-]\\s*(${num})\\s*"`
+    ).exec(tag);
+    if (!rgbM || !rangeM) continue;
+    const lo = Number(rangeM[1]);
+    const hi = Number(rangeM[2]);
+    if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) continue;
+    entries.push({
+      rgb: { r: +rgbM[1], g: +rgbM[2], b: +rgbM[3] },
+      value: (lo + hi) / 2,
+    });
+  }
+  return entries;
+}
+
 /**
  * Layer id → colormap document name for the layers whose probe scale is
  * calibrated from GIBS metadata. NOT always the layer identifier: LST and
