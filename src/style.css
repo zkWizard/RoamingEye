@@ -1387,6 +1387,28 @@ body {
   border-left: 3px solid var(--control-border);
 }
 
+.providers__cite-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.providers__cite-btn {
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+}
+
+.providers__cite-btn:hover {
+  border-color: var(--control-border-hover);
+}
+
 .providers__legend {
   display: flex;
   flex-wrap: wrap;

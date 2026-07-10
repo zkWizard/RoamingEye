@@ -5,6 +5,7 @@ import {
   citedDatasets,
   type ProviderUse,
 } from "../lib/providers";
+import { citationBundle, type CitationFormat } from "../lib/citation";
 import { FocusTrap } from "./modal";
 import { ICONS } from "./icons";
 
@@ -84,7 +85,34 @@ export class ProvidersPage {
     const ack = document.createElement("blockquote");
     ack.className = "providers__ack";
     ack.textContent = `“${GIBS_ACKNOWLEDGMENT}”`;
-    citing.append(citingTitle, citingIntro, list, ack);
+
+    // One-click machine-readable export for a reference manager (ESIP
+    // guidelines): the tool + every source dataset, DOIs and all.
+    const actions = document.createElement("div");
+    actions.className = "providers__cite-actions";
+    const makeCopyBtn = (label: string, format: CitationFormat): void => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "providers__cite-btn";
+      btn.textContent = label;
+      btn.addEventListener("click", () => {
+        navigator.clipboard
+          .writeText(citationBundle(format))
+          .then(() => {
+            const was = btn.textContent;
+            btn.textContent = "Copied ✓";
+            setTimeout(() => (btn.textContent = was), 1600);
+          })
+          .catch(() => {
+            btn.textContent = "Copy failed";
+          });
+      });
+      actions.appendChild(btn);
+    };
+    makeCopyBtn("Copy BibTeX", "bibtex");
+    makeCopyBtn("Copy RIS", "ris");
+
+    citing.append(citingTitle, citingIntro, list, ack, actions);
     body.appendChild(citing);
 
     for (const group of PROVIDER_GROUPS) {
