@@ -556,6 +556,10 @@ body {
   bottom: 0.75rem;
   display: flex;
   gap: 0.35rem;
+  /* Above the provenance line: its opacity < 1 makes it a stacking context
+     that would otherwise paint (and win pointer events) over these buttons,
+     since it comes later in the DOM — clicks silently hit the text instead. */
+  z-index: 1;
 }
 
 .timeline__step {
