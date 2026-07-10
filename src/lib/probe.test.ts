@@ -297,6 +297,24 @@ describe("buildProbeCsv", () => {
     expect(csv).toContain("point probe");
   });
 
+  it("carries a trend statement for a long enough series", () => {
+    const months: { year: number; month: number }[] = [];
+    const values: (number | null)[] = [];
+    for (let y = 2000; y <= 2007; y++) {
+      for (const m of [1, 7]) {
+        months.push({ year: y, month: m });
+        // Rising NDVI (0..1 gradient positions): a real, testable trend.
+        values.push((m === 1 ? 0.2 : 0.5) + (y - 2000) * 0.02);
+      }
+    }
+    const trended = buildProbeCsv(meta, months, values);
+    expect(trended).toContain("# trend_method: seasonal Mann-Kendall");
+    expect(trended).toMatch(/# trend_sens_slope: \+0\.\d+\/decade/);
+    expect(trended).toContain("# trend_significant: true");
+    // A two-month series (the fixture `csv`) is too short — no trend headers.
+    expect(csv).not.toContain("# trend_method");
+  });
+
   it("cites the source dataset when the layer names one", () => {
     const cited = buildProbeCsv(
       {

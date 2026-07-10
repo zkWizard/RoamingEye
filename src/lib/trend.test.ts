@@ -3,6 +3,9 @@ import {
   seasonalMannKendall,
   sensSlope,
   trendSummary,
+  trendClause,
+  trendCsvHeaders,
+  formatPerDecade,
   TREND_ALPHA,
 } from "./trend";
 import type { YearMonth } from "./timeline";
@@ -126,7 +129,55 @@ describe("trendSummary", () => {
       (y, m) => (y - 2000) * 0.3 + m * 0.001
     );
     const t = trendSummary(months, values, scale);
+    expect(t.testable).toBe(false);
     expect(t.significant).toBe(false);
     expect(t.direction).toBe("flat");
+  });
+});
+
+describe("trend formatting", () => {
+  const scale = PROBE_SCALES.ndvi;
+  const kelvin = PROBE_SCALES.lst;
+
+  const rising = (s: typeof scale) => {
+    const { months, values } = series(
+      Array.from({ length: 8 }, (_, i) => 2000 + i),
+      [1, 7],
+      (y, m) => (m === 1 ? 0.2 : 0.5) + (y - 2000) * 0.02
+    );
+    return trendSummary(months, values, s);
+  };
+
+  it("formats a per-decade rate with sign, adaptive precision, and unit", () => {
+    expect(formatPerDecade(0.018, "")).toBe("+0.018/decade");
+    expect(formatPerDecade(-2.4, "K")).toBe("−2.40 K/decade");
+    expect(formatPerDecade(12.3, "K")).toBe("+12.3 K/decade");
+  });
+
+  it("clause names the slope and p when significant", () => {
+    expect(trendClause(rising(scale))).toMatch(
+      /^trend \+0\.2\d\d\/decade · p = 0\.\d{3}$/
+    );
+  });
+
+  it("clause reports insufficient record explicitly", () => {
+    const t = trendSummary([{ year: 2000, month: 1 }], [0.5], scale);
+    expect(trendClause(t)).toBe("trend: insufficient record");
+  });
+
+  it("CSV headers name the method and carry the stats when testable", () => {
+    const headers = trendCsvHeaders(rising(kelvin));
+    expect(headers.some((h) => h.startsWith("# trend_method:"))).toBe(true);
+    expect(headers.some((h) => /# trend_sens_slope:.*K\/decade/.test(h))).toBe(
+      true
+    );
+    expect(headers.some((h) => /# trend_p_value: 0\.\d{4}/.test(h))).toBe(true);
+    expect(headers.some((h) => /# trend_significant: true/.test(h))).toBe(true);
+  });
+
+  it("emits no trend headers for an untestable record", () => {
+    expect(
+      trendCsvHeaders(trendSummary([{ year: 2000, month: 1 }], [0.5], scale))
+    ).toEqual([]);
   });
 });
