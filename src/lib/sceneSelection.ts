@@ -1,4 +1,8 @@
-import { gibsRegionUrl, type Bounds } from "./imagery";
+import {
+  gibsRegionUrl,
+  splitBoundsAtAntimeridian,
+  type Bounds,
+} from "./imagery";
 import { fetchBlob } from "./net";
 import type { YearMonth } from "./timeline";
 
@@ -70,7 +74,26 @@ export const MIN_USABLE_SCORE = 0.04;
 /** Coverage score above which we stop searching (good enough). */
 const GOOD_ENOUGH_SCORE = 0.35;
 
+/**
+ * Score a whole (possibly antimeridian-crossing) box: each legal piece is
+ * probed with its own thumbnail and the scores combine weighted by the
+ * piece's share of the box — so a Fiji-sized region is judged on ALL of its
+ * area, not on a slid approximation of it.
+ */
 async function probe(
+  layer: SceneLayer,
+  bounds: Bounds,
+  date: string,
+  signal?: AbortSignal
+): Promise<number> {
+  const parts = splitBoundsAtAntimeridian(bounds);
+  const scores = await Promise.all(
+    parts.map((part) => probePart(layer, part.bounds, date, signal))
+  );
+  return scores.reduce((sum, s, i) => sum + s * parts[i].fraction, 0);
+}
+
+async function probePart(
   layer: SceneLayer,
   bounds: Bounds,
   date: string,
