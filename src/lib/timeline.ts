@@ -101,6 +101,19 @@ export function extendDataLatest(ym: YearMonth): void {
   if (compareYm(ym, DATA_LATEST) > 0) DATA_LATEST = ym;
 }
 
+/**
+ * Pin a layer's runtime `latest` to a boot-verified month (forward-only —
+ * a stale or shrunken upstream answer never rewinds a working timeline).
+ * Freshness verifies each *product family* separately: MOD13A3 (ndvi/evi),
+ * MOD11C3 (lst), and MOD10CM (snow) publish on their own schedules, so one
+ * product's newest month must never be offered on another product's layer.
+ * See lib/freshness.ts.
+ */
+export function setLayerLatest(id: LayerId, ym: YearMonth): void {
+  const layer = LAYERS[id];
+  if (!layer.latest || compareYm(ym, layer.latest) > 0) layer.latest = ym;
+}
+
 export const MONTH_NAMES = [
   "Jan",
   "Feb",
@@ -396,7 +409,10 @@ export function buildMonthRange(end: YearMonth, count: number): YearMonth[] {
 
 /** Whether a month falls within a layer's published range. */
 export function isAvailable(layer: LayerConfig, ym: YearMonth): boolean {
-  return compareYm(ym, layer.start) >= 0 && compareYm(ym, DATA_LATEST) <= 0;
+  return (
+    compareYm(ym, layer.start) >= 0 &&
+    compareYm(ym, layer.latest ?? DATA_LATEST) <= 0
+  );
 }
 
 /**

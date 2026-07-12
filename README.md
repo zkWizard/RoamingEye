@@ -4,6 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/zkWizard/RoamingEye/actions/workflows/ci.yml"><img src="https://github.com/zkWizard/RoamingEye/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/zkWizard/RoamingEye"><img src="https://api.scorecard.dev/projects/github.com/zkWizard/RoamingEye/badge" alt="OpenSSF Scorecard" /></a>
   <img src="https://img.shields.io/badge/license-MIT-4ea1ff.svg" alt="MIT License" />
   <img src="https://img.shields.io/badge/data-100%25%20open-2ea043.svg" alt="100% open data" />
   <img src="https://img.shields.io/badge/PRs-welcome-2ea043.svg" alt="PRs welcome" />

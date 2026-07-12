@@ -456,6 +456,27 @@ export function seriesStats(values: (number | null)[]): SeriesStats | null {
 
 // --- CSV export -----------------------------------------------------------------
 
+/**
+ * Make free text safe to embed in a `#` provenance header line.
+ *
+ * Header lines are comments to the supported parsers (pandas
+ * `comment="#"`, R `comment.char="#"`), but naive consumers — Excel,
+ * Sheets, `split(",")` scripts — read them as rows. RFC 4180 quoting can't
+ * rescue those lines (a leading quote would hide the `#` from the comment
+ * convention), so the discipline is the reverse: a header line never
+ * *contains* a delimiter, a quote, or a line break. Interpolated text from
+ * outside this file (layer labels, upstream dataset titles) is scrubbed
+ * here; `,` → `;` keeps the prose readable. `# view_url` is the one
+ * documented exception — commas are valid URI characters and the link must
+ * stay byte-exact.
+ */
+export function csvHeaderText(text: string): string {
+  return text
+    .replace(/\r\n|[\r\n]/g, " ")
+    .replace(/"/g, "'")
+    .replace(/,/g, ";");
+}
+
 export interface ProbeCsvMeta {
   layerLabel: string;
   wmsLayer: string;
@@ -517,8 +538,10 @@ export function buildProbeCsv(
   const trend = trendSummary(months, physical, meta.scale);
   // Crossing boxes print normalized longitudes with west > east — the
   // GeoJSON (RFC 7946 §5.2) convention for an antimeridian-spanning bbox.
+  // Space-separated (not commas): a header line must stay a single CSV
+  // field so naive parsers never split provenance into ragged cells.
   const region = meta.sampledBounds
-    ? `${meta.sampledBounds.south.toFixed(3)},${normalizeLon(meta.sampledBounds.west).toFixed(3)},${meta.sampledBounds.north.toFixed(3)},${normalizeLon(meta.sampledBounds.east).toFixed(3)} (S,W,N,E)${
+    ? `${meta.sampledBounds.south.toFixed(3)} ${normalizeLon(meta.sampledBounds.west).toFixed(3)} ${meta.sampledBounds.north.toFixed(3)} ${normalizeLon(meta.sampledBounds.east).toFixed(3)} (S W N E)${
         crossesAntimeridian(meta.sampledBounds)
           ? " — crosses the antimeridian (west > east)"
           : ""
@@ -530,20 +553,22 @@ export function buildProbeCsv(
       meta.mode === "point" ? "" : "; area-weighted (cos latitude) grid mean"
     }`,
     `# caveat: reconstructed from public imagery colors; use the underlying L3 product for measurement-grade work`,
-    `# layer: ${meta.layerLabel}`,
-    `# gibs_layer: ${meta.wmsLayer}`,
+    `# layer: ${csvHeaderText(meta.layerLabel)}`,
+    `# gibs_layer: ${csvHeaderText(meta.wmsLayer)}`,
     // Cite the data, not the picture: the rendered imagery derives from a
     // dataset with its own DOI and citation (NASA data-use guidance).
     ...(meta.dataset
       ? [
-          `# data_product: ${meta.dataset.shortName} v${meta.dataset.version} — ${meta.dataset.title}`,
-          `# data_doi: https://doi.org/${meta.dataset.doi}`,
+          `# data_product: ${csvHeaderText(
+            `${meta.dataset.shortName} v${meta.dataset.version} — ${meta.dataset.title}`
+          )}`,
+          `# data_doi: https://doi.org/${csvHeaderText(meta.dataset.doi)}`,
         ]
       : []),
     `# lat: ${meta.lat.toFixed(4)}`,
     `# lon: ${meta.lon.toFixed(4)}`,
     ...(region ? [`# region: ${region}`] : []),
-    `# value: ${meta.scale.label}${meta.scale.unit ? ` [${meta.scale.unit}]` : ""} (${
+    `# value: ${csvHeaderText(meta.scale.label)}${meta.scale.unit ? ` [${csvHeaderText(meta.scale.unit)}]` : ""} (${
       meta.scale.calibrated
         ? "approximate physical scale"
         : "fraction of color scale"
@@ -556,9 +581,9 @@ export function buildProbeCsv(
           `# valid_fraction: share of the sampled area that held data that month (area-weighted)`,
         ]
       : []),
-    `# imagery: NASA GIBS (public domain), https://gibs.earthdata.nasa.gov`,
+    `# imagery: NASA GIBS (public domain) — https://gibs.earthdata.nasa.gov`,
     `# generated: ${meta.generatedIso}`,
-    `# tool: RoamingEye, https://github.com/zkWizard/RoamingEye`,
+    `# tool: RoamingEye — https://github.com/zkWizard/RoamingEye`,
     ...(meta.toolVersion ? [`# tool_version: ${meta.toolVersion}`] : []),
     ...(meta.viewUrl ? [`# view_url: ${meta.viewUrl}`] : []),
     `year_month,value,anomaly${fractions ? ",valid_fraction" : ""}`,

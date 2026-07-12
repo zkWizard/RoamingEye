@@ -439,7 +439,7 @@ describe("buildProbeCsv", () => {
     );
     expect(areaCsv).toContain("area probe");
     expect(areaCsv).toContain(
-      "# region: -4.000,-63.000,-3.000,-62.000 (S,W,N,E)"
+      "# region: -4.000 -63.000 -3.000 -62.000 (S W N E)"
     );
   });
 
@@ -455,7 +455,7 @@ describe("buildProbeCsv", () => {
     );
     // Normalized longitudes, west > east — the RFC 7946 bbox convention.
     expect(seamCsv).toContain(
-      "# region: -18.000,178.000,-14.000,-178.000 (S,W,N,E) — crosses the antimeridian (west > east)"
+      "# region: -18.000 178.000 -14.000 -178.000 (S W N E) — crosses the antimeridian (west > east)"
     );
   });
 });
