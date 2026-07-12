@@ -2,10 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
+    <!-- No maximum-scale / user-scalable: pinch-to-zoom must stay available
+         (WCAG 2.1 SC 1.4.4). The globe canvas opts out of browser gestures
+         itself via touch-action: none, so page zoom only applies to UI chrome. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
       content="RoamingEye — roam a 3D Earth and scrub through monthly satellite data to watch the seasons change over years."

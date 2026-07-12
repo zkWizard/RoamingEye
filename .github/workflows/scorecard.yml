@@ -1,0 +1,53 @@
+# OpenSSF Scorecard — continuous, published supply-chain health scoring.
+#
+# Scorecard runs 18 machine checks (pinned dependencies, branch protection,
+# CI tests, SAST, token permissions, …) and publishes a public score that
+# institutional adopters and JOSS-style reviewers can verify independently.
+# Findings land in the Security tab as code-scanning alerts, so a hygiene
+# regression (an unpinned action, a workflow with write-all tokens) surfaces
+# like any other vulnerability. See issue #183.
+name: OpenSSF Scorecard
+
+on:
+  # Re-score when branch-protection settings change, weekly, and on main.
+  branch_protection_rule:
+  schedule:
+    - cron: "30 5 * * 1"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Default-deny; the job grants itself only what publishing requires.
+permissions: read-all
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write # SARIF upload to code scanning
+      id-token: write # signed publish to the public results API (badge)
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Run analysis
+        uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      # Keep the raw SARIF briefly for debugging a surprising score.
+      - name: Upload SARIF artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: scorecard-sarif
+          path: results.sarif
+          retention-days: 5
+
+      - name: Upload to code scanning
+        uses: github/codeql-action/upload-sarif@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
+        with:
+          sarif_file: results.sarif
