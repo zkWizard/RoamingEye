@@ -149,11 +149,26 @@ Every change lands through a reviewed, CI-gated pull request. Be kind — see th
 
 ## 🗺️ Roadmap
 
-Now / Next / Later at a glance (full detail in [`ROADMAP.md`](ROADMAP.md)):
+### 🎯 Goals — 2026
 
-- **Now** — contributor onboarding; recently shipped: overlay polish (city labels, hover details, colour keys), mobile layout, annual land cover, 🚩 drawn study regions with time-series charts.
-- **Next** — more scientific layers (fire/thermal anomalies), tile-edge polish for HD streaming.
-- **Later** — true 3D elevation terrain (GEBCO/SRTM), time-series analytics (trends, change points), Sentinel-2 at 10 m, annotation & collaboration, offline field mode.
+_Last updated: **2026-07-11**._ Tracked daily as work lands; full detail and
+the feature-level Now / Next / Later live in [`ROADMAP.md`](ROADMAP.md).
+
+- [ ] 🚩 **Accurate absolute probe values** ([#170](https://github.com/zkWizard/RoamingEye/issues/170)) — invert against GIBS's real colormaps so the probe is citable for absolute measurements, not just trends.
+- [ ] **Research partnerships** — working contact with ≥2 PhD-level remote-sensing / Earth-observation groups steering build direction.
+- [ ] **NASA engagement** — contact the GIBS / ESDIS / Worldview teams; validate our inversion approach and pursue an ecosystem listing.
+- [ ] **Citable software** — v1.1.0 GitHub release → Zenodo DOI → JOSS paper _(in progress: release notes drafted, `CITATION.cff` shipped)_.
+- [ ] **Teaching adoption** — used in ≥3 university courses or classrooms, with instructor feedback folded back in.
+- [ ] **Grow the layer catalogue** — fire/thermal anomalies and surface water.
+- [ ] **Sentinel-2 at 10 m** — direct integration for the study patch.
+- [ ] **A real contributor community** — ≥5 merged PRs from external contributors.
+- [ ] **Verified on real devices** — hands-on phone/tablet pass.
+
+### Now / Next / Later at a glance
+
+- **Now** — 🚩 absolute probe accuracy (#170), release & DOI residuals, research/NASA outreach.
+- **Next** — more scientific layers (fire/thermal, surface water), tile-edge polish for HD streaming, Sentinel-2 at 10 m.
+- **Later** — true 3D elevation terrain (GEBCO/SRTM), change-point detection & region comparison, annotation & collaboration, offline field mode.
 
 ---
 
