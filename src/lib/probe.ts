@@ -1,5 +1,6 @@
 import type { Bounds } from "./imagery";
 import type { LegendStop } from "./legend";
+import { makeNeumaierAcc } from "./numerics";
 import type { DatasetRef, LayerId, YearMonth } from "./timeline";
 import { trendSummary, trendCsvHeaders } from "./trend";
 
@@ -136,21 +137,25 @@ export function weightedMeanValid(
   weights: number[],
   minValidFraction = 0.25
 ): number | null {
-  let totalWeight = 0;
-  let validWeight = 0;
-  let sum = 0;
+  // Compensated sums: the region mean must not depend on the order the
+  // sampling grid happens to be enumerated in (see lib/numerics.ts).
+  const totalWeight = makeNeumaierAcc();
+  const validWeight = makeNeumaierAcc();
+  const sum = makeNeumaierAcc();
   for (let i = 0; i < values.length; i++) {
     const w = weights[i];
-    totalWeight += w;
+    totalWeight.add(w);
     const v = values[i];
     if (v === null) continue;
-    validWeight += w;
-    sum += v * w;
+    validWeight.add(w);
+    sum.add(v * w);
   }
-  if (totalWeight <= 0 || validWeight / totalWeight < minValidFraction) {
+  const total = totalWeight.sum();
+  const valid = validWeight.sum();
+  if (total <= 0 || valid / total < minValidFraction) {
     return null;
   }
-  return sum / validWeight;
+  return sum.sum() / valid;
 }
 
 /** The cos(latitude) area weight of a sample on an equal-angle grid. */
@@ -259,15 +264,17 @@ export function monthlyClimatology(
   months: YearMonth[],
   values: (number | null)[]
 ): (number | null)[] {
-  const sums = new Array<number>(12).fill(0);
+  // The climatology is subtracted from near-equal values (anomaly = value −
+  // climatology), so digits lost here would surface amplified: compensated.
+  const sums = Array.from({ length: 12 }, () => makeNeumaierAcc());
   const counts = new Array<number>(12).fill(0);
   for (let i = 0; i < months.length; i++) {
     const v = values[i];
     if (v === null || v === undefined) continue;
-    sums[months[i].month - 1] += v;
+    sums[months[i].month - 1].add(v);
     counts[months[i].month - 1]++;
   }
-  return sums.map((sum, m) => (counts[m] > 0 ? sum / counts[m] : null));
+  return sums.map((sum, m) => (counts[m] > 0 ? sum.sum() / counts[m] : null));
 }
 
 /**
@@ -438,13 +445,13 @@ export function seriesStats(values: (number | null)[]): SeriesStats | null {
   if (valid.length === 0) return null;
   let min = Infinity;
   let max = -Infinity;
-  let sum = 0;
+  const sum = makeNeumaierAcc();
   for (const v of valid) {
     if (v < min) min = v;
     if (v > max) max = v;
-    sum += v;
+    sum.add(v);
   }
-  return { min, max, mean: sum / valid.length, count: valid.length };
+  return { min, max, mean: sum.sum() / valid.length, count: valid.length };
 }
 
 // --- CSV export -----------------------------------------------------------------
