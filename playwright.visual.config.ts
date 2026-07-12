@@ -12,6 +12,10 @@ import base from "./playwright.config";
  */
 export default defineConfig({
   ...base,
+  // Chromium only: the base config also defines the cross-engine advisory
+  // projects (webkit/firefox), whose own testMatch would survive the spread
+  // and drag their suites into this job on engines it never installs.
+  projects: base.projects?.filter((p) => p.name === "chromium"),
   testIgnore: [],
   testMatch: "**/visual.spec.ts",
   retries: 0,

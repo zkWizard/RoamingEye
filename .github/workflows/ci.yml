@@ -85,6 +85,55 @@ jobs:
         run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 
+  e2e-webkit:
+    name: E2E WebKit (advisory)
+    runs-on: ubuntu-latest
+    # Advisory first, like visual/soak at introduction: WebGL support in
+    # headless non-Chromium engines varies on CI runners, so the lane earns
+    # trust before it gates. WebKit ≈ Safari's engine — the second-largest
+    # real audience, and the one that diverges from Chromium exactly where
+    # element-level tests are blind (hit-testing, stacking, font metrics).
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright (WebKit)
+        run: npx playwright install --with-deps webkit
+      - run: npx playwright test --project=webkit
+      - name: Upload trace on failure
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: e2e-webkit-report
+          path: test-results/
+          retention-days: 14
+
+  e2e-firefox:
+    name: E2E Firefox (advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright (Firefox)
+        run: npx playwright install --with-deps firefox
+      - run: npx playwright test --project=firefox
+      - name: Upload trace on failure
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: e2e-firefox-report
+          path: test-results/
+          retention-days: 14
+
   visual:
     name: Visual regression (advisory)
     runs-on: ubuntu-latest
