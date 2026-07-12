@@ -11,6 +11,57 @@ every commit. Format loosely follows
   per click — precise moves the drag handle can't do on decades-long
   records. The buttons disable at either end of a layer's published range.
 
+Round 8 (issues #182–#189; PRs #190–#197 + this wrap-up): **robustness as a
+research instrument** — the failure modes, numerics, and honesty gaps a tool
+must close before institutions rely on it. Grounded in WCAG 2.1, RFC 4180,
+RFC 7946, OpenSSF guidance, GIBS's DescribeDomains API, and Higham's
+_Accuracy and Stability of Numerical Algorithms_.
+
+### Correctness & science
+
+- **Numerically disciplined statistics** — every published accumulation
+  (region means, full-record means, the climatology anomalies subtract from)
+  now uses compensated (Neumaier) summation: error bound independent of
+  series length, order-independent means, proven by fast-check properties
+  against an exact BigInt reference. (#185)
+- **Per-product timeline freshness** — the boot DescribeDomains check now
+  verifies each product family separately (MOD13A3 → NDVI/EVI, MOD11C3 →
+  LST, MOD10CM → snow) so a lagging product is never offered a leader's
+  unpublished month; a latent `isAvailable` bug that compared every layer
+  against the global latest is fixed. New weekly freshness contract. (#186)
+- **Seam-stitched study patches** — a dateline-straddling study region
+  (Taveuni, Attu) now issues two legal GetMaps and composites them into one
+  centred texture instead of sliding the box off-target; scene selection
+  scores all of the region's area. The codebase's last prose-TODO, retired.
+  (#187)
+- **RFC 4180-safe CSV exports** — provenance headers can no longer be torn
+  into ragged cells by naive parsers: interpolated free text is scrubbed, the
+  region line is delimiter-free, `# view_url` stays byte-exact by documented
+  exception, and a strict-parser round-trip gate (with adversarial fast-check
+  inputs) holds exports to the contract. METHODS.md documents the pandas/R
+  loading recipe. (#184)
+
+### Access & accountability
+
+- **Pinch-to-zoom restored (WCAG 2.1 SC 1.4.4)** — the viewport meta no
+  longer disables zoom, and the a11y gate gained an `ENFORCED_RULES`
+  escalation so a named rule fails CI regardless of axe's impact grade — the
+  loophole that let this violation scroll past as advisory noise is closed.
+  (#182)
+- **OpenSSF Scorecard** — continuous, published supply-chain health scoring
+  (weekly + on main), surfacing regressions as code-scanning alerts, with the
+  public score as a README badge. (#183)
+- **Cancelled imagery downloads** — scrubbing no longer pays for superseded
+  months: all three imagery paths moved to an abortable
+  fetch → ImageBitmap pipeline wired to their existing invalidation guards,
+  which also buys imagery the WMS ServiceException/offline fetch guards.
+  Rendering is pixel-identical; aborts are silent by design. (#189)
+- **Cross-engine e2e lanes** — WebKit and Firefox advisory CI jobs run the
+  user-facing suites per PR. WebKit passed its full suite on day one —
+  automated Safari-class signal at last; the Firefox lane exposed missing
+  headless WebGL on CI runners (#198), exactly the kind of intelligence an
+  advisory lane exists to gather. (#188)
+
 ## [1.1.0] — 2026-07-10
 
 The first feature release since launch: two rounds of instrument-grade
