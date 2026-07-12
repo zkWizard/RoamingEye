@@ -6,6 +6,7 @@ import {
   monthRangeForLayer,
   nearestMonthIndex,
   formatTimelineLabel,
+  ymEqual,
   ymToIndex,
   gibsWmsUrl,
   type LayerId,
@@ -416,11 +417,14 @@ resetPrefetch(); // warm the preview cache for instant scrubbing
 // site stays current without a code bump (see lib/freshness.ts).
 void refreshDataLatest().then((grew) => {
   if (!grew) return;
-  // Layers with their own `latest` (lagging reanalysis) are unaffected.
-  if (LAYERS[currentLayer].latest) return;
+  // Freshness pins each product family separately — rebuild only if the
+  // *current* layer's own record actually grew (a compiled-`latest`
+  // reanalysis layer, or a lagging family, is unaffected).
+  const fresh = monthRangeForLayer(LAYERS[currentLayer]);
+  if (ymEqual(fresh[fresh.length - 1], months[months.length - 1])) return;
   const selected = months[currentIndex];
   const wasAtEnd = currentIndex === months.length - 1;
-  months = monthRangeForLayer(LAYERS[currentLayer]);
+  months = fresh;
   // Follow the newest month if the user was already on it (the default view);
   // otherwise stay on whatever month they had selected.
   currentIndex = wasAtEnd

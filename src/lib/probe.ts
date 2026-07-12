@@ -1,5 +1,6 @@
 import type { Bounds } from "./imagery";
 import type { LegendStop } from "./legend";
+import { makeNeumaierAcc } from "./numerics";
 import type { DatasetRef, LayerId, YearMonth } from "./timeline";
 import { trendSummary, trendCsvHeaders } from "./trend";
 
@@ -136,21 +137,25 @@ export function weightedMeanValid(
   weights: number[],
   minValidFraction = 0.25
 ): number | null {
-  let totalWeight = 0;
-  let validWeight = 0;
-  let sum = 0;
+  // Compensated sums: the region mean must not depend on the order the
+  // sampling grid happens to be enumerated in (see lib/numerics.ts).
+  const totalWeight = makeNeumaierAcc();
+  const validWeight = makeNeumaierAcc();
+  const sum = makeNeumaierAcc();
   for (let i = 0; i < values.length; i++) {
     const w = weights[i];
-    totalWeight += w;
+    totalWeight.add(w);
     const v = values[i];
     if (v === null) continue;
-    validWeight += w;
-    sum += v * w;
+    validWeight.add(w);
+    sum.add(v * w);
   }
-  if (totalWeight <= 0 || validWeight / totalWeight < minValidFraction) {
+  const total = totalWeight.sum();
+  const valid = validWeight.sum();
+  if (total <= 0 || valid / total < minValidFraction) {
     return null;
   }
-  return sum / validWeight;
+  return sum.sum() / valid;
 }
 
 /** The cos(latitude) area weight of a sample on an equal-angle grid. */
@@ -259,15 +264,17 @@ export function monthlyClimatology(
   months: YearMonth[],
   values: (number | null)[]
 ): (number | null)[] {
-  const sums = new Array<number>(12).fill(0);
+  // The climatology is subtracted from near-equal values (anomaly = value −
+  // climatology), so digits lost here would surface amplified: compensated.
+  const sums = Array.from({ length: 12 }, () => makeNeumaierAcc());
   const counts = new Array<number>(12).fill(0);
   for (let i = 0; i < months.length; i++) {
     const v = values[i];
     if (v === null || v === undefined) continue;
-    sums[months[i].month - 1] += v;
+    sums[months[i].month - 1].add(v);
     counts[months[i].month - 1]++;
   }
-  return sums.map((sum, m) => (counts[m] > 0 ? sum / counts[m] : null));
+  return sums.map((sum, m) => (counts[m] > 0 ? sum.sum() / counts[m] : null));
 }
 
 /**
@@ -438,16 +445,37 @@ export function seriesStats(values: (number | null)[]): SeriesStats | null {
   if (valid.length === 0) return null;
   let min = Infinity;
   let max = -Infinity;
-  let sum = 0;
+  const sum = makeNeumaierAcc();
   for (const v of valid) {
     if (v < min) min = v;
     if (v > max) max = v;
-    sum += v;
+    sum.add(v);
   }
-  return { min, max, mean: sum / valid.length, count: valid.length };
+  return { min, max, mean: sum.sum() / valid.length, count: valid.length };
 }
 
 // --- CSV export -----------------------------------------------------------------
+
+/**
+ * Make free text safe to embed in a `#` provenance header line.
+ *
+ * Header lines are comments to the supported parsers (pandas
+ * `comment="#"`, R `comment.char="#"`), but naive consumers — Excel,
+ * Sheets, `split(",")` scripts — read them as rows. RFC 4180 quoting can't
+ * rescue those lines (a leading quote would hide the `#` from the comment
+ * convention), so the discipline is the reverse: a header line never
+ * *contains* a delimiter, a quote, or a line break. Interpolated text from
+ * outside this file (layer labels, upstream dataset titles) is scrubbed
+ * here; `,` → `;` keeps the prose readable. `# view_url` is the one
+ * documented exception — commas are valid URI characters and the link must
+ * stay byte-exact.
+ */
+export function csvHeaderText(text: string): string {
+  return text
+    .replace(/\r\n|[\r\n]/g, " ")
+    .replace(/"/g, "'")
+    .replace(/,/g, ";");
+}
 
 export interface ProbeCsvMeta {
   layerLabel: string;
@@ -510,8 +538,10 @@ export function buildProbeCsv(
   const trend = trendSummary(months, physical, meta.scale);
   // Crossing boxes print normalized longitudes with west > east — the
   // GeoJSON (RFC 7946 §5.2) convention for an antimeridian-spanning bbox.
+  // Space-separated (not commas): a header line must stay a single CSV
+  // field so naive parsers never split provenance into ragged cells.
   const region = meta.sampledBounds
-    ? `${meta.sampledBounds.south.toFixed(3)},${normalizeLon(meta.sampledBounds.west).toFixed(3)},${meta.sampledBounds.north.toFixed(3)},${normalizeLon(meta.sampledBounds.east).toFixed(3)} (S,W,N,E)${
+    ? `${meta.sampledBounds.south.toFixed(3)} ${normalizeLon(meta.sampledBounds.west).toFixed(3)} ${meta.sampledBounds.north.toFixed(3)} ${normalizeLon(meta.sampledBounds.east).toFixed(3)} (S W N E)${
         crossesAntimeridian(meta.sampledBounds)
           ? " — crosses the antimeridian (west > east)"
           : ""
@@ -523,20 +553,22 @@ export function buildProbeCsv(
       meta.mode === "point" ? "" : "; area-weighted (cos latitude) grid mean"
     }`,
     `# caveat: reconstructed from public imagery colors; use the underlying L3 product for measurement-grade work`,
-    `# layer: ${meta.layerLabel}`,
-    `# gibs_layer: ${meta.wmsLayer}`,
+    `# layer: ${csvHeaderText(meta.layerLabel)}`,
+    `# gibs_layer: ${csvHeaderText(meta.wmsLayer)}`,
     // Cite the data, not the picture: the rendered imagery derives from a
     // dataset with its own DOI and citation (NASA data-use guidance).
     ...(meta.dataset
       ? [
-          `# data_product: ${meta.dataset.shortName} v${meta.dataset.version} — ${meta.dataset.title}`,
-          `# data_doi: https://doi.org/${meta.dataset.doi}`,
+          `# data_product: ${csvHeaderText(
+            `${meta.dataset.shortName} v${meta.dataset.version} — ${meta.dataset.title}`
+          )}`,
+          `# data_doi: https://doi.org/${csvHeaderText(meta.dataset.doi)}`,
         ]
       : []),
     `# lat: ${meta.lat.toFixed(4)}`,
     `# lon: ${meta.lon.toFixed(4)}`,
     ...(region ? [`# region: ${region}`] : []),
-    `# value: ${meta.scale.label}${meta.scale.unit ? ` [${meta.scale.unit}]` : ""} (${
+    `# value: ${csvHeaderText(meta.scale.label)}${meta.scale.unit ? ` [${csvHeaderText(meta.scale.unit)}]` : ""} (${
       meta.scale.calibrated
         ? "approximate physical scale"
         : "fraction of color scale"
@@ -549,9 +581,9 @@ export function buildProbeCsv(
           `# valid_fraction: share of the sampled area that held data that month (area-weighted)`,
         ]
       : []),
-    `# imagery: NASA GIBS (public domain), https://gibs.earthdata.nasa.gov`,
+    `# imagery: NASA GIBS (public domain) — https://gibs.earthdata.nasa.gov`,
     `# generated: ${meta.generatedIso}`,
-    `# tool: RoamingEye, https://github.com/zkWizard/RoamingEye`,
+    `# tool: RoamingEye — https://github.com/zkWizard/RoamingEye`,
     ...(meta.toolVersion ? [`# tool_version: ${meta.toolVersion}`] : []),
     ...(meta.viewUrl ? [`# view_url: ${meta.viewUrl}`] : []),
     `year_month,value,anomaly${fractions ? ",valid_fraction" : ""}`,
