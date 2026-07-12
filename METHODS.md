@@ -91,6 +91,28 @@ not just the tool — the URL reproduces exactly what was seen. Machine-readable
 tool and dataset citations (BibTeX / RIS) are one click away on the in-app Data
 providers page.
 
+### Loading the CSV
+
+The supported way to read an export is to treat `#` lines as comments:
+
+```python
+import pandas as pd
+df = pd.read_csv("roamingeye_probe_….csv", comment="#")
+```
+
+```r
+df <- read.csv("roamingeye_probe_….csv", comment.char = "#")
+```
+
+The file is also safe for parsers that know nothing about comments
+(RFC 4180 tokenizers, Excel, Sheets): every `#` header line is a single
+delimiter-free field — free text is scrubbed of `,`, `"`, and line breaks
+at generation time, and a CI property test holds the exports to it — and
+every data cell is a `YYYY-MM` stamp, a fixed-decimal number, or empty.
+One documented exception: the `# view_url` line reproduces the deep link
+byte-exactly, and URLs may legitimately contain commas — treat it as a
+comment, not a row.
+
 ## 6. What this tool does not do
 
 - It does **not** validate the GIBS L3 products against in-situ measurements —
