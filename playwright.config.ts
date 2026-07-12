@@ -43,6 +43,33 @@ export default defineConfig({
         },
       },
     },
+    // Cross-engine lanes (advisory CI jobs, run with --project=webkit /
+    // --project=firefox after `npx playwright install webkit firefox`).
+    // Safari-class engines are the second-largest real audience and diverge
+    // from Chromium exactly where element-level tests are blind — hit-testing,
+    // stacking, font metrics (see the PR #180 stepper bug). Scoped to the
+    // user-facing suites; the chaos + canary specs stay Chromium, where the
+    // SwiftShader/WebGL assumptions they encode actually hold.
+    {
+      name: "webkit",
+      testMatch: [
+        "**/smoke.spec.ts",
+        "**/features.spec.ts",
+        "**/a11y.spec.ts",
+        "**/webgl-fallback.spec.ts",
+      ],
+      use: { ...devices["Desktop Safari"] },
+    },
+    {
+      name: "firefox",
+      testMatch: [
+        "**/smoke.spec.ts",
+        "**/features.spec.ts",
+        "**/a11y.spec.ts",
+        "**/webgl-fallback.spec.ts",
+      ],
+      use: { ...devices["Desktop Firefox"] },
+    },
   ],
 
   // Build and preview the production bundle, so e2e exercises the real
