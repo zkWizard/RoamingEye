@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   regionAround,
   legalLonBounds,
+  splitBoundsAtAntimeridian,
   gibsRegionUrl,
   studyDate,
 } from "./imagery";
@@ -66,6 +67,86 @@ describe("legalLonBounds", () => {
     expect(
       legalLonBounds({ south: 0, north: 1, west: -200, east: 200 })
     ).toEqual({ south: 0, north: 1, west: -180, east: 180 });
+  });
+});
+
+describe("splitBoundsAtAntimeridian", () => {
+  it("returns a non-crossing box unchanged as one full-width piece", () => {
+    const legal = { south: 40, north: 41, west: -4, east: -3 };
+    expect(splitBoundsAtAntimeridian(legal)).toEqual([
+      { bounds: legal, fraction: 1 },
+    ]);
+  });
+
+  it("splits an east-overflowing box into two legal pieces, west→east", () => {
+    // Taveuni-style box: 179 → 181 in continuous longitudes.
+    const parts = splitBoundsAtAntimeridian({
+      south: -17,
+      north: -16,
+      west: 179,
+      east: 181,
+    });
+    expect(parts).toHaveLength(2);
+    expect(parts[0].bounds).toEqual({
+      south: -17,
+      north: -16,
+      west: 179,
+      east: 180,
+    });
+    expect(parts[1].bounds).toEqual({
+      south: -17,
+      north: -16,
+      west: -180,
+      east: -179,
+    });
+    // Width is conserved and the fractions mirror the angular shares.
+    expect(parts[0].fraction).toBeCloseTo(0.5);
+    expect(parts[1].fraction).toBeCloseTo(0.5);
+  });
+
+  it("splits a west-overflowing box (Attu-style continuous frame)", () => {
+    const parts = splitBoundsAtAntimeridian({
+      south: 52,
+      north: 53,
+      west: -180.75,
+      east: -178.25,
+    });
+    expect(parts).toHaveLength(2);
+    expect(parts[0].bounds.west).toBeCloseTo(179.25);
+    expect(parts[0].bounds.east).toBe(180);
+    expect(parts[1].bounds.west).toBe(-180);
+    expect(parts[1].bounds.east).toBeCloseTo(-178.25);
+    expect(parts[0].fraction + parts[1].fraction).toBeCloseTo(1);
+    expect(parts[0].fraction).toBeCloseTo(0.75 / 2.5);
+  });
+
+  it("every piece is a legal WMS BBOX with conserved total width", () => {
+    for (const lon of [-180.6, -180, -179.99, 0, 179.99, 180, 180.6, 359]) {
+      const box = { south: -1, north: 1, west: lon - 0.6, east: lon + 0.6 };
+      const parts = splitBoundsAtAntimeridian(box);
+      let width = 0;
+      for (const p of parts) {
+        expect(p.bounds.west).toBeGreaterThanOrEqual(-180);
+        expect(p.bounds.east).toBeLessThanOrEqual(180);
+        expect(p.bounds.east).toBeGreaterThan(p.bounds.west);
+        width += p.bounds.east - p.bounds.west;
+      }
+      expect(width).toBeCloseTo(1.2);
+      expect(parts.reduce((s, p) => s + p.fraction, 0)).toBeCloseTo(1);
+    }
+  });
+
+  it("a box exactly touching the seam stays single", () => {
+    const touching = { south: 0, north: 1, west: 178.8, east: 180 };
+    expect(splitBoundsAtAntimeridian(touching)).toHaveLength(1);
+  });
+
+  it("caps a degenerate over-wide box at the full range", () => {
+    expect(
+      splitBoundsAtAntimeridian({ south: 0, north: 1, west: -200, east: 200 })
+    ).toEqual([
+      { bounds: { south: 0, north: 1, west: -180, east: 180 }, fraction: 1 },
+    ]);
   });
 });
 

@@ -6,6 +6,7 @@ import {
   monthRangeForLayer,
   nearestMonthIndex,
   formatTimelineLabel,
+  ymEqual,
   ymToIndex,
   gibsWmsUrl,
   type LayerId,
@@ -60,7 +61,7 @@ import { ProvidersPage } from "./ui/ProvidersPage";
 import { ShortcutsOverlay } from "./ui/ShortcutsOverlay";
 import { loadAdmin1Index, loadCountryIndex } from "./lib/countryIndex";
 import { flyToDistance, rotateSpeedForDistance } from "./lib/navigation";
-import { legalLonBounds, regionAround } from "./lib/imagery";
+import { regionAround } from "./lib/imagery";
 
 /**
  * RoamingEye
@@ -416,11 +417,14 @@ resetPrefetch(); // warm the preview cache for instant scrubbing
 // site stays current without a code bump (see lib/freshness.ts).
 void refreshDataLatest().then((grew) => {
   if (!grew) return;
-  // Layers with their own `latest` (lagging reanalysis) are unaffected.
-  if (LAYERS[currentLayer].latest) return;
+  // Freshness pins each product family separately — rebuild only if the
+  // *current* layer's own record actually grew (a compiled-`latest`
+  // reanalysis layer, or a lagging family, is unaffected).
+  const fresh = monthRangeForLayer(LAYERS[currentLayer]);
+  if (ymEqual(fresh[fresh.length - 1], months[months.length - 1])) return;
   const selected = months[currentIndex];
   const wasAtEnd = currentIndex === months.length - 1;
-  months = monthRangeForLayer(LAYERS[currentLayer]);
+  months = fresh;
   // Follow the newest month if the user was already on it (the default view);
   // otherwise stay on whatever month they had selected.
   currentIndex = wasAtEnd
@@ -620,11 +624,11 @@ if (searchEl) {
       geometry: result.geometry,
     });
     // Drape a high-res patch over the area, driven by the current timeline month.
-    // legalLonBounds: a WMS BBOX can't cross ±180°, so near-dateline searches
-    // (Fiji, the Aleutians) slide the box to abut the seam instead of sending
-    // an illegal request.
+    // The box stays CENTRED on the searched point even across ±180° — the
+    // continuous-longitude bounds render fine on the sphere, and StudyRegion
+    // seam-stitches two legal GetMaps when the box crosses the antimeridian.
     studyRegion.show(
-      legalLonBounds(regionAround(result.lat, result.lon, 1.2)),
+      regionAround(result.lat, result.lon, 1.2),
       months[currentIndex]
     );
     studyChip?.show(result.name);
