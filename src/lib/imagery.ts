@@ -57,8 +57,10 @@ export function regionAround(
  * Slide a bounds' longitudes into the legal WMS EPSG:4326 range. A GetMap
  * BBOX cannot cross ±180°, so a box that overflows the seam is shifted to
  * abut it — same size, and the point it was built around stays inside (just
- * no longer centred). The honest trade-off until seam-stitched double
- * requests exist; without it a near-dateline search sends an illegal BBOX.
+ * no longer centred). Kept as the last-resort clamp for single-request
+ * consumers; imagery that must stay CENTRED on a near-dateline point uses
+ * `splitBoundsAtAntimeridian` and stitches the two legal GetMaps instead
+ * (StudyRegion.loadTexture).
  */
 export function legalLonBounds(bounds: Bounds): Bounds {
   const width = bounds.east - bounds.west;
@@ -66,6 +68,55 @@ export function legalLonBounds(bounds: Bounds): Bounds {
   if (bounds.west < -180) return { ...bounds, west: -180, east: -180 + width };
   if (bounds.east > 180) return { ...bounds, west: 180 - width, east: 180 };
   return bounds;
+}
+
+/** One legal (non-crossing) piece of a bounds, west→east order. */
+export interface BoundsPart {
+  bounds: Bounds;
+  /** This piece's share of the full box's angular width, in (0, 1]. */
+  fraction: number;
+}
+
+/**
+ * Split a continuous-longitude box at the ±180° seam into legal WMS pieces.
+ * RFC 7946 §3.1.9 canonized splitting at the antimeridian for geometry; this
+ * is the imagery equivalent: each piece is a legal GetMap BBOX, pieces are
+ * returned west→east in the box's own (continuous) frame so their images
+ * concatenate left-to-right into the texture for the full box, and their
+ * fractions sum to 1 for proportional pixel widths. Non-crossing boxes come
+ * back unchanged as a single full-width piece — callers need no special
+ * casing.
+ */
+export function splitBoundsAtAntimeridian(bounds: Bounds): BoundsPart[] {
+  const width = bounds.east - bounds.west;
+  if (width >= 360) {
+    return [{ bounds: { ...bounds, west: -180, east: 180 }, fraction: 1 }];
+  }
+  // Normalize the continuous frame so any crossing appears as east > 180.
+  let west = bounds.west;
+  let east = bounds.east;
+  while (west < -180) {
+    west += 360;
+    east += 360;
+  }
+  while (west >= 180) {
+    west -= 360;
+    east -= 360;
+  }
+  if (east <= 180) {
+    return [{ bounds: { ...bounds, west, east }, fraction: 1 }];
+  }
+  const westWidth = 180 - west;
+  return [
+    {
+      bounds: { ...bounds, west, east: 180 },
+      fraction: westWidth / width,
+    },
+    {
+      bounds: { ...bounds, west: -180, east: east - 360 },
+      fraction: (width - westWidth) / width,
+    },
+  ];
 }
 
 export interface RegionImageOptions {

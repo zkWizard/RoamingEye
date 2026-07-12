@@ -1,6 +1,10 @@
 import * as THREE from "three";
 import { latLngToVector3 } from "../lib/geo";
-import { gibsRegionUrl, type Bounds } from "../lib/imagery";
+import {
+  gibsRegionUrl,
+  splitBoundsAtAntimeridian,
+  type Bounds,
+} from "../lib/imagery";
 import { pickBestScene } from "../lib/sceneSelection";
 import { formatYm, type YearMonth } from "../lib/timeline";
 
@@ -20,6 +24,7 @@ export class StudyRegion {
   readonly object = new THREE.Group();
   private mesh: THREE.Mesh | undefined;
   private readonly loader = new THREE.TextureLoader();
+  private readonly imageLoader = new THREE.ImageLoader();
   private bounds: Bounds | undefined;
   private monthKey: string | undefined;
 
@@ -97,37 +102,99 @@ export class StudyRegion {
     onApplied: () => void
   ): void {
     if (!this.bounds) return;
-    const url = gibsRegionUrl(wmsLayer, this.bounds, date, {
-      width: 4096,
-      height: 4096,
-    });
-    this.loader.load(
-      url,
-      (texture) => {
-        const mesh = this.mesh;
-        if (seq !== this.seq || !mesh) {
-          texture.dispose();
-          return;
-        }
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.anisotropy = this.maxAnisotropy;
-        const material = mesh.material as THREE.MeshBasicMaterial;
-        material.map?.dispose();
-        material.map = texture;
-        material.color.set(0xffffff);
-        material.needsUpdate = true;
-        this.callbacks.onLoadingChange?.(false);
-        onApplied();
-      },
-      undefined,
-      () => {
-        console.warn(`RoamingEye: high-res imagery failed for ${date}`);
-        if (seq === this.seq) {
-          this.callbacks.onLoadingChange?.(false);
-          this.callbacks.onStatus?.("High-res imagery failed to load");
-        }
-      }
+    // A GetMap BBOX cannot cross ±180°: a dateline-straddling study region
+    // (Fiji, the Aleutians) becomes two legal requests whose images are
+    // stitched side-by-side into one texture. The mesh is built on the
+    // continuous bounds, so its UVs line up with the composite unchanged.
+    const parts = splitBoundsAtAntimeridian(this.bounds);
+    const TOTAL = 4096;
+    if (parts.length === 1) {
+      // The common case keeps the proven single-request TextureLoader path.
+      const url = gibsRegionUrl(wmsLayer, parts[0].bounds, date, {
+        width: TOTAL,
+        height: TOTAL,
+      });
+      this.loader.load(
+        url,
+        (texture) => this.applyTexture(texture, seq, onApplied),
+        undefined,
+        () => this.textureFailed(date, seq)
+      );
+      return;
+    }
+    void this.loadStitched(wmsLayer, date, parts, TOTAL, seq, onApplied);
+  }
+
+  /** Fetch each piece's GetMap and concatenate them left→right on a canvas. */
+  private async loadStitched(
+    wmsLayer: string,
+    date: string,
+    parts: ReturnType<typeof splitBoundsAtAntimeridian>,
+    total: number,
+    seq: number,
+    onApplied: () => void
+  ): Promise<void> {
+    // Pixel widths proportional to angular widths, exactly filling the canvas.
+    const widths = parts.map((p) =>
+      Math.max(1, Math.round(total * p.fraction))
     );
+    widths[widths.length - 1] =
+      total - widths.slice(0, -1).reduce((a, w) => a + w, 0);
+    try {
+      const images = await Promise.all(
+        parts.map((part, i) =>
+          this.imageLoader.loadAsync(
+            gibsRegionUrl(wmsLayer, part.bounds, date, {
+              width: widths[i],
+              height: total,
+            })
+          )
+        )
+      );
+      if (seq !== this.seq || !this.mesh) return;
+      const canvas = document.createElement("canvas");
+      canvas.width = total;
+      canvas.height = total;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("2d context unavailable");
+      let x = 0;
+      for (let i = 0; i < images.length; i++) {
+        ctx.drawImage(images[i], x, 0, widths[i], total);
+        x += widths[i];
+      }
+      this.applyTexture(new THREE.CanvasTexture(canvas), seq, onApplied);
+    } catch {
+      this.textureFailed(date, seq);
+    }
+  }
+
+  private applyTexture(
+    texture: THREE.Texture,
+    seq: number,
+    onApplied: () => void
+  ): void {
+    const mesh = this.mesh;
+    if (seq !== this.seq || !mesh) {
+      texture.dispose();
+      return;
+    }
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = this.maxAnisotropy;
+    const material = mesh.material as THREE.MeshBasicMaterial;
+    material.map?.dispose();
+    material.map = texture;
+    material.color.set(0xffffff);
+    material.needsUpdate = true;
+    this.callbacks.onLoadingChange?.(false);
+    onApplied();
+  }
+
+  private textureFailed(date: string, seq: number): void {
+    console.warn(`RoamingEye: high-res imagery failed for ${date}`);
+    if (seq === this.seq) {
+      this.callbacks.onLoadingChange?.(false);
+      this.callbacks.onStatus?.("High-res imagery failed to load");
+    }
   }
 
   private buildMesh(bounds: Bounds): void {

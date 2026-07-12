@@ -61,7 +61,7 @@ import { ProvidersPage } from "./ui/ProvidersPage";
 import { ShortcutsOverlay } from "./ui/ShortcutsOverlay";
 import { loadAdmin1Index, loadCountryIndex } from "./lib/countryIndex";
 import { flyToDistance, rotateSpeedForDistance } from "./lib/navigation";
-import { legalLonBounds, regionAround } from "./lib/imagery";
+import { regionAround } from "./lib/imagery";
 
 /**
  * RoamingEye
@@ -624,11 +624,11 @@ if (searchEl) {
       geometry: result.geometry,
     });
     // Drape a high-res patch over the area, driven by the current timeline month.
-    // legalLonBounds: a WMS BBOX can't cross ±180°, so near-dateline searches
-    // (Fiji, the Aleutians) slide the box to abut the seam instead of sending
-    // an illegal request.
+    // The box stays CENTRED on the searched point even across ±180° — the
+    // continuous-longitude bounds render fine on the sphere, and StudyRegion
+    // seam-stitches two legal GetMaps when the box crosses the antimeridian.
     studyRegion.show(
-      legalLonBounds(regionAround(result.lat, result.lon, 1.2)),
+      regionAround(result.lat, result.lon, 1.2),
       months[currentIndex]
     );
     studyChip?.show(result.name);
