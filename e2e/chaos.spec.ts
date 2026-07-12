@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { awaitAppInteractive } from "./boot";
 import { appConsoleErrors } from "./console-errors";
 
 /**
@@ -46,9 +47,7 @@ test("survives a seeded interaction storm and settles healthy", async ({
   await page.route("**nominatim**", (route) => route.abort());
 
   await page.goto("/");
-  await page.waitForFunction(() => window.__APP_READY__ === true, null, {
-    timeout: 30_000,
-  });
+  await awaitAppInteractive(page);
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport");
   const cx = viewport.width / 2;
