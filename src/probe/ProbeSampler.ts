@@ -252,8 +252,7 @@ export class ProbeSampler {
     if (!bounds)
       throw new Error("RoamingEye: place has no sampleable boundary");
     const plan = geometrySamplingPlan(geometry, regionGridSize(bounds));
-    if (!plan)
-      throw new Error("RoamingEye: place has no sampleable boundary");
+    if (!plan) throw new Error("RoamingEye: place has no sampleable boundary");
     if (plan.points.length > 0) {
       const pixels = this.dedupedPixels(plan.points, bounds);
       return {
