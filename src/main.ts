@@ -15,6 +15,15 @@ import {
 import { encodeViewState, decodeViewState } from "./lib/viewState";
 import { latLngToVector3, vector3ToLatLng, formatLatLng } from "./lib/geo";
 import { buildProbeCsv, normalizeLon, PROBE_SCALES } from "./lib/probe";
+import { isAreaGeometry } from "./lib/geojson";
+import {
+  PLACE_METRICS,
+  latestComparisonMonths,
+  loadPlaceColormap,
+  placeInsightPhysicalReading,
+  placeInsightReading,
+} from "./lib/placeInsights";
+import type { GeoResult } from "./lib/geocoding";
 import { refreshDataLatest } from "./lib/freshness";
 import { isAbortError, isOnline, OfflineError } from "./lib/net";
 import { nextPixelRatio } from "./lib/perf";
@@ -58,10 +67,12 @@ import type { Bounds } from "./lib/imagery";
 import { StudyRegion } from "./scene/StudyRegion";
 import { StudyChip } from "./ui/StudyChip";
 import { ProvidersPage } from "./ui/ProvidersPage";
+import { SoftwareFinder } from "./ui/SoftwareFinder";
+import { FleetDashboard } from "./ui/FleetDashboard";
+import { PlaceInsights } from "./ui/PlaceInsights";
 import { ShortcutsOverlay } from "./ui/ShortcutsOverlay";
 import { loadAdmin1Index, loadCountryIndex } from "./lib/countryIndex";
 import { flyToDistance, rotateSpeedForDistance } from "./lib/navigation";
-import { regionAround } from "./lib/imagery";
 
 /**
  * RoamingEye
@@ -97,11 +108,16 @@ const searchEl = document.querySelector<HTMLElement>("#search");
 const tooltipEl = document.querySelector<HTMLElement>("#hover-tooltip");
 const studyChipEl = document.querySelector<HTMLElement>("#study-chip");
 const providersPageEl = document.querySelector<HTMLElement>("#providers-page");
+const softwarePageEl = document.querySelector<HTMLElement>("#software-page");
+const fleetPageEl = document.querySelector<HTMLElement>("#fleet-page");
+const placeInsightsEl = document.querySelector<HTMLElement>("#place-insights");
 const probeEl = document.querySelector<HTMLElement>("#probe-panel");
 const compareEl = document.querySelector<HTMLElement>("#compare");
 const compareDividerEl =
   document.querySelector<HTMLElement>("#compare-divider");
 const providersLinkEl = document.querySelector<HTMLElement>("#providers-link");
+const softwareLinkEl = document.querySelector<HTMLElement>("#software-link");
+const fleetLinkEl = document.querySelector<HTMLElement>("#fleet-link");
 const provenanceEl = document.querySelector<HTMLElement>("#provenance");
 const exportEl = document.querySelector<HTMLElement>("#export");
 
@@ -222,9 +238,8 @@ for (const overlay of overlays) scene.add(overlay.object);
 const highlight = new LocationHighlight();
 scene.add(highlight.object);
 
-// High-resolution study region: a sharp HLS patch draped over a searched area,
-// driven by the same timeline so you can watch it change over the years. It
-// auto-selects the clearest satellite pass for each month.
+// High-resolution study regions are kept separate from place search. Search
+// results use their actual returned boundaries, rather than a generic image box.
 function exitStudyRegion(): void {
   studyRegion.hide();
 }
@@ -386,6 +401,63 @@ const legend = legendEl ? new Legend(legendEl, currentLayer) : undefined;
 // both because their contents belong to the previous layer.
 let closeProbe: (() => void) | undefined;
 let compareControls: CompareControls | undefined;
+let placeInsightsAbort: AbortController | undefined;
+const placeInsights = placeInsightsEl
+  ? new PlaceInsights(placeInsightsEl, () => placeInsightsAbort?.abort())
+  : undefined;
+const placeSampler = new ProbeSampler({ width: 512, height: 512 }, 2);
+
+function runPlaceInsights(result: GeoResult): void {
+  if (!placeInsights || !result.geometry || !isAreaGeometry(result.geometry)) {
+    placeInsights?.close();
+    return;
+  }
+
+  placeInsightsAbort?.abort();
+  const abort = (placeInsightsAbort = new AbortController());
+  const geometry = result.geometry;
+  placeInsights.open(result.name);
+
+  for (const metric of PLACE_METRICS) {
+    const months = latestComparisonMonths(metric.layerId);
+    if (!months) continue;
+    void (async () => {
+      const colormap = await loadPlaceColormap(metric.layerId);
+      const sample = colormap
+        ? placeSampler.sampleGeometryPhysical(
+            LAYERS[metric.layerId],
+            months,
+            geometry,
+            { lat: result.lat, lon: result.lon },
+            colormap.entries,
+            colormap.factor,
+            { signal: abort.signal }
+          )
+        : placeSampler.sampleGeometry(
+            LAYERS[metric.layerId],
+            months,
+            geometry,
+            { lat: result.lat, lon: result.lon },
+            { signal: abort.signal }
+          );
+      const { values } = await sample;
+      if (abort.signal.aborted) return;
+      placeInsights.setReading(
+        colormap
+          ? placeInsightPhysicalReading(metric, months, values)
+          : placeInsightReading(metric, months, values)
+      );
+    })().catch((error: unknown) => {
+      if (isAbortError(error) || abort.signal.aborted) return;
+      console.warn("RoamingEye: place insight sampling failed", error);
+      placeInsights.setReading({
+        id: metric.id,
+        value: "Unavailable",
+        detail: "Regional data could not be sampled",
+      });
+    });
+  }
+}
 
 if (layerEl) {
   new LayerSelector(layerEl, currentLayer, (id) => {
@@ -559,7 +631,7 @@ controls.enablePan = false; // keep the globe centred
 // render loop): constant speed flings the camera when zoomed to the surface.
 controls.rotateSpeed = rotateSpeedForDistance(camera.position.length());
 controls.zoomSpeed = 0.8;
-controls.minDistance = 1.06; // get right down to a study region's surface
+controls.minDistance = 1.06; // get right down to a selected place boundary
 controls.maxDistance = 4.5; // furthest zoom-out
 
 // --- Shareable view state (URL hash) ------------------------------------------
@@ -617,21 +689,20 @@ controls.addEventListener("change", scheduleHashSync);
 
 if (searchEl) {
   new SearchBox(searchEl, (result) => {
+    closeProbe?.();
     flyer.flyTo(result.lat, result.lon, flyToDistance(result.boundingBox));
     highlight.show({
       lat: result.lat,
       lon: result.lon,
       geometry: result.geometry,
     });
-    // Drape a high-res patch over the area, driven by the current timeline month.
-    // The box stays CENTRED on the searched point even across ±180° — the
-    // continuous-longitude bounds render fine on the sphere, and StudyRegion
-    // seam-stitches two legal GetMaps when the box crosses the antimeridian.
-    studyRegion.show(
-      regionAround(result.lat, result.lon, 1.2),
-      months[currentIndex]
-    );
-    studyChip?.show(result.name);
+    // A search result can be a postcode, city, state, or country. Nominatim
+    // already returns its polygon when one is mapped, and LocationHighlight
+    // traces that exact geometry. Do not drape the old fixed 1.2° study patch:
+    // its rectangular footprint obscures the boundary the user asked for.
+    studyRegion.hide();
+    studyChip?.hide();
+    runPlaceInsights(result);
   });
 }
 
@@ -939,6 +1010,18 @@ if (probeEl) {
 if (providersPageEl && providersLinkEl) {
   const providers = new ProvidersPage(providersPageEl);
   providersLinkEl.addEventListener("click", () => providers.open());
+}
+
+// Software discovery is static and review-gated: the finder reads only the
+// approved catalog artifact produced by the catalog agent fleet.
+if (softwarePageEl && softwareLinkEl) {
+  const softwareFinder = new SoftwareFinder(softwarePageEl);
+  softwareLinkEl.addEventListener("click", () => softwareFinder.open());
+}
+
+if (fleetPageEl && fleetLinkEl) {
+  const fleetDashboard = new FleetDashboard(fleetPageEl);
+  fleetLinkEl.addEventListener("click", () => fleetDashboard.open());
 }
 
 // --- Keyboard shortcuts overlay -----------------------------------------------

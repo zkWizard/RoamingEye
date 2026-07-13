@@ -1,0 +1,331 @@
+{
+  "version": 1,
+  "updatedAt": "2026-07-13T05:36:00Z",
+  "publishing": {
+    "mode": "draft-pr-per-validated-code-slice",
+    "branchPrefix": "codex/",
+    "baseBranch": "main",
+    "autoMerge": false
+  },
+  "lanes": [
+    {
+      "id": "geology",
+      "role": "Geologist",
+      "tasks": [
+        {
+          "id": "seismic-explorer-model",
+          "status": "completed",
+          "title": "Add deterministic earthquake filter and summary models",
+          "acceptance": [
+            "Pure filtering and aggregation helpers with magnitude, depth, and time bounds",
+            "Source and unit labels remain explicit",
+            "Focused tests cover edge cases and empty results"
+          ],
+          "changedFiles": [
+            "src/lib/earthquakes.ts",
+            "src/lib/earthquakes.test.ts"
+          ],
+          "validation": [
+            "npm test -- --run src/lib/earthquakes.test.ts (9 passed)",
+            "npm run typecheck (passed)"
+          ],
+          "limitations": [
+            "Summaries describe only the supplied USGS feed subset; they do not estimate hazard, risk, causation, or future seismicity.",
+            "No user-interface filter controls are included in this bounded model slice."
+          ],
+          "nextSlice": "Connect the deterministic model to an accessible seismic-explorer control or summary view while preserving feed coverage labels."
+        },
+        {
+          "id": "volcano-context",
+          "status": "completed",
+          "title": "Expose cited volcanic context for selected volcano markers",
+          "acceptance": [
+            "No eruption prediction or hazard ranking",
+            "Uses existing GVP provenance",
+            "Includes accessible selection and test coverage"
+          ],
+          "changedFiles": [
+            "src/lib/volcanoContext.ts",
+            "src/lib/volcanoContext.test.ts"
+          ],
+          "branch": "codex/geology-volcano-context-20260712190932",
+          "commit": "c28eedc",
+          "prUrl": "https://github.com/zkWizard/RoamingEye/pull/202",
+          "validation": [
+            "npm test -- --run src/lib/volcanoContext.test.ts (6 passed)",
+            "npm run typecheck (passed)"
+          ],
+          "limitations": [
+            "The context describes only fields retained in the supplied Smithsonian GVP-derived public/data/volcanoes.json records; it does not add live activity reports, monitoring status, eruptive interpretation, or spatial hazard zones.",
+            "The selected-volcano helper does not forecast eruptions, rank hazards, score risk, infer causes, or substitute a nearby volcano when a requested name is missing or ambiguous.",
+            "Validation required an explicit local install of the Rolldown Windows optional binding because npm initially omitted it; the shell Node version was 20.18.0 while the project asks for 20.19+ or 22.12+."
+          ],
+          "nextSlice": "Wire the selected-volcano context into an accessible marker-selection UI path while keeping GVP provenance, missing-field coverage, and non-forecast language visible."
+        }
+      ]
+    },
+    {
+      "id": "biology",
+      "role": "Biologist",
+      "tasks": [
+        {
+          "id": "vegetation-phenology",
+          "status": "completed",
+          "title": "Build transparent vegetation phenology summaries from NDVI series",
+          "acceptance": [
+            "Pure annual peak, trough, and seasonal-range helpers",
+            "Missing data and short records are explicit",
+            "Unit tests cover hemispheric and sparse-series cases"
+          ],
+          "changedFiles": ["src/lib/phenology.ts", "src/lib/phenology.test.ts"],
+          "validation": [
+            "npm test -- --run src/lib/phenology.test.ts (3 passed)",
+            "npm run typecheck (passed)"
+          ],
+          "limitations": [
+            "The helpers describe only supplied, already-calibrated MOD13A3 NDVI observations; they do not infer phenological stages, ecosystem condition, productivity, causes, or forecasts.",
+            "Annual extrema require at least six valid supplied calendar months and retain missing, invalid, duplicate, and regional-valid-fraction coverage explicitly."
+          ],
+          "nextSlice": "Surface the descriptive annual NDVI summary in the probe workflow with its MOD13A3 provenance, unit, and sparse-record notice."
+        },
+        {
+          "id": "land-cover-context",
+          "status": "completed",
+          "title": "Design a boundary-level land-cover context contract",
+          "acceptance": [
+            "Uses class-coded data without averaging class identifiers",
+            "Defines coverage and provenance requirements",
+            "Includes parser or aggregation tests"
+          ],
+          "branch": "codex/biology-land-cover-context-20260712-190717",
+          "commit": "e3c6c27",
+          "prUrl": "https://github.com/zkWizard/RoamingEye/pull/205",
+          "changedFiles": ["src/lib/landCover.ts", "src/lib/landCover.test.ts"],
+          "validation": [
+            "npm test -- --run src/lib/landCover.test.ts (4 passed)",
+            "npm run typecheck (passed)",
+            "npx prettier --check src/lib/landCover.ts src/lib/landCover.test.ts (passed)"
+          ],
+          "limitations": [
+            "The helper describes only supplied MODIS MCD12Q1 IGBP class-coded samples; it does not infer biodiversity, biomass, habitat quality, productivity, ecological health, causation, or forecasts.",
+            "Class identifiers are counted as categorical codes only; no class identifier is averaged, interpolated, or converted to a continuous measurement.",
+            "Coverage fractions distinguish known IGBP classes, source unclassified pixels, sampler no-data, invalid class codes, and invalid record counts."
+          ],
+          "nextSlice": "Connect class-coded land-cover context to a boundary or probe view with class counts, fractions, MCD12Q1 provenance, and no-data notices without ecological condition claims."
+        }
+      ]
+    },
+    {
+      "id": "meteorology",
+      "role": "Meteorologist",
+      "tasks": [
+        {
+          "id": "climate-summary",
+          "status": "completed",
+          "title": "Add source-aware monthly climate summary helpers",
+          "acceptance": [
+            "Precipitation, air temperature, and soil moisture retain native units",
+            "Publication lag and no-data coverage are represented",
+            "Tests distinguish descriptive comparison from a forecast"
+          ],
+          "changedFiles": ["src/lib/climate.ts", "src/lib/climate.test.ts"],
+          "validation": [
+            "npm test -- --run src/lib/climate.test.ts (3 passed)",
+            "npm run typecheck (passed)",
+            "npx prettier --check src/lib/climate.ts src/lib/climate.test.ts (passed)"
+          ],
+          "limitations": [
+            "Summaries describe only supplied monthly source observations in their native units; they do not convert values for display, estimate weather, diagnose conditions, attribute causes, or forecast future values.",
+            "Publication lag is a calendar-month difference from the caller-supplied availability checkpoint and does not establish upstream publication timing beyond that checkpoint.",
+            "Spatial valid fraction is retained only when the sampler supplies it; a missing fraction is not inferred as full geographic coverage."
+          ],
+          "nextSlice": "Add the seasonal-baseline comparison model with same-calendar-month minimum-sample and coverage thresholds, preserving these source and publication fields."
+        },
+        {
+          "id": "seasonal-baseline",
+          "status": "completed",
+          "title": "Define a defensible seasonal-baseline comparison model",
+          "acceptance": [
+            "Uses same-calendar-month baselines only",
+            "Has minimum sample and coverage thresholds",
+            "Documents limitations in code and tests"
+          ],
+          "prUrl": "https://github.com/zkWizard/RoamingEye/pull/206",
+          "changedFiles": [
+            "src/lib/seasonalBaseline.ts",
+            "src/lib/seasonalBaseline.test.ts"
+          ],
+          "validation": [
+            "npm test -- --run src/lib/seasonalBaseline.test.ts (4 passed)",
+            "npm run typecheck (passed)",
+            "npx prettier --check src/lib/seasonalBaseline.ts src/lib/seasonalBaseline.test.ts (passed)"
+          ],
+          "limitations": [
+            "The model describes only supplied monthly climate observations; it does not forecast weather, issue alerts, predict drought, assign risk, diagnose conditions, or attribute causes.",
+            "Anomalies require same metric, same calendar month, prior bounded years by default, at least 10 retained baseline samples, and known valid spatial coverage of at least 0.6 for target and baseline observations.",
+            "Missing spatial valid fraction is not inferred as full coverage, adjacent calendar months are never substituted, and no missing years are filled or interpolated.",
+            "Uncertainty is limited to descriptive baseline spread and standard error from the retained sample; it is not a probabilistic forecast or confidence statement about future months."
+          ],
+          "nextSlice": "Connect the same-calendar-month baseline comparison to a provenance-first climate probe view with visible sample counts, coverage thresholds, uncertainty fields, and non-forecast copy."
+        }
+      ]
+    },
+    {
+      "id": "marine-biology",
+      "role": "Marine Biologist",
+      "tasks": [
+        {
+          "id": "ocean-conditions",
+          "status": "completed",
+          "title": "Build sea-surface-temperature condition summaries",
+          "acceptance": [
+            "Uses the existing SST layer and source units",
+            "Coastal and land-mixed coverage are visible",
+            "Tests cover water, land, and missing cases"
+          ],
+          "branch": "codex/marine-ocean-conditions-20260712190302",
+          "commit": "de63648",
+          "prUrl": "https://github.com/zkWizard/RoamingEye/pull/201",
+          "changedFiles": [
+            "src/lib/oceanConditions.ts",
+            "src/lib/oceanConditions.test.ts",
+            "docs/fleet-logs/marine-ocean-conditions-20260712190302.md"
+          ],
+          "validation": [
+            "npm test -- --run src/lib/oceanConditions.test.ts (4 passed)",
+            "npm run typecheck (passed)",
+            "npx prettier --check src/lib/oceanConditions.ts src/lib/oceanConditions.test.ts (passed)"
+          ],
+          "limitations": [
+            "Summaries describe only supplied MODIS/Aqua SST observations in the existing SST source unit; they do not infer biological abundance, habitat, ecosystem health, risk, causes, or future conditions.",
+            "Water, land, coastal/land-mixed, and unknown footprints are caller-supplied context, not inferred from a null SST value.",
+            "Temperature bands are descriptive thresholds on the supplied SST value only and are not ecological suitability or hazard categories."
+          ],
+          "nextSlice": "Connect the descriptive SST condition summary to probe or place-insight output with visible footprint context, valid fraction, and MODIS/Aqua provenance."
+        },
+        {
+          "id": "marine-coverage",
+          "status": "completed",
+          "title": "Add ocean-focused spatial coverage and provenance helpers",
+          "acceptance": [
+            "No biological abundance claims without a source",
+            "Clear distinction between SST and marine biology observations",
+            "Focused tests and accessible user copy"
+          ],
+          "branch": "codex/marine-coverage-20260712193351",
+          "commit": "c4ec959",
+          "prUrl": "https://github.com/zkWizard/RoamingEye/pull/207",
+          "changedFiles": [
+            "src/lib/marineCoverage.ts",
+            "src/lib/marineCoverage.test.ts",
+            "docs/fleet-logs/marine-coverage-20260712193351.md"
+          ],
+          "validation": [
+            "npm test -- --run src/lib/marineCoverage.test.ts (4 passed)",
+            "npm run typecheck (passed)",
+            "npx eslint src/lib/marineCoverage.ts src/lib/marineCoverage.test.ts (passed)",
+            "npx prettier --check src/lib/marineCoverage.ts src/lib/marineCoverage.test.ts (passed)"
+          ],
+          "limitations": [
+            "This contract describes only caller-supplied MODIS/Aqua SST sampling coverage and source image dimensions; it does not infer water or land footprint from SST pixels.",
+            "SST coverage is not a marine-biology observation and makes no abundance, habitat, ecosystem-health, causal, risk, or forecast claim.",
+            "The retained source unit belongs to RoamingEye's approximate rendered-imagery probe workflow; users need the cited L3 product for measurement-grade values."
+          ],
+          "nextSlice": "Wire the SST coverage summary into an accessible probe or place-insight presentation, retaining footprint, valid fraction, image dimensions, and the SST-only caveat."
+        }
+      ]
+    },
+    {
+      "id": "environment",
+      "role": "Environmental Scientist",
+      "tasks": [
+        {
+          "id": "environment-brief",
+          "status": "completed",
+          "title": "Compose a provenance-first environmental conditions brief",
+          "acceptance": [
+            "Composes independent signals without a single score",
+            "Shows data month and coverage for every statement",
+            "Tests prevent unsupported causal or risk language"
+          ],
+          "branch": "codex/environment-provenance-brief-20260712-191108",
+          "commit": "576d098",
+          "prUrl": "https://github.com/zkWizard/RoamingEye/pull/203",
+          "changedFiles": [
+            "src/lib/environmentBrief.ts",
+            "src/lib/environmentBrief.test.ts"
+          ],
+          "validation": [
+            "npm test -- --run src/lib/environmentBrief.test.ts (3 passed)",
+            "npm run typecheck (passed)",
+            "npx prettier --check src/lib/environmentBrief.ts src/lib/environmentBrief.test.ts (passed)"
+          ],
+          "limitations": [
+            "The brief describes only supplied monthly source observations in native units; it does not convert units, infer missing values, combine observations into a score, estimate conditions, or create diagnoses.",
+            "Vegetation, rainfall, soil moisture, and air temperature remain independent signals with source, data month, coverage, and unavailable states preserved for each signal.",
+            "Language-guard tests prevent unsupported risk, causal, forecast, compliance, and health wording, but do not review arbitrary downstream UI copy."
+          ],
+          "nextSlice": "Connect the environmental brief to a place or probe workflow while preserving per-signal provenance and unavailable states in the UI."
+        },
+        {
+          "id": "research-export",
+          "status": "ready",
+          "title": "Improve reproducible export metadata for place-level observations",
+          "acceptance": [
+            "Boundary, products, months, and method are present",
+            "No personal data or hidden telemetry",
+            "CSV or JSON contract tests"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "geospatial",
+      "role": "Geospatial and Remote-Sensing Engineer",
+      "tasks": [
+        {
+          "id": "antimeridian-geometry",
+          "status": "completed",
+          "title": "Harden searched-boundary sampling across the antimeridian",
+          "acceptance": [
+            "Bounds, containment, grid points, and imagery pixels preserve the short arc",
+            "Polygon holes and MultiPolygon behavior remain correct",
+            "Property and regression tests cover seam cases"
+          ],
+          "branch": "codex/geospatial-antimeridian-20260713021248",
+          "commit": "6dcb8d1",
+          "prUrl": "https://github.com/zkWizard/RoamingEye/pull/204",
+          "changedFiles": [
+            "src/lib/geojson.ts",
+            "src/lib/geojson.test.ts",
+            "src/probe/ProbeSampler.ts",
+            "src/lib/probe.test.ts"
+          ],
+          "validation": [
+            "npm test -- --run src/lib/geojson.test.ts src/lib/probe.test.ts src/lib/imagery.test.ts (3 files, 78 tests passed)",
+            "npm run typecheck (passed)",
+            "npm run format:check -- src/lib/geojson.ts src/lib/geojson.test.ts src/probe/ProbeSampler.ts src/lib/probe.test.ts (passed)",
+            "npm test (45 files, 453 tests passed)",
+            "npm run lint (passed)"
+          ],
+          "limitations": [
+            "This slice hardens Polygon and MultiPolygon bounds, containment, grid sampling, and regional imagery pixel mapping only; it does not add UI behavior or scientific interpretation.",
+            "Longitude handling assumes searched-boundary edges follow the short arc across the antimeridian; intentionally long-way polygons remain outside this bounded slice.",
+            "Local validation used Node 20.18.0 while the repository requests Node 20.19+ or 22.12+; the checks still passed."
+          ],
+          "nextSlice": "Extend spatial sample coverage and resolution provenance for small, large, coastal, and missing regions while preserving antimeridian-safe geometry frames."
+        },
+        {
+          "id": "sampling-coverage",
+          "status": "ready",
+          "title": "Expose spatial sample coverage and resolution provenance",
+          "acceptance": [
+            "Area means report valid fraction and source image dimensions",
+            "No false precision for coarse source imagery",
+            "Tests cover small, large, coastal, and missing regions"
+          ]
+        }
+      ]
+    }
+  ]
+}

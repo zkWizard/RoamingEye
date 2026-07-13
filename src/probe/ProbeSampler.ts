@@ -9,16 +9,29 @@ import {
   areaWeight,
   buildColormapLut,
   invertColormap,
+  invertColormapEntries,
   latLonToPixel,
   medianValid,
+  normalizeLon,
   weightedMeanValid,
   gridPoints,
   regionGridSize,
   type Rgb,
 } from "../lib/probe";
-import { regionAround, type Bounds } from "../lib/imagery";
+import type { ColormapEntry } from "../lib/colormap";
+import {
+  regionAround,
+  gibsRegionUrl,
+  splitBoundsAtAntimeridian,
+  type Bounds,
+} from "../lib/imagery";
 import { fetchBlob } from "../lib/net";
 import type { LayerId } from "../lib/timeline";
+import {
+  geometryBounds,
+  geometryGridPoints,
+  type GeoGeometry,
+} from "../lib/geojson";
 
 /**
  * Fetches one GIBS monthly preview per month and samples it at a lat/lon,
@@ -71,6 +84,13 @@ export interface SampleOptions {
   onValue?: (index: number, value: number | null) => void;
 }
 
+type ColorInverter = (rgb: Rgb) => number | null;
+
+interface ImageSource {
+  image: CanvasImageSource;
+  close: () => void;
+}
+
 export class ProbeSampler {
   constructor(
     private readonly imageSize: Required<
@@ -104,11 +124,14 @@ export class ProbeSampler {
         ? (inversions: (number | null)[]) => medianValid(inversions)
         : (inversions: (number | null)[], weights: number[]) =>
             weightedMeanValid(inversions, weights);
-    return this.run(layer, months, this.pixelsFor(mode, lat, lon), combine, {
-      signal,
-      onProgress,
-      onValue,
-    });
+    return this.run(
+      layer,
+      months,
+      this.pixelsFor(mode, lat, lon),
+      combine,
+      this.legendInverter(layer),
+      { signal, onProgress, onValue }
+    );
   }
 
   /**
@@ -128,8 +151,82 @@ export class ProbeSampler {
       months,
       this.dedupedPixels(gridPoints(bounds, regionGridSize(bounds))),
       (inversions, weights) => weightedMeanValid(inversions, weights),
+      this.legendInverter(layer),
       options
     );
+  }
+
+  /**
+   * Sample only cells that fall inside a searched place's Polygon or
+   * MultiPolygon. The source image is requested for the place's own bounds,
+   * avoiding the coarse full-globe pixel grid used by ordinary point probes.
+   */
+  async sampleGeometry(
+    layer: LayerConfig,
+    months: YearMonth[],
+    geometry: GeoGeometry,
+    fallback: { lat: number; lon: number },
+    options: Omit<SampleOptions, "mode"> = {}
+  ): Promise<SampleResult> {
+    const bounds = geometryBounds(geometry);
+    if (!bounds)
+      throw new Error("RoamingEye: place has no sampleable boundary");
+    const sampleBounds: Bounds = bounds;
+    const points = geometryGridPoints(geometry, regionGridSize(sampleBounds));
+    return this.run(
+      layer,
+      months,
+      this.dedupedPixels(points.length > 0 ? points : [fallback], sampleBounds),
+      (inversions, weights) => weightedMeanValid(inversions, weights),
+      this.legendInverter(layer),
+      options,
+      sampleBounds
+    );
+  }
+
+  /**
+   * Sample a searched place using GIBS's published colormap values rather
+   * than the UI legend approximation. The returned values are in the source
+   * product's units after `factor` (for example precipitation in mm/day).
+   */
+  async sampleGeometryPhysical(
+    layer: LayerConfig,
+    months: YearMonth[],
+    geometry: GeoGeometry,
+    fallback: { lat: number; lon: number },
+    entries: ColormapEntry[],
+    factor: number,
+    options: Omit<SampleOptions, "mode"> = {}
+  ): Promise<SampleResult> {
+    const bounds = geometryBounds(geometry);
+    if (!bounds)
+      throw new Error("RoamingEye: place has no sampleable boundary");
+    const sampleBounds: Bounds = bounds;
+    const points = geometryGridPoints(geometry, regionGridSize(sampleBounds));
+    const invert: ColorInverter = (rgb) => {
+      const value = invertColormapEntries(rgb, entries);
+      return value === null ? null : value * factor;
+    };
+    return this.run(
+      layer,
+      months,
+      this.dedupedPixels(points.length > 0 ? points : [fallback], sampleBounds),
+      (inversions, weights) => weightedMeanValid(inversions, weights),
+      invert,
+      options,
+      sampleBounds
+    );
+  }
+
+  private legendInverter(layer: LayerConfig): ColorInverter {
+    const spec = LEGENDS[layer.id as LayerId];
+    if (spec.kind === "classes") {
+      throw new Error(
+        `RoamingEye: layer "${layer.id}" is categorical - nothing to sample`
+      );
+    }
+    const lut = buildColormapLut(spec.stops);
+    return (rgb) => invertColormap(rgb, lut);
   }
 
   private async run(
@@ -140,19 +237,11 @@ export class ProbeSampler {
       inversions: (number | null)[],
       weights: number[]
     ) => number | null,
-    options: Omit<SampleOptions, "mode">
+    invert: ColorInverter,
+    options: Omit<SampleOptions, "mode">,
+    regionBounds?: Bounds
   ): Promise<SampleResult> {
     const { signal, onProgress, onValue } = options;
-    const spec = LEGENDS[layer.id as LayerId];
-    if (spec.kind === "classes") {
-      // Class-coded layers have no continuous colormap to invert; the app
-      // declines to probe them before getting here (see main.ts).
-      throw new Error(
-        `RoamingEye: layer "${layer.id}" is categorical — nothing to sample`
-      );
-    }
-    const lut = buildColormapLut(spec.stops);
-
     const canvas = document.createElement("canvas");
     canvas.width = pixels.length;
     canvas.height = 1;
@@ -172,10 +261,11 @@ export class ProbeSampler {
           layer,
           months[index],
           pixels,
-          lut,
+          invert,
           ctx,
           combine,
-          signal
+          signal,
+          regionBounds
         );
         values[index] = month.value;
         validFractions[index] = month.validFraction;
@@ -216,12 +306,15 @@ export class ProbeSampler {
    * cos(lat) area weight, so the dedup never distorts the region statistic.
    */
   private dedupedPixels(
-    points: { lat: number; lon: number }[]
+    points: { lat: number; lon: number }[],
+    bounds?: Bounds
   ): WeightedPixel[] {
     const { width, height } = this.imageSize;
     const byPixel = new Map<string, WeightedPixel>();
     for (const p of points) {
-      const px = latLonToPixel(p.lat, p.lon, width, height);
+      const px = bounds
+        ? latLonToRegionPixel(p.lat, p.lon, bounds, width, height)
+        : latLonToPixel(p.lat, p.lon, width, height);
       const key = `${px.x}:${px.y}`;
       const existing = byPixel.get(key);
       if (existing) existing.weight += areaWeight(p.lat);
@@ -234,24 +327,20 @@ export class ProbeSampler {
     layer: LayerConfig,
     ym: YearMonth,
     pixels: WeightedPixel[],
-    lut: Rgb[],
+    invert: ColorInverter,
     ctx: CanvasRenderingContext2D,
     combine: (
       inversions: (number | null)[],
       weights: number[]
     ) => number | null,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    regionBounds?: Bounds
   ): Promise<{ value: number | null; validFraction: number }> {
-    let bitmap: ImageBitmap;
+    let source: ImageSource;
     try {
-      const blob = await fetchBlob(
-        gibsWmsUrl(layer, ym, {
-          width: this.imageSize.width,
-          height: this.imageSize.height,
-        }),
-        { signal, retries: 1 }
-      );
-      bitmap = await createImageBitmap(blob);
+      source = regionBounds
+        ? await this.loadRegionSource(layer, ym, regionBounds, signal)
+        : await this.loadGlobalSource(layer, ym, signal);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") throw err;
       // A missing month is a gap in the chart, not a failure.
@@ -261,18 +350,15 @@ export class ProbeSampler {
     // Copy each source pixel into a 1-px-tall strip and read it in one call.
     ctx.clearRect(0, 0, pixels.length, 1);
     for (let i = 0; i < pixels.length; i++) {
-      ctx.drawImage(bitmap, pixels[i].x, pixels[i].y, 1, 1, i, 0, 1, 1);
+      ctx.drawImage(source.image, pixels[i].x, pixels[i].y, 1, 1, i, 0, 1, 1);
     }
-    bitmap.close();
+    source.close();
     const { data } = ctx.getImageData(0, 0, pixels.length, 1);
 
     const inversions: (number | null)[] = [];
     for (let i = 0; i < pixels.length; i++) {
       inversions.push(
-        invertColormap(
-          { r: data[i * 4], g: data[i * 4 + 1], b: data[i * 4 + 2] },
-          lut
-        )
+        invert({ r: data[i * 4], g: data[i * 4 + 1], b: data[i * 4 + 2] })
       );
     }
     // Coverage alongside the statistic: the (area-weighted) share of the
@@ -292,4 +378,93 @@ export class ProbeSampler {
       validFraction: totalWeight > 0 ? validWeight / totalWeight : 0,
     };
   }
+
+  private async loadGlobalSource(
+    layer: LayerConfig,
+    ym: YearMonth,
+    signal?: AbortSignal
+  ): Promise<ImageSource> {
+    const blob = await fetchBlob(gibsWmsUrl(layer, ym, this.imageSize), {
+      signal,
+      retries: 1,
+    });
+    const image = await createImageBitmap(blob);
+    return { image, close: () => image.close() };
+  }
+
+  private async loadRegionSource(
+    layer: LayerConfig,
+    ym: YearMonth,
+    bounds: Bounds,
+    signal?: AbortSignal
+  ): Promise<ImageSource> {
+    const time = `${ym.year}-${String(ym.month).padStart(2, "0")}-01`;
+    const parts = splitBoundsAtAntimeridian(bounds);
+    if (parts.length === 1) {
+      const blob = await fetchBlob(
+        gibsRegionUrl(layer.wmsLayer, parts[0].bounds, time, this.imageSize),
+        { signal, retries: 1 }
+      );
+      const image = await createImageBitmap(blob);
+      return { image, close: () => image.close() };
+    }
+
+    const widths = parts.map((part) =>
+      Math.max(1, Math.round(this.imageSize.width * part.fraction))
+    );
+    widths[widths.length - 1] =
+      this.imageSize.width -
+      widths.slice(0, -1).reduce((sum, width) => sum + width, 0);
+    const bitmaps = await Promise.all(
+      parts.map(async (part, index) => {
+        const blob = await fetchBlob(
+          gibsRegionUrl(layer.wmsLayer, part.bounds, time, {
+            width: widths[index],
+            height: this.imageSize.height,
+          }),
+          { signal, retries: 1 }
+        );
+        return createImageBitmap(blob);
+      })
+    );
+    const canvas = document.createElement("canvas");
+    canvas.width = this.imageSize.width;
+    canvas.height = this.imageSize.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      for (const image of bitmaps) image.close();
+      throw new Error("RoamingEye: 2d canvas context unavailable");
+    }
+    let x = 0;
+    for (let i = 0; i < bitmaps.length; i++) {
+      ctx.drawImage(bitmaps[i], x, 0, widths[i], this.imageSize.height);
+      bitmaps[i].close();
+      x += widths[i];
+    }
+    return { image: canvas, close: () => undefined };
+  }
+}
+
+function lonInBoundsFrame(lon: number, bounds: Bounds): number {
+  const center = (bounds.west + bounds.east) / 2;
+  let framed = normalizeLon(lon);
+  while (framed - center > 180) framed -= 360;
+  while (framed - center < -180) framed += 360;
+  return framed;
+}
+
+export function latLonToRegionPixel(
+  lat: number,
+  lon: number,
+  bounds: Bounds,
+  width: number,
+  height: number
+): { x: number; y: number } {
+  const framedLon = lonInBoundsFrame(lon, bounds);
+  const x = ((framedLon - bounds.west) / (bounds.east - bounds.west)) * width;
+  const y = ((bounds.north - lat) / (bounds.north - bounds.south)) * height;
+  return {
+    x: Math.min(width - 2, Math.max(1, Math.floor(x))),
+    y: Math.min(height - 2, Math.max(1, Math.floor(y))),
+  };
 }

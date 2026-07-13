@@ -108,6 +108,33 @@ export function invertColormap(
 }
 
 /**
+ * Invert a rendered GIBS colour through its authoritative colormap entries.
+ * Unlike the lightweight display legends, these entries are the exact RGB
+ * colours and physical values NASA publishes for the layer. The nearest-entry
+ * lookup also absorbs the small colour shifts introduced by JPEG tiles.
+ */
+export function invertColormapEntries(
+  rgb: Rgb,
+  entries: { rgb: Rgb; value: number }[],
+  maxDistance = NO_DATA_DISTANCE
+): number | null {
+  let bestValue = 0;
+  let bestDist = Infinity;
+  for (const entry of entries) {
+    const d = Math.hypot(
+      rgb.r - entry.rgb.r,
+      rgb.g - entry.rgb.g,
+      rgb.b - entry.rgb.b
+    );
+    if (d < bestDist) {
+      bestDist = d;
+      bestValue = entry.value;
+    }
+  }
+  return bestDist > maxDistance ? null : bestValue;
+}
+
+/**
  * Median of the valid inversions from a pixel neighborhood — robust to JPEG
  * ringing and mixed coastline pixels. Null unless a majority of the
  * neighborhood is valid data (5 of a 3×3 block).

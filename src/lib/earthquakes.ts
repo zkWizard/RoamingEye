@@ -21,7 +21,54 @@ export interface Earthquake {
   place: string;
 }
 
-/** Magnitude 4.5+, last 30 days — global significant seismicity. */
+/**
+ * Provenance retained by seismic filters and summaries. The USGS feed reports
+ * earthquake magnitude values, hypocentre depth in kilometres, and UTC epoch
+ * timestamps; it does not supply a hazard assessment or forecast.
+ *
+ * Source: https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php
+ */
+export const SEISMICITY_SOURCE = {
+  name: "USGS Earthquake Hazards Program GeoJSON summary feed",
+  url: "https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php",
+} as const;
+
+export const SEISMICITY_UNITS = {
+  magnitude: "M",
+  depth: "km",
+  time: "epoch milliseconds (UTC)",
+} as const;
+
+/** Inclusive bounds for a descriptive subset of parsed USGS feed events. */
+export interface EarthquakeFilters {
+  minMagnitude?: number;
+  maxMagnitude?: number;
+  minDepthKm?: number;
+  maxDepthKm?: number;
+  startTime?: number;
+  endTime?: number;
+}
+
+export interface EarthquakeRange {
+  min: number | null;
+  max: number | null;
+}
+
+/**
+ * A descriptive aggregation of supplied events, not a risk score, diagnosis,
+ * causal statement, or prediction. Null ranges make an empty input explicit.
+ */
+export interface EarthquakeSummary {
+  eventCount: number;
+  magnitude: EarthquakeRange;
+  depthKm: EarthquakeRange;
+  time: EarthquakeRange;
+  depthClassCounts: Record<DepthClass, number>;
+  source: typeof SEISMICITY_SOURCE;
+  units: typeof SEISMICITY_UNITS;
+}
+
+/** Magnitude 4.5+, last 30 days in the USGS global summary feed. */
 export const USGS_FEED_URL =
   "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_month.geojson";
 
@@ -47,6 +94,85 @@ export const DEPTH_CLASS_COLORS: Record<DepthClass, string> = {
   intermediate: "#ffb347",
   deep: "#5aa0ff",
 };
+
+/**
+ * Select events inside inclusive magnitude, depth, and time bounds. Invalid
+ * bounds return no events so callers never silently broaden a requested
+ * filter. The returned array preserves feed order.
+ */
+export function filterEarthquakes(
+  earthquakes: readonly Earthquake[],
+  filters: EarthquakeFilters = {}
+): Earthquake[] {
+  if (!validFilters(filters)) return [];
+  return earthquakes.filter(
+    ({ magnitude, depthKm, time }) =>
+      Number.isFinite(magnitude) &&
+      Number.isFinite(depthKm) &&
+      Number.isFinite(time) &&
+      (filters.minMagnitude === undefined ||
+        magnitude >= filters.minMagnitude) &&
+      (filters.maxMagnitude === undefined ||
+        magnitude <= filters.maxMagnitude) &&
+      (filters.minDepthKm === undefined || depthKm >= filters.minDepthKm) &&
+      (filters.maxDepthKm === undefined || depthKm <= filters.maxDepthKm) &&
+      (filters.startTime === undefined || time >= filters.startTime) &&
+      (filters.endTime === undefined || time <= filters.endTime)
+  );
+}
+
+/** Aggregate supplied events while retaining source and native unit labels. */
+export function summarizeEarthquakes(
+  earthquakes: readonly Earthquake[]
+): EarthquakeSummary {
+  const valid = earthquakes.filter(
+    ({ magnitude, depthKm, time }) =>
+      Number.isFinite(magnitude) &&
+      Number.isFinite(depthKm) &&
+      Number.isFinite(time)
+  );
+  const depthClassCounts: Record<DepthClass, number> = {
+    shallow: 0,
+    intermediate: 0,
+    deep: 0,
+  };
+  for (const earthquake of valid) {
+    depthClassCounts[depthClass(earthquake.depthKm)] += 1;
+  }
+
+  return {
+    eventCount: valid.length,
+    magnitude: rangeFor(valid.map((earthquake) => earthquake.magnitude)),
+    depthKm: rangeFor(valid.map((earthquake) => earthquake.depthKm)),
+    time: rangeFor(valid.map((earthquake) => earthquake.time)),
+    depthClassCounts,
+    source: SEISMICITY_SOURCE,
+    units: SEISMICITY_UNITS,
+  };
+}
+
+function validFilters(filters: EarthquakeFilters): boolean {
+  const values = Object.values(filters);
+  if (values.some((value) => value !== undefined && !Number.isFinite(value))) {
+    return false;
+  }
+  return (
+    (filters.minMagnitude === undefined ||
+      filters.maxMagnitude === undefined ||
+      filters.minMagnitude <= filters.maxMagnitude) &&
+    (filters.minDepthKm === undefined ||
+      filters.maxDepthKm === undefined ||
+      filters.minDepthKm <= filters.maxDepthKm) &&
+    (filters.startTime === undefined ||
+      filters.endTime === undefined ||
+      filters.startTime <= filters.endTime)
+  );
+}
+
+function rangeFor(values: readonly number[]): EarthquakeRange {
+  if (values.length === 0) return { min: null, max: null };
+  return { min: Math.min(...values), max: Math.max(...values) };
+}
 
 /**
  * Parse the USGS GeoJSON summary feed, dropping malformed features rather

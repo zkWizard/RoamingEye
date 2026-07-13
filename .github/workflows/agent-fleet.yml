@@ -1,0 +1,54 @@
+name: Catalog agent fleet
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: catalog-agent-fleet
+  cancel-in-progress: false
+
+jobs:
+  curate:
+    name: Curate reviewed software catalog
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run agents:run
+      - run: npm run verify
+      - name: Install Playwright (Chromium)
+        run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - name: Open a draft catalog review
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet; then
+            echo "No catalog changes to review."
+            exit 0
+          fi
+
+          branch="agents/catalog-refresh-${GITHUB_RUN_ID}"
+          git config user.name "roamingeye-catalog-bot[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add catalog public/data
+          git commit -s -m "chore: refresh reviewed software catalog"
+          git push origin "$branch"
+          gh pr create --draft --base main --head "$branch" \
+            --title "chore: review catalog agent refresh" \
+            --body "Automated catalog refresh. Review catalog/review-queue.json and the generated public/data/software-catalog.json before approving."

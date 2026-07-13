@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { parseEarthquakeFeed, depthClass } from "./earthquakes";
+import {
+  filterEarthquakes,
+  parseEarthquakeFeed,
+  depthClass,
+  summarizeEarthquakes,
+} from "./earthquakes";
 
 const feature = (
   lon: number,
@@ -65,5 +70,105 @@ describe("depthClass", () => {
     expect(depthClass(300)).toBe("intermediate");
     expect(depthClass(301)).toBe("deep");
     expect(depthClass(650)).toBe("deep");
+  });
+});
+
+describe("filterEarthquakes", () => {
+  const earthquakes = [
+    {
+      lat: 1,
+      lon: 2,
+      depthKm: 10,
+      magnitude: 4.5,
+      time: 1_000,
+      place: "A",
+    },
+    {
+      lat: 3,
+      lon: 4,
+      depthKm: 70,
+      magnitude: 5.5,
+      time: 2_000,
+      place: "B",
+    },
+    {
+      lat: 5,
+      lon: 6,
+      depthKm: 301,
+      magnitude: 6.5,
+      time: 3_000,
+      place: "C",
+    },
+  ];
+
+  it("applies inclusive magnitude, depth, and time bounds without reordering", () => {
+    expect(
+      filterEarthquakes(earthquakes, {
+        minMagnitude: 5.5,
+        maxMagnitude: 6.5,
+        minDepthKm: 70,
+        endTime: 3_000,
+      })
+    ).toEqual([earthquakes[1], earthquakes[2]]);
+  });
+
+  it("returns no events for inverted or non-finite bounds", () => {
+    expect(
+      filterEarthquakes(earthquakes, { minMagnitude: 6, maxMagnitude: 5 })
+    ).toEqual([]);
+    expect(filterEarthquakes(earthquakes, { startTime: Number.NaN })).toEqual(
+      []
+    );
+  });
+});
+
+describe("summarizeEarthquakes", () => {
+  it("retains native units and USGS provenance in a descriptive summary", () => {
+    const summary = summarizeEarthquakes([
+      {
+        lat: 1,
+        lon: 2,
+        depthKm: 10,
+        magnitude: 4.5,
+        time: 1_000,
+        place: "A",
+      },
+      {
+        lat: 3,
+        lon: 4,
+        depthKm: 70,
+        magnitude: 6.5,
+        time: 3_000,
+        place: "B",
+      },
+      {
+        lat: 5,
+        lon: 6,
+        depthKm: 301,
+        magnitude: 5.5,
+        time: 2_000,
+        place: "C",
+      },
+    ]);
+
+    expect(summary).toMatchObject({
+      eventCount: 3,
+      magnitude: { min: 4.5, max: 6.5 },
+      depthKm: { min: 10, max: 301 },
+      time: { min: 1_000, max: 3_000 },
+      depthClassCounts: { shallow: 1, intermediate: 1, deep: 1 },
+      source: { name: "USGS Earthquake Hazards Program GeoJSON summary feed" },
+      units: { magnitude: "M", depth: "km", time: "epoch milliseconds (UTC)" },
+    });
+  });
+
+  it("makes empty coverage explicit instead of manufacturing a range", () => {
+    expect(summarizeEarthquakes([])).toMatchObject({
+      eventCount: 0,
+      magnitude: { min: null, max: null },
+      depthKm: { min: null, max: null },
+      time: { min: null, max: null },
+      depthClassCounts: { shallow: 0, intermediate: 0, deep: 0 },
+    });
   });
 });

@@ -4,6 +4,7 @@ import {
   hexToRgb,
   buildColormapLut,
   invertColormap,
+  invertColormapEntries,
   medianValid,
   weightedMeanValid,
   areaWeight,
@@ -26,6 +27,7 @@ import {
 } from "./probe";
 import { LEGENDS, type GradientLegendSpec } from "./legend";
 import { decodeViewState } from "./viewState";
+import { latLonToRegionPixel } from "../probe/ProbeSampler";
 
 describe("latLonToPixel", () => {
   it("maps the equirectangular corners and center", () => {
@@ -39,6 +41,36 @@ describe("latLonToPixel", () => {
   it("puts the northern hemisphere in the top half", () => {
     const { y } = latLonToPixel(45, 0, 1024, 512);
     expect(y).toBeLessThan(256);
+  });
+});
+
+describe("latLonToRegionPixel", () => {
+  it("maps ordinary regional bounds without changing existing longitude behavior", () => {
+    expect(
+      latLonToRegionPixel(
+        0,
+        -3,
+        { south: -1, north: 1, west: -4, east: -2 },
+        400,
+        200
+      )
+    ).toEqual({ x: 200, y: 100 });
+  });
+
+  it("maps antimeridian regional pixels in one continuous short-arc frame", () => {
+    const bounds = { south: -1, north: 1, west: 179, east: 181 };
+    expect(latLonToRegionPixel(0, 179.25, bounds, 400, 200)).toEqual({
+      x: 50,
+      y: 100,
+    });
+    expect(latLonToRegionPixel(0, -179.25, bounds, 400, 200)).toEqual({
+      x: 350,
+      y: 100,
+    });
+    expect(latLonToRegionPixel(0, 180.25, bounds, 400, 200)).toEqual({
+      x: 250,
+      y: 100,
+    });
   });
 });
 
@@ -76,6 +108,19 @@ describe("buildColormapLut / invertColormap", () => {
   it("returns null for colors far off the gradient (no-data)", () => {
     expect(invertColormap({ r: 0, g: 0, b: 0 }, lut)).toBeNull(); // ocean/space
     expect(invertColormap({ r: 78, g: 161, b: 255 }, lut)).toBeNull(); // UI blue
+  });
+});
+
+describe("invertColormapEntries", () => {
+  it("returns the physical ramp value while tolerating JPEG colour noise", () => {
+    const entries = [
+      { rgb: { r: 213, g: 62, b: 79 }, value: 0.000005 },
+      { rgb: { r: 217, g: 68, b: 77 }, value: 0.000015 },
+    ];
+    expect(invertColormapEntries({ r: 214, g: 61, b: 81 }, entries)).toBe(
+      0.000005
+    );
+    expect(invertColormapEntries({ r: 0, g: 0, b: 0 }, entries)).toBeNull();
   });
 });
 

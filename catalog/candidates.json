@@ -1,0 +1,145 @@
+{
+  "version": 1,
+  "candidates": [
+    {
+      "repository": "qgis/QGIS",
+      "approval": "approved",
+      "domains": ["GIS", "Cartography"],
+      "workflows": ["Desktop analysis", "Map production"],
+      "formats": ["GeoTIFF", "GeoJSON", "NetCDF", "Shapefile"],
+      "platforms": ["Windows", "macOS", "Linux"],
+      "access": ["Desktop"],
+      "languages": ["English"]
+    },
+    {
+      "repository": "OSGeo/gdal",
+      "approval": "approved",
+      "domains": ["GIS", "Remote sensing"],
+      "workflows": ["Raster processing", "Format conversion"],
+      "formats": ["GeoTIFF", "GeoJSON", "NetCDF", "Shapefile"],
+      "platforms": ["Windows", "macOS", "Linux"],
+      "access": ["Command line", "Library"],
+      "languages": ["English"]
+    },
+    {
+      "repository": "OSGeo/grass",
+      "approval": "approved",
+      "domains": ["GIS", "Hydrology"],
+      "workflows": ["Terrain analysis", "Raster processing"],
+      "formats": ["GeoTIFF", "GeoJSON", "Shapefile"],
+      "platforms": ["Windows", "macOS", "Linux"],
+      "access": ["Desktop", "Command line"],
+      "languages": ["English"]
+    },
+    {
+      "repository": "geopandas/geopandas",
+      "approval": "approved",
+      "domains": ["GIS", "Data science"],
+      "workflows": ["Vector analysis", "Reproducible analysis"],
+      "formats": ["GeoJSON", "Shapefile", "GeoPackage"],
+      "platforms": ["Windows", "macOS", "Linux"],
+      "access": ["Python library"],
+      "languages": ["English"]
+    },
+    {
+      "repository": "rasterio/rasterio",
+      "approval": "approved",
+      "domains": ["Remote sensing", "GIS"],
+      "workflows": ["Raster processing", "Reproducible analysis"],
+      "formats": ["GeoTIFF", "Cloud Optimized GeoTIFF"],
+      "platforms": ["Windows", "macOS", "Linux"],
+      "access": ["Python library"],
+      "languages": ["English"]
+    },
+    {
+      "repository": "pydata/xarray",
+      "approval": "approved",
+      "domains": ["Climate", "Oceanography", "Data science"],
+      "workflows": ["Multidimensional analysis", "Reproducible analysis"],
+      "formats": ["NetCDF", "Zarr", "GRIB"],
+      "platforms": ["Windows", "macOS", "Linux"],
+      "access": ["Python library"],
+      "languages": ["English"]
+    },
+    {
+      "repository": "Unidata/MetPy",
+      "approval": "approved",
+      "domains": ["Meteorology", "Climate"],
+      "workflows": ["Weather analysis", "Reproducible analysis"],
+      "formats": ["NetCDF", "GRIB"],
+      "platforms": ["Windows", "macOS", "Linux"],
+      "access": ["Python library"],
+      "languages": ["English"]
+    },
+    {
+      "repository": "SciTools/iris",
+      "approval": "approved",
+      "domains": ["Climate", "Meteorology"],
+      "workflows": ["Multidimensional analysis", "Climate modelling"],
+      "formats": ["NetCDF", "GRIB", "PP"],
+      "platforms": ["Windows", "macOS", "Linux"],
+      "access": ["Python library"],
+      "languages": ["English"]
+    },
+    {
+      "repository": "obspy/obspy",
+      "approval": "approved",
+      "domains": ["Seismology", "Geophysics"],
+      "workflows": ["Waveform analysis", "Reproducible analysis"],
+      "formats": ["miniSEED", "SAC", "SEGY"],
+      "platforms": ["Windows", "macOS", "Linux"],
+      "access": ["Python library"],
+      "languages": ["English"]
+    },
+    {
+      "repository": "GenericMappingTools/gmt",
+      "approval": "approved",
+      "domains": ["Geophysics", "Cartography"],
+      "workflows": ["Scientific visualization", "Map production"],
+      "formats": ["NetCDF", "GeoTIFF", "Shapefile"],
+      "platforms": ["Windows", "macOS", "Linux"],
+      "access": ["Command line", "Library"],
+      "languages": ["English"]
+    },
+    {
+      "repository": "GenericMappingTools/pygmt",
+      "approval": "approved",
+      "domains": ["Geophysics", "Cartography"],
+      "workflows": ["Scientific visualization", "Reproducible analysis"],
+      "formats": ["NetCDF", "GeoTIFF", "Shapefile"],
+      "platforms": ["Windows", "macOS", "Linux"],
+      "access": ["Python library"],
+      "languages": ["English"]
+    },
+    {
+      "repository": "OpenDroneMap/OpenDroneMap",
+      "approval": "approved",
+      "domains": ["Remote sensing", "Field mapping"],
+      "workflows": ["Drone photogrammetry", "Raster processing"],
+      "formats": ["GeoTIFF", "LAS", "LAZ"],
+      "platforms": ["Windows", "macOS", "Linux"],
+      "access": ["Desktop", "Command line"],
+      "languages": ["English"]
+    },
+    {
+      "repository": "eodag/eodag",
+      "approval": "approved",
+      "domains": ["Remote sensing", "Data discovery"],
+      "workflows": ["Data discovery", "Satellite acquisition"],
+      "formats": ["STAC", "GeoJSON"],
+      "platforms": ["Windows", "macOS", "Linux"],
+      "access": ["Python library", "Command line"],
+      "languages": ["English"]
+    },
+    {
+      "repository": "OSGeo/pycsw",
+      "approval": "approved",
+      "domains": ["Data discovery", "GIS"],
+      "workflows": ["Metadata cataloguing", "Data discovery"],
+      "formats": ["STAC", "GeoJSON", "ISO 19115"],
+      "platforms": ["Windows", "macOS", "Linux"],
+      "access": ["Web service", "Python library"],
+      "languages": ["English"]
+    }
+  ]
+}
