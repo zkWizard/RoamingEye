@@ -68,6 +68,11 @@ export interface MonthlyClimateObservation {
   value: number | null;
   /** Usable share of the sampled area, when spatial sampling provides it. */
   validFraction?: number;
+  /**
+   * Dimensions of a rendered source image when the observation was sampled
+   * from imagery. This is provenance, not a ground-resolution claim.
+   */
+  sourceImageDimensions?: { width: number; height: number };
 }
 
 export type ClimateCoverageStatus = "available" | "no-data" | "invalid";
@@ -94,6 +99,8 @@ export interface MonthlyClimateSummary {
   /** Calendar-month difference, or null when data month is not yet published. */
   publicationLagMonths: number | null;
   coverage: ClimateCoverage;
+  /** Rendered-image provenance, or null when it was not supplied or invalid. */
+  sourceImageDimensions: { width: number; height: number } | null;
   /** Retained unchanged in `metric.nativeUnit`, or null when not usable. */
   observedValue: number | null;
 }
@@ -128,6 +135,11 @@ export function summarizeMonthlyClimate(
     publicationStatus,
     publicationLagMonths: lag === null || lag < 0 ? null : lag,
     coverage,
+    sourceImageDimensions: validImageDimensions(
+      observation.sourceImageDimensions
+    )
+      ? { ...observation.sourceImageDimensions }
+      : null,
     observedValue: coverage.status === "available" ? observation.value : null,
   };
 }
@@ -177,6 +189,18 @@ function isPhysicalValue(observation: MonthlyClimateObservation): boolean {
     case "soil-moisture":
       return value >= 0;
   }
+}
+
+function validImageDimensions(
+  dimensions: MonthlyClimateObservation["sourceImageDimensions"]
+): dimensions is { width: number; height: number } {
+  return (
+    dimensions !== undefined &&
+    Number.isInteger(dimensions.width) &&
+    Number.isInteger(dimensions.height) &&
+    dimensions.width > 0 &&
+    dimensions.height > 0
+  );
 }
 
 function isYearMonth(value: YearMonth): boolean {
