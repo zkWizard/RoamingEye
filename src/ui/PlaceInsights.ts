@@ -5,7 +5,9 @@ import {
 } from "../lib/placeInsights";
 import { GVP_VOLCANO_SOURCE } from "../lib/volcanoContext";
 import type { VolcanoExtentContext } from "../lib/volcanoExtent";
+import type { PlaceObservationExportInput } from "../lib/placeObservationExport";
 import { ICONS } from "./icons";
+import { PlaceObservationExportControl } from "./PlaceObservationExport";
 
 interface MetricElements {
   value: HTMLElement;
@@ -21,6 +23,7 @@ export class PlaceInsights {
   private readonly volcanoDetail: HTMLElement;
   private readonly volcanoRecords: HTMLUListElement;
   private readonly volcanoSource: HTMLAnchorElement;
+  private readonly observationExport: PlaceObservationExportControl;
 
   constructor(
     container: HTMLElement,
@@ -101,6 +104,7 @@ export class PlaceInsights {
     note.textContent =
       "Regional means from NASA imagery; products may publish on different monthly schedules.";
     container.append(header, grid, volcanoes, note);
+    this.observationExport = new PlaceObservationExportControl(container);
   }
 
   open(name: string): void {
@@ -110,6 +114,7 @@ export class PlaceInsights {
       detail.textContent = "Latest two available months";
     }
     this.setVolcanoLoading();
+    this.observationExport.setPending();
     this.root.classList.add("is-open");
     this.root.setAttribute("aria-hidden", "false");
   }
@@ -126,6 +131,14 @@ export class PlaceInsights {
     if (!metric) return;
     metric.value.textContent = reading.value;
     metric.detail.textContent = reading.detail;
+  }
+
+  setObservationExport(input: PlaceObservationExportInput): void {
+    this.observationExport.setAvailable(input);
+  }
+
+  setObservationExportUnavailable(reason: string): void {
+    this.observationExport.setUnavailable(reason);
   }
 
   setVolcanoLoading(): void {
