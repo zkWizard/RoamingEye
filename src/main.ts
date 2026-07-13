@@ -28,6 +28,11 @@ import {
   placeInsightPhysicalReading,
   placeInsightReading,
 } from "./lib/placeInsights";
+import {
+  climateInsightText,
+  climateMetricForLayer,
+  summarizeRenderedClimateSample,
+} from "./lib/meteorology";
 import { volcanoesInSearchExtent } from "./lib/volcanoExtent";
 import { parseVolcanoList } from "./lib/volcanoes";
 import type { GeoResult } from "./lib/geocoding";
@@ -485,18 +490,38 @@ function runPlaceInsights(result: GeoResult): void {
           geometrySamplingStrategy,
         } = await sample;
         if (abort.signal.aborted) return;
+        const climateMetricId = climateMetricForLayer(metric.layerId);
+        const climateReading =
+          colormap && climateMetricId
+            ? summarizeRenderedClimateSample(
+                {
+                  metricId: climateMetricId,
+                  months,
+                  sampledValues: values,
+                  nativeToSampledValueFactor: colormap.factor,
+                  validFractions,
+                  sourceImageDimensions,
+                },
+                months[1]
+              )
+            : null;
         placeInsights.setReading(
-          colormap
-            ? placeInsightPhysicalReading(metric, months, values, {
-                validFractions,
-                sourceImageDimensions,
-                geometrySamplingStrategy,
-              })
-            : placeInsightReading(metric, months, values, {
-                validFractions,
-                sourceImageDimensions,
-                geometrySamplingStrategy,
-              })
+          climateReading
+            ? {
+                id: metric.id,
+                ...climateInsightText(climateReading[0], climateReading[1]),
+              }
+            : colormap
+              ? placeInsightPhysicalReading(metric, months, values, {
+                  validFractions,
+                  sourceImageDimensions,
+                  geometrySamplingStrategy,
+                })
+              : placeInsightReading(metric, months, values, {
+                  validFractions,
+                  sourceImageDimensions,
+                  geometrySamplingStrategy,
+                })
         );
         if (colormap || metric.layerId === "ndvi") {
           exportSamples.set(metric.layerId, {
