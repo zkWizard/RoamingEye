@@ -140,4 +140,29 @@ describe("place insights", () => {
       placeInsightReading(vegetation, months, [0.3, null], provenance).detail
     ).toContain("No usable Feb 2026 coverage; 25% sampled coverage");
   });
+
+  it("does not present a single in-boundary fallback sample as a regional mean", () => {
+    const vegetation = PLACE_METRICS.find(
+      (metric) => metric.id === "vegetation"
+    );
+    if (!vegetation) throw new Error("vegetation metric missing");
+    const detail = placeInsightReading(
+      vegetation,
+      [
+        { year: 2026, month: 1 },
+        { year: 2026, month: 2 },
+      ],
+      [0.3, 0.4],
+      {
+        validFractions: [1, 1],
+        sourceImageDimensions: { width: 512, height: 512 },
+        geometrySamplingStrategy: "boundary-point",
+      }
+    ).detail;
+    expect(detail).toContain("single in-boundary image sample has data");
+    expect(detail).toContain(
+      "single boundary point estimate, not a regional mean"
+    );
+    expect(detail).not.toContain("100% sampled coverage");
+  });
 });
