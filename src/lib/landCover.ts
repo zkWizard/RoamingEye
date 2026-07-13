@@ -260,7 +260,7 @@ export function summarizeLandCoverContext(
   };
 }
 
-function publicationStatusForYear(
+export function publicationStatusForYear(
   dataYear: number
 ): LandCoverPublicationStatus {
   if (!Number.isInteger(dataYear)) return "invalid-year";

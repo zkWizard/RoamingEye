@@ -21,6 +21,13 @@ export const COASTAL_OCEAN_OBSERVATION_SCHEMA =
 export type DirectMarineBiologicalObservationKind =
   "organism-count" | "biomass-measurement" | "occurrence-record";
 
+/** Geographic scope supplied by a direct biological source, never inferred from SST. */
+export interface DirectMarineBiologicalObservationGeography {
+  kind: "point" | "boundary" | "area" | "unknown";
+  /** Source-supplied place or geometry label; null makes unavailable explicit. */
+  label: string | null;
+}
+
 export interface DirectMarineBiologicalObservationInput {
   /** The supplied record type; it is never inferred from SST. */
   observationKind: DirectMarineBiologicalObservationKind;
@@ -36,6 +43,8 @@ export interface DirectMarineBiologicalObservationInput {
   source: DatasetRef;
   /** Usable share of the supplied biological survey or sampling footprint. */
   validFraction?: number;
+  /** Geographic scope from the biological source, when it was supplied. */
+  geography?: DirectMarineBiologicalObservationGeography | null;
 }
 
 export interface CoastalOceanObservationInput {
@@ -57,6 +66,7 @@ export type DirectMarineBiologicalObservationReason =
   | "missing-taxon-name"
   | "missing-native-unit"
   | "incomplete-source-citation"
+  | "invalid-geography"
   | "missing-value"
   | "zero-biological-coverage"
   | "invalid-value"
@@ -72,6 +82,8 @@ export interface DirectMarineBiologicalObservationSummary {
   dataMonth: YearMonth;
   source: DatasetRef;
   nativeUnit: string;
+  /** Retained direct-source geography; never substituted from SST. */
+  geography: DirectMarineBiologicalObservationGeography | null;
   coverage: {
     /** Null means biological sampling coverage was not supplied. */
     validFraction: number | null;
@@ -91,6 +103,7 @@ export interface NoDirectMarineBiologicalObservationSummary {
   dataMonth: null;
   source: null;
   nativeUnit: null;
+  geography: null;
   coverage: { validFraction: null; reason: "not-supplied" };
   observedValue: null;
 }
@@ -179,6 +192,7 @@ export function summarizeDirectMarineBiologicalObservation(
     dataMonth: input.dataMonth,
     source: input.source,
     nativeUnit: input.nativeUnit,
+    geography: input.geography ?? null,
   };
 
   if (!isYearMonth(input.dataMonth)) {
@@ -218,6 +232,13 @@ export function summarizeDirectMarineBiologicalObservation(
       "incomplete-source-citation"
     );
   }
+  if (input.geography !== undefined && !isGeography(input.geography)) {
+    return invalidBiologicalObservation(
+      base,
+      validFraction ?? null,
+      "invalid-geography"
+    );
+  }
   if (input.value === null) {
     return noDataBiologicalObservation(
       base,
@@ -255,6 +276,7 @@ function noDirectMarineBiologicalObservation(): NoDirectMarineBiologicalObservat
     dataMonth: null,
     source: null,
     nativeUnit: null,
+    geography: null,
     coverage: { validFraction: null, reason: "not-supplied" },
     observedValue: null,
   };
@@ -323,6 +345,16 @@ function isObservationKind(
 function hasCitation(source: DatasetRef): boolean {
   return [source.shortName, source.version, source.doi, source.title].every(
     (field) => field.trim().length > 0
+  );
+}
+
+function isGeography(
+  geography: DirectMarineBiologicalObservationGeography | null
+): boolean {
+  if (geography === null) return true;
+  return (
+    ["point", "boundary", "area", "unknown"].includes(geography.kind) &&
+    (geography.label === null || geography.label.trim().length > 0)
   );
 }
 
