@@ -175,6 +175,124 @@ describe("geometryToRings", () => {
     }
   });
 
+  it("refines sparse multipolygon masks without leaving the short-arc frame", () => {
+    // Two small islands at opposite ends of their joint bounds. An 8 x 8
+    // cell-centre grid misses both, while the bounded 64 x 64 refinement
+    // finds an interior cell in each without sampling the empty middle.
+    const geometry = {
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [0, 0],
+            [0.1, 0],
+            [0.1, 0.1],
+            [0, 0.1],
+            [0, 0],
+          ],
+        ],
+        [
+          [
+            [9.9, 9.9],
+            [10, 9.9],
+            [10, 10],
+            [9.9, 10],
+            [9.9, 9.9],
+          ],
+        ],
+      ],
+    };
+    expect(geometryGridPoints(geometry, 8)).toEqual([]);
+    const plan = geometrySamplingPlan(geometry, 8);
+    expect(plan).not.toBeNull();
+    expect(plan).toMatchObject({
+      gridSize: 64,
+      candidatePointCount: 4096,
+      interiorPointCount: 2,
+      pointLimitApplied: false,
+    });
+    expect(plan!.points).toHaveLength(2);
+    for (const point of plan!.points) {
+      expect(geometryContains(geometry, point.lat, point.lon)).toBe(true);
+    }
+  });
+
+  it("caps dense plans deterministically without taking only the first rows", () => {
+    const geometry = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [0, 0],
+          [10, 0],
+          [10, 10],
+          [0, 10],
+          [0, 0],
+        ],
+      ],
+    };
+    const options = { minPoints: 1, maxPoints: 4 };
+    const first = geometrySamplingPlan(geometry, 8, options);
+    const second = geometrySamplingPlan(geometry, 8, options);
+    expect(first).toMatchObject({
+      gridSize: 8,
+      candidatePointCount: 64,
+      interiorPointCount: 64,
+      pointLimitApplied: true,
+    });
+    expect(first!.points).toHaveLength(4);
+    expect(first!.points).toEqual(second!.points);
+    // A rank-spaced cap covers the grid's latitude range; a first-N cap would
+    // retain only the southern row.
+    expect(
+      new Set(first!.points.map((point) => point.lat)).size
+    ).toBeGreaterThan(1);
+  });
+
+  it("does not let tuning options relax the hard sampling ceilings", () => {
+    const geometry = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [0, 0],
+          [10, 0],
+          [10, 10],
+          [0, 10],
+          [0, 0],
+        ],
+      ],
+    };
+    const plan = geometrySamplingPlan(geometry, 1, {
+      minPoints: 1_000_000,
+      maxGridSize: 1_000_000,
+      maxPoints: 1_000_000,
+    });
+    expect(plan).not.toBeNull();
+    expect(plan!.gridSize).toBeLessThanOrEqual(64);
+    expect(plan!.candidatePointCount).toBeLessThanOrEqual(64 * 64);
+    expect(plan!.points).toHaveLength(784);
+    expect(plan!.pointLimitApplied).toBe(true);
+  });
+
+  it("keeps antimeridian plan points in the continuous bounds frame", () => {
+    const geometry = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [179, -1],
+          [-179, -1],
+          [-179, 1],
+          [179, 1],
+          [179, -1],
+        ],
+      ],
+    };
+    const plan = geometrySamplingPlan(geometry, 4, { minPoints: 1 });
+    expect(plan).toMatchObject({ gridSize: 4, interiorPointCount: 16 });
+    expect([...new Set(plan!.points.map((point) => point.lon))]).toEqual([
+      179.25, 179.75, 180.25, 180.75,
+    ]);
+  });
+
   it("excludes holes that cross the antimeridian", () => {
     const geometry = {
       type: "Polygon",
