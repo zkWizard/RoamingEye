@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { parseCityList } from "./cities";
 import { parseVolcanoList } from "./volcanoes";
 import { parsePlateBoundaries } from "./plates";
+import { decodePlatePair } from "./platePairs";
 import { buildAdmin1Index, buildCountryIndex } from "./countryIndex";
 
 /**
@@ -40,6 +41,17 @@ describe("bundled data files", () => {
   it("plate-boundaries.geojson parses into boundary segments", () => {
     const plates = parsePlateBoundaries(load("plate-boundaries.geojson"));
     expect(plates.length).toBeGreaterThanOrEqual(200);
+  });
+
+  it("every plate-boundary label decodes to a recognized PB2002 pair", () => {
+    const plates = parsePlateBoundaries(load("plate-boundaries.geojson"));
+    // The PB2002 decode vocabulary must cover the bundled labels: a bad
+    // regeneration that introduced an unknown plate code would fail here
+    // rather than silently label a boundary with a plate we cannot name.
+    const undecodable = plates
+      .map((boundary) => boundary.name)
+      .filter((name) => !decodePlatePair(name)?.recognized);
+    expect(undecodable).toEqual([]);
   });
 
   it("countries.geojson builds a working lookup index", () => {
