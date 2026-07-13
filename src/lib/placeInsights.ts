@@ -18,10 +18,11 @@ import { fetchWithRetry } from "./net";
 import type { GeometrySamplingStrategy } from "./geojson";
 
 export type PlaceMetricId = "vegetation" | "rainfall" | "soil" | "air";
+export type PlaceMetricLayerId = "ndvi" | "precip" | "soil" | "airtemp";
 
 export interface PlaceMetric {
   id: PlaceMetricId;
-  layerId: LayerId;
+  layerId: PlaceMetricLayerId;
   label: string;
 }
 
