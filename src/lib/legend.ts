@@ -2,6 +2,8 @@ import type { LayerId } from "./timeline";
 import { DEPTH_CLASS_COLORS } from "./earthquakes";
 import { ERUPTION_CLASS_COLORS } from "./volcanoes";
 import { PROBE_SCALES, formatProbeValue, scaleValue } from "./probe";
+import { IGBP_LAND_COVER_CLASSES } from "./landCover";
+import { IGBP_RENDERED_PALETTE } from "./landCoverPalette";
 
 /**
  * Legend model: what the colors on the globe mean, per data layer.
@@ -149,26 +151,10 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
     measures: "Land-cover class (IGBP)",
     // The 17 IGBP classes + Unclassified, colored exactly as GIBS renders
     // them (colormaps/v1.3/MODIS_IGBP_Land_Cover_Type.xml).
-    classes: [
-      { color: "#218a21", label: "Evergreen needleleaf forest" },
-      { color: "#31cc31", label: "Evergreen broadleaf forest" },
-      { color: "#98cc31", label: "Deciduous needleleaf forest" },
-      { color: "#96fa96", label: "Deciduous broadleaf forest" },
-      { color: "#8dba8d", label: "Mixed forest" },
-      { color: "#ba8d8d", label: "Closed shrubland" },
-      { color: "#f5deb3", label: "Open shrubland" },
-      { color: "#daeb9d", label: "Woody savanna" },
-      { color: "#ffd500", label: "Savanna" },
-      { color: "#f0b967", label: "Grassland" },
-      { color: "#4783b5", label: "Permanent wetland" },
-      { color: "#faef73", label: "Cropland" },
-      { color: "#ff0000", label: "Urban & built-up" },
-      { color: "#999356", label: "Cropland/natural mosaic" },
-      { color: "#ffffff", label: "Permanent snow & ice" },
-      { color: "#bfbfbd", label: "Barren" },
-      { color: "#86cae3", label: "Water" },
-      { color: "#646464", label: "Unclassified" },
-    ],
+    classes: IGBP_LAND_COVER_CLASSES.map(({ code, label }) => ({
+      color: rgbHex(IGBP_RENDERED_PALETTE[code]),
+      label,
+    })),
   },
   terrain: {
     measures: "Elevation (shaded relief)",
@@ -182,6 +168,12 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
     ],
   },
 };
+
+function rgbHex({ r, g, b }: { r: number; g: number; b: number }): string {
+  return `#${[r, g, b]
+    .map((channel) => channel.toString(16).padStart(2, "0"))
+    .join("")}`;
+}
 
 /** Build the CSS `linear-gradient(...)` for a legend's stops. */
 export function gradientCss(stops: LegendStop[]): string {
