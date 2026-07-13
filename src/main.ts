@@ -17,15 +17,31 @@ import { latLngToVector3, vector3ToLatLng, formatLatLng } from "./lib/geo";
 import { buildProbeCsv, normalizeLon, PROBE_SCALES } from "./lib/probe";
 import { isAreaGeometry } from "./lib/geojson";
 import {
+  placeObservationProductFromSample,
+  serializePlaceObservationExport,
+  type PlaceObservationExportSample,
+} from "./lib/placeObservationExport";
+import {
   PLACE_METRICS,
   latestComparisonMonths,
   loadPlaceColormap,
   placeInsightPhysicalReading,
   placeInsightReading,
 } from "./lib/placeInsights";
+import {
+  marineBoundarySstReading,
+  unavailableMarineBoundarySstReading,
+} from "./lib/marinePlaceInsight";
+import {
+  climateInsightText,
+  climateMetricForLayer,
+  summarizeRenderedClimateSample,
+} from "./lib/meteorology";
+import { volcanoesInSearchExtent } from "./lib/volcanoExtent";
+import { parseVolcanoList } from "./lib/volcanoes";
 import type { GeoResult } from "./lib/geocoding";
 import { refreshDataLatest } from "./lib/freshness";
-import { isAbortError, isOnline, OfflineError } from "./lib/net";
+import { fetchJson, isAbortError, isOnline, OfflineError } from "./lib/net";
 import { nextPixelRatio } from "./lib/perf";
 import { ProbeSampler } from "./probe/ProbeSampler";
 import { ProbePanel } from "./ui/ProbePanel";
@@ -417,52 +433,178 @@ function runPlaceInsights(result: GeoResult): void {
   const abort = (placeInsightsAbort = new AbortController());
   const geometry = result.geometry;
   placeInsights.open(result.name);
+  const exportSamples = new Map<string, PlaceObservationExportSample>();
+  const samplingTasks: Promise<void>[] = [];
+
+  if (result.boundingBox) {
+    void fetchJson<unknown>(`${import.meta.env.BASE_URL}data/volcanoes.json`, {
+      signal: abort.signal,
+    })
+      .then(parseVolcanoList)
+      .then((volcanoes) => {
+        if (abort.signal.aborted) return;
+        placeInsights.setVolcanoContext(
+          volcanoesInSearchExtent(volcanoes, result.boundingBox)
+        );
+      })
+      .catch((error: unknown) => {
+        if (isAbortError(error) || abort.signal.aborted) return;
+        console.warn("RoamingEye: place volcano context failed to load", error);
+        placeInsights.setVolcanoUnavailable();
+      });
+  } else {
+    placeInsights.setVolcanoContext(volcanoesInSearchExtent([], null));
+  }
 
   for (const metric of PLACE_METRICS) {
     const months = latestComparisonMonths(metric.layerId);
     if (!months) continue;
-    void (async () => {
-      const colormap = await loadPlaceColormap(metric.layerId);
-      const sample = colormap
-        ? placeSampler.sampleGeometryPhysical(
-            LAYERS[metric.layerId],
-            months,
-            geometry,
-            { lat: result.lat, lon: result.lon },
-            colormap.entries,
-            colormap.factor,
-            { signal: abort.signal }
-          )
-        : placeSampler.sampleGeometry(
-            LAYERS[metric.layerId],
-            months,
-            geometry,
-            { lat: result.lat, lon: result.lon },
-            { signal: abort.signal }
-          );
-      const { values, validFractions, sourceImageDimensions } = await sample;
-      if (abort.signal.aborted) return;
-      placeInsights.setReading(
-        colormap
-          ? placeInsightPhysicalReading(metric, months, values, {
-              validFractions,
-              sourceImageDimensions,
-            })
-          : placeInsightReading(metric, months, values, {
-              validFractions,
-              sourceImageDimensions,
-            })
-      );
-    })().catch((error: unknown) => {
-      if (isAbortError(error) || abort.signal.aborted) return;
-      console.warn("RoamingEye: place insight sampling failed", error);
-      placeInsights.setReading({
-        id: metric.id,
-        value: "Unavailable",
-        detail: "Regional data could not be sampled",
-      });
+    // Start with explicit no-data observations. A failed request or an
+    // unavailable authoritative colormap must not be replaced with a
+    // display-converted value labelled as a native-unit measurement. NDVI is
+    // the exception: its 0..1 physical range is already its native unit.
+    exportSamples.set(metric.layerId, {
+      layerId: metric.layerId,
+      observations: months.map((dataMonth) => ({ dataMonth, value: null })),
     });
+    samplingTasks.push(
+      (async () => {
+        const colormap = await loadPlaceColormap(metric.layerId);
+        const sample = colormap
+          ? placeSampler.sampleGeometryPhysical(
+              LAYERS[metric.layerId],
+              months,
+              geometry,
+              { lat: result.lat, lon: result.lon },
+              colormap.entries,
+              colormap.factor,
+              { signal: abort.signal }
+            )
+          : placeSampler.sampleGeometry(
+              LAYERS[metric.layerId],
+              months,
+              geometry,
+              { lat: result.lat, lon: result.lon },
+              { signal: abort.signal }
+            );
+        const {
+          values,
+          validFractions,
+          sourceImageDimensions,
+          geometrySamplingStrategy,
+        } = await sample;
+        if (abort.signal.aborted) return;
+        const climateMetricId = climateMetricForLayer(metric.layerId);
+        const climateReading =
+          colormap && climateMetricId
+            ? summarizeRenderedClimateSample(
+                {
+                  metricId: climateMetricId,
+                  months,
+                  sampledValues: values,
+                  nativeToSampledValueFactor: colormap.factor,
+                  validFractions,
+                  sourceImageDimensions,
+                },
+                months[1]
+              )
+            : null;
+        placeInsights.setReading(
+          climateReading
+            ? {
+                id: metric.id,
+                ...climateInsightText(climateReading[0], climateReading[1]),
+              }
+            : colormap
+              ? placeInsightPhysicalReading(metric, months, values, {
+                  validFractions,
+                  sourceImageDimensions,
+                  geometrySamplingStrategy,
+                })
+              : placeInsightReading(metric, months, values, {
+                  validFractions,
+                  sourceImageDimensions,
+                  geometrySamplingStrategy,
+                })
+        );
+        if (colormap || metric.layerId === "ndvi") {
+          exportSamples.set(metric.layerId, {
+            layerId: metric.layerId,
+            sourceValueFactor: colormap?.factor ?? 1,
+            observations: months.map((dataMonth, index) => ({
+              dataMonth,
+              value: values[index] ?? null,
+              validFraction: validFractions[index],
+            })),
+          });
+        }
+      })().catch((error: unknown) => {
+        if (isAbortError(error) || abort.signal.aborted) return;
+        console.warn("RoamingEye: place insight sampling failed", error);
+        placeInsights.setReading({
+          id: metric.id,
+          value: "Unavailable",
+          detail:
+            "Boundary could not be represented by the bounded sample grid",
+        });
+      })
+    );
   }
+
+  // SST is a single, latest-observation card rather than a terrestrial
+  // month-over-month "condition". Sample the exact searched geometry through
+  // NASA GIBS's published physical colormap so the value remains in °C.
+  const sstMonths = monthRangeForLayer(LAYERS.sst);
+  const sstMonth = sstMonths[sstMonths.length - 1];
+  void (async () => {
+    const colormap = await loadPlaceColormap("sst");
+    if (!colormap) {
+      throw new Error("RoamingEye: SST physical colormap is unavailable");
+    }
+    const sample = await placeSampler.sampleGeometryPhysical(
+      LAYERS.sst,
+      [sstMonth],
+      geometry,
+      { lat: result.lat, lon: result.lon },
+      colormap.entries,
+      colormap.factor,
+      { signal: abort.signal }
+    );
+    if (abort.signal.aborted) return;
+    placeInsights.setReading(
+      marineBoundarySstReading({
+        dataMonth: sstMonth,
+        observedValue: sample.values[0],
+        validFraction: sample.validFractions[0],
+        sourceImageDimensions: sample.sourceImageDimensions,
+      })
+    );
+  })().catch((error: unknown) => {
+    if (isAbortError(error) || abort.signal.aborted) return;
+    console.warn("RoamingEye: marine place insight sampling failed", error);
+    placeInsights.setReading(unavailableMarineBoundarySstReading(sstMonth));
+  });
+
+  void Promise.all(samplingTasks).then(() => {
+    if (abort.signal.aborted) return;
+    const products = [...exportSamples.values()].map(
+      placeObservationProductFromSample
+    );
+    if (products.length === 0) return;
+    placeInsights.setObservationExport(
+      serializePlaceObservationExport({
+        boundary: geometry,
+        products,
+        method: {
+          sampling: "area-weighted-grid-mean",
+          imageWidth: 512,
+          imageHeight: 512,
+        },
+        generatedIso: new Date().toISOString(),
+        toolVersion: __APP_VERSION__,
+      })
+    );
+  });
 }
 
 if (layerEl) {
