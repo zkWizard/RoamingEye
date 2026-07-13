@@ -3,6 +3,8 @@ import {
   filterEarthquakes,
   parseEarthquakeFeed,
   depthClass,
+  magnitudeClass,
+  MAGNITUDE_CLASS_ORDER,
   summarizeEarthquakes,
 } from "./earthquakes";
 
@@ -70,6 +72,38 @@ describe("depthClass", () => {
     expect(depthClass(300)).toBe("intermediate");
     expect(depthClass(301)).toBe("deep");
     expect(depthClass(650)).toBe("deep");
+  });
+});
+
+describe("magnitudeClass", () => {
+  it("bins magnitudes into USGS descriptor classes at inclusive lower bounds", () => {
+    expect(magnitudeClass(8)).toBe("great");
+    expect(magnitudeClass(7.9)).toBe("major");
+    expect(magnitudeClass(7)).toBe("major");
+    expect(magnitudeClass(6.5)).toBe("strong");
+    expect(magnitudeClass(5)).toBe("moderate");
+    expect(magnitudeClass(4.5)).toBe("light");
+    expect(magnitudeClass(3)).toBe("minor");
+    expect(magnitudeClass(2.9)).toBe("micro");
+    expect(magnitudeClass(0)).toBe("micro");
+    expect(magnitudeClass(-1)).toBe("micro");
+  });
+
+  it("returns null for non-finite magnitudes rather than mislabeling them", () => {
+    expect(magnitudeClass(Number.NaN)).toBeNull();
+    expect(magnitudeClass(Number.POSITIVE_INFINITY)).toBeNull();
+  });
+
+  it("orders classes weakest to strongest", () => {
+    expect(MAGNITUDE_CLASS_ORDER).toEqual([
+      "micro",
+      "minor",
+      "light",
+      "moderate",
+      "strong",
+      "major",
+      "great",
+    ]);
   });
 });
 
@@ -157,6 +191,15 @@ describe("summarizeEarthquakes", () => {
       depthKm: { min: 10, max: 301 },
       time: { min: 1_000, max: 3_000 },
       depthClassCounts: { shallow: 1, intermediate: 1, deep: 1 },
+      magnitudeClassCounts: {
+        micro: 0,
+        minor: 0,
+        light: 1,
+        moderate: 1,
+        strong: 1,
+        major: 0,
+        great: 0,
+      },
       source: { name: "USGS Earthquake Hazards Program GeoJSON summary feed" },
       units: { magnitude: "M", depth: "km", time: "epoch milliseconds (UTC)" },
     });
@@ -169,6 +212,15 @@ describe("summarizeEarthquakes", () => {
       depthKm: { min: null, max: null },
       time: { min: null, max: null },
       depthClassCounts: { shallow: 0, intermediate: 0, deep: 0 },
+      magnitudeClassCounts: {
+        micro: 0,
+        minor: 0,
+        light: 0,
+        moderate: 0,
+        strong: 0,
+        major: 0,
+        great: 0,
+      },
     });
   });
 });

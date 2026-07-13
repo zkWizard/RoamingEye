@@ -105,10 +105,26 @@ export interface EnvironmentTemporalAlignment {
   statement: string;
 }
 
+export interface EnvironmentBriefCompleteness {
+  /** Number of signals the brief attempted to compose. */
+  total: number;
+  /** Signals carrying a usable observed value (status "available"). */
+  available: number;
+  /** Count of signals in each status, so no state is silently dropped. */
+  byStatus: Record<EnvironmentSignalStatus, number>;
+  /** Ids of the signals with usable observations, in signal order. */
+  availableSignalIds: EnvironmentSignalId[];
+  /** available / total in [0, 1]; a data-coverage share, not a condition score. */
+  usableFraction: number;
+  /** Honest one-line data-completeness statement (no condition inference). */
+  statement: string;
+}
+
 export interface EnvironmentBrief {
   kind: "provenance-first-environment-brief";
   signals: EnvironmentSignalBrief[];
   statements: string[];
+  completeness: EnvironmentBriefCompleteness;
   unsupportedLanguageHits: string[];
   methodLimits: string[];
   temporalAlignment: EnvironmentTemporalAlignment;
@@ -209,6 +225,7 @@ export function composeEnvironmentBrief(
     kind: "provenance-first-environment-brief",
     signals,
     statements,
+    completeness: summarizeCompleteness(signals),
     unsupportedLanguageHits: unsupportedBriefLanguageHits(statements.join(" ")),
     methodLimits: METHOD_LIMITS,
     temporalAlignment: summarizeTemporalAlignment(signals),
@@ -282,6 +299,73 @@ function temporalAlignmentStatement(
   }
   const monthWord = spanMonths === 1 ? "month" : "months";
   return `${count} usable ${noun} span ${formatYearMonth(earliest)} to ${formatYearMonth(latest)} (${spanMonths}-${monthWord} spread); signals are not a synchronized snapshot and should not be read as simultaneous.`;
+}
+
+/** Fixed status order for reporting, so no state is silently dropped. */
+const SIGNAL_STATUSES: readonly EnvironmentSignalStatus[] = [
+  "available",
+  "no-data",
+  "invalid",
+  "unavailable",
+];
+
+/**
+ * Honest data-completeness tally across the composed signals. This counts how
+ * many signals carry a usable observation; it deliberately does not combine the
+ * values, weight the signals, or infer any condition, risk, or forecast.
+ */
+export function summarizeCompleteness(
+  signals: readonly EnvironmentSignalBrief[]
+): EnvironmentBriefCompleteness {
+  const byStatus = Object.fromEntries(
+    SIGNAL_STATUSES.map((status) => [status, 0])
+  ) as Record<EnvironmentSignalStatus, number>;
+  const availableSignalIds: EnvironmentSignalId[] = [];
+  for (const signal of signals) {
+    byStatus[signal.status] += 1;
+    if (signal.status === "available") availableSignalIds.push(signal.id);
+  }
+
+  const total = signals.length;
+  const available = byStatus.available;
+  const usableFraction = total === 0 ? 0 : available / total;
+
+  return {
+    total,
+    available,
+    byStatus,
+    availableSignalIds,
+    usableFraction,
+    statement: completenessStatement({
+      total,
+      available,
+      byStatus,
+      availableSignalIds,
+    }),
+  };
+}
+
+function completenessStatement(summary: {
+  total: number;
+  available: number;
+  byStatus: Record<EnvironmentSignalStatus, number>;
+  availableSignalIds: EnvironmentSignalId[];
+}): string {
+  const others = SIGNAL_STATUSES.filter((status) => status !== "available")
+    .filter((status) => summary.byStatus[status] > 0)
+    .map((status) => `${summary.byStatus[status]} ${status}`)
+    .join(", ");
+  const remainder = others ? ` (${others})` : "";
+
+  if (summary.total === 0) return "No signals composed.";
+  if (summary.available === 0) {
+    return `No usable observations across ${summary.total} signal${plural(summary.total)}${remainder}.`;
+  }
+  return `Usable observations for ${summary.available} of ${summary.total} signal${plural(summary.total)}: ${summary.availableSignalIds.join(", ")}${remainder}.`;
+}
+
+function plural(count: number): string {
+  return count === 1 ? "" : "s";
 }
 
 function availableThroughFor(
