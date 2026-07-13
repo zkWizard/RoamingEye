@@ -41,6 +41,14 @@ export interface EnvironmentBriefInput {
   airTemperature: EnvironmentObservation | null;
   /** Availability checkpoint for lagged monthly climate products. */
   availableThrough: YearMonth;
+  /**
+   * Optional product-specific availability checkpoints. Use this when cited
+   * climate products publish on different monthly schedules; omitted entries
+   * retain the shared `availableThrough` fallback.
+   */
+  availableThroughBySignal?: Partial<
+    Record<Exclude<EnvironmentSignalId, "vegetation">, YearMonth>
+  >;
 }
 
 export interface EnvironmentSignalCoverage {
@@ -148,17 +156,17 @@ export function composeEnvironmentBrief(
     climateSignal(
       CLIMATE_SIGNAL_META.rainfall,
       input.rainfall,
-      input.availableThrough
+      availableThroughFor(input, "rainfall")
     ),
     climateSignal(
       CLIMATE_SIGNAL_META["soil-moisture"],
       input.soilMoisture,
-      input.availableThrough
+      availableThroughFor(input, "soil-moisture")
     ),
     climateSignal(
       CLIMATE_SIGNAL_META["air-temperature"],
       input.airTemperature,
-      input.availableThrough
+      availableThroughFor(input, "air-temperature")
     ),
   ];
   const statements = signals.map((signal) => signal.statement);
@@ -170,6 +178,13 @@ export function composeEnvironmentBrief(
     unsupportedLanguageHits: unsupportedBriefLanguageHits(statements.join(" ")),
     methodLimits: METHOD_LIMITS,
   };
+}
+
+function availableThroughFor(
+  input: EnvironmentBriefInput,
+  signal: Exclude<EnvironmentSignalId, "vegetation">
+): YearMonth {
+  return input.availableThroughBySignal?.[signal] ?? input.availableThrough;
 }
 
 export function unsupportedBriefLanguageHits(text: string): string[] {
