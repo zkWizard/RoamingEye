@@ -23,6 +23,10 @@ import {
   placeInsightPhysicalReading,
   placeInsightReading,
 } from "./lib/placeInsights";
+import {
+  marineBoundarySstReading,
+  unavailableMarineBoundarySstReading,
+} from "./lib/marinePlaceInsight";
 import type { GeoResult } from "./lib/geocoding";
 import { refreshDataLatest } from "./lib/freshness";
 import { isAbortError, isOnline, OfflineError } from "./lib/net";
@@ -463,6 +467,40 @@ function runPlaceInsights(result: GeoResult): void {
       });
     });
   }
+
+  // SST is a single, latest-observation card rather than a terrestrial
+  // month-over-month "condition". Sample the exact searched geometry through
+  // NASA GIBS's published physical colormap so the value remains in °C.
+  const sstMonths = monthRangeForLayer(LAYERS.sst);
+  const sstMonth = sstMonths[sstMonths.length - 1];
+  void (async () => {
+    const colormap = await loadPlaceColormap("sst");
+    if (!colormap) {
+      throw new Error("RoamingEye: SST physical colormap is unavailable");
+    }
+    const sample = await placeSampler.sampleGeometryPhysical(
+      LAYERS.sst,
+      [sstMonth],
+      geometry,
+      { lat: result.lat, lon: result.lon },
+      colormap.entries,
+      colormap.factor,
+      { signal: abort.signal }
+    );
+    if (abort.signal.aborted) return;
+    placeInsights.setReading(
+      marineBoundarySstReading({
+        dataMonth: sstMonth,
+        observedValue: sample.values[0],
+        validFraction: sample.validFractions[0],
+        sourceImageDimensions: sample.sourceImageDimensions,
+      })
+    );
+  })().catch((error: unknown) => {
+    if (isAbortError(error) || abort.signal.aborted) return;
+    console.warn("RoamingEye: marine place insight sampling failed", error);
+    placeInsights.setReading(unavailableMarineBoundarySstReading(sstMonth));
+  });
 }
 
 if (layerEl) {
