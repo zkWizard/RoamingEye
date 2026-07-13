@@ -37,6 +37,10 @@ describe("coastal ocean observation contract", () => {
         nativeUnit: "individuals",
         source: BIOLOGICAL_SOURCE,
         validFraction: 0.65,
+        geography: {
+          kind: "boundary",
+          label: "Supplied coastal survey boundary",
+        },
       },
     });
 
@@ -69,6 +73,10 @@ describe("coastal ocean observation contract", () => {
         taxonName: "Example coastal taxon",
         source: BIOLOGICAL_SOURCE,
         nativeUnit: "individuals",
+        geography: {
+          kind: "boundary",
+          label: "Supplied coastal survey boundary",
+        },
         coverage: { validFraction: 0.65, reason: null },
         observedValue: 0,
       },
@@ -141,6 +149,7 @@ describe("coastal ocean observation contract", () => {
       dataMonth: null,
       source: null,
       nativeUnit: null,
+      geography: null,
       coverage: { validFraction: null, reason: "not-supplied" },
       observedValue: null,
     });
@@ -178,6 +187,39 @@ describe("coastal ocean observation contract", () => {
       biologicalObservation: true,
       status: "invalid",
       coverage: { validFraction: null, reason: "invalid-coverage" },
+      observedValue: null,
+    });
+  });
+
+  it("retains supplied biological geography and rejects malformed geography", () => {
+    expect(
+      summarizeDirectMarineBiologicalObservation({
+        observationKind: "occurrence-record",
+        taxonName: "Example pelagic taxon",
+        dataMonth: { year: 2026, month: 3 },
+        value: 1,
+        nativeUnit: "records",
+        source: BIOLOGICAL_SOURCE,
+        geography: { kind: "point", label: "Station A" },
+      })
+    ).toMatchObject({
+      status: "observed",
+      geography: { kind: "point", label: "Station A" },
+    });
+
+    expect(
+      summarizeDirectMarineBiologicalObservation({
+        observationKind: "occurrence-record",
+        taxonName: "Example pelagic taxon",
+        dataMonth: { year: 2026, month: 3 },
+        value: 1,
+        nativeUnit: "records",
+        source: BIOLOGICAL_SOURCE,
+        geography: { kind: "point", label: "   " },
+      })
+    ).toMatchObject({
+      status: "invalid",
+      coverage: { reason: "invalid-geography" },
       observedValue: null,
     });
   });
