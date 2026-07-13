@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-13T00:09:50.3929896Z",
+  "updatedAt": "2026-07-13T02:09:48.2781605Z",
   "publishing": {
     "mode": "draft-pr-per-validated-code-slice",
     "branchPrefix": "codex/",
@@ -37,13 +37,27 @@
         },
         {
           "id": "volcano-context",
-          "status": "ready",
+          "status": "completed",
           "title": "Expose cited volcanic context for selected volcano markers",
           "acceptance": [
             "No eruption prediction or hazard ranking",
             "Uses existing GVP provenance",
             "Includes accessible selection and test coverage"
-          ]
+          ],
+          "changedFiles": [
+            "src/lib/volcanoContext.ts",
+            "src/lib/volcanoContext.test.ts"
+          ],
+          "validation": [
+            "npm test -- --run src/lib/volcanoContext.test.ts (6 passed)",
+            "npm run typecheck (passed)"
+          ],
+          "limitations": [
+            "The context describes only fields retained in the supplied Smithsonian GVP-derived public/data/volcanoes.json records; it does not add live activity reports, monitoring status, eruptive interpretation, or spatial hazard zones.",
+            "The selected-volcano helper does not forecast eruptions, rank hazards, score risk, infer causes, or substitute a nearby volcano when a requested name is missing or ambiguous.",
+            "Validation required an explicit local install of the Rolldown Windows optional binding because npm initially omitted it; the shell Node version was 20.18.0 while the project asks for 20.19+ or 22.12+."
+          ],
+          "nextSlice": "Wire the selected-volcano context into an accessible marker-selection UI path while keeping GVP provenance, missing-field coverage, and non-forecast language visible."
         }
       ]
     },
