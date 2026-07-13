@@ -128,13 +128,30 @@
         },
         {
           "id": "seasonal-baseline",
-          "status": "ready",
+          "status": "completed",
           "title": "Define a defensible seasonal-baseline comparison model",
           "acceptance": [
             "Uses same-calendar-month baselines only",
             "Has minimum sample and coverage thresholds",
             "Documents limitations in code and tests"
-          ]
+          ],
+          "prUrl": "https://github.com/zkWizard/RoamingEye/pull/206",
+          "changedFiles": [
+            "src/lib/seasonalBaseline.ts",
+            "src/lib/seasonalBaseline.test.ts"
+          ],
+          "validation": [
+            "npm test -- --run src/lib/seasonalBaseline.test.ts (4 passed)",
+            "npm run typecheck (passed)",
+            "npx prettier --check src/lib/seasonalBaseline.ts src/lib/seasonalBaseline.test.ts (passed)"
+          ],
+          "limitations": [
+            "The model describes only supplied monthly climate observations; it does not forecast weather, issue alerts, predict drought, assign risk, diagnose conditions, or attribute causes.",
+            "Anomalies require same metric, same calendar month, prior bounded years by default, at least 10 retained baseline samples, and known valid spatial coverage of at least 0.6 for target and baseline observations.",
+            "Missing spatial valid fraction is not inferred as full coverage, adjacent calendar months are never substituted, and no missing years are filled or interpolated.",
+            "Uncertainty is limited to descriptive baseline spread and standard error from the retained sample; it is not a probabilistic forecast or confidence statement about future months."
+          ],
+          "nextSlice": "Connect the same-calendar-month baseline comparison to a provenance-first climate probe view with visible sample counts, coverage thresholds, uncertainty fields, and non-forecast copy."
         }
       ]
     },
