@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { test, expect, type Page } from "@playwright/test";
+import { awaitAppInteractive } from "./boot";
 
 /**
  * Visual regression for the scientific chrome — legends, timeline, picker,
@@ -47,9 +48,7 @@ async function boot(
   // Freeze the timeline: no freshness growth, pinned month via the hash.
   await page.route("**DescribeDomains**", (route) => route.abort());
   await page.goto(`/${hash}`);
-  await page.waitForFunction(() => window.__APP_READY__ === true, null, {
-    timeout: 30_000,
-  });
+  await awaitAppInteractive(page);
   // Stop the render loop through the app's own hidden-tab path: per-frame
   // WebGL work recomposites nondeterministically under SwiftShader, and
   // Playwright's stability check (two consecutive identical shots) never

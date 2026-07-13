@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { isAbortError } from "../lib/net";
+import { loadAbortableTexture } from "../lib/textures";
 import {
   gibsWmsUrl,
   type LayerConfig,
@@ -40,7 +42,6 @@ interface ManagerOptions {
 
 export class GlobeTextureManager {
   private readonly material: THREE.MeshStandardMaterial;
-  private readonly loader = new THREE.TextureLoader();
   private readonly anisotropy: number;
 
   // Preview textures are kept for the whole current range; sharp textures are
@@ -60,7 +61,9 @@ export class GlobeTextureManager {
   private currentKey: string | undefined;
   private sharpSeq = 0;
   private sharpTimer: ReturnType<typeof setTimeout> | undefined;
+  private sharpAbort: AbortController | undefined;
   private prefetchSeq = 0;
+  private prefetchAbort: AbortController | undefined;
 
   constructor(
     material: THREE.MeshStandardMaterial,
@@ -94,6 +97,9 @@ export class GlobeTextureManager {
       this.touchSharp(key, sharp);
       this.apply(sharp);
       this.cancelSharp();
+      // A cached hit also makes any in-flight sharp download for a previous
+      // month pointless — stop paying for it.
+      this.sharpAbort?.abort();
       this.onLoadingChange?.(false);
       return;
     }
@@ -117,6 +123,11 @@ export class GlobeTextureManager {
    */
   prefetchPreviews(layer: LayerConfig, months: YearMonth[]): void {
     const seq = ++this.prefetchSeq;
+    // A superseded prefetch's downloads are pure waste — cancel them rather
+    // than letting them finish and be disposed.
+    this.prefetchAbort?.abort();
+    this.prefetchAbort = new AbortController();
+    const signal = this.prefetchAbort.signal;
     this.disposePreviewsExcept(layer.id);
 
     // Dedupe by cache key: a static layer maps every month to the same key, so
@@ -137,9 +148,11 @@ export class GlobeTextureManager {
         const ym = pending[next++];
         const key = keyFor(layer, ym);
         active++;
-        this.loader.load(
-          gibsWmsUrl(layer, ym, this.preview),
-          (texture) => {
+        loadAbortableTexture(gibsWmsUrl(layer, ym, this.preview), {
+          signal,
+          retries: 0,
+        })
+          .then((texture) => {
             if (seq === this.prefetchSeq) {
               this.prep(texture, true);
               this.previewCache.set(key, texture);
@@ -147,15 +160,15 @@ export class GlobeTextureManager {
             } else {
               texture.dispose();
             }
+          })
+          .catch(() => {
+            // Abort or network failure — either way the pump moves on; a
+            // missing preview just means that month loads on demand.
+          })
+          .finally(() => {
             active--;
             pump();
-          },
-          undefined,
-          () => {
-            active--;
-            pump();
-          }
-        );
+          });
       }
     };
 
@@ -164,7 +177,9 @@ export class GlobeTextureManager {
 
   dispose(): void {
     this.cancelSharp();
+    this.sharpAbort?.abort();
     this.prefetchSeq++; // stop any in-flight prefetch pumps
+    this.prefetchAbort?.abort();
     for (const texture of this.previewCache.values()) texture.dispose();
     for (const texture of this.sharpCache.values()) texture.dispose();
     this.previewCache.clear();
@@ -192,9 +207,16 @@ export class GlobeTextureManager {
     key: string,
     seq: number
   ): void {
-    this.loader.load(
-      gibsWmsUrl(layer, ym, this.sharp),
-      (texture) => {
+    // One sharp download at a time: starting this one makes any previous
+    // in-flight sharp request stale — cancel it instead of downloading a
+    // texture the seq guard would only dispose.
+    this.sharpAbort?.abort();
+    this.sharpAbort = new AbortController();
+    loadAbortableTexture(gibsWmsUrl(layer, ym, this.sharp), {
+      signal: this.sharpAbort.signal,
+      retries: 0,
+    })
+      .then((texture) => {
         // Drop if a newer selection or sharp request superseded this one.
         if (seq !== this.sharpSeq || key !== this.currentKey) {
           texture.dispose();
@@ -205,9 +227,11 @@ export class GlobeTextureManager {
         this.evictSharp();
         this.apply(texture);
         this.onLoadingChange?.(false);
-      },
-      undefined,
-      () => {
+      })
+      .catch((err: unknown) => {
+        // An abort is a non-event by design: the superseding request owns
+        // the loading state and the user surface.
+        if (isAbortError(err)) return;
         // External/network failure is recoverable — warn, don't error, so it
         // doesn't trip the e2e "no console errors" smoke test.
         console.warn(`RoamingEye: failed to load imagery for ${key}`);
@@ -218,8 +242,7 @@ export class GlobeTextureManager {
           this.onLoadingChange?.(false);
           this.onError?.(key);
         }
-      }
-    );
+      });
   }
 
   private apply(texture: THREE.Texture): void {

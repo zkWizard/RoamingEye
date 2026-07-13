@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { awaitAppInteractive } from "./boot";
 
 /**
  * Behavioural e2e for the interactive surfaces that don't depend on external
@@ -15,9 +16,7 @@ test.beforeEach(async ({ page }) => {
   pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
   await page.goto("/");
-  await page.waitForFunction(() => window.__APP_READY__ === true, null, {
-    timeout: 30_000,
-  });
+  await awaitAppInteractive(page);
 });
 
 test.afterEach(() => {
@@ -433,11 +432,9 @@ test("restores the last session; a URL hash still wins", async ({ page }) => {
   await page.waitForTimeout(700); // debounced persistence
 
   // Plain revisit (no hash): the session restores. waitUntil commit — the
-  // boot prefetch can hold the load event back; __APP_READY__ is the gate.
+  // interactive gate (render + curtain) is what matters, not the load event.
   await page.goto("/", { waitUntil: "commit" });
-  await page.waitForFunction(() => window.__APP_READY__ === true, null, {
-    timeout: 30_000,
-  });
+  await awaitAppInteractive(page);
   await expect(page.locator(".layer-selector__current")).toHaveText(
     "Vegetation (EVI)"
   );
@@ -449,9 +446,7 @@ test("restores the last session; a URL hash still wins", async ({ page }) => {
   // An explicit hash outranks the stored session.
   await page.goto("/#layer=snow", { waitUntil: "commit" });
   await page.reload({ waitUntil: "commit" });
-  await page.waitForFunction(() => window.__APP_READY__ === true, null, {
-    timeout: 30_000,
-  });
+  await awaitAppInteractive(page);
   await expect(page.locator(".layer-selector__current")).toHaveText(
     "Snow cover"
   );

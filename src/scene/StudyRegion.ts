@@ -5,7 +5,9 @@ import {
   splitBoundsAtAntimeridian,
   type Bounds,
 } from "../lib/imagery";
+import { isAbortError } from "../lib/net";
 import { pickBestScene } from "../lib/sceneSelection";
+import { loadAbortableBitmap, loadAbortableTexture } from "../lib/textures";
 import { formatYm, type YearMonth } from "../lib/timeline";
 
 interface StudyCallbacks {
@@ -23,13 +25,12 @@ interface StudyCallbacks {
 export class StudyRegion {
   readonly object = new THREE.Group();
   private mesh: THREE.Mesh | undefined;
-  private readonly loader = new THREE.TextureLoader();
-  private readonly imageLoader = new THREE.ImageLoader();
   private bounds: Bounds | undefined;
   private monthKey: string | undefined;
 
   private seq = 0;
   private debounce: ReturnType<typeof setTimeout> | undefined;
+  private texAbort: AbortController | undefined;
 
   constructor(
     private readonly maxAnisotropy: number,
@@ -62,6 +63,7 @@ export class StudyRegion {
   hide(): void {
     this.object.visible = false;
     this.seq++; // invalidate any in-flight resolve
+    this.texAbort?.abort(); // and stop paying for its texture download
   }
 
   private async resolve(ym: YearMonth): Promise<void> {
@@ -108,21 +110,33 @@ export class StudyRegion {
     // continuous bounds, so its UVs line up with the composite unchanged.
     const parts = splitBoundsAtAntimeridian(this.bounds);
     const TOTAL = 4096;
+    // One texture download at a time: a newer month/scene supersedes any
+    // in-flight one — cancel it (the seq guard already ignores its result;
+    // aborting stops the bytes too). AbortError is a non-event by design.
+    this.texAbort?.abort();
+    this.texAbort = new AbortController();
+    const signal = this.texAbort.signal;
     if (parts.length === 1) {
-      // The common case keeps the proven single-request TextureLoader path.
       const url = gibsRegionUrl(wmsLayer, parts[0].bounds, date, {
         width: TOTAL,
         height: TOTAL,
       });
-      this.loader.load(
-        url,
-        (texture) => this.applyTexture(texture, seq, onApplied),
-        undefined,
-        () => this.textureFailed(date, seq)
-      );
+      loadAbortableTexture(url, { signal, retries: 0 })
+        .then((texture) => this.applyTexture(texture, seq, onApplied))
+        .catch((err: unknown) => {
+          if (!isAbortError(err)) this.textureFailed(date, seq);
+        });
       return;
     }
-    void this.loadStitched(wmsLayer, date, parts, TOTAL, seq, onApplied);
+    void this.loadStitched(
+      wmsLayer,
+      date,
+      parts,
+      TOTAL,
+      seq,
+      signal,
+      onApplied
+    );
   }
 
   /** Fetch each piece's GetMap and concatenate them left→right on a canvas. */
@@ -132,6 +146,7 @@ export class StudyRegion {
     parts: ReturnType<typeof splitBoundsAtAntimeridian>,
     total: number,
     seq: number,
+    signal: AbortSignal,
     onApplied: () => void
   ): Promise<void> {
     // Pixel widths proportional to angular widths, exactly filling the canvas.
@@ -141,30 +156,35 @@ export class StudyRegion {
     widths[widths.length - 1] =
       total - widths.slice(0, -1).reduce((a, w) => a + w, 0);
     try {
-      const images = await Promise.all(
+      const bitmaps = await Promise.all(
         parts.map((part, i) =>
-          this.imageLoader.loadAsync(
+          loadAbortableBitmap(
             gibsRegionUrl(wmsLayer, part.bounds, date, {
               width: widths[i],
               height: total,
-            })
+            }),
+            { signal, retries: 0 }
           )
         )
       );
-      if (seq !== this.seq || !this.mesh) return;
+      if (seq !== this.seq || !this.mesh) {
+        for (const bitmap of bitmaps) bitmap.close();
+        return;
+      }
       const canvas = document.createElement("canvas");
       canvas.width = total;
       canvas.height = total;
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("2d context unavailable");
       let x = 0;
-      for (let i = 0; i < images.length; i++) {
-        ctx.drawImage(images[i], x, 0, widths[i], total);
+      for (let i = 0; i < bitmaps.length; i++) {
+        ctx.drawImage(bitmaps[i], x, 0, widths[i], total);
+        bitmaps[i].close();
         x += widths[i];
       }
       this.applyTexture(new THREE.CanvasTexture(canvas), seq, onApplied);
-    } catch {
-      this.textureFailed(date, seq);
+    } catch (err) {
+      if (!isAbortError(err)) this.textureFailed(date, seq);
     }
   }
 

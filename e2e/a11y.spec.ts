@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { awaitAppInteractive } from "./boot";
 
 /**
  * Enforced accessibility: axe-core (WCAG 2.x A/AA rule tags) scans the app
@@ -73,9 +74,7 @@ async function boot(page: Page, theme: "dark" | "light"): Promise<void> {
     theme
   );
   await page.goto("/");
-  await page.waitForFunction(() => window.__APP_READY__ === true, null, {
-    timeout: 30_000,
-  });
+  await awaitAppInteractive(page);
 }
 
 test.beforeEach(async ({ page }, testInfo) => {

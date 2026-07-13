@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { awaitAppInteractive } from "./boot";
 
 /**
  * Long-session soak: research use isn't a 5-minute demo — this tool stays
@@ -37,9 +38,7 @@ test("resource footprint stays bounded through a working session", async ({
   page.on("pageerror", (err) => pageErrors.push(err.message));
 
   await page.goto("/");
-  await page.waitForFunction(() => window.__APP_READY__ === true, null, {
-    timeout: 30_000,
-  });
+  await awaitAppInteractive(page);
 
   const stats = () => page.evaluate(() => window.__RENDERER_STATS__!());
   expect(await page.evaluate(() => typeof window.__RENDERER_STATS__)).toBe(

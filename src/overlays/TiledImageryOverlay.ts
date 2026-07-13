@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { latLngToVector3, vector3ToLatLng } from "../lib/geo";
+import { loadAbortableTexture } from "../lib/textures";
 import {
   ancestorOf,
   ancestorUvRect,
@@ -72,7 +73,6 @@ export class TiledImageryOverlay implements MapOverlay {
   /** Streaming is the default rendering path (RFC-001 milestone 6). */
   readonly defaultOn = true;
 
-  private readonly loader = new THREE.TextureLoader();
   private readonly textures = new Map<string, THREE.Texture>(); // LRU
   private readonly shown = new Map<string, ShownTile>(); // by address key
   private readonly loading = new Set<string>();
@@ -87,6 +87,7 @@ export class TiledImageryOverlay implements MapOverlay {
   private ym: YearMonth | undefined;
   private lastWanted: TileAddress[] = [];
   private generation = 0;
+  private generationAbort = new AbortController();
   private lastSignature = "";
   private lastUpdate = 0;
 
@@ -160,6 +161,10 @@ export class TiledImageryOverlay implements MapOverlay {
   /** Drop everything shown/queued and abandon in-flight loads (layer changed). */
   private invalidate(): void {
     this.generation++;
+    // Superseded generations' downloads are cancelled outright — a month
+    // scrub across N months must not pay for N screenfuls of stale tiles.
+    this.generationAbort.abort();
+    this.generationAbort = new AbortController();
     this.queue = [];
     this.wantedKeys.clear();
     this.lastWanted = [];
@@ -301,9 +306,14 @@ export class TiledImageryOverlay implements MapOverlay {
       if (!job) break;
       const generation = this.generation;
       this.loading.add(job.key);
-      this.loader.load(
-        job.url,
-        (texture) => {
+      // Cancellation is per-GENERATION (layer/month change), not per camera
+      // move: a tile the camera has left stays worth finishing — it lands in
+      // the LRU cache and draping it later is instant.
+      loadAbortableTexture(job.url, {
+        signal: this.generationAbort.signal,
+        retries: 0,
+      })
+        .then((texture) => {
           this.loading.delete(job.key);
           if (generation !== this.generation) {
             texture.dispose(); // superseded by a layer/month change
@@ -319,14 +329,13 @@ export class TiledImageryOverlay implements MapOverlay {
             this.evict();
           }
           this.pump();
-        },
-        undefined,
-        () => {
-          // Missing tiles (ocean-only, over-zoom, outages) keep the fallback.
+        })
+        .catch(() => {
+          // Abort (superseded generation) or a missing tile (ocean-only,
+          // over-zoom, outages) — both keep the parent-tile fallback.
           this.loading.delete(job.key);
           this.pump();
-        }
-      );
+        });
     }
   }
 
