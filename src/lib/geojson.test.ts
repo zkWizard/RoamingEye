@@ -4,6 +4,7 @@ import {
   geometryBounds,
   geometryContains,
   geometryGridPoints,
+  geometrySamplingPlan,
   geometryToRings,
   isAreaGeometry,
 } from "./geojson";
@@ -232,6 +233,68 @@ describe("geometryToRings", () => {
     expect(geometryContains(geometry, 0, 179.4)).toBe(true);
     expect(geometryContains(geometry, 0, -179.4)).toBe(true);
     expect(geometryContains(geometry, 0, 180)).toBe(false);
+  });
+
+  it("labels an in-boundary fallback as a point when a thin boundary misses the bounded grid", () => {
+    const sparseMultipolygon = {
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [0, 0],
+            [0.1, 0],
+            [0.1, 0.1],
+            [0, 0.1],
+            [0, 0],
+          ],
+        ],
+        [
+          [
+            [3.9, 3.9],
+            [4, 3.9],
+            [4, 4],
+            [3.9, 4],
+            [3.9, 3.9],
+          ],
+        ],
+      ],
+    };
+    expect(geometryGridPoints(sparseMultipolygon, 4)).toEqual([]);
+    expect(
+      geometrySamplingPlan(sparseMultipolygon, 4, { lat: 0.05, lon: 0.05 })
+    ).toEqual({
+      points: [{ lat: 0.05, lon: 0.05 }],
+      strategy: "boundary-point",
+    });
+  });
+
+  it("does not substitute an out-of-boundary search coordinate", () => {
+    const sparseMultipolygon = {
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [0, 0],
+            [0.1, 0],
+            [0.1, 0.1],
+            [0, 0.1],
+            [0, 0],
+          ],
+        ],
+        [
+          [
+            [3.9, 3.9],
+            [4, 3.9],
+            [4, 4],
+            [3.9, 4],
+            [3.9, 3.9],
+          ],
+        ],
+      ],
+    };
+    expect(
+      geometrySamplingPlan(sparseMultipolygon, 4, { lat: 1, lon: 2 })
+    ).toBeNull();
   });
 
   it("properties: seam-crossing boxes use the short arc, not the long complement", () => {
