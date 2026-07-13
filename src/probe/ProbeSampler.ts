@@ -66,6 +66,9 @@ export interface SampleResult {
    * whose image failed to load) — coverage honesty for the CSV's
    * valid_fraction column. */
   validFractions: number[];
+  /** Dimensions of the rendered GIBS image actually sampled. These describe
+   * the source imagery, not a ground-resolution measurement. */
+  sourceImageDimensions: { width: number; height: number };
 }
 
 /** Ground span of the area-mode box, in degrees of latitude. */
@@ -278,7 +281,11 @@ export class ProbeSampler {
     await Promise.all(
       Array.from({ length: Math.min(this.concurrency, months.length) }, worker)
     );
-    return { values, validFractions };
+    return {
+      values,
+      validFractions,
+      sourceImageDimensions: { ...this.imageSize },
+    };
   }
 
   /** The set of source pixels a mode reads (deduped for coarse images). */

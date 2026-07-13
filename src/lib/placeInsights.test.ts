@@ -85,4 +85,59 @@ describe("place insights", () => {
       detail: "No usable Mar 2026 coverage",
     });
   });
+  it("ties small and large regional means to coverage and rendered-image provenance", () => {
+    const vegetation = PLACE_METRICS.find(
+      (metric) => metric.id === "vegetation"
+    );
+    if (!vegetation) throw new Error("vegetation metric missing");
+    const months: [
+      { year: number; month: number },
+      { year: number; month: number },
+    ] = [
+      { year: 2026, month: 1 },
+      { year: 2026, month: 2 },
+    ];
+
+    expect(
+      placeInsightReading(vegetation, months, [0.3, 0.4], {
+        validFractions: [1, 1],
+        sourceImageDimensions: { width: 512, height: 512 },
+      }).detail
+    ).toContain(
+      "Feb 2026: 100% sampled coverage; rendered source image 512 x 512 px; approximate regional mean"
+    );
+    expect(
+      placeInsightReading(vegetation, months, [0.3, 0.4], {
+        validFractions: [0.8, 0.76],
+        sourceImageDimensions: { width: 1024, height: 512 },
+      }).detail
+    ).toContain(
+      "Feb 2026: 76% sampled coverage; rendered source image 1024 x 512 px; approximate regional mean"
+    );
+  });
+
+  it("makes partial coastal and missing regional coverage explicit", () => {
+    const vegetation = PLACE_METRICS.find(
+      (metric) => metric.id === "vegetation"
+    );
+    if (!vegetation) throw new Error("vegetation metric missing");
+    const months: [
+      { year: number; month: number },
+      { year: number; month: number },
+    ] = [
+      { year: 2026, month: 1 },
+      { year: 2026, month: 2 },
+    ];
+    const provenance = {
+      validFractions: [0.9, 0.25],
+      sourceImageDimensions: { width: 512, height: 512 },
+    };
+
+    expect(
+      placeInsightReading(vegetation, months, [0.3, 0.4], provenance).detail
+    ).toContain("Feb 2026: 25% sampled coverage");
+    expect(
+      placeInsightReading(vegetation, months, [0.3, null], provenance).detail
+    ).toContain("No usable Feb 2026 coverage; 25% sampled coverage");
+  });
 });

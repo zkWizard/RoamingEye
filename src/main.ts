@@ -440,12 +440,18 @@ function runPlaceInsights(result: GeoResult): void {
             { lat: result.lat, lon: result.lon },
             { signal: abort.signal }
           );
-      const { values } = await sample;
+      const { values, validFractions, sourceImageDimensions } = await sample;
       if (abort.signal.aborted) return;
       placeInsights.setReading(
         colormap
-          ? placeInsightPhysicalReading(metric, months, values)
-          : placeInsightReading(metric, months, values)
+          ? placeInsightPhysicalReading(metric, months, values, {
+              validFractions,
+              sourceImageDimensions,
+            })
+          : placeInsightReading(metric, months, values, {
+              validFractions,
+              sourceImageDimensions,
+            })
       );
     })().catch((error: unknown) => {
       if (isAbortError(error) || abort.signal.aborted) return;
