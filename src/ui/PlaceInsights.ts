@@ -66,7 +66,7 @@ export class PlaceInsights {
     const note = document.createElement("p");
     note.className = "place-insights__note";
     note.textContent =
-      "Regional means from NASA imagery; products may publish on different monthly schedules.";
+      "Boundary-grid means from NASA imagery; very small or thin boundaries may be labelled as a single in-boundary point estimate. Products may publish on different monthly schedules.";
     container.append(header, grid, note);
   }
 

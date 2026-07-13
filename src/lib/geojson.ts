@@ -19,6 +19,20 @@ export interface GeometryBounds {
   east: number;
 }
 
+/** How a boundary sample was spatially represented. */
+export type GeometrySamplingStrategy = "boundary-grid" | "boundary-point";
+
+/**
+ * A bounded set of locations that can honestly represent a place boundary.
+ * A single point is only permitted when the search result coordinate itself
+ * lies in the boundary; callers must label it as a point estimate, not a
+ * regional mean.
+ */
+export interface GeometrySamplingPlan {
+  points: { lat: number; lon: number }[];
+  strategy: GeometrySamplingStrategy;
+}
+
 type Polygon = Position[][];
 
 interface PreparedPolygon {
@@ -191,6 +205,25 @@ export function geometryGridPoints(
     }
   }
   return points;
+}
+
+/**
+ * Build a spatially honest bounded sampling plan for a place geometry. Thin
+ * or very small boundaries can contain no cell centre at the capped grid
+ * resolution. In that case, use an explicitly point-level fallback only when
+ * Nominatim's result coordinate is inside the exact boundary; otherwise leave
+ * the boundary unsampled instead of reporting an out-of-boundary value.
+ */
+export function geometrySamplingPlan(
+  geometry: GeoGeometry,
+  n: number,
+  fallback: { lat: number; lon: number }
+): GeometrySamplingPlan | null {
+  const points = geometryGridPoints(geometry, n);
+  if (points.length > 0) return { points, strategy: "boundary-grid" };
+  return geometryContains(geometry, fallback.lat, fallback.lon)
+    ? { points: [fallback], strategy: "boundary-point" }
+    : null;
 }
 
 /**

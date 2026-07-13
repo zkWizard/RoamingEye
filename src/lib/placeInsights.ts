@@ -15,6 +15,7 @@ import {
   type ColormapEntry,
 } from "./colormap";
 import { fetchWithRetry } from "./net";
+import type { GeometrySamplingStrategy } from "./geojson";
 
 export type PlaceMetricId = "vegetation" | "rainfall" | "soil" | "air";
 
@@ -44,6 +45,10 @@ export interface PlaceInsightReading {
 export interface PlaceSamplingProvenance {
   validFractions?: readonly number[];
   sourceImageDimensions?: { width: number; height: number };
+  /** A bounded boundary grid normally represents the place. A single search
+   * coordinate is retained only when it falls inside the boundary and must not
+   * be presented as a regional mean. */
+  geometrySamplingStrategy?: GeometrySamplingStrategy;
 }
 
 export interface PlaceColormap {
@@ -196,13 +201,23 @@ function samplingSuffix(
 ): string {
   if (!provenance) return "";
   const fraction = provenance.validFractions?.[currentIndex];
+  const pointEstimate =
+    provenance.geometrySamplingStrategy === "boundary-point";
   const coverage =
     fraction !== undefined &&
     Number.isFinite(fraction) &&
     fraction >= 0 &&
     fraction <= 1
-      ? `${label ? `; ${label}: ` : "; "}${Math.round(fraction * 100)}% sampled coverage`
-      : `${label ? `; ${label}: ` : "; "}sampled coverage not supplied`;
+      ? pointEstimate
+        ? `${label ? `; ${label}: ` : "; "}single in-boundary image sample ${
+            fraction === 1 ? "has data" : "has no data"
+          }`
+        : `${label ? `; ${label}: ` : "; "}${Math.round(fraction * 100)}% sampled coverage`
+      : `${label ? `; ${label}: ` : "; "}${
+          pointEstimate
+            ? "single in-boundary image sample status not supplied"
+            : "sampled coverage not supplied"
+        }`;
   const dimensions = provenance.sourceImageDimensions;
   const image =
     dimensions &&
@@ -212,7 +227,11 @@ function samplingSuffix(
     dimensions.height > 0
       ? `; rendered source image ${dimensions.width} x ${dimensions.height} px`
       : "; rendered source image dimensions not supplied";
-  return `${coverage}${image}; approximate regional mean`;
+  return `${coverage}${image}; ${
+    pointEstimate
+      ? "single boundary point estimate, not a regional mean"
+      : "approximate regional mean"
+  }`;
 }
 
 function placeValue(
