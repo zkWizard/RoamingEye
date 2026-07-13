@@ -19,6 +19,52 @@ export interface GeometryBounds {
   east: number;
 }
 
+/** How a boundary sample was spatially represented. */
+export type GeometrySamplingStrategy = "boundary-grid" | "boundary-point";
+
+/**
+ * A bounded set of locations that can honestly represent a place boundary.
+ * A single point is only permitted when the search result coordinate itself
+ * lies in the boundary; callers must label it as a point estimate, not a
+ * regional mean.
+ */
+export interface GeometrySamplingPlan {
+  points: { lat: number; lon: number }[];
+  strategy: GeometrySamplingStrategy;
+}
+
+/** A deterministic, masked, refined sampling layout for an area geometry. */
+export interface RefinedGeometrySamplingPlan extends GeometrySamplingPlan {
+  /** Grid-cell centres proven to lie inside the input geometry. */
+  strategy: "boundary-grid";
+  /** Cells along each axis in the grid that supplied the retained points. */
+  gridSize: number;
+  /** All grid cells evaluated in the final refinement pass. */
+  candidatePointCount: number;
+  /** Interior cells before the stable point-limit guard was applied. */
+  interiorPointCount: number;
+  /** True when the plan retained a representative subset for bounded work. */
+  pointLimitApplied: boolean;
+}
+
+export interface GeometrySamplingOptions {
+  /** Aim for at least this many masked cells when geometry permits. */
+  minPoints?: number;
+  /** Tighter upper bound for a refinement axis; never exceeds the hard cap. */
+  maxGridSize?: number;
+  /** Tighter upper bound for retained imagery-sampler points. */
+  maxPoints?: number;
+}
+
+/** Minimum interior support sought before a sparse geometry grid is refined. */
+export const DEFAULT_GEOMETRY_MIN_POINTS = 16;
+
+/** A 64 x 64 geometry-mask pass is the bounded last-resort refinement. */
+export const MAX_GEOMETRY_GRID_SIZE = 64;
+
+/** Matches the existing 28 x 28 regional probing ceiling. */
+export const MAX_GEOMETRY_SAMPLE_POINTS = 784;
+
 type Polygon = Position[][];
 
 interface PreparedPolygon {
@@ -191,6 +237,103 @@ export function geometryGridPoints(
     }
   }
   return points;
+}
+
+function positiveInteger(value: number, fallback: number): number {
+  return Number.isFinite(value) && value >= 1 ? Math.floor(value) : fallback;
+}
+
+function evenlySpacedPoints<T>(points: T[], maxPoints: number): T[] {
+  if (points.length <= maxPoints) return points;
+  // Selecting by evenly spaced ranks keeps the result deterministic and
+  // spreads the retained samples over the row-major grid rather than taking
+  // the first part of a place boundary.
+  return Array.from(
+    { length: maxPoints },
+    (_, index) =>
+      points[Math.floor(((index + 0.5) * points.length) / maxPoints)]
+  );
+}
+
+/**
+ * Build a bounded interior grid for sampling an exact Polygon or
+ * MultiPolygon. A fixed coarse grid can miss valid narrow, fragmented, or
+ * slanted boundaries entirely. This progressively refines only while fewer
+ * than `minPoints` cell centres fall inside, then caps retained points at the
+ * established regional probing budget. Points remain in the geometry bounds'
+ * continuous longitude frame, including across the antimeridian.
+ *
+ * This is still a cell-centre approximation: it does not estimate fractional
+ * coverage of boundary cells. Callers receive the pre-limit interior count so
+ * downstream provenance can distinguish a sparse mask from a capped layout.
+ */
+export function geometrySamplingPlan(
+  geometry: GeoGeometry,
+  n: number,
+  fallback: { lat: number; lon: number }
+): GeometrySamplingPlan | null;
+export function geometrySamplingPlan(
+  geometry: GeoGeometry,
+  initialGridSize: number,
+  options?: GeometrySamplingOptions
+): RefinedGeometrySamplingPlan | null;
+export function geometrySamplingPlan(
+  geometry: GeoGeometry,
+  initialGridSize: number,
+  fallbackOrOptions: { lat: number; lon: number } | GeometrySamplingOptions = {}
+): GeometrySamplingPlan | RefinedGeometrySamplingPlan | null {
+  if ("lat" in fallbackOrOptions && "lon" in fallbackOrOptions) {
+    // Spatial-honesty mode: a fixed grid at the caller's resolution, with an
+    // explicitly point-level fallback only when the search coordinate itself
+    // lies inside the exact boundary. No refinement happens here; callers that
+    // want the bounded refinement pass options (or nothing) instead.
+    const fallback = fallbackOrOptions;
+    const points = geometryGridPoints(geometry, initialGridSize);
+    if (points.length > 0) return { points, strategy: "boundary-grid" };
+    return geometryContains(geometry, fallback.lat, fallback.lon)
+      ? { points: [fallback], strategy: "boundary-point" }
+      : null;
+  }
+  const options = fallbackOrOptions;
+  if (!geometryBounds(geometry)) return null;
+
+  const maxGridSize = Math.min(
+    MAX_GEOMETRY_GRID_SIZE,
+    positiveInteger(
+      options.maxGridSize ?? MAX_GEOMETRY_GRID_SIZE,
+      MAX_GEOMETRY_GRID_SIZE
+    )
+  );
+  const maxPoints = Math.min(
+    MAX_GEOMETRY_SAMPLE_POINTS,
+    positiveInteger(
+      options.maxPoints ?? MAX_GEOMETRY_SAMPLE_POINTS,
+      MAX_GEOMETRY_SAMPLE_POINTS
+    )
+  );
+  const minPoints = Math.min(
+    maxPoints,
+    positiveInteger(
+      options.minPoints ?? DEFAULT_GEOMETRY_MIN_POINTS,
+      DEFAULT_GEOMETRY_MIN_POINTS
+    )
+  );
+  let gridSize = Math.min(maxGridSize, positiveInteger(initialGridSize, 1));
+  let points = geometryGridPoints(geometry, gridSize);
+
+  while (points.length < minPoints && gridSize < maxGridSize) {
+    gridSize = Math.min(maxGridSize, gridSize * 2);
+    points = geometryGridPoints(geometry, gridSize);
+  }
+
+  return {
+    points: evenlySpacedPoints(points, maxPoints),
+    strategy: "boundary-grid",
+    gridSize,
+    candidatePointCount: gridSize * gridSize,
+    interiorPointCount: points.length,
+    pointLimitApplied: points.length > maxPoints,
+  };
 }
 
 /**
