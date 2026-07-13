@@ -53,7 +53,7 @@ steps from cached records without making network calls.
 
 ## Automation and safety
 
-`.github/workflows/agent-fleet.yml` runs weekly and on demand. It gives the
+`.github/workflows/agent-fleet.yml` runs every 30 minutes and on demand. It gives the
 catalog job narrowly scoped `contents: write` and `pull-requests: write`
 permissions solely to create a signed, **draft** PR. It never pushes to `main`.
 All generated text is rendered as DOM text, not HTML, and all catalog records
