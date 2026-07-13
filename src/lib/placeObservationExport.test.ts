@@ -3,6 +3,7 @@ import { LAYERS } from "./timeline";
 import {
   GIBS_IMAGERY_SOURCE,
   createPlaceObservationExport,
+  placeObservationProductFromSample,
   serializePlaceObservationExport,
 } from "./placeObservationExport";
 
@@ -64,7 +65,7 @@ describe("place observation export", () => {
     const exported = createPlaceObservationExport(input);
 
     expect(exported).toMatchObject({
-      schema: "roamingeye-place-observation-export/v1",
+      schema: "roamingeye-place-observation-export/v2",
       kind: "place-observation-export",
       boundary,
       products: [
@@ -98,9 +99,34 @@ describe("place observation export", () => {
         tool: "RoamingEye",
         version: "1.1.0",
       },
+      reproducibility: {
+        canonicalOrder: {
+          products: "layer-id-ascending",
+          observations: "data-month-ascending",
+        },
+        dataMonthMatrix: [
+          {
+            dataMonth: "2026-04",
+            layers: [
+              { layerId: "ndvi", recordStatus: "value-recorded" },
+              { layerId: "precip", recordStatus: "value-recorded" },
+            ],
+          },
+          {
+            dataMonth: "2026-05",
+            layers: [
+              { layerId: "ndvi", recordStatus: "no-data-recorded" },
+              { layerId: "precip", recordStatus: "not-recorded" },
+            ],
+          },
+        ],
+      },
     });
     expect(exported.limitations.join(" ")).toMatch(
       /not infer conditions, causes, risks, or future values/i
+    );
+    expect(exported.limitations.join(" ")).toMatch(
+      /do not make values across products interchangeable/i
     );
   });
 
@@ -114,6 +140,7 @@ describe("place observation export", () => {
       "method",
       "privacy",
       "products",
+      "reproducibility",
       "schema",
     ]);
     expect(exported.privacy).toEqual({
@@ -135,11 +162,25 @@ describe("place observation export", () => {
     );
   });
 
-  it("serializes stable JSON and rejects ambiguous or invalid reproducibility metadata", () => {
+  it("canonicalizes equivalent product and month order for reproducible JSON", () => {
     const json = serializePlaceObservationExport(input);
     expect(JSON.parse(json)).toEqual(createPlaceObservationExport(input));
     expect(json).toContain('"dataMonth": "2026-04"');
 
+    const reordered = {
+      ...input,
+      products: input.products
+        .map((product) => ({
+          ...product,
+          observations: [...product.observations].reverse(),
+        }))
+        .reverse(),
+    };
+
+    expect(serializePlaceObservationExport(reordered)).toBe(json);
+  });
+
+  it("rejects ambiguous or invalid reproducibility metadata", () => {
     expect(() =>
       createPlaceObservationExport({
         ...input,
@@ -172,5 +213,61 @@ describe("place observation export", () => {
         ],
       })
     ).toThrow("Product ndvi has duplicate month 2026-04.");
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            observations: [
+              {
+                dataMonth: { year: 2026, month: 4 },
+                value: 0.1,
+                validFraction: 0,
+              },
+            ],
+          },
+        ],
+      })
+    ).toThrow("Product ndvi has a value with zero sampled coverage.");
+  });
+
+  it("reverses display conversions before exporting cited native units", () => {
+    const precipitation = placeObservationProductFromSample({
+      layerId: "precip",
+      sourceValueFactor: 86_400,
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 4 },
+          // The place card displays this equivalent rate as mm/day.
+          value: 8.64,
+          validFraction: 0.75,
+        },
+        { dataMonth: { year: 2026, month: 5 }, value: null },
+      ],
+    });
+
+    expect(precipitation).toMatchObject({
+      layerId: "precip",
+      wmsLayer: LAYERS.precip.wmsLayer,
+      source: LAYERS.precip.dataset,
+      nativeUnit: "kg/m²/s",
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 4 },
+          value: 0.0001,
+          validFraction: 0.75,
+        },
+        { dataMonth: { year: 2026, month: 5 }, value: null },
+      ],
+    });
+
+    expect(() =>
+      placeObservationProductFromSample({
+        layerId: "ndvi",
+        observations: [],
+        sourceValueFactor: 0,
+      })
+    ).toThrow("sourceValueFactor must be a positive finite number.");
   });
 });
