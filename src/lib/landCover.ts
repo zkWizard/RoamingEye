@@ -269,3 +269,142 @@ export function publicationStatusForYear(
     ? "published"
     : "outside-layer-range";
 }
+
+/**
+ * Broad vegetation-formation groups for the IGBP LC_Type1 scheme.
+ *
+ * The 17 informative IGBP classes are routinely collapsed into coarser
+ * formation groups for summary reporting. Grouping only re-buckets whole class
+ * codes and sums their sample counts; it never averages the categorical class
+ * identifiers. Source unclassified pixels (code 255) carry no land-cover type
+ * and therefore belong to no formation.
+ */
+export type LandCoverFormationId =
+  | "forest"
+  | "shrubland"
+  | "savanna"
+  | "grassland"
+  | "wetland"
+  | "cropland"
+  | "urban"
+  | "snow-and-ice"
+  | "barren"
+  | "water";
+
+export interface LandCoverFormation {
+  id: LandCoverFormationId;
+  label: string;
+  /** Whole IGBP LC_Type1 class codes collapsed into this formation. */
+  classCodes: readonly IgbpLandCoverClassCode[];
+}
+
+/**
+ * IGBP LC_Type1 classes 1..17 grouped into vegetation formations. Every
+ * informative class code appears in exactly one group; codes 6-7, 8-9, and
+ * 12/14 are the standard multi-class formations.
+ */
+export const LAND_COVER_FORMATIONS: readonly LandCoverFormation[] = [
+  { id: "forest", label: "Forest", classCodes: [1, 2, 3, 4, 5] },
+  { id: "shrubland", label: "Shrubland", classCodes: [6, 7] },
+  { id: "savanna", label: "Savanna", classCodes: [8, 9] },
+  { id: "grassland", label: "Grassland", classCodes: [10] },
+  { id: "wetland", label: "Permanent wetland", classCodes: [11] },
+  { id: "cropland", label: "Cropland", classCodes: [12, 14] },
+  { id: "urban", label: "Urban & built-up", classCodes: [13] },
+  { id: "snow-and-ice", label: "Permanent snow & ice", classCodes: [15] },
+  { id: "barren", label: "Barren", classCodes: [16] },
+  { id: "water", label: "Water", classCodes: [17] },
+];
+
+export interface LandCoverFormationCoverage {
+  id: LandCoverFormationId;
+  label: string;
+  classCodes: readonly IgbpLandCoverClassCode[];
+  sampleCount: number;
+  /** Denominator is every counted sample, including no-data and unclassified. */
+  fractionOfAllSamples: number;
+  /** Denominator is samples carrying an informative IGBP class 1..17. */
+  fractionOfKnownLandCover: number;
+}
+
+export interface LandCoverFormationSummary {
+  kind: "observed-land-cover-formation-groups";
+  /** Explicitly prevents consumers from treating this as a temporal forecast. */
+  isForecast: false;
+  provenance: LandCoverProvenance;
+  formationCoverage: LandCoverFormationCoverage[];
+  /** Most common formation by sample count; null when no known class present. */
+  dominantFormation: LandCoverFormationCoverage | null;
+  /**
+   * Informative-class samples not mapped to any formation. Zero for the
+   * complete IGBP contract; a positive value flags an unmapped class code.
+   */
+  ungroupedKnownSampleCount: number;
+}
+
+const FORMATION_BY_CLASS = new Map<IgbpLandCoverClassCode, LandCoverFormation>(
+  LAND_COVER_FORMATIONS.flatMap((formation) =>
+    formation.classCodes.map((code) => [code, formation] as const)
+  )
+);
+
+/**
+ * Collapse a class-coded land-cover summary into vegetation-formation groups.
+ *
+ * Reuses the already-validated coverage and provenance from
+ * {@link summarizeLandCoverContext}: no dataset reference is dropped and no
+ * class code is re-parsed. Fractions share the same denominators as the class
+ * coverage so callers can mix formation and class views without rescaling.
+ */
+export function summarizeLandCoverFormations(
+  context: LandCoverContextSummary
+): LandCoverFormationSummary {
+  const groupCounts = new Map<LandCoverFormationId, number>();
+  let ungroupedKnownSampleCount = 0;
+
+  for (const entry of context.classCoverage) {
+    if (!entry.isInformativeLandCover) continue;
+    const formation = FORMATION_BY_CLASS.get(entry.classCode);
+    if (!formation) {
+      ungroupedKnownSampleCount += entry.sampleCount;
+      continue;
+    }
+    groupCounts.set(
+      formation.id,
+      (groupCounts.get(formation.id) ?? 0) + entry.sampleCount
+    );
+  }
+
+  const { totalSampleCount, knownLandCoverSampleCount } = context.coverage;
+  const formationCoverage = LAND_COVER_FORMATIONS.filter((formation) =>
+    groupCounts.has(formation.id)
+  )
+    .map((formation) => {
+      const sampleCount = groupCounts.get(formation.id)!;
+      return {
+        id: formation.id,
+        label: formation.label,
+        classCodes: formation.classCodes,
+        sampleCount,
+        fractionOfAllSamples:
+          totalSampleCount === 0 ? 0 : sampleCount / totalSampleCount,
+        fractionOfKnownLandCover:
+          knownLandCoverSampleCount === 0
+            ? 0
+            : sampleCount / knownLandCoverSampleCount,
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.sampleCount - a.sampleCount || a.classCodes[0] - b.classCodes[0]
+    );
+
+  return {
+    kind: "observed-land-cover-formation-groups",
+    isForecast: false,
+    provenance: context.provenance,
+    formationCoverage,
+    dominantFormation: formationCoverage[0] ?? null,
+    ungroupedKnownSampleCount,
+  };
+}
