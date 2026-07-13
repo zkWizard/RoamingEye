@@ -7,7 +7,12 @@ import {
   type MonthlyClimateSummary,
 } from "./climate";
 import { NDVI_SOURCE, NDVI_UNIT } from "./phenology";
-import type { DatasetRef, LayerId, YearMonth } from "./timeline";
+import {
+  compareYm,
+  type DatasetRef,
+  type LayerId,
+  type YearMonth,
+} from "./timeline";
 
 /**
  * Provenance-first environmental condition briefs.
@@ -72,12 +77,41 @@ export interface EnvironmentSignalBrief {
   climateSummary?: MonthlyClimateSummary;
 }
 
+/**
+ * Cross-signal temporal spread of the *usable* observations only.
+ *
+ * The four signals are independent products on different composite calendars
+ * and publication lags, so an "available" vegetation month can differ from an
+ * "available" air-temperature month. This summary makes that spread explicit
+ * so usable observations are never silently read as a synchronized snapshot.
+ * It is a provenance descriptor over data months — never a condition,
+ * comparison, trend, or change claim about the values themselves.
+ */
+export interface EnvironmentTemporalAlignment {
+  /** Available signals whose data months were compared, in signal order. */
+  comparedSignalIds: EnvironmentSignalId[];
+  /** Oldest data month among available signals; null when none are usable. */
+  earliestMonth: YearMonth | null;
+  /** Newest data month among available signals; null when none are usable. */
+  latestMonth: YearMonth | null;
+  /**
+   * Whole-month distance between earliest and latest usable data month.
+   * 0 when a single month covers every usable signal; null when none usable.
+   */
+  spanMonths: number | null;
+  /** True only when 2+ usable signals share one data month. */
+  aligned: boolean;
+  /** Honest caveat sentence; carries no value comparison or condition claim. */
+  statement: string;
+}
+
 export interface EnvironmentBrief {
   kind: "provenance-first-environment-brief";
   signals: EnvironmentSignalBrief[];
   statements: string[];
   unsupportedLanguageHits: string[];
   methodLimits: string[];
+  temporalAlignment: EnvironmentTemporalAlignment;
 }
 
 interface SignalMeta {
@@ -177,7 +211,77 @@ export function composeEnvironmentBrief(
     statements,
     unsupportedLanguageHits: unsupportedBriefLanguageHits(statements.join(" ")),
     methodLimits: METHOD_LIMITS,
+    temporalAlignment: summarizeTemporalAlignment(signals),
   };
+}
+
+/**
+ * Report the temporal spread of the usable (`available`) observations so a
+ * multi-month set is never read as one synchronized moment. Only signals that
+ * carry an observed value are compared — no-data, invalid, and unpublished
+ * signals contribute no month to align. This is a data-currency descriptor,
+ * not a claim that the values themselves rose, fell, or agree.
+ */
+export function summarizeTemporalAlignment(
+  signals: EnvironmentSignalBrief[]
+): EnvironmentTemporalAlignment {
+  const usable = signals.filter(
+    (signal): signal is EnvironmentSignalBrief & { dataMonth: YearMonth } =>
+      signal.status === "available" && signal.dataMonth !== null
+  );
+
+  if (usable.length === 0) {
+    return {
+      comparedSignalIds: [],
+      earliestMonth: null,
+      latestMonth: null,
+      spanMonths: null,
+      aligned: false,
+      statement: "No usable observations to compare across time.",
+    };
+  }
+
+  let earliest = usable[0].dataMonth;
+  let latest = usable[0].dataMonth;
+  for (const signal of usable) {
+    if (compareYm(signal.dataMonth, earliest) < 0) earliest = signal.dataMonth;
+    if (compareYm(signal.dataMonth, latest) > 0) latest = signal.dataMonth;
+  }
+  const spanMonths = compareYm(latest, earliest);
+  const comparedSignalIds = usable.map((signal) => signal.id);
+
+  return {
+    comparedSignalIds,
+    earliestMonth: earliest,
+    latestMonth: latest,
+    spanMonths,
+    // A lone usable signal has nothing to align with, so alignment requires
+    // 2+ usable signals resolving to one shared data month.
+    aligned: usable.length >= 2 && spanMonths === 0,
+    statement: temporalAlignmentStatement(
+      comparedSignalIds.length,
+      earliest,
+      latest,
+      spanMonths
+    ),
+  };
+}
+
+function temporalAlignmentStatement(
+  count: number,
+  earliest: YearMonth,
+  latest: YearMonth,
+  spanMonths: number
+): string {
+  const noun = count === 1 ? "observation" : "observations";
+  if (count === 1) {
+    return `1 usable ${noun}, dated ${formatYearMonth(earliest)}; no cross-signal temporal comparison.`;
+  }
+  if (spanMonths === 0) {
+    return `${count} usable ${noun} all dated ${formatYearMonth(earliest)}; temporally aligned.`;
+  }
+  const monthWord = spanMonths === 1 ? "month" : "months";
+  return `${count} usable ${noun} span ${formatYearMonth(earliest)} to ${formatYearMonth(latest)} (${spanMonths}-${monthWord} spread); signals are not a synchronized snapshot and should not be read as simultaneous.`;
 }
 
 function availableThroughFor(

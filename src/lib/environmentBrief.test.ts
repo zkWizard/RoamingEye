@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CLIMATE_METRICS } from "./climate";
 import {
   composeEnvironmentBrief,
+  summarizeTemporalAlignment,
   unsupportedBriefLanguageHits,
 } from "./environmentBrief";
 import { NDVI_SOURCE, NDVI_UNIT } from "./phenology";
@@ -195,6 +196,111 @@ describe("environment provenance brief", () => {
     expect(brief.unsupportedLanguageHits).toEqual([]);
     expect(brief.statements.join(" ")).not.toMatch(
       /\b(risk|diagnos|forecast|predict|compliance|health|cause|because|due to)\b/i
+    );
+  });
+});
+
+describe("environment brief temporal alignment", () => {
+  it("flags a multi-month spread of usable observations as not synchronized", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: { dataMonth: { year: 2026, month: 1 }, value: 0.61 },
+      rainfall: { dataMonth: { year: 2026, month: 2 }, value: 0.00012 },
+      soilMoisture: { dataMonth: { year: 2026, month: 1 }, value: 6.4 },
+      airTemperature: { dataMonth: { year: 2026, month: 3 }, value: 289.4 },
+      availableThrough: { year: 2026, month: 3 },
+    });
+
+    expect(brief.temporalAlignment).toMatchObject({
+      comparedSignalIds: [
+        "vegetation",
+        "rainfall",
+        "soil-moisture",
+        "air-temperature",
+      ],
+      earliestMonth: { year: 2026, month: 1 },
+      latestMonth: { year: 2026, month: 3 },
+      spanMonths: 2,
+      aligned: false,
+    });
+    expect(brief.temporalAlignment.statement).toBe(
+      "4 usable observations span 2026-01 to 2026-03 (2-months spread); signals are not a synchronized snapshot and should not be read as simultaneous."
+    );
+    // A currency caveat must never introduce condition/comparison language.
+    expect(
+      unsupportedBriefLanguageHits(brief.temporalAlignment.statement)
+    ).toEqual([]);
+  });
+
+  it("only compares usable signals, ignoring no-data, invalid, and unpublished", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: { dataMonth: { year: 2026, month: 1 }, value: 0.5 },
+      rainfall: { dataMonth: { year: 2025, month: 1 }, value: null },
+      soilMoisture: { dataMonth: { year: 2020, month: 1 }, value: -2 },
+      airTemperature: { dataMonth: { year: 2030, month: 6 }, value: 289 },
+      availableThrough: { year: 2026, month: 1 },
+    });
+
+    // rainfall (no-data), soil-moisture (invalid), and air-temperature
+    // (not-yet-published) are excluded, so only vegetation remains.
+    expect(brief.temporalAlignment).toMatchObject({
+      comparedSignalIds: ["vegetation"],
+      earliestMonth: { year: 2026, month: 1 },
+      latestMonth: { year: 2026, month: 1 },
+      spanMonths: 0,
+      aligned: false,
+    });
+    expect(brief.temporalAlignment.statement).toBe(
+      "1 usable observation, dated 2026-01; no cross-signal temporal comparison."
+    );
+  });
+
+  it("marks a single shared month across signals as aligned", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: { dataMonth: { year: 2026, month: 1 }, value: 0.5 },
+      rainfall: { dataMonth: { year: 2026, month: 1 }, value: 0.0001 },
+      soilMoisture: { dataMonth: { year: 2026, month: 1 }, value: 6 },
+      airTemperature: { dataMonth: { year: 2026, month: 1 }, value: 289 },
+      availableThrough: { year: 2026, month: 1 },
+    });
+
+    expect(brief.temporalAlignment).toMatchObject({
+      spanMonths: 0,
+      aligned: true,
+    });
+    expect(brief.temporalAlignment.statement).toBe(
+      "4 usable observations all dated 2026-01; temporally aligned."
+    );
+  });
+
+  it("uses a singular month word for a one-month spread", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: { dataMonth: { year: 2026, month: 1 }, value: 0.5 },
+      rainfall: { dataMonth: { year: 2026, month: 2 }, value: 0.0001 },
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 2 },
+    });
+
+    expect(brief.temporalAlignment).toMatchObject({
+      spanMonths: 1,
+      aligned: false,
+    });
+    expect(brief.temporalAlignment.statement).toBe(
+      "2 usable observations span 2026-01 to 2026-02 (1-month spread); signals are not a synchronized snapshot and should not be read as simultaneous."
+    );
+  });
+
+  it("reports when no usable observation is present", () => {
+    const summary = summarizeTemporalAlignment([]);
+    expect(summary).toMatchObject({
+      comparedSignalIds: [],
+      earliestMonth: null,
+      latestMonth: null,
+      spanMonths: null,
+      aligned: false,
+    });
+    expect(summary.statement).toBe(
+      "No usable observations to compare across time."
     );
   });
 });
