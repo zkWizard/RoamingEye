@@ -26,8 +26,9 @@ import {
   PROBE_SCALES,
 } from "./probe";
 import { LEGENDS, type GradientLegendSpec } from "./legend";
+import { LAYERS } from "./timeline";
 import { decodeViewState } from "./viewState";
-import { latLonToRegionPixel } from "../probe/ProbeSampler";
+import { latLonToRegionPixel, ProbeSampler } from "../probe/ProbeSampler";
 
 describe("latLonToPixel", () => {
   it("maps the equirectangular corners and center", () => {
@@ -71,6 +72,70 @@ describe("latLonToRegionPixel", () => {
       x: 250,
       y: 100,
     });
+  });
+});
+
+describe("boundary probe sampling", () => {
+  const square = {
+    type: "Polygon",
+    coordinates: [
+      [
+        [0, 0],
+        [10, 0],
+        [10, 10],
+        [0, 10],
+        [0, 0],
+      ],
+    ],
+  };
+
+  it("reports its masked-grid and source-pixel sampling provenance", async () => {
+    // An empty month list exercises plan construction without creating a
+    // browser canvas or fetching imagery.
+    const result = await new ProbeSampler({
+      width: 1024,
+      height: 512,
+    }).sampleGeometry(LAYERS.ndvi, [], square, { lat: 5, lon: 5 });
+    expect(result.geometrySampling).toEqual({
+      gridSize: 28,
+      candidatePointCount: 784,
+      interiorPointCount: 784,
+      retainedPointCount: 784,
+      sourcePixelCount: 784,
+      pointLimitApplied: false,
+    });
+  });
+
+  it("refuses an outside fallback when bounded refinement finds no interior cell", async () => {
+    const unresolved = {
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [0, 0],
+            [0.001, 0],
+            [0.001, 0.001],
+            [0, 0.001],
+            [0, 0],
+          ],
+        ],
+        [
+          [
+            [9.999, 9.999],
+            [10, 9.999],
+            [10, 10],
+            [9.999, 10],
+            [9.999, 9.999],
+          ],
+        ],
+      ],
+    };
+    await expect(
+      new ProbeSampler().sampleGeometry(LAYERS.ndvi, [], unresolved, {
+        lat: 5,
+        lon: 5,
+      })
+    ).rejects.toThrow("no interior cells at bounded sampling resolution");
   });
 });
 

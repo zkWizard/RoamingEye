@@ -3,6 +3,10 @@ import {
   type PlaceInsightReading,
   type PlaceMetricId,
 } from "../lib/placeInsights";
+import {
+  MARINE_PLACE_METRIC,
+  type MarinePlaceInsightReading,
+} from "../lib/marinePlaceInsight";
 import { GVP_VOLCANO_SOURCE } from "../lib/volcanoContext";
 import type { VolcanoExtentContext } from "../lib/volcanoExtent";
 import { ICONS } from "./icons";
@@ -16,7 +20,10 @@ interface MetricElements {
 export class PlaceInsights {
   private readonly root: HTMLElement;
   private readonly title: HTMLElement;
-  private readonly metrics = new Map<PlaceMetricId, MetricElements>();
+  private readonly metrics = new Map<
+    PlaceMetricId | MarinePlaceInsightReading["id"],
+    MetricElements
+  >();
   private readonly downloadButton: HTMLButtonElement;
   private exportJson: string | undefined;
   private readonly volcanoValue: HTMLElement;
@@ -57,7 +64,7 @@ export class PlaceInsights {
     const grid = document.createElement("section");
     grid.className = "place-insights__grid";
     grid.setAttribute("aria-label", "Monthly conditions");
-    for (const metric of PLACE_METRICS) {
+    for (const metric of [...PLACE_METRICS, MARINE_PLACE_METRIC]) {
       const card = document.createElement("article");
       card.className = "place-insights__metric";
       const label = document.createElement("h3");
@@ -142,7 +149,7 @@ export class PlaceInsights {
     this.onClose();
   }
 
-  setReading(reading: PlaceInsightReading): void {
+  setReading(reading: PlaceInsightReading | MarinePlaceInsightReading): void {
     const metric = this.metrics.get(reading.id);
     if (!metric) return;
     metric.value.textContent = reading.value;
