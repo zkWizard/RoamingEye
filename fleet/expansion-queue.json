@@ -127,13 +127,32 @@
       "tasks": [
         {
           "id": "ocean-conditions",
-          "status": "ready",
+          "status": "completed",
           "title": "Build sea-surface-temperature condition summaries",
           "acceptance": [
             "Uses the existing SST layer and source units",
             "Coastal and land-mixed coverage are visible",
             "Tests cover water, land, and missing cases"
-          ]
+          ],
+          "branch": "codex/marine-ocean-conditions-20260712190302",
+          "commit": "de63648",
+          "prUrl": "https://github.com/zkWizard/RoamingEye/pull/201",
+          "changedFiles": [
+            "src/lib/oceanConditions.ts",
+            "src/lib/oceanConditions.test.ts",
+            "docs/fleet-logs/marine-ocean-conditions-20260712190302.md"
+          ],
+          "validation": [
+            "npm test -- --run src/lib/oceanConditions.test.ts (4 passed)",
+            "npm run typecheck (passed)",
+            "npx prettier --check src/lib/oceanConditions.ts src/lib/oceanConditions.test.ts (passed)"
+          ],
+          "limitations": [
+            "Summaries describe only supplied MODIS/Aqua SST observations in the existing SST source unit; they do not infer biological abundance, habitat, ecosystem health, risk, causes, or future conditions.",
+            "Water, land, coastal/land-mixed, and unknown footprints are caller-supplied context, not inferred from a null SST value.",
+            "Temperature bands are descriptive thresholds on the supplied SST value only and are not ecological suitability or hazard categories."
+          ],
+          "nextSlice": "Connect the descriptive SST condition summary to probe or place-insight output with visible footprint context, valid fraction, and MODIS/Aqua provenance."
         },
         {
           "id": "marine-coverage",
