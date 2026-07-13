@@ -2,6 +2,8 @@
 
 - Branch: codex/marine-ocean-conditions-20260712190302
 - Base: codex/platform-expansion-foundation
+- Implementation commit: de63648
+- Draft PR: https://github.com/zkWizard/RoamingEye/pull/201
 - Task: fleet/expansion-queue.json marine-biology/ocean-conditions
 
 ## Delivered

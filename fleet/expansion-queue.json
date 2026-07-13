@@ -135,6 +135,8 @@
             "Tests cover water, land, and missing cases"
           ],
           "branch": "codex/marine-ocean-conditions-20260712190302",
+          "commit": "de63648",
+          "prUrl": "https://github.com/zkWizard/RoamingEye/pull/201",
           "changedFiles": [
             "src/lib/oceanConditions.ts",
             "src/lib/oceanConditions.test.ts",
