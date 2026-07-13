@@ -3,6 +3,7 @@ import { LAYERS } from "./timeline";
 import {
   GIBS_IMAGERY_SOURCE,
   createPlaceObservationExport,
+  placeObservationProductFromSample,
   serializePlaceObservationExport,
 } from "./placeObservationExport";
 
@@ -172,5 +173,44 @@ describe("place observation export", () => {
         ],
       })
     ).toThrow("Product ndvi has duplicate month 2026-04.");
+  });
+
+  it("reverses display conversions before exporting cited native units", () => {
+    const precipitation = placeObservationProductFromSample({
+      layerId: "precip",
+      sourceValueFactor: 86_400,
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 4 },
+          // The place card displays this equivalent rate as mm/day.
+          value: 8.64,
+          validFraction: 0.75,
+        },
+        { dataMonth: { year: 2026, month: 5 }, value: null },
+      ],
+    });
+
+    expect(precipitation).toMatchObject({
+      layerId: "precip",
+      wmsLayer: LAYERS.precip.wmsLayer,
+      source: LAYERS.precip.dataset,
+      nativeUnit: "kg/m²/s",
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 4 },
+          value: 0.0001,
+          validFraction: 0.75,
+        },
+        { dataMonth: { year: 2026, month: 5 }, value: null },
+      ],
+    });
+
+    expect(() =>
+      placeObservationProductFromSample({
+        layerId: "ndvi",
+        observations: [],
+        sourceValueFactor: 0,
+      })
+    ).toThrow("sourceValueFactor must be a positive finite number.");
   });
 });

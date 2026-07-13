@@ -17,10 +17,11 @@ import {
 import { fetchWithRetry } from "./net";
 
 export type PlaceMetricId = "vegetation" | "rainfall" | "soil" | "air";
+export type PlaceMetricLayerId = "ndvi" | "precip" | "soil" | "airtemp";
 
 export interface PlaceMetric {
   id: PlaceMetricId;
-  layerId: LayerId;
+  layerId: PlaceMetricLayerId;
   label: string;
 }
 
