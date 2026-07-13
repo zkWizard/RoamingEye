@@ -1,5 +1,10 @@
 import { isAreaGeometry, type GeoGeometry } from "./geojson";
-import type { DatasetRef, LayerId, YearMonth } from "./timeline";
+import {
+  LAYERS,
+  type DatasetRef,
+  type LayerId,
+  type YearMonth,
+} from "./timeline";
 
 /**
  * A deliberately small, provenance-first JSON contract for sharing sampled
@@ -96,6 +101,28 @@ export interface PlaceObservationExportProduct {
   }[];
 }
 
+/** Native product units for the independently sampled place-insight signals. */
+export const PLACE_OBSERVATION_NATIVE_UNITS = {
+  ndvi: "NDVI",
+  precip: "kg/m²/s",
+  soil: "kg/m²",
+  airtemp: "K",
+} as const satisfies Partial<Record<LayerId, string>>;
+
+export type PlaceObservationExportLayerId =
+  keyof typeof PLACE_OBSERVATION_NATIVE_UNITS;
+
+/**
+ * A completed place sample before it is placed in the reproducibility record.
+ * `sourceValueFactor` reverses a display conversion (for example, mm/day back
+ * to GLDAS's kg/m²/s) so the export itself remains in native product units.
+ */
+export interface PlaceObservationExportSample {
+  layerId: PlaceObservationExportLayerId;
+  observations: readonly PlaceObservationInput[];
+  sourceValueFactor?: number;
+}
+
 const EXCLUDED_FIELDS = [
   "place-name",
   "search-query",
@@ -159,6 +186,41 @@ export function serializePlaceObservationExport(
   input: PlaceObservationExportInput
 ): string {
   return `${JSON.stringify(createPlaceObservationExport(input), null, 2)}\n`;
+}
+
+/**
+ * Build a cited, native-unit product record from a completed place sample.
+ * This intentionally supports only the four independent place-insight
+ * signals; no composite condition or derived score is introduced here.
+ */
+export function placeObservationProductFromSample(
+  sample: PlaceObservationExportSample
+): PlaceObservationProductInput {
+  const layer = LAYERS[sample.layerId];
+  const nativeUnit = PLACE_OBSERVATION_NATIVE_UNITS[sample.layerId];
+  const sourceValueFactor = sample.sourceValueFactor ?? 1;
+  if (!Number.isFinite(sourceValueFactor) || sourceValueFactor <= 0) {
+    throw new Error("sourceValueFactor must be a positive finite number.");
+  }
+  if (!layer.dataset) {
+    throw new Error(
+      `Product ${sample.layerId} needs a complete source citation.`
+    );
+  }
+
+  return {
+    layerId: sample.layerId,
+    wmsLayer: layer.wmsLayer,
+    source: layer.dataset,
+    nativeUnit,
+    observations: sample.observations.map((observation) => ({
+      ...observation,
+      value:
+        observation.value === null
+          ? null
+          : observation.value / sourceValueFactor,
+    })),
+  };
 }
 
 function validateInput(input: PlaceObservationExportInput): void {
