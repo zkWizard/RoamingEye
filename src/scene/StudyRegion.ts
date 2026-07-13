@@ -6,7 +6,10 @@ import {
   type Bounds,
 } from "../lib/imagery";
 import { isAbortError } from "../lib/net";
-import { pickBestScene } from "../lib/sceneSelection";
+import {
+  formatSceneSelectionStatus,
+  pickBestScene,
+} from "../lib/sceneSelection";
 import { loadAbortableBitmap, loadAbortableTexture } from "../lib/textures";
 import { formatYm, type YearMonth } from "../lib/timeline";
 
@@ -93,7 +96,7 @@ export class StudyRegion {
     }
 
     this.loadTexture(best.layer.wmsLayer, best.date, seq, () =>
-      this.callbacks.onStatus?.(`${best.layer.label} · ${best.date}`)
+      this.callbacks.onStatus?.(formatSceneSelectionStatus(best))
     );
   }
 
