@@ -1,5 +1,10 @@
 import { isAreaGeometry, type GeoGeometry } from "./geojson";
-import type { DatasetRef, LayerId, YearMonth } from "./timeline";
+import {
+  LAYERS,
+  type DatasetRef,
+  type LayerId,
+  type YearMonth,
+} from "./timeline";
 
 /**
  * A deliberately small, provenance-first JSON contract for sharing sampled
@@ -11,7 +16,7 @@ import type { DatasetRef, LayerId, YearMonth } from "./timeline";
  */
 
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
-  "roamingeye-place-observation-export/v1" as const;
+  "roamingeye-place-observation-export/v2" as const;
 
 export const GIBS_IMAGERY_SOURCE = {
   name: "NASA Global Imagery Browse Services (GIBS)",
@@ -77,10 +82,23 @@ export interface PlaceObservationExport {
       "device-id",
     ];
   };
+  reproducibility: {
+    canonicalOrder: {
+      products: "layer-id-ascending";
+      observations: "data-month-ascending";
+    };
+    /**
+     * Per-month record states across all exported products. This describes
+     * only what the export contains; `not-recorded` makes no claim about
+     * source-product availability.
+     */
+    dataMonthMatrix: PlaceObservationDataMonth[];
+  };
   limitations: readonly [
     "Values are supplied sampling results in native source units.",
     "Rendered-imagery values are approximate; use the cited data product for measurement-grade work.",
     "This export does not infer conditions, causes, risks, or future values.",
+    "Data-month record states do not make values across products interchangeable or describe environmental condition.",
   ];
 }
 
@@ -96,6 +114,39 @@ export interface PlaceObservationExportProduct {
   }[];
 }
 
+export type PlaceObservationRecordStatus =
+  "value-recorded" | "no-data-recorded" | "not-recorded";
+
+export interface PlaceObservationDataMonth {
+  dataMonth: string;
+  layers: {
+    layerId: LayerId;
+    recordStatus: PlaceObservationRecordStatus;
+  }[];
+}
+
+/** Native product units for the independently sampled place-insight signals. */
+export const PLACE_OBSERVATION_NATIVE_UNITS = {
+  ndvi: "NDVI",
+  precip: "kg/m²/s",
+  soil: "kg/m²",
+  airtemp: "K",
+} as const satisfies Partial<Record<LayerId, string>>;
+
+export type PlaceObservationExportLayerId =
+  keyof typeof PLACE_OBSERVATION_NATIVE_UNITS;
+
+/**
+ * A completed place sample before it is placed in the reproducibility record.
+ * `sourceValueFactor` reverses a display conversion (for example, mm/day back
+ * to GLDAS's kg/m²/s) so the export itself remains in native product units.
+ */
+export interface PlaceObservationExportSample {
+  layerId: PlaceObservationExportLayerId;
+  observations: readonly PlaceObservationInput[];
+  sourceValueFactor?: number;
+}
+
 const EXCLUDED_FIELDS = [
   "place-name",
   "search-query",
@@ -108,6 +159,7 @@ const LIMITATIONS = [
   "Values are supplied sampling results in native source units.",
   "Rendered-imagery values are approximate; use the cited data product for measurement-grade work.",
   "This export does not infer conditions, causes, risks, or future values.",
+  "Data-month record states do not make values across products interchangeable or describe environmental condition.",
 ] as const;
 
 /** Create a JSON-ready, whitelist-only reproducibility record. */
@@ -115,22 +167,13 @@ export function createPlaceObservationExport(
   input: PlaceObservationExportInput
 ): PlaceObservationExport {
   validateInput(input);
+  const products = exportProducts(input.products);
 
   return {
     schema: PLACE_OBSERVATION_EXPORT_SCHEMA,
     kind: "place-observation-export",
     boundary: cloneGeometry(input.boundary),
-    products: input.products.map((product) => ({
-      layerId: product.layerId,
-      wmsLayer: product.wmsLayer,
-      source: { ...product.source },
-      nativeUnit: product.nativeUnit,
-      observations: product.observations.map((observation) => ({
-        dataMonth: formatYearMonth(observation.dataMonth),
-        value: observation.value,
-        validFraction: observation.validFraction ?? null,
-      })),
-    })),
+    products,
     method: {
       sampling: input.method.sampling,
       imagery: GIBS_IMAGERY_SOURCE,
@@ -150,6 +193,13 @@ export function createPlaceObservationExport(
       includesHiddenTelemetry: false,
       excludedFields: EXCLUDED_FIELDS,
     },
+    reproducibility: {
+      canonicalOrder: {
+        products: "layer-id-ascending",
+        observations: "data-month-ascending",
+      },
+      dataMonthMatrix: dataMonthMatrix(products),
+    },
     limitations: LIMITATIONS,
   };
 }
@@ -159,6 +209,41 @@ export function serializePlaceObservationExport(
   input: PlaceObservationExportInput
 ): string {
   return `${JSON.stringify(createPlaceObservationExport(input), null, 2)}\n`;
+}
+
+/**
+ * Build a cited, native-unit product record from a completed place sample.
+ * This intentionally supports only the four independent place-insight
+ * signals; no composite condition or derived score is introduced here.
+ */
+export function placeObservationProductFromSample(
+  sample: PlaceObservationExportSample
+): PlaceObservationProductInput {
+  const layer = LAYERS[sample.layerId];
+  const nativeUnit = PLACE_OBSERVATION_NATIVE_UNITS[sample.layerId];
+  const sourceValueFactor = sample.sourceValueFactor ?? 1;
+  if (!Number.isFinite(sourceValueFactor) || sourceValueFactor <= 0) {
+    throw new Error("sourceValueFactor must be a positive finite number.");
+  }
+  if (!layer.dataset) {
+    throw new Error(
+      `Product ${sample.layerId} needs a complete source citation.`
+    );
+  }
+
+  return {
+    layerId: sample.layerId,
+    wmsLayer: layer.wmsLayer,
+    source: layer.dataset,
+    nativeUnit,
+    observations: sample.observations.map((observation) => ({
+      ...observation,
+      value:
+        observation.value === null
+          ? null
+          : observation.value / sourceValueFactor,
+    })),
+  };
 }
 
 function validateInput(input: PlaceObservationExportInput): void {
@@ -211,6 +296,11 @@ function validateInput(input: PlaceObservationExportInput): void {
       if (observation.value !== null && !Number.isFinite(observation.value)) {
         throw new Error(`Product ${product.layerId} has a non-finite value.`);
       }
+      if (observation.value !== null && observation.validFraction === 0) {
+        throw new Error(
+          `Product ${product.layerId} has a value with zero sampled coverage.`
+        );
+      }
       if (
         observation.validFraction !== undefined &&
         (!Number.isFinite(observation.validFraction) ||
@@ -223,6 +313,55 @@ function validateInput(input: PlaceObservationExportInput): void {
       }
     }
   }
+}
+
+function exportProducts(
+  products: readonly PlaceObservationProductInput[]
+): PlaceObservationExportProduct[] {
+  return products
+    .map((product) => ({
+      layerId: product.layerId,
+      wmsLayer: product.wmsLayer,
+      source: { ...product.source },
+      nativeUnit: product.nativeUnit,
+      observations: product.observations
+        .map((observation) => ({
+          dataMonth: formatYearMonth(observation.dataMonth),
+          value: observation.value,
+          validFraction: observation.validFraction ?? null,
+        }))
+        .sort((left, right) => compareText(left.dataMonth, right.dataMonth)),
+    }))
+    .sort((left, right) => compareText(left.layerId, right.layerId));
+}
+
+function dataMonthMatrix(
+  products: readonly PlaceObservationExportProduct[]
+): PlaceObservationDataMonth[] {
+  const dataMonths = new Set<string>();
+  for (const product of products) {
+    for (const observation of product.observations) {
+      dataMonths.add(observation.dataMonth);
+    }
+  }
+
+  return [...dataMonths].sort(compareText).map((dataMonth) => ({
+    dataMonth,
+    layers: products.map((product) => {
+      const observation = product.observations.find(
+        (candidate) => candidate.dataMonth === dataMonth
+      );
+      return {
+        layerId: product.layerId,
+        recordStatus:
+          observation === undefined
+            ? "not-recorded"
+            : observation.value === null
+              ? "no-data-recorded"
+              : "value-recorded",
+      };
+    }),
+  }));
 }
 
 function cloneGeometry(geometry: GeoGeometry): GeoGeometry {
@@ -257,4 +396,10 @@ function isYearMonth(value: YearMonth): boolean {
 
 function formatYearMonth(value: YearMonth): string {
   return `${value.year}-${String(value.month).padStart(2, "0")}`;
+}
+
+function compareText(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
 }
