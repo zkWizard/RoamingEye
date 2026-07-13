@@ -29,7 +29,7 @@ import { fetchBlob } from "../lib/net";
 import type { LayerId } from "../lib/timeline";
 import {
   geometryBounds,
-  geometryGridPoints,
+  geometrySamplingPlan,
   type GeoGeometry,
 } from "../lib/geojson";
 
@@ -69,6 +69,16 @@ export interface SampleResult {
   /** Dimensions of the rendered GIBS image actually sampled. These describe
    * the source imagery, not a ground-resolution measurement. */
   sourceImageDimensions: { width: number; height: number };
+  /** Present for exact Polygon/MultiPolygon samples. It records the geometry
+   * mask and image-pixel budget, not a ground-resolution measurement. */
+  geometrySampling?: {
+    gridSize: number;
+    candidatePointCount: number;
+    interiorPointCount: number;
+    retainedPointCount: number;
+    sourcePixelCount: number;
+    pointLimitApplied: boolean;
+  };
 }
 
 /** Ground span of the area-mode box, in degrees of latitude. */
@@ -168,23 +178,20 @@ export class ProbeSampler {
     layer: LayerConfig,
     months: YearMonth[],
     geometry: GeoGeometry,
-    fallback: { lat: number; lon: number },
+    _fallback: { lat: number; lon: number },
     options: Omit<SampleOptions, "mode"> = {}
   ): Promise<SampleResult> {
-    const bounds = geometryBounds(geometry);
-    if (!bounds)
-      throw new Error("RoamingEye: place has no sampleable boundary");
-    const sampleBounds: Bounds = bounds;
-    const points = geometryGridPoints(geometry, regionGridSize(sampleBounds));
-    return this.run(
+    const sampling = this.geometrySampling(geometry);
+    const result = await this.run(
       layer,
       months,
-      this.dedupedPixels(points.length > 0 ? points : [fallback], sampleBounds),
+      sampling.pixels,
       (inversions, weights) => weightedMeanValid(inversions, weights),
       this.legendInverter(layer),
       options,
-      sampleBounds
+      sampling.bounds
     );
+    return { ...result, geometrySampling: sampling.provenance };
   }
 
   /**
@@ -196,29 +203,59 @@ export class ProbeSampler {
     layer: LayerConfig,
     months: YearMonth[],
     geometry: GeoGeometry,
-    fallback: { lat: number; lon: number },
+    _fallback: { lat: number; lon: number },
     entries: ColormapEntry[],
     factor: number,
     options: Omit<SampleOptions, "mode"> = {}
   ): Promise<SampleResult> {
-    const bounds = geometryBounds(geometry);
-    if (!bounds)
-      throw new Error("RoamingEye: place has no sampleable boundary");
-    const sampleBounds: Bounds = bounds;
-    const points = geometryGridPoints(geometry, regionGridSize(sampleBounds));
+    const sampling = this.geometrySampling(geometry);
     const invert: ColorInverter = (rgb) => {
       const value = invertColormapEntries(rgb, entries);
       return value === null ? null : value * factor;
     };
-    return this.run(
+    const result = await this.run(
       layer,
       months,
-      this.dedupedPixels(points.length > 0 ? points : [fallback], sampleBounds),
+      sampling.pixels,
       (inversions, weights) => weightedMeanValid(inversions, weights),
       invert,
       options,
-      sampleBounds
+      sampling.bounds
     );
+    return { ...result, geometrySampling: sampling.provenance };
+  }
+
+  /**
+   * Convert the exact-boundary plan to source pixels once. No fallback point
+   * is admitted here: a reported place mean must originate inside its boundary.
+   */
+  private geometrySampling(geometry: GeoGeometry): {
+    bounds: Bounds;
+    pixels: WeightedPixel[];
+    provenance: NonNullable<SampleResult["geometrySampling"]>;
+  } {
+    const bounds = geometryBounds(geometry);
+    if (!bounds)
+      throw new Error("RoamingEye: place has no sampleable boundary");
+    const plan = geometrySamplingPlan(geometry, regionGridSize(bounds));
+    if (!plan || plan.points.length === 0) {
+      throw new Error(
+        "RoamingEye: place boundary has no interior cells at bounded sampling resolution"
+      );
+    }
+    const pixels = this.dedupedPixels(plan.points, bounds);
+    return {
+      bounds,
+      pixels,
+      provenance: {
+        gridSize: plan.gridSize,
+        candidatePointCount: plan.candidatePointCount,
+        interiorPointCount: plan.interiorPointCount,
+        retainedPointCount: plan.points.length,
+        sourcePixelCount: pixels.length,
+        pointLimitApplied: plan.pointLimitApplied,
+      },
+    };
   }
 
   private legendInverter(layer: LayerConfig): ColorInverter {
@@ -245,14 +282,21 @@ export class ProbeSampler {
     regionBounds?: Bounds
   ): Promise<SampleResult> {
     const { signal, onProgress, onValue } = options;
+    const values: (number | null)[] = new Array(months.length).fill(null);
+    const validFractions: number[] = new Array(months.length).fill(0);
+    if (months.length === 0) {
+      return {
+        values,
+        validFractions,
+        sourceImageDimensions: { ...this.imageSize },
+      };
+    }
     const canvas = document.createElement("canvas");
     canvas.width = pixels.length;
     canvas.height = 1;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) throw new Error("RoamingEye: 2d canvas context unavailable");
 
-    const values: (number | null)[] = new Array(months.length).fill(null);
-    const validFractions: number[] = new Array(months.length).fill(0);
     let done = 0;
     let next = 0;
 
