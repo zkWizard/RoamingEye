@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-13T05:36:00Z",
+  "updatedAt": "2026-07-13T05:45:00Z",
   "publishing": {
-    "mode": "draft-pr-per-validated-code-slice",
+    "mode": "ready-pr-per-validated-code-slice-with-manager-merge",
     "branchPrefix": "codex/",
     "baseBranch": "main",
-    "autoMerge": false
+    "autoMerge": true
   },
   "lanes": [
     {
