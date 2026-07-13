@@ -128,11 +128,12 @@ describe("place observation environmental brief", () => {
 
   it("rejects source or unit mismatches instead of relabelling them", () => {
     const record = exportRecord();
-    record.products[1].source = {
-      ...record.products[1].source,
-      version: "other",
-    };
-    record.products[3].nativeUnit = "C";
+    // Products are canonically ordered by layer id in the export, so address
+    // them by layer id rather than fixture order.
+    const precip = record.products.find((p) => p.layerId === "precip")!;
+    precip.source = { ...precip.source, version: "other" };
+    const airtemp = record.products.find((p) => p.layerId === "airtemp")!;
+    airtemp.nativeUnit = "C";
 
     const result = composePlaceObservationBrief(record);
 
@@ -152,7 +153,7 @@ describe("place observation environmental brief", () => {
 
   it("keeps an invalid serialized month explicit rather than treating it as absent", () => {
     const record = exportRecord();
-    record.products[0].observations = [
+    record.products.find((p) => p.layerId === "ndvi")!.observations = [
       { dataMonth: "2026-13", value: 0.45, validFraction: 0.8 },
     ];
 
