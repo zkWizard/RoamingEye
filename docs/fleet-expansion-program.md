@@ -20,21 +20,28 @@ capabilities.
   sources already cited by the project before proposing a new source.
 - Never present a heuristic as a scientific measurement, forecast, risk score,
   diagnosis, or causal conclusion.
-- Do not deploy, merge, approve a catalog record, or open a public PR without a
-  human review step.
+- Do not deploy or approve a catalog record automatically. Fleet-owned feature
+  PRs are reviewed and merged by the Project Manager Agent after validation.
 - Record changed files, validation, limits, and the next queue item in the
   expansion queue after every cycle.
 
-## Draft PR contract
+## Ready PR and merge-management contract
 
-Every completed code slice must become its own draft pull request. The
-coordinator creates a `codex/<lane>-<task>` branch from `main`, stages only the
-task's declared files, commits after validation, pushes it, and opens a draft PR
-targeting `main`. It records the branch, commit, PR URL, and validation in the
-queue before returning to `main`.
+Every completed code slice must become its own ready-for-review pull request.
+It must contain at least one real source or test commit; documentation-only,
+status-only, research-only, and catalog-only changes do not satisfy this
+contract. The coordinator creates a `codex/<lane>-<task>` branch from `main`,
+stages only the task's declared files, commits after validation, pushes it, and
+opens a ready-for-review PR targeting `main`. It records the branch, commit, PR
+URL, and validation in the queue before returning to `main`.
 
-The coordinator never auto-merges. A person reviews scientific framing, code,
-tests, and the PR's relationship to other expansion slices before merging.
+At the end of every cycle, the Project Manager Agent reviews every open
+fleet-owned `codex/` PR targeting `main`. It verifies the implementation and
+scientific framing, checks the declared tests and required CI results, and
+rebases a conflicted PR onto current `main` when the conflict can be resolved
+within that PR's declared ownership. After successful validation, it merges the
+PR. It leaves a failing or unsafe-to-resolve PR open with a clear next action;
+it never merges unrelated, non-fleet, catalog-approval, or deployment PRs.
 
 ## Domain lanes
 
