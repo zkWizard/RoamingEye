@@ -115,9 +115,7 @@ export interface PlaceObservationExportProduct {
 }
 
 export type PlaceObservationRecordStatus =
-  | "value-recorded"
-  | "no-data-recorded"
-  | "not-recorded";
+  "value-recorded" | "no-data-recorded" | "not-recorded";
 
 export interface PlaceObservationDataMonth {
   dataMonth: string;
