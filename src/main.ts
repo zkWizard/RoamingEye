@@ -515,7 +515,8 @@ function runPlaceInsights(result: GeoResult): void {
         placeInsights.setReading({
           id: metric.id,
           value: "Unavailable",
-          detail: "Boundary could not be represented by the bounded sample grid",
+          detail:
+            "Boundary could not be represented by the bounded sample grid",
         });
       })
     );
