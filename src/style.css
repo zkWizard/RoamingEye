@@ -452,6 +452,18 @@ body {
   color: var(--muted);
 }
 
+.legend__source-note {
+  margin: 0;
+  text-align: center;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.legend__source-note a {
+  color: inherit;
+}
+
 /* Color keys contributed by toggled-on overlays (quake depth, volcano recency) */
 .legend__keys {
   display: flex;
@@ -2242,6 +2254,39 @@ body {
   margin-top: 0.65rem;
   font-size: 0.66rem;
   line-height: 1.35;
+}
+
+.place-insights__export {
+  margin-top: 0.65rem;
+}
+
+.place-insights__download {
+  width: 100%;
+  padding: 0.48rem 0.6rem;
+  color: var(--fg);
+  background: var(--accent-soft);
+  border: 1px solid var(--control-border);
+  border-radius: 7px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.place-insights__download:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.place-insights__download:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.place-insights__export-note {
+  margin-top: 0.35rem;
+  color: var(--muted);
+  font-size: 0.62rem;
+  line-height: 1.3;
 }
 
 @media (max-width: 540px) {

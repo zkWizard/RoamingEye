@@ -73,6 +73,52 @@ export interface BestScene {
 export const MIN_USABLE_SCORE = 0.04;
 /** Coverage score above which we stop searching (good enough). */
 const GOOD_ENOUGH_SCORE = 0.35;
+/**
+ * Cap simultaneous thumbnail requests so selecting a study scene does not
+ * monopolize the browser connection pool or compete excessively with globe
+ * imagery. This limits request pressure only; it does not change candidate
+ * dates or coverage scoring.
+ */
+export const SCENE_PROBE_CONCURRENCY = 3;
+
+/**
+ * Run asynchronous work with a bounded number of in-flight operations while
+ * retaining input order. Kept generic and pure in its scheduling so the
+ * scene-selection network policy is directly testable.
+ */
+export async function mapWithConcurrency<T, R>(
+  values: readonly T[],
+  maxInFlight: number,
+  mapper: (value: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const limit = Math.max(1, Math.floor(maxInFlight) || 1);
+  const results = new Array<R>(values.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < values.length) {
+      const index = nextIndex++;
+      results[index] = await mapper(values[index], index);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(limit, values.length) }, () => worker())
+  );
+  return results;
+}
+
+/**
+ * User-visible context for a selected HLS scene. The score is a rendered
+ * thumbnail signal screen, not a cloud product, ground-resolution measure,
+ * or fractional geographic coverage claim.
+ */
+export function formatSceneSelectionStatus(scene: BestScene): string {
+  const score = Number.isFinite(scene.score)
+    ? `${Math.round(Math.min(1, Math.max(0, scene.score)) * 100)}% usable thumbnail signal`
+    : "usable thumbnail signal unavailable";
+  return `${scene.layer.label} · ${scene.date} · ${score} (screening only)`;
+}
 
 /**
  * Score a whole (possibly antimeridian-crossing) box: each legal piece is
@@ -137,8 +183,10 @@ export async function pickBestScene(
   let best: BestScene | null = null;
 
   for (const layer of SCENE_LAYERS) {
-    const scores = await Promise.all(
-      dates.map((date) => probe(layer, bounds, date, signal))
+    const scores = await mapWithConcurrency(
+      dates,
+      SCENE_PROBE_CONCURRENCY,
+      (date) => probe(layer, bounds, date, signal)
     );
     for (let i = 0; i < dates.length; i++) {
       if (!best || scores[i] > best.score) {
