@@ -478,17 +478,24 @@ function runPlaceInsights(result: GeoResult): void {
               { lat: result.lat, lon: result.lon },
               { signal: abort.signal }
             );
-        const { values, validFractions, sourceImageDimensions } = await sample;
+        const {
+          values,
+          validFractions,
+          sourceImageDimensions,
+          geometrySamplingStrategy,
+        } = await sample;
         if (abort.signal.aborted) return;
         placeInsights.setReading(
           colormap
             ? placeInsightPhysicalReading(metric, months, values, {
                 validFractions,
                 sourceImageDimensions,
+                geometrySamplingStrategy,
               })
             : placeInsightReading(metric, months, values, {
                 validFractions,
                 sourceImageDimensions,
+                geometrySamplingStrategy,
               })
         );
         if (colormap || metric.layerId === "ndvi") {
@@ -508,7 +515,7 @@ function runPlaceInsights(result: GeoResult): void {
         placeInsights.setReading({
           id: metric.id,
           value: "Unavailable",
-          detail: "Regional data could not be sampled",
+          detail: "Boundary could not be represented by the bounded sample grid",
         });
       })
     );

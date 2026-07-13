@@ -29,7 +29,8 @@ import { fetchBlob } from "../lib/net";
 import type { LayerId } from "../lib/timeline";
 import {
   geometryBounds,
-  geometryGridPoints,
+  geometrySamplingPlan,
+  type GeometrySamplingStrategy,
   type GeoGeometry,
 } from "../lib/geojson";
 
@@ -69,6 +70,9 @@ export interface SampleResult {
   /** Dimensions of the rendered GIBS image actually sampled. These describe
    * the source imagery, not a ground-resolution measurement. */
   sourceImageDimensions: { width: number; height: number };
+  /** Present for searched-boundary sampling so consumers do not present a
+   * single in-boundary fallback pixel as a regional mean. */
+  geometrySamplingStrategy?: GeometrySamplingStrategy;
 }
 
 /** Ground span of the area-mode box, in degrees of latitude. */
@@ -175,15 +179,24 @@ export class ProbeSampler {
     if (!bounds)
       throw new Error("RoamingEye: place has no sampleable boundary");
     const sampleBounds: Bounds = bounds;
-    const points = geometryGridPoints(geometry, regionGridSize(sampleBounds));
+    const plan = geometrySamplingPlan(
+      geometry,
+      regionGridSize(sampleBounds),
+      fallback
+    );
+    if (!plan)
+      throw new Error(
+        "RoamingEye: boundary has no grid sample and search coordinate is outside it"
+      );
     return this.run(
       layer,
       months,
-      this.dedupedPixels(points.length > 0 ? points : [fallback], sampleBounds),
+      this.dedupedPixels(plan.points, sampleBounds),
       (inversions, weights) => weightedMeanValid(inversions, weights),
       this.legendInverter(layer),
       options,
-      sampleBounds
+      sampleBounds,
+      plan.strategy
     );
   }
 
@@ -205,7 +218,15 @@ export class ProbeSampler {
     if (!bounds)
       throw new Error("RoamingEye: place has no sampleable boundary");
     const sampleBounds: Bounds = bounds;
-    const points = geometryGridPoints(geometry, regionGridSize(sampleBounds));
+    const plan = geometrySamplingPlan(
+      geometry,
+      regionGridSize(sampleBounds),
+      fallback
+    );
+    if (!plan)
+      throw new Error(
+        "RoamingEye: boundary has no grid sample and search coordinate is outside it"
+      );
     const invert: ColorInverter = (rgb) => {
       const value = invertColormapEntries(rgb, entries);
       return value === null ? null : value * factor;
@@ -213,11 +234,12 @@ export class ProbeSampler {
     return this.run(
       layer,
       months,
-      this.dedupedPixels(points.length > 0 ? points : [fallback], sampleBounds),
+      this.dedupedPixels(plan.points, sampleBounds),
       (inversions, weights) => weightedMeanValid(inversions, weights),
       invert,
       options,
-      sampleBounds
+      sampleBounds,
+      plan.strategy
     );
   }
 
@@ -242,7 +264,8 @@ export class ProbeSampler {
     ) => number | null,
     invert: ColorInverter,
     options: Omit<SampleOptions, "mode">,
-    regionBounds?: Bounds
+    regionBounds?: Bounds,
+    geometrySamplingStrategy?: GeometrySamplingStrategy
   ): Promise<SampleResult> {
     const { signal, onProgress, onValue } = options;
     const canvas = document.createElement("canvas");
@@ -285,6 +308,7 @@ export class ProbeSampler {
       values,
       validFractions,
       sourceImageDimensions: { ...this.imageSize },
+      geometrySamplingStrategy,
     };
   }
 
