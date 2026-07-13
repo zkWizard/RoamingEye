@@ -220,7 +220,6 @@ describe("seasonal climate baseline comparisons", () => {
         publicationStatus: "invalid-reference-month",
         coverage: { status: "invalid", reason: "invalid-month" },
       },
->>>>>>> origin/main
     });
   });
 });
