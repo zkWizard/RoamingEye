@@ -64,6 +64,7 @@ export interface EarthquakeSummary {
   depthKm: EarthquakeRange;
   time: EarthquakeRange;
   depthClassCounts: Record<DepthClass, number>;
+  magnitudeClassCounts: Record<MagnitudeClass, number>;
   source: typeof SEISMICITY_SOURCE;
   units: typeof SEISMICITY_UNITS;
 }
@@ -94,6 +95,53 @@ export const DEPTH_CLASS_COLORS: Record<DepthClass, string> = {
   intermediate: "#ffb347",
   deep: "#5aa0ff",
 };
+
+/**
+ * The conventional USGS magnitude-class descriptors, which bin the reported
+ * magnitude value into named categories of earthquake size:
+ * great (≥ 8), major (7–7.9), strong (6–6.9), moderate (5–5.9),
+ * light (4–4.9), minor (3–3.9), micro (< 3).
+ *
+ * These label the earthquake's magnitude (a measure of the energy released at
+ * the source); they are NOT ground-shaking intensity (the separate Modified
+ * Mercalli scale), a damage estimate, or a hazard rating, all of which also
+ * depend on depth, distance, and local site conditions this feed does not
+ * report. The USGS summary overlay is filtered to M4.5+, so events at the
+ * micro/minor/light lower end appear only when this helper is given a broader
+ * catalog.
+ *
+ * Reference: USGS "Earthquake Magnitude, Energy Release, and Shaking Intensity"
+ * (https://www.usgs.gov/programs/earthquake-hazards/earthquake-magnitude-energy-release-and-shaking-intensity).
+ */
+export type MagnitudeClass =
+  "micro" | "minor" | "light" | "moderate" | "strong" | "major" | "great";
+
+/** Magnitude classes ordered weakest to strongest for deterministic iteration. */
+export const MAGNITUDE_CLASS_ORDER: readonly MagnitudeClass[] = [
+  "micro",
+  "minor",
+  "light",
+  "moderate",
+  "strong",
+  "major",
+  "great",
+] as const;
+
+/**
+ * Bin a reported magnitude into its conventional USGS descriptor class. The
+ * lower bound of each class is inclusive; non-finite magnitudes have no class
+ * and return null so callers never mislabel malformed input.
+ */
+export function magnitudeClass(magnitude: number): MagnitudeClass | null {
+  if (!Number.isFinite(magnitude)) return null;
+  if (magnitude >= 8) return "great";
+  if (magnitude >= 7) return "major";
+  if (magnitude >= 6) return "strong";
+  if (magnitude >= 5) return "moderate";
+  if (magnitude >= 4) return "light";
+  if (magnitude >= 3) return "minor";
+  return "micro";
+}
 
 /**
  * Select events inside inclusive magnitude, depth, and time bounds. Invalid
@@ -136,8 +184,13 @@ export function summarizeEarthquakes(
     intermediate: 0,
     deep: 0,
   };
+  const magnitudeClassCounts = emptyMagnitudeClassCounts();
   for (const earthquake of valid) {
     depthClassCounts[depthClass(earthquake.depthKm)] += 1;
+    const magClass = magnitudeClass(earthquake.magnitude);
+    // magClass is non-null here: valid events already passed a finite-magnitude
+    // check, but the guard keeps the aggregation total-safe regardless.
+    if (magClass !== null) magnitudeClassCounts[magClass] += 1;
   }
 
   return {
@@ -146,6 +199,7 @@ export function summarizeEarthquakes(
     depthKm: rangeFor(valid.map((earthquake) => earthquake.depthKm)),
     time: rangeFor(valid.map((earthquake) => earthquake.time)),
     depthClassCounts,
+    magnitudeClassCounts,
     source: SEISMICITY_SOURCE,
     units: SEISMICITY_UNITS,
   };
@@ -172,6 +226,19 @@ function validFilters(filters: EarthquakeFilters): boolean {
 function rangeFor(values: readonly number[]): EarthquakeRange {
   if (values.length === 0) return { min: null, max: null };
   return { min: Math.min(...values), max: Math.max(...values) };
+}
+
+/** A zeroed tally with one entry per class, so absent classes read as 0. */
+function emptyMagnitudeClassCounts(): Record<MagnitudeClass, number> {
+  return {
+    micro: 0,
+    minor: 0,
+    light: 0,
+    moderate: 0,
+    strong: 0,
+    major: 0,
+    great: 0,
+  };
 }
 
 /**
