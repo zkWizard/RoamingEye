@@ -1,0 +1,208 @@
+{
+  "version": 1,
+  "candidates": [
+    {
+      "repository": "aditya-grover/climate-learn",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:18.855Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:climate-science stars:>=20 archived:false"
+    },
+    {
+      "repository": "azavea/raster-vision",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:18.265Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:remote-sensing stars:>=20 archived:false"
+    },
+    {
+      "repository": "brian-rose/ClimateModeling_courseware",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:18.855Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:climate-science stars:>=20 archived:false"
+    },
+    {
+      "repository": "CesiumGS/cesium",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:17.734Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:geospatial stars:>=50 archived:false"
+    },
+    {
+      "repository": "climlab/climlab",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:18.855Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:climate-science stars:>=20 archived:false"
+    },
+    {
+      "repository": "databendlabs/databend",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:17.736Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:geospatial stars:>=50 archived:false"
+    },
+    {
+      "repository": "deepsphere/deepsphere-pytorch",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:18.855Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:climate-science stars:>=20 archived:false"
+    },
+    {
+      "repository": "domlysz/BlenderGIS",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:17.736Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:geospatial stars:>=50 archived:false"
+    },
+    {
+      "repository": "gboeing/osmnx",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:17.736Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:geospatial stars:>=50 archived:false"
+    },
+    {
+      "repository": "gee-community/geemap",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:18.265Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:remote-sensing stars:>=20 archived:false"
+    },
+    {
+      "repository": "giswqs/earthengine-py-notebooks",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:18.265Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:remote-sensing stars:>=20 archived:false"
+    },
+    {
+      "repository": "graphhopper/graphhopper",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:17.736Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:geospatial stars:>=50 archived:false"
+    },
+    {
+      "repository": "javedali99/python-resources-for-earth-sciences",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:18.855Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:climate-science stars:>=20 archived:false"
+    },
+    {
+      "repository": "keplergl/kepler.gl",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:17.736Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:geospatial stars:>=50 archived:false"
+    },
+    {
+      "repository": "MITgcm/MITgcm",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:18.855Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:climate-science stars:>=20 archived:false"
+    },
+    {
+      "repository": "NVIDIA/earth2studio",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:18.855Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:climate-science stars:>=20 archived:false"
+    },
+    {
+      "repository": "obss/sahi",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:18.265Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:remote-sensing stars:>=20 archived:false"
+    },
+    {
+      "repository": "opengeos/geoai",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:18.265Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:remote-sensing stars:>=20 archived:false"
+    },
+    {
+      "repository": "Ouranosinc/xclim",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:18.855Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:climate-science stars:>=20 archived:false"
+    },
+    {
+      "repository": "protontypes/open-sustainable-technology",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:18.855Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:climate-science stars:>=20 archived:false"
+    },
+    {
+      "repository": "RediSearch/RediSearch",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:17.736Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:geospatial stars:>=50 archived:false"
+    },
+    {
+      "repository": "sacridini/Awesome-Geospatial",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:18.265Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:remote-sensing stars:>=20 archived:false"
+    },
+    {
+      "repository": "satellite-image-deep-learning/techniques",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:18.265Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:remote-sensing stars:>=20 archived:false"
+    },
+    {
+      "repository": "tidwall/tile38",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:17.736Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:geospatial stars:>=50 archived:false"
+    },
+    {
+      "repository": "torchgeo/torchgeo",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:18.265Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:remote-sensing stars:>=20 archived:false"
+    },
+    {
+      "repository": "Turfjs/turf",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:17.736Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:geospatial stars:>=50 archived:false"
+    },
+    {
+      "repository": "uber/h3",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:17.736Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:geospatial stars:>=50 archived:false"
+    },
+    {
+      "repository": "wenhwu/awesome-remote-sensing-change-detection",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:18.265Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:remote-sensing stars:>=20 archived:false"
+    },
+    {
+      "repository": "xCDAT/xcdat",
+      "approval": "pending",
+      "discoveredAt": "2026-07-12T17:50:18.855Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:climate-science stars:>=20 archived:false"
+    }
+  ]
+}

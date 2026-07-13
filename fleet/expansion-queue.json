@@ -1,0 +1,203 @@
+{
+  "version": 1,
+  "updatedAt": "2026-07-13T00:09:50.3929896Z",
+  "publishing": {
+    "mode": "draft-pr-per-validated-code-slice",
+    "branchPrefix": "codex/",
+    "baseBranch": "codex/platform-expansion-foundation",
+    "autoMerge": false
+  },
+  "lanes": [
+    {
+      "id": "geology",
+      "role": "Geologist",
+      "tasks": [
+        {
+          "id": "seismic-explorer-model",
+          "status": "completed",
+          "title": "Add deterministic earthquake filter and summary models",
+          "acceptance": [
+            "Pure filtering and aggregation helpers with magnitude, depth, and time bounds",
+            "Source and unit labels remain explicit",
+            "Focused tests cover edge cases and empty results"
+          ],
+          "changedFiles": [
+            "src/lib/earthquakes.ts",
+            "src/lib/earthquakes.test.ts"
+          ],
+          "validation": [
+            "npm test -- --run src/lib/earthquakes.test.ts (9 passed)",
+            "npm run typecheck (passed)"
+          ],
+          "limitations": [
+            "Summaries describe only the supplied USGS feed subset; they do not estimate hazard, risk, causation, or future seismicity.",
+            "No user-interface filter controls are included in this bounded model slice."
+          ],
+          "nextSlice": "Connect the deterministic model to an accessible seismic-explorer control or summary view while preserving feed coverage labels."
+        },
+        {
+          "id": "volcano-context",
+          "status": "ready",
+          "title": "Expose cited volcanic context for selected volcano markers",
+          "acceptance": [
+            "No eruption prediction or hazard ranking",
+            "Uses existing GVP provenance",
+            "Includes accessible selection and test coverage"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "biology",
+      "role": "Biologist",
+      "tasks": [
+        {
+          "id": "vegetation-phenology",
+          "status": "completed",
+          "title": "Build transparent vegetation phenology summaries from NDVI series",
+          "acceptance": [
+            "Pure annual peak, trough, and seasonal-range helpers",
+            "Missing data and short records are explicit",
+            "Unit tests cover hemispheric and sparse-series cases"
+          ],
+          "changedFiles": ["src/lib/phenology.ts", "src/lib/phenology.test.ts"],
+          "validation": [
+            "npm test -- --run src/lib/phenology.test.ts (3 passed)",
+            "npm run typecheck (passed)"
+          ],
+          "limitations": [
+            "The helpers describe only supplied, already-calibrated MOD13A3 NDVI observations; they do not infer phenological stages, ecosystem condition, productivity, causes, or forecasts.",
+            "Annual extrema require at least six valid supplied calendar months and retain missing, invalid, duplicate, and regional-valid-fraction coverage explicitly."
+          ],
+          "nextSlice": "Surface the descriptive annual NDVI summary in the probe workflow with its MOD13A3 provenance, unit, and sparse-record notice."
+        },
+        {
+          "id": "land-cover-context",
+          "status": "ready",
+          "title": "Design a boundary-level land-cover context contract",
+          "acceptance": [
+            "Uses class-coded data without averaging class identifiers",
+            "Defines coverage and provenance requirements",
+            "Includes parser or aggregation tests"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "meteorology",
+      "role": "Meteorologist",
+      "tasks": [
+        {
+          "id": "climate-summary",
+          "status": "completed",
+          "title": "Add source-aware monthly climate summary helpers",
+          "acceptance": [
+            "Precipitation, air temperature, and soil moisture retain native units",
+            "Publication lag and no-data coverage are represented",
+            "Tests distinguish descriptive comparison from a forecast"
+          ],
+          "changedFiles": ["src/lib/climate.ts", "src/lib/climate.test.ts"],
+          "validation": [
+            "npm test -- --run src/lib/climate.test.ts (3 passed)",
+            "npm run typecheck (passed)",
+            "npx prettier --check src/lib/climate.ts src/lib/climate.test.ts (passed)"
+          ],
+          "limitations": [
+            "Summaries describe only supplied monthly source observations in their native units; they do not convert values for display, estimate weather, diagnose conditions, attribute causes, or forecast future values.",
+            "Publication lag is a calendar-month difference from the caller-supplied availability checkpoint and does not establish upstream publication timing beyond that checkpoint.",
+            "Spatial valid fraction is retained only when the sampler supplies it; a missing fraction is not inferred as full geographic coverage."
+          ],
+          "nextSlice": "Add the seasonal-baseline comparison model with same-calendar-month minimum-sample and coverage thresholds, preserving these source and publication fields."
+        },
+        {
+          "id": "seasonal-baseline",
+          "status": "ready",
+          "title": "Define a defensible seasonal-baseline comparison model",
+          "acceptance": [
+            "Uses same-calendar-month baselines only",
+            "Has minimum sample and coverage thresholds",
+            "Documents limitations in code and tests"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "marine-biology",
+      "role": "Marine Biologist",
+      "tasks": [
+        {
+          "id": "ocean-conditions",
+          "status": "ready",
+          "title": "Build sea-surface-temperature condition summaries",
+          "acceptance": [
+            "Uses the existing SST layer and source units",
+            "Coastal and land-mixed coverage are visible",
+            "Tests cover water, land, and missing cases"
+          ]
+        },
+        {
+          "id": "marine-coverage",
+          "status": "ready",
+          "title": "Add ocean-focused spatial coverage and provenance helpers",
+          "acceptance": [
+            "No biological abundance claims without a source",
+            "Clear distinction between SST and marine biology observations",
+            "Focused tests and accessible user copy"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "environment",
+      "role": "Environmental Scientist",
+      "tasks": [
+        {
+          "id": "environment-brief",
+          "status": "ready",
+          "title": "Compose a provenance-first environmental conditions brief",
+          "acceptance": [
+            "Composes independent signals without a single score",
+            "Shows data month and coverage for every statement",
+            "Tests prevent unsupported causal or risk language"
+          ]
+        },
+        {
+          "id": "research-export",
+          "status": "ready",
+          "title": "Improve reproducible export metadata for place-level observations",
+          "acceptance": [
+            "Boundary, products, months, and method are present",
+            "No personal data or hidden telemetry",
+            "CSV or JSON contract tests"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "geospatial",
+      "role": "Geospatial and Remote-Sensing Engineer",
+      "tasks": [
+        {
+          "id": "antimeridian-geometry",
+          "status": "ready",
+          "title": "Harden searched-boundary sampling across the antimeridian",
+          "acceptance": [
+            "Bounds, containment, grid points, and imagery pixels preserve the short arc",
+            "Polygon holes and MultiPolygon behavior remain correct",
+            "Property and regression tests cover seam cases"
+          ]
+        },
+        {
+          "id": "sampling-coverage",
+          "status": "ready",
+          "title": "Expose spatial sample coverage and resolution provenance",
+          "acceptance": [
+            "Area means report valid fraction and source image dimensions",
+            "No false precision for coarse source imagery",
+            "Tests cover small, large, coastal, and missing regions"
+          ]
+        }
+      ]
+    }
+  ]
+}

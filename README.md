@@ -46,8 +46,8 @@ It is built for, and by, the research community: every data source is open and c
 - ⏳ **A temporal scrubber** — a ruler-style timeline that sweeps month-by-month through the last 5 years of monthly satellite composites, so you can _watch the seasons turn_ and trends emerge.
 - 🌱❄️🌡️ **A rich set of scientific layers** — 9 open NASA products across **vegetation** (NDVI, EVI), **temperature** (land surface, 2 m air, sea surface), **water** (precipitation, soil moisture), **cryosphere** (snow cover), and **atmosphere** (aerosols) — grouped in a clean picker and growing.
 - 📚 **An open-data Providers page** — a built-in catalogue of the ~33 agencies, archives, and platforms whose open data powers the project.
-- 🔎 **Search any place** — geocoded via OpenStreetMap; the globe flies there and highlights the administrative boundary.
-- 🛰️ **High-resolution study regions** — search a location and RoamingEye drapes a sharp **30 m true-colour patch** over it, _automatically selecting the clearest cloud-free satellite pass_ for each month. Scrub the timeline and watch that exact region change, year over year.
+- 🧰 **A reviewed open-software finder** — browse Earth-science tools by domain, platform, and access path; every public recommendation links to its repository, documentation, SPDX evidence, and verification date.
+- 🔎 **Search any place** — geocoded via OpenStreetMap; the globe traces the returned postcode, city, state, or country boundary and surfaces its latest month-over-month vegetation, rainfall, soil-moisture, and air-temperature signals.
 - 📈 **A point time-series probe** — click anywhere on the globe and chart that layer's value at that point across its full record (26–46 years), with a provenance-stamped CSV download. Approximate by design (colormap inversion), honest about it everywhere.
 - 🌋 **A plate-tectonics context pack** — Bird (2003) plate boundaries, ~1,200 Smithsonian GVP Holocene volcanoes colored by eruption recency, and live USGS seismicity (M4.5+, colored by depth) on one globe.
 - 🧭 **A live coordinate readout** — hover anywhere to read latitude/longitude and the country/territory under the cursor.
@@ -142,6 +142,7 @@ For a contributor's tour of the codebase, see [`ARCHITECTURE.md`](ARCHITECTURE.m
 - 🏛️ [`GOVERNANCE.md`](GOVERNANCE.md) explains the trust ladder and how decisions get made.
 - 🌱 New to the project? Browse [**good first issues**](https://github.com/zkWizard/RoamingEye/labels/good%20first%20issue).
 - ➕ Want to add a dataset? [`docs/adding-a-data-layer.md`](docs/adding-a-data-layer.md) walks through it.
+- 🧰 Want to improve the software finder? [`docs/agent-fleet.md`](docs/agent-fleet.md) explains the six review-gated catalog agents, Fleet status view, and editorial approval flow.
 - 🚩 **The flagship engine:** [**RFC-001 — Tiled imagery streaming**](docs/rfcs/RFC-001-tiled-imagery-streaming.md) shipped — and its follow-ons (tile-edge skirts, polar handling, Sentinel-2 at 10 m) are great graphics projects. See the [roadmap](ROADMAP.md).
 
 Every change lands through a reviewed, CI-gated pull request. Be kind — see the [Code of Conduct](.github/CODE_OF_CONDUCT.md).

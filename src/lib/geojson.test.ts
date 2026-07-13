@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { geometryToRings } from "./geojson";
+import {
+  geometryBounds,
+  geometryContains,
+  geometryGridPoints,
+  geometryToRings,
+  isAreaGeometry,
+} from "./geojson";
 
 describe("geometryToRings", () => {
   it("returns the single ring of a Polygon", () => {
@@ -60,5 +66,64 @@ describe("geometryToRings", () => {
 
   it("returns nothing for unsupported geometry", () => {
     expect(geometryToRings({ type: "Point", coordinates: [0, 0] })).toEqual([]);
+  });
+
+  it("masks a sampling grid to the exact polygon and excludes holes", () => {
+    const geometry = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [0, 0],
+          [10, 0],
+          [10, 10],
+          [0, 10],
+          [0, 0],
+        ],
+        [
+          [4, 4],
+          [6, 4],
+          [6, 6],
+          [4, 6],
+          [4, 4],
+        ],
+      ],
+    };
+    expect(isAreaGeometry(geometry)).toBe(true);
+    expect(geometryBounds(geometry)).toEqual({
+      south: 0,
+      north: 10,
+      west: 0,
+      east: 10,
+    });
+    expect(geometryContains(geometry, 5, 5)).toBe(false);
+    expect(geometryContains(geometry, 2, 2)).toBe(true);
+    expect(geometryGridPoints(geometry, 5)).toHaveLength(24);
+  });
+
+  it("recognizes multipolygons as sampleable areas", () => {
+    const geometry = {
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [0, 0],
+            [1, 0],
+            [1, 1],
+            [0, 0],
+          ],
+        ],
+        [
+          [
+            [3, 3],
+            [4, 3],
+            [4, 4],
+            [3, 3],
+          ],
+        ],
+      ],
+    };
+    expect(isAreaGeometry(geometry)).toBe(true);
+    expect(geometryContains(geometry, 3.2, 3.2)).toBe(true);
+    expect(geometryContains(geometry, 2, 2)).toBe(false);
   });
 });

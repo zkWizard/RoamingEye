@@ -21,7 +21,9 @@
     "test:e2e:engines": "playwright test --project=webkit --project=firefox",
     "test:contract": "vitest run --config vitest.contract.config.ts",
     "test:soak": "playwright test --config playwright.soak.config.ts",
-    "verify": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build",
+    "agents:run": "node scripts/run-agent-fleet.mjs",
+    "catalog:check": "node scripts/agents/qa-release.mjs",
+    "verify": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run catalog:check && npm run build",
     "verify:full": "npm run verify && npm run test:e2e",
     "deploy": "node scripts/deploy.mjs"
   },

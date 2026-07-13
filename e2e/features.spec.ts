@@ -187,6 +187,42 @@ test("? opens the keyboard-shortcuts overlay and Esc closes it", async ({
   await expect(overlay).toHaveClass(/is-open/);
 });
 
+test("software finder loads reviewed records and filters locally", async ({
+  page,
+}) => {
+  const catalogLoaded = page.waitForResponse("**/data/software-catalog.json");
+  await page.locator("#software-link").click();
+  expect((await catalogLoaded).ok()).toBe(true);
+
+  const finder = page.locator("#software-page");
+  await expect(finder).toHaveClass(/is-open/);
+  await expect(finder.locator(".software__card")).not.toHaveCount(0);
+
+  await finder.locator(".software__query").fill("netcdf zarr");
+  await expect(finder.locator(".software__results")).toContainText("xarray");
+  await expect(finder.locator(".software__results")).not.toContainText("QGIS");
+
+  await finder.locator(".providers__close").click();
+  await expect(finder).not.toHaveClass(/is-open/);
+});
+
+test("fleet dashboard reports the latest agent run", async ({ page }) => {
+  const statusLoaded = page.waitForResponse("**/data/agent-status.json");
+  const historyLoaded = page.waitForResponse("**/data/agent-history.json");
+  await page.locator("#fleet-link").click();
+  expect((await statusLoaded).ok()).toBe(true);
+  expect((await historyLoaded).ok()).toBe(true);
+
+  const dashboard = page.locator("#fleet-page");
+  await expect(dashboard).toHaveClass(/is-open/);
+  await expect(dashboard.locator(".fleet__agent")).toHaveCount(6);
+  await expect(dashboard.locator(".fleet__summary")).toContainText("Published");
+  await expect(dashboard.locator(".fleet__history-item")).not.toHaveCount(0);
+
+  await dashboard.locator(".providers__close").click();
+  await expect(dashboard).not.toHaveClass(/is-open/);
+});
+
 test("toggling volcanoes surfaces its color key in the legend", async ({
   page,
 }) => {
@@ -398,6 +434,59 @@ test("search shows failure and no-results states", async ({ page }) => {
   // Next keystroke clears the message row.
   await input.fill("r");
   await expect(page.locator(".search__message")).toHaveCount(0);
+});
+
+test("search traces an exact returned boundary without a study-region box", async ({
+  page,
+}) => {
+  let highResolutionRequests = 0;
+  page.on("request", (request) => {
+    if (request.url().includes("HLS_S30_Nadir_BRDF_Adjusted_Reflectance")) {
+      highResolutionRequests++;
+    }
+  });
+  await page.route("**nominatim**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          name: "Exactville",
+          display_name: "Exactville, Example State, Example Country",
+          lat: "34.0000",
+          lon: "-118.0000",
+          type: "city",
+          category: "boundary",
+          boundingbox: ["33.9", "34.1", "-118.2", "-117.8"],
+          geojson: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [-118.2, 33.9],
+                [-117.8, 33.9],
+                [-117.8, 34.1],
+                [-118.2, 33.9],
+              ],
+            ],
+          },
+        },
+      ]),
+    })
+  );
+
+  const input = page.locator(".search__input");
+  await input.fill("Exactville");
+  await page.locator(".search__result").click();
+
+  await expect(input).toHaveValue("Exactville");
+  await expect(page.locator("#study-chip")).not.toHaveClass(/is-visible/);
+  const insights = page.locator("#place-insights");
+  await expect(insights).toHaveClass(/is-open/);
+  await expect(insights).toContainText("Vegetation");
+  await expect(insights).toContainText("Rainfall");
+  await expect(insights).toContainText("Soil moisture");
+  await expect(insights).toContainText("Air temperature");
+  await page.waitForTimeout(500);
+  expect(highResolutionRequests).toBe(0);
 });
 
 test("modals trap focus and restore it on close", async ({ page }) => {

@@ -111,6 +111,18 @@ test("providers modal is axe-clean", async ({ page }) => {
   await scan(page, "providers");
 });
 
+test("software finder is axe-clean", async ({ page }) => {
+  await page.locator("#software-link").click();
+  await expect(page.locator("#software-page")).toHaveClass(/is-open/);
+  await scan(page, "software finder");
+});
+
+test("fleet dashboard is axe-clean", async ({ page }) => {
+  await page.locator("#fleet-link").click();
+  await expect(page.locator("#fleet-page")).toHaveClass(/is-open/);
+  await scan(page, "fleet dashboard");
+});
+
 test("shortcuts overlay is axe-clean", async ({ page }) => {
   await page.locator("#shortcuts-link").click();
   await expect(page.locator("#shortcuts-page")).toBeVisible();

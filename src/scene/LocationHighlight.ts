@@ -10,8 +10,9 @@ export interface HighlightTarget {
 }
 
 /**
- * Highlights the most recent search result on the globe: the administrative
- * boundary (when available) plus a marker pin. Only one is shown at a time.
+ * Highlights the most recent search result on the globe. Administrative
+ * polygon boundaries take precedence; point-like results fall back to a pin.
+ * Only one search target is shown at a time.
  */
 export class LocationHighlight {
   readonly object = new THREE.Group();
@@ -21,32 +22,31 @@ export class LocationHighlight {
   show(target: HighlightTarget): void {
     this.clear();
     const group = new THREE.Group();
-    const radius = GLOBE_RADIUS * 1.004;
+    const radius = GLOBE_RADIUS * 1.006;
 
-    if (target.geometry) {
-      const positions: number[] = [];
+    const hasBoundary =
+      target.geometry?.type === "Polygon" ||
+      target.geometry?.type === "MultiPolygon";
+    if (target.geometry && hasBoundary) {
+      const linePositions: number[] = [];
+      const pointPositions: number[] = [];
       for (const ring of geometryToRings(target.geometry)) {
         for (let i = 0; i + 1 < ring.length; i++) {
           const a = latLngToVector3(ring[i][1], ring[i][0], radius);
           const b = latLngToVector3(ring[i + 1][1], ring[i + 1][0], radius);
-          positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
+          linePositions.push(a.x, a.y, a.z, b.x, b.y, b.z);
         }
+        pointPositions.push(...interpolatedRingPoints(ring, radius));
       }
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute(
-        "position",
-        new THREE.Float32BufferAttribute(positions, 3)
-      );
-      group.add(
-        new THREE.LineSegments(
-          geometry,
-          new THREE.LineBasicMaterial({ color: 0xffd166 })
-        )
-      );
+      const line = makeBoundaryLine(linePositions);
+      const points = makeBoundaryPoints(pointPositions);
+      line.renderOrder = 10;
+      points.renderOrder = 10;
+      group.add(line, points);
+    } else {
+      this.marker = this.makeMarker(target.lat, target.lon);
+      group.add(this.marker);
     }
-
-    this.marker = this.makeMarker(target.lat, target.lon);
-    group.add(this.marker);
     this.object.add(group);
     this.current = group;
   }
@@ -78,6 +78,69 @@ export class LocationHighlight {
     marker.scale.setScalar(0.009);
     return marker;
   }
+}
+
+function makeBoundaryLine(positions: number[]): THREE.LineSegments {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(positions, 3)
+  );
+  return new THREE.LineSegments(
+    geometry,
+    new THREE.LineBasicMaterial({
+      color: 0xffd166,
+      depthTest: false,
+      depthWrite: false,
+    })
+  );
+}
+
+function makeBoundaryPoints(positions: number[]): THREE.Points {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(positions, 3)
+  );
+  return new THREE.Points(
+    geometry,
+    new THREE.PointsMaterial({
+      color: 0xffd166,
+      size: 5,
+      sizeAttenuation: false,
+      depthTest: false,
+      depthWrite: false,
+    })
+  );
+}
+
+/** Fill long GeoJSON edges so the selected boundary stays readable in WebGL. */
+function interpolatedRingPoints(
+  ring: [number, number][],
+  radius: number
+): number[] {
+  const positions: number[] = [];
+  for (let i = 0; i + 1 < ring.length; i++) {
+    const [startLon, startLat] = ring[i];
+    const [endLon, endLat] = ring[i + 1];
+    let lonSpan = endLon - startLon;
+    if (lonSpan > 180) lonSpan -= 360;
+    if (lonSpan < -180) lonSpan += 360;
+    const steps = Math.max(
+      1,
+      Math.ceil(Math.max(Math.abs(endLat - startLat), Math.abs(lonSpan)) / 0.08)
+    );
+    for (let step = 0; step < steps; step++) {
+      const progress = step / steps;
+      const point = latLngToVector3(
+        startLat + (endLat - startLat) * progress,
+        startLon + lonSpan * progress,
+        radius
+      );
+      positions.push(point.x, point.y, point.z);
+    }
+  }
+  return positions;
 }
 
 function disposeTree(root: THREE.Object3D): void {

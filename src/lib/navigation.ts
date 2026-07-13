@@ -4,7 +4,7 @@
  */
 
 /** Camera distance bounds from the globe centre (globe radius = 1). */
-export const MIN_FLY_DISTANCE = 1.45;
+export const MIN_FLY_DISTANCE = 1.1;
 export const MAX_FLY_DISTANCE = 2.8;
 
 /** rotateSpeed at the boot view (altitude 2.2 R) — the calibration point. */

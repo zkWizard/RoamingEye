@@ -4,6 +4,7 @@ import {
   hexToRgb,
   buildColormapLut,
   invertColormap,
+  invertColormapEntries,
   medianValid,
   weightedMeanValid,
   areaWeight,
@@ -76,6 +77,19 @@ describe("buildColormapLut / invertColormap", () => {
   it("returns null for colors far off the gradient (no-data)", () => {
     expect(invertColormap({ r: 0, g: 0, b: 0 }, lut)).toBeNull(); // ocean/space
     expect(invertColormap({ r: 78, g: 161, b: 255 }, lut)).toBeNull(); // UI blue
+  });
+});
+
+describe("invertColormapEntries", () => {
+  it("returns the physical ramp value while tolerating JPEG colour noise", () => {
+    const entries = [
+      { rgb: { r: 213, g: 62, b: 79 }, value: 0.000005 },
+      { rgb: { r: 217, g: 68, b: 77 }, value: 0.000015 },
+    ];
+    expect(invertColormapEntries({ r: 214, g: 61, b: 81 }, entries)).toBe(
+      0.000005
+    );
+    expect(invertColormapEntries({ r: 0, g: 0, b: 0 }, entries)).toBeNull();
   });
 });
 
