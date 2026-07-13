@@ -37,6 +37,15 @@ export interface PlaceInsightReading {
   detail: string;
 }
 
+/**
+ * Sampling context for a boundary-level mean. Rendered-image dimensions are
+ * provenance, not a ground-resolution measurement or precision claim.
+ */
+export interface PlaceSamplingProvenance {
+  validFractions?: readonly number[];
+  sourceImageDimensions?: { width: number; height: number };
+}
+
 export interface PlaceColormap {
   entries: ColormapEntry[];
   /** Converts colormap values to the unit shown to users, when needed. */
@@ -94,18 +103,32 @@ export function latestComparisonMonths(
 export function placeInsightReading(
   metric: PlaceMetric,
   months: [YearMonth, YearMonth],
-  values: (number | null)[]
+  values: (number | null)[],
+  provenance?: PlaceSamplingProvenance
 ): PlaceInsightReading {
-  return makePlaceInsightReading(metric, months, values, placeValue);
+  return makePlaceInsightReading(
+    metric,
+    months,
+    values,
+    placeValue,
+    provenance
+  );
 }
 
 /** Render values decoded through GIBS's authoritative physical colormap. */
 export function placeInsightPhysicalReading(
   metric: PlaceMetric,
   months: [YearMonth, YearMonth],
-  values: (number | null)[]
+  values: (number | null)[],
+  provenance?: PlaceSamplingProvenance
 ): PlaceInsightReading {
-  return makePlaceInsightReading(metric, months, values, physicalPlaceValue);
+  return makePlaceInsightReading(
+    metric,
+    months,
+    values,
+    physicalPlaceValue,
+    provenance
+  );
 }
 
 function makePlaceInsightReading(
@@ -116,25 +139,38 @@ function makePlaceInsightReading(
     id: PlaceMetricId,
     value: number | null,
     month: YearMonth
-  ) => number | null
+  ) => number | null,
+  provenance?: PlaceSamplingProvenance
 ): PlaceInsightReading {
   const [previousMonth, currentMonth] = months;
   const previous = toPlaceValue(metric.id, values[0] ?? null, previousMonth);
   const current = toPlaceValue(metric.id, values[1] ?? null, currentMonth);
   const currentLabel = formatMonth(currentMonth);
-  const previousLabel = formatMonth(previousMonth);
+  const previousLabel = `${formatMonth(previousMonth)}${samplingSuffix(
+    provenance,
+    currentLabel,
+    1
+  )}`;
   if (current === null) {
     return {
       id: metric.id,
       value: "Unavailable",
-      detail: `No usable ${currentLabel} coverage`,
+      detail: withSamplingProvenance(
+        `No usable ${currentLabel} coverage`,
+        provenance,
+        1
+      ),
     };
   }
   if (previous === null) {
     return {
       id: metric.id,
       value: formatPlaceValue(metric.id, current),
-      detail: `${currentLabel} regional mean`,
+      detail: withSamplingProvenance(
+        `${currentLabel} regional mean`,
+        provenance,
+        1
+      ),
     };
   }
   const delta = current - previous;
@@ -143,6 +179,40 @@ function makePlaceInsightReading(
     value: formatPlaceValue(metric.id, current),
     detail: `${formatDelta(metric.id, delta)} vs ${previousLabel} · ${currentLabel}`,
   };
+}
+
+function withSamplingProvenance(
+  detail: string,
+  provenance: PlaceSamplingProvenance | undefined,
+  currentIndex: number
+): string {
+  return `${detail}${samplingSuffix(provenance, "", currentIndex)}`;
+}
+
+function samplingSuffix(
+  provenance: PlaceSamplingProvenance | undefined,
+  label: string,
+  currentIndex: number
+): string {
+  if (!provenance) return "";
+  const fraction = provenance.validFractions?.[currentIndex];
+  const coverage =
+    fraction !== undefined &&
+    Number.isFinite(fraction) &&
+    fraction >= 0 &&
+    fraction <= 1
+      ? `${label ? `; ${label}: ` : "; "}${Math.round(fraction * 100)}% sampled coverage`
+      : `${label ? `; ${label}: ` : "; "}sampled coverage not supplied`;
+  const dimensions = provenance.sourceImageDimensions;
+  const image =
+    dimensions &&
+    Number.isInteger(dimensions.width) &&
+    Number.isInteger(dimensions.height) &&
+    dimensions.width > 0 &&
+    dimensions.height > 0
+      ? `; rendered source image ${dimensions.width} x ${dimensions.height} px`
+      : "; rendered source image dimensions not supplied";
+  return `${coverage}${image}; approximate regional mean`;
 }
 
 function placeValue(

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-13T06:00:00Z",
+  "updatedAt": "2026-07-13T06:10:30Z",
   "publishing": {
     "mode": "ready-pr-per-validated-code-slice-with-manager-merge",
     "branchPrefix": "codex/",
@@ -338,13 +338,37 @@
         },
         {
           "id": "sampling-coverage",
-          "status": "ready",
+          "status": "completed",
           "title": "Expose spatial sample coverage and resolution provenance",
           "acceptance": [
             "Area means report valid fraction and source image dimensions",
             "No false precision for coarse source imagery",
             "Tests cover small, large, coastal, and missing regions"
-          ]
+          ],
+          "branch": "codex/geospatial-sampling-coverage-20260713061030",
+          "commit": "da0c58b89f416301cf391591c34e7cc407f3fc05",
+          "prUrl": "https://github.com/zkWizard/RoamingEye/pull/214",
+          "changedFiles": [
+            "src/probe/ProbeSampler.ts",
+            "src/lib/placeInsights.ts",
+            "src/lib/placeInsights.test.ts",
+            "src/main.ts",
+            "fleet/expansion-queue.json",
+            "docs/fleet-logs/geospatial-sampling-coverage-20260713061030.md"
+          ],
+          "validation": [
+            "npm test -- --run src/lib/placeInsights.test.ts (6 passed)",
+            "npm run typecheck (passed)",
+            "npx eslint src/lib/placeInsights.ts src/lib/placeInsights.test.ts src/probe/ProbeSampler.ts src/main.ts (passed)",
+            "npx prettier --check src/lib/placeInsights.ts src/lib/placeInsights.test.ts src/probe/ProbeSampler.ts src/main.ts (passed)",
+            "git diff --check (passed)"
+          ],
+          "limitations": [
+            "Place insights describe supplied rendered-imagery sampling only; valid fraction is the sampler's area-weighted usable share and is not an environmental condition or completeness guarantee.",
+            "Rendered source-image dimensions are reproducibility provenance, not a ground-resolution measurement or an uncertainty estimate; regional means remain explicitly approximate.",
+            "This slice does not infer land, water, cloud, boundary accuracy, causation, risk, diagnosis, or future conditions."
+          ],
+          "nextSlice": "Extend boundary-level output with a user-triggered reproducibility export that retains per-month coverage and source-image provenance without adding false precision."
         }
       ]
     }
