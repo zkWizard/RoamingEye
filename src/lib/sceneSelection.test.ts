@@ -9,6 +9,24 @@ describe("candidateDates", () => {
     expect(dates.at(-1)).toBe("2024-03-29");
     expect(dates).toContain("2024-03-14");
   });
+
+  it("never probes an impossible February date", () => {
+    expect(candidateDates({ year: 2023, month: 2 })).toEqual([
+      "2023-02-02",
+      "2023-02-05",
+      "2023-02-08",
+      "2023-02-11",
+      "2023-02-14",
+      "2023-02-17",
+      "2023-02-20",
+      "2023-02-23",
+      "2023-02-26",
+    ]);
+  });
+
+  it("includes February 29 when the acquisition month is a leap year", () => {
+    expect(candidateDates({ year: 2024, month: 2 }).at(-1)).toBe("2024-02-29");
+  });
 });
 
 describe("coverageScore", () => {

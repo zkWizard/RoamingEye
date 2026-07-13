@@ -42,9 +42,14 @@ export const SCENE_LAYERS: SceneLayer[] = [
  */
 export function candidateDates(ym: YearMonth): string[] {
   const mm = String(ym.month).padStart(2, "0");
-  return [2, 5, 8, 11, 14, 17, 20, 23, 26, 29].map(
-    (day) => `${ym.year}-${mm}-${String(day).padStart(2, "0")}`
-  );
+  // Keep candidate requests on real calendar days. In particular, asking GIBS
+  // for February 29 in a non-leap year is not a missing HLS observation; it is
+  // an invalid timestamp, and treating it as a failed scene distorts a bounded
+  // probing budget.
+  const daysInMonth = new Date(Date.UTC(ym.year, ym.month, 0)).getUTCDate();
+  return [2, 5, 8, 11, 14, 17, 20, 23, 26, 29]
+    .filter((day) => day <= daysInMonth)
+    .map((day) => `${ym.year}-${mm}-${String(day).padStart(2, "0")}`);
 }
 
 /**
