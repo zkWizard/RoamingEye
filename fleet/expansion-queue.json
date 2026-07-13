@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-13T05:45:00Z",
+  "updatedAt": "2026-07-13T06:00:00Z",
   "publishing": {
     "mode": "ready-pr-per-validated-code-slice-with-manager-merge",
     "branchPrefix": "codex/",
@@ -269,13 +269,34 @@
         },
         {
           "id": "research-export",
-          "status": "ready",
+          "status": "completed",
           "title": "Improve reproducible export metadata for place-level observations",
           "acceptance": [
             "Boundary, products, months, and method are present",
             "No personal data or hidden telemetry",
             "CSV or JSON contract tests"
-          ]
+          ],
+          "branch": "codex/environment-research-export-20260712225345",
+          "commit": "2d4994d142b6edfc3f51445e8fe654e4436bfe07",
+          "prUrl": "https://github.com/zkWizard/RoamingEye/pull/213",
+          "changedFiles": [
+            "src/lib/placeObservationExport.ts",
+            "src/lib/placeObservationExport.test.ts",
+            "fleet/expansion-queue.json"
+          ],
+          "validation": [
+            "npm test -- --run src/lib/placeObservationExport.test.ts (3 passed)",
+            "npm run typecheck (passed)",
+            "npx eslint src/lib/placeObservationExport.ts src/lib/placeObservationExport.test.ts (passed)",
+            "npx prettier --check src/lib/placeObservationExport.ts src/lib/placeObservationExport.test.ts (passed)",
+            "git diff --check origin/main...HEAD (passed)"
+          ],
+          "limitations": [
+            "The contract retains only caller-supplied Polygon or MultiPolygon boundaries and supplied observations; it does not infer missing values, conditions, causes, risks, diagnoses, or future values.",
+            "Rendered-imagery values are marked as approximate and preserve cited data products, native units, data months, valid fractions, and source-image dimensions for measurement-grade follow-up.",
+            "The whitelist-only export excludes account, session, device, and search-query metadata, but users should still consider whether a shared requested boundary is appropriate for their context."
+          ],
+          "nextSlice": "Wire the JSON contract to an explicit user-triggered place export control with download-copy and accessibility coverage while retaining the same provenance and privacy fields."
         }
       ]
     },
