@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-13T02:11:12.1851980Z",
+  "updatedAt": "2026-07-13T05:36:00Z",
   "publishing": {
     "mode": "draft-pr-per-validated-code-slice",
     "branchPrefix": "codex/",
-    "baseBranch": "codex/platform-expansion-foundation",
+    "baseBranch": "main",
     "autoMerge": false
   },
   "lanes": [
@@ -90,13 +90,28 @@
         },
         {
           "id": "land-cover-context",
-          "status": "ready",
+          "status": "completed",
           "title": "Design a boundary-level land-cover context contract",
           "acceptance": [
             "Uses class-coded data without averaging class identifiers",
             "Defines coverage and provenance requirements",
             "Includes parser or aggregation tests"
-          ]
+          ],
+          "branch": "codex/biology-land-cover-context-20260712-190717",
+          "commit": "e3c6c27",
+          "prUrl": "https://github.com/zkWizard/RoamingEye/pull/205",
+          "changedFiles": ["src/lib/landCover.ts", "src/lib/landCover.test.ts"],
+          "validation": [
+            "npm test -- --run src/lib/landCover.test.ts (4 passed)",
+            "npm run typecheck (passed)",
+            "npx prettier --check src/lib/landCover.ts src/lib/landCover.test.ts (passed)"
+          ],
+          "limitations": [
+            "The helper describes only supplied MODIS MCD12Q1 IGBP class-coded samples; it does not infer biodiversity, biomass, habitat quality, productivity, ecological health, causation, or forecasts.",
+            "Class identifiers are counted as categorical codes only; no class identifier is averaged, interpolated, or converted to a continuous measurement.",
+            "Coverage fractions distinguish known IGBP classes, source unclassified pixels, sampler no-data, invalid class codes, and invalid record counts."
+          ],
+          "nextSlice": "Connect class-coded land-cover context to a boundary or probe view with class counts, fractions, MCD12Q1 provenance, and no-data notices without ecological condition claims."
         }
       ]
     },
@@ -190,13 +205,33 @@
         },
         {
           "id": "marine-coverage",
-          "status": "ready",
+          "status": "completed",
           "title": "Add ocean-focused spatial coverage and provenance helpers",
           "acceptance": [
             "No biological abundance claims without a source",
             "Clear distinction between SST and marine biology observations",
             "Focused tests and accessible user copy"
-          ]
+          ],
+          "branch": "codex/marine-coverage-20260712193351",
+          "commit": "c4ec959",
+          "prUrl": "https://github.com/zkWizard/RoamingEye/pull/207",
+          "changedFiles": [
+            "src/lib/marineCoverage.ts",
+            "src/lib/marineCoverage.test.ts",
+            "docs/fleet-logs/marine-coverage-20260712193351.md"
+          ],
+          "validation": [
+            "npm test -- --run src/lib/marineCoverage.test.ts (4 passed)",
+            "npm run typecheck (passed)",
+            "npx eslint src/lib/marineCoverage.ts src/lib/marineCoverage.test.ts (passed)",
+            "npx prettier --check src/lib/marineCoverage.ts src/lib/marineCoverage.test.ts (passed)"
+          ],
+          "limitations": [
+            "This contract describes only caller-supplied MODIS/Aqua SST sampling coverage and source image dimensions; it does not infer water or land footprint from SST pixels.",
+            "SST coverage is not a marine-biology observation and makes no abundance, habitat, ecosystem-health, causal, risk, or forecast claim.",
+            "The retained source unit belongs to RoamingEye's approximate rendered-imagery probe workflow; users need the cited L3 product for measurement-grade values."
+          ],
+          "nextSlice": "Wire the SST coverage summary into an accessible probe or place-insight presentation, retaining footprint, valid fraction, image dimensions, and the SST-only caveat."
         }
       ]
     },
@@ -206,13 +241,31 @@
       "tasks": [
         {
           "id": "environment-brief",
-          "status": "ready",
+          "status": "completed",
           "title": "Compose a provenance-first environmental conditions brief",
           "acceptance": [
             "Composes independent signals without a single score",
             "Shows data month and coverage for every statement",
             "Tests prevent unsupported causal or risk language"
-          ]
+          ],
+          "branch": "codex/environment-provenance-brief-20260712-191108",
+          "commit": "576d098",
+          "prUrl": "https://github.com/zkWizard/RoamingEye/pull/203",
+          "changedFiles": [
+            "src/lib/environmentBrief.ts",
+            "src/lib/environmentBrief.test.ts"
+          ],
+          "validation": [
+            "npm test -- --run src/lib/environmentBrief.test.ts (3 passed)",
+            "npm run typecheck (passed)",
+            "npx prettier --check src/lib/environmentBrief.ts src/lib/environmentBrief.test.ts (passed)"
+          ],
+          "limitations": [
+            "The brief describes only supplied monthly source observations in native units; it does not convert units, infer missing values, combine observations into a score, estimate conditions, or create diagnoses.",
+            "Vegetation, rainfall, soil moisture, and air temperature remain independent signals with source, data month, coverage, and unavailable states preserved for each signal.",
+            "Language-guard tests prevent unsupported risk, causal, forecast, compliance, and health wording, but do not review arbitrary downstream UI copy."
+          ],
+          "nextSlice": "Connect the environmental brief to a place or probe workflow while preserving per-signal provenance and unavailable states in the UI."
         },
         {
           "id": "research-export",
@@ -232,13 +285,35 @@
       "tasks": [
         {
           "id": "antimeridian-geometry",
-          "status": "ready",
+          "status": "completed",
           "title": "Harden searched-boundary sampling across the antimeridian",
           "acceptance": [
             "Bounds, containment, grid points, and imagery pixels preserve the short arc",
             "Polygon holes and MultiPolygon behavior remain correct",
             "Property and regression tests cover seam cases"
-          ]
+          ],
+          "branch": "codex/geospatial-antimeridian-20260713021248",
+          "commit": "6dcb8d1",
+          "prUrl": "https://github.com/zkWizard/RoamingEye/pull/204",
+          "changedFiles": [
+            "src/lib/geojson.ts",
+            "src/lib/geojson.test.ts",
+            "src/probe/ProbeSampler.ts",
+            "src/lib/probe.test.ts"
+          ],
+          "validation": [
+            "npm test -- --run src/lib/geojson.test.ts src/lib/probe.test.ts src/lib/imagery.test.ts (3 files, 78 tests passed)",
+            "npm run typecheck (passed)",
+            "npm run format:check -- src/lib/geojson.ts src/lib/geojson.test.ts src/probe/ProbeSampler.ts src/lib/probe.test.ts (passed)",
+            "npm test (45 files, 453 tests passed)",
+            "npm run lint (passed)"
+          ],
+          "limitations": [
+            "This slice hardens Polygon and MultiPolygon bounds, containment, grid sampling, and regional imagery pixel mapping only; it does not add UI behavior or scientific interpretation.",
+            "Longitude handling assumes searched-boundary edges follow the short arc across the antimeridian; intentionally long-way polygons remain outside this bounded slice.",
+            "Local validation used Node 20.18.0 while the repository requests Node 20.19+ or 22.12+; the checks still passed."
+          ],
+          "nextSlice": "Extend spatial sample coverage and resolution provenance for small, large, coastal, and missing regions while preserving antimeridian-safe geometry frames."
         },
         {
           "id": "sampling-coverage",

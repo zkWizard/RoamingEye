@@ -28,10 +28,10 @@ capabilities.
 ## Draft PR contract
 
 Every completed code slice must become its own draft pull request. The
-coordinator creates a `codex/<lane>-<task>` branch from the current expansion
-foundation, stages only the task's declared files, commits after validation,
-pushes it, and opens a draft PR. It records the branch, commit, PR URL, and
-validation in the queue before returning to the foundation branch.
+coordinator creates a `codex/<lane>-<task>` branch from `main`, stages only the
+task's declared files, commits after validation, pushes it, and opens a draft PR
+targeting `main`. It records the branch, commit, PR URL, and validation in the
+queue before returning to `main`.
 
 The coordinator never auto-merges. A person reviews scientific framing, code,
 tests, and the PR's relationship to other expansion slices before merging.
