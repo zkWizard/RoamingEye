@@ -4,6 +4,8 @@
 
 - Task: `volcano-context`
 - Branch: `codex/geology-volcano-context-20260712190932`
+- Commit: `c28eedc`
+- Draft PR: https://github.com/zkWizard/RoamingEye/pull/202
 - Slice: added a pure selected-volcano context module for Smithsonian GVP-derived records plus focused tests.
 - Validation:
   - `npm test -- --run src/lib/volcanoContext.test.ts` (6 passed)

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-07-13T02:09:48.2781605Z",
+  "updatedAt": "2026-07-13T02:11:12.1851980Z",
   "publishing": {
     "mode": "draft-pr-per-validated-code-slice",
     "branchPrefix": "codex/",
@@ -48,6 +48,9 @@
             "src/lib/volcanoContext.ts",
             "src/lib/volcanoContext.test.ts"
           ],
+          "branch": "codex/geology-volcano-context-20260712190932",
+          "commit": "c28eedc",
+          "prUrl": "https://github.com/zkWizard/RoamingEye/pull/202",
           "validation": [
             "npm test -- --run src/lib/volcanoContext.test.ts (6 passed)",
             "npm run typecheck (passed)"
