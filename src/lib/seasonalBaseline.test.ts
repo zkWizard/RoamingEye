@@ -158,7 +158,7 @@ describe("seasonal climate baseline comparisons", () => {
     });
   });
 
-  it("retains publication status without converting future source gaps into forecasts", () => {
+  it("withholds an anomaly when the target source month is not yet published", () => {
     const comparison = compareMonthlyClimateToSeasonalBaseline(
       precip(2024, 3, 3, 0.8),
       [
@@ -178,8 +178,26 @@ describe("seasonal climate baseline comparisons", () => {
         publicationLagMonths: null,
       },
       exclusions: { outOfBounds: 1 },
-      status: "available",
-      anomaly: 1,
+      status: "unavailable",
+      anomaly: null,
+      reason: "target-not-yet-published",
+    });
+
+    const invalidAvailability = compareMonthlyClimateToSeasonalBaseline(
+      precip(2023, 3, 3, 0.8),
+      [
+        precip(2020, 3, 1, 0.8),
+        precip(2021, 3, 2, 0.8),
+        precip(2022, 3, 3, 0.8),
+      ],
+      { year: 2024, month: 13 },
+      { minimumSamples: 3 }
+    );
+
+    expect(invalidAvailability).toMatchObject({
+      status: "invalid",
+      anomaly: null,
+      reason: "invalid-month",
     });
   });
 });

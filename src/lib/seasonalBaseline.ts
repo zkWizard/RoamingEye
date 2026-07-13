@@ -24,6 +24,7 @@ export const MINIMUM_SEASONAL_VALID_FRACTION = 0.6;
 
 export type SeasonalBaselineStatus =
   | "available"
+  | "unavailable"
   | "insufficient-samples"
   | "insufficient-coverage"
   | "no-data"
@@ -298,6 +299,12 @@ function targetReadiness(
 ): { status: SeasonalBaselineStatus; reason: string | null } {
   if (target.coverage.status === "invalid") {
     return { status: "invalid", reason: target.coverage.reason };
+  }
+  if (target.publicationStatus !== "published") {
+    return {
+      status: "unavailable",
+      reason: `target-${target.publicationStatus}`,
+    };
   }
   if (target.coverage.status === "no-data") {
     return { status: "no-data", reason: target.coverage.reason };
