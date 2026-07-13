@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   IGBP_LAND_COVER_CLASSES,
+  LAND_COVER_FORMATIONS,
   LAND_COVER_SOURCE,
   summarizeLandCoverContext,
+  summarizeLandCoverFormations,
 } from "./landCover";
 
 describe("land-cover context summaries", () => {
@@ -114,5 +116,83 @@ describe("land-cover context summaries", () => {
     expect(IGBP_LAND_COVER_CLASSES.map((entry) => entry.code)).toEqual([
       1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 255,
     ]);
+  });
+});
+
+describe("land-cover formation groups", () => {
+  it("maps every informative IGBP class into exactly one formation", () => {
+    const grouped = LAND_COVER_FORMATIONS.flatMap(
+      (formation) => formation.classCodes
+    );
+    const informativeCodes = IGBP_LAND_COVER_CLASSES.filter(
+      (entry) => entry.isInformativeLandCover
+    ).map((entry) => entry.code);
+
+    expect([...grouped].sort((a, b) => a - b)).toEqual(informativeCodes);
+    expect(new Set(grouped).size).toBe(grouped.length);
+  });
+
+  it("sums whole class counts into formations and retains MCD12Q1 provenance", () => {
+    const context = summarizeLandCoverContext(
+      [
+        { classCode: 1, sampleCount: 3 },
+        { classCode: 5, sampleCount: 2 },
+        { classCode: 12, sampleCount: 4 },
+        { classCode: 14, sampleCount: 1 },
+        { classCode: 255, sampleCount: 2 },
+        { classCode: null, sampleCount: 1 },
+      ],
+      2024
+    );
+
+    const formations = summarizeLandCoverFormations(context);
+
+    expect(formations.kind).toBe("observed-land-cover-formation-groups");
+    expect(formations.isForecast).toBe(false);
+    expect(formations.provenance).toBe(context.provenance);
+    expect(formations.provenance.source).toBe(LAND_COVER_SOURCE);
+    expect(formations.ungroupedKnownSampleCount).toBe(0);
+
+    // Cropland (12 + 14 = 5) ties forest (1 + 5 = 5); the lower first class
+    // code wins the deterministic tie-break, so forest sorts first.
+    expect(formations.formationCoverage).toEqual([
+      {
+        id: "forest",
+        label: "Forest",
+        classCodes: [1, 2, 3, 4, 5],
+        sampleCount: 5,
+        fractionOfAllSamples: 5 / 13,
+        fractionOfKnownLandCover: 0.5,
+      },
+      {
+        id: "cropland",
+        label: "Cropland",
+        classCodes: [12, 14],
+        sampleCount: 5,
+        fractionOfAllSamples: 5 / 13,
+        fractionOfKnownLandCover: 0.5,
+      },
+    ]);
+    expect(formations.dominantFormation?.id).toBe("forest");
+
+    // Grouping must not average categorical class identifiers.
+    expect(JSON.stringify(formations)).not.toContain("mean");
+    expect(formations).not.toHaveProperty("meanClassCode");
+  });
+
+  it("excludes unclassified and no-data samples from any formation", () => {
+    const context = summarizeLandCoverContext(
+      [
+        { classCode: 255, sampleCount: 3 },
+        { classCode: null, sampleCount: 2 },
+      ],
+      2024
+    );
+
+    const formations = summarizeLandCoverFormations(context);
+
+    expect(formations.formationCoverage).toEqual([]);
+    expect(formations.dominantFormation).toBeNull();
+    expect(formations.ungroupedKnownSampleCount).toBe(0);
   });
 });
