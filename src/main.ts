@@ -23,6 +23,11 @@ import {
   placeInsightPhysicalReading,
   placeInsightReading,
 } from "./lib/placeInsights";
+import {
+  climateInsightText,
+  climateMetricForLayer,
+  summarizeRenderedClimateSample,
+} from "./lib/meteorology";
 import type { GeoResult } from "./lib/geocoding";
 import { refreshDataLatest } from "./lib/freshness";
 import { isAbortError, isOnline, OfflineError } from "./lib/net";
@@ -442,16 +447,36 @@ function runPlaceInsights(result: GeoResult): void {
           );
       const { values, validFractions, sourceImageDimensions } = await sample;
       if (abort.signal.aborted) return;
+      const climateMetricId = climateMetricForLayer(metric.layerId);
+      const climateReading =
+        colormap && climateMetricId
+          ? summarizeRenderedClimateSample(
+              {
+                metricId: climateMetricId,
+                months,
+                sampledValues: values,
+                nativeToSampledValueFactor: colormap.factor,
+                validFractions,
+                sourceImageDimensions,
+              },
+              months[1]
+            )
+          : null;
       placeInsights.setReading(
-        colormap
-          ? placeInsightPhysicalReading(metric, months, values, {
-              validFractions,
-              sourceImageDimensions,
-            })
-          : placeInsightReading(metric, months, values, {
-              validFractions,
-              sourceImageDimensions,
-            })
+        climateReading
+          ? {
+              id: metric.id,
+              ...climateInsightText(climateReading[0], climateReading[1]),
+            }
+          : colormap
+            ? placeInsightPhysicalReading(metric, months, values, {
+                validFractions,
+                sourceImageDimensions,
+              })
+            : placeInsightReading(metric, months, values, {
+                validFractions,
+                sourceImageDimensions,
+              })
       );
     })().catch((error: unknown) => {
       if (isAbortError(error) || abort.signal.aborted) return;
