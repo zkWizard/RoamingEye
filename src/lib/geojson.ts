@@ -19,10 +19,24 @@ export interface GeometryBounds {
   east: number;
 }
 
-/** A deterministic, masked sampling layout for an area geometry. */
+/** How a boundary sample was spatially represented. */
+export type GeometrySamplingStrategy = "boundary-grid" | "boundary-point";
+
+/**
+ * A bounded set of locations that can honestly represent a place boundary.
+ * A single point is only permitted when the search result coordinate itself
+ * lies in the boundary; callers must label it as a point estimate, not a
+ * regional mean.
+ */
 export interface GeometrySamplingPlan {
-  /** Grid-cell centres proven to lie inside the input geometry. */
   points: { lat: number; lon: number }[];
+  strategy: GeometrySamplingStrategy;
+}
+
+/** A deterministic, masked, refined sampling layout for an area geometry. */
+export interface RefinedGeometrySamplingPlan extends GeometrySamplingPlan {
+  /** Grid-cell centres proven to lie inside the input geometry. */
+  strategy: "boundary-grid";
   /** Cells along each axis in the grid that supplied the retained points. */
   gridSize: number;
   /** All grid cells evaluated in the final refinement pass. */
@@ -255,9 +269,32 @@ function evenlySpacedPoints<T>(points: T[], maxPoints: number): T[] {
  */
 export function geometrySamplingPlan(
   geometry: GeoGeometry,
+  n: number,
+  fallback: { lat: number; lon: number }
+): GeometrySamplingPlan | null;
+export function geometrySamplingPlan(
+  geometry: GeoGeometry,
   initialGridSize: number,
-  options: GeometrySamplingOptions = {}
-): GeometrySamplingPlan | null {
+  options?: GeometrySamplingOptions
+): RefinedGeometrySamplingPlan | null;
+export function geometrySamplingPlan(
+  geometry: GeoGeometry,
+  initialGridSize: number,
+  fallbackOrOptions: { lat: number; lon: number } | GeometrySamplingOptions = {}
+): GeometrySamplingPlan | RefinedGeometrySamplingPlan | null {
+  if ("lat" in fallbackOrOptions && "lon" in fallbackOrOptions) {
+    // Spatial-honesty mode: a fixed grid at the caller's resolution, with an
+    // explicitly point-level fallback only when the search coordinate itself
+    // lies inside the exact boundary. No refinement happens here; callers that
+    // want the bounded refinement pass options (or nothing) instead.
+    const fallback = fallbackOrOptions;
+    const points = geometryGridPoints(geometry, initialGridSize);
+    if (points.length > 0) return { points, strategy: "boundary-grid" };
+    return geometryContains(geometry, fallback.lat, fallback.lon)
+      ? { points: [fallback], strategy: "boundary-point" }
+      : null;
+  }
+  const options = fallbackOrOptions;
   if (!geometryBounds(geometry)) return null;
 
   const maxGridSize = Math.min(
@@ -291,6 +328,7 @@ export function geometrySamplingPlan(
 
   return {
     points: evenlySpacedPoints(points, maxPoints),
+    strategy: "boundary-grid",
     gridSize,
     candidatePointCount: gridSize * gridSize,
     interiorPointCount: points.length,

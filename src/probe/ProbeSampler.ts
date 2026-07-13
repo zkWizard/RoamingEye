@@ -30,6 +30,7 @@ import type { LayerId } from "../lib/timeline";
 import {
   geometryBounds,
   geometrySamplingPlan,
+  type GeometrySamplingStrategy,
   type GeoGeometry,
 } from "../lib/geojson";
 
@@ -79,6 +80,9 @@ export interface SampleResult {
     sourcePixelCount: number;
     pointLimitApplied: boolean;
   };
+  /** Present for searched-boundary sampling so consumers do not present a
+   * single in-boundary fallback pixel as a regional mean. */
+  geometrySamplingStrategy?: GeometrySamplingStrategy;
 }
 
 /** Ground span of the area-mode box, in degrees of latitude. */
@@ -178,10 +182,10 @@ export class ProbeSampler {
     layer: LayerConfig,
     months: YearMonth[],
     geometry: GeoGeometry,
-    _fallback: { lat: number; lon: number },
+    fallback: { lat: number; lon: number },
     options: Omit<SampleOptions, "mode"> = {}
   ): Promise<SampleResult> {
-    const sampling = this.geometrySampling(geometry);
+    const sampling = this.geometrySampling(geometry, fallback);
     const result = await this.run(
       layer,
       months,
@@ -189,7 +193,8 @@ export class ProbeSampler {
       (inversions, weights) => weightedMeanValid(inversions, weights),
       this.legendInverter(layer),
       options,
-      sampling.bounds
+      sampling.bounds,
+      sampling.strategy
     );
     return { ...result, geometrySampling: sampling.provenance };
   }
@@ -203,12 +208,12 @@ export class ProbeSampler {
     layer: LayerConfig,
     months: YearMonth[],
     geometry: GeoGeometry,
-    _fallback: { lat: number; lon: number },
+    fallback: { lat: number; lon: number },
     entries: ColormapEntry[],
     factor: number,
     options: Omit<SampleOptions, "mode"> = {}
   ): Promise<SampleResult> {
-    const sampling = this.geometrySampling(geometry);
+    const sampling = this.geometrySampling(geometry, fallback);
     const invert: ColorInverter = (rgb) => {
       const value = invertColormapEntries(rgb, entries);
       return value === null ? null : value * factor;
@@ -220,38 +225,70 @@ export class ProbeSampler {
       (inversions, weights) => weightedMeanValid(inversions, weights),
       invert,
       options,
-      sampling.bounds
+      sampling.bounds,
+      sampling.strategy
     );
     return { ...result, geometrySampling: sampling.provenance };
   }
 
   /**
-   * Convert the exact-boundary plan to source pixels once. No fallback point
-   * is admitted here: a reported place mean must originate inside its boundary.
+   * Convert the exact-boundary plan to source pixels once. Interior grid
+   * cells are preferred, refining a sparse mask within bounded budgets. When
+   * even the refined mask holds no cell centre, the search coordinate itself
+   * is admitted only if it lies inside the exact boundary, and the sample is
+   * labelled "boundary-point" so consumers never present it as a regional
+   * mean.
    */
-  private geometrySampling(geometry: GeoGeometry): {
+  private geometrySampling(
+    geometry: GeoGeometry,
+    fallback: { lat: number; lon: number }
+  ): {
     bounds: Bounds;
     pixels: WeightedPixel[];
+    strategy: GeometrySamplingStrategy;
     provenance: NonNullable<SampleResult["geometrySampling"]>;
   } {
     const bounds = geometryBounds(geometry);
     if (!bounds)
       throw new Error("RoamingEye: place has no sampleable boundary");
     const plan = geometrySamplingPlan(geometry, regionGridSize(bounds));
-    if (!plan || plan.points.length === 0) {
+    if (!plan)
+      throw new Error("RoamingEye: place has no sampleable boundary");
+    if (plan.points.length > 0) {
+      const pixels = this.dedupedPixels(plan.points, bounds);
+      return {
+        bounds,
+        pixels,
+        strategy: plan.strategy,
+        provenance: {
+          gridSize: plan.gridSize,
+          candidatePointCount: plan.candidatePointCount,
+          interiorPointCount: plan.interiorPointCount,
+          retainedPointCount: plan.points.length,
+          sourcePixelCount: pixels.length,
+          pointLimitApplied: plan.pointLimitApplied,
+        },
+      };
+    }
+    const pointPlan = geometrySamplingPlan(
+      geometry,
+      regionGridSize(bounds),
+      fallback
+    );
+    if (!pointPlan)
       throw new Error(
         "RoamingEye: place boundary has no interior cells at bounded sampling resolution"
       );
-    }
-    const pixels = this.dedupedPixels(plan.points, bounds);
+    const pixels = this.dedupedPixels(pointPlan.points, bounds);
     return {
       bounds,
       pixels,
+      strategy: "boundary-point",
       provenance: {
         gridSize: plan.gridSize,
         candidatePointCount: plan.candidatePointCount,
         interiorPointCount: plan.interiorPointCount,
-        retainedPointCount: plan.points.length,
+        retainedPointCount: pointPlan.points.length,
         sourcePixelCount: pixels.length,
         pointLimitApplied: plan.pointLimitApplied,
       },
@@ -279,7 +316,8 @@ export class ProbeSampler {
     ) => number | null,
     invert: ColorInverter,
     options: Omit<SampleOptions, "mode">,
-    regionBounds?: Bounds
+    regionBounds?: Bounds,
+    geometrySamplingStrategy?: GeometrySamplingStrategy
   ): Promise<SampleResult> {
     const { signal, onProgress, onValue } = options;
     const values: (number | null)[] = new Array(months.length).fill(null);
@@ -329,6 +367,7 @@ export class ProbeSampler {
       values,
       validFractions,
       sourceImageDimensions: { ...this.imageSize },
+      geometrySamplingStrategy,
     };
   }
 

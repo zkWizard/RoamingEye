@@ -141,6 +141,39 @@ describe("environment provenance brief", () => {
     expect(brief.statements[3]).toContain("coverage not supplied");
   });
 
+  it("uses product-specific availability checkpoints when schedules differ", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: null,
+      rainfall: {
+        dataMonth: { year: 2026, month: 1 },
+        value: 0.00012,
+      },
+      soilMoisture: {
+        dataMonth: { year: 2026, month: 1 },
+        value: 6,
+      },
+      airTemperature: {
+        dataMonth: { year: 2026, month: 3 },
+        value: 289,
+      },
+      availableThrough: { year: 2026, month: 1 },
+      availableThroughBySignal: {
+        "air-temperature": { year: 2026, month: 3 },
+      },
+    });
+
+    expect(brief.signals[1].climateSummary?.publicationStatus).toBe(
+      "published"
+    );
+    expect(brief.signals[2].climateSummary?.publicationStatus).toBe(
+      "published"
+    );
+    expect(brief.signals[3].climateSummary).toMatchObject({
+      availableThrough: { year: 2026, month: 3 },
+      publicationStatus: "published",
+    });
+  });
+
   it("flags unsupported risk, causal, forecast, compliance, and health language", () => {
     expect(
       unsupportedBriefLanguageHits(

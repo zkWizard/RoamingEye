@@ -23,9 +23,11 @@ import {
   placeInsightPhysicalReading,
   placeInsightReading,
 } from "./lib/placeInsights";
+import { volcanoesInSearchExtent } from "./lib/volcanoExtent";
+import { parseVolcanoList } from "./lib/volcanoes";
 import type { GeoResult } from "./lib/geocoding";
 import { refreshDataLatest } from "./lib/freshness";
-import { isAbortError, isOnline, OfflineError } from "./lib/net";
+import { fetchJson, isAbortError, isOnline, OfflineError } from "./lib/net";
 import { nextPixelRatio } from "./lib/perf";
 import { ProbeSampler } from "./probe/ProbeSampler";
 import { ProbePanel } from "./ui/ProbePanel";
@@ -418,6 +420,26 @@ function runPlaceInsights(result: GeoResult): void {
   const geometry = result.geometry;
   placeInsights.open(result.name);
 
+  if (result.boundingBox) {
+    void fetchJson<unknown>(`${import.meta.env.BASE_URL}data/volcanoes.json`, {
+      signal: abort.signal,
+    })
+      .then(parseVolcanoList)
+      .then((volcanoes) => {
+        if (abort.signal.aborted) return;
+        placeInsights.setVolcanoContext(
+          volcanoesInSearchExtent(volcanoes, result.boundingBox)
+        );
+      })
+      .catch((error: unknown) => {
+        if (isAbortError(error) || abort.signal.aborted) return;
+        console.warn("RoamingEye: place volcano context failed to load", error);
+        placeInsights.setVolcanoUnavailable();
+      });
+  } else {
+    placeInsights.setVolcanoContext(volcanoesInSearchExtent([], null));
+  }
+
   for (const metric of PLACE_METRICS) {
     const months = latestComparisonMonths(metric.layerId);
     if (!months) continue;
@@ -440,17 +462,24 @@ function runPlaceInsights(result: GeoResult): void {
             { lat: result.lat, lon: result.lon },
             { signal: abort.signal }
           );
-      const { values, validFractions, sourceImageDimensions } = await sample;
+      const {
+        values,
+        validFractions,
+        sourceImageDimensions,
+        geometrySamplingStrategy,
+      } = await sample;
       if (abort.signal.aborted) return;
       placeInsights.setReading(
         colormap
           ? placeInsightPhysicalReading(metric, months, values, {
               validFractions,
               sourceImageDimensions,
+              geometrySamplingStrategy,
             })
           : placeInsightReading(metric, months, values, {
               validFractions,
               sourceImageDimensions,
+              geometrySamplingStrategy,
             })
       );
     })().catch((error: unknown) => {
@@ -459,7 +488,7 @@ function runPlaceInsights(result: GeoResult): void {
       placeInsights.setReading({
         id: metric.id,
         value: "Unavailable",
-        detail: "Regional data could not be sampled",
+        detail: "Boundary could not be represented by the bounded sample grid",
       });
     });
   }
