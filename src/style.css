@@ -2207,10 +2207,74 @@ body {
   line-height: 1.3;
 }
 
+.place-insights__geology {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.55rem;
+  padding: 0.6rem;
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+}
+
+.place-insights__geology h3 {
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.place-insights__volcano-list {
+  display: grid;
+  gap: 0.22rem;
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--muted);
+  font-size: 0.66rem;
+  line-height: 1.3;
+}
+
+.place-insights__source {
+  color: var(--muted);
+  font-size: 0.63rem;
+  line-height: 1.25;
+}
+
 .place-insights__note {
   margin-top: 0.65rem;
   font-size: 0.66rem;
   line-height: 1.35;
+}
+
+.place-insights__export {
+  margin-top: 0.65rem;
+}
+
+.place-insights__download {
+  width: 100%;
+  padding: 0.48rem 0.6rem;
+  color: var(--fg);
+  background: var(--accent-soft);
+  border: 1px solid var(--control-border);
+  border-radius: 7px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.place-insights__download:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.place-insights__download:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.place-insights__export-note {
+  margin-top: 0.35rem;
+  color: var(--muted);
+  font-size: 0.62rem;
+  line-height: 1.3;
 }
 
 @media (max-width: 540px) {
