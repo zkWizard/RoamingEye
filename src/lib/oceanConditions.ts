@@ -1,5 +1,5 @@
 import { PROBE_SCALES } from "./probe";
-import { LAYERS, type DatasetRef, type YearMonth } from "./timeline";
+import { formatYm, LAYERS, type DatasetRef, type YearMonth } from "./timeline";
 
 /**
  * Descriptive summaries for supplied MODIS/Aqua sea-surface-temperature values.
@@ -162,4 +162,64 @@ function isYearMonth(value: YearMonth): boolean {
     value.month >= 1 &&
     value.month <= 12
   );
+}
+
+/**
+ * Plain-language phrase for a descriptive temperature band. These are named
+ * categories over the supplied SST value, never a hazard, comfort, or
+ * biological claim.
+ */
+const TEMPERATURE_BAND_PHRASES: Record<SeaSurfaceTemperatureBand, string> = {
+  "near-freezing": "a near-freezing descriptive band",
+  cool: "a cool descriptive band",
+  temperate: "a temperate descriptive band",
+  warm: "a warm descriptive band",
+  "very-warm": "a very-warm descriptive band",
+};
+
+/**
+ * Build a provenance-tagged, screen-reader-ready sentence for a summarized SST
+ * condition. It reports only the supplied value, its descriptive band, and
+ * coverage context; it never infers marine biology, ecosystem health, hazard,
+ * comfort, causation, or any forecast. Land, missing, and invalid cases are
+ * stated honestly instead of substituting a value.
+ */
+export function describeOceanCondition(summary: OceanConditionSummary): string {
+  const source = summary.metric.source;
+  const provenance = `Source: ${source.shortName} v${source.version}. This is a physical sea-surface-temperature observation, not a marine-biology, ecosystem, hazard, or forecast claim.`;
+
+  const month = isYearMonth(summary.dataMonth)
+    ? formatYm(summary.dataMonth)
+    : "an invalid month";
+  const lead = `Sea surface temperature for ${month}:`;
+
+  const { coverage } = summary;
+  let body: string;
+  if (coverage.status === "land") {
+    body =
+      "the sampled footprint is land, so no sea-surface temperature is reported.";
+  } else if (coverage.status === "missing") {
+    body = "no usable sea-surface-temperature value was supplied.";
+  } else if (coverage.status === "invalid" || summary.observedValue === null) {
+    body = `sea-surface-temperature metadata is invalid (${coverage.reason ?? "unspecified"}), so no value is reported.`;
+  } else {
+    const band = summary.temperatureBand
+      ? TEMPERATURE_BAND_PHRASES[summary.temperatureBand]
+      : "an unclassified band";
+    const value = `${summary.observedValue}${summary.metric.sourceUnit}, ${band}`;
+    const coastalNote =
+      coverage.status === "land-mixed-coastal"
+        ? " The footprint is coastal or land-mixed, so some samples fall on land."
+        : "";
+    body = `${value}.${coastalNote}${coverageNote(coverage.validFraction)}`;
+  }
+
+  return `${lead} ${body} ${provenance}`;
+}
+
+function coverageNote(validFraction: number | null): string {
+  if (validFraction === null) {
+    return " Spatial SST coverage was not supplied.";
+  }
+  return ` ${Math.round(validFraction * 100)}% of the sampled footprint had usable SST samples.`;
 }
