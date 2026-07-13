@@ -23,6 +23,12 @@ import {
   placeInsightPhysicalReading,
   placeInsightReading,
 } from "./lib/placeInsights";
+import {
+  buildPlaceObservationExportInput,
+  isPlaceObservationExportLayer,
+  type CalibratedPlaceObservationSample,
+  type PlaceObservationExportLayerId,
+} from "./lib/placeObservationExportBuilder";
 import { volcanoesInSearchExtent } from "./lib/volcanoExtent";
 import { parseVolcanoList } from "./lib/volcanoes";
 import type { GeoResult } from "./lib/geocoding";
@@ -419,6 +425,43 @@ function runPlaceInsights(result: GeoResult): void {
   const abort = (placeInsightsAbort = new AbortController());
   const geometry = result.geometry;
   placeInsights.open(result.name);
+  const exportSamples = new Map<
+    PlaceObservationExportLayerId,
+    CalibratedPlaceObservationSample
+  >();
+  let exportPossible = true;
+  const exportUnavailable = (reason: string): void => {
+    if (!exportPossible) return;
+    exportPossible = false;
+    placeInsights.setObservationExportUnavailable(reason);
+  };
+  const publishObservationExport = (): void => {
+    if (!exportPossible || exportSamples.size !== PLACE_METRICS.length) return;
+    try {
+      placeInsights.setObservationExport(
+        buildPlaceObservationExportInput({
+          boundary: geometry,
+          samples: PLACE_METRICS.map((metric) => {
+            const sample = exportSamples.get(
+              metric.layerId as PlaceObservationExportLayerId
+            );
+            if (!sample) throw new Error(`Missing ${metric.layerId} sample.`);
+            return sample;
+          }),
+          generatedIso: new Date().toISOString(),
+          toolVersion: __APP_VERSION__,
+        })
+      );
+    } catch (error) {
+      console.warn(
+        "RoamingEye: observation export could not be prepared",
+        error
+      );
+      exportUnavailable(
+        "Source observations could not be prepared as a reproducible export."
+      );
+    }
+  };
 
   if (result.boundingBox) {
     void fetchJson<unknown>(`${import.meta.env.BASE_URL}data/volcanoes.json`, {
@@ -475,6 +518,27 @@ function runPlaceInsights(result: GeoResult): void {
               sourceImageDimensions,
             })
       );
+      const sourceToRenderedFactor =
+        colormap?.factor ??
+        (metric.layerId === "ndvi" && PROBE_SCALES.ndvi.calibrated ? 1 : null);
+      if (
+        sourceToRenderedFactor === null ||
+        !isPlaceObservationExportLayer(metric.layerId)
+      ) {
+        exportUnavailable(
+          "One or more source scales were unavailable, so no native-unit export was created."
+        );
+        return;
+      }
+      exportSamples.set(metric.layerId, {
+        layerId: metric.layerId,
+        months,
+        values,
+        validFractions,
+        sourceToRenderedFactor,
+        sourceImageDimensions,
+      });
+      publishObservationExport();
     })().catch((error: unknown) => {
       if (isAbortError(error) || abort.signal.aborted) return;
       console.warn("RoamingEye: place insight sampling failed", error);
@@ -483,6 +547,9 @@ function runPlaceInsights(result: GeoResult): void {
         value: "Unavailable",
         detail: "Regional data could not be sampled",
       });
+      exportUnavailable(
+        "One or more source products could not be sampled, so no export was created."
+      );
     });
   }
 }
