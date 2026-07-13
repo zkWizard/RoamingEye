@@ -346,6 +346,8 @@
             "Tests cover small, large, coastal, and missing regions"
           ],
           "branch": "codex/geospatial-sampling-coverage-20260713061030",
+          "commit": "da0c58b89f416301cf391591c34e7cc407f3fc05",
+          "prUrl": "https://github.com/zkWizard/RoamingEye/pull/214",
           "changedFiles": [
             "src/probe/ProbeSampler.ts",
             "src/lib/placeInsights.ts",

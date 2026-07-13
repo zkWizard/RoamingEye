@@ -13,6 +13,12 @@
 - Focused ESLint and Prettier checks
 - `git diff --check`
 
+## Publication
+
+- Branch: `codex/geospatial-sampling-coverage-20260713061030`
+- Contribution commit: `da0c58b89f416301cf391591c34e7cc407f3fc05`
+- Ready-for-review PR: https://github.com/zkWizard/RoamingEye/pull/214
+
 ## Limitations
 
 Image dimensions identify the rendered GIBS sampling input; they are not a ground-resolution measurement or uncertainty estimate. Coverage is supplied sampling coverage only and does not support condition, causal, risk, diagnostic, or forecast claims.
