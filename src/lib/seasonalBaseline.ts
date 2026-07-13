@@ -24,6 +24,8 @@ export const MINIMUM_SEASONAL_VALID_FRACTION = 0.6;
 
 export type SeasonalBaselineStatus =
   | "available"
+  | "unavailable"
+  | "not-yet-published"
   | "insufficient-samples"
   | "insufficient-coverage"
   | "no-data"
@@ -296,8 +298,20 @@ function targetReadiness(
   target: MonthlyClimateSummary,
   minimumValidFraction: number
 ): { status: SeasonalBaselineStatus; reason: string | null } {
+  if (target.publicationStatus === "not-yet-published") {
+    return { status: "not-yet-published", reason: "target-not-yet-published" };
+  }
+  if (target.publicationStatus === "invalid-reference-month") {
+    return { status: "invalid", reason: "invalid-month" };
+  }
   if (target.coverage.status === "invalid") {
     return { status: "invalid", reason: target.coverage.reason };
+  }
+  if (target.publicationStatus !== "published") {
+    return {
+      status: "unavailable",
+      reason: `target-${target.publicationStatus}`,
+    };
   }
   if (target.coverage.status === "no-data") {
     return { status: "no-data", reason: target.coverage.reason };
