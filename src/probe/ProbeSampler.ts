@@ -12,13 +12,19 @@ import {
   invertColormapEntries,
   latLonToPixel,
   medianValid,
+  normalizeLon,
   weightedMeanValid,
   gridPoints,
   regionGridSize,
   type Rgb,
 } from "../lib/probe";
 import type { ColormapEntry } from "../lib/colormap";
-import { regionAround, gibsRegionUrl, type Bounds } from "../lib/imagery";
+import {
+  regionAround,
+  gibsRegionUrl,
+  splitBoundsAtAntimeridian,
+  type Bounds,
+} from "../lib/imagery";
 import { fetchBlob } from "../lib/net";
 import type { LayerId } from "../lib/timeline";
 import {
@@ -79,6 +85,11 @@ export interface SampleOptions {
 }
 
 type ColorInverter = (rgb: Rgb) => number | null;
+
+interface ImageSource {
+  image: CanvasImageSource;
+  close: () => void;
+}
 
 export class ProbeSampler {
   constructor(
@@ -325,18 +336,11 @@ export class ProbeSampler {
     signal?: AbortSignal,
     regionBounds?: Bounds
   ): Promise<{ value: number | null; validFraction: number }> {
-    let bitmap: ImageBitmap;
+    let source: ImageSource;
     try {
-      const url = regionBounds
-        ? gibsRegionUrl(
-            layer.wmsLayer,
-            regionBounds,
-            `${ym.year}-${String(ym.month).padStart(2, "0")}-01`,
-            this.imageSize
-          )
-        : gibsWmsUrl(layer, ym, this.imageSize);
-      const blob = await fetchBlob(url, { signal, retries: 1 });
-      bitmap = await createImageBitmap(blob);
+      source = regionBounds
+        ? await this.loadRegionSource(layer, ym, regionBounds, signal)
+        : await this.loadGlobalSource(layer, ym, signal);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") throw err;
       // A missing month is a gap in the chart, not a failure.
@@ -346,9 +350,9 @@ export class ProbeSampler {
     // Copy each source pixel into a 1-px-tall strip and read it in one call.
     ctx.clearRect(0, 0, pixels.length, 1);
     for (let i = 0; i < pixels.length; i++) {
-      ctx.drawImage(bitmap, pixels[i].x, pixels[i].y, 1, 1, i, 0, 1, 1);
+      ctx.drawImage(source.image, pixels[i].x, pixels[i].y, 1, 1, i, 0, 1, 1);
     }
-    bitmap.close();
+    source.close();
     const { data } = ctx.getImageData(0, 0, pixels.length, 1);
 
     const inversions: (number | null)[] = [];
@@ -374,16 +378,90 @@ export class ProbeSampler {
       validFraction: totalWeight > 0 ? validWeight / totalWeight : 0,
     };
   }
+
+  private async loadGlobalSource(
+    layer: LayerConfig,
+    ym: YearMonth,
+    signal?: AbortSignal
+  ): Promise<ImageSource> {
+    const blob = await fetchBlob(gibsWmsUrl(layer, ym, this.imageSize), {
+      signal,
+      retries: 1,
+    });
+    const image = await createImageBitmap(blob);
+    return { image, close: () => image.close() };
+  }
+
+  private async loadRegionSource(
+    layer: LayerConfig,
+    ym: YearMonth,
+    bounds: Bounds,
+    signal?: AbortSignal
+  ): Promise<ImageSource> {
+    const time = `${ym.year}-${String(ym.month).padStart(2, "0")}-01`;
+    const parts = splitBoundsAtAntimeridian(bounds);
+    if (parts.length === 1) {
+      const blob = await fetchBlob(
+        gibsRegionUrl(layer.wmsLayer, parts[0].bounds, time, this.imageSize),
+        { signal, retries: 1 }
+      );
+      const image = await createImageBitmap(blob);
+      return { image, close: () => image.close() };
+    }
+
+    const widths = parts.map((part) =>
+      Math.max(1, Math.round(this.imageSize.width * part.fraction))
+    );
+    widths[widths.length - 1] =
+      this.imageSize.width -
+      widths.slice(0, -1).reduce((sum, width) => sum + width, 0);
+    const bitmaps = await Promise.all(
+      parts.map(async (part, index) => {
+        const blob = await fetchBlob(
+          gibsRegionUrl(layer.wmsLayer, part.bounds, time, {
+            width: widths[index],
+            height: this.imageSize.height,
+          }),
+          { signal, retries: 1 }
+        );
+        return createImageBitmap(blob);
+      })
+    );
+    const canvas = document.createElement("canvas");
+    canvas.width = this.imageSize.width;
+    canvas.height = this.imageSize.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      for (const image of bitmaps) image.close();
+      throw new Error("RoamingEye: 2d canvas context unavailable");
+    }
+    let x = 0;
+    for (let i = 0; i < bitmaps.length; i++) {
+      ctx.drawImage(bitmaps[i], x, 0, widths[i], this.imageSize.height);
+      bitmaps[i].close();
+      x += widths[i];
+    }
+    return { image: canvas, close: () => undefined };
+  }
 }
 
-function latLonToRegionPixel(
+function lonInBoundsFrame(lon: number, bounds: Bounds): number {
+  const center = (bounds.west + bounds.east) / 2;
+  let framed = normalizeLon(lon);
+  while (framed - center > 180) framed -= 360;
+  while (framed - center < -180) framed += 360;
+  return framed;
+}
+
+export function latLonToRegionPixel(
   lat: number,
   lon: number,
   bounds: Bounds,
   width: number,
   height: number
 ): { x: number; y: number } {
-  const x = ((lon - bounds.west) / (bounds.east - bounds.west)) * width;
+  const framedLon = lonInBoundsFrame(lon, bounds);
+  const x = ((framedLon - bounds.west) / (bounds.east - bounds.west)) * width;
   const y = ((bounds.north - lat) / (bounds.north - bounds.south)) * height;
   return {
     x: Math.min(width - 2, Math.max(1, Math.floor(x))),
