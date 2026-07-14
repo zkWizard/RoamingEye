@@ -20,10 +20,7 @@ import {
  */
 
 export type LandCoverHumanUseCategoryId =
-  | "cultivated"
-  | "built"
-  | "cultivated-natural-mosaic"
-  | "other-land-cover";
+  "cultivated" | "built" | "cultivated-natural-mosaic" | "other-land-cover";
 
 export interface LandCoverHumanUseCategory {
   id: LandCoverHumanUseCategoryId;
