@@ -148,6 +148,20 @@ any two even share a unit. Native units are dimensional labels, **not** a
 data-quality or fitness judgement, and same-unit signals — if any ever arose —
 would be dimensionally comparable but are still reported separately, never merged.
 
+Source independence has a coarser grain above the product level. A DOI is
+`10.<registrant>/<suffix>`, and the registrant is the member a DOI Registration
+Agency assigned that prefix to — the data-assigning authority. Every RoamingEye
+Earthdata product (MODIS, GLDAS, MERRA-2, ASTER GDEM) mints its DOI under one
+registrant, `10.5067` (NASA ESDIS). So the brief's four signals are three
+_distinct products_ (independent at the product grain) yet a single _registering
+authority_: a registration- or curation-authority-wide change (a DOI re-minting
+after a DAAC migration, an ESDIS-wide reprocessing) would touch them together, so
+they are not institutionally independent. `src/lib/registrantProvenance.ts`
+groups the usable observations by the registrant parsed from each cited DOI and
+reports whether the whole brief traces to one authority. It composes with — and
+never replaces — `sourceIndependence`; a DOI with no parseable registrant is
+listed as unknown, never assigned an invented authority.
+
 ## 8. What this tool does not do
 
 - It does **not** validate the GIBS L3 products against in-situ measurements —
