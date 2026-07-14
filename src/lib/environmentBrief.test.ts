@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { CLIMATE_METRICS } from "./climate";
 import {
+  attributeBrief,
   composeEnvironmentBrief,
   summarizeCompleteness,
   summarizeTemporalAlignment,
   unsupportedBriefLanguageHits,
+  type EnvironmentSignalBrief,
 } from "./environmentBrief";
 import { NDVI_SOURCE, NDVI_UNIT } from "./phenology";
+import { GIBS_ACKNOWLEDGMENT } from "./providers";
 
 describe("environment provenance brief", () => {
   it("composes four independent signals with month, coverage, unit, and source", () => {
@@ -393,5 +396,103 @@ describe("environment brief completeness", () => {
       usableFraction: 0,
     });
     expect(summary.statement).toBe("No signals composed.");
+  });
+});
+
+describe("environment brief attribution", () => {
+  it("deduplicates shared-source signals by DOI and credits every source it drew on", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: { dataMonth: { year: 2026, month: 1 }, value: 0.61 },
+      rainfall: { dataMonth: { year: 2026, month: 1 }, value: 0.00012 },
+      soilMoisture: { dataMonth: { year: 2026, month: 1 }, value: 6.4 },
+      airTemperature: { dataMonth: { year: 2026, month: 1 }, value: 289.4 },
+      availableThrough: { year: 2026, month: 1 },
+    });
+
+    const attribution = attributeBrief(brief.signals);
+
+    // Rainfall and soil moisture are both GLDAS (one DOI): three distinct
+    // sources, not four, with the shared product credited once.
+    expect(attribution.sources.map((s) => s.source.shortName)).toEqual([
+      "MOD13A3",
+      "GLDAS_NOAH025_M",
+      "M2TMNXSLV",
+    ]);
+    const gldas = attribution.sources[1];
+    expect(gldas.signalIds).toEqual(["rainfall", "soil-moisture"]);
+    expect(gldas.signalLabels).toEqual([
+      "Rainfall (precipitation rate)",
+      "Soil moisture",
+    ]);
+    expect(gldas.contributedValue).toBe(true);
+    expect(gldas.doiUrl).toBe("https://doi.org/10.5067/SXAVCZFAQLNO");
+
+    expect(attribution.acknowledgment).toBe(GIBS_ACKNOWLEDGMENT);
+    expect(attribution.line).toBe(
+      "Data sources: MOD13A3 v061 — Vegetation (NDVI) " +
+        "(https://doi.org/10.5067/MODIS/MOD13A3.061); " +
+        "GLDAS_NOAH025_M v2.1 — Rainfall (precipitation rate), Soil moisture " +
+        "(https://doi.org/10.5067/SXAVCZFAQLNO); " +
+        "M2TMNXSLV v5.12.4 — Air temperature " +
+        `(https://doi.org/10.5067/AP1B0BA5PD2K). ${GIBS_ACKNOWLEDGMENT}`
+    );
+    // A source credit must not smuggle in condition/forecast/causal language.
+    expect(unsupportedBriefLanguageHits(attribution.line)).toEqual([]);
+  });
+
+  it("credits a consulted source even when it returned no usable value", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: { dataMonth: { year: 2026, month: 1 }, value: null },
+      rainfall: null,
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 1 },
+    });
+
+    const attribution = attributeBrief(brief.signals);
+    const veg = attribution.sources.find(
+      (s) => s.source.shortName === "MOD13A3"
+    );
+
+    // The source is still credited (it was consulted), but the flag is honest
+    // that it yielded no usable value.
+    expect(veg?.signalIds).toEqual(["vegetation"]);
+    expect(veg?.contributedValue).toBe(false);
+    expect(attribution.line).toContain("MOD13A3 v061 — Vegetation (NDVI)");
+  });
+
+  it("omits a resolver link for a source without a DOI", () => {
+    const signals: EnvironmentSignalBrief[] = [
+      {
+        id: "vegetation",
+        label: "Vegetation (NDVI)",
+        layerId: "ndvi",
+        source: {
+          shortName: "MOD13A3",
+          version: "061",
+          doi: "  ",
+          title: "MODIS/Terra Vegetation Indices Monthly L3 Global",
+        },
+        nativeUnit: NDVI_UNIT,
+        dataMonth: { year: 2026, month: 1 },
+        coverage: { status: "available", validFraction: null, reason: null },
+        status: "available",
+        observedValue: 0.5,
+        statement: "",
+      },
+    ];
+
+    const attribution = attributeBrief(signals);
+    expect(attribution.sources[0].doiUrl).toBeNull();
+    expect(attribution.line).toBe(
+      `Data sources: MOD13A3 v061 — Vegetation (NDVI). ${GIBS_ACKNOWLEDGMENT}`
+    );
+  });
+
+  it("reports when there is nothing to credit", () => {
+    const attribution = attributeBrief([]);
+    expect(attribution.sources).toEqual([]);
+    expect(attribution.acknowledgment).toBe(GIBS_ACKNOWLEDGMENT);
+    expect(attribution.line).toBe("No data sources to credit.");
   });
 });
