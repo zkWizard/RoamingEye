@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   AEROSOL_LOADING_BANDS,
+  AEROSOL_LOADING_CHANGE_THRESHOLD,
+  AEROSOL_LOADING_LIMITATIONS,
   AEROSOL_SOURCE,
   AEROSOL_TIER_EDGE_MARGIN,
   AEROSOL_UNIT,
   AEROSOL_WAVELENGTH_NM,
   describeAerosolBandProximity,
   describeAerosolLoading,
+  describeAerosolLoadingChange,
   summarizeAerosolLoading,
   type AerosolLoadingCategory,
 } from "./aerosolLoading";
@@ -278,5 +281,134 @@ describe("describeAerosolBandProximity", () => {
     );
     expect(summary.observedValue).toBeNull();
     expect(summary.tierProximity).toBeNull();
+  });
+});
+
+describe("month-over-month aerosol loading change", () => {
+  it("reports an increasing trend when column loading rises past the band", () => {
+    const change = describeAerosolLoadingChange(
+      { dataMonth: { year: 2026, month: 1 }, value: 0.12, validFraction: 0.9 },
+      { dataMonth: { year: 2026, month: 2 }, value: 0.34, validFraction: 0.88 },
+      AVAILABLE_THROUGH
+    );
+
+    expect(change).toMatchObject({
+      kind: "month-over-month-aerosol-loading-change",
+      isForecast: false,
+      status: "available",
+      source: AEROSOL_SOURCE,
+      wavelengthNm: 550,
+      unit: AEROSOL_UNIT,
+      trend: "increasing",
+      threshold: AEROSOL_LOADING_CHANGE_THRESHOLD,
+      reason: null,
+    });
+    expect(change.changeValue).toBeCloseTo(0.22, 10);
+    expect(change.earlier.loading?.category).toBe("low");
+    expect(change.later.loading?.category).toBe("moderate");
+    expect(change.limitations).toBe(AEROSOL_LOADING_LIMITATIONS);
+  });
+
+  it("reports a decreasing trend when column loading falls past the band", () => {
+    const change = describeAerosolLoadingChange(
+      { dataMonth: { year: 2026, month: 1 }, value: 0.6 },
+      { dataMonth: { year: 2026, month: 2 }, value: 0.15 },
+      AVAILABLE_THROUGH
+    );
+    expect(change.status).toBe("available");
+    expect(change.trend).toBe("decreasing");
+    expect(change.changeValue).toBeCloseTo(-0.45, 10);
+  });
+
+  it("reports little-change for a difference inside the threshold band", () => {
+    const change = describeAerosolLoadingChange(
+      { dataMonth: { year: 2026, month: 1 }, value: 0.3 },
+      { dataMonth: { year: 2026, month: 2 }, value: 0.315 },
+      AVAILABLE_THROUGH
+    );
+    expect(change.trend).toBe("little-change");
+    expect(change.changeValue).toBeCloseTo(0.015, 10);
+  });
+
+  it("treats the threshold as an exclusive little-change boundary", () => {
+    const atBoundary = describeAerosolLoadingChange(
+      { dataMonth: { year: 2026, month: 1 }, value: 0 },
+      { dataMonth: { year: 2026, month: 2 }, value: 0.02 },
+      AVAILABLE_THROUGH
+    );
+    // A change of exactly the threshold (0.02) is reported, not little-change:
+    // the band is `Math.abs(change) < threshold`, so the boundary is excluded.
+    expect(atBoundary.changeValue).toBe(0.02);
+    expect(atBoundary.trend).toBe("increasing");
+  });
+
+  it("honours a custom threshold", () => {
+    const change = describeAerosolLoadingChange(
+      { dataMonth: { year: 2026, month: 1 }, value: 0.3 },
+      { dataMonth: { year: 2026, month: 2 }, value: 0.38 },
+      AVAILABLE_THROUGH,
+      { threshold: 0.1 }
+    );
+    expect(change.threshold).toBe(0.1);
+    expect(change.trend).toBe("little-change");
+  });
+
+  it("refuses to span non-consecutive months without fabricating a value", () => {
+    const change = describeAerosolLoadingChange(
+      { dataMonth: { year: 2026, month: 1 }, value: 0.2 },
+      { dataMonth: { year: 2026, month: 3 }, value: 0.5 },
+      AVAILABLE_THROUGH
+    );
+    expect(change.status).toBe("non-adjacent-months");
+    expect(change.reason).toBe("months-not-consecutive");
+    expect(change.changeValue).toBeNull();
+    expect(change.trend).toBeNull();
+  });
+
+  it("rejects a reversed month order as non-consecutive", () => {
+    const change = describeAerosolLoadingChange(
+      { dataMonth: { year: 2026, month: 2 }, value: 0.2 },
+      { dataMonth: { year: 2026, month: 1 }, value: 0.3 },
+      AVAILABLE_THROUGH
+    );
+    expect(change.status).toBe("non-adjacent-months");
+    expect(change.changeValue).toBeNull();
+  });
+
+  it("withholds a change when an endpoint is not yet published", () => {
+    // March is published at the checkpoint; April is not, so no change is stated.
+    const change = describeAerosolLoadingChange(
+      { dataMonth: { year: 2026, month: 3 }, value: 0.2 },
+      { dataMonth: { year: 2026, month: 4 }, value: 0.5 },
+      AVAILABLE_THROUGH
+    );
+    expect(change.later.publicationStatus).toBe("not-yet-published");
+    expect(change.status).toBe("unavailable");
+    expect(change.reason).toBe("endpoint-not-available");
+    expect(change.changeValue).toBeNull();
+  });
+
+  it("withholds a change when an endpoint has no usable coverage", () => {
+    const change = describeAerosolLoadingChange(
+      { dataMonth: { year: 2026, month: 1 }, value: null },
+      { dataMonth: { year: 2026, month: 2 }, value: 0.5 },
+      AVAILABLE_THROUGH
+    );
+    expect(change.earlier.coverage.status).toBe("no-data");
+    expect(change.status).toBe("unavailable");
+    expect(change.reason).toBe("endpoint-not-available");
+  });
+
+  it("marks an invalid threshold unavailable and falls back to the default", () => {
+    const change = describeAerosolLoadingChange(
+      { dataMonth: { year: 2026, month: 1 }, value: 0.2 },
+      { dataMonth: { year: 2026, month: 2 }, value: 0.5 },
+      AVAILABLE_THROUGH,
+      { threshold: -1 }
+    );
+    expect(change.status).toBe("unavailable");
+    expect(change.reason).toBe("invalid-threshold");
+    expect(change.threshold).toBe(AEROSOL_LOADING_CHANGE_THRESHOLD);
+    expect(change.changeValue).toBeNull();
   });
 });
