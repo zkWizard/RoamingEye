@@ -56,6 +56,51 @@ export function lastEruptionLabel(lastEruptionYear: number | null): string {
   return `last erupted ${Math.abs(lastEruptionYear)} BCE`;
 }
 
+/**
+ * Summit-elevation datum regime, read directly from the GVP elevation field
+ * (metres relative to sea level):
+ *  - "subaerial": summit above the 0 m datum (elevation > 0).
+ *  - "sea-level": summit exactly at the 0 m datum (elevation === 0).
+ *  - "submarine": summit below the 0 m datum (elevation < 0).
+ *  - "unknown": elevation is missing or non-finite.
+ * This is a reading of the reported datum sign, not an eruption-style,
+ * edifice-morphology, or hazard inference — GVP records a summit elevation,
+ * not whether an edifice erupts subaerially or under water.
+ */
+export type ElevationRegime =
+  "subaerial" | "sea-level" | "submarine" | "unknown";
+
+export function elevationRegime(
+  elevationMeters: number | null
+): ElevationRegime {
+  if (elevationMeters === null || !Number.isFinite(elevationMeters)) {
+    return "unknown";
+  }
+  if (elevationMeters > 0) return "subaerial";
+  if (elevationMeters < 0) return "submarine";
+  return "sea-level";
+}
+
+/**
+ * Human-readable summit-elevation phrase, honest about the datum: a null or
+ * non-finite elevation is "summit elevation unknown", and the sign is stated
+ * relative to sea level rather than reinterpreted.
+ */
+export function elevationRegimeLabel(elevationMeters: number | null): string {
+  switch (elevationRegime(elevationMeters)) {
+    case "subaerial":
+      return `subaerial summit, ${elevationMeters} m above sea level`;
+    case "submarine":
+      return `submarine summit, ${Math.abs(
+        elevationMeters as number
+      )} m below sea level`;
+    case "sea-level":
+      return "summit at sea level (0 m)";
+    case "unknown":
+      return "summit elevation unknown";
+  }
+}
+
 /** Tooltip text for a hovered marker, e.g. "Etna · Stratovolcano · last erupted 2025". */
 export function volcanoHoverLabel(volcano: Volcano): string {
   const parts = [volcano.name];
