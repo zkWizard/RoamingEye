@@ -24,15 +24,10 @@ import { formatYm, ymToIndex, type DatasetRef } from "./timeline";
 
 /** Direction of the month-over-month change in accumulated depth. */
 export type PrecipitationAccumulationTrend =
-  | "wetter"
-  | "drier"
-  | "little-change";
+  "wetter" | "drier" | "little-change";
 
 export type PrecipitationAccumulationChangeStatus =
-  | "available"
-  | "non-adjacent-months"
-  | "mixed-provenance"
-  | "unavailable";
+  "available" | "non-adjacent-months" | "mixed-provenance" | "unavailable";
 
 /**
  * Change of total accumulated depth (mm) below which the pair is reported as
@@ -131,8 +126,8 @@ export function describePrecipitationAccumulationChange(
     Math.abs(change) < threshold
       ? "little-change"
       : change > 0
-      ? "wetter"
-      : "drier";
+        ? "wetter"
+        : "drier";
 
   return {
     ...base,
