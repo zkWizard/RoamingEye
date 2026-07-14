@@ -27,6 +27,17 @@ export const AEROSOL_WAVELENGTH_NM = 550;
 /** AOD is a dimensionless optical thickness; there is no physical unit. */
 export const AEROSOL_UNIT = "dimensionless";
 
+/**
+ * Honest scope limits shared by the aerosol descriptors. Kept in code because
+ * callers surface them alongside any AOD value or change they present.
+ */
+export const AEROSOL_LOADING_LIMITATIONS = [
+  "AOD at 550 nm is a whole-column optical thickness, not a surface concentration or a regulatory air-quality or health index.",
+  "MERRA-2 is a reanalysis (a model constrained by assimilated observations), so a value is a modelled monthly mean, not a direct pixel measurement.",
+  "Loading tiers and the change band are descriptive reading conventions, not standardized thresholds, and carry no health, safety, or compliance meaning.",
+  "A month-over-month change describes only the difference between two modelled monthly means; it implies nothing about cause, surface air quality, or any future value.",
+] as const;
+
 /** Cited source for the aerosol optical depth observations (MERRA-2). */
 export const AEROSOL_SOURCE: DatasetRef = requireAerosolSource();
 
@@ -127,6 +138,37 @@ export interface AerosolLoadingDescriptor {
   bandMax: number | null;
 }
 
+/**
+ * Default AOD distance, at 550 nm, within which a value is flagged as sitting
+ * near a tier boundary. Like the loading bands themselves this is a descriptive
+ * reading aid, not a standardized threshold; callers may override it. The
+ * authoritative signal is always the numeric `distanceToBoundary`.
+ */
+export const AEROSOL_TIER_EDGE_MARGIN = 0.02;
+
+export interface AerosolBandProximity {
+  /** Loading tier the value falls in (matches `describeAerosolLoading`). */
+  category: AerosolLoadingCategory;
+  /** AOD value of the nearest boundary between two loading tiers. */
+  nearestBoundary: number;
+  /**
+   * Signed distance `value - nearestBoundary` at 550 nm. Negative means the
+   * value sits below the boundary, positive above; zero means it is exactly on
+   * it. This raw distance, not the `marginal` flag, is the authoritative signal.
+   */
+  distanceToBoundary: number;
+  /** The loading tier immediately across the nearest boundary. */
+  adjacentCategory: AerosolLoadingCategory;
+  /**
+   * True when `|distanceToBoundary| <= margin`: the tier assignment is close to
+   * an edge and a nearby value could read as `adjacentCategory`. A robustness
+   * caveat on the categorical tier, never a measurement or forecast.
+   */
+  marginal: boolean;
+  /** Margin applied to derive `marginal`; echoed for provenance. */
+  margin: number;
+}
+
 export interface AerosolLoadingSummary {
   kind: "observed-monthly-aerosol";
   /** Explicitly prevents consumers from treating this as a forecast. */
@@ -149,6 +191,12 @@ export interface AerosolLoadingSummary {
   observedValue: number | null;
   /** Descriptive loading tier, or null when there is no usable value. */
   loading: AerosolLoadingDescriptor | null;
+  /**
+   * How close the value sits to the nearest loading-tier boundary, so consumers
+   * can tell a robustly-in-tier value from one that is only marginally binned.
+   * Null when there is no usable value.
+   */
+  tierProximity: AerosolBandProximity | null;
 }
 
 /**
@@ -192,6 +240,10 @@ export function summarizeAerosolLoading(
     observedValue,
     loading:
       observedValue === null ? null : describeAerosolLoading(observedValue),
+    tierProximity:
+      observedValue === null
+        ? null
+        : describeAerosolBandProximity(observedValue),
   };
 }
 
@@ -215,6 +267,194 @@ export function describeAerosolLoading(
     label: band.label,
     bandMin: band.minInclusive,
     bandMax: band.maxExclusive,
+  };
+}
+
+/**
+ * Inter-tier boundaries: the AOD values that separate two adjacent loading
+ * tiers. The physical floor (0) and the unbounded top of `very-high` are
+ * deliberately excluded — they are not choices between two descriptive tiers,
+ * so proximity to them carries no "could read as the neighbouring tier" meaning.
+ */
+const AEROSOL_TIER_BOUNDARIES: readonly {
+  value: number;
+  below: AerosolLoadingCategory;
+  above: AerosolLoadingCategory;
+}[] = AEROSOL_LOADING_BANDS.slice(1).map((band, index) => ({
+  value: band.minInclusive,
+  below: AEROSOL_LOADING_BANDS[index].category,
+  above: band.category,
+}));
+
+/**
+ * Describe how close a usable column AOD sits to the nearest boundary between
+ * two loading tiers, so a consumer can distinguish a value that is robustly
+ * inside its tier from one that is only marginally binned (e.g. 0.19 vs 0.21
+ * both read as roughly the same air but land in different tiers).
+ *
+ * Returns null for values that are not usable optical thickness (negative,
+ * non-finite, or null), matching `describeAerosolLoading`, so no caller reads a
+ * robustness claim off an unusable number. The `margin` (default
+ * `AEROSOL_TIER_EDGE_MARGIN`) only drives the convenience `marginal` flag; the
+ * authoritative signal is the numeric `distanceToBoundary`.
+ */
+export function describeAerosolBandProximity(
+  value: number | null,
+  margin: number = AEROSOL_TIER_EDGE_MARGIN
+): AerosolBandProximity | null {
+  const loading = describeAerosolLoading(value);
+  if (value === null || loading === null) return null;
+  const safeMargin = Number.isFinite(margin) && margin >= 0 ? margin : 0;
+
+  // Nearest inter-tier boundary; ties resolve to the lower boundary value so
+  // the result is deterministic. A value interior to its tier stays on the same
+  // side of whichever boundary wins, so `category` always matches the tier it
+  // falls in.
+  let nearest = AEROSOL_TIER_BOUNDARIES[0];
+  let nearestDistance = Math.abs(value - nearest.value);
+  for (const boundary of AEROSOL_TIER_BOUNDARIES.slice(1)) {
+    const distance = Math.abs(value - boundary.value);
+    if (distance < nearestDistance) {
+      nearest = boundary;
+      nearestDistance = distance;
+    }
+  }
+
+  const distanceToBoundary = value - nearest.value;
+  const adjacentCategory =
+    distanceToBoundary >= 0 ? nearest.below : nearest.above;
+
+  return {
+    category: loading.category,
+    nearestBoundary: nearest.value,
+    distanceToBoundary,
+    adjacentCategory,
+    marginal: nearestDistance <= safeMargin,
+    margin: safeMargin,
+  };
+}
+
+/** Direction of change in column AOD between two consecutive months. */
+export type AerosolLoadingTrend = "increasing" | "decreasing" | "little-change";
+
+export type AerosolLoadingChangeStatus =
+  "available" | "non-adjacent-months" | "unavailable";
+
+/**
+ * Absolute change in column AOD below which the difference is reported as
+ * `little-change` rather than increasing or decreasing. It is a fifth of the
+ * `very-low`/`low` break point (0.1) — small enough to name a real shift, wide
+ * enough not to over-read month-to-month reanalysis wobble. Like the loading
+ * tiers it is a descriptive reading convention, not a standardized threshold.
+ */
+export const AEROSOL_LOADING_CHANGE_THRESHOLD = 0.02;
+
+export interface AerosolLoadingChange {
+  kind: "month-over-month-aerosol-loading-change";
+  /** Explicitly prevents consumers from treating this as a forecast. */
+  isForecast: false;
+  status: AerosolLoadingChangeStatus;
+  source: DatasetRef;
+  wavelengthNm: number;
+  unit: string;
+  earlier: AerosolLoadingSummary;
+  later: AerosolLoadingSummary;
+  /** Later minus earlier column AOD (dimensionless); null when not computable. */
+  changeValue: number | null;
+  trend: AerosolLoadingTrend | null;
+  threshold: number;
+  /** Short machine-readable reason when no trend is reported. */
+  reason: string | null;
+  limitations: readonly string[];
+}
+
+export interface AerosolLoadingChangeOptions {
+  /** Absolute AOD band treated as `little-change` (defaults to the constant). */
+  threshold?: number;
+}
+
+/**
+ * Whether a summary carries a value usable as a change endpoint. Unlike the
+ * summary's own `observedValue` — which tracks coverage alone and can be set for
+ * a not-yet-published month — a change requires a *published* month with usable
+ * coverage and a finite value, so an unpublished future month never enters a
+ * comparison.
+ */
+function usableEndpointValue(summary: AerosolLoadingSummary): number | null {
+  if (summary.publicationStatus !== "published") return null;
+  if (summary.coverage.status !== "available") return null;
+  const value = summary.observedValue;
+  return value !== null && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * Describe the change in column AOD between two consecutive months of the same
+ * MERRA-2 product. Both months must be published with usable coverage, and
+ * `later` must fall exactly one calendar month after `earlier` — the helper
+ * never spans a gap or fills a missing month. The result describes a difference
+ * in modelled column loading only; it implies nothing about surface air quality,
+ * cause, or any future value.
+ */
+export function describeAerosolLoadingChange(
+  earlierObservation: AerosolObservation,
+  laterObservation: AerosolObservation,
+  availableThrough: YearMonth,
+  options: AerosolLoadingChangeOptions = {}
+): AerosolLoadingChange {
+  const earlier = summarizeAerosolLoading(earlierObservation, availableThrough);
+  const later = summarizeAerosolLoading(laterObservation, availableThrough);
+  const threshold = options.threshold ?? AEROSOL_LOADING_CHANGE_THRESHOLD;
+  const validThreshold = Number.isFinite(threshold) && threshold >= 0;
+
+  const base = {
+    kind: "month-over-month-aerosol-loading-change" as const,
+    isForecast: false as const,
+    source: AEROSOL_SOURCE,
+    wavelengthNm: AEROSOL_WAVELENGTH_NM,
+    unit: AEROSOL_UNIT,
+    earlier,
+    later,
+    changeValue: null,
+    trend: null,
+    threshold: validThreshold ? threshold : AEROSOL_LOADING_CHANGE_THRESHOLD,
+    limitations: AEROSOL_LOADING_LIMITATIONS,
+  };
+
+  if (!validThreshold) {
+    return { ...base, status: "unavailable", reason: "invalid-threshold" };
+  }
+  if (
+    !isYearMonth(earlier.dataMonth) ||
+    !isYearMonth(later.dataMonth) ||
+    monthDistance(earlier.dataMonth, later.dataMonth) !== 1
+  ) {
+    return {
+      ...base,
+      status: "non-adjacent-months",
+      reason: "months-not-consecutive",
+    };
+  }
+
+  const earlierValue = usableEndpointValue(earlier);
+  const laterValue = usableEndpointValue(later);
+  if (earlierValue === null || laterValue === null) {
+    return { ...base, status: "unavailable", reason: "endpoint-not-available" };
+  }
+
+  const change = laterValue - earlierValue;
+  const trend: AerosolLoadingTrend =
+    Math.abs(change) < threshold
+      ? "little-change"
+      : change > 0
+        ? "increasing"
+        : "decreasing";
+
+  return {
+    ...base,
+    status: "available",
+    changeValue: change,
+    trend,
+    reason: null,
   };
 }
 
