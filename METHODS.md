@@ -129,7 +129,26 @@ publication cadence — never that the data is less trustworthy. Every observati
 keeps its source DOI, and observations without a valid data month are listed but
 excluded from the range statistics (`src/lib/observationRecency.ts`).
 
-## 7. What this tool does not do
+## 7. Cross-signal comparability
+
+The brief composes four independent products and, by design, never reduces them
+to a single score. Several descriptors encode _why_ the signals must stay
+separate: shared provenance (`src/lib/sourceIndependence.ts` — rainfall and soil
+moisture are both GLDAS, so not independent evidence), differing data months
+(the temporal-spread descriptor of §6), and differing spatial coverage
+(`src/lib/coverageAdequacy.ts`).
+
+The remaining reason is **dimensional**: the four signals are reported in
+incommensurable native units — NDVI (unitless), precipitation rate (kg/m²/s),
+soil moisture (kg/m²), and air temperature (K). No two share a unit, so none are
+dimensionally comparable and none can be combined into a common index.
+`src/lib/unitCommensurability.ts` makes this checkable rather than leaving it to
+a comment: it groups the usable observations by native unit and reports whether
+any two even share a unit. Native units are dimensional labels, **not** a
+data-quality or fitness judgement, and same-unit signals — if any ever arose —
+would be dimensionally comparable but are still reported separately, never merged.
+
+## 8. What this tool does not do
 
 - It does **not** validate the GIBS L3 products against in-situ measurements —
   that is the instrument teams' published validation, which we cite via the
