@@ -113,7 +113,23 @@ One documented exception: the `# view_url` line reproduces the deep link
 byte-exactly, and URLs may legitimately contain commas — treat it as a
 comment, not a row.
 
-## 6. What this tool does not do
+## 6. Data currency & recency
+
+The environment brief composes four independent monthly products, each on its
+own publication schedule, so their data months rarely line up. Alongside the
+cross-signal temporal spread (are the signals a synchronized snapshot?), the
+brief can state, per observation, how many **whole months** its data month sits
+behind an "as of" reference month, and bucket that distance into a neutral,
+purely-temporal tier (`current-month`, `past-quarter`, `past-half-year`,
+`older`; plus `after-reference` and `invalid-date` for the off-nominal cases).
+
+This lag is a **distance in months, not a quality judgement**. Monthly
+composites are lagged by design, so a larger lag reflects a product's
+publication cadence — never that the data is less trustworthy. Every observation
+keeps its source DOI, and observations without a valid data month are listed but
+excluded from the range statistics (`src/lib/observationRecency.ts`).
+
+## 7. What this tool does not do
 
 - It does **not** validate the GIBS L3 products against in-situ measurements —
   that is the instrument teams' published validation, which we cite via the
