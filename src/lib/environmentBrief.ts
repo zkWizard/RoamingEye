@@ -7,6 +7,7 @@ import {
   type MonthlyClimateSummary,
 } from "./climate";
 import { NDVI_SOURCE, NDVI_UNIT } from "./phenology";
+import { GIBS_ACKNOWLEDGMENT } from "./providers";
 import {
   compareYm,
   type DatasetRef,
@@ -299,6 +300,94 @@ function temporalAlignmentStatement(
   }
   const monthWord = spanMonths === 1 ? "month" : "months";
   return `${count} usable ${noun} span ${formatYearMonth(earliest)} to ${formatYearMonth(latest)} (${spanMonths}-${monthWord} spread); signals are not a synchronized snapshot and should not be read as simultaneous.`;
+}
+
+/** DOI resolver prefix, so every credited source carries a resolvable link. */
+const DOI_RESOLVER = "https://doi.org/";
+
+/** One credited source dataset, with the brief signals it backed. */
+export interface SourceAttribution {
+  /** The distinct source dataset (deduplicated by DOI). */
+  source: DatasetRef;
+  /** Ids of the signals this source backed, in signal order. */
+  signalIds: EnvironmentSignalId[];
+  /** Human labels for the backed signals, in signal order. */
+  signalLabels: string[];
+  /**
+   * True when at least one backed signal carried a usable observation. A
+   * source can still be credited with this false — the brief consulted it and
+   * honestly reported its no-data / invalid / unpublished state.
+   */
+  contributedValue: boolean;
+  /** Resolvable DOI link, or null when the source carries no DOI to resolve. */
+  doiUrl: string | null;
+}
+
+/**
+ * Brief-scoped source credit: exactly the datasets that fed one environment
+ * brief, deduplicated by DOI, plus GIBS's requested acknowledgment and a
+ * ready-to-paste one-line credit for a figure caption or observation export.
+ */
+export interface BriefAttribution {
+  /** Distinct credited sources, deduplicated by DOI, in first-seen order. */
+  sources: SourceAttribution[];
+  /** GIBS's requested acknowledgment, verbatim. */
+  acknowledgment: string;
+  /** Human-readable one-line source credit for a caption or export. */
+  line: string;
+}
+
+/**
+ * Credit exactly the sources a brief drew on. Rainfall and soil moisture are
+ * both GLDAS (one DOI), so a naive per-signal credit would list that product
+ * twice and over-count it; this deduplicates by DOI and records every signal
+ * each source backed. It credits every consulted source — including ones that
+ * only returned a no-data or unpublished state — so the credit never implies a
+ * usable value where there was none (see `contributedValue`). This is a
+ * provenance descriptor, not a value, comparison, or condition claim.
+ */
+export function attributeBrief(
+  signals: readonly EnvironmentSignalBrief[]
+): BriefAttribution {
+  const byDoi = new Map<string, SourceAttribution>();
+  const order: string[] = [];
+  for (const signal of signals) {
+    const key = signal.source.doi;
+    let entry = byDoi.get(key);
+    if (!entry) {
+      const doi = signal.source.doi.trim();
+      entry = {
+        source: signal.source,
+        signalIds: [],
+        signalLabels: [],
+        contributedValue: false,
+        doiUrl: doi ? `${DOI_RESOLVER}${doi}` : null,
+      };
+      byDoi.set(key, entry);
+      order.push(key);
+    }
+    entry.signalIds.push(signal.id);
+    entry.signalLabels.push(signal.label);
+    if (signal.status === "available") entry.contributedValue = true;
+  }
+
+  const sources = order.map((key) => byDoi.get(key)!);
+  return {
+    sources,
+    acknowledgment: GIBS_ACKNOWLEDGMENT,
+    line: attributionLine(sources),
+  };
+}
+
+function attributionLine(sources: readonly SourceAttribution[]): string {
+  if (sources.length === 0) return "No data sources to credit.";
+  const credits = sources
+    .map((entry) => {
+      const link = entry.doiUrl ? ` (${entry.doiUrl})` : "";
+      return `${sourceLabel(entry.source)} — ${entry.signalLabels.join(", ")}${link}`;
+    })
+    .join("; ");
+  return `Data sources: ${credits}. ${GIBS_ACKNOWLEDGMENT}`;
 }
 
 /** Fixed status order for reporting, so no state is silently dropped. */
