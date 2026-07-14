@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   parseVolcanoList,
   eruptionClass,
+  elevationRegime,
+  elevationRegimeLabel,
   lastEruptionLabel,
   volcanoHoverLabel,
 } from "./volcanoes";
@@ -79,6 +81,39 @@ describe("eruptionClass", () => {
     expect(eruptionClass(0)).toBe("holocene");
     expect(eruptionClass(-4360)).toBe("holocene"); // BCE eruptions
     expect(eruptionClass(null)).toBe("holocene");
+  });
+});
+
+describe("elevationRegime", () => {
+  it("reads the summit-elevation datum sign", () => {
+    expect(elevationRegime(3357)).toBe("subaerial"); // Etna
+    expect(elevationRegime(1)).toBe("subaerial");
+    expect(elevationRegime(0)).toBe("sea-level");
+    expect(elevationRegime(-1)).toBe("submarine");
+    expect(elevationRegime(-2000)).toBe("submarine"); // seamount
+  });
+
+  it("treats missing or non-finite elevation as unknown", () => {
+    expect(elevationRegime(null)).toBe("unknown");
+    expect(elevationRegime(Number.NaN)).toBe("unknown");
+    expect(elevationRegime(Number.POSITIVE_INFINITY)).toBe("unknown");
+  });
+});
+
+describe("elevationRegimeLabel", () => {
+  it("states the datum sign relative to sea level", () => {
+    expect(elevationRegimeLabel(3357)).toBe(
+      "subaerial summit, 3357 m above sea level"
+    );
+    expect(elevationRegimeLabel(-2000)).toBe(
+      "submarine summit, 2000 m below sea level"
+    );
+    expect(elevationRegimeLabel(0)).toBe("summit at sea level (0 m)");
+  });
+
+  it("is honest about missing elevation", () => {
+    expect(elevationRegimeLabel(null)).toBe("summit elevation unknown");
+    expect(elevationRegimeLabel(Number.NaN)).toBe("summit elevation unknown");
   });
 });
 
