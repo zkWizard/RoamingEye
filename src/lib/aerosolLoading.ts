@@ -127,6 +127,37 @@ export interface AerosolLoadingDescriptor {
   bandMax: number | null;
 }
 
+/**
+ * Default AOD distance, at 550 nm, within which a value is flagged as sitting
+ * near a tier boundary. Like the loading bands themselves this is a descriptive
+ * reading aid, not a standardized threshold; callers may override it. The
+ * authoritative signal is always the numeric `distanceToBoundary`.
+ */
+export const AEROSOL_TIER_EDGE_MARGIN = 0.02;
+
+export interface AerosolBandProximity {
+  /** Loading tier the value falls in (matches `describeAerosolLoading`). */
+  category: AerosolLoadingCategory;
+  /** AOD value of the nearest boundary between two loading tiers. */
+  nearestBoundary: number;
+  /**
+   * Signed distance `value - nearestBoundary` at 550 nm. Negative means the
+   * value sits below the boundary, positive above; zero means it is exactly on
+   * it. This raw distance, not the `marginal` flag, is the authoritative signal.
+   */
+  distanceToBoundary: number;
+  /** The loading tier immediately across the nearest boundary. */
+  adjacentCategory: AerosolLoadingCategory;
+  /**
+   * True when `|distanceToBoundary| <= margin`: the tier assignment is close to
+   * an edge and a nearby value could read as `adjacentCategory`. A robustness
+   * caveat on the categorical tier, never a measurement or forecast.
+   */
+  marginal: boolean;
+  /** Margin applied to derive `marginal`; echoed for provenance. */
+  margin: number;
+}
+
 export interface AerosolLoadingSummary {
   kind: "observed-monthly-aerosol";
   /** Explicitly prevents consumers from treating this as a forecast. */
@@ -149,6 +180,12 @@ export interface AerosolLoadingSummary {
   observedValue: number | null;
   /** Descriptive loading tier, or null when there is no usable value. */
   loading: AerosolLoadingDescriptor | null;
+  /**
+   * How close the value sits to the nearest loading-tier boundary, so consumers
+   * can tell a robustly-in-tier value from one that is only marginally binned.
+   * Null when there is no usable value.
+   */
+  tierProximity: AerosolBandProximity | null;
 }
 
 /**
@@ -192,6 +229,10 @@ export function summarizeAerosolLoading(
     observedValue,
     loading:
       observedValue === null ? null : describeAerosolLoading(observedValue),
+    tierProximity:
+      observedValue === null
+        ? null
+        : describeAerosolBandProximity(observedValue),
   };
 }
 
@@ -215,6 +256,70 @@ export function describeAerosolLoading(
     label: band.label,
     bandMin: band.minInclusive,
     bandMax: band.maxExclusive,
+  };
+}
+
+/**
+ * Inter-tier boundaries: the AOD values that separate two adjacent loading
+ * tiers. The physical floor (0) and the unbounded top of `very-high` are
+ * deliberately excluded — they are not choices between two descriptive tiers,
+ * so proximity to them carries no "could read as the neighbouring tier" meaning.
+ */
+const AEROSOL_TIER_BOUNDARIES: readonly {
+  value: number;
+  below: AerosolLoadingCategory;
+  above: AerosolLoadingCategory;
+}[] = AEROSOL_LOADING_BANDS.slice(1).map((band, index) => ({
+  value: band.minInclusive,
+  below: AEROSOL_LOADING_BANDS[index].category,
+  above: band.category,
+}));
+
+/**
+ * Describe how close a usable column AOD sits to the nearest boundary between
+ * two loading tiers, so a consumer can distinguish a value that is robustly
+ * inside its tier from one that is only marginally binned (e.g. 0.19 vs 0.21
+ * both read as roughly the same air but land in different tiers).
+ *
+ * Returns null for values that are not usable optical thickness (negative,
+ * non-finite, or null), matching `describeAerosolLoading`, so no caller reads a
+ * robustness claim off an unusable number. The `margin` (default
+ * `AEROSOL_TIER_EDGE_MARGIN`) only drives the convenience `marginal` flag; the
+ * authoritative signal is the numeric `distanceToBoundary`.
+ */
+export function describeAerosolBandProximity(
+  value: number | null,
+  margin: number = AEROSOL_TIER_EDGE_MARGIN
+): AerosolBandProximity | null {
+  const loading = describeAerosolLoading(value);
+  if (value === null || loading === null) return null;
+  const safeMargin = Number.isFinite(margin) && margin >= 0 ? margin : 0;
+
+  // Nearest inter-tier boundary; ties resolve to the lower boundary value so
+  // the result is deterministic. A value interior to its tier stays on the same
+  // side of whichever boundary wins, so `category` always matches the tier it
+  // falls in.
+  let nearest = AEROSOL_TIER_BOUNDARIES[0];
+  let nearestDistance = Math.abs(value - nearest.value);
+  for (const boundary of AEROSOL_TIER_BOUNDARIES.slice(1)) {
+    const distance = Math.abs(value - boundary.value);
+    if (distance < nearestDistance) {
+      nearest = boundary;
+      nearestDistance = distance;
+    }
+  }
+
+  const distanceToBoundary = value - nearest.value;
+  const adjacentCategory =
+    distanceToBoundary >= 0 ? nearest.below : nearest.above;
+
+  return {
+    category: loading.category,
+    nearestBoundary: nearest.value,
+    distanceToBoundary,
+    adjacentCategory,
+    marginal: nearestDistance <= safeMargin,
+    margin: safeMargin,
   };
 }
 
