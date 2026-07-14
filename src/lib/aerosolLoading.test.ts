@@ -4,8 +4,10 @@ import {
   AEROSOL_LOADING_CHANGE_THRESHOLD,
   AEROSOL_LOADING_LIMITATIONS,
   AEROSOL_SOURCE,
+  AEROSOL_TIER_EDGE_MARGIN,
   AEROSOL_UNIT,
   AEROSOL_WAVELENGTH_NM,
+  describeAerosolBandProximity,
   describeAerosolLoading,
   describeAerosolLoadingChange,
   summarizeAerosolLoading,
@@ -175,6 +177,110 @@ describe("aerosol loading descriptors", () => {
     );
     expect(summary.sourceImageDimensions).toBeNull();
     expect(summary.loading?.category).toBe("very-low");
+  });
+});
+
+describe("describeAerosolBandProximity", () => {
+  it("reports the nearest inter-tier boundary and signed distance", () => {
+    // 0.35 is interior to the moderate band; ties resolve to the lower edge.
+    const proximity = describeAerosolBandProximity(0.35);
+    expect(proximity).toEqual({
+      category: "moderate",
+      nearestBoundary: 0.2,
+      distanceToBoundary: 0.35 - 0.2,
+      adjacentCategory: "low",
+      marginal: false,
+      margin: AEROSOL_TIER_EDGE_MARGIN,
+    });
+  });
+
+  it("flags a value near a boundary as marginal and names the tier across it", () => {
+    // 0.19 reads as low but a hair below the low/moderate break at 0.2.
+    const below = describeAerosolBandProximity(0.19);
+    expect(below?.category).toBe("low");
+    expect(below?.nearestBoundary).toBe(0.2);
+    expect(below?.adjacentCategory).toBe("moderate");
+    expect(below?.marginal).toBe(true);
+    expect(below?.distanceToBoundary).toBeCloseTo(-0.01, 10);
+
+    // 0.21 reads as moderate, equally close to the same break from above.
+    const above = describeAerosolBandProximity(0.21);
+    expect(above?.category).toBe("moderate");
+    expect(above?.adjacentCategory).toBe("low");
+    expect(above?.marginal).toBe(true);
+  });
+
+  it("treats a value exactly on a boundary as the upper tier, adjacent below", () => {
+    const proximity = describeAerosolBandProximity(0.5);
+    expect(proximity?.category).toBe("high");
+    expect(proximity?.nearestBoundary).toBe(0.5);
+    expect(proximity?.distanceToBoundary).toBe(0);
+    expect(proximity?.adjacentCategory).toBe("moderate");
+    expect(proximity?.marginal).toBe(true);
+  });
+
+  it("ignores the physical floor and the unbounded top as non-boundaries", () => {
+    // Near-zero clean air: nearest real break is the very-low/low edge at 0.1.
+    const clean = describeAerosolBandProximity(0.01);
+    expect(clean?.category).toBe("very-low");
+    expect(clean?.nearestBoundary).toBe(0.1);
+    expect(clean?.adjacentCategory).toBe("low");
+    expect(clean?.marginal).toBe(false);
+
+    // Heavy loading: nearest break is the high/very-high edge at 1, never above.
+    const heavy = describeAerosolBandProximity(3.4);
+    expect(heavy?.category).toBe("very-high");
+    expect(heavy?.nearestBoundary).toBe(1);
+    expect(heavy?.adjacentCategory).toBe("high");
+  });
+
+  it("honours a caller-supplied margin and clamps invalid margins to zero", () => {
+    expect(describeAerosolBandProximity(0.35, 0.2)?.marginal).toBe(true);
+    expect(describeAerosolBandProximity(0.35, 0.1)?.marginal).toBe(false);
+
+    const clamped = describeAerosolBandProximity(0.2, Number.NaN);
+    expect(clamped?.margin).toBe(0);
+    // Exactly on the boundary is still within a zero margin.
+    expect(clamped?.marginal).toBe(true);
+    expect(describeAerosolBandProximity(0.21, -1)?.margin).toBe(0);
+  });
+
+  it("refuses proximity for non-physical optical thickness", () => {
+    expect(describeAerosolBandProximity(null)).toBeNull();
+    expect(describeAerosolBandProximity(-0.01)).toBeNull();
+    expect(describeAerosolBandProximity(Number.NaN)).toBeNull();
+    expect(describeAerosolBandProximity(Number.POSITIVE_INFINITY)).toBeNull();
+  });
+
+  it("agrees with the tier from describeAerosolLoading across the axis", () => {
+    for (const value of [0, 0.05, 0.1, 0.15, 0.2, 0.35, 0.5, 0.99, 1, 2.5]) {
+      expect(describeAerosolBandProximity(value)?.category).toBe(
+        describeAerosolLoading(value)?.category
+      );
+    }
+  });
+
+  it("is surfaced on the monthly summary alongside the loading tier", () => {
+    const summary = summarizeAerosolLoading(
+      { dataMonth: { year: 2026, month: 1 }, value: 0.21, validFraction: 0.8 },
+      AVAILABLE_THROUGH
+    );
+    expect(summary.loading?.category).toBe("moderate");
+    expect(summary.tierProximity).toMatchObject({
+      category: "moderate",
+      nearestBoundary: 0.2,
+      adjacentCategory: "low",
+      marginal: true,
+    });
+  });
+
+  it("withholds proximity whenever the value itself is withheld", () => {
+    const summary = summarizeAerosolLoading(
+      { dataMonth: { year: 2026, month: 1 }, value: null },
+      AVAILABLE_THROUGH
+    );
+    expect(summary.observedValue).toBeNull();
+    expect(summary.tierProximity).toBeNull();
   });
 });
 
