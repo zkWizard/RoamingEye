@@ -1,3 +1,4 @@
+import { neumaierSum } from "./numerics";
 import {
   NDVI_SOURCE,
   NDVI_UNIT,
@@ -7,7 +8,6 @@ import {
   type MeteorologicalSeason,
   type NdviMonthlyObservation,
 } from "./phenology";
-import { neumaierSum } from "./numerics";
 import {
   LAYERS,
   compareYm,
@@ -17,18 +17,25 @@ import {
 } from "./timeline";
 
 /**
- * Source-aware same-calendar-month comparisons for supplied NDVI observations.
+ * Same-calendar-month descriptions for supplied MOD13A3 NDVI observations.
  *
- * These helpers only compare the supplied vegetation-index observations. They
- * do not infer plant phenology, biodiversity, biomass, habitat quality,
- * ecosystem health, causes, or future conditions.
+ * These helpers retain source units, months, publication bounds, and supplied
+ * spatial coverage. They do not identify plant stages, diagnose vegetation or
+ * ecosystem condition, attribute causes, score risk, or forecast values.
  */
 
-/** Ten same-calendar-month observations is a conservative comparison floor. */
+/** Ten prior same-calendar-month observations is a conservative floor. */
 export const MINIMUM_NDVI_SEASONAL_BASELINE_SAMPLES = 10;
 
-/** Comparisons require 60% valid sampled area in every retained observation. */
+/** Retained area observations need at least 60% sampled coverage. */
 export const MINIMUM_NDVI_SEASONAL_VALID_FRACTION = 0.6;
+
+/** Machine-readable limits retained with every reported comparison. */
+export const NDVI_SEASONAL_BASELINE_LIMITATIONS = [
+  "Supplied values remain in MOD13A3 NDVI units; no value or coverage is imputed.",
+  "This compares only prior same-calendar-month observations and does not establish phenological onset, senescence, productivity, or ecological condition.",
+  "This does not diagnose, attribute causes, rank risk, or forecast future vegetation.",
+] as const;
 
 export interface NdviMetric {
   layerId: "ndvi";
@@ -37,7 +44,7 @@ export interface NdviMetric {
   nativeUnit: typeof NDVI_UNIT;
 }
 
-/** MOD13A3 metadata retained by every monthly and baseline result. */
+/** MOD13A3 citation and native unit, retained by every result. */
 export const NDVI_METRIC: NdviMetric = {
   layerId: "ndvi",
   label: "Vegetation (NDVI)",
@@ -49,9 +56,15 @@ export type NdviCoverageStatus = "available" | "no-data" | "invalid";
 
 export interface NdviObservationCoverage {
   status: NdviCoverageStatus;
-  /** Null means the sampler did not report the usable boundary fraction. */
+  /** Null means the sampler did not report usable spatial coverage. */
   validFraction: number | null;
-  reason: string | null;
+  reason:
+    | "invalid-month"
+    | "invalid-coverage"
+    | "missing-value"
+    | "zero-coverage"
+    | "invalid-value"
+    | null;
 }
 
 export type NdviPublicationStatus =
@@ -64,21 +77,24 @@ export interface MonthlyNdviSummary {
   kind: "observed-monthly-ndvi";
   isForecast: false;
   metric: NdviMetric;
+  /** Month represented by the supplied MOD13A3 observation. */
   dataMonth: YearMonth;
-  /** Caller-confirmed latest published NDVI month. */
+  /** Caller-confirmed latest published MOD13A3 month. */
   availableThrough: YearMonth;
   publicationStatus: NdviPublicationStatus;
-  /** Months from this observation to `availableThrough`, if published. */
+  /** Months between `dataMonth` and `availableThrough` when published. */
   publicationLagMonths: number | null;
   coverage: NdviObservationCoverage;
-  /** NDVI unchanged from the source observation, or null when unusable. */
+  /** Source NDVI unchanged, or null when unavailable or unusable. */
   observedValue: number | null;
 }
 
 export interface NdviSeasonalBaselineOptions {
   minimumSamples?: number;
   minimumValidFraction?: number;
+  /** Optional inclusive first baseline year. */
   baselineStartYear?: number;
+  /** Inclusive final baseline year; it must precede the target year. */
   baselineEndYear?: number;
 }
 
@@ -94,15 +110,15 @@ export interface NdviSeasonalBaselineExclusions {
   duplicateYear: number;
   missing: number;
   invalid: number;
-  /** Candidate is later than the caller-confirmed availability checkpoint. */
   notYetPublished: number;
-  /** Candidate predates the MOD13A3 NDVI record. */
   outsideProductRange: number;
   insufficientCoverage: number;
 }
 
 export interface NdviSeasonalBaselineSample {
+  /** Exact source data month, retained for auditability. */
   month: YearMonth;
+  /** Source NDVI in `NDVI_UNIT`, with no display conversion. */
   ndvi: number;
   validFraction: number;
   publicationLagMonths: number;
@@ -134,25 +150,26 @@ export interface NdviSeasonalBaselineComparison {
   status: NdviSeasonalBaselineStatus;
   metric: NdviMetric;
   hemisphere: Hemisphere;
-  /** Calendar convention only; never a claimed biological growth stage. */
+  /** Calendar convention only, never a biological growth-stage claim. */
   meteorologicalSeason: MeteorologicalSeason;
   target: MonthlyNdviSummary;
   bounds: NdviSeasonalBaselineBounds;
   baseline: NdviSeasonalBaselineStatistics;
   exclusions: NdviSeasonalBaselineExclusions;
-  /** Target NDVI minus the supplied same-month baseline mean. */
+  /** Target NDVI minus baseline mean; it is not a condition or risk score. */
   differenceFromBaseline: number | null;
   differenceUnit: typeof NDVI_UNIT;
-  /** Retained samples, sorted oldest to newest for auditability. */
+  /** Retained prior source observations, oldest to newest. */
   samples: NdviSeasonalBaselineSample[];
-  /** Short machine-readable reason when no comparison is reported. */
+  limitations: typeof NDVI_SEASONAL_BASELINE_LIMITATIONS;
+  /** Machine-readable explanation whenever no difference is reported. */
   reason: string | null;
 }
 
 /**
- * Describe a supplied MOD13A3 NDVI observation without converting its unit or
- * assuming boundary coverage. `availableThrough` is a checkpoint, not a
- * prediction that later data will become available.
+ * Describe one supplied MOD13A3 NDVI observation in its native unit. The
+ * availability checkpoint records what the caller has confirmed, not a claim
+ * that later source months will become available.
  */
 export function summarizeMonthlyNdvi(
   observation: NdviMonthlyObservation,
@@ -165,10 +182,6 @@ export function summarizeMonthlyNdvi(
     availableThrough,
     validMonths
   );
-  const lag =
-    publicationStatus === "published"
-      ? monthDistance(observation.month, availableThrough)
-      : null;
   const coverage = coverageFor(observation, validMonths);
 
   return {
@@ -178,20 +191,22 @@ export function summarizeMonthlyNdvi(
     dataMonth: observation.month,
     availableThrough,
     publicationStatus,
-    publicationLagMonths: lag,
+    publicationLagMonths:
+      publicationStatus === "published"
+        ? monthDistance(observation.month, availableThrough)
+        : null,
     coverage,
     observedValue:
-      coverage.status === "available" && publicationStatus === "published"
+      publicationStatus === "published" && coverage.status === "available"
         ? observation.ndvi
         : null,
   };
 }
 
 /**
- * Compare one NDVI month with supplied observations from the same calendar
- * month in preceding years. The result is a descriptive index difference, not
- * a diagnosis or ecological-condition assessment. Missing or low boundary
- * coverage is retained and blocks the comparison instead of being filled.
+ * Compare a supplied target month with supplied observations from the same
+ * calendar month in prior years. Missing, duplicate, unpublished, out-of-
+ * range, and low-coverage candidates are kept explicit and never filled.
  */
 export function compareMonthlyNdviToSeasonalBaseline(
   targetObservation: NdviMonthlyObservation,
@@ -202,20 +217,22 @@ export function compareMonthlyNdviToSeasonalBaseline(
 ): NdviSeasonalBaselineComparison {
   const target = summarizeMonthlyNdvi(targetObservation, availableThrough);
   const hemisphere = hemisphereForLatitude(latitude);
-  const minimumSamples =
-    options.minimumSamples ?? MINIMUM_NDVI_SEASONAL_BASELINE_SAMPLES;
-  const minimumValidFraction =
-    options.minimumValidFraction ?? MINIMUM_NDVI_SEASONAL_VALID_FRACTION;
   const targetMonth = isCalendarMonth(targetObservation.month)
     ? targetObservation.month.month
     : null;
-  const baselineEndYear =
-    options.baselineEndYear ?? targetObservation.month.year - 1;
+  const latestBaselineYear = isCalendarMonth(targetObservation.month)
+    ? targetObservation.month.year - 1
+    : null;
+  const baselineEndYear = options.baselineEndYear ?? latestBaselineYear;
   const bounds: NdviSeasonalBaselineBounds = {
     startYear: options.baselineStartYear ?? null,
     endYear: Number.isInteger(baselineEndYear) ? baselineEndYear : null,
     calendarMonth: targetMonth,
   };
+  const minimumSamples =
+    options.minimumSamples ?? MINIMUM_NDVI_SEASONAL_BASELINE_SAMPLES;
+  const minimumValidFraction =
+    options.minimumValidFraction ?? MINIMUM_NDVI_SEASONAL_VALID_FRACTION;
   const season =
     targetMonth === null
       ? "not-assigned"
@@ -229,11 +246,12 @@ export function compareMonthlyNdviToSeasonalBaseline(
     minimumValidFraction <= 1 &&
     validYearBound(options.baselineStartYear) &&
     validYearBound(options.baselineEndYear) &&
-    (options.baselineStartYear === undefined ||
-      options.baselineEndYear === undefined ||
-      options.baselineStartYear <= options.baselineEndYear);
+    bounds.endYear !== null &&
+    latestBaselineYear !== null &&
+    bounds.endYear <= latestBaselineYear &&
+    (bounds.startYear === null || bounds.startYear <= bounds.endYear);
 
-  if (!validOptions || targetMonth === null || bounds.endYear === null) {
+  if (!validOptions || targetMonth === null) {
     return comparisonFor(
       "invalid",
       hemisphere,
@@ -261,9 +279,8 @@ export function compareMonthlyNdviToSeasonalBaseline(
       continue;
     }
     if (
-      (options.baselineStartYear !== undefined &&
-        candidate.month.year < options.baselineStartYear) ||
-      candidate.month.year > baselineEndYear
+      (bounds.startYear !== null && candidate.month.year < bounds.startYear) ||
+      candidate.month.year > bounds.endYear!
     ) {
       exclusions.outOfBounds += 1;
       continue;
@@ -298,6 +315,7 @@ export function compareMonthlyNdviToSeasonalBaseline(
       exclusions.invalid += 1;
       continue;
     }
+
     coverageEligibleCount += 1;
     if (!meetsCoverage(summary, minimumValidFraction)) {
       exclusions.insufficientCoverage += 1;
@@ -372,6 +390,7 @@ export function compareMonthlyNdviToSeasonalBaseline(
     differenceFromBaseline: target.observedValue! - baseline.mean,
     differenceUnit: NDVI_UNIT,
     samples,
+    limitations: NDVI_SEASONAL_BASELINE_LIMITATIONS,
     reason: null,
   };
 }
@@ -550,6 +569,7 @@ function comparisonFor(
     differenceFromBaseline: null,
     differenceUnit: NDVI_UNIT,
     samples,
+    limitations: NDVI_SEASONAL_BASELINE_LIMITATIONS,
     reason,
   };
 }

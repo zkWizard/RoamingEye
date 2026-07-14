@@ -3,6 +3,7 @@ import {
   MINIMUM_NDVI_SEASONAL_BASELINE_SAMPLES,
   MINIMUM_NDVI_SEASONAL_VALID_FRACTION,
   NDVI_METRIC,
+  NDVI_SEASONAL_BASELINE_LIMITATIONS,
   compareMonthlyNdviToSeasonalBaseline,
   summarizeMonthlyNdvi,
 } from "./phenologyBaseline";
@@ -25,7 +26,7 @@ function ndvi(
 }
 
 describe("seasonal NDVI baseline comparisons", () => {
-  it("retains MOD13A3 provenance, units, data month, coverage, and a descriptive same-month difference", () => {
+  it("retains MOD13A3 provenance, native units, months, coverage, and descriptive uncertainty", () => {
     const baseline = Array.from({ length: 10 }, (_, index) =>
       ndvi(2014 + index, 8, 0.3 + index * 0.01, 0.65 + index * 0.01)
     );
@@ -65,6 +66,7 @@ describe("seasonal NDVI baseline comparisons", () => {
       reason: null,
     });
     expect(comparison.metric.source).toBe(NDVI_SOURCE);
+    expect(comparison.limitations).toBe(NDVI_SEASONAL_BASELINE_LIMITATIONS);
     expect(comparison.baseline.mean).toBeCloseTo(0.345);
     expect(comparison.differenceFromBaseline).toBeCloseTo(0.155);
     expect(comparison.samples.map((sample) => sample.month.month)).toEqual(
@@ -74,7 +76,7 @@ describe("seasonal NDVI baseline comparisons", () => {
     expect(comparison.baseline.standardErrorOfMean).toBeGreaterThan(0);
   });
 
-  it("does not assume boundary coverage when the sampler did not provide it", () => {
+  it("does not treat missing boundary coverage as adequate coverage", () => {
     const comparison = compareMonthlyNdviToSeasonalBaseline(
       { month: { year: 2025, month: 6 }, ndvi: 0.55 },
       Array.from({ length: 10 }, (_, index) =>
@@ -94,43 +96,73 @@ describe("seasonal NDVI baseline comparisons", () => {
     });
   });
 
-  it("keeps insufficient baseline coverage, missing values, duplicates, and wrong months explicit", () => {
-    const insufficientCoverage = compareMonthlyNdviToSeasonalBaseline(
+  it("keeps pre-product months out and rejects a baseline window that reaches the target year", () => {
+    const target = ndvi(2025, 2, 0.5, 0.9);
+    const candidates = [
+      ndvi(2000, 2, 0.1, 0.8),
+      ndvi(2019, 2, 0.2, 0.8),
+      ndvi(2020, 2, 0.3, 0.8),
+      ndvi(2021, 2, 0.4, 0.8),
+    ];
+    const preProduct = compareMonthlyNdviToSeasonalBaseline(
+      target,
+      candidates,
+      AVAILABLE_THROUGH,
+      48.8,
+      { minimumSamples: 3, baselineStartYear: 2000, baselineEndYear: 2024 }
+    );
+    const targetYearWindow = compareMonthlyNdviToSeasonalBaseline(
+      target,
+      candidates,
+      AVAILABLE_THROUGH,
+      48.8,
+      { minimumSamples: 3, baselineStartYear: 2019, baselineEndYear: 2025 }
+    );
+
+    expect(preProduct).toMatchObject({
+      status: "available",
+      baseline: { sampleCount: 3 },
+      exclusions: { outsideProductRange: 1 },
+    });
+    expect(targetYearWindow).toMatchObject({
+      status: "invalid",
+      differenceFromBaseline: null,
+      reason: "invalid-baseline-configuration",
+    });
+  });
+
+  it("keeps missing values, duplicate years, invalid values, and low coverage explicit", () => {
+    const comparison = compareMonthlyNdviToSeasonalBaseline(
       ndvi(2025, 3, 0.5, 0.9),
       [
-        ...Array.from({ length: 10 }, (_, index) =>
-          ndvi(2014 + index, 3, 0.2, 0.2)
-        ),
-        ndvi(2020, 4, 0.7),
+        ndvi(2019, 3, 0.2, 0.2),
+        ndvi(2020, 3, 0.3, 0.2),
+        ndvi(2021, 3, null, 0.8),
+        ndvi(2022, 3, 1.2, 0.8),
+        ndvi(2022, 3, 0.4, 0.8),
+        ndvi(2023, 4, 0.6, 0.8),
       ],
       AVAILABLE_THROUGH,
       0,
       { minimumSamples: 3 }
     );
-    const missing = compareMonthlyNdviToSeasonalBaseline(
-      ndvi(2025, 3, null, 0.8),
-      [ndvi(2020, 3, 0.2), ndvi(2021, 3, 0.3), ndvi(2021, 3, 0.4)],
-      AVAILABLE_THROUGH,
-      0,
-      { minimumSamples: 3 }
-    );
 
-    expect(insufficientCoverage).toMatchObject({
-      status: "insufficient-coverage",
-      reason: "baseline-coverage-below-threshold",
-      baseline: { sampleCount: 0, requiredSampleCount: 3 },
-      exclusions: { insufficientCoverage: 10, wrongCalendarMonth: 1 },
-    });
-    expect(missing).toMatchObject({
-      status: "no-data",
+    expect(comparison).toMatchObject({
+      status: "insufficient-samples",
       differenceFromBaseline: null,
-      reason: "missing-value",
-      exclusions: { duplicateYear: 1 },
-      target: { coverage: { status: "no-data", validFraction: 0.8 } },
+      reason: "too-few-same-calendar-month-samples",
+      baseline: { sampleCount: 0, requiredSampleCount: 3 },
+      exclusions: {
+        insufficientCoverage: 2,
+        missing: 1,
+        invalid: 1,
+        duplicateYear: 1,
+        wrongCalendarMonth: 1,
+      },
     });
   });
 
-  it("retains outside-range and not-yet-published states without turning them into forecasts", () => {
+  it("preserves unavailable and invalid source checkpoints without forecasts", () => {
     const preProduct = summarizeMonthlyNdvi(
       ndvi(2000, 2, 0.3, 0.8),
       AVAILABLE_THROUGH
@@ -142,12 +174,13 @@ describe("seasonal NDVI baseline comparisons", () => {
       10,
       { minimumSamples: 3 }
     );
-    const unsupportedAvailabilityCheckpoint = summarizeMonthlyNdvi(
+    const unsupportedCheckpoint = summarizeMonthlyNdvi(
       ndvi(2026, 5, 0.4, 0.8),
       { year: 2026, month: 6 }
     );
 
     expect(preProduct).toMatchObject({
+      isForecast: false,
       publicationStatus: "outside-product-range",
       publicationLagMonths: null,
       observedValue: null,
@@ -159,7 +192,7 @@ describe("seasonal NDVI baseline comparisons", () => {
       reason: "not-yet-published",
       target: { publicationStatus: "not-yet-published" },
     });
-    expect(unsupportedAvailabilityCheckpoint).toMatchObject({
+    expect(unsupportedCheckpoint).toMatchObject({
       isForecast: false,
       publicationStatus: "invalid-reference-month",
       coverage: { status: "available", validFraction: 0.8 },
