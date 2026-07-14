@@ -101,7 +101,29 @@ export function risDataset(ref: DatasetRef): string {
   ].join("\n");
 }
 
-export type CitationFormat = "bibtex" | "ris";
+/**
+ * Human-readable formatted-text citation for the tool. Unlike BibTeX/RIS —
+ * which target reference managers — this is the string to drop into a figure
+ * caption, slide, or a "How to cite" box, following the ESIP software-citation
+ * ordering: author (year), title, version, resource type, resolvable DOI/URL.
+ */
+export function textTool(): string {
+  const t = TOOL_CITATION;
+  return `${t.author} (${t.year}). ${t.title} (Version ${t.version}) [Software]. ${t.url}`;
+}
+
+/**
+ * Human-readable formatted-text citation for a source dataset. Built only from
+ * the provenance fields we actually hold (title, short name, version, DOI) and
+ * the known publisher — no author or release date is invented, so the string
+ * never over-claims metadata the DatasetRef does not carry. The DOI is rendered
+ * as a resolvable link, per the ESIP data-citation guidelines.
+ */
+export function textDataset(ref: DatasetRef): string {
+  return `${ref.title} (${ref.shortName} v${ref.version}) [Data set]. NASA Global Imagery Browse Services (GIBS). https://doi.org/${ref.doi}`;
+}
+
+export type CitationFormat = "bibtex" | "ris" | "text";
 
 /**
  * The full citation bundle a researcher needs: the tool plus every source
@@ -112,6 +134,9 @@ export function citationBundle(format: CitationFormat): string {
   const datasets = citedDatasets().map((c) => c.dataset);
   if (format === "ris") {
     return [risTool(), ...datasets.map(risDataset)].join("\n\n") + "\n";
+  }
+  if (format === "text") {
+    return [textTool(), ...datasets.map(textDataset)].join("\n\n") + "\n";
   }
   return [bibtexTool(), ...datasets.map(bibtexDataset)].join("\n\n") + "\n";
 }
