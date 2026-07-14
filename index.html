@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- No maximum-scale / user-scalable: pinch-to-zoom must stay available
+         (WCAG 2.1 SC 1.4.4). The globe canvas opts out of browser gestures
+         itself via touch-action: none, so page zoom only applies to UI chrome. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="RoamingEye — roam a 3D Earth and scrub through monthly satellite data to watch the seasons change over years."
+    />
+    <title>RoamingEye</title>
+
+    <!-- Social sharing cards. og:image/og:url must be absolute URLs — update
+         the domain below when the site gets its production home. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="RoamingEye — a 3D Earth you can roam" />
+    <meta
+      property="og:description"
+      content="Scrub through years of monthly NASA satellite data and watch the seasons change across a 3D globe. Open source, open data."
+    />
+    <meta
+      property="og:image"
+      content="https://zkwizard.github.io/RoamingEye/social-card.jpg"
+    />
+    <meta property="og:url" content="https://zkwizard.github.io/RoamingEye/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="RoamingEye — a 3D Earth you can roam" />
+    <meta
+      name="twitter:description"
+      content="Scrub through years of monthly NASA satellite data and watch the seasons change across a 3D globe."
+    />
+    <meta
+      name="twitter:image"
+      content="https://zkwizard.github.io/RoamingEye/social-card.jpg"
+    />
+
+    <link rel="icon" href="/RoamingEye/favicon.svg" type="image/svg+xml" />
+    <!-- Browser chrome color, per color scheme -->
+    <meta
+      name="theme-color"
+      content="#05070d"
+      media="(prefers-color-scheme: dark)"
+    />
+    <meta
+      name="theme-color"
+      content="#eaf0f8"
+      media="(prefers-color-scheme: light)"
+    />
+
+    <script type="module" crossorigin src="/RoamingEye/assets/index-CW6FPDaB.js"></script>
+    <link rel="modulepreload" crossorigin href="/RoamingEye/assets/three-Bc2rOnZK.js">
+    <link rel="stylesheet" crossorigin href="/RoamingEye/assets/index-k9zqfPlJ.css">
+  </head>
+  <body>
+    <div id="app">
+      <canvas
+        id="globe"
+        aria-label="Interactive 3D globe — drag to rotate, scroll to zoom"
+        role="application"
+      ></canvas>
+
+      <header class="overlay overlay--top">
+        <h1 class="brand">Roaming<span>Eye</span></h1>
+        <p class="hint">
+          Drag to rotate · scrub the timeline · ←/→ keys step months
+          <button
+            id="shortcuts-link"
+            type="button"
+            class="hint__shortcuts"
+            title="Keyboard shortcuts (?)"
+            aria-label="Keyboard shortcuts"
+          >
+            ?
+          </button>
+        </p>
+        <button id="software-link" type="button" class="software-link">
+          Find software
+        </button>
+        <button id="fleet-link" type="button" class="fleet-link">
+          Fleet status
+        </button>
+        <div id="theme-toggle" class="theme-toggle-mount"></div>
+      </header>
+
+      <div id="search" class="search"></div>
+
+      <div id="share" class="share"></div>
+
+      <div id="export"></div>
+
+      <div id="compare" class="compare"></div>
+
+      <div id="draw"></div>
+
+      <div id="compare-divider"></div>
+
+      <aside id="toolbar" class="toolbar" aria-label="Map overlays"></aside>
+
+      <div id="hover-tooltip" class="hover-tooltip" aria-hidden="true"></div>
+
+      <div id="study-chip" class="study-chip"></div>
+
+      <div id="probe-panel"></div>
+
+      <aside id="place-insights"></aside>
+
+      <div class="overlay overlay--bottom">
+        <div id="controls" class="controls">
+          <div id="layer-selector"></div>
+          <div id="legend"></div>
+          <div id="timeline"></div>
+          <div
+            id="timeline-status"
+            class="timeline-status"
+            aria-live="polite"
+          ></div>
+          <div id="provenance" class="provenance"></div>
+        </div>
+        <p class="attribution">
+          Imagery: NASA GIBS · Seismicity: USGS · Borders &amp; places: Natural
+          Earth · Search: © OpenStreetMap ·
+          <button id="providers-link" type="button" class="attribution__link">
+            Data providers
+          </button>
+          ·
+          <a
+            href="https://github.com/zkWizard/RoamingEye"
+            target="_blank"
+            rel="noopener"
+            >Open source</a
+          >
+          ·
+          <a
+            href="https://github.com/zkWizard/RoamingEye/issues/new?template=feedback.yml"
+            target="_blank"
+            rel="noopener"
+            >Give feedback</a
+          >
+        </p>
+      </div>
+
+      <div id="providers-page" class="providers" aria-hidden="true"></div>
+
+      <div id="software-page" class="software" aria-hidden="true"></div>
+
+      <div id="fleet-page" class="fleet" aria-hidden="true"></div>
+
+      <div id="shortcuts-page" class="shortcuts" aria-hidden="true"></div>
+
+      <div id="loader" class="loader">
+        <div class="loader__spinner" aria-hidden="true"></div>
+        <p>Loading Earth…</p>
+      </div>
+    </div>
+
+  </body>
+</html>
