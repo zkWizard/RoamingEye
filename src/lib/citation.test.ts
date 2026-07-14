@@ -4,6 +4,8 @@ import {
   bibtexDataset,
   risTool,
   risDataset,
+  textTool,
+  textDataset,
   citationBundle,
   TOOL_CITATION,
 } from "./citation";
@@ -55,6 +57,34 @@ describe("RIS", () => {
   });
 });
 
+describe("plain text", () => {
+  it("emits a formatted software citation for the tool", () => {
+    const text = textTool();
+    expect(text).toContain(TOOL_CITATION.author);
+    expect(text).toContain(`(${TOOL_CITATION.year})`);
+    expect(text).toContain(`Version ${TOOL_CITATION.version}`);
+    expect(text).toContain("[Software]");
+    expect(text).toContain(TOOL_CITATION.url);
+  });
+
+  it("emits a formatted data citation with a resolvable DOI link", () => {
+    const text = textDataset(ndvi);
+    expect(text).toContain(
+      "MODIS/Terra Vegetation Indices Monthly L3 Global 1km (MOD13A3 v061)"
+    );
+    expect(text).toContain("[Data set]");
+    expect(text).toContain("NASA Global Imagery Browse Services (GIBS)");
+    expect(text).toContain("https://doi.org/10.5067/MODIS/MOD13A3.061");
+  });
+
+  it("invents no author or release date beyond the DatasetRef fields", () => {
+    // Honest provenance: only title, short name, version, and DOI are used.
+    const text = textDataset(ndvi);
+    expect(text.startsWith(ndvi.title)).toBe(true);
+    expect(text).not.toMatch(/\b(19|20)\d{2}\b/); // no fabricated year
+  });
+});
+
 describe("citationBundle", () => {
   it("bundles the tool plus every deduplicated dataset in BibTeX", () => {
     const bundle = citationBundle("bibtex");
@@ -71,5 +101,17 @@ describe("citationBundle", () => {
     expect(records).toBe(
       1 + new Set(citedDatasets().map((c) => c.dataset.doi)).size
     );
+  });
+
+  it("bundles plain text: the tool plus one line per unique dataset DOI", () => {
+    const bundle = citationBundle("text");
+    expect(bundle).toContain(TOOL_CITATION.title);
+    const uniqueDois = new Set(citedDatasets().map((c) => c.dataset.doi));
+    for (const doi of uniqueDois) {
+      expect(bundle).toContain(`https://doi.org/${doi}`);
+    }
+    // One "[Data set]" per unique dataset, and a trailing newline.
+    expect(bundle.match(/\[Data set\]/g)?.length).toBe(uniqueDois.size);
+    expect(bundle.endsWith("\n")).toBe(true);
   });
 });
