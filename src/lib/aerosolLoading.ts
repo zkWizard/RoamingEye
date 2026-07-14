@@ -27,6 +27,17 @@ export const AEROSOL_WAVELENGTH_NM = 550;
 /** AOD is a dimensionless optical thickness; there is no physical unit. */
 export const AEROSOL_UNIT = "dimensionless";
 
+/**
+ * Honest scope limits shared by the aerosol descriptors. Kept in code because
+ * callers surface them alongside any AOD value or change they present.
+ */
+export const AEROSOL_LOADING_LIMITATIONS = [
+  "AOD at 550 nm is a whole-column optical thickness, not a surface concentration or a regulatory air-quality or health index.",
+  "MERRA-2 is a reanalysis (a model constrained by assimilated observations), so a value is a modelled monthly mean, not a direct pixel measurement.",
+  "Loading tiers and the change band are descriptive reading conventions, not standardized thresholds, and carry no health, safety, or compliance meaning.",
+  "A month-over-month change describes only the difference between two modelled monthly means; it implies nothing about cause, surface air quality, or any future value.",
+] as const;
+
 /** Cited source for the aerosol optical depth observations (MERRA-2). */
 export const AEROSOL_SOURCE: DatasetRef = requireAerosolSource();
 
@@ -215,6 +226,130 @@ export function describeAerosolLoading(
     label: band.label,
     bandMin: band.minInclusive,
     bandMax: band.maxExclusive,
+  };
+}
+
+/** Direction of change in column AOD between two consecutive months. */
+export type AerosolLoadingTrend = "increasing" | "decreasing" | "little-change";
+
+export type AerosolLoadingChangeStatus =
+  "available" | "non-adjacent-months" | "unavailable";
+
+/**
+ * Absolute change in column AOD below which the difference is reported as
+ * `little-change` rather than increasing or decreasing. It is a fifth of the
+ * `very-low`/`low` break point (0.1) — small enough to name a real shift, wide
+ * enough not to over-read month-to-month reanalysis wobble. Like the loading
+ * tiers it is a descriptive reading convention, not a standardized threshold.
+ */
+export const AEROSOL_LOADING_CHANGE_THRESHOLD = 0.02;
+
+export interface AerosolLoadingChange {
+  kind: "month-over-month-aerosol-loading-change";
+  /** Explicitly prevents consumers from treating this as a forecast. */
+  isForecast: false;
+  status: AerosolLoadingChangeStatus;
+  source: DatasetRef;
+  wavelengthNm: number;
+  unit: string;
+  earlier: AerosolLoadingSummary;
+  later: AerosolLoadingSummary;
+  /** Later minus earlier column AOD (dimensionless); null when not computable. */
+  changeValue: number | null;
+  trend: AerosolLoadingTrend | null;
+  threshold: number;
+  /** Short machine-readable reason when no trend is reported. */
+  reason: string | null;
+  limitations: readonly string[];
+}
+
+export interface AerosolLoadingChangeOptions {
+  /** Absolute AOD band treated as `little-change` (defaults to the constant). */
+  threshold?: number;
+}
+
+/**
+ * Whether a summary carries a value usable as a change endpoint. Unlike the
+ * summary's own `observedValue` — which tracks coverage alone and can be set for
+ * a not-yet-published month — a change requires a *published* month with usable
+ * coverage and a finite value, so an unpublished future month never enters a
+ * comparison.
+ */
+function usableEndpointValue(summary: AerosolLoadingSummary): number | null {
+  if (summary.publicationStatus !== "published") return null;
+  if (summary.coverage.status !== "available") return null;
+  const value = summary.observedValue;
+  return value !== null && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * Describe the change in column AOD between two consecutive months of the same
+ * MERRA-2 product. Both months must be published with usable coverage, and
+ * `later` must fall exactly one calendar month after `earlier` — the helper
+ * never spans a gap or fills a missing month. The result describes a difference
+ * in modelled column loading only; it implies nothing about surface air quality,
+ * cause, or any future value.
+ */
+export function describeAerosolLoadingChange(
+  earlierObservation: AerosolObservation,
+  laterObservation: AerosolObservation,
+  availableThrough: YearMonth,
+  options: AerosolLoadingChangeOptions = {}
+): AerosolLoadingChange {
+  const earlier = summarizeAerosolLoading(earlierObservation, availableThrough);
+  const later = summarizeAerosolLoading(laterObservation, availableThrough);
+  const threshold = options.threshold ?? AEROSOL_LOADING_CHANGE_THRESHOLD;
+  const validThreshold = Number.isFinite(threshold) && threshold >= 0;
+
+  const base = {
+    kind: "month-over-month-aerosol-loading-change" as const,
+    isForecast: false as const,
+    source: AEROSOL_SOURCE,
+    wavelengthNm: AEROSOL_WAVELENGTH_NM,
+    unit: AEROSOL_UNIT,
+    earlier,
+    later,
+    changeValue: null,
+    trend: null,
+    threshold: validThreshold ? threshold : AEROSOL_LOADING_CHANGE_THRESHOLD,
+    limitations: AEROSOL_LOADING_LIMITATIONS,
+  };
+
+  if (!validThreshold) {
+    return { ...base, status: "unavailable", reason: "invalid-threshold" };
+  }
+  if (
+    !isYearMonth(earlier.dataMonth) ||
+    !isYearMonth(later.dataMonth) ||
+    monthDistance(earlier.dataMonth, later.dataMonth) !== 1
+  ) {
+    return {
+      ...base,
+      status: "non-adjacent-months",
+      reason: "months-not-consecutive",
+    };
+  }
+
+  const earlierValue = usableEndpointValue(earlier);
+  const laterValue = usableEndpointValue(later);
+  if (earlierValue === null || laterValue === null) {
+    return { ...base, status: "unavailable", reason: "endpoint-not-available" };
+  }
+
+  const change = laterValue - earlierValue;
+  const trend: AerosolLoadingTrend =
+    Math.abs(change) < threshold
+      ? "little-change"
+      : change > 0
+        ? "increasing"
+        : "decreasing";
+
+  return {
+    ...base,
+    status: "available",
+    changeValue: change,
+    trend,
+    reason: null,
   };
 }
 
