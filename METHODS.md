@@ -162,6 +162,21 @@ reports whether the whole brief traces to one authority. It composes with — an
 never replaces — `sourceIndependence`; a DOI with no parseable registrant is
 listed as unknown, never assigned an invented authority.
 
+A further axis is **how far each product sits from the raw instrument**. NASA
+classifies Earth-science products on a standard processing ladder (EOSDIS Data
+Processing Levels, L0–L4): higher levels carry more algorithmic processing,
+gridding, or modeling between the sensor and the reported value. The brief's
+products span two tiers — NDVI (MOD13A3) is a **Level-3** gridded index, while
+the GLDAS land-surface fields and the MERRA-2 reanalysis are **Level-4** model
+output. `src/lib/processingLevel.ts` makes that L3/L4 split (already noted in §8
+below) checkable per signal and reports whether the usable signals share one
+tier or span several. It is a companion to observation modality
+(`src/lib/observationModality.ts`), not a duplicate: modality asks _how_ a value
+is produced, processing level asks _how far_ from the raw sensor it sits — and
+the two partition the products differently. A higher level is **not** worse
+data; it is a position on a processing ladder, never a quality judgement, and a
+product absent from the table is reported as unclassified rather than guessed.
+
 ## 8. What this tool does not do
 
 - It does **not** validate the GIBS L3 products against in-situ measurements —
