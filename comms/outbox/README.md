@@ -21,3 +21,4 @@ and personally post. When you send one, flip its `Status` to `SENT`.
 ## Drafts
 
 - `pangeo-showcase-roamingeye.md` — Pangeo Discourse (_Pangeo Showcase_ category). **DRAFT.**
+- `hacker-news-show-hn.md` — Hacker News (_Show HN_), title + first comment. **DRAFT.**
