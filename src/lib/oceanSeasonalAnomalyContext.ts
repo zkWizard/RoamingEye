@@ -54,6 +54,21 @@ export type OceanAnomalyMagnitudeBand =
   | "beyond-typical-spread"
   | "well-beyond-typical-spread";
 
+/**
+ * |z| thresholds that separate the standardized-anomaly magnitude bands. A
+ * reading lands in `within-typical-spread` below `beyondTypicalSpread`, in
+ * `beyond-typical-spread` at/above it and below `wellBeyondTypicalSpread`, and
+ * in `well-beyond-typical-spread` at/above `wellBeyondTypicalSpread`. Exported
+ * as the single source of truth for the band edges so companions (e.g. the
+ * band-proximity descriptor) never drift from `magnitudeBandOf` below.
+ */
+export const OCEAN_ANOMALY_MAGNITUDE_BAND_THRESHOLDS = {
+  /** |z| at/above which an anomaly leaves the typical year-to-year spread. */
+  beyondTypicalSpread: 1,
+  /** |z| at/above which an anomaly is well beyond the typical spread. */
+  wellBeyondTypicalSpread: 2,
+} as const;
+
 export interface OceanSeasonalAnomalyContext {
   kind: "standardized-sea-surface-temperature-anomaly";
   /** Explicitly prevents consumers from treating this as a forecast. */
@@ -174,8 +189,12 @@ function magnitudeBandOf(
   standardizedAnomaly: number
 ): OceanAnomalyMagnitudeBand {
   const magnitude = Math.abs(standardizedAnomaly);
-  if (magnitude < 1) return "within-typical-spread";
-  if (magnitude < 2) return "beyond-typical-spread";
+  if (magnitude < OCEAN_ANOMALY_MAGNITUDE_BAND_THRESHOLDS.beyondTypicalSpread)
+    return "within-typical-spread";
+  if (
+    magnitude < OCEAN_ANOMALY_MAGNITUDE_BAND_THRESHOLDS.wellBeyondTypicalSpread
+  )
+    return "beyond-typical-spread";
   return "well-beyond-typical-spread";
 }
 
