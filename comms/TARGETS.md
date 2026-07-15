@@ -109,6 +109,31 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
 
 ---
 
+## Educators & classrooms (reusable asset, then targeted venues)
+
+### Classroom / lab one-pager (source asset)
+
+- **URL / channel:** not a single venue — a reusable one-pager to hand out as a course-page
+  link, printed handout, workshop packet insert, or the body of an email to an instructor.
+- **Audience & size:** secondary and undergraduate instructors, TAs, lab leads, and STEM
+  outreach coordinators — a core stated RoamingEye audience, and a 2026 roadmap goal
+  ("Teaching adoption — used in ≥3 university courses or classrooms").
+- **Why RoamingEye fits:** zero-install, no-account, no-fee, runs on managed/Chromebook
+  hardware; real open NASA data; provenance and honest-uncertainty labelling make it a
+  live data-literacy lesson, not just a demo. Nothing in the pipeline targeted educators
+  directly before this.
+- **Posting rules / compliant path:** none — it's a source asset the user adapts per venue.
+  When aiming it at a specific educator network (a syllabus, a methods lab, a Project
+  Pythia / educational-geoscience channel), copy the relevant sections into that venue's
+  format and vet that venue's own posting rules first.
+- **Best angle:** lead with classroom utility (no login, works in a browser, real data)
+  and five ready-to-use lesson ideas mapped to features; make the honest limits a
+  teachable moment rather than a disclaimer.
+- **Status:** drafted → `outbox/classroom-lab-one-pager.md` (reusable; awaiting zkWizard
+  review before adapting to specific educator venues)
+
+---
+
 ## Notes for future runs
 
 - Prefer **quality over quantity** — one excellent, rules-respecting artifact per venue
@@ -118,6 +143,10 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
   rules), Mastodon/fediverse open-science tags, university remote-sensing course
   networks, and complementary open-tool maintainers (STAC / stackstac / leafmap /
   TiTiler) as potential contributors.
+- **Educator reach:** `outbox/classroom-lab-one-pager.md` is now a ready source asset —
+  the next educator-facing step is to vet a _specific_ venue's rules (Project Pythia /
+  educational-geoscience networks, a university remote-sensing course network) and adapt
+  the one-pager into that venue's format, rather than posting the generic sheet cold.
 - Always re-skim `README.md` and recent `git log` before drafting so claims match the
   current app (feature set, layer count, resolution).
 - **Contributor funnel:** the README links newcomers to the `good first issue` label, so
