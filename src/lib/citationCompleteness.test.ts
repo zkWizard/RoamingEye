@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import { composeEnvironmentBrief } from "./environmentBrief";
 import {
   auditBriefCitations,
+  auditCitationSources,
   auditDatasetCitation,
 } from "./citationCompleteness";
 import { unsupportedBriefLanguageHits } from "./environmentBrief";
+import { citedDatasets } from "./providers";
 import type { DatasetRef } from "./timeline";
 
 const GOOD: DatasetRef = {
@@ -145,6 +147,87 @@ describe("auditBriefCitations", () => {
     expect(audit.incompleteSignalIds).toEqual([]);
     expect(audit.statement).toBe(
       "No signals to check for citation completeness."
+    );
+  });
+});
+
+const GLDAS: DatasetRef = {
+  shortName: "GLDAS_NOAH025_M",
+  version: "2.1",
+  doi: "10.5067/SXAVCZFAQLNO",
+  title: "GLDAS Noah Land Surface Model L4 monthly 0.25 x 0.25 degree V2.1",
+};
+
+describe("auditCitationSources", () => {
+  it("confirms the app's real exported citation bundle is fully cited", () => {
+    // Guards the actual "Copy citation" export path (citationBundle → citedDatasets).
+    const entries = citedDatasets();
+    const audit = auditCitationSources(entries);
+
+    expect(entries.length).toBeGreaterThan(0);
+    expect(audit.datasets).toHaveLength(entries.length);
+    expect(audit.allCited).toBe(true);
+    expect(audit.incompleteDatasets).toEqual([]);
+    expect(audit.statement).toBe(
+      `All ${entries.length} exported datasets carry a complete, well-formed dataset citation.`
+    );
+    // The summary must stay within the module's own honest-language screen.
+    expect(unsupportedBriefLanguageHits(audit.statement)).toEqual([]);
+  });
+
+  it("carries each dataset's backed layers through for triage", () => {
+    const audit = auditCitationSources([
+      { dataset: GOOD, usedBy: ["NDVI", "EVI"] },
+      { dataset: GLDAS, usedBy: ["Rainfall", "Soil moisture"] },
+    ]);
+    expect(audit.datasets.map((d) => d.label)).toEqual([
+      "MOD13A3 v061",
+      "GLDAS_NOAH025_M v2.1",
+    ]);
+    expect(audit.datasets[1].usedBy).toEqual(["Rainfall", "Soil moisture"]);
+  });
+
+  it("names the offending datasets by their citable handle", () => {
+    const audit = auditCitationSources([
+      { dataset: GOOD, usedBy: ["NDVI"] },
+      { dataset: { ...GLDAS, doi: "not-a-doi" }, usedBy: ["Rainfall"] },
+    ]);
+    expect(audit.allCited).toBe(false);
+    expect(audit.incompleteDatasets).toEqual(["GLDAS_NOAH025_M v2.1"]);
+    expect(audit.statement).toBe(
+      "1 of 2 exported datasets have an incomplete or malformed citation: GLDAS_NOAH025_M v2.1."
+    );
+    expect(audit.datasets[1].issues[0]).toMatchObject({
+      field: "doi",
+      code: "malformed-doi",
+    });
+  });
+
+  it("still names an offender whose own identifying fields are the defect", () => {
+    // shortName/version are exactly what is broken, so the label falls back to DOI.
+    const audit = auditCitationSources([
+      { dataset: { ...GOOD, shortName: "", version: "" }, usedBy: ["NDVI"] },
+    ]);
+    expect(audit.allCited).toBe(false);
+    expect(audit.incompleteDatasets).toEqual(["10.5067/MODIS/MOD13A3.061"]);
+  });
+
+  it("falls back to a positional handle when no identifier survives", () => {
+    const audit = auditCitationSources([
+      {
+        dataset: { shortName: "", version: "", doi: "", title: "" },
+        usedBy: [],
+      },
+    ]);
+    expect(audit.incompleteDatasets).toEqual(["dataset #1"]);
+  });
+
+  it("handles an empty export bundle honestly", () => {
+    const audit = auditCitationSources([]);
+    expect(audit.allCited).toBe(true);
+    expect(audit.incompleteDatasets).toEqual([]);
+    expect(audit.statement).toBe(
+      "No datasets to check for citation completeness."
     );
   });
 });
