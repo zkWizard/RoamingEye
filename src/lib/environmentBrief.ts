@@ -345,17 +345,26 @@ export interface BriefAttribution {
  * only returned a no-data or unpublished state — so the credit never implies a
  * usable value where there was none (see `contributedValue`). This is a
  * provenance descriptor, not a value, comparison, or condition claim.
+ *
+ * DOI identity is compared case- and whitespace-insensitively (the handle
+ * system resolves ASCII DOIs case-insensitively), matching the DOI convention
+ * in `sourceIndependence.ts`, so the same product cited with incidental casing
+ * or spacing differences is credited once rather than double-counted. A source
+ * that carries no resolvable DOI is keyed by its own product identity
+ * (short name + version) instead, so two distinct DOI-less products stay
+ * separate credits rather than collapsing into one. The displayed resolver link
+ * preserves the DOI's original casing, since a DOI suffix can be case-sensitive.
  */
 export function attributeBrief(
   signals: readonly EnvironmentSignalBrief[]
 ): BriefAttribution {
-  const byDoi = new Map<string, SourceAttribution>();
+  const bySource = new Map<string, SourceAttribution>();
   const order: string[] = [];
   for (const signal of signals) {
-    const key = signal.source.doi;
-    let entry = byDoi.get(key);
+    const key = sourceDedupKey(signal.source);
+    let entry = bySource.get(key);
     if (!entry) {
-      const doi = signal.source.doi.trim();
+      const doi = normalizedDoiText(signal.source.doi);
       entry = {
         source: signal.source,
         signalIds: [],
@@ -363,7 +372,7 @@ export function attributeBrief(
         contributedValue: false,
         doiUrl: doi ? `${DOI_RESOLVER}${doi}` : null,
       };
-      byDoi.set(key, entry);
+      bySource.set(key, entry);
       order.push(key);
     }
     entry.signalIds.push(signal.id);
@@ -371,12 +380,31 @@ export function attributeBrief(
     if (signal.status === "available") entry.contributedValue = true;
   }
 
-  const sources = order.map((key) => byDoi.get(key)!);
+  const sources = order.map((key) => bySource.get(key)!);
   return {
     sources,
     acknowledgment: GIBS_ACKNOWLEDGMENT,
     line: attributionLine(sources),
   };
+}
+
+/** Trimmed DOI text (original casing preserved), or "" when none is present. */
+function normalizedDoiText(doi: DatasetRef["doi"]): string {
+  return typeof doi === "string" ? doi.trim() : "";
+}
+
+/**
+ * Stable dedup key identifying the *product* behind a source. Two references to
+ * one product must credit it once, so a present DOI keys the entry
+ * case-insensitively (whitespace stripped) — the same identity comparison
+ * `sourceIndependence.ts` uses. Without a resolvable DOI we cannot assert two
+ * references are the same product, so DOI-less sources fall back to their own
+ * short-name + version identity rather than all collapsing under one empty key.
+ */
+function sourceDedupKey(source: DatasetRef): string {
+  const doi = normalizedDoiText(source.doi).toLowerCase();
+  if (doi) return `doi:${doi}`;
+  return `nodoi:${source.shortName} ${source.version}`;
 }
 
 function attributionLine(sources: readonly SourceAttribution[]): string {
