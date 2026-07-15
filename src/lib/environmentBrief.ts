@@ -106,6 +106,53 @@ export interface EnvironmentTemporalAlignment {
   statement: string;
 }
 
+/**
+ * Per-signal data currency: how many whole months a usable observation sits
+ * behind the availability checkpoint it was measured against.
+ */
+export interface EnvironmentSignalCurrency {
+  id: EnvironmentSignalId;
+  /** Usable data month of this signal. */
+  dataMonth: YearMonth;
+  /** Availability checkpoint this signal's currency was measured against. */
+  availableThrough: YearMonth;
+  /**
+   * Whole months the data month sits behind its availability checkpoint. 0
+   * means the newest publishable month; a positive value is the compositing/
+   * publication lag. Floored at 0: a data month at or ahead of the checkpoint
+   * is fully current, and — since vegetation carries no upstream publication
+   * gate — the floor keeps a stray future composite from reading as negative.
+   */
+  lagMonths: number;
+}
+
+/**
+ * Brief-scoped data-currency descriptor: how stale the *usable* observations
+ * are relative to the availability frontier they were checked against. This is
+ * distinct from `EnvironmentTemporalAlignment`, which measures the spread of
+ * the signals against each other; currency measures their distance behind
+ * "now". Only signals carrying an observed value contribute — no-data,
+ * invalid, and unpublished signals have no lag to report. It is a data-recency
+ * descriptor over publication lag, never a condition, comparison, trend, or
+ * change claim about the values themselves.
+ */
+export interface EnvironmentDataCurrency {
+  /** Usable signals whose currency was assessed, in signal order. */
+  comparedSignalIds: EnvironmentSignalId[];
+  /** Per-signal lag detail, in signal order. */
+  perSignal: EnvironmentSignalCurrency[];
+  /** Smallest lag among usable signals (freshest); null when none usable. */
+  freshestLagMonths: number | null;
+  /** Largest lag among usable signals (stalest); null when none usable. */
+  stalestLagMonths: number | null;
+  /** Id of the freshest usable signal (first on ties); null when none usable. */
+  freshestSignalId: EnvironmentSignalId | null;
+  /** Id of the stalest usable signal (first on ties); null when none usable. */
+  stalestSignalId: EnvironmentSignalId | null;
+  /** Honest one-line currency statement; carries no condition claim. */
+  statement: string;
+}
+
 export interface EnvironmentBriefCompleteness {
   /** Number of signals the brief attempted to compose. */
   total: number;
@@ -129,6 +176,7 @@ export interface EnvironmentBrief {
   unsupportedLanguageHits: string[];
   methodLimits: string[];
   temporalAlignment: EnvironmentTemporalAlignment;
+  dataCurrency: EnvironmentDataCurrency;
 }
 
 interface SignalMeta {
@@ -230,6 +278,11 @@ export function composeEnvironmentBrief(
     unsupportedLanguageHits: unsupportedBriefLanguageHits(statements.join(" ")),
     methodLimits: METHOD_LIMITS,
     temporalAlignment: summarizeTemporalAlignment(signals),
+    dataCurrency: summarizeDataCurrency(
+      signals,
+      input.availableThrough,
+      input.availableThroughBySignal
+    ),
   };
 }
 
@@ -300,6 +353,90 @@ function temporalAlignmentStatement(
   }
   const monthWord = spanMonths === 1 ? "month" : "months";
   return `${count} usable ${noun} span ${formatYearMonth(earliest)} to ${formatYearMonth(latest)} (${spanMonths}-${monthWord} spread); signals are not a synchronized snapshot and should not be read as simultaneous.`;
+}
+
+/**
+ * Report how stale the usable (`available`) observations are relative to the
+ * availability checkpoint each was measured against, so a lagged reanalysis
+ * month is never silently read as current. Vegetation is checked against the
+ * shared `availableThrough`; each climate signal against its own checkpoint
+ * (falling back to the shared one). Non-usable signals contribute no lag. This
+ * is a data-recency descriptor over publication lag, not a claim that the
+ * values themselves rose, fell, or agree.
+ */
+export function summarizeDataCurrency(
+  signals: readonly EnvironmentSignalBrief[],
+  availableThrough: YearMonth,
+  availableThroughBySignal?: EnvironmentBriefInput["availableThroughBySignal"]
+): EnvironmentDataCurrency {
+  const perSignal: EnvironmentSignalCurrency[] = [];
+  for (const signal of signals) {
+    if (signal.status !== "available" || signal.dataMonth === null) continue;
+    const checkpoint =
+      signal.id === "vegetation"
+        ? availableThrough
+        : (availableThroughBySignal?.[signal.id] ?? availableThrough);
+    // Whole months behind the availability frontier, floored at 0: a data
+    // month at or ahead of the checkpoint is fully current, not "ahead".
+    const lagMonths = Math.max(0, compareYm(checkpoint, signal.dataMonth));
+    perSignal.push({
+      id: signal.id,
+      dataMonth: signal.dataMonth,
+      availableThrough: checkpoint,
+      lagMonths,
+    });
+  }
+
+  if (perSignal.length === 0) {
+    return {
+      comparedSignalIds: [],
+      perSignal: [],
+      freshestLagMonths: null,
+      stalestLagMonths: null,
+      freshestSignalId: null,
+      stalestSignalId: null,
+      statement: "No usable observations to assess for data currency.",
+    };
+  }
+
+  let freshest = perSignal[0];
+  let stalest = perSignal[0];
+  for (const entry of perSignal) {
+    // Strict comparisons keep the first signal (in signal order) on a tie.
+    if (entry.lagMonths < freshest.lagMonths) freshest = entry;
+    if (entry.lagMonths > stalest.lagMonths) stalest = entry;
+  }
+
+  return {
+    comparedSignalIds: perSignal.map((entry) => entry.id),
+    perSignal,
+    freshestLagMonths: freshest.lagMonths,
+    stalestLagMonths: stalest.lagMonths,
+    freshestSignalId: freshest.id,
+    stalestSignalId: stalest.id,
+    statement: dataCurrencyStatement(perSignal, freshest, stalest),
+  };
+}
+
+function dataCurrencyStatement(
+  perSignal: readonly EnvironmentSignalCurrency[],
+  freshest: EnvironmentSignalCurrency,
+  stalest: EnvironmentSignalCurrency
+): string {
+  const count = perSignal.length;
+  const noun = count === 1 ? "observation" : "observations";
+  if (count === 1) {
+    const only = perSignal[0];
+    return `1 usable ${noun} (${only.id}, dated ${formatYearMonth(only.dataMonth)}) lags its availability checkpoint by ${lagPhrase(only.lagMonths)}.`;
+  }
+  if (freshest.lagMonths === stalest.lagMonths) {
+    return `${count} usable ${noun} each lag their availability checkpoint by ${lagPhrase(freshest.lagMonths)}.`;
+  }
+  return `${count} usable ${noun} lag their availability checkpoints by ${freshest.lagMonths} to ${stalest.lagMonths} months (freshest ${freshest.id}, stalest ${stalest.id}); currency varies across signals.`;
+}
+
+function lagPhrase(lag: number): string {
+  return `${lag} ${lag === 1 ? "month" : "months"}`;
 }
 
 /** DOI resolver prefix, so every credited source carries a resolvable link. */
