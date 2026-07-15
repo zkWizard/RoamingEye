@@ -82,6 +82,16 @@ export interface SpatialSupportSummary {
    */
   scaleRatio: number | null;
   /**
+   * Nominal AREAL grain contrast: the square of `scaleRatio`, i.e. roughly how
+   * many finest-grid cells tile one coarsest cell. This is the magnitude that
+   * governs the change-of-support caveat — a coarse cell averages over an area,
+   * not a length, so a modest linear ratio (e.g. ~28×) is a far larger areal
+   * one (~780×). Null when `scaleRatio` is null; 1 when every stated grid
+   * matches. A nominal comparison figure, never a measured footprint or
+   * accuracy claim.
+   */
+  areaScaleRatio: number | null;
+  /**
    * True only when 2+ considered signals all carry the same stated grid and
    * none is unknown — the only case where a shared native support can be
    * asserted.
@@ -106,6 +116,7 @@ const SPATIAL_SUPPORT_LIMITS = [
   "Native support is a product's grid-cell size, not the accuracy of its values.",
   "The grid is read only from the cited title; an unstated grid is left unknown.",
   "Nominal metres for angular grids use the degree length and vary with latitude.",
+  "Area contrast is the square of the linear grid ratio — a nominal comparison figure, not a measured footprint.",
 ];
 
 /**
@@ -167,6 +178,7 @@ export function summarizeSpatialSupport(
     knownMetres.length >= 2 && finestMetres && finestMetres > 0
       ? coarsestMetres! / finestMetres
       : null;
+  const areaScaleRatio = scaleRatio === null ? null : scaleRatio * scaleRatio;
   const commonGrid =
     considered.length >= 2 &&
     unknownGridSignalIds.length === 0 &&
@@ -181,6 +193,7 @@ export function summarizeSpatialSupport(
     finestMetres,
     coarsestMetres,
     scaleRatio,
+    areaScaleRatio,
     commonGrid,
     statement: summaryStatement({
       consideredCount: considered.length,
@@ -189,6 +202,7 @@ export function summarizeSpatialSupport(
       finestMetres,
       coarsestMetres,
       scaleRatio,
+      areaScaleRatio,
     }),
     limits: SPATIAL_SUPPORT_LIMITS,
   };
@@ -224,6 +238,7 @@ function summaryStatement(summary: {
   finestMetres: number | null;
   coarsestMetres: number | null;
   scaleRatio: number | null;
+  areaScaleRatio: number | null;
 }): string {
   const unknownClause =
     summary.unknownGridSignalIds.length > 0
@@ -260,7 +275,9 @@ function summaryStatement(summary: {
   )} to ~${formatMetres(summary.coarsestMetres!)})`;
   return `${knownCount} usable observations sit on ${range}; the coarsest cell is ~${formatRatio(
     summary.scaleRatio!
-  )} the finest in linear scale — they are not co-registered at a common resolution and should not be read as the same patch of ground at the same detail.${unknownClause}`;
+  )} the finest in linear scale, so it averages over about ${formatRatio(
+    summary.areaScaleRatio!
+  )} the area — they are not co-registered at a common resolution and should not be read as the same patch of ground at the same detail.${unknownClause}`;
 }
 
 /** Compact cell-size label: kilometres above 1 km, else metres. */
