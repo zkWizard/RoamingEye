@@ -6,6 +6,7 @@ import {
   type MonthlyClimateObservation,
   type MonthlyClimateSummary,
 } from "./climate";
+import { doiResolverUrl } from "./citation";
 import { NDVI_SOURCE, NDVI_UNIT } from "./phenology";
 import { GIBS_ACKNOWLEDGMENT } from "./providers";
 import {
@@ -302,9 +303,6 @@ function temporalAlignmentStatement(
   return `${count} usable ${noun} span ${formatYearMonth(earliest)} to ${formatYearMonth(latest)} (${spanMonths}-${monthWord} spread); signals are not a synchronized snapshot and should not be read as simultaneous.`;
 }
 
-/** DOI resolver prefix, so every credited source carries a resolvable link. */
-const DOI_RESOLVER = "https://doi.org/";
-
 /** One credited source dataset, with the brief signals it backed. */
 export interface SourceAttribution {
   /** The distinct source dataset (deduplicated by DOI). */
@@ -361,7 +359,7 @@ export function attributeBrief(
         signalIds: [],
         signalLabels: [],
         contributedValue: false,
-        doiUrl: doi ? `${DOI_RESOLVER}${doi}` : null,
+        doiUrl: doi ? doiResolverUrl(doi) : null,
       };
       byDoi.set(key, entry);
       order.push(key);
