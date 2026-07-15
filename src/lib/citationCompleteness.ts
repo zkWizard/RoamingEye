@@ -148,3 +148,99 @@ function briefCitationStatement(
   }
   return `${incompleteSignalIds.length} of ${total} ${noun} have an incomplete or malformed citation: ${incompleteSignalIds.join(", ")}.`;
 }
+
+/** One deduplicated source dataset in a "Copy citation" export bundle. */
+export interface CitedDatasetEntry {
+  /** The cited dataset (deduplicated by DOI upstream). */
+  dataset: DatasetRef;
+  /** Layer labels this dataset backs; carried through for triage. */
+  usedBy: string[];
+}
+
+/** One exported dataset's citation audit, with the layers it backs. */
+export interface ExportedCitationAudit extends CitationAudit {
+  source: DatasetRef;
+  /** Layer labels the dataset backs, verbatim from the export entry. */
+  usedBy: string[];
+  /** Stable "shortName vversion" (or DOI/position) handle for triage. */
+  label: string;
+}
+
+export interface CitationSourcesAudit {
+  /** True only when every exported dataset carries a complete, well-shaped citation. */
+  allCited: boolean;
+  /** One audit per exported dataset, in the given (first-seen) order. */
+  datasets: ExportedCitationAudit[];
+  /** Labels of the datasets whose citation is incomplete or malformed. */
+  incompleteDatasets: string[];
+  /** Honest one-line summary; carries no claim about the reported values. */
+  statement: string;
+}
+
+/**
+ * A stable, human-readable handle for a dataset in an audit report. Prefers the
+ * conventional "shortName vversion" the citation strings use, but a degraded ref
+ * can have those very fields missing — the reason we are auditing — so it falls
+ * back to the DOI, then a positional placeholder, so every offender is still
+ * nameable even when its identifying metadata is exactly what is broken.
+ */
+function exportedDatasetLabel(ref: DatasetRef, index: number): string {
+  const shortName =
+    typeof ref.shortName === "string" ? ref.shortName.trim() : "";
+  const version = typeof ref.version === "string" ? ref.version.trim() : "";
+  if (shortName && version) return `${shortName} v${version}`;
+  if (shortName) return shortName;
+  const doi = typeof ref.doi === "string" ? ref.doi.trim() : "";
+  if (doi) return doi;
+  return `dataset #${index + 1}`;
+}
+
+/**
+ * Audit the citation of every dataset in a "Copy citation" export bundle.
+ *
+ * `citationBundle()` (citation.ts) hands a researcher the tool plus every source
+ * dataset `citedDatasets()` (providers.ts) lists — a catalog-wide superset of
+ * the four brief signals — ready to paste into a manuscript. `auditBriefCitations`
+ * guards the composed brief, but this export path was never machine-checked: a
+ * catalog dataset whose `DatasetRef` lost a field or carried a malformed DOI
+ * would export a confident-looking citation that 404s in a reference manager.
+ *
+ * This is the enforcement point for that bundle. It reuses `auditDatasetCitation`
+ * (identical field + DOI-shape rules) so the export and the brief are held to one
+ * standard, and — like it — checks metadata integrity only: it does NOT
+ * dereference the DOI over the network (that remains the weekly citation
+ * contract's job) and makes no claim about the values any dataset reports. A
+ * bundle with `allCited === false` should not be offered as copy-ready.
+ */
+export function auditCitationSources(
+  datasets: readonly CitedDatasetEntry[]
+): CitationSourcesAudit {
+  const audited: ExportedCitationAudit[] = datasets.map((entry, index) => ({
+    source: entry.dataset,
+    usedBy: entry.usedBy,
+    label: exportedDatasetLabel(entry.dataset, index),
+    ...auditDatasetCitation(entry.dataset),
+  }));
+  const incompleteDatasets = audited
+    .filter((audit) => !audit.complete)
+    .map((audit) => audit.label);
+
+  return {
+    allCited: incompleteDatasets.length === 0,
+    datasets: audited,
+    incompleteDatasets,
+    statement: citationSourcesStatement(audited.length, incompleteDatasets),
+  };
+}
+
+function citationSourcesStatement(
+  total: number,
+  incompleteDatasets: string[]
+): string {
+  if (total === 0) return "No datasets to check for citation completeness.";
+  const noun = total === 1 ? "dataset" : "datasets";
+  if (incompleteDatasets.length === 0) {
+    return `All ${total} exported ${noun} carry a complete, well-formed dataset citation.`;
+  }
+  return `${incompleteDatasets.length} of ${total} exported ${noun} have an incomplete or malformed citation: ${incompleteDatasets.join(", ")}.`;
+}
