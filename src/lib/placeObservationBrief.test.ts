@@ -151,7 +151,7 @@ describe("place observation environmental brief", () => {
     });
   });
 
-  it("keeps an invalid serialized month explicit rather than treating it as absent", () => {
+  it("rejects an invalid serialized month rather than treating it as absent", () => {
     const record = exportRecord();
     record.products.find((p) => p.layerId === "ndvi")!.observations = [
       { dataMonth: "2026-13", value: 0.45, validFraction: 0.8 },
@@ -159,10 +159,42 @@ describe("place observation environmental brief", () => {
 
     const result = composePlaceObservationBrief(record);
 
+    expect(result.productStatus.vegetation).toBe("rejected-observation-months");
     expect(result.brief.signals[0]).toMatchObject({
-      status: "invalid",
+      status: "unavailable",
       observedValue: null,
-      coverage: { reason: "invalid-month" },
+      coverage: { reason: "not-supplied" },
     });
+  });
+
+  it("rejects the whole product when a malformed month accompanies a valid record", () => {
+    const record = exportRecord();
+    record.products.find((p) => p.layerId === "ndvi")!.observations = [
+      { dataMonth: "2026-01", value: 0.45, validFraction: 0.8 },
+      { dataMonth: "2026-13", value: 0.72, validFraction: 0.9 },
+    ];
+
+    const result = composePlaceObservationBrief(record);
+
+    expect(result.productStatus.vegetation).toBe("rejected-observation-months");
+    expect(result.brief.signals[0]).toMatchObject({
+      status: "unavailable",
+      dataMonth: null,
+      observedValue: null,
+      coverage: { reason: "not-supplied" },
+    });
+  });
+
+  it("rejects duplicate serialized months rather than choosing one value", () => {
+    const record = exportRecord();
+    record.products.find((p) => p.layerId === "ndvi")!.observations = [
+      { dataMonth: "2026-01", value: 0.45, validFraction: null },
+      { dataMonth: "2026-01", value: 0.72, validFraction: null },
+    ];
+
+    const result = composePlaceObservationBrief(record);
+
+    expect(result.productStatus.vegetation).toBe("rejected-observation-months");
+    expect(result.brief.signals[0].status).toBe("unavailable");
   });
 });
