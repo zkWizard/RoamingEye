@@ -21,6 +21,31 @@ export interface Earthquake {
   place: string;
 }
 
+export type EarthquakeFeedStatus =
+  "available" | "no-usable-events" | "invalid-feed";
+
+export type EarthquakeRejectionReason =
+  | "invalid-geometry"
+  | "invalid-coordinates"
+  | "invalid-properties"
+  | "invalid-measurements";
+
+export interface EarthquakeFeedCoverage {
+  status: EarthquakeFeedStatus;
+  suppliedFeatureCount: number;
+  usableEventCount: number;
+  rejectedFeatureCount: number;
+  rejectedByReason: Record<EarthquakeRejectionReason, number>;
+}
+
+/** Auditable parse result for a supplied USGS GeoJSON payload. */
+export interface EarthquakeFeedParseResult {
+  earthquakes: Earthquake[];
+  coverage: EarthquakeFeedCoverage;
+  source: typeof SEISMICITY_SOURCE;
+  units: typeof SEISMICITY_UNITS;
+}
+
 /**
  * Provenance retained by seismic filters and summaries. The USGS feed reports
  * earthquake magnitude values, hypocentre depth in kilometres, and UTC epoch
@@ -251,15 +276,52 @@ const toNumber = (v: unknown): number =>
   typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
 
 export function parseEarthquakeFeed(json: unknown): Earthquake[] {
-  if (typeof json !== "object" || json === null) return [];
+  return parseEarthquakeFeedWithCoverage(json).earthquakes;
+}
+
+/**
+ * Parse the USGS feed while retaining whether an empty result came from an
+ * invalid payload, zero usable records, or a successfully parsed event set.
+ * Each rejected feature is assigned exactly one reason in validation order.
+ */
+export function parseEarthquakeFeedWithCoverage(
+  json: unknown
+): EarthquakeFeedParseResult {
+  const rejectedByReason: Record<EarthquakeRejectionReason, number> = {
+    "invalid-geometry": 0,
+    "invalid-coordinates": 0,
+    "invalid-properties": 0,
+    "invalid-measurements": 0,
+  };
+  const invalidFeed = (): EarthquakeFeedParseResult => ({
+    earthquakes: [],
+    coverage: {
+      status: "invalid-feed",
+      suppliedFeatureCount: 0,
+      usableEventCount: 0,
+      rejectedFeatureCount: 0,
+      rejectedByReason,
+    },
+    source: SEISMICITY_SOURCE,
+    units: SEISMICITY_UNITS,
+  });
+
+  if (typeof json !== "object" || json === null) return invalidFeed();
   const features = (json as { features?: unknown }).features;
-  if (!Array.isArray(features)) return [];
+  if (!Array.isArray(features)) return invalidFeed();
 
   const out: Earthquake[] = [];
   for (const feature of features) {
     const coords = feature?.geometry?.coordinates;
     const props = feature?.properties;
-    if (!Array.isArray(coords) || coords.length < 3 || !props) continue;
+    if (!Array.isArray(coords) || coords.length < 3) {
+      rejectedByReason["invalid-geometry"] += 1;
+      continue;
+    }
+    if (!props || typeof props !== "object") {
+      rejectedByReason["invalid-properties"] += 1;
+      continue;
+    }
 
     const [lon, lat, depthKm] = coords.map(toNumber);
     const magnitude = toNumber(props.mag);
@@ -267,12 +329,18 @@ export function parseEarthquakeFeed(json: unknown): Earthquake[] {
     if (
       !Number.isFinite(lat) ||
       !Number.isFinite(lon) ||
-      !Number.isFinite(depthKm) ||
-      !Number.isFinite(magnitude) ||
-      !Number.isFinite(time) ||
       Math.abs(lat) > 90 ||
       Math.abs(lon) > 180
     ) {
+      rejectedByReason["invalid-coordinates"] += 1;
+      continue;
+    }
+    if (
+      !Number.isFinite(depthKm) ||
+      !Number.isFinite(magnitude) ||
+      !Number.isFinite(time)
+    ) {
+      rejectedByReason["invalid-measurements"] += 1;
       continue;
     }
 
@@ -285,5 +353,18 @@ export function parseEarthquakeFeed(json: unknown): Earthquake[] {
       place: typeof props.place === "string" ? props.place : "",
     });
   }
-  return out;
+
+  const rejectedFeatureCount = features.length - out.length;
+  return {
+    earthquakes: out,
+    coverage: {
+      status: out.length > 0 ? "available" : "no-usable-events",
+      suppliedFeatureCount: features.length,
+      usableEventCount: out.length,
+      rejectedFeatureCount,
+      rejectedByReason,
+    },
+    source: SEISMICITY_SOURCE,
+    units: SEISMICITY_UNITS,
+  };
 }

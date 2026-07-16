@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   filterEarthquakes,
   parseEarthquakeFeed,
+  parseEarthquakeFeedWithCoverage,
   depthClass,
   magnitudeClass,
   MAGNITUDE_CLASS_ORDER,
@@ -61,6 +62,68 @@ describe("parseEarthquakeFeed", () => {
       features: [feature(0, 0, 10, 5, { place: undefined })],
     });
     expect(quakes[0].place).toBe("");
+  });
+});
+
+describe("parseEarthquakeFeedWithCoverage", () => {
+  it("reports usable and rejected feature coverage with one reason per rejection", () => {
+    const result = parseEarthquakeFeedWithCoverage({
+      features: [
+        feature(152.3, -4.2, 45, 6.1),
+        { geometry: null, properties: {} },
+        feature(181, 0, 10, 5),
+        { geometry: { coordinates: [1, 2, 3] }, properties: null },
+        feature(1, 2, Number.NaN, 5),
+      ],
+    });
+
+    expect(result.earthquakes).toHaveLength(1);
+    expect(result.coverage).toEqual({
+      status: "available",
+      suppliedFeatureCount: 5,
+      usableEventCount: 1,
+      rejectedFeatureCount: 4,
+      rejectedByReason: {
+        "invalid-geometry": 1,
+        "invalid-coordinates": 1,
+        "invalid-properties": 1,
+        "invalid-measurements": 1,
+      },
+    });
+    expect(result.source.name).toContain("USGS");
+    expect(result.units).toEqual({
+      magnitude: "M",
+      depth: "km",
+      time: "epoch milliseconds (UTC)",
+    });
+  });
+
+  it("distinguishes an invalid payload from a valid feed with no usable events", () => {
+    const invalid = parseEarthquakeFeedWithCoverage({ features: null });
+    const unusable = parseEarthquakeFeedWithCoverage({
+      features: [feature(0, 91, 10, 5)],
+    });
+    const empty = parseEarthquakeFeedWithCoverage({ features: [] });
+
+    expect(invalid.coverage).toMatchObject({
+      status: "invalid-feed",
+      suppliedFeatureCount: 0,
+      usableEventCount: 0,
+      rejectedFeatureCount: 0,
+    });
+    expect(unusable.coverage).toMatchObject({
+      status: "no-usable-events",
+      suppliedFeatureCount: 1,
+      usableEventCount: 0,
+      rejectedFeatureCount: 1,
+      rejectedByReason: { "invalid-coordinates": 1 },
+    });
+    expect(empty.coverage).toMatchObject({
+      status: "no-usable-events",
+      suppliedFeatureCount: 0,
+      usableEventCount: 0,
+      rejectedFeatureCount: 0,
+    });
   });
 });
 
