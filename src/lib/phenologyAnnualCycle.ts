@@ -45,6 +45,9 @@ import type { DatasetRef } from "./timeline";
  *  - The amplitude is the difference between two climatological monthly *means*
  *    (greenest-month mean minus least-green-month mean) in unitless NDVI, NOT an
  *    extreme index range, a within-year seasonal range, or a record.
+ *  - Monthly interannual spread is a sample standard deviation across the
+ *    distinct supplied years for that calendar month. It is descriptive
+ *    variability, not measurement uncertainty, a trend, or an anomaly.
  *  - An amplitude is reported only when all twelve calendar months are covered.
  *    A partial cycle exposes the monthly means it does have but no amplitude.
  *  - NDVI is a unitless vegetation-index observation. Nothing here is a
@@ -68,6 +71,7 @@ export const CALENDAR_MONTHS_IN_YEAR = 12;
 export const NDVI_ANNUAL_CYCLE_LIMITATIONS = [
   "The monthly means are a mean annual NDVI cycle over the supplied years only, not a multi-decade climate normal.",
   "The amplitude is the difference between two climatological monthly means (greenest-month mean minus least-green-month mean) in unitless NDVI, not an extreme index range, a within-year seasonal range, or a record.",
+  "Each monthly interannual spread is the sample standard deviation across distinct supplied years for that calendar month; it is descriptive variability, not measurement uncertainty, a trend, or an anomaly.",
   "An amplitude is reported only when all twelve calendar months are covered; a partial cycle exposes its monthly means but no amplitude, so a missing greenest or least-green month is never guessed.",
   "NDVI is a unitless vegetation index; nothing here is a growing-season length or onset date, phenophase, productivity, biomass, land-cover, or ecosystem-condition claim, an external-baseline anomaly, a trend, a cause, or a forecast.",
 ] as const;
@@ -99,6 +103,12 @@ export interface NdviMonthlyClimatology {
   minNdvi: number;
   /** Highest contributing yearly value for this calendar month, unitless. */
   maxNdvi: number;
+  /**
+   * Sample standard deviation across distinct contributing years, in unitless
+   * NDVI. Null when fewer than two years contribute, where sample spread is
+   * undefined.
+   */
+  interannualStandardDeviation: number | null;
 }
 
 /** One extreme of the mean annual cycle: a calendar month and its mean NDVI. */
@@ -274,6 +284,7 @@ export function describeNdviAnnualCycle(
         meanNdvi: neumaierSum(values) / values.length,
         minNdvi: Math.min(...values),
         maxNdvi: Math.max(...values),
+        interannualStandardDeviation: sampleStandardDeviation(values),
       });
     }
   }
@@ -398,4 +409,15 @@ function isCalendarMonth(month: NdviMonthlyObservation["month"]): boolean {
 
 function formatNumber(value: number): string {
   return Number(value.toPrecision(5)).toString();
+}
+
+/** Sample standard deviation, retaining an unavailable state for n < 2. */
+function sampleStandardDeviation(values: readonly number[]): number | null {
+  if (values.length < 2) return null;
+  const mean = neumaierSum(values) / values.length;
+  const squaredDeviations = values.map((value) => {
+    const deviation = value - mean;
+    return deviation * deviation;
+  });
+  return Math.sqrt(neumaierSum(squaredDeviations) / (values.length - 1));
 }
