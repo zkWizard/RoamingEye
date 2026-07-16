@@ -101,7 +101,10 @@ export interface MonthlyClimateSummary {
   coverage: ClimateCoverage;
   /** Rendered-image provenance, or null when it was not supplied or invalid. */
   sourceImageDimensions: { width: number; height: number } | null;
-  /** Retained unchanged in `metric.nativeUnit`, or null when not usable. */
+  /**
+   * Retained unchanged in `metric.nativeUnit` only for a usable, confirmed
+   * published month; otherwise null.
+   */
   observedValue: number | null;
 }
 
@@ -140,7 +143,10 @@ export function summarizeMonthlyClimate(
     )
       ? { ...observation.sourceImageDimensions }
       : null,
-    observedValue: coverage.status === "available" ? observation.value : null,
+    observedValue:
+      publicationStatus === "published" && coverage.status === "available"
+        ? observation.value
+        : null,
   };
 }
 
