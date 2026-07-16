@@ -31,8 +31,8 @@ import type { DatasetRef } from "./timeline";
  * sea-surface-temperature cycle descriptors already report.
  *
  * Method. Each usable observation contributes one value to its calendar-month
- * bucket, keeping a single value per distinct year (a repeat year is an
- * exclusion, never averaged in twice). A calendar month enters the cycle only
+ * bucket, keeping a single value per distinct year (an ambiguous repeated year
+ * is withheld entirely, never selected by input order). A calendar month enters the cycle only
  * once it has at least `minimumYearsPerMonth` distinct usable years; its
  * climatological value is the compensated mean of those yearly values. The
  * amplitude is emitted only when all twelve calendar months qualify, so a
@@ -115,7 +115,7 @@ export interface NdviAnnualCycleExclusions {
   missing: number;
   /** NDVI value or supplied valid fraction was out of range or non-finite. */
   invalid: number;
-  /** A (year, calendar-month) pair already seen; the first is kept. */
+  /** Otherwise-usable records withheld because their (year, month) is repeated. */
   duplicateYearMonth: number;
   /** A supplied valid fraction was below the required floor. */
   insufficientCoverage: number;
@@ -211,8 +211,10 @@ export function describeNdviAnnualCycle(
     };
   }
 
-  // Bucket usable values by calendar month, keeping one value per distinct year.
-  const buckets = new Map<number, Map<number, number>>();
+  // Validate first, then group by exact data month. Every otherwise-usable
+  // record in a repeated (year, month) is withheld so input order cannot choose
+  // which observation enters the climatology.
+  const candidates = new Map<string, NdviMonthlyObservation[]>();
   for (const observation of observations) {
     if (!isCalendarMonth(observation.month)) {
       exclusions.notCalendarMonth += 1;
@@ -243,13 +245,22 @@ export function describeNdviAnnualCycle(
       continue;
     }
 
-    const { year, month } = observation.month;
-    const yearValues = buckets.get(month) ?? new Map<number, number>();
-    if (yearValues.has(year)) {
-      exclusions.duplicateYearMonth += 1;
+    const key = `${observation.month.year}-${observation.month.month}`;
+    const sameMonth = candidates.get(key) ?? [];
+    sameMonth.push(observation);
+    candidates.set(key, sameMonth);
+  }
+
+  const buckets = new Map<number, Map<number, number>>();
+  for (const sameMonth of candidates.values()) {
+    if (sameMonth.length > 1) {
+      exclusions.duplicateYearMonth += sameMonth.length;
       continue;
     }
-    yearValues.set(year, observation.ndvi);
+    const observation = sameMonth[0];
+    const { year, month } = observation.month;
+    const yearValues = buckets.get(month) ?? new Map<number, number>();
+    yearValues.set(year, observation.ndvi as number);
     buckets.set(month, yearValues);
   }
 
