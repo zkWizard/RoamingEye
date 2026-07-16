@@ -103,6 +103,27 @@ describe("summarizeSpatialSupport", () => {
     expect(summary.statement).not.toContain("not co-registered");
   });
 
+  it("does not infer co-registration from equal nominal cell sizes", () => {
+    const brief = briefWith({
+      rainfall: obs(4, 0.9),
+      soilMoisture: obs(0.3, 0.9),
+    });
+    const rainfall = brief.signals.find((signal) => signal.id === "rainfall")!;
+    const soil = brief.signals.find((signal) => signal.id === "soil-moisture")!;
+    const independentProduct = {
+      ...soil,
+      source: { ...soil.source, shortName: "INDEPENDENT025", version: "1" },
+    };
+
+    const summary = summarizeSpatialSupport([rainfall, independentProduct]);
+
+    expect(summary.finestMetres).toBe(summary.coarsestMetres);
+    expect(summary.distinctStatedGrids).toBe(2);
+    expect(summary.commonGrid).toBe(false);
+    expect(summary.statement).toContain("not co-registered");
+    expect(summary.signals[0].gridKey).not.toBe(summary.signals[1].gridKey);
+  });
+
   it("reports an unstated grid as unknown rather than inventing one", () => {
     // Air temperature (MERRA-2) states no grid in its cited title.
     const brief = briefWith({
