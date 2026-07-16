@@ -52,6 +52,34 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
   stack. Timing matters — a US-morning weekday tends to do best.
 - **Status:** drafted → `outbox/hacker-news-show-hn.md` (awaiting zkWizard review & post)
 
+### three.js forum — "Showcase"
+
+- **URL:** https://discourse.threejs.org/ (category: _Showcase_,
+  https://discourse.threejs.org/c/showcase/7)
+- **Audience & size:** the official three.js community — graphics engineers, creative
+  coders, and WebGL developers. A large, active Discourse; this is the home crowd for the
+  library RoamingEye is built on, and it reaches a contributor persona (**graphics
+  engineers / designers**) that the README explicitly recruits but no other venue in this
+  pipeline targets.
+- **Why RoamingEye fits:** it is, by definition, on-topic — a non-trivial three.js
+  application (single textured globe, screen-space-error WMTS tile streaming with
+  parent-tile fallback, tiles straight into GPU textures with no backend). The Showcase
+  category exists precisely to share three.js projects, so this is the rare venue where a
+  project post is the _intended_ content, not tolerated self-promotion.
+- **Posting rules / compliant path:** post in the **Showcase** category — its stated
+  purpose is _"Use this category to showcase any projects you have created using
+  three.js."_ **Showcase posts require moderator approval**, so it may not appear
+  immediately (be patient; don't repost). Standard forum guidelines apply: be civil, post
+  only your own work, no spam, no signatures (profile info is attached automatically).
+  Bonus: _"Projects posted here will be considered for the three.js homepage, which is
+  updated a couple of times a year"_ — a genuine, non-solicited distribution channel.
+- **Best angle:** lead with the **rendering/engineering story**, not the science — the
+  tile pyramid, screen-space-error LOD picker, parent-tile fallback, and no-backend
+  static-site architecture — then invite help on the open graphics problems (tile-edge
+  skirts, polar handling, Sentinel-2 at 10 m). This is as much contributor recruitment as
+  awareness. Screenshot or the demo GIF helps.
+- **Status:** drafted → `outbox/threejs-showcase-roamingeye.md` (awaiting zkWizard review & post)
+
 ### Reddit — r/gis and r/remotesensing
 
 - **URL:** https://www.reddit.com/r/gis/ , https://www.reddit.com/r/remotesensing/
@@ -205,12 +233,23 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
 
 - Prefer **quality over quantity** — one excellent, rules-respecting artifact per venue
   beats a spray list. Do not add venues you have not actually vetted.
+- **Repo discoverability (housekeeping — for zkWizard to apply):** the GitHub repo's
+  one-line **description is currently empty** (`gh api repos/zkWizard/RoamingEye`
+  → `"description": null`), even though topics and homepage are set. That one line is what
+  shows in GitHub search results, the repo card, social/OG previews, and awesome-list link
+  previews — an easy awareness win. Suggested text (≤ the display length, claims verified
+  against README):
+  > Open-source 3D Earth for exploring decades of open NASA/HLS satellite imagery in the browser — temporal scrubber, provenance-stamped time-series probe, native-resolution tiles. No account, no install (MIT).
+  > Apply with:
+  > `gh repo edit zkWizard/RoamingEye --description "<text above>"`
+  > (Left for zkWizard rather than auto-applied — editing public repo metadata is a
+  > maintainer call, not something the comms agent pushes unattended.)
 - Candidate venues still to research (do NOT add until rules are read): r/dataisbeautiful
   (OC rules), university remote-sensing course networks, and complementary open-tool
   maintainers (STAC / stackstac / leafmap / TiTiler) as potential contributors.
-  _Researched this round:_ OSGeo Discourse (added — participation-first path),
-  Mastodon/fediverse (added — value-first path); Project Pythia Resource Gallery (declined
-  as off-scope — see _Vetted & set aside_).
+  _Researched this round:_ **three.js forum Showcase** (added — reaches the graphics-engineer
+  contributor persona; on-topic by definition, moderator-approved). Prior rounds: OSGeo
+  Discourse (participation-first), Mastodon/fediverse (value-first); Project Pythia (declined).
 - **Educator reach:** `outbox/classroom-lab-one-pager.md` is now a ready source asset —
   the next educator-facing step is to vet a _specific_ venue's rules (Project Pythia /
   educational-geoscience networks, a university remote-sensing course network) and adapt
