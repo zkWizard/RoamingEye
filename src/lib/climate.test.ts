@@ -97,8 +97,35 @@ describe("monthly climate summaries", () => {
       isForecast: false,
       publicationStatus: "not-yet-published",
       publicationLagMonths: null,
-      observedValue: 0.0001,
+      observedValue: null,
       coverage: { status: "available" },
+    });
+  });
+
+  it("withholds a supplied value until its source month is confirmed published", () => {
+    const summary = summarizeMonthlyClimate(
+      {
+        metricId: "air-temperature-2m",
+        dataMonth: { year: 2026, month: 7 },
+        value: 294.1,
+        validFraction: 0.82,
+        sourceImageDimensions: { width: 720, height: 360 },
+      },
+      { year: 2026, month: 6 }
+    );
+
+    expect(summary).toMatchObject({
+      metric: {
+        nativeUnit: "K",
+        source: CLIMATE_METRICS["air-temperature-2m"].source,
+      },
+      dataMonth: { year: 2026, month: 7 },
+      availableThrough: { year: 2026, month: 6 },
+      publicationStatus: "not-yet-published",
+      publicationLagMonths: null,
+      observedValue: null,
+      coverage: { status: "available", validFraction: 0.82, reason: null },
+      sourceImageDimensions: { width: 720, height: 360 },
     });
   });
 });
