@@ -253,7 +253,9 @@ function validateInput(input: PlaceObservationExportInput): void {
     );
   }
   if (!isIsoTimestamp(input.generatedIso)) {
-    throw new Error("generatedIso must be an ISO 8601 timestamp.");
+    throw new Error(
+      "generatedIso must be a calendar-valid ISO 8601 timestamp with a timezone."
+    );
   }
   if (!input.toolVersion.trim()) throw new Error("toolVersion is required.");
   if (input.products.length === 0)
@@ -382,7 +384,40 @@ function isPositiveInteger(value: number): boolean {
 }
 
 function isIsoTimestamp(value: string): boolean {
-  return !Number.isNaN(Date.parse(value)) && /^\d{4}-\d{2}-\d{2}T/.test(value);
+  const match =
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/.exec(
+      value
+    );
+  if (!match) return false;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const offsetHour = match[7] === undefined ? null : Number(match[7]);
+  const offsetMinute = match[8] === undefined ? null : Number(match[8]);
+  if (
+    hour > 23 ||
+    minute > 59 ||
+    second > 59 ||
+    (offsetHour !== null &&
+      (offsetHour > 23 || offsetMinute === null || offsetMinute > 59))
+  ) {
+    return false;
+  }
+
+  // Date.parse normalizes impossible calendar dates (for example February
+  // 30), so validate the represented wall-clock date before parsing the
+  // offset-bearing instant.
+  const calendarDate = new Date(Date.UTC(year, month - 1, day));
+  return (
+    calendarDate.getUTCFullYear() === year &&
+    calendarDate.getUTCMonth() === month - 1 &&
+    calendarDate.getUTCDate() === day &&
+    !Number.isNaN(Date.parse(value))
+  );
 }
 
 function isYearMonth(value: YearMonth): boolean {
