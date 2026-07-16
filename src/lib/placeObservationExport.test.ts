@@ -28,6 +28,14 @@ const input = {
       wmsLayer: LAYERS.ndvi.wmsLayer,
       source: LAYERS.ndvi.dataset!,
       nativeUnit: "NDVI",
+      samplingSupport: {
+        gridSize: 28,
+        candidatePointCount: 784,
+        interiorPointCount: 620,
+        retainedPointCount: 512,
+        sourcePixelCount: 488,
+        pointLimitApplied: true,
+      },
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -74,6 +82,14 @@ describe("place observation export", () => {
           wmsLayer: LAYERS.ndvi.wmsLayer,
           source: LAYERS.ndvi.dataset,
           nativeUnit: "NDVI",
+          samplingSupport: {
+            gridSize: 28,
+            candidatePointCount: 784,
+            interiorPointCount: 620,
+            retainedPointCount: 512,
+            sourcePixelCount: 488,
+            pointLimitApplied: true,
+          },
           observations: [
             { dataMonth: "2026-04", value: 0.62, validFraction: 0.82 },
             { dataMonth: "2026-05", value: null, validFraction: null },
@@ -83,6 +99,7 @@ describe("place observation export", () => {
           layerId: "precip",
           source: LAYERS.precip.dataset,
           nativeUnit: "kg m^-2 s^-1",
+          samplingSupport: null,
           observations: [
             { dataMonth: "2026-04", value: 0.00014, validFraction: 0.61 },
           ],
@@ -236,6 +253,14 @@ describe("place observation export", () => {
     const precipitation = placeObservationProductFromSample({
       layerId: "precip",
       sourceValueFactor: 86_400,
+      samplingSupport: {
+        gridSize: 16,
+        candidatePointCount: 256,
+        interiorPointCount: 180,
+        retainedPointCount: 180,
+        sourcePixelCount: 170,
+        pointLimitApplied: false,
+      },
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -252,6 +277,14 @@ describe("place observation export", () => {
       wmsLayer: LAYERS.precip.wmsLayer,
       source: LAYERS.precip.dataset,
       nativeUnit: "kg/m²/s",
+      samplingSupport: {
+        gridSize: 16,
+        candidatePointCount: 256,
+        interiorPointCount: 180,
+        retainedPointCount: 180,
+        sourcePixelCount: 170,
+        pointLimitApplied: false,
+      },
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -269,5 +302,26 @@ describe("place observation export", () => {
         sourceValueFactor: 0,
       })
     ).toThrow("sourceValueFactor must be a positive finite number.");
+  });
+
+  it("rejects impossible geometry sampling-support budgets", () => {
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            samplingSupport: {
+              gridSize: 28,
+              candidatePointCount: 784,
+              interiorPointCount: 620,
+              retainedPointCount: 700,
+              sourcePixelCount: 488,
+              pointLimitApplied: true,
+            },
+          },
+        ],
+      })
+    ).toThrow("Product ndvi has inconsistent sampling-support counts.");
   });
 });

@@ -42,7 +42,18 @@ export interface PlaceObservationProductInput {
   /** Underlying data product citation; this is not replaced by imagery metadata. */
   source: DatasetRef;
   nativeUnit: string;
+  /** Bounded geometry-mask budget used by the rendered-image sampler. */
+  samplingSupport?: PlaceObservationSamplingSupport;
   observations: readonly PlaceObservationInput[];
+}
+
+export interface PlaceObservationSamplingSupport {
+  gridSize: number;
+  candidatePointCount: number;
+  interiorPointCount: number;
+  retainedPointCount: number;
+  sourcePixelCount: number;
+  pointLimitApplied: boolean;
 }
 
 export interface PlaceObservationInput {
@@ -107,6 +118,7 @@ export interface PlaceObservationExportProduct {
   wmsLayer: string;
   source: DatasetRef;
   nativeUnit: string;
+  samplingSupport: PlaceObservationSamplingSupport | null;
   observations: {
     dataMonth: string;
     value: number | null;
@@ -145,6 +157,7 @@ export interface PlaceObservationExportSample {
   layerId: PlaceObservationExportLayerId;
   observations: readonly PlaceObservationInput[];
   sourceValueFactor?: number;
+  samplingSupport?: PlaceObservationSamplingSupport;
 }
 
 const EXCLUDED_FIELDS = [
@@ -236,6 +249,7 @@ export function placeObservationProductFromSample(
     wmsLayer: layer.wmsLayer,
     source: layer.dataset,
     nativeUnit,
+    samplingSupport: sample.samplingSupport,
     observations: sample.observations.map((observation) => ({
       ...observation,
       value:
@@ -279,6 +293,7 @@ function validateInput(input: PlaceObservationExportInput): void {
         `Product ${product.layerId} needs a complete source citation.`
       );
     }
+    if (product.samplingSupport) validateSamplingSupport(product);
     const months = new Set<string>();
     for (const observation of product.observations) {
       if (!isYearMonth(observation.dataMonth)) {
@@ -324,6 +339,9 @@ function exportProducts(
       wmsLayer: product.wmsLayer,
       source: { ...product.source },
       nativeUnit: product.nativeUnit,
+      samplingSupport: product.samplingSupport
+        ? { ...product.samplingSupport }
+        : null,
       observations: product.observations
         .map((observation) => ({
           dataMonth: formatYearMonth(observation.dataMonth),
@@ -333,6 +351,36 @@ function exportProducts(
         .sort((left, right) => compareText(left.dataMonth, right.dataMonth)),
     }))
     .sort((left, right) => compareText(left.layerId, right.layerId));
+}
+
+function validateSamplingSupport(product: PlaceObservationProductInput): void {
+  const support = product.samplingSupport!;
+  const counts = [
+    support.gridSize,
+    support.candidatePointCount,
+    support.interiorPointCount,
+    support.retainedPointCount,
+    support.sourcePixelCount,
+  ];
+  if (counts.some((value) => !Number.isInteger(value) || value < 0)) {
+    throw new Error(
+      `Product ${product.layerId} has invalid sampling-support counts.`
+    );
+  }
+  if (support.gridSize === 0 || support.candidatePointCount === 0) {
+    throw new Error(
+      `Product ${product.layerId} has an empty sampling-support plan.`
+    );
+  }
+  if (
+    support.interiorPointCount > support.candidatePointCount ||
+    support.retainedPointCount > support.interiorPointCount ||
+    support.sourcePixelCount > support.retainedPointCount
+  ) {
+    throw new Error(
+      `Product ${product.layerId} has inconsistent sampling-support counts.`
+    );
+  }
 }
 
 function dataMonthMatrix(

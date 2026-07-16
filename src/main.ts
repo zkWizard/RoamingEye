@@ -491,6 +491,7 @@ function runPlaceInsights(result: GeoResult): void {
           values,
           validFractions,
           sourceImageDimensions,
+          geometrySampling,
           geometrySamplingStrategy,
         } = await sample;
         if (abort.signal.aborted) return;
@@ -531,6 +532,7 @@ function runPlaceInsights(result: GeoResult): void {
           exportSamples.set(metric.layerId, {
             layerId: metric.layerId,
             sourceValueFactor: colormap?.factor ?? 1,
+            samplingSupport: geometrySampling,
             observations: months.map((dataMonth, index) => ({
               dataMonth,
               value: values[index] ?? null,
