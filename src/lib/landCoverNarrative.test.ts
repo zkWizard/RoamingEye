@@ -47,6 +47,18 @@ describe("land-cover observation narratives", () => {
     );
   });
 
+  it("passes core categorical-unit and geography provenance through unchanged", () => {
+    const summary = summarizeLandCoverContext([{ classCode: 10 }], 2024);
+    const narrative = describeLandCoverObservation(summary);
+
+    expect(narrative.provenance.geographicCoverage).toBe(
+      summary.provenance.geographicCoverage
+    );
+    expect(narrative.provenance.nativeValue).toBe(
+      `${summary.provenance.nativeValue} (${summary.provenance.nativeUnit}; no physical unit)`
+    );
+  });
+
   it("makes missing source classes explicit instead of inventing a land-cover conclusion", () => {
     const narrative = describeLandCoverObservation(
       summarizeLandCoverContext(
