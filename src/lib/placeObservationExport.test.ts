@@ -199,6 +199,24 @@ describe("place observation export", () => {
         method: { ...input.method, imageWidth: 0 },
       })
     ).toThrow("Source image dimensions must be positive integers.");
+    for (const generatedIso of [
+      "2026-07-13T06:00:00",
+      "2026-02-30T06:00:00Z",
+      "2026-07-13T24:00:00Z",
+      "2026-07-13T06:00:00+24:00",
+    ]) {
+      expect(() =>
+        createPlaceObservationExport({ ...input, generatedIso })
+      ).toThrow(
+        "generatedIso must be a calendar-valid ISO 8601 timestamp with a timezone."
+      );
+    }
+    expect(
+      createPlaceObservationExport({
+        ...input,
+        generatedIso: "2026-07-13T06:00:00.125-07:00",
+      }).generated.iso
+    ).toBe("2026-07-13T06:00:00.125-07:00");
     expect(() =>
       createPlaceObservationExport({
         ...input,
