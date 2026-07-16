@@ -489,6 +489,79 @@ describe("environment brief attribution", () => {
     );
   });
 
+  it("deduplicates equivalent DOI spellings without changing first-seen source metadata", () => {
+    const signals: EnvironmentSignalBrief[] = [
+      {
+        ...composeEnvironmentBrief({
+          vegetation: { dataMonth: { year: 2026, month: 1 }, value: 0.5 },
+          rainfall: null,
+          soilMoisture: null,
+          airTemperature: null,
+          availableThrough: { year: 2026, month: 1 },
+        }).signals[0],
+      },
+      {
+        ...composeEnvironmentBrief({
+          vegetation: { dataMonth: { year: 2026, month: 1 }, value: 0.6 },
+          rainfall: null,
+          soilMoisture: null,
+          airTemperature: null,
+          availableThrough: { year: 2026, month: 1 },
+        }).signals[0],
+        id: "rainfall",
+        label: "Same dataset, alternate DOI spelling",
+        source: {
+          ...NDVI_SOURCE,
+          doi: " https://doi.org/10.5067/modis/mod13a3.061 ",
+        },
+      },
+    ];
+
+    const attribution = attributeBrief(signals);
+    expect(attribution.sources).toHaveLength(1);
+    expect(attribution.sources[0].source).toBe(NDVI_SOURCE);
+    expect(attribution.sources[0].signalIds).toEqual([
+      "vegetation",
+      "rainfall",
+    ]);
+    expect(attribution.sources[0].doiUrl).toBe(
+      "https://doi.org/10.5067/MODIS/MOD13A3.061"
+    );
+  });
+
+  it("keeps distinct DOI-less datasets as separate provenance entries", () => {
+    const base = composeEnvironmentBrief({
+      vegetation: { dataMonth: { year: 2026, month: 1 }, value: 0.5 },
+      rainfall: null,
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 1 },
+    }).signals[0];
+    const signals: EnvironmentSignalBrief[] = [
+      { ...base, source: { ...NDVI_SOURCE, doi: "" } },
+      {
+        ...base,
+        id: "rainfall",
+        label: "Independent uncatalogued source",
+        source: {
+          shortName: "FIELD_SAMPLE",
+          version: "2026-01",
+          doi: " ",
+          title: "Independent field sample",
+        },
+      },
+    ];
+
+    const attribution = attributeBrief(signals);
+    expect(attribution.sources.map((entry) => entry.source.shortName)).toEqual([
+      "MOD13A3",
+      "FIELD_SAMPLE",
+    ]);
+    expect(attribution.sources.every((entry) => entry.doiUrl === null)).toBe(
+      true
+    );
+  });
+
   it("reports when there is nothing to credit", () => {
     const attribution = attributeBrief([]);
     expect(attribution.sources).toEqual([]);
