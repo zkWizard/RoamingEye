@@ -138,9 +138,13 @@ export class Legend {
     const spec = LEGENDS[id];
     this.measures.textContent = spec.measures;
     this.caption.textContent = LAYERS[id].description;
-    this.sourceNote.hidden = id !== "terrain";
+    this.sourceNote.hidden = id !== "terrain" && !spec.interpretationNote;
     this.sourceNote.replaceChildren();
-    if (id === "terrain") this.renderTerrainSourceNote();
+    if (id === "terrain") {
+      this.renderTerrainSourceNote();
+    } else if (spec.interpretationNote) {
+      this.renderInterpretationNote(id, spec.interpretationNote);
+    }
 
     // Categorical layers get named class swatches instead of a gradient bar.
     const categorical = spec.kind === "classes";
@@ -194,5 +198,21 @@ export class Legend {
       source,
       `. ${context.accessibleNotice}`
     );
+  }
+
+  private renderInterpretationNote(id: LayerId, note: string): void {
+    const dataset = LAYERS[id].dataset;
+    if (!dataset) {
+      this.sourceNote.textContent = note;
+      return;
+    }
+
+    const source = document.createElement("a");
+    source.href = `https://doi.org/${dataset.doi}`;
+    source.target = "_blank";
+    source.rel = "noreferrer";
+    source.textContent = `${dataset.shortName} v${dataset.version}`;
+    source.setAttribute("aria-label", `${dataset.shortName} dataset DOI`);
+    this.sourceNote.append("Source: ", source, `. ${note}`);
   }
 }
