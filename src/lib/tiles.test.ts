@@ -195,6 +195,20 @@ describe("tilesInView", () => {
     expect(cols).toContain(0); // east of it
   });
 
+  it("does not fetch an adjacent column when a narrow view fits one tile", () => {
+    // Level 6 columns span 4.5°. This 1° view is wholly inside column 0,
+    // so loading a second column would fetch imagery outside the view.
+    const tiles = tilesInView(1, -178, 1, 1, 6);
+    expect(new Set(tiles.map((tile) => tile.col))).toEqual(new Set([0]));
+  });
+
+  it("treats a window ending on a tile edge as half-open", () => {
+    // [-180, -175.5] exactly covers column 0 at level 6. Column 1 only
+    // touches the eastern edge and must not trigger another network request.
+    const tiles = tilesInView(1, -177.75, 1, 4.5, 6);
+    expect(new Set(tiles.map((tile) => tile.col))).toEqual(new Set([0]));
+  });
+
   it("covers the full ring when the window spans 360°", () => {
     const tiles = tilesInView(85, 0, 5, 360, 2, 1000);
     const rows = new Set(tiles.map((t) => t.row));
