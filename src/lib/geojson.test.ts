@@ -248,6 +248,36 @@ describe("geometryToRings", () => {
     ).toBeGreaterThan(1);
   });
 
+  it("prepares complex boundaries once per grid pass", () => {
+    const coordinates = [
+      [
+        [0, 0],
+        [10, 0],
+        [10, 10],
+        [0, 10],
+        [0, 0],
+      ],
+      [
+        [4, 4],
+        [6, 4],
+        [6, 6],
+        [4, 6],
+        [4, 4],
+      ],
+    ];
+    let coordinateReads = 0;
+    const geometry = {
+      type: "Polygon",
+      get coordinates() {
+        coordinateReads++;
+        return coordinates;
+      },
+    };
+
+    expect(geometryGridPoints(geometry, 64)).toHaveLength(3_952);
+    expect(coordinateReads).toBe(1);
+  });
+
   it("does not let tuning options relax the hard sampling ceilings", () => {
     const geometry = {
       type: "Polygon",

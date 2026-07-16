@@ -168,7 +168,12 @@ export function isAreaGeometry(geometry: GeoGeometry | null): boolean {
 
 /** Bounds of all outer polygon rings, or null when no area is present. */
 export function geometryBounds(geometry: GeoGeometry): GeometryBounds | null {
-  const polygons = preparedPolygons(geometry);
+  return boundsFromPreparedPolygons(preparedPolygons(geometry));
+}
+
+function boundsFromPreparedPolygons(
+  polygons: PreparedPolygon[]
+): GeometryBounds | null {
   if (polygons.length === 0) return null;
   let south = Infinity;
   let north = -Infinity;
@@ -200,13 +205,12 @@ function pointInRing(lon: number, lat: number, ring: Position[]): boolean {
   return inside;
 }
 
-/** Test whether a longitude/latitude point falls inside a polygon or multipolygon. */
-export function geometryContains(
-  geometry: GeoGeometry,
+function preparedGeometryContains(
+  polygons: PreparedPolygon[],
   lat: number,
   lon: number
 ): boolean {
-  return preparedPolygons(geometry).some(({ outer, holes }) => {
+  return polygons.some(({ outer, holes }) => {
     const reference = averageLon(outer);
     const framedLon = lonInFrame(lon, reference);
     return (
@@ -214,6 +218,15 @@ export function geometryContains(
       !holes.some((hole) => pointInRing(framedLon, lat, hole))
     );
   });
+}
+
+/** Test whether a longitude/latitude point falls inside a polygon or multipolygon. */
+export function geometryContains(
+  geometry: GeoGeometry,
+  lat: number,
+  lon: number
+): boolean {
+  return preparedGeometryContains(preparedPolygons(geometry), lat, lon);
 }
 
 /**
@@ -225,15 +238,21 @@ export function geometryGridPoints(
   geometry: GeoGeometry,
   n: number
 ): { lat: number; lon: number }[] {
-  const bounds = geometryBounds(geometry);
-  if (!bounds || n < 1) return [];
+  if (n < 1) return [];
+  // Ring unwrapping is proportional to boundary complexity. Prepare it once
+  // per grid pass instead of once for every candidate cell (up to 4,096
+  // times at the bounded refinement ceiling).
+  const polygons = preparedPolygons(geometry);
+  const bounds = boundsFromPreparedPolygons(polygons);
+  if (!bounds) return [];
   const points: { lat: number; lon: number }[] = [];
   for (let row = 0; row < n; row++) {
     const lat =
       bounds.south + ((row + 0.5) / n) * (bounds.north - bounds.south);
     for (let col = 0; col < n; col++) {
       const lon = bounds.west + ((col + 0.5) / n) * (bounds.east - bounds.west);
-      if (geometryContains(geometry, lat, lon)) points.push({ lat, lon });
+      if (preparedGeometryContains(polygons, lat, lon))
+        points.push({ lat, lon });
     }
   }
   return points;
