@@ -133,16 +133,36 @@ describe("lastEruptionLabel", () => {
 });
 
 describe("volcanoHoverLabel", () => {
-  it("joins name, type, and eruption recency", () => {
+  it("preserves source geography, native summit units, and eruption recency", () => {
     expect(volcanoHoverLabel(parseVolcanoList([volcano()])[0])).toBe(
-      "Etna · Stratovolcano · last erupted 2025"
+      "Etna · Stratovolcano · Italy · summit elevation 3357 m · last erupted 2025"
     );
   });
 
-  it("skips a missing type", () => {
+  it("states unavailable source fields instead of silently omitting them", () => {
     const v = parseVolcanoList([
-      volcano({ type: null, lastEruptionYear: null }),
+      volcano({
+        type: null,
+        country: null,
+        elevation: null,
+        lastEruptionYear: null,
+      }),
     ])[0];
-    expect(volcanoHoverLabel(v)).toBe("Etna · Holocene evidence only");
+    expect(volcanoHoverLabel(v)).toBe(
+      "Etna · volcano type not recorded · country/territory not recorded · summit elevation not recorded · Holocene evidence only"
+    );
+  });
+
+  it("retains zero and negative summit elevations in native metres", () => {
+    expect(
+      volcanoHoverLabel(
+        parseVolcanoList([volcano({ elevation: 0, country: "Tonga" })])[0]
+      )
+    ).toContain("summit elevation 0 m");
+    expect(
+      volcanoHoverLabel(
+        parseVolcanoList([volcano({ elevation: -55, country: "Tonga" })])[0]
+      )
+    ).toContain("summit elevation -55 m");
   });
 });
