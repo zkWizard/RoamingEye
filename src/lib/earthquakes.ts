@@ -74,6 +74,14 @@ export const USGS_FEED_URL =
   "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_month.geojson";
 
 /**
+ * Compact, source-faithful text for inspecting a rendered earthquake marker.
+ * Values remain in the feed's native magnitude, kilometre, and UTC time units.
+ */
+export function earthquakeHoverLabel(earthquake: Earthquake): string {
+  return `${earthquake.place} · M ${earthquake.magnitude} · ${earthquake.depthKm} km depth · ${new Date(earthquake.time).toISOString()}`;
+}
+
+/**
  * Seismology's conventional depth classes, used to color events:
  * shallow (< 70 km), intermediate (70–300 km), deep (> 300 km).
  */

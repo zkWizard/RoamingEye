@@ -63,7 +63,10 @@ import { GraticuleOverlay } from "./overlays/GraticuleOverlay";
 import { BordersOverlay } from "./overlays/BordersOverlay";
 import { CitiesOverlay } from "./overlays/CitiesOverlay";
 import { AtmosphereOverlay } from "./overlays/AtmosphereOverlay";
-import { EarthquakesOverlay } from "./overlays/EarthquakesOverlay";
+import {
+  EARTHQUAKE_HOVER_SOURCE_COUNT,
+  EarthquakesOverlay,
+} from "./overlays/EarthquakesOverlay";
 import { PlateBoundariesOverlay } from "./overlays/PlateBoundariesOverlay";
 import { VolcanoesOverlay } from "./overlays/VolcanoesOverlay";
 import { TiledImageryOverlay } from "./overlays/TiledImageryOverlay";
@@ -232,6 +235,7 @@ const errorToast = new ErrorToast();
 
 const citiesOverlay = new CitiesOverlay();
 const volcanoesOverlay = new VolcanoesOverlay();
+const earthquakesOverlay = new EarthquakesOverlay();
 // "You are here" — opt-in geolocation pin; denial reverts its toggle + toasts.
 const userLocationOverlay = new UserLocationOverlay((message) =>
   errorToast.show(message)
@@ -246,7 +250,7 @@ const overlays: MapOverlay[] = [
   // up on the globe to tell the plate-tectonics story.
   new PlateBoundariesOverlay(),
   volcanoesOverlay,
-  new EarthquakesOverlay(),
+  earthquakesOverlay,
   userLocationOverlay,
 ];
 for (const overlay of overlays) scene.add(overlay.object);
@@ -274,6 +278,9 @@ if (tooltipEl) {
   const inspector = new HoverInspector(canvas, camera, earth, tooltipEl);
   inspector.addPointSource(() => citiesOverlay.hoverSource);
   inspector.addPointSource(() => volcanoesOverlay.hoverSource);
+  for (let index = 0; index < EARTHQUAKE_HOVER_SOURCE_COUNT; index += 1) {
+    inspector.addPointSource(() => earthquakesOverlay.hoverSources[index]);
+  }
   inspector.addPointSource(() => userLocationOverlay.hoverSource);
   loadCountryIndex()
     .then((index) => {

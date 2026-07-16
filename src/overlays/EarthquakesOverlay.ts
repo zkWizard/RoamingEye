@@ -1,11 +1,12 @@
 import * as THREE from "three";
-import { GLOBE_RADIUS, type MapOverlay } from "./types";
+import { GLOBE_RADIUS, type HoverPointSource, type MapOverlay } from "./types";
 import { ICONS } from "../ui/icons";
 import { latLngToVector3 } from "../lib/geo";
 import { fetchJson } from "../lib/net";
 import {
   parseEarthquakeFeed,
   depthClass,
+  earthquakeHoverLabel,
   DEPTH_CLASS_COLORS,
   USGS_FEED_URL,
   type DepthClass,
@@ -36,6 +37,9 @@ const SIZE_BUCKETS: { min: number; size: number }[] = [
   { min: 0, size: 0.02 },
 ];
 
+/** Maximum number of point sources exposed for hover inspection. */
+export const EARTHQUAKE_HOVER_SOURCE_COUNT = SIZE_BUCKETS.length;
+
 function bucketFor(magnitude: number): (typeof SIZE_BUCKETS)[number] {
   return SIZE_BUCKETS.find((b) => magnitude >= b.min) ?? SIZE_BUCKETS[2];
 }
@@ -47,6 +51,8 @@ export class EarthquakesOverlay implements MapOverlay {
   readonly object = new THREE.Group();
 
   private loadPromise: Promise<void> | undefined;
+  /** One hover source per magnitude-size bucket, in rendered point order. */
+  readonly hoverSources: HoverPointSource[] = [];
 
   constructor(
     private readonly url = USGS_FEED_URL,
@@ -65,7 +71,13 @@ export class EarthquakesOverlay implements MapOverlay {
     for (const bucket of SIZE_BUCKETS) {
       const inBucket = quakes.filter((q) => bucketFor(q.magnitude) === bucket);
       if (inBucket.length === 0) continue;
-      this.object.add(this.buildPoints(inBucket, bucket.size));
+      const points = this.buildPoints(inBucket, bucket.size);
+      this.object.add(points);
+      this.hoverSources.push({
+        points,
+        describe: (index) =>
+          inBucket[index] ? earthquakeHoverLabel(inBucket[index]) : undefined,
+      });
     }
   }
 
