@@ -207,13 +207,31 @@ export class PlaceInsights {
       const item = document.createElement("li");
       const details = [
         record.country,
+        record.subregion ?? record.region,
         record.primaryType ?? "primary type not supplied",
         record.elevationMeters === null
           ? "elevation not supplied"
           : `${record.elevationMeters} m elevation`,
         record.lastEruptionText,
+        record.tectonicSetting
+          ? `GVP tectonic setting: ${record.tectonicSetting}`
+          : "tectonic setting not supplied",
       ].filter(Boolean);
-      item.textContent = `${record.name}: ${details.join("; ")}`;
+      const label = `${record.name}: ${details.join("; ")}`;
+      if (record.sourceUrl) {
+        const link = document.createElement("a");
+        link.href = record.sourceUrl;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = record.name;
+        link.setAttribute(
+          "aria-label",
+          `${record.name} — Smithsonian GVP volcano record`
+        );
+        item.append(link, `: ${details.join("; ")}`);
+      } else {
+        item.textContent = label;
+      }
       this.volcanoRecords.appendChild(item);
     }
     if (count > 5) {
