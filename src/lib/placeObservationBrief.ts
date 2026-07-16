@@ -39,7 +39,8 @@ export type PlaceObservationProductStatus =
   | "not-recorded"
   | "rejected-wms-layer"
   | "rejected-source"
-  | "rejected-native-unit";
+  | "rejected-native-unit"
+  | "rejected-observation-months";
 
 export interface PlaceObservationBrief {
   kind: "place-observation-environment-brief";
@@ -115,9 +116,24 @@ function productStatusFor(
   const expected = LAYERS[binding.layerId];
   if (product.wmsLayer !== expected.wmsLayer) return "rejected-wms-layer";
   if (!sameSource(product.source, expected.dataset)) return "rejected-source";
-  return product.nativeUnit === nativeUnitFor(binding.signalId)
+  if (product.nativeUnit !== nativeUnitFor(binding.signalId)) {
+    return "rejected-native-unit";
+  }
+  return hasCanonicalObservationMonths(product.observations)
     ? "accepted"
-    : "rejected-native-unit";
+    : "rejected-observation-months";
+}
+
+function hasCanonicalObservationMonths(
+  observations: PlaceObservationExport["products"][number]["observations"]
+): boolean {
+  const months = new Set<string>();
+  for (const observation of observations) {
+    if (!parseYearMonth(observation.dataMonth)) return false;
+    if (months.has(observation.dataMonth)) return false;
+    months.add(observation.dataMonth);
+  }
+  return true;
 }
 
 function nativeUnitFor(signalId: EnvironmentSignalId): string {
