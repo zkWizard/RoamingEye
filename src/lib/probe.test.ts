@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   latLonToPixel,
   hexToRgb,
@@ -28,7 +28,11 @@ import {
 import { LEGENDS, type GradientLegendSpec } from "./legend";
 import { LAYERS } from "./timeline";
 import { decodeViewState } from "./viewState";
-import { latLonToRegionPixel, ProbeSampler } from "../probe/ProbeSampler";
+import {
+  latLonToRegionPixel,
+  ProbeSampler,
+  readSourcePixels,
+} from "../probe/ProbeSampler";
 
 describe("latLonToPixel", () => {
   it("maps the equirectangular corners and center", () => {
@@ -72,6 +76,29 @@ describe("latLonToRegionPixel", () => {
       x: 250,
       y: 100,
     });
+  });
+});
+
+describe("probe source pixel reads", () => {
+  it("closes decoded imagery when a canvas read fails", () => {
+    const close = vi.fn();
+    const ctx = {
+      clearRect: vi.fn(),
+      drawImage: vi.fn(() => {
+        throw new Error("canvas context lost");
+      }),
+      getImageData: vi.fn(),
+    } as unknown as CanvasRenderingContext2D;
+
+    expect(() =>
+      readSourcePixels(
+        { image: {} as CanvasImageSource, close },
+        [{ x: 4, y: 7, weight: 1 }],
+        ctx
+      )
+    ).toThrow("canvas context lost");
+    expect(close).toHaveBeenCalledOnce();
+    expect(ctx.getImageData).not.toHaveBeenCalled();
   });
 });
 
