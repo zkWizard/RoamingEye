@@ -188,16 +188,36 @@ export function geometryBounds(geometry: GeoGeometry): GeometryBounds | null {
     : null;
 }
 
-function pointInRing(lon: number, lat: number, ring: Position[]): boolean {
+type RingLocation = "inside" | "boundary" | "outside";
+
+function pointOnSegment(
+  lon: number,
+  lat: number,
+  [ax, ay]: Position,
+  [bx, by]: Position
+): boolean {
+  const cross = (lon - ax) * (by - ay) - (lat - ay) * (bx - ax);
+  const scale = Math.max(1, Math.abs(bx - ax), Math.abs(by - ay));
+  if (Math.abs(cross) > Number.EPSILON * 16 * scale) return false;
+  return (
+    lon >= Math.min(ax, bx) &&
+    lon <= Math.max(ax, bx) &&
+    lat >= Math.min(ay, by) &&
+    lat <= Math.max(ay, by)
+  );
+}
+
+function pointInRing(lon: number, lat: number, ring: Position[]): RingLocation {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
     const [xi, yi] = ring[i];
     const [xj, yj] = ring[j];
+    if (pointOnSegment(lon, lat, ring[j], ring[i])) return "boundary";
     const crosses =
       yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
     if (crosses) inside = !inside;
   }
-  return inside;
+  return inside ? "inside" : "outside";
 }
 
 /** Test whether a longitude/latitude point falls inside a polygon or multipolygon. */
@@ -209,9 +229,12 @@ export function geometryContains(
   return preparedPolygons(geometry).some(({ outer, holes }) => {
     const reference = averageLon(outer);
     const framedLon = lonInFrame(lon, reference);
-    return (
-      pointInRing(framedLon, lat, outer) &&
-      !holes.some((hole) => pointInRing(framedLon, lat, hole))
+    const outerLocation = pointInRing(framedLon, lat, outer);
+    if (outerLocation === "outside") return false;
+    // Hole interiors are outside the polygon, but a hole edge is part of the
+    // polygon boundary and remains eligible for an exact point sample.
+    return !holes.some(
+      (hole) => pointInRing(framedLon, lat, hole) === "inside"
     );
   });
 }
