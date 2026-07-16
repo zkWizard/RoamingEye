@@ -20,6 +20,7 @@ import {
 } from "../lib/probe";
 import type { ColormapEntry } from "../lib/colormap";
 import {
+  allocatePartWidths,
   regionAround,
   gibsRegionUrl,
   splitBoundsAtAntimeridian,
@@ -498,12 +499,7 @@ export class ProbeSampler {
       return { image, close: () => image.close() };
     }
 
-    const widths = parts.map((part) =>
-      Math.max(1, Math.round(this.imageSize.width * part.fraction))
-    );
-    widths[widths.length - 1] =
-      this.imageSize.width -
-      widths.slice(0, -1).reduce((sum, width) => sum + width, 0);
+    const widths = allocatePartWidths(parts, this.imageSize.width);
     const bitmaps = await Promise.all(
       parts.map(async (part, index) => {
         const blob = await fetchBlob(
