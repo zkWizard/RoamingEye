@@ -91,7 +91,9 @@ export function observationsFromRenderedClimateSample(
     nativeToSampledValueFactor,
     observations: months.map((dataMonth, index) => ({
       metricId: input.metricId,
-      dataMonth,
+      // Keep the sampled value bound to the month supplied at sampling time,
+      // even when a caller later reuses or advances its timeline month object.
+      dataMonth: { ...dataMonth },
       value:
         sampledValues[index] === null
           ? null

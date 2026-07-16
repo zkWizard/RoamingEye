@@ -101,4 +101,28 @@ describe("monthly climate summaries", () => {
       coverage: { status: "available" },
     });
   });
+
+  it("snapshots source and availability months for stable provenance", () => {
+    const dataMonth = { year: 2026, month: 1 };
+    const availableThrough = { year: 2026, month: 5 };
+    const summary = summarizeMonthlyClimate(
+      {
+        metricId: "soil-moisture",
+        dataMonth,
+        value: null,
+      },
+      availableThrough
+    );
+
+    dataMonth.month = 2;
+    availableThrough.month = 6;
+
+    expect(summary.dataMonth).toEqual({ year: 2026, month: 1 });
+    expect(summary.availableThrough).toEqual({ year: 2026, month: 5 });
+    expect(summary.publicationLagMonths).toBe(4);
+    expect(summary.coverage).toMatchObject({
+      status: "no-data",
+      reason: "missing-value",
+    });
+  });
 });
