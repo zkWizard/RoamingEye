@@ -26,3 +26,4 @@ and personally post. When you send one, flip its `Status` to `SENT`.
 - `awesome-open-geoscience-pr.md` — Awesome Open Geoscience (SWUNG), ready-to-submit PR entry + body. **DRAFT.**
 - `awesome-earthobservation-code-pr.md` — Awesome Earth Observation Code, ready-to-submit PR entry + body. **DRAFT.**
 - `classroom-lab-one-pager.md` — reusable classroom/lab one-pager (handout, course page, or educator email). **DRAFT.**
+- `nasa-gibs-ecosystem-engagement.md` — NASA GIBS / ESDIS email (thank-you + colormap-inversion question tied to #170). **DRAFT.**

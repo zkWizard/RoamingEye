@@ -87,3 +87,19 @@ One line per run: date — what was done. Terse.
   by a flaky "E2E smoke (WebGL)" required check; the chain could not drain. This PR
   carries the full workspace (TARGETS, LOG, and all outbox drafts) as a single
   docs-only change off `origin/main`, superseding the stack.
+- 2026-07-15 — Filled the biggest strategic gap in the outreach portfolio: every prior
+  draft is a broad-community post (Pangeo / HN / three.js / awesome-lists / classroom), but
+  two _institutional_ roadmap goals had zero drafted outreach — **"NASA engagement"** and
+  "Research partnerships". Drafted the NASA one (`outbox/nasa-gibs-ecosystem-engagement.md`):
+  a value-first email to **earthdata-support@nasa.gov** (the GIBS "Contact Us" recommended
+  path; Earthdata Forum noted as the technical alternative — verified both against the live
+  GIBS docs). It leads with a thank-you + a concrete, answerable colormap question tied to
+  flagship issue **#170** (canonical machine-readable GIBS colormap per layer, how to detect
+  colormap/range drift, which products should not be pixel-inverted), and keeps the
+  "ecosystem listing" ask soft and secondary — genuinely useful to the GIBS team, not a
+  pitch. Added a new **Institutional / ecosystem engagement** section to TARGETS.md with the
+  compliant channels and the explicit "email/forum, never a GitHub issue on nasa-gibs repos"
+  boundary. Verified all claims against README (built on GIBS WMTS, 9 layers, MIT, live URL,
+  probe inverts the rendered colormap). Stacked on the consolidation PR (#408) since the
+  workspace isn't on `main` yet. Still undrafted: the **Research partnerships** goal
+  (≥2 PhD-level EO/remote-sensing groups) — a natural next institutional-outreach run.
