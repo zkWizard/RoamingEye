@@ -75,6 +75,7 @@ export function observationsFromRenderedClimateSample(
       "RoamingEye: rendered climate months and coverage must have matching lengths"
     );
   }
+  assertStrictlyIncreasingMonths(months);
   if (
     !Number.isFinite(nativeToSampledValueFactor) ||
     nativeToSampledValueFactor <= 0
@@ -102,6 +103,30 @@ export function observationsFromRenderedClimateSample(
         : {}),
     })),
   };
+}
+
+function assertStrictlyIncreasingMonths(months: readonly YearMonth[]): void {
+  let previousOrdinal: number | null = null;
+  for (const month of months) {
+    if (
+      !Number.isInteger(month.year) ||
+      !Number.isInteger(month.month) ||
+      month.month < 1 ||
+      month.month > 12
+    ) {
+      throw new Error(
+        "RoamingEye: rendered climate series contains an invalid data month"
+      );
+    }
+
+    const ordinal = month.year * 12 + month.month - 1;
+    if (previousOrdinal !== null && ordinal <= previousOrdinal) {
+      throw new Error(
+        "RoamingEye: rendered climate data months must be unique and strictly increasing"
+      );
+    }
+    previousOrdinal = ordinal;
+  }
 }
 
 /** Summarize every supplied image-sampled month against one availability checkpoint. */
