@@ -18,6 +18,7 @@ describe("rendered monthly meteorology", () => {
       nativeToSampledValueFactor: 86_400,
       validFractions: [0.81, 0.76],
       sourceImageDimensions: { width: 512, height: 512 },
+      geometrySamplingStrategy: "boundary-grid",
     });
 
     expect(series).toMatchObject({
@@ -42,6 +43,9 @@ describe("rendered monthly meteorology", () => {
       width: 512,
       height: 512,
     });
+    expect(series.observations[1].geometrySamplingStrategy).toBe(
+      "boundary-grid"
+    );
   });
 
   it("keeps native source values, missing samples, image provenance, and publication state explicit", () => {
@@ -56,6 +60,7 @@ describe("rendered monthly meteorology", () => {
         nativeToSampledValueFactor: 1,
         validFractions: [0.9, 0],
         sourceImageDimensions: { width: 1024, height: 512 },
+        geometrySamplingStrategy: "boundary-point",
       },
       { year: 2026, month: 3 }
     );
@@ -68,7 +73,7 @@ describe("rendered monthly meteorology", () => {
     expect(climateInsightText(summaries[0], summaries[1])).toEqual({
       value: "Unavailable",
       detail:
-        "No usable 2026-03 observation (missing-value); 0% sampled coverage; rendered source image 1024 x 512 px; source M2TMNXSLV v5.12.4",
+        "No usable 2026-03 observation (missing-value); single in-boundary image sample, not a regional mean; 0% sampled coverage; rendered source image 1024 x 512 px; source M2TMNXSLV v5.12.4",
     });
   });
 
@@ -83,6 +88,7 @@ describe("rendered monthly meteorology", () => {
         sampledValues: [7.2, 7.8],
         nativeToSampledValueFactor: 1,
         validFractions: [0.8, 0.9],
+        geometrySamplingStrategy: "boundary-point",
       },
       { year: 2026, month: 2 }
     );
@@ -90,7 +96,7 @@ describe("rendered monthly meteorology", () => {
     expect(climateInsightText(summaries[0], summaries[1])).toEqual({
       value: "7.8 kg/m\u00b2",
       detail:
-        "2026-02 observed; +0.6 kg/m\u00b2 vs 2026-01; 90% sampled coverage; rendered source image dimensions not supplied; approximate regional mean; source GLDAS_NOAH025_M v2.1",
+        "2026-02 observed; +0.6 kg/m\u00b2 vs 2026-01; 90% sampled coverage; rendered source image dimensions not supplied; single in-boundary image sample, not a regional mean; source GLDAS_NOAH025_M v2.1",
     });
     expect(climateMetricForLayer("precip")).toBe("precipitation-rate");
     expect(climateMetricForLayer("ndvi")).toBeNull();
