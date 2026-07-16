@@ -6,8 +6,11 @@ import {
   risDataset,
   textTool,
   textDataset,
+  cslTool,
+  cslDataset,
   citationBundle,
   TOOL_CITATION,
+  type CslItem,
 } from "./citation";
 import { citedDatasets } from "./providers";
 
@@ -82,6 +85,55 @@ describe("plain text", () => {
     const text = textDataset(ndvi);
     expect(text.startsWith(ndvi.title)).toBe(true);
     expect(text).not.toMatch(/\b(19|20)\d{2}\b/); // no fabricated year
+  });
+});
+
+describe("CSL-JSON", () => {
+  it("emits a 'software' item for the tool with author, year, and version", () => {
+    const item = cslTool();
+    expect(item.id).toBe("roamingeye");
+    expect(item.type).toBe("software");
+    expect(item.title).toBe(TOOL_CITATION.title);
+    expect(item.author).toEqual([{ literal: TOOL_CITATION.author }]);
+    expect(item.issued).toEqual({ "date-parts": [[TOOL_CITATION.year]] });
+    expect(item.version).toBe(TOOL_CITATION.version);
+    expect(item.URL).toBe(TOOL_CITATION.url);
+    // The tool carries no DOI, so the field is omitted rather than emitted null.
+    expect("DOI" in item).toBe(false);
+  });
+
+  it("emits a 'dataset' item carrying the DOI and a resolvable URL", () => {
+    const item = cslDataset(ndvi);
+    expect(item.type).toBe("dataset");
+    expect(item.title).toContain("MOD13A3 v061");
+    expect(item.publisher).toBe("NASA Global Imagery Browse Services (GIBS)");
+    expect(item.version).toBe("061");
+    expect(item.DOI).toBe("10.5067/MODIS/MOD13A3.061");
+    expect(item.URL).toBe("https://doi.org/10.5067/MODIS/MOD13A3.061");
+    // The CSL id matches the BibTeX key for the same work (stable, ASCII).
+    expect(item.id).toMatch(/^dataset_MOD13A3_v061$/);
+  });
+
+  it("invents no author or release date beyond the DatasetRef fields", () => {
+    const item = cslDataset(ndvi);
+    expect("author" in item).toBe(false);
+    expect("issued" in item).toBe(false);
+  });
+
+  it("bundles valid, parseable CSL-JSON: the tool first, then each dataset", () => {
+    const bundle = citationBundle("csljson");
+    expect(bundle.endsWith("\n")).toBe(true);
+    const items = JSON.parse(bundle) as CslItem[];
+    expect(Array.isArray(items)).toBe(true);
+    expect(items[0]).toMatchObject({ id: "roamingeye", type: "software" });
+
+    // One dataset item per unique DOI, each resolvable — no product double-counted.
+    const uniqueDois = new Set(citedDatasets().map((c) => c.dataset.doi));
+    const datasetItems = items.filter((i) => i.type === "dataset");
+    expect(datasetItems).toHaveLength(uniqueDois.size);
+    for (const item of datasetItems) {
+      expect(item.URL).toBe(`https://doi.org/${item.DOI}`);
+    }
   });
 });
 
