@@ -93,6 +93,8 @@ export interface NdviMonthlyClimatology {
   meteorologicalSeason: MeteorologicalSeason;
   /** Distinct years that contributed to this month's mean. */
   yearsUsed: number;
+  /** Exact contributing years, sorted oldest to newest. */
+  contributingYears: number[];
   /** Compensated mean NDVI for this calendar month, unitless. */
   meanNdvi: number;
   /** Lowest contributing yearly value for this calendar month, unitless. */
@@ -137,6 +139,10 @@ export interface NdviAnnualCycle {
   observationsSupplied: number;
   /** Count of observations that contributed to a monthly mean. */
   observationsUsed: number;
+  /** Oldest year contributing to any reported monthly mean. */
+  contributingYearStart: number | null;
+  /** Newest year contributing to any reported monthly mean. */
+  contributingYearEnd: number | null;
   /** How many of the twelve calendar months met the years-per-month floor. */
   calendarMonthsCovered: number;
   /** Per-calendar-month climatology, sorted January→December; covered months only. */
@@ -201,6 +207,8 @@ export function describeNdviAnnualCycle(
       ...base,
       status: "invalid",
       observationsUsed: 0,
+      contributingYearStart: null,
+      contributingYearEnd: null,
       calendarMonthsCovered: 0,
       monthlyClimatology: [],
       greenestMonth: null,
@@ -255,6 +263,8 @@ export function describeNdviAnnualCycle(
 
   const monthlyClimatology: NdviMonthlyClimatology[] = [];
   let observationsUsed = 0;
+  let contributingYearStart: number | null = null;
+  let contributingYearEnd: number | null = null;
   for (
     let calendarMonth = 1;
     calendarMonth <= CALENDAR_MONTHS_IN_YEAR;
@@ -262,8 +272,17 @@ export function describeNdviAnnualCycle(
   ) {
     const yearValues = buckets.get(calendarMonth);
     if (yearValues && yearValues.size >= requiredYearsPerMonth) {
-      const values = [...yearValues.values()];
+      const contributingYears = [...yearValues.keys()].sort((a, b) => a - b);
+      const values = contributingYears.map((year) => yearValues.get(year)!);
       observationsUsed += values.length;
+      contributingYearStart = Math.min(
+        contributingYearStart ?? contributingYears[0],
+        contributingYears[0]
+      );
+      contributingYearEnd = Math.max(
+        contributingYearEnd ?? contributingYears.at(-1)!,
+        contributingYears.at(-1)!
+      );
       monthlyClimatology.push({
         calendarMonth,
         meteorologicalSeason: meteorologicalSeasonForMonth(
@@ -271,6 +290,7 @@ export function describeNdviAnnualCycle(
           hemisphere
         ),
         yearsUsed: values.length,
+        contributingYears,
         meanNdvi: neumaierSum(values) / values.length,
         minNdvi: Math.min(...values),
         maxNdvi: Math.max(...values),
@@ -284,6 +304,8 @@ export function describeNdviAnnualCycle(
       ...base,
       status: "no-usable-observations",
       observationsUsed,
+      contributingYearStart,
+      contributingYearEnd,
       calendarMonthsCovered,
       monthlyClimatology,
       greenestMonth: null,
@@ -299,6 +321,8 @@ export function describeNdviAnnualCycle(
       ...base,
       status: "insufficient-monthly-coverage",
       observationsUsed,
+      contributingYearStart,
+      contributingYearEnd,
       calendarMonthsCovered,
       monthlyClimatology,
       greenestMonth: null,
@@ -323,6 +347,8 @@ export function describeNdviAnnualCycle(
     ...base,
     status: "available",
     observationsUsed,
+    contributingYearStart,
+    contributingYearEnd,
     calendarMonthsCovered,
     monthlyClimatology,
     greenestMonth: {
@@ -359,7 +385,8 @@ export function formatNdviAnnualCycle(cycle: NdviAnnualCycle): string {
   const amplitude = formatNumber(cycle.amplitude);
   const green = MONTH_ABBREVIATIONS[cycle.greenestMonth.calendarMonth - 1];
   const lean = MONTH_ABBREVIATIONS[cycle.leastGreenMonth.calendarMonth - 1];
-  return `Mean annual NDVI cycle amplitude ${amplitude} (${green} greenest ${formatNumber(cycle.greenestMonth.meanNdvi)} − ${lean} least green ${formatNumber(cycle.leastGreenMonth.meanNdvi)}); climatological monthly means over ${cycle.observationsUsed} usable observations, not a climate normal, within-year extreme range, or a productivity measure; source ${source}`;
+  const dataPeriod = `${cycle.contributingYearStart}–${cycle.contributingYearEnd}`;
+  return `Mean annual NDVI cycle amplitude ${amplitude} (${green} greenest ${formatNumber(cycle.greenestMonth.meanNdvi)} − ${lean} least green ${formatNumber(cycle.leastGreenMonth.meanNdvi)}); climatological monthly means over ${cycle.observationsUsed} usable observations from ${dataPeriod}, not a climate normal, within-year extreme range, or a productivity measure; source ${source}`;
 }
 
 const MONTH_ABBREVIATIONS = [
