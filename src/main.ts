@@ -412,6 +412,9 @@ function buildTimeline(): void {
 buildTimeline();
 
 const legend = legendEl ? new Legend(legendEl, currentLayer) : undefined;
+hdTiles.onVisibleCoverageChange(({ requested, loaded, failed }) => {
+  legend?.setTerrainTileCoverage(requested, loaded, failed);
+});
 
 // Assigned by the probe/compare sections below; the layer selector closes
 // both because their contents belong to the previous layer.
