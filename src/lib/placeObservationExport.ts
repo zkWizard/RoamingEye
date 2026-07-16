@@ -1,4 +1,8 @@
-import { isAreaGeometry, type GeoGeometry } from "./geojson";
+import {
+  isAreaGeometry,
+  type GeoGeometry,
+  type GeometrySamplingStrategy,
+} from "./geojson";
 import {
   LAYERS,
   type DatasetRef,
@@ -16,7 +20,7 @@ import {
  */
 
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
-  "roamingeye-place-observation-export/v2" as const;
+  "roamingeye-place-observation-export/v3" as const;
 
 export const GIBS_IMAGERY_SOURCE = {
   name: "NASA Global Imagery Browse Services (GIBS)",
@@ -42,6 +46,8 @@ export interface PlaceObservationProductInput {
   /** Underlying data product citation; this is not replaced by imagery metadata. */
   source: DatasetRef;
   nativeUnit: string;
+  /** Exact searched-boundary strategy used for this product's observations. */
+  samplingStrategy?: GeometrySamplingStrategy | "unavailable";
   observations: readonly PlaceObservationInput[];
 }
 
@@ -107,6 +113,7 @@ export interface PlaceObservationExportProduct {
   wmsLayer: string;
   source: DatasetRef;
   nativeUnit: string;
+  samplingStrategy: GeometrySamplingStrategy | "unavailable";
   observations: {
     dataMonth: string;
     value: number | null;
@@ -144,6 +151,7 @@ export type PlaceObservationExportLayerId =
 export interface PlaceObservationExportSample {
   layerId: PlaceObservationExportLayerId;
   observations: readonly PlaceObservationInput[];
+  samplingStrategy?: GeometrySamplingStrategy;
   sourceValueFactor?: number;
 }
 
@@ -236,6 +244,7 @@ export function placeObservationProductFromSample(
     wmsLayer: layer.wmsLayer,
     source: layer.dataset,
     nativeUnit,
+    samplingStrategy: sample.samplingStrategy ?? "unavailable",
     observations: sample.observations.map((observation) => ({
       ...observation,
       value:
@@ -273,6 +282,16 @@ function validateInput(input: PlaceObservationExportInput): void {
     layerIds.add(product.layerId);
     if (!product.wmsLayer.trim() || !product.nativeUnit.trim()) {
       throw new Error("Each product needs a WMS layer and native unit.");
+    }
+    if (
+      product.samplingStrategy !== undefined &&
+      !["boundary-grid", "boundary-point", "unavailable"].includes(
+        product.samplingStrategy
+      )
+    ) {
+      throw new Error(
+        `Product ${product.layerId} has an invalid sampling strategy.`
+      );
     }
     if (!hasCitation(product.source)) {
       throw new Error(
@@ -324,6 +343,7 @@ function exportProducts(
       wmsLayer: product.wmsLayer,
       source: { ...product.source },
       nativeUnit: product.nativeUnit,
+      samplingStrategy: product.samplingStrategy ?? "unavailable",
       observations: product.observations
         .map((observation) => ({
           dataMonth: formatYearMonth(observation.dataMonth),

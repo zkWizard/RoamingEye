@@ -28,6 +28,7 @@ const input = {
       wmsLayer: LAYERS.ndvi.wmsLayer,
       source: LAYERS.ndvi.dataset!,
       nativeUnit: "NDVI",
+      samplingStrategy: "boundary-grid" as const,
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -42,6 +43,7 @@ const input = {
       wmsLayer: LAYERS.precip.wmsLayer,
       source: LAYERS.precip.dataset!,
       nativeUnit: "kg m^-2 s^-1",
+      samplingStrategy: "boundary-point" as const,
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -65,7 +67,7 @@ describe("place observation export", () => {
     const exported = createPlaceObservationExport(input);
 
     expect(exported).toMatchObject({
-      schema: "roamingeye-place-observation-export/v2",
+      schema: "roamingeye-place-observation-export/v3",
       kind: "place-observation-export",
       boundary,
       products: [
@@ -74,6 +76,7 @@ describe("place observation export", () => {
           wmsLayer: LAYERS.ndvi.wmsLayer,
           source: LAYERS.ndvi.dataset,
           nativeUnit: "NDVI",
+          samplingStrategy: "boundary-grid",
           observations: [
             { dataMonth: "2026-04", value: 0.62, validFraction: 0.82 },
             { dataMonth: "2026-05", value: null, validFraction: null },
@@ -83,6 +86,7 @@ describe("place observation export", () => {
           layerId: "precip",
           source: LAYERS.precip.dataset,
           nativeUnit: "kg m^-2 s^-1",
+          samplingStrategy: "boundary-point",
           observations: [
             { dataMonth: "2026-04", value: 0.00014, validFraction: 0.61 },
           ],
@@ -236,6 +240,7 @@ describe("place observation export", () => {
     const precipitation = placeObservationProductFromSample({
       layerId: "precip",
       sourceValueFactor: 86_400,
+      samplingStrategy: "boundary-point",
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -269,5 +274,16 @@ describe("place observation export", () => {
         sourceValueFactor: 0,
       })
     ).toThrow("sourceValueFactor must be a positive finite number.");
+  });
+
+  it("does not invent a sampling strategy for unavailable samples", () => {
+    const product = placeObservationProductFromSample({
+      layerId: "ndvi",
+      observations: [
+        { dataMonth: { year: 2026, month: 4 }, value: null, validFraction: 0 },
+      ],
+    });
+
+    expect(product.samplingStrategy).toBe("unavailable");
   });
 });
