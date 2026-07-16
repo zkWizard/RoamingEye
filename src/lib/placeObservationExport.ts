@@ -131,6 +131,7 @@ export const PLACE_OBSERVATION_NATIVE_UNITS = {
   precip: "kg/m²/s",
   soil: "kg/m²",
   airtemp: "K",
+  sst: "°C",
 } as const satisfies Partial<Record<LayerId, string>>;
 
 export type PlaceObservationExportLayerId =
@@ -213,8 +214,9 @@ export function serializePlaceObservationExport(
 
 /**
  * Build a cited, native-unit product record from a completed place sample.
- * This intentionally supports only the four independent place-insight
- * signals; no composite condition or derived score is introduced here.
+ * This intentionally supports only the independent place-insight signals;
+ * no composite condition or derived score is introduced here. SST remains a
+ * physical ocean observation and is never biological evidence.
  */
 export function placeObservationProductFromSample(
   sample: PlaceObservationExportSample

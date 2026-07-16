@@ -61,6 +61,36 @@ const input = {
 };
 
 describe("place observation export", () => {
+  it("exports boundary SST in native °C with MODIS provenance and coverage", () => {
+    const product = placeObservationProductFromSample({
+      layerId: "sst",
+      sourceValueFactor: 1,
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 5 },
+          value: 18.375,
+          validFraction: 0.37,
+        },
+      ],
+    });
+
+    expect(product).toMatchObject({
+      layerId: "sst",
+      wmsLayer: "MODIS_Aqua_L3_SST_Thermal_9km_Day_Monthly",
+      nativeUnit: "°C",
+      source: {
+        shortName: "MODIS_AQUA_L3_SST_THERMAL_MONTHLY_9KM_DAYTIME_V2019.0",
+        version: "2019.0",
+      },
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 5 },
+          value: 18.375,
+          validFraction: 0.37,
+        },
+      ],
+    });
+  });
   it("retains boundary, cited products, native units, months, coverage, and method", () => {
     const exported = createPlaceObservationExport(input);
 
