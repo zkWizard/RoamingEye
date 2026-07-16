@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { latLngToVector3 } from "../lib/geo";
 import {
+  allocatePartWidths,
   gibsRegionUrl,
   splitBoundsAtAntimeridian,
   type Bounds,
@@ -153,11 +154,7 @@ export class StudyRegion {
     onApplied: () => void
   ): Promise<void> {
     // Pixel widths proportional to angular widths, exactly filling the canvas.
-    const widths = parts.map((p) =>
-      Math.max(1, Math.round(total * p.fraction))
-    );
-    widths[widths.length - 1] =
-      total - widths.slice(0, -1).reduce((a, w) => a + w, 0);
+    const widths = allocatePartWidths(parts, total);
     try {
       const bitmaps = await Promise.all(
         parts.map((part, i) =>

@@ -77,6 +77,30 @@ export interface BoundsPart {
   fraction: number;
 }
 
+/** Convert geographic fractions to deterministic integer pixel widths. */
+export function allocatePartWidths(
+  parts: readonly Pick<BoundsPart, "fraction">[],
+  totalWidth: number
+): number[] {
+  if (!Number.isInteger(totalWidth) || totalWidth < parts.length) {
+    throw new Error(
+      "RoamingEye: image width cannot represent every bounds part"
+    );
+  }
+  if (parts.length === 0) return [];
+  // Reserve one pixel for each geographic part before distributing the rest.
+  // This keeps a narrow seam sliver from becoming a zero-width WMS request.
+  const distributable = totalWidth - parts.length;
+  const exact = parts.map((part) => distributable * part.fraction);
+  const widths = exact.map((width) => 1 + Math.floor(width));
+  const remaining = totalWidth - widths.reduce((sum, width) => sum + width, 0);
+  const remainderOrder = exact
+    .map((width, index) => ({ index, remainder: width - Math.floor(width) }))
+    .sort((a, b) => b.remainder - a.remainder || a.index - b.index);
+  for (let i = 0; i < remaining; i++) widths[remainderOrder[i].index]++;
+  return widths;
+}
+
 /**
  * Split a continuous-longitude box at the ±180° seam into legal WMS pieces.
  * RFC 7946 §3.1.9 canonized splitting at the antimeridian for geometry; this

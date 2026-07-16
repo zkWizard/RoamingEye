@@ -1,11 +1,38 @@
 import { describe, it, expect } from "vitest";
 import {
+  allocatePartWidths,
   regionAround,
   legalLonBounds,
   splitBoundsAtAntimeridian,
   gibsRegionUrl,
   studyDate,
 } from "./imagery";
+
+describe("allocatePartWidths", () => {
+  it("preserves a sub-pixel antimeridian segment and exact total width", () => {
+    const widths = allocatePartWidths(
+      [{ fraction: 0.9999 }, { fraction: 0.0001 }],
+      1024
+    );
+    expect(widths).toEqual([1023, 1]);
+    expect(widths.reduce((sum, width) => sum + width, 0)).toBe(1024);
+  });
+
+  it("uses stable largest-remainder allocation for equal parts", () => {
+    expect(
+      allocatePartWidths(
+        [{ fraction: 1 / 3 }, { fraction: 1 / 3 }, { fraction: 1 / 3 }],
+        8
+      )
+    ).toEqual([3, 3, 2]);
+  });
+
+  it("rejects rasters too narrow to retain every geographic part", () => {
+    expect(() =>
+      allocatePartWidths([{ fraction: 0.5 }, { fraction: 0.5 }], 1)
+    ).toThrow("cannot represent every bounds part");
+  });
+});
 
 describe("regionAround", () => {
   it("centres a span on the point", () => {
