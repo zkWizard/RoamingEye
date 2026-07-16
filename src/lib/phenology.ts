@@ -121,8 +121,9 @@ export function meteorologicalSeasonForMonth(
 /**
  * Group supplied monthly NDVI values into honest annual descriptive summaries.
  * Input may be incomplete; omitted calendar months are never counted as data.
- * Duplicate records are rejected rather than averaged, so a repeat cannot
- * silently alter an annual peak or trough.
+ * Every record in a duplicate calendar month is rejected rather than choosing
+ * the first or averaging, so input order cannot silently alter an annual peak
+ * or trough.
  */
 export function summarizeAnnualNdviPhenology(
   observations: readonly NdviMonthlyObservation[],
@@ -141,13 +142,43 @@ export function summarizeAnnualNdviPhenology(
       accumulator.invalidRecordCount += 1;
       continue;
     }
-    const key = observation.month.month;
-    if (accumulator.seenMonths.has(key)) {
-      accumulator.invalidRecordCount += 1;
+    const monthRecords = accumulator.monthRecords.get(observation.month.month);
+    if (monthRecords) monthRecords.push(observation);
+    else accumulator.monthRecords.set(observation.month.month, [observation]);
+  }
+
+  return [...years.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([year, accumulator]) => {
+      classifyMonthRecords(accumulator);
+      return annualSummary(year, accumulator, hemisphere);
+    });
+}
+
+interface YearAccumulator {
+  monthRecords: Map<number, NdviMonthlyObservation[]>;
+  valid: NdviMonthlyObservation[];
+  missingMonthCount: number;
+  invalidRecordCount: number;
+}
+
+function emptyYearAccumulator(): YearAccumulator {
+  return {
+    monthRecords: new Map<number, NdviMonthlyObservation[]>(),
+    valid: [],
+    missingMonthCount: 0,
+    invalidRecordCount: 0,
+  };
+}
+
+function classifyMonthRecords(accumulator: YearAccumulator): void {
+  for (const records of accumulator.monthRecords.values()) {
+    if (records.length > 1) {
+      accumulator.invalidRecordCount += records.length;
       continue;
     }
-    accumulator.seenMonths.add(key);
 
+    const observation = records[0];
     if (observation.ndvi === null || observation.validFraction === 0) {
       accumulator.missingMonthCount += 1;
       continue;
@@ -167,26 +198,6 @@ export function summarizeAnnualNdviPhenology(
 
     accumulator.valid.push(observation);
   }
-
-  return [...years.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([year, accumulator]) => annualSummary(year, accumulator, hemisphere));
-}
-
-interface YearAccumulator {
-  seenMonths: Set<number>;
-  valid: NdviMonthlyObservation[];
-  missingMonthCount: number;
-  invalidRecordCount: number;
-}
-
-function emptyYearAccumulator(): YearAccumulator {
-  return {
-    seenMonths: new Set<number>(),
-    valid: [],
-    missingMonthCount: 0,
-    invalidRecordCount: 0,
-  };
 }
 
 function isCalendarMonth(month: YearMonth): boolean {
