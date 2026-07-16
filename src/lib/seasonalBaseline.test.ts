@@ -144,7 +144,7 @@ describe("seasonal climate baseline comparisons", () => {
       status: "insufficient-samples",
       anomaly: null,
       reason: "too-few-same-calendar-month-samples",
-      baseline: { sampleCount: 2 },
+      baseline: { sampleCount: 1 },
       exclusions: { duplicateYear: 1, wrongCalendarMonth: 1 },
     });
     expect(missingTarget).toMatchObject({
@@ -156,6 +156,41 @@ describe("seasonal climate baseline comparisons", () => {
         observedValue: null,
       },
     });
+  });
+
+  it("excludes every observation from an ambiguous year regardless of input order", () => {
+    const unique = [
+      precip(2019, 3, 1, 0.8),
+      precip(2021, 3, 3, 0.8),
+      precip(2022, 3, 4, 0.8),
+    ];
+    const duplicateYear = [
+      precip(2020, 3, null, 0.8),
+      precip(2020, 3, 100, 0.8),
+    ];
+
+    const forward = compareMonthlyClimateToSeasonalBaseline(
+      precip(2023, 3, 5, 0.8),
+      [...unique, ...duplicateYear],
+      AVAILABLE_THROUGH,
+      { minimumSamples: 3 }
+    );
+    const reversed = compareMonthlyClimateToSeasonalBaseline(
+      precip(2023, 3, 5, 0.8),
+      [...unique, ...duplicateYear.reverse()],
+      AVAILABLE_THROUGH,
+      { minimumSamples: 3 }
+    );
+
+    expect(forward).toMatchObject({
+      status: "available",
+      exclusions: { duplicateYear: 1, missing: 0 },
+      baseline: { sampleCount: 3, mean: 8 / 3 },
+    });
+    expect(reversed).toEqual(forward);
+    expect(forward.samples.map(({ month }) => month.year)).toEqual([
+      2019, 2021, 2022,
+    ]);
   });
 
   it("does not report an anomaly for a target month that is not yet published", () => {

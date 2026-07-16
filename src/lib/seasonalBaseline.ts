@@ -149,7 +149,14 @@ export function compareMonthlyClimateToSeasonalBaseline(
     );
   }
 
-  const seenYears = new Set<number>();
+  const candidateYearCounts = countEligibleCandidateYears(
+    targetObservation.metricId,
+    targetMonth,
+    baselineCandidates,
+    options.baselineStartYear,
+    baselineEndYear
+  );
+  const reportedDuplicateYears = new Set<number>();
   const samples: SeasonalBaselineSample[] = [];
   let coverageEligibleCount = 0;
 
@@ -174,11 +181,14 @@ export function compareMonthlyClimateToSeasonalBaseline(
       exclusions.outOfBounds += 1;
       continue;
     }
-    if (seenYears.has(candidate.dataMonth.year)) {
-      exclusions.duplicateYear += 1;
+    const candidateCount = candidateYearCounts.get(candidate.dataMonth.year)!;
+    if (candidateCount > 1) {
+      if (!reportedDuplicateYears.has(candidate.dataMonth.year)) {
+        exclusions.duplicateYear += candidateCount - 1;
+        reportedDuplicateYears.add(candidate.dataMonth.year);
+      }
       continue;
     }
-    seenYears.add(candidate.dataMonth.year);
 
     const summary = summarizeMonthlyClimate(candidate, availableThrough);
     if (summary.publicationStatus !== "published") {
@@ -267,6 +277,33 @@ export function compareMonthlyClimateToSeasonalBaseline(
     samples,
     reason: null,
   };
+}
+
+function countEligibleCandidateYears(
+  metricId: MonthlyClimateObservation["metricId"],
+  calendarMonth: number,
+  candidates: readonly MonthlyClimateObservation[],
+  baselineStartYear: number | undefined,
+  baselineEndYear: number
+): Map<number, number> {
+  const counts = new Map<number, number>();
+  for (const candidate of candidates) {
+    if (
+      candidate.metricId !== metricId ||
+      !isCalendarMonth(candidate.dataMonth) ||
+      candidate.dataMonth.month !== calendarMonth ||
+      (baselineStartYear !== undefined &&
+        candidate.dataMonth.year < baselineStartYear) ||
+      candidate.dataMonth.year > baselineEndYear
+    ) {
+      continue;
+    }
+    counts.set(
+      candidate.dataMonth.year,
+      (counts.get(candidate.dataMonth.year) ?? 0) + 1
+    );
+  }
+  return counts;
 }
 
 function comparisonFor(
