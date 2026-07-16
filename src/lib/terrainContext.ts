@@ -36,6 +36,48 @@ export interface TerrainLayerContext {
   accessibleNotice: string;
 }
 
+export type TerrainTileAvailability =
+  | { state: "not-observed"; requested: 0; loaded: 0; failed: 0 }
+  | { state: "loading"; requested: number; loaded: number; failed: number }
+  | { state: "available"; requested: number; loaded: number; failed: number }
+  | { state: "unavailable"; requested: number; loaded: 0; failed: number };
+
+/** Summarize only the tiles requested for the current visible terrain view. */
+export function terrainTileAvailability(
+  requested: number,
+  loaded: number,
+  failed: number
+): TerrainTileAvailability {
+  const counts = [requested, loaded, failed];
+  if (counts.some((value) => !Number.isInteger(value) || value < 0)) {
+    throw new RangeError("Terrain tile counts must be non-negative integers");
+  }
+  if (loaded + failed > requested) {
+    throw new RangeError("Terrain tile outcomes cannot exceed requests");
+  }
+  if (requested === 0)
+    return { state: "not-observed", requested, loaded: 0, failed: 0 };
+  if (loaded > 0) return { state: "available", requested, loaded, failed };
+  if (failed === requested)
+    return { state: "unavailable", requested, loaded: 0, failed };
+  return { state: "loading", requested, loaded, failed };
+}
+
+export function terrainTileAvailabilityNotice(
+  availability: TerrainTileAvailability
+): string {
+  switch (availability.state) {
+    case "not-observed":
+      return "Visible high-resolution tile coverage has not been requested.";
+    case "loading":
+      return `Visible tile coverage loading: ${availability.failed} unavailable of ${availability.requested} requested.`;
+    case "available":
+      return `Visible tile coverage: ${availability.loaded} loaded, ${availability.failed} unavailable of ${availability.requested} requested.`;
+    case "unavailable":
+      return `Visible tile coverage unavailable: all ${availability.requested} requested tiles failed to load.`;
+  }
+}
+
 /**
  * Describe what the terrain legend can and cannot establish. This makes no
  * claim about local elevation, vertical accuracy, bathymetry, or coverage at

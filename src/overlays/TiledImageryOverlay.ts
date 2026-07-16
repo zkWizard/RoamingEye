@@ -65,6 +65,12 @@ interface ShownTile {
   provisional: boolean;
 }
 
+export interface VisibleTileCoverage {
+  requested: number;
+  loaded: number;
+  failed: number;
+}
+
 export class TiledImageryOverlay implements MapOverlay {
   readonly id = "hd";
   readonly label = "HD tiles";
@@ -90,9 +96,18 @@ export class TiledImageryOverlay implements MapOverlay {
   private generationAbort = new AbortController();
   private lastSignature = "";
   private lastUpdate = 0;
+  private failedWanted = new Set<string>();
+  private coverageListener?: (coverage: VisibleTileCoverage) => void;
 
   constructor(private readonly maxAnisotropy = 1) {
     this.object.visible = false;
+  }
+
+  onVisibleCoverageChange(
+    listener: (coverage: VisibleTileCoverage) => void
+  ): void {
+    this.coverageListener = listener;
+    this.emitCoverage();
   }
 
   ensureLoaded(): Promise<void> {
@@ -151,6 +166,8 @@ export class TiledImageryOverlay implements MapOverlay {
       this.clearMeshes();
       this.wantedKeys.clear();
       this.lastWanted = [];
+      this.failedWanted.clear();
+      this.emitCoverage();
       return;
     }
     this.reconcile(wanted);
@@ -211,6 +228,9 @@ export class TiledImageryOverlay implements MapOverlay {
     }
 
     this.wantedKeys = new Set(wanted.map((t) => this.keyFor(t)));
+    this.failedWanted = new Set(
+      [...this.failedWanted].filter((key) => this.wantedKeys.has(key))
+    );
     this.lastWanted = wanted;
     this.queue = [];
     for (const [akey, tile] of wantedByAddr) {
@@ -240,6 +260,7 @@ export class TiledImageryOverlay implements MapOverlay {
       // footprint so zooming refines instead of opening a hole (milestone 5).
       if (!entry) this.showFallback(tile);
     }
+    this.emitCoverage();
     this.pump();
   }
 
@@ -326,6 +347,8 @@ export class TiledImageryOverlay implements MapOverlay {
             if (this.wantedKeys.has(job.key)) {
               this.show(job.tile, job.key, texture, null);
             }
+            this.failedWanted.delete(job.key);
+            this.emitCoverage();
             this.evict();
           }
           this.pump();
@@ -334,9 +357,30 @@ export class TiledImageryOverlay implements MapOverlay {
           // Abort (superseded generation) or a missing tile (ocean-only,
           // over-zoom, outages) — both keep the parent-tile fallback.
           this.loading.delete(job.key);
+          if (
+            generation === this.generation &&
+            this.wantedKeys.has(job.key) &&
+            !this.generationAbort.signal.aborted
+          ) {
+            this.failedWanted.add(job.key);
+            this.emitCoverage();
+          }
           this.pump();
         });
     }
+  }
+
+  private emitCoverage(): void {
+    if (!this.coverageListener) return;
+    let loaded = 0;
+    for (const key of this.wantedKeys) {
+      if (this.textures.has(key)) loaded++;
+    }
+    this.coverageListener({
+      requested: this.wantedKeys.size,
+      loaded,
+      failed: this.failedWanted.size,
+    });
   }
 
   /**
