@@ -28,7 +28,11 @@ import {
 import { LEGENDS, type GradientLegendSpec } from "./legend";
 import { LAYERS } from "./timeline";
 import { decodeViewState } from "./viewState";
-import { latLonToRegionPixel, ProbeSampler } from "../probe/ProbeSampler";
+import {
+  latLonToRegionPixel,
+  pointProbePixels,
+  ProbeSampler,
+} from "../probe/ProbeSampler";
 
 describe("latLonToPixel", () => {
   it("maps the equirectangular corners and center", () => {
@@ -72,6 +76,29 @@ describe("latLonToRegionPixel", () => {
       x: 250,
       y: 100,
     });
+  });
+});
+
+describe("pointProbePixels", () => {
+  it("wraps the 3×3 point neighbourhood across the antimeridian", () => {
+    const pixels = pointProbePixels(0, -180, 8, 4);
+
+    expect(pixels).toHaveLength(9);
+    expect(new Set(pixels.map((pixel) => pixel.x))).toEqual(new Set([7, 0, 1]));
+    expect(pixels.every(({ x, y }) => x >= 0 && x < 8 && y >= 0 && y < 4)).toBe(
+      true
+    );
+  });
+
+  it("clamps and deduplicates the neighbourhood at each pole", () => {
+    for (const lat of [-90, 90]) {
+      const pixels = pointProbePixels(lat, 45, 8, 4);
+      expect(pixels).toHaveLength(6);
+      expect(new Set(pixels.map((pixel) => pixel.y)).size).toBe(2);
+      expect(
+        pixels.every(({ x, y }) => x >= 0 && x < 8 && y >= 0 && y < 4)
+      ).toBe(true);
+    }
   });
 });
 
