@@ -178,6 +178,23 @@ describe("place observation export", () => {
     };
 
     expect(serializePlaceObservationExport(reordered)).toBe(json);
+
+    const citationWithDifferentInsertionOrder = {
+      ...input,
+      products: input.products.map((product) => ({
+        ...product,
+        source: {
+          title: product.source.title,
+          doi: product.source.doi,
+          version: product.source.version,
+          shortName: product.source.shortName,
+        },
+      })),
+    };
+
+    expect(
+      serializePlaceObservationExport(citationWithDifferentInsertionOrder)
+    ).toBe(json);
   });
 
   it("rejects ambiguous or invalid reproducibility metadata", () => {
@@ -230,6 +247,17 @@ describe("place observation export", () => {
         ],
       })
     ).toThrow("Product ndvi has a value with zero sampled coverage.");
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            observations: [{ dataMonth: { year: 26, month: 4 }, value: 0.1 }],
+          },
+        ],
+      })
+    ).toThrow("Product ndvi has an invalid data month.");
   });
 
   it("reverses display conversions before exporting cited native units", () => {
