@@ -42,7 +42,15 @@ export interface PlaceObservationProductInput {
   /** Underlying data product citation; this is not replaced by imagery metadata. */
   source: DatasetRef;
   nativeUnit: string;
+  /** Exact transformation applied to sampled values before export. */
+  sampleToNative?: PlaceObservationValueTransform;
   observations: readonly PlaceObservationInput[];
+}
+
+export interface PlaceObservationValueTransform {
+  sampledUnit: string;
+  operation: "divide";
+  factor: number;
 }
 
 export interface PlaceObservationInput {
@@ -107,6 +115,7 @@ export interface PlaceObservationExportProduct {
   wmsLayer: string;
   source: DatasetRef;
   nativeUnit: string;
+  sampleToNative: PlaceObservationValueTransform;
   observations: {
     dataMonth: string;
     value: number | null;
@@ -144,6 +153,8 @@ export type PlaceObservationExportLayerId =
 export interface PlaceObservationExportSample {
   layerId: PlaceObservationExportLayerId;
   observations: readonly PlaceObservationInput[];
+  /** Unit represented by the sampled values before native-unit conversion. */
+  sampledUnit?: string;
   sourceValueFactor?: number;
 }
 
@@ -236,6 +247,11 @@ export function placeObservationProductFromSample(
     wmsLayer: layer.wmsLayer,
     source: layer.dataset,
     nativeUnit,
+    sampleToNative: {
+      sampledUnit: sample.sampledUnit ?? nativeUnit,
+      operation: "divide",
+      factor: sourceValueFactor,
+    },
     observations: sample.observations.map((observation) => ({
       ...observation,
       value:
@@ -271,8 +287,23 @@ function validateInput(input: PlaceObservationExportInput): void {
       throw new Error(`Duplicate product layer: ${product.layerId}.`);
     }
     layerIds.add(product.layerId);
-    if (!product.wmsLayer.trim() || !product.nativeUnit.trim()) {
+    if (
+      !product.wmsLayer.trim() ||
+      !product.nativeUnit.trim() ||
+      (product.sampleToNative !== undefined &&
+        !product.sampleToNative.sampledUnit.trim())
+    ) {
       throw new Error("Each product needs a WMS layer and native unit.");
+    }
+    if (
+      product.sampleToNative !== undefined &&
+      (product.sampleToNative.operation !== "divide" ||
+        !Number.isFinite(product.sampleToNative.factor) ||
+        product.sampleToNative.factor <= 0)
+    ) {
+      throw new Error(
+        `Product ${product.layerId} has an invalid sample-to-native transform.`
+      );
     }
     if (!hasCitation(product.source)) {
       throw new Error(
@@ -324,6 +355,13 @@ function exportProducts(
       wmsLayer: product.wmsLayer,
       source: { ...product.source },
       nativeUnit: product.nativeUnit,
+      sampleToNative: product.sampleToNative
+        ? { ...product.sampleToNative }
+        : {
+            sampledUnit: product.nativeUnit,
+            operation: "divide" as const,
+            factor: 1,
+          },
       observations: product.observations
         .map((observation) => ({
           dataMonth: formatYearMonth(observation.dataMonth),

@@ -17,10 +17,12 @@ import { latLngToVector3, vector3ToLatLng, formatLatLng } from "./lib/geo";
 import { buildProbeCsv, normalizeLon, PROBE_SCALES } from "./lib/probe";
 import { isAreaGeometry } from "./lib/geojson";
 import {
+  PLACE_OBSERVATION_NATIVE_UNITS,
   placeObservationProductFromSample,
   serializePlaceObservationExport,
   type PlaceObservationExportSample,
 } from "./lib/placeObservationExport";
+import { SCALE_CONVERSIONS } from "./lib/colormap";
 import {
   PLACE_METRICS,
   latestComparisonMonths,
@@ -530,6 +532,10 @@ function runPlaceInsights(result: GeoResult): void {
         if (colormap || metric.layerId === "ndvi") {
           exportSamples.set(metric.layerId, {
             layerId: metric.layerId,
+            sampledUnit:
+              SCALE_CONVERSIONS[
+                metric.layerId as keyof typeof SCALE_CONVERSIONS
+              ]?.unit ?? PLACE_OBSERVATION_NATIVE_UNITS[metric.layerId],
             sourceValueFactor: colormap?.factor ?? 1,
             observations: months.map((dataMonth, index) => ({
               dataMonth,
