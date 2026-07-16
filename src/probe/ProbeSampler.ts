@@ -108,6 +108,28 @@ interface ImageSource {
   close: () => void;
 }
 
+/**
+ * Read the requested source pixels and always release the decoded imagery.
+ * Canvas operations can fail (for example after a WebGL/browser context
+ * reset); keeping the bitmap alive in that path leaks one full regional or
+ * global image for every affected month.
+ */
+export function readSourcePixels(
+  source: ImageSource,
+  pixels: WeightedPixel[],
+  ctx: CanvasRenderingContext2D
+): Uint8ClampedArray {
+  try {
+    ctx.clearRect(0, 0, pixels.length, 1);
+    for (let i = 0; i < pixels.length; i++) {
+      ctx.drawImage(source.image, pixels[i].x, pixels[i].y, 1, 1, i, 0, 1, 1);
+    }
+    return ctx.getImageData(0, 0, pixels.length, 1).data;
+  } finally {
+    source.close();
+  }
+}
+
 export class ProbeSampler {
   constructor(
     private readonly imageSize: Required<
@@ -437,12 +459,7 @@ export class ProbeSampler {
     }
 
     // Copy each source pixel into a 1-px-tall strip and read it in one call.
-    ctx.clearRect(0, 0, pixels.length, 1);
-    for (let i = 0; i < pixels.length; i++) {
-      ctx.drawImage(source.image, pixels[i].x, pixels[i].y, 1, 1, i, 0, 1, 1);
-    }
-    source.close();
-    const { data } = ctx.getImageData(0, 0, pixels.length, 1);
+    const data = readSourcePixels(source, pixels, ctx);
 
     const inversions: (number | null)[] = [];
     for (let i = 0; i < pixels.length; i++) {
