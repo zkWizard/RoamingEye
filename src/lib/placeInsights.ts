@@ -137,6 +137,24 @@ export function placeInsightPhysicalReading(
   );
 }
 
+/**
+ * Admit only values decoded through an authoritative physical colormap to the
+ * native-value export path.
+ *
+ * NDVI currently uses RoamingEye's approximate display ramp rather than a
+ * separately fetched GIBS RGB-to-value mapping. Its sampler output is therefore
+ * a rendered-ramp position, even though that position also spans 0..1. Preserve
+ * month and coverage elsewhere, but withhold these positions from a contract
+ * that promises native product units.
+ */
+export function nativePlaceSampleValues(
+  values: readonly (number | null)[],
+  valueSource: "authoritative-colormap" | "display-ramp"
+): (number | null)[] {
+  if (valueSource === "display-ramp") return values.map(() => null);
+  return [...values];
+}
+
 function makePlaceInsightReading(
   metric: PlaceMetric,
   months: [YearMonth, YearMonth],

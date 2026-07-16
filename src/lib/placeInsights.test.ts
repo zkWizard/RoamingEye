@@ -2,11 +2,27 @@ import { describe, expect, it } from "vitest";
 import {
   PLACE_METRICS,
   latestComparisonMonths,
+  nativePlaceSampleValues,
   placeInsightPhysicalReading,
   placeInsightReading,
 } from "./placeInsights";
 
 describe("place insights", () => {
+  it("withholds rendered vegetation positions from native-value exports", () => {
+    expect(nativePlaceSampleValues([0, 0.5, 1, null], "display-ramp")).toEqual([
+      null,
+      null,
+      null,
+      null,
+    ]);
+  });
+
+  it("preserves values decoded through authoritative physical colormaps", () => {
+    expect(
+      nativePlaceSampleValues([0.0001, null], "authoritative-colormap")
+    ).toEqual([0.0001, null]);
+  });
+
   it("uses each product's own latest two months", () => {
     expect(latestComparisonMonths("precip")).toEqual([
       { year: 2025, month: 12 },

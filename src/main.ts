@@ -25,6 +25,7 @@ import {
   PLACE_METRICS,
   latestComparisonMonths,
   loadPlaceColormap,
+  nativePlaceSampleValues,
   placeInsightPhysicalReading,
   placeInsightReading,
 } from "./lib/placeInsights";
@@ -462,7 +463,7 @@ function runPlaceInsights(result: GeoResult): void {
     // Start with explicit no-data observations. A failed request or an
     // unavailable authoritative colormap must not be replaced with a
     // display-converted value labelled as a native-unit measurement. NDVI is
-    // the exception: its 0..1 physical range is already its native unit.
+    // withheld below because its display-ramp position is not a native value.
     exportSamples.set(metric.layerId, {
       layerId: metric.layerId,
       observations: months.map((dataMonth) => ({ dataMonth, value: null })),
@@ -528,12 +529,15 @@ function runPlaceInsights(result: GeoResult): void {
                 })
         );
         if (colormap || metric.layerId === "ndvi") {
+          const nativeValues = colormap
+            ? nativePlaceSampleValues(values, "authoritative-colormap")
+            : nativePlaceSampleValues(values, "display-ramp");
           exportSamples.set(metric.layerId, {
             layerId: metric.layerId,
             sourceValueFactor: colormap?.factor ?? 1,
             observations: months.map((dataMonth, index) => ({
               dataMonth,
-              value: values[index] ?? null,
+              value: nativeValues[index] ?? null,
               validFraction: validFractions[index],
             })),
           });
