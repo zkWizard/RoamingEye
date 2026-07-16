@@ -293,13 +293,21 @@ function temporalAlignmentStatement(
 ): string {
   const noun = count === 1 ? "observation" : "observations";
   if (count === 1) {
-    return `1 usable ${noun}, dated ${formatYearMonth(earliest)}; no cross-signal temporal comparison.`;
+    return `1 usable ${noun}, dated ${formatYearMonth(
+      earliest
+    )}; no cross-signal temporal comparison.`;
   }
   if (spanMonths === 0) {
-    return `${count} usable ${noun} all dated ${formatYearMonth(earliest)}; temporally aligned.`;
+    return `${count} usable ${noun} all dated ${formatYearMonth(
+      earliest
+    )}; temporally aligned.`;
   }
   const monthWord = spanMonths === 1 ? "month" : "months";
-  return `${count} usable ${noun} span ${formatYearMonth(earliest)} to ${formatYearMonth(latest)} (${spanMonths}-${monthWord} spread); signals are not a synchronized snapshot and should not be read as simultaneous.`;
+  return `${count} usable ${noun} span ${formatYearMonth(
+    earliest
+  )} to ${formatYearMonth(
+    latest
+  )} (${spanMonths}-${monthWord} spread); signals are not a synchronized snapshot and should not be read as simultaneous.`;
 }
 
 /** DOI resolver prefix, so every credited source carries a resolvable link. */
@@ -349,13 +357,15 @@ export interface BriefAttribution {
 export function attributeBrief(
   signals: readonly EnvironmentSignalBrief[]
 ): BriefAttribution {
-  const byDoi = new Map<string, SourceAttribution>();
+  const byIdentity = new Map<string, SourceAttribution>();
   const order: string[] = [];
   for (const signal of signals) {
-    const key = signal.source.doi;
-    let entry = byDoi.get(key);
+    const doi = normalizedDoi(signal.source.doi);
+    const key = doi
+      ? `doi:${doi.toLowerCase()}`
+      : `dataset:${signal.source.shortName}\u0000${signal.source.version}\u0000${signal.source.title}`;
+    let entry = byIdentity.get(key);
     if (!entry) {
-      const doi = signal.source.doi.trim();
       entry = {
         source: signal.source,
         signalIds: [],
@@ -363,7 +373,7 @@ export function attributeBrief(
         contributedValue: false,
         doiUrl: doi ? `${DOI_RESOLVER}${doi}` : null,
       };
-      byDoi.set(key, entry);
+      byIdentity.set(key, entry);
       order.push(key);
     }
     entry.signalIds.push(signal.id);
@@ -371,7 +381,7 @@ export function attributeBrief(
     if (signal.status === "available") entry.contributedValue = true;
   }
 
-  const sources = order.map((key) => byDoi.get(key)!);
+  const sources = order.map((key) => byIdentity.get(key)!);
   return {
     sources,
     acknowledgment: GIBS_ACKNOWLEDGMENT,
@@ -379,12 +389,22 @@ export function attributeBrief(
   };
 }
 
+function normalizedDoi(value: string): string {
+  return value
+    .trim()
+    .replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, "")
+    .replace(/^doi:\s*/i, "")
+    .trim();
+}
+
 function attributionLine(sources: readonly SourceAttribution[]): string {
   if (sources.length === 0) return "No data sources to credit.";
   const credits = sources
     .map((entry) => {
       const link = entry.doiUrl ? ` (${entry.doiUrl})` : "";
-      return `${sourceLabel(entry.source)} — ${entry.signalLabels.join(", ")}${link}`;
+      return `${sourceLabel(entry.source)} — ${entry.signalLabels.join(
+        ", "
+      )}${link}`;
     })
     .join("; ");
   return `Data sources: ${credits}. ${GIBS_ACKNOWLEDGMENT}`;
@@ -448,9 +468,15 @@ function completenessStatement(summary: {
 
   if (summary.total === 0) return "No signals composed.";
   if (summary.available === 0) {
-    return `No usable observations across ${summary.total} signal${plural(summary.total)}${remainder}.`;
+    return `No usable observations across ${summary.total} signal${plural(
+      summary.total
+    )}${remainder}.`;
   }
-  return `Usable observations for ${summary.available} of ${summary.total} signal${plural(summary.total)}: ${summary.availableSignalIds.join(", ")}${remainder}.`;
+  return `Usable observations for ${summary.available} of ${
+    summary.total
+  } signal${plural(summary.total)}: ${summary.availableSignalIds.join(
+    ", "
+  )}${remainder}.`;
 }
 
 function plural(count: number): string {
@@ -555,7 +581,11 @@ function unavailableSignal(meta: SignalMeta): EnvironmentSignalBrief {
     coverage,
     status: "unavailable",
     observedValue: null,
-    statement: `${meta.label}: no supplied observation; data month unavailable; coverage not supplied; source ${sourceLabel(meta.source)}.`,
+    statement: `${
+      meta.label
+    }: no supplied observation; data month unavailable; coverage not supplied; source ${sourceLabel(
+      meta.source
+    )}.`,
   };
 }
 
@@ -623,9 +653,13 @@ function statementFor(signal: {
   const source = sourceLabel(signal.source);
 
   if (signal.status === "available") {
-    return `${signal.label}: ${formatValue(signal.observedValue)} ${signal.nativeUnit} observed for ${month}; ${coverage}; source ${source}.`;
+    return `${signal.label}: ${formatValue(signal.observedValue)} ${
+      signal.nativeUnit
+    } observed for ${month}; ${coverage}; source ${source}.`;
   }
-  return `${signal.label}: ${signal.status} observation for ${month} (${signal.coverage.reason ?? "unspecified"}); ${coverage}; source ${source}.`;
+  return `${signal.label}: ${signal.status} observation for ${month} (${
+    signal.coverage.reason ?? "unspecified"
+  }); ${coverage}; source ${source}.`;
 }
 
 function coverageText(coverage: EnvironmentSignalCoverage): string {
