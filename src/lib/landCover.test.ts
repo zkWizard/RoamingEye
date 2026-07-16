@@ -23,6 +23,8 @@ describe("land-cover context summaries", () => {
     expect(summary).toMatchObject({
       kind: "observed-class-coded-land-cover",
       isForecast: false,
+      observationStatus: "available",
+      unavailableReason: null,
       provenance: {
         layerId: "landcover",
         wmsLayer: "MODIS_Combined_L3_IGBP_Land_Cover_Type_Annual",
@@ -96,6 +98,8 @@ describe("land-cover context summaries", () => {
     );
 
     expect(summary.provenance.publicationStatus).toBe("invalid-year");
+    expect(summary.observationStatus).toBe("unavailable");
+    expect(summary.unavailableReason).toBe("invalid-year");
     expect(summary.coverage).toEqual({
       status: "no-data",
       totalSampleCount: 0,
@@ -109,6 +113,18 @@ describe("land-cover context summaries", () => {
     });
     expect(summary.classCoverage).toEqual([]);
     expect(summary.dominantClass).toBeNull();
+  });
+
+  it("distinguishes unpublished years from sampled no-data", () => {
+    const unpublished = summarizeLandCoverContext([{ classCode: 12 }], 2025);
+    const noData = summarizeLandCoverContext([{ classCode: 255 }], 2024);
+
+    expect(unpublished.observationStatus).toBe("unavailable");
+    expect(unpublished.unavailableReason).toBe("outside-layer-range");
+    expect(unpublished.coverage.status).toBe("available");
+    expect(noData.observationStatus).toBe("unavailable");
+    expect(noData.unavailableReason).toBe("no-known-land-cover");
+    expect(noData.provenance.publicationStatus).toBe("published");
   });
 
   it("exposes the complete IGBP contract including unclassified source pixels", () => {
