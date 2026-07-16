@@ -1,4 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { fetchBlob } from "./net";
+
+vi.mock("./net", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./net")>();
+  return { ...actual, fetchBlob: vi.fn() };
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.mocked(fetchBlob).mockReset();
+});
 import {
   latLonToPixel,
   hexToRgb,
@@ -136,6 +147,39 @@ describe("boundary probe sampling", () => {
         lon: 5,
       })
     ).rejects.toThrow("no interior cells at bounded sampling resolution");
+  });
+});
+
+describe("regional imagery resource cleanup", () => {
+  it("closes a decoded antimeridian segment when its peer fails", async () => {
+    vi.mocked(fetchBlob).mockResolvedValue(new Blob(["image"]));
+    const close = vi.fn();
+    vi.stubGlobal(
+      "createImageBitmap",
+      vi
+        .fn()
+        .mockResolvedValueOnce({ close })
+        .mockRejectedValueOnce(new Error("decode failed"))
+    );
+    const sampler = new ProbeSampler({ width: 400, height: 200 });
+    const loadRegionSource = (
+      sampler as unknown as {
+        loadRegionSource: (
+          layer: (typeof LAYERS)["ndvi"],
+          month: { year: number; month: number },
+          bounds: { south: number; west: number; north: number; east: number }
+        ) => Promise<unknown>;
+      }
+    ).loadRegionSource.bind(sampler);
+
+    await expect(
+      loadRegionSource(
+        LAYERS.ndvi,
+        { year: 2024, month: 7 },
+        { south: -2, west: 179, north: 2, east: 181 }
+      )
+    ).rejects.toThrow("decode failed");
+    expect(close).toHaveBeenCalledOnce();
   });
 });
 
