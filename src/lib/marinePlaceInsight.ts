@@ -1,6 +1,7 @@
 import {
   SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE,
   summarizeMarineCoverage,
+  type MarineCoverageSummary,
   type SourceImageDimensions,
 } from "./marineCoverage";
 import { PROBE_SCALES } from "./probe";
@@ -37,6 +38,10 @@ export interface MarinePlaceInsightReading {
   dataMonth: YearMonth;
   observedValue: number | null;
   source: typeof SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE;
+  /** Structured sampler state for UI/export consumers; null when sampling failed. */
+  coverage: MarineCoverageSummary | null;
+  observationStatus:
+    "observed" | "no-sst-coverage" | "invalid-sample" | "source-unavailable";
 }
 
 /**
@@ -82,6 +87,12 @@ export function marineBoundarySstReading(
     dataMonth: input.dataMonth,
     observedValue: usable ? input.observedValue : null,
     source: coverage.source,
+    coverage,
+    observationStatus: usable
+      ? "observed"
+      : coverage.coverage.status === "no-sst-coverage"
+        ? "no-sst-coverage"
+        : "invalid-sample",
   };
 }
 
@@ -99,6 +110,8 @@ export function unavailableMarineBoundarySstReading(
     dataMonth,
     observedValue: null,
     source: SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE,
+    coverage: null,
+    observationStatus: "source-unavailable",
   };
 }
 
