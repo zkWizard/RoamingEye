@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MARINE_PLACE_METRIC,
   marineBoundarySstReading,
+  unavailableMarineBoundarySstReading,
 } from "./marinePlaceInsight";
 
 describe("marine boundary SST insights", () => {
@@ -21,6 +22,7 @@ describe("marine boundary SST insights", () => {
       isForecast: false,
       dataMonth: { year: 2026, month: 3 },
       observedValue: 18.375,
+      unavailableReason: null,
     });
     expect(reading.detail).toContain("37% sampled boundary coverage");
     expect(reading.detail).toContain("rendered source image 512 x 512 px");
@@ -66,5 +68,31 @@ describe("marine boundary SST insights", () => {
 
     expect(reading.value).toBe("No usable SST observation");
     expect(reading.observedValue).toBeNull();
+  });
+
+  it("keeps source-mapping and boundary-sampling failures distinct", () => {
+    const month = { year: 2026, month: 3 };
+    const colormap = unavailableMarineBoundarySstReading(
+      month,
+      "source-colormap-unavailable"
+    );
+    const sampling = unavailableMarineBoundarySstReading(
+      month,
+      "boundary-sampling-failed"
+    );
+
+    expect(colormap).toMatchObject({
+      value: "Unavailable",
+      observedValue: null,
+      unavailableReason: "source-colormap-unavailable",
+    });
+    expect(colormap.detail).toContain("published source colormap");
+    expect(sampling).toMatchObject({
+      value: "Unavailable",
+      observedValue: null,
+      unavailableReason: "boundary-sampling-failed",
+    });
+    expect(sampling.detail).toContain("searched boundary");
+    expect(sampling.detail).not.toContain("could not be mapped");
   });
 });

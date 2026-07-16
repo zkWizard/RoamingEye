@@ -557,9 +557,20 @@ function runPlaceInsights(result: GeoResult): void {
   const sstMonths = monthRangeForLayer(LAYERS.sst);
   const sstMonth = sstMonths[sstMonths.length - 1];
   void (async () => {
-    const colormap = await loadPlaceColormap("sst");
+    const colormap = await loadPlaceColormap("sst").catch((error: unknown) => {
+      if (isAbortError(error) || abort.signal.aborted) return null;
+      console.warn("RoamingEye: SST physical colormap failed to load", error);
+      return null;
+    });
+    if (abort.signal.aborted) return;
     if (!colormap) {
-      throw new Error("RoamingEye: SST physical colormap is unavailable");
+      placeInsights.setReading(
+        unavailableMarineBoundarySstReading(
+          sstMonth,
+          "source-colormap-unavailable"
+        )
+      );
+      return;
     }
     const sample = await placeSampler.sampleGeometryPhysical(
       LAYERS.sst,
@@ -582,7 +593,9 @@ function runPlaceInsights(result: GeoResult): void {
   })().catch((error: unknown) => {
     if (isAbortError(error) || abort.signal.aborted) return;
     console.warn("RoamingEye: marine place insight sampling failed", error);
-    placeInsights.setReading(unavailableMarineBoundarySstReading(sstMonth));
+    placeInsights.setReading(
+      unavailableMarineBoundarySstReading(sstMonth, "boundary-sampling-failed")
+    );
   });
 
   void Promise.all(samplingTasks).then(() => {
