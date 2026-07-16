@@ -130,8 +130,11 @@ export function summarizeMonthlyClimate(
     kind: "observed-monthly-climate",
     isForecast: false,
     metric,
-    dataMonth,
-    availableThrough,
+    // Snapshot both month values at the contract boundary. Timeline month
+    // objects are reused by callers, and later mutation must not re-date an
+    // observation that has already been paired with a source value.
+    dataMonth: { ...dataMonth },
+    availableThrough: { ...availableThrough },
     publicationStatus,
     publicationLagMonths: lag === null || lag < 0 ? null : lag,
     coverage,

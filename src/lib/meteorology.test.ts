@@ -103,4 +103,25 @@ describe("rendered monthly meteorology", () => {
       })
     ).toThrow("matching lengths");
   });
+
+  it("keeps rendered values bound to the source months supplied at sampling time", () => {
+    const months = [
+      { year: 2026, month: 1 },
+      { year: 2026, month: 2 },
+    ];
+    const series = observationsFromRenderedClimateSample({
+      metricId: "precipitation-rate",
+      months,
+      sampledValues: [4.32, null],
+      nativeToSampledValueFactor: 86_400,
+    });
+
+    months[0].month = 6;
+    months[1].year = 2027;
+
+    expect(series.observations).toMatchObject([
+      { dataMonth: { year: 2026, month: 1 }, value: 0.00005 },
+      { dataMonth: { year: 2026, month: 2 }, value: null },
+    ]);
+  });
 });
