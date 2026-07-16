@@ -201,7 +201,17 @@ async function main() {
       })
       .filter((v) => v.name && Number.isFinite(v.lat) && Number.isFinite(v.lon))
       .sort((a, b) => a.name.localeCompare(b.name));
-    writeFileSync(join(OUT, "volcanoes.json"), JSON.stringify(volcanoes));
+    const volcanoDataset = {
+      provenance: {
+        source:
+          "Smithsonian Institution Global Volcanism Program — Volcanoes of the World",
+        sourceUrl: "https://volcano.si.edu/",
+        service: "GVP-VOTW WFS",
+        retrievedAt: new Date().toISOString(),
+      },
+      records: volcanoes,
+    };
+    writeFileSync(join(OUT, "volcanoes.json"), JSON.stringify(volcanoDataset));
     console.log(`  → volcanoes.json (${volcanoes.length} volcanoes)`);
   }
 

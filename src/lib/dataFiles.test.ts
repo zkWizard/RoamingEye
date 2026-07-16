@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseCityList } from "./cities";
-import { parseVolcanoList } from "./volcanoes";
+import { parseVolcanoDataset } from "./volcanoes";
 import { parsePlateBoundaries } from "./plates";
 import { decodePlatePair } from "./platePairs";
 import { buildAdmin1Index, buildCountryIndex } from "./countryIndex";
@@ -30,8 +30,11 @@ describe("bundled data files", () => {
   });
 
   it("volcanoes.json parses the Holocene population", () => {
-    const volcanoes = parseVolcanoList(load("volcanoes.json"));
+    const dataset = parseVolcanoDataset(load("volcanoes.json"));
+    const volcanoes = dataset.volcanoes;
     expect(volcanoes.length).toBeGreaterThanOrEqual(1000);
+    expect(dataset.provenance).not.toBeNull();
+    expect(dataset.dataMonth).toMatch(/^\d{4}-\d{2}$/);
     // The recency coloring needs dated eruptions to be present.
     expect(
       volcanoes.filter((v) => v.lastEruptionYear !== null).length

@@ -38,7 +38,7 @@ import {
   summarizeRenderedClimateSample,
 } from "./lib/meteorology";
 import { volcanoesInSearchExtent } from "./lib/volcanoExtent";
-import { parseVolcanoList } from "./lib/volcanoes";
+import { parseVolcanoDataset } from "./lib/volcanoes";
 import type { GeoResult } from "./lib/geocoding";
 import { refreshDataLatest } from "./lib/freshness";
 import { fetchJson, isAbortError, isOnline, OfflineError } from "./lib/net";
@@ -440,11 +440,12 @@ function runPlaceInsights(result: GeoResult): void {
     void fetchJson<unknown>(`${import.meta.env.BASE_URL}data/volcanoes.json`, {
       signal: abort.signal,
     })
-      .then(parseVolcanoList)
-      .then((volcanoes) => {
+      .then(parseVolcanoDataset)
+      .then((dataset) => {
         if (abort.signal.aborted) return;
         placeInsights.setVolcanoContext(
-          volcanoesInSearchExtent(volcanoes, result.boundingBox)
+          volcanoesInSearchExtent(dataset.volcanoes, result.boundingBox),
+          dataset.dataMonth
         );
       })
       .catch((error: unknown) => {
