@@ -46,6 +46,10 @@ export interface NdviExtremum {
 }
 
 export interface NdviCoverage {
+  /** Distinct valid calendar-month numbers represented by supplied records. */
+  suppliedCalendarMonths: number[];
+  /** Calendar-month numbers absent from the supplied records. */
+  omittedCalendarMonths: number[];
   /** Valid calendar months supplied for this year (not an assumed 12 months). */
   validMonthCount: number;
   /** Supplied months without a usable NDVI observation. */
@@ -204,7 +208,16 @@ function annualSummary(
   hemisphere: Hemisphere
 ): NdviAnnualPhenology {
   const valid = accumulator.valid;
+  const suppliedCalendarMonths = [...accumulator.seenMonths].sort(
+    (a, b) => a - b
+  );
+  const omittedCalendarMonths = Array.from(
+    { length: 12 },
+    (_, index) => index + 1
+  ).filter((month) => !accumulator.seenMonths.has(month));
   const coverage: NdviCoverage = {
+    suppliedCalendarMonths,
+    omittedCalendarMonths,
     validMonthCount: valid.length,
     missingMonthCount: accumulator.missingMonthCount,
     invalidRecordCount: accumulator.invalidRecordCount,
