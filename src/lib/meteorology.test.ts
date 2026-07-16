@@ -103,4 +103,42 @@ describe("rendered monthly meteorology", () => {
       })
     ).toThrow("matching lengths");
   });
+
+  it("rejects ambiguous or invalid rendered data-month identities", () => {
+    const input = {
+      metricId: "precipitation-rate" as const,
+      sampledValues: [1, 2],
+      nativeToSampledValueFactor: 86_400,
+    };
+
+    expect(() =>
+      observationsFromRenderedClimateSample({
+        ...input,
+        months: [
+          { year: 2026, month: 1 },
+          { year: 2026, month: 1 },
+        ],
+      })
+    ).toThrow("unique and strictly increasing");
+
+    expect(() =>
+      observationsFromRenderedClimateSample({
+        ...input,
+        months: [
+          { year: 2026, month: 2 },
+          { year: 2026, month: 1 },
+        ],
+      })
+    ).toThrow("unique and strictly increasing");
+
+    expect(() =>
+      observationsFromRenderedClimateSample({
+        ...input,
+        months: [
+          { year: 2026, month: 0 },
+          { year: 2026, month: 1 },
+        ],
+      })
+    ).toThrow("invalid data month");
+  });
 });
