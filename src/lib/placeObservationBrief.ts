@@ -4,6 +4,7 @@ import {
   type EnvironmentBrief,
   type EnvironmentObservation,
   type EnvironmentSignalId,
+  type EnvironmentUnavailableReason,
 } from "./environmentBrief";
 import { NDVI_UNIT } from "./phenology";
 import type { PlaceObservationExport } from "./placeObservationExport";
@@ -101,10 +102,38 @@ export function composePlaceObservationBrief(
         "soil-moisture": latestForLayer("soil"),
         "air-temperature": latestForLayer("airtemp"),
       },
+      unavailableReasonBySignal: unavailableReasons(
+        productStatus,
+        observations
+      ),
     }),
     productStatus,
     limitations: LIMITATIONS,
   };
+}
+
+function unavailableReasons(
+  productStatus: Record<EnvironmentSignalId, PlaceObservationProductStatus>,
+  observations: Record<EnvironmentSignalId, EnvironmentObservation | null>
+): Record<EnvironmentSignalId, EnvironmentUnavailableReason> {
+  return Object.fromEntries(
+    SIGNAL_BINDINGS.map((binding) => [
+      binding.signalId,
+      unavailableReasonFor(
+        productStatus[binding.signalId],
+        observations[binding.signalId]
+      ),
+    ])
+  ) as Record<EnvironmentSignalId, EnvironmentUnavailableReason>;
+}
+
+function unavailableReasonFor(
+  status: PlaceObservationProductStatus,
+  observation: EnvironmentObservation | null
+): EnvironmentUnavailableReason {
+  if (status === "not-recorded") return "product-not-recorded";
+  if (status !== "accepted") return status;
+  return observation === null ? "no-observations-recorded" : "not-supplied";
 }
 
 function productStatusFor(
