@@ -42,6 +42,32 @@ describe("rendered monthly meteorology", () => {
       width: 512,
       height: 512,
     });
+    expect(series.observations[1].geometrySamplingStrategy).toBeUndefined();
+  });
+
+  it("preserves single-point boundary geography without calling it a regional mean", () => {
+    const summaries = summarizeRenderedClimateSample(
+      {
+        metricId: "precipitation-rate",
+        months: [{ year: 2026, month: 4 }],
+        sampledValues: [8.64],
+        nativeToSampledValueFactor: 86_400,
+        validFractions: [1],
+        sourceImageDimensions: { width: 512, height: 512 },
+        geometrySamplingStrategy: "boundary-point",
+      },
+      { year: 2026, month: 4 }
+    );
+
+    expect(summaries[0]).toMatchObject({
+      observedValue: 0.0001,
+      geometrySamplingStrategy: "boundary-point",
+    });
+    expect(climateInsightText(undefined, summaries[0])).toEqual({
+      value: "0.0001 kg/m\u00b2/s",
+      detail:
+        "2026-04 observed; single in-boundary image sample has data; rendered source image 512 x 512 px; single boundary point estimate, not a regional mean; source GLDAS_NOAH025_M v2.1",
+    });
   });
 
   it("keeps native source values, missing samples, image provenance, and publication state explicit", () => {
@@ -68,7 +94,7 @@ describe("rendered monthly meteorology", () => {
     expect(climateInsightText(summaries[0], summaries[1])).toEqual({
       value: "Unavailable",
       detail:
-        "No usable 2026-03 observation (missing-value); 0% sampled coverage; rendered source image 1024 x 512 px; source M2TMNXSLV v5.12.4",
+        "No usable 2026-03 observation (missing-value); 0% sampled coverage; rendered source image 1024 x 512 px; approximate regional mean; source M2TMNXSLV v5.12.4",
     });
   });
 

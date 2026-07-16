@@ -6,6 +6,7 @@ import {
   type MonthlyClimateSummary,
 } from "./climate";
 import type { LayerId, YearMonth } from "./timeline";
+import type { GeometrySamplingStrategy } from "./geojson";
 
 /**
  * Bridges sampled GIBS rendered imagery into the climate contracts.
@@ -37,6 +38,8 @@ export interface RenderedClimateSampleInput {
   validFractions?: readonly number[];
   /** Rendered source-image dimensions; provenance only, never resolution. */
   sourceImageDimensions?: { width: number; height: number };
+  /** Geography represented by the rendered sample. */
+  geometrySamplingStrategy?: GeometrySamplingStrategy;
 }
 
 export interface RenderedClimateSeries {
@@ -100,6 +103,9 @@ export function observationsFromRenderedClimateSample(
       ...(input.sourceImageDimensions
         ? { sourceImageDimensions: { ...input.sourceImageDimensions } }
         : {}),
+      ...(input.geometrySamplingStrategy
+        ? { geometrySamplingStrategy: input.geometrySamplingStrategy }
+        : {}),
     })),
   };
 }
@@ -131,7 +137,11 @@ export function climateInsightText(
   const source = `${current.metric.source.shortName} v${current.metric.source.version}`;
   const month = formatMonth(current.dataMonth);
   const provenance = imageProvenance(current.sourceImageDimensions);
-  const coverage = coverageText(current.coverage.validFraction);
+  const coverage = coverageText(
+    current.coverage.validFraction,
+    current.geometrySamplingStrategy
+  );
+  const geography = samplingGeography(current.geometrySamplingStrategy);
   if (
     current.publicationStatus !== "published" ||
     current.coverage.status !== "available" ||
@@ -139,7 +149,7 @@ export function climateInsightText(
   ) {
     return {
       value: "Unavailable",
-      detail: `No usable ${month} observation (${unavailableReason(current)}); ${coverage}; ${provenance}; source ${source}`,
+      detail: `No usable ${month} observation (${unavailableReason(current)}); ${coverage}; ${provenance}; ${geography}; source ${source}`,
     };
   }
 
@@ -160,7 +170,7 @@ export function climateInsightText(
       : "";
   return {
     value,
-    detail: `${month} observed${comparison}; ${coverage}; ${provenance}; approximate regional mean; source ${source}`,
+    detail: `${month} observed${comparison}; ${coverage}; ${provenance}; ${geography}; source ${source}`,
   };
 }
 
@@ -171,10 +181,26 @@ function unavailableReason(summary: MonthlyClimateSummary): string {
   return summary.coverage.reason ?? "unspecified";
 }
 
-function coverageText(validFraction: number | null): string {
+function coverageText(
+  validFraction: number | null,
+  strategy: MonthlyClimateSummary["geometrySamplingStrategy"]
+): string {
+  if (strategy === "boundary-point") {
+    return validFraction === null
+      ? "single in-boundary image sample status not supplied"
+      : `single in-boundary image sample ${validFraction === 1 ? "has data" : "has no data"}`;
+  }
   return validFraction === null
     ? "sampled coverage not supplied"
     : `${Math.round(validFraction * 100)}% sampled coverage`;
+}
+
+function samplingGeography(
+  strategy: MonthlyClimateSummary["geometrySamplingStrategy"]
+): string {
+  return strategy === "boundary-point"
+    ? "single boundary point estimate, not a regional mean"
+    : "approximate regional mean";
 }
 
 function imageProvenance(
