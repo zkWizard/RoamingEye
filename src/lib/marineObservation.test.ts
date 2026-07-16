@@ -191,6 +191,63 @@ describe("coastal ocean observation contract", () => {
     });
   });
 
+  it("preserves zero coverage ahead of a missing value", () => {
+    const summary = summarizeDirectMarineBiologicalObservation({
+      observationKind: "organism-count",
+      taxonName: "Example coastal taxon",
+      dataMonth: { year: 2026, month: 3 },
+      value: null,
+      nativeUnit: "individuals",
+      source: BIOLOGICAL_SOURCE,
+      validFraction: 0,
+    });
+
+    expect(summary).toMatchObject({
+      status: "no-data",
+      coverage: { validFraction: 0, reason: "zero-biological-coverage" },
+      observedValue: null,
+    });
+  });
+
+  it("rejects fractional counts while retaining biomass precision", () => {
+    const shared = {
+      taxonName: "Example coastal taxon",
+      dataMonth: { year: 2026, month: 3 },
+      nativeUnit: "individuals",
+      source: BIOLOGICAL_SOURCE,
+    };
+
+    for (const observationKind of [
+      "organism-count",
+      "occurrence-record",
+    ] as const) {
+      expect(
+        summarizeDirectMarineBiologicalObservation({
+          ...shared,
+          observationKind,
+          value: 1.5,
+        })
+      ).toMatchObject({
+        status: "invalid",
+        coverage: { reason: "non-integer-count" },
+        observedValue: null,
+      });
+    }
+
+    expect(
+      summarizeDirectMarineBiologicalObservation({
+        ...shared,
+        observationKind: "biomass-measurement",
+        value: 1.5,
+        nativeUnit: "g",
+      })
+    ).toMatchObject({
+      status: "observed",
+      nativeUnit: "g",
+      observedValue: 1.5,
+    });
+  });
+
   it("retains supplied biological geography and rejects malformed geography", () => {
     expect(
       summarizeDirectMarineBiologicalObservation({

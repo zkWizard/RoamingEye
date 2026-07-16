@@ -70,6 +70,7 @@ export type DirectMarineBiologicalObservationReason =
   | "missing-value"
   | "zero-biological-coverage"
   | "invalid-value"
+  | "non-integer-count"
   | null;
 
 export interface DirectMarineBiologicalObservationSummary {
@@ -138,6 +139,7 @@ export interface CoastalOceanObservation {
 export const COASTAL_OCEAN_OBSERVATION_LIMITATIONS = [
   "Sea surface temperature is a physical SST observation, not a marine-biological observation.",
   "Biological values appear only in supplied direct records with their own source, native unit, month, and sampling coverage.",
+  "Organism counts and occurrence-record counts must be non-negative integers; continuous biomass measurements retain their supplied native-unit precision.",
   "SST image coverage and biological sampling coverage use separate methods and are not interchangeable.",
   "Matching data months describes timing only; it does not establish association, causation, ecological condition, or a forecast.",
 ] as const;
@@ -239,6 +241,9 @@ export function summarizeDirectMarineBiologicalObservation(
       "invalid-geography"
     );
   }
+  if (validFraction === 0) {
+    return noDataBiologicalObservation(base, 0, "zero-biological-coverage");
+  }
   if (input.value === null) {
     return noDataBiologicalObservation(
       base,
@@ -246,14 +251,21 @@ export function summarizeDirectMarineBiologicalObservation(
       "missing-value"
     );
   }
-  if (validFraction === 0) {
-    return noDataBiologicalObservation(base, 0, "zero-biological-coverage");
-  }
   if (!Number.isFinite(input.value) || input.value < 0) {
     return invalidBiologicalObservation(
       base,
       validFraction ?? null,
       "invalid-value"
+    );
+  }
+  if (
+    input.observationKind !== "biomass-measurement" &&
+    !Number.isInteger(input.value)
+  ) {
+    return invalidBiologicalObservation(
+      base,
+      validFraction ?? null,
+      "non-integer-count"
     );
   }
 
