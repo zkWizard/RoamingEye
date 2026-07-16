@@ -4,6 +4,7 @@ import {
   legalLonBounds,
   splitBoundsAtAntimeridian,
   gibsRegionUrl,
+  imageryTime,
   studyDate,
 } from "./imagery";
 
@@ -161,10 +162,34 @@ describe("gibsRegionUrl", () => {
     expect(url).toContain("LAYERS=HLS_S30_Nadir_BRDF_Adjusted_Reflectance");
     expect(url).toContain("TIME=2023-08-15");
   });
+
+  it("omits TIME for imagery without a temporal dimension", () => {
+    const url = new URL(
+      gibsRegionUrl(
+        "ASTER_GDEM_Color_Shaded_Relief",
+        { south: 40, north: 41, west: -4, east: -3 },
+        null
+      )
+    );
+    expect(url.searchParams.has("TIME")).toBe(false);
+    expect(url.searchParams.get("LAYERS")).toBe(
+      "ASTER_GDEM_Color_Shaded_Relief"
+    );
+  });
 });
 
 describe("studyDate", () => {
   it("samples mid-month, zero-padded", () => {
     expect(studyDate({ year: 2024, month: 3 })).toBe("2024-03-15");
+  });
+});
+
+describe("imageryTime", () => {
+  it("addresses monthly imagery by the source month", () => {
+    expect(imageryTime({ year: 2024, month: 3 })).toBe("2024-03-01");
+  });
+
+  it("preserves the unavailable time dimension for static imagery", () => {
+    expect(imageryTime({ year: 2024, month: 3 }, true)).toBeNull();
   });
 });

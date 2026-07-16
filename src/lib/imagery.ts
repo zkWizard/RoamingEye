@@ -129,7 +129,7 @@ export interface RegionImageOptions {
 export function gibsRegionUrl(
   wmsLayer: string,
   bounds: Bounds,
-  time: string,
+  time: string | null,
   options: RegionImageOptions = {}
 ): string {
   const { width = 2048, height = 2048, format = "image/jpeg" } = options;
@@ -144,12 +144,20 @@ export function gibsRegionUrl(
     WIDTH: String(width),
     HEIGHT: String(height),
     FORMAT: format,
-    TIME: time,
   });
+  // Static products (for example ASTER GDEM shaded relief) have no temporal
+  // axis. Omitting TIME preserves that source contract and matches the global
+  // GIBS request path; a made-up calendar date can yield an empty WMS image.
+  if (time !== null) params.set("TIME", time);
   return `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?${params.toString()}`;
 }
 
 /** HLS is addressed by day; we sample mid-month for a given timeline month. */
 export function studyDate(ym: YearMonth): string {
   return `${ym.year}-${String(ym.month).padStart(2, "0")}-15`;
+}
+
+/** GIBS month identity, or no TIME parameter for a static source product. */
+export function imageryTime(ym: YearMonth, isStatic = false): string | null {
+  return isStatic ? null : `${ym.year}-${String(ym.month).padStart(2, "0")}-01`;
 }

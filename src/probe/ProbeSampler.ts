@@ -22,6 +22,7 @@ import type { ColormapEntry } from "../lib/colormap";
 import {
   regionAround,
   gibsRegionUrl,
+  imageryTime,
   splitBoundsAtAntimeridian,
   type Bounds,
 } from "../lib/imagery";
@@ -487,7 +488,7 @@ export class ProbeSampler {
     bounds: Bounds,
     signal?: AbortSignal
   ): Promise<ImageSource> {
-    const time = `${ym.year}-${String(ym.month).padStart(2, "0")}-01`;
+    const time = imageryTime(ym, layer.static);
     const parts = splitBoundsAtAntimeridian(bounds);
     if (parts.length === 1) {
       const blob = await fetchBlob(
