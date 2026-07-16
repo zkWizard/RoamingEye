@@ -29,7 +29,10 @@ describe("land-cover context summaries", () => {
         dataYear: 2024,
         cadence: "annual",
         classScheme: "IGBP",
+        nativeValue: "IGBP LC_Type1 class code",
+        nativeUnit: "categorical",
         sourceResolution: "500 m",
+        geographicCoverage: "selected-boundary samples",
         source: LAND_COVER_SOURCE,
         publicationStatus: "published",
       },
@@ -56,6 +59,17 @@ describe("land-cover context summaries", () => {
     ]);
     expect(summary).not.toHaveProperty("meanClassCode");
     expect(JSON.stringify(summary)).not.toContain("mean");
+  });
+
+  it("keeps categorical units and sampled geography in the reusable source contract", () => {
+    const summary = summarizeLandCoverContext([{ classCode: 10 }], 2024);
+
+    expect(summary.provenance).toMatchObject({
+      nativeValue: "IGBP LC_Type1 class code",
+      nativeUnit: "categorical",
+      geographicCoverage: "selected-boundary samples",
+    });
+    expect(summary.provenance.nativeUnit).not.toBe("percent");
   });
 
   it("keeps source unclassified pixels separate from no-data and informative classes", () => {

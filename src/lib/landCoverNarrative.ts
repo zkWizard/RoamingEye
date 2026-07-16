@@ -15,8 +15,8 @@ export interface LandCoverObservationNarrative {
   provenance: {
     dataYear: number;
     publicationStatus: LandCoverContextSummary["provenance"]["publicationStatus"];
-    geographicCoverage: "selected-boundary samples";
-    nativeValue: "IGBP LC_Type1 class code (categorical; no physical unit)";
+    geographicCoverage: LandCoverContextSummary["provenance"]["geographicCoverage"];
+    nativeValue: string;
     sourceLabel: string;
     sourceUrl: string;
     wmsLayer: string;
@@ -56,8 +56,8 @@ export function describeLandCoverObservation(
     provenance: {
       dataYear: provenance.dataYear,
       publicationStatus: provenance.publicationStatus,
-      geographicCoverage: "selected-boundary samples",
-      nativeValue: "IGBP LC_Type1 class code (categorical; no physical unit)",
+      geographicCoverage: provenance.geographicCoverage,
+      nativeValue: `${provenance.nativeValue} (${provenance.nativeUnit}; no physical unit)`,
       sourceLabel,
       sourceUrl,
       wmsLayer: provenance.wmsLayer,

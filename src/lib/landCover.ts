@@ -135,7 +135,12 @@ export interface LandCoverProvenance {
   dataYear: number;
   cadence: "annual";
   classScheme: "IGBP";
+  /** Native source values are categorical codes, not a physical quantity. */
+  nativeValue: "IGBP LC_Type1 class code";
+  nativeUnit: "categorical";
   sourceResolution: "500 m";
+  /** Counts represent samples within the selected boundary, not area shares. */
+  geographicCoverage: "selected-boundary samples";
   source: DatasetRef;
   publicationStatus: LandCoverPublicationStatus;
 }
@@ -250,7 +255,10 @@ export function summarizeLandCoverContext(
       dataYear,
       cadence: "annual",
       classScheme: "IGBP",
+      nativeValue: "IGBP LC_Type1 class code",
+      nativeUnit: "categorical",
       sourceResolution: "500 m",
+      geographicCoverage: "selected-boundary samples",
       source: LAND_COVER_SOURCE,
       publicationStatus: publicationStatusForYear(dataYear),
     },
