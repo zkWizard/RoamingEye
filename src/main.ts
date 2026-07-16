@@ -505,6 +505,7 @@ function runPlaceInsights(result: GeoResult): void {
                   nativeToSampledValueFactor: colormap.factor,
                   validFractions,
                   sourceImageDimensions,
+                  geometrySamplingStrategy,
                 },
                 months[1]
               )
