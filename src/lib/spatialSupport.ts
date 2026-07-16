@@ -39,6 +39,48 @@ import type { DatasetRef } from "./timeline";
 /** Mean length of one degree of latitude (WGS84), for nominal angular scale. */
 const METRES_PER_DEGREE = 111_320;
 
+/**
+ * Head words that, appearing just after a bare-metre token, mark it as a
+ * near-surface *measurement height* (the vertical reference of an atmospheric
+ * variable) rather than a grid-cell size. MERRA-2 near-surface diagnostics are
+ * the live case: "2 m air temperature", "2 m specific humidity", "10 m wind"
+ * name the height the variable is reported at, ~50 km grid notwithstanding.
+ * Reading such a token as a native grid would invent a metre-scale resolution
+ * for a coarse reanalysis field — exactly the provenance invention this module
+ * refuses — so a metre token in this context is left `unknown` instead.
+ */
+const METRE_HEIGHT_WORDS = new Set([
+  "above",
+  "agl",
+  "air",
+  "wind",
+  "winds",
+  "temperature",
+  "humidity",
+  "dewpoint",
+  "pressure",
+  "height",
+  "level",
+  "depth",
+  "elevation",
+]);
+
+/**
+ * True when the text right after a bare-metre token opens with a near-surface
+ * height/variable head word — allowing one intervening adjective, so "specific
+ * humidity" and "eastward wind" are still caught. Kept to a two-word window so
+ * an unrelated later mention (e.g. a grid whose title also says "air") does not
+ * suppress a genuine metre grid.
+ */
+function metreTokenIsMeasurementHeight(after: string): boolean {
+  return after
+    .trim()
+    .split(/\s+/, 2)
+    .some((word) =>
+      METRE_HEIGHT_WORDS.has(word.replace(/[^a-z]/gi, "").toLowerCase())
+    );
+}
+
 /** One signal's native grid, read from its cited dataset title. */
 export interface SignalSpatialSupport {
   id: EnvironmentSignalId;
@@ -113,6 +155,11 @@ const SPATIAL_SUPPORT_LIMITS = [
  * "9 km"), degree ("0.25°", "0.05Deg"), and bare-metre ("500 m") grids, tried
  * in that order so a "km" token is never mis-read as bare metres. Returns null
  * when the title states no recognizable grid, so provenance is never invented.
+ *
+ * A bare-metre token that names a near-surface measurement height rather than a
+ * grid ("2 m air temperature", "10 m wind") is skipped, not minted into a fake
+ * metre-scale resolution (see `metreTokenIsMeasurementHeight`); metre tokens are
+ * scanned left to right so a genuine metre grid stated after such a height reads.
  */
 export function parseNativeGrid(
   title: string
@@ -128,8 +175,9 @@ export function parseNativeGrid(
       nominalMetres: Number(deg[1]) * METRES_PER_DEGREE,
     };
   }
-  const metres = /(\d+(?:\.\d+)?)\s*m\b/i.exec(title);
-  if (metres) {
+  for (const metres of title.matchAll(/(\d+(?:\.\d+)?)\s*m\b/gi)) {
+    const after = title.slice(metres.index + metres[0].length);
+    if (metreTokenIsMeasurementHeight(after)) continue;
     return { statedGrid: metres[0].trim(), nominalMetres: Number(metres[1]) };
   }
   return null;
