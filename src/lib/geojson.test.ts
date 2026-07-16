@@ -318,6 +318,49 @@ describe("geometryToRings", () => {
     expect(geometryGridPoints(geometry, 4)).toHaveLength(12);
   });
 
+  it("includes exact polygon and hole boundaries", () => {
+    const geometry = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [0, 0],
+          [10, 0],
+          [10, 10],
+          [0, 10],
+          [0, 0],
+        ],
+        [
+          [4, 4],
+          [6, 4],
+          [6, 6],
+          [4, 6],
+          [4, 4],
+        ],
+      ],
+    };
+    expect(geometryContains(geometry, 0, 5)).toBe(true);
+    expect(geometryContains(geometry, 5, 0)).toBe(true);
+    expect(geometryContains(geometry, 4, 5)).toBe(true);
+    expect(geometryContains(geometry, 5, 5)).toBe(false);
+  });
+
+  it("includes an exact polygon edge across the antimeridian", () => {
+    const geometry = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [179, -1],
+          [-179, -1],
+          [-179, 1],
+          [179, 1],
+          [179, -1],
+        ],
+      ],
+    };
+    expect(geometryContains(geometry, -1, 180)).toBe(true);
+    expect(geometryContains(geometry, 0, -179)).toBe(true);
+  });
+
   it("handles multipolygon pieces on both sides of the antimeridian", () => {
     const geometry = {
       type: "MultiPolygon",
@@ -382,6 +425,37 @@ describe("geometryToRings", () => {
       geometrySamplingPlan(sparseMultipolygon, 4, { lat: 0.05, lon: 0.05 })
     ).toEqual({
       points: [{ lat: 0.05, lon: 0.05 }],
+      strategy: "boundary-point",
+    });
+  });
+
+  it("allows an exact boundary fallback when the grid misses a thin area", () => {
+    const geometry = {
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [0, 0],
+            [0.1, 0],
+            [0.1, 0.1],
+            [0, 0.1],
+            [0, 0],
+          ],
+        ],
+        [
+          [
+            [3.9, 3.9],
+            [4, 3.9],
+            [4, 4],
+            [3.9, 4],
+            [3.9, 3.9],
+          ],
+        ],
+      ],
+    };
+    expect(geometryGridPoints(geometry, 4)).toEqual([]);
+    expect(geometrySamplingPlan(geometry, 4, { lat: 0, lon: 0.05 })).toEqual({
+      points: [{ lat: 0, lon: 0.05 }],
       strategy: "boundary-point",
     });
   });
