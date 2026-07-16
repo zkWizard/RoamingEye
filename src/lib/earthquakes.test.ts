@@ -3,10 +3,28 @@ import {
   filterEarthquakes,
   parseEarthquakeFeed,
   depthClass,
+  earthquakeHoverLabel,
   magnitudeClass,
   MAGNITUDE_CLASS_ORDER,
   summarizeEarthquakes,
 } from "./earthquakes";
+
+describe("earthquakeHoverLabel", () => {
+  it("preserves the reported place, magnitude, depth, and UTC event time", () => {
+    expect(
+      earthquakeHoverLabel({
+        lat: 35.2,
+        lon: -117.4,
+        depthKm: 8.4,
+        magnitude: 4.6,
+        place: "12 km NE of Example",
+        time: Date.UTC(2026, 6, 16, 12, 34, 56),
+      })
+    ).toBe(
+      "12 km NE of Example · M 4.6 · 8.4 km depth · 2026-07-16T12:34:56.000Z"
+    );
+  });
+});
 
 const feature = (
   lon: number,
