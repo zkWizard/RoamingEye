@@ -67,4 +67,20 @@ describe("marine boundary SST insights", () => {
     expect(reading.value).toBe("No usable SST observation");
     expect(reading.observedValue).toBeNull();
   });
+
+  it("withholds SST when rendered image dimensions are malformed", () => {
+    const reading = marineBoundarySstReading({
+      dataMonth: { year: 2026, month: 3 },
+      observedValue: 18.4,
+      validFraction: 0.75,
+      sourceImageDimensions: { width: 0, height: 512 },
+    });
+
+    expect(reading.value).toBe("No usable SST observation");
+    expect(reading.observedValue).toBeNull();
+    expect(reading.detail).toContain(
+      "rendered source image dimensions invalid"
+    );
+    expect(reading.detail).toContain("not a marine-biology observation");
+  });
 });

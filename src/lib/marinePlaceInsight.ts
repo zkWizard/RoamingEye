@@ -58,11 +58,14 @@ export function marineBoundarySstReading(
   const usable =
     coverage.coverage.status !== "invalid" &&
     coverage.coverage.status !== "no-sst-coverage" &&
+    coverage.sourceImageDimensionsStatus !== "invalid" &&
     isSstSourceValue(input.observedValue);
   const month = formatYm(input.dataMonth);
   const image = coverage.sourceImageDimensions
     ? `rendered source image ${coverage.sourceImageDimensions.width} x ${coverage.sourceImageDimensions.height} px`
-    : "rendered source image dimensions not supplied";
+    : coverage.sourceImageDimensionsStatus === "invalid"
+      ? "rendered source image dimensions invalid"
+      : "rendered source image dimensions not supplied";
   const source = `${coverage.source.source.shortName} v${coverage.source.source.version}`;
   const coverageText =
     coverage.coverage.validFraction === null

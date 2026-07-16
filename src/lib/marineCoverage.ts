@@ -71,6 +71,8 @@ export interface MarineCoverageSummary {
     reason: string | null;
   };
   sourceImageDimensions: SourceImageDimensions | null;
+  /** Distinguishes absent image provenance from malformed sampler metadata. */
+  sourceImageDimensionsStatus: "supplied" | "not-supplied" | "invalid";
   /** Ready for an aria-label or other screen-reader-visible presentation. */
   accessibleText: string;
 }
@@ -84,6 +86,10 @@ export function summarizeMarineCoverage(
 ): MarineCoverageSummary {
   const coverage = coverageFor(input);
   const sourceImageDimensions = dimensionsFor(input.sourceImageDimensions);
+  const sourceImageDimensionsStatus = dimensionsStatusFor(
+    input.sourceImageDimensions,
+    sourceImageDimensions
+  );
 
   return {
     kind: "sea-surface-temperature-coverage",
@@ -93,10 +99,12 @@ export function summarizeMarineCoverage(
     dataMonth: input.dataMonth,
     coverage,
     sourceImageDimensions,
+    sourceImageDimensionsStatus,
     accessibleText: accessibleTextFor(
       input.dataMonth,
       coverage,
-      sourceImageDimensions
+      sourceImageDimensions,
+      sourceImageDimensionsStatus
     ),
   };
 }
@@ -147,10 +155,19 @@ function dimensionsFor(
     : null;
 }
 
+function dimensionsStatusFor(
+  supplied: SourceImageDimensions | undefined,
+  normalized: SourceImageDimensions | null
+): MarineCoverageSummary["sourceImageDimensionsStatus"] {
+  if (supplied === undefined) return "not-supplied";
+  return normalized === null ? "invalid" : "supplied";
+}
+
 function accessibleTextFor(
   dataMonth: YearMonth,
   coverage: MarineCoverageSummary["coverage"],
-  dimensions: SourceImageDimensions | null
+  dimensions: SourceImageDimensions | null,
+  dimensionsStatus: MarineCoverageSummary["sourceImageDimensionsStatus"]
 ): string {
   const month = isYearMonth(dataMonth)
     ? formatYm(dataMonth)
@@ -171,7 +188,9 @@ function accessibleTextFor(
             : fraction;
   const image = dimensions
     ? ` Source image dimensions: ${dimensions.width} by ${dimensions.height} pixels.`
-    : " Source image dimensions were not supplied.";
+    : dimensionsStatus === "invalid"
+      ? " Supplied source image dimensions were invalid."
+      : " Source image dimensions were not supplied.";
 
   return `Sea surface temperature coverage for ${month}: ${footprint} Source: ${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.shortName} v${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.version}. This is an SST observation, not a marine-biology observation.${image}`;
 }
