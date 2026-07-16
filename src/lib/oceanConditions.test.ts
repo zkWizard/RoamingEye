@@ -81,7 +81,27 @@ describe("ocean condition summaries", () => {
         status: "missing",
         footprint: "unknown",
         validFraction: null,
-        reason: "missing-sst-value",
+        reason: "unknown-footprint",
+      },
+    });
+  });
+
+  it("withholds SST when the supplied surface footprint is unknown", () => {
+    const summary = summarizeOceanConditions({
+      dataMonth: { year: 2026, month: 3 },
+      value: 18.4,
+      validFraction: 0.72,
+      footprint: "unknown",
+    });
+
+    expect(summary).toMatchObject({
+      observedValue: null,
+      temperatureBand: null,
+      coverage: {
+        status: "missing",
+        footprint: "unknown",
+        validFraction: 0.72,
+        reason: "unknown-footprint",
       },
     });
   });
@@ -184,10 +204,23 @@ describe("ocean condition narratives", () => {
       "the sampled footprint is land, so no sea-surface temperature is reported."
     );
     expect(land).not.toContain("°C");
-    expect(missing).toContain(
-      "no usable sea-surface-temperature value was supplied."
-    );
+    expect(missing).toContain("surface context is unavailable");
     expect(missing).not.toContain("°C");
+  });
+
+  it("states unavailable surface context instead of relabeling it as water", () => {
+    const text = describeOceanCondition(
+      summarizeOceanConditions({
+        dataMonth: { year: 2026, month: 3 },
+        value: 18.4,
+        validFraction: 0.72,
+        footprint: "unknown",
+      })
+    );
+
+    expect(text).toContain("surface context is unavailable");
+    expect(text).not.toContain("18.4Â°C");
+    expect(text).not.toContain("descriptive band");
   });
 
   it("reports invalid metadata with its reason rather than a value", () => {
