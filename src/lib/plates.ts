@@ -40,16 +40,39 @@ export function parsePlateBoundaries(json: unknown): PlateBoundary[] {
         ? feature.properties.name
         : "";
     for (const ring of geometryToRings(geometry)) {
-      const points = ring.filter(
-        (p) =>
-          Array.isArray(p) &&
-          Number.isFinite(p[0]) &&
-          Number.isFinite(p[1]) &&
-          Math.abs(p[0]) <= 180 &&
-          Math.abs(p[1]) <= 90
-      );
-      if (points.length >= 2) out.push({ name, points });
+      // Keep only contiguous valid runs. Filtering individual positions would
+      // join the vertices on either side of malformed source data and invent a
+      // boundary segment that was never present in the supplied linework.
+      for (const points of contiguousValidRuns(ring)) {
+        if (points.length >= 2) out.push({ name, points });
+      }
     }
   }
   return out;
+}
+
+function contiguousValidRuns(points: readonly Position[]): Position[][] {
+  const runs: Position[][] = [];
+  let current: Position[] = [];
+
+  for (const point of points) {
+    if (isValidPosition(point)) {
+      current.push(point);
+      continue;
+    }
+    if (current.length > 0) runs.push(current);
+    current = [];
+  }
+  if (current.length > 0) runs.push(current);
+  return runs;
+}
+
+function isValidPosition(position: Position): boolean {
+  return (
+    Array.isArray(position) &&
+    Number.isFinite(position[0]) &&
+    Number.isFinite(position[1]) &&
+    Math.abs(position[0]) <= 180 &&
+    Math.abs(position[1]) <= 90
+  );
 }
