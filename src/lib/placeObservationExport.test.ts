@@ -232,6 +232,113 @@ describe("place observation export", () => {
     ).toThrow("Product ndvi has a value with zero sampled coverage.");
   });
 
+  it.each([
+    {
+      label: "an open ring",
+      coordinates: [
+        [
+          [-77.1, 38.8],
+          [-76.9, 38.8],
+          [-76.9, 39],
+          [-77.1, 39],
+        ],
+      ],
+    },
+    {
+      label: "an out-of-range longitude",
+      coordinates: [
+        [
+          [181, 38.8],
+          [-76.9, 38.8],
+          [-76.9, 39],
+          [181, 38.8],
+        ],
+      ],
+    },
+    {
+      label: "a non-finite latitude",
+      coordinates: [
+        [
+          [-77.1, 38.8],
+          [-76.9, 38.8],
+          [-76.9, Infinity],
+          [-77.1, 38.8],
+        ],
+      ],
+    },
+    {
+      label: "a zero-extent ring",
+      coordinates: [
+        [
+          [-77.1, 38.8],
+          [-77, 38.9],
+          [-76.9, 39],
+          [-77.1, 38.8],
+        ],
+      ],
+    },
+  ])(
+    "rejects $label instead of exporting an irreproducible footprint",
+    ({ coordinates }) => {
+      expect(() =>
+        createPlaceObservationExport({
+          ...input,
+          boundary: { type: "Polygon", coordinates },
+        })
+      ).toThrow(/closed GeoJSON rings.*non-zero area extent/);
+    }
+  );
+
+  it("validates every polygon and hole in a MultiPolygon footprint", () => {
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        boundary: {
+          type: "MultiPolygon",
+          coordinates: [
+            boundary.coordinates,
+            [
+              [
+                [-123, 47],
+                [-122, 47],
+                [-122, 48],
+                [-123, 48],
+              ],
+            ],
+          ],
+        },
+      })
+    ).toThrow(/closed GeoJSON rings/);
+
+    const withClosedHole = createPlaceObservationExport({
+      ...input,
+      boundary: {
+        type: "Polygon",
+        coordinates: [
+          boundary.coordinates[0],
+          [
+            [-77.05, 38.85],
+            [-77, 38.85],
+            [-77, 38.9],
+            [-77.05, 38.85],
+          ],
+        ],
+      },
+    });
+    expect(withClosedHole.boundary).toEqual({
+      type: "Polygon",
+      coordinates: [
+        boundary.coordinates[0],
+        [
+          [-77.05, 38.85],
+          [-77, 38.85],
+          [-77, 38.9],
+          [-77.05, 38.85],
+        ],
+      ],
+    });
+  });
+
   it("reverses display conversions before exporting cited native units", () => {
     const precipitation = placeObservationProductFromSample({
       layerId: "precip",

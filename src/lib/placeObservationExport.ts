@@ -1,4 +1,4 @@
-import { isAreaGeometry, type GeoGeometry } from "./geojson";
+import { geometryBounds, isAreaGeometry, type GeoGeometry } from "./geojson";
 import {
   LAYERS,
   type DatasetRef,
@@ -252,6 +252,11 @@ function validateInput(input: PlaceObservationExportInput): void {
       "A Polygon or MultiPolygon boundary is required for export."
     );
   }
+  if (!hasValidBoundaryCoordinates(input.boundary)) {
+    throw new Error(
+      "Boundary must contain closed GeoJSON rings with finite longitude/latitude coordinates in range and a non-zero area extent."
+    );
+  }
   if (!isIsoTimestamp(input.generatedIso)) {
     throw new Error("generatedIso must be an ISO 8601 timestamp.");
   }
@@ -313,6 +318,84 @@ function validateInput(input: PlaceObservationExportInput): void {
       }
     }
   }
+}
+
+/**
+ * Validate the exported geographic footprint before preserving it. The shared
+ * GeoJSON helpers intentionally accept loose external data for display, while
+ * a reproducibility record must not serialize malformed or ambiguous rings.
+ */
+function hasValidBoundaryCoordinates(boundary: GeoGeometry): boolean {
+  const polygons =
+    boundary.type === "Polygon"
+      ? [boundary.coordinates]
+      : boundary.type === "MultiPolygon"
+        ? boundary.coordinates
+        : null;
+  if (!Array.isArray(polygons) || polygons.length === 0) return false;
+
+  for (const polygon of polygons) {
+    if (!Array.isArray(polygon) || polygon.length === 0) return false;
+    for (const ring of polygon) {
+      if (!isValidLinearRing(ring)) return false;
+    }
+  }
+
+  return geometryBounds(boundary) !== null;
+}
+
+function isValidLinearRing(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length < 4) return false;
+  const positions = value.map(validPosition);
+  if (positions.some((position) => position === null)) return false;
+
+  const ring = positions as [number, number][];
+  const [firstLon, firstLat] = ring[0];
+  const [lastLon, lastLat] = ring[ring.length - 1];
+  if (firstLon !== lastLon || firstLat !== lastLat) return false;
+
+  return (
+    new Set(ring.slice(0, -1).map(([lon, lat]) => `${lon},${lat}`)).size >= 3 &&
+    ringHasArea(ring)
+  );
+}
+
+function ringHasArea(ring: [number, number][]): boolean {
+  const unwrapped: [number, number][] = [[...ring[0]]];
+  for (let index = 1; index < ring.length; index++) {
+    let lon = ring[index][0];
+    const lat = ring[index][1];
+    const previousLon = unwrapped[index - 1][0];
+    while (lon - previousLon > 180) lon -= 360;
+    while (lon - previousLon < -180) lon += 360;
+    unwrapped.push([lon, lat]);
+  }
+
+  let twiceArea = 0;
+  const [originLon, originLat] = unwrapped[0];
+  for (let index = 0; index + 1 < unwrapped.length; index++) {
+    const [lon, lat] = unwrapped[index];
+    const [nextLon, nextLat] = unwrapped[index + 1];
+    twiceArea +=
+      (lon - originLon) * (nextLat - originLat) -
+      (nextLon - originLon) * (lat - originLat);
+  }
+  return Math.abs(twiceArea) > 1e-12;
+}
+
+function validPosition(value: unknown): [number, number] | null {
+  if (!Array.isArray(value) || value.length !== 2) return null;
+  const [lon, lat] = value;
+  return typeof lon === "number" &&
+    Number.isFinite(lon) &&
+    lon >= -180 &&
+    lon <= 180 &&
+    typeof lat === "number" &&
+    Number.isFinite(lat) &&
+    lat >= -90 &&
+    lat <= 90
+    ? [lon, lat]
+    : null;
 }
 
 function exportProducts(
