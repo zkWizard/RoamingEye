@@ -6,6 +6,7 @@ import {
   magnitudeClass,
   MAGNITUDE_CLASS_ORDER,
   summarizeEarthquakes,
+  isValidEarthquakeObservation,
 } from "./earthquakes";
 
 const feature = (
@@ -154,6 +155,46 @@ describe("filterEarthquakes", () => {
       []
     );
   });
+
+  it("excludes events outside valid geographic coverage", () => {
+    expect(
+      filterEarthquakes([
+        earthquakes[0],
+        { ...earthquakes[1], lat: 91 },
+        { ...earthquakes[2], lon: -181 },
+      ])
+    ).toEqual([earthquakes[0]]);
+  });
+});
+
+describe("isValidEarthquakeObservation", () => {
+  const earthquake = {
+    lat: 90,
+    lon: -180,
+    depthKm: -1,
+    magnitude: 4.5,
+    time: 1_000,
+    place: "A",
+  };
+
+  it("accepts finite native measurements at inclusive geographic bounds", () => {
+    expect(isValidEarthquakeObservation(earthquake)).toBe(true);
+    expect(
+      isValidEarthquakeObservation({ ...earthquake, lat: -90, lon: 180 })
+    ).toBe(true);
+  });
+
+  it("rejects non-finite measurements and impossible coordinates", () => {
+    expect(isValidEarthquakeObservation({ ...earthquake, lat: 90.1 })).toBe(
+      false
+    );
+    expect(
+      isValidEarthquakeObservation({ ...earthquake, lon: Number.NaN })
+    ).toBe(false);
+    expect(
+      isValidEarthquakeObservation({ ...earthquake, depthKm: Infinity })
+    ).toBe(false);
+  });
 });
 
 describe("summarizeEarthquakes", () => {
@@ -221,6 +262,26 @@ describe("summarizeEarthquakes", () => {
         major: 0,
         great: 0,
       },
+    });
+  });
+
+  it("does not report ranges or classes for invalid geography", () => {
+    const summary = summarizeEarthquakes([
+      {
+        lat: 95,
+        lon: 2,
+        depthKm: 301,
+        magnitude: 7,
+        time: 1_000,
+        place: "Outside latitude coverage",
+      },
+    ]);
+
+    expect(summary).toMatchObject({
+      eventCount: 0,
+      magnitude: { min: null, max: null },
+      depthKm: { min: null, max: null },
+      depthClassCounts: { shallow: 0, intermediate: 0, deep: 0 },
     });
   });
 });
