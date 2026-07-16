@@ -84,6 +84,12 @@ describe("coastal ocean observation contract", () => {
         sstAndCoverage: "same-data-month",
         sstAndBiology: "same-data-month",
       },
+      sstFootprintAlignment: {
+        status: "consistent",
+        sstFootprint: "land-mixed-coastal",
+        coverageFootprint: "coastal-or-land-mixed",
+        reason: "matching-surface-class",
+      },
     });
     expect(summary.limitations).toEqual(COASTAL_OCEAN_OBSERVATION_LIMITATIONS);
     expect(summary.limitations.join(" ")).toContain(
@@ -154,6 +160,67 @@ describe("coastal ocean observation contract", () => {
       observedValue: null,
     });
     expect(summary.dataMonthAlignment.sstAndBiology).toBe("not-applicable");
+  });
+
+  it("exposes conflicting SST footprint metadata without inventing a surface classification", () => {
+    const summary = createCoastalOceanObservation({
+      sst: {
+        dataMonth: { year: 2026, month: 3 },
+        value: 14.5,
+        footprint: "water",
+      },
+      sstCoverage: {
+        dataMonth: { year: 2026, month: 3 },
+        footprint: "land",
+      },
+    });
+
+    expect(summary.sstFootprintAlignment).toEqual({
+      status: "conflicting",
+      sstFootprint: "water",
+      coverageFootprint: "land",
+      reason: "conflicting-surface-class",
+    });
+    expect(summary.sst.observedValue).toBe(14.5);
+    expect(summary.sstCoverage.coverage).toMatchObject({
+      status: "land",
+      reason: "land-footprint",
+    });
+    expect(summary.biology.biologicalObservation).toBe(false);
+  });
+
+  it("keeps unknown and invalid footprint alignment unavailable", () => {
+    const unknown = createCoastalOceanObservation({
+      sst: {
+        dataMonth: { year: 2026, month: 3 },
+        value: 14.5,
+        footprint: "unknown",
+      },
+      sstCoverage: {
+        dataMonth: { year: 2026, month: 3 },
+        footprint: "water",
+      },
+    });
+    const invalid = createCoastalOceanObservation({
+      sst: {
+        dataMonth: { year: 2026, month: 13 },
+        value: 14.5,
+        footprint: "water",
+      },
+      sstCoverage: {
+        dataMonth: { year: 2026, month: 3 },
+        footprint: "water",
+      },
+    });
+
+    expect(unknown.sstFootprintAlignment).toMatchObject({
+      status: "unknown",
+      reason: "unknown-surface-class",
+    });
+    expect(invalid.sstFootprintAlignment).toMatchObject({
+      status: "invalid",
+      reason: "invalid-sst-metadata",
+    });
   });
 
   it("preserves missing and invalid biological data as explicit non-observations", () => {
