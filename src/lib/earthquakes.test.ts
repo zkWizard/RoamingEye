@@ -13,8 +13,10 @@ const feature = (
   lat: number,
   depth: number,
   mag: number,
-  extra: object = {}
+  extra: object = {},
+  id?: string
 ) => ({
+  id,
   geometry: { coordinates: [lon, lat, depth] },
   properties: { mag, time: 1_750_000_000_000, place: "somewhere", ...extra },
 });
@@ -31,6 +33,55 @@ describe("parseEarthquakeFeed", () => {
       depthKm: 45,
       magnitude: 6.1,
       place: "somewhere",
+    });
+  });
+
+  it("retains USGS event identity, update time, magnitude type, and review status", () => {
+    const quakes = parseEarthquakeFeed({
+      features: [
+        feature(
+          -122.1,
+          38.2,
+          8.4,
+          4.8,
+          {
+            url: "https://earthquake.usgs.gov/earthquakes/eventpage/us7000test",
+            updated: 1_750_000_123_456,
+            magType: "mw",
+            status: "reviewed",
+          },
+          "us7000test"
+        ),
+      ],
+    });
+
+    expect(quakes[0].sourceRecord).toEqual({
+      id: "us7000test",
+      url: "https://earthquake.usgs.gov/earthquakes/eventpage/us7000test",
+      updatedTime: 1_750_000_123_456,
+      magnitudeType: "mw",
+      reviewStatus: "reviewed",
+    });
+  });
+
+  it("makes unavailable source-record metadata explicit without dropping the event", () => {
+    const quakes = parseEarthquakeFeed({
+      features: [
+        feature(10, 20, 30, 5, {
+          url: null,
+          updated: "not-a-time",
+          magType: undefined,
+          status: 2,
+        }),
+      ],
+    });
+
+    expect(quakes[0].sourceRecord).toEqual({
+      id: null,
+      url: null,
+      updatedTime: null,
+      magnitudeType: null,
+      reviewStatus: null,
     });
   });
 
