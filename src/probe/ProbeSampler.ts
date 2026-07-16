@@ -378,13 +378,7 @@ export class ProbeSampler {
   ): WeightedPixel[] {
     const { width, height } = this.imageSize;
     if (mode === "point") {
-      const { x, y } = latLonToPixel(lat, lon, width, height);
-      const block: WeightedPixel[] = [];
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++)
-          block.push({ x: x + dx, y: y + dy, weight: 1 });
-      }
-      return block;
+      return pointProbePixels(lat, lon, width, height);
     }
     return this.dedupedPixels(gridPoints(this.areaBounds(lat, lon), AREA_GRID));
   }
@@ -532,6 +526,41 @@ export class ProbeSampler {
     }
     return { image: canvas, close: () => undefined };
   }
+}
+
+/**
+ * Source pixels for the point probe's 3×3 neighbourhood. Equirectangular
+ * imagery is periodic in longitude, so columns wrap across the antimeridian.
+ * Latitude is not periodic: rows clamp at the poles and duplicate pixels are
+ * removed. This keeps every drawImage source coordinate in bounds instead of
+ * turning edge samples into transparent no-data pixels.
+ */
+export function pointProbePixels(
+  lat: number,
+  lon: number,
+  width: number,
+  height: number
+): WeightedPixel[] {
+  const center = {
+    x: Math.min(
+      width - 1,
+      Math.floor(((normalizeLon(lon) + 180) / 360) * width)
+    ),
+    y: Math.min(
+      height - 1,
+      Math.max(0, Math.floor(((90 - lat) / 180) * height))
+    ),
+  };
+  const byPixel = new Map<string, WeightedPixel>();
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const x = (((center.x + dx) % width) + width) % width;
+      const y = Math.min(height - 1, Math.max(0, center.y + dy));
+      const key = `${x}:${y}`;
+      if (!byPixel.has(key)) byPixel.set(key, { x, y, weight: 1 });
+    }
+  }
+  return [...byPixel.values()];
 }
 
 function lonInBoundsFrame(lon: number, bounds: Bounds): number {
