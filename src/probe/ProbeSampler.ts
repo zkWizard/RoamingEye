@@ -553,7 +553,11 @@ export function latLonToRegionPixel(
   const x = ((framedLon - bounds.west) / (bounds.east - bounds.west)) * width;
   const y = ((bounds.north - lat) / (bounds.north - bounds.south)) * height;
   return {
-    x: Math.min(width - 2, Math.max(1, Math.floor(x))),
-    y: Math.min(height - 2, Math.max(1, Math.floor(y))),
+    // Regional probes read one pixel at a time, so unlike the global point
+    // probe they do not need a one-pixel inset for a 3x3 neighbourhood.
+    // Keeping the full raster domain preserves samples that legitimately map
+    // to a requested region's outermost row or column.
+    x: Math.min(width - 1, Math.max(0, Math.floor(x))),
+    y: Math.min(height - 1, Math.max(0, Math.floor(y))),
   };
 }

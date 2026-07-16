@@ -73,6 +73,30 @@ describe("latLonToRegionPixel", () => {
       y: 100,
     });
   });
+
+  it("preserves the outermost pixels of a regional image", () => {
+    const bounds = { south: -10, north: 10, west: 20, east: 40 };
+    expect(latLonToRegionPixel(10, 20, bounds, 400, 200)).toEqual({
+      x: 0,
+      y: 0,
+    });
+    expect(latLonToRegionPixel(-10, 40, bounds, 400, 200)).toEqual({
+      x: 399,
+      y: 199,
+    });
+  });
+
+  it("maps both cells of a two-pixel antimeridian region without collapsing them", () => {
+    const bounds = { south: -1, north: 1, west: 179, east: 181 };
+    expect(latLonToRegionPixel(0, 179.5, bounds, 2, 1)).toEqual({
+      x: 0,
+      y: 0,
+    });
+    expect(latLonToRegionPixel(0, -179.5, bounds, 2, 1)).toEqual({
+      x: 1,
+      y: 0,
+    });
+  });
 });
 
 describe("boundary probe sampling", () => {
