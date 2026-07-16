@@ -103,4 +103,47 @@ describe("rendered monthly meteorology", () => {
       })
     ).toThrow("matching lengths");
   });
+
+  it("shows conventional atmospheric units while retaining native conversion provenance", () => {
+    const precipitation = summarizeRenderedClimateSample(
+      {
+        metricId: "precipitation-rate",
+        months: [
+          { year: 2026, month: 1 },
+          { year: 2026, month: 2 },
+        ],
+        sampledValues: [4.32, 8.64],
+        nativeToSampledValueFactor: 86_400,
+        validFractions: [0.8, 0.9],
+      },
+      { year: 2026, month: 2 }
+    );
+    const airTemperature = summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [
+          { year: 2026, month: 1 },
+          { year: 2026, month: 2 },
+        ],
+        sampledValues: [273.15, 274.15],
+        nativeToSampledValueFactor: 1,
+        validFractions: [1, 1],
+      },
+      { year: 2026, month: 2 }
+    );
+
+    expect(climateInsightText(precipitation[0], precipitation[1])).toEqual({
+      value: "8.64 mm/day",
+      detail:
+        "2026-02 observed; +4.32 mm/day vs 2026-01; native source value 0.0001 kg/m²/s (1 kg/m² of liquid water ≡ 1 mm depth; × 86,400 s/day); 90% sampled coverage; rendered source image dimensions not supplied; approximate regional mean; source GLDAS_NOAH025_M v2.1",
+    });
+    expect(
+      climateInsightText(airTemperature[0], airTemperature[1])
+    ).toMatchObject({
+      value: "1 °C",
+      detail: expect.stringContaining(
+        "+1 °C vs 2026-01; native source value 274.15 K (kelvin to Celsius is an exact −273.15 offset)"
+      ),
+    });
+  });
 });
