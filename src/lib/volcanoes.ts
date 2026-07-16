@@ -101,11 +101,21 @@ export function elevationRegimeLabel(elevationMeters: number | null): string {
   }
 }
 
-/** Tooltip text for a hovered marker, e.g. "Etna · Stratovolcano · last erupted 2025". */
+/**
+ * Source-faithful tooltip text for a hovered marker. Country and summit
+ * elevation come directly from the bundled GVP snapshot; missing values stay
+ * explicit instead of being mistaken for zero or silently disappearing.
+ */
 export function volcanoHoverLabel(volcano: Volcano): string {
-  const parts = [volcano.name];
-  if (volcano.type) parts.push(volcano.type);
-  parts.push(lastEruptionLabel(volcano.lastEruptionYear));
+  const parts = [
+    volcano.name,
+    volcano.type ?? "volcano type not recorded",
+    volcano.country ?? "country/territory not recorded",
+    volcano.elevation === null
+      ? "summit elevation not recorded"
+      : `summit elevation ${volcano.elevation} m`,
+    lastEruptionLabel(volcano.lastEruptionYear),
+  ];
   return parts.join(" · ");
 }
 
