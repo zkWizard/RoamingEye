@@ -52,6 +52,7 @@ export type OceanCoverageReason =
   | "invalid-coverage"
   | "invalid-value"
   | "land-footprint"
+  | "unknown-footprint"
   | "missing-sst-value"
   | "zero-sst-coverage"
   | null;
@@ -123,6 +124,9 @@ function coverageFor(
   }
   if (observation.footprint === "land") {
     return { ...base, status: "land", reason: "land-footprint" };
+  }
+  if (observation.footprint === "unknown") {
+    return { ...base, status: "missing", reason: "unknown-footprint" };
   }
   if (observation.value === null) {
     return { ...base, status: "missing", reason: "missing-sst-value" };
@@ -198,6 +202,9 @@ export function describeOceanCondition(summary: OceanConditionSummary): string {
   if (coverage.status === "land") {
     body =
       "the sampled footprint is land, so no sea-surface temperature is reported.";
+  } else if (coverage.reason === "unknown-footprint") {
+    body =
+      "the sampled footprint's surface context is unavailable, so no sea-surface temperature is reported.";
   } else if (coverage.status === "missing") {
     body = "no usable sea-surface-temperature value was supplied.";
   } else if (coverage.status === "invalid" || summary.observedValue === null) {
