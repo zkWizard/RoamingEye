@@ -53,11 +53,9 @@ npm run dev        # start the local dev server (http://localhost:5173)
 | `npm run verify:full` | `verify` plus the Playwright e2e suite — the full CI mirror     |
 
 Before opening a PR, please run **`npm run verify`** locally — these are the
-same checks CI runs.
-
-> **Interim gate:** hosted CI is temporarily unavailable for this repository.
-> Until it's restored, maintainers run `npm run verify:full` locally on the
-> merge result before merging any PR. PRs are still required for every change.
+same checks CI runs. Every PR then runs the full suite on GitHub Actions
+(type-check, lint/format, unit, build, CodeQL, and the WebGL e2e smoke tests);
+a maintainer merges once it's approved and the required checks are green.
 
 ---
 
