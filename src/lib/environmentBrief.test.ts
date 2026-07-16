@@ -142,8 +142,30 @@ describe("environment provenance brief", () => {
       observedValue: null,
       coverage: { reason: "not-supplied" },
     });
+    expect(brief.statements[3]).toContain(
+      "unavailable observation (not-supplied)"
+    );
     expect(brief.statements[3]).toContain("data month unavailable");
     expect(brief.statements[3]).toContain("coverage not supplied");
+  });
+
+  it("preserves a supplied unavailable reason without implying a condition", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: null,
+      rainfall: null,
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 1 },
+      unavailableReasonBySignal: {
+        vegetation: "no-observations-recorded",
+        rainfall: "rejected-source",
+      },
+    });
+
+    expect(brief.signals[0].coverage.reason).toBe("no-observations-recorded");
+    expect(brief.signals[1].coverage.reason).toBe("rejected-source");
+    expect(brief.signals[2].coverage.reason).toBe("not-supplied");
+    expect(brief.unsupportedLanguageHits).toEqual([]);
   });
 
   it("uses product-specific availability checkpoints when schedules differ", () => {

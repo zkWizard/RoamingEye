@@ -55,7 +55,19 @@ export interface EnvironmentBriefInput {
   availableThroughBySignal?: Partial<
     Record<Exclude<EnvironmentSignalId, "vegetation">, YearMonth>
   >;
+  /** Provenance reason when a signal has no observation to compose. */
+  unavailableReasonBySignal?: Partial<
+    Record<EnvironmentSignalId, EnvironmentUnavailableReason>
+  >;
 }
+
+export type EnvironmentUnavailableReason =
+  | "not-supplied"
+  | "product-not-recorded"
+  | "no-observations-recorded"
+  | "rejected-wms-layer"
+  | "rejected-source"
+  | "rejected-native-unit";
 
 export interface EnvironmentSignalCoverage {
   status: EnvironmentSignalStatus;
@@ -203,21 +215,27 @@ export function composeEnvironmentBrief(
   input: EnvironmentBriefInput
 ): EnvironmentBrief {
   const signals = [
-    vegetationSignal(input.vegetation),
+    vegetationSignal(
+      input.vegetation,
+      unavailableReasonFor(input, "vegetation")
+    ),
     climateSignal(
       CLIMATE_SIGNAL_META.rainfall,
       input.rainfall,
-      availableThroughFor(input, "rainfall")
+      availableThroughFor(input, "rainfall"),
+      unavailableReasonFor(input, "rainfall")
     ),
     climateSignal(
       CLIMATE_SIGNAL_META["soil-moisture"],
       input.soilMoisture,
-      availableThroughFor(input, "soil-moisture")
+      availableThroughFor(input, "soil-moisture"),
+      unavailableReasonFor(input, "soil-moisture")
     ),
     climateSignal(
       CLIMATE_SIGNAL_META["air-temperature"],
       input.airTemperature,
-      availableThroughFor(input, "air-temperature")
+      availableThroughFor(input, "air-temperature"),
+      unavailableReasonFor(input, "air-temperature")
     ),
   ];
   const statements = signals.map((signal) => signal.statement);
@@ -464,6 +482,13 @@ function availableThroughFor(
   return input.availableThroughBySignal?.[signal] ?? input.availableThrough;
 }
 
+function unavailableReasonFor(
+  input: EnvironmentBriefInput,
+  signal: EnvironmentSignalId
+): EnvironmentUnavailableReason {
+  return input.unavailableReasonBySignal?.[signal] ?? "not-supplied";
+}
+
 export function unsupportedBriefLanguageHits(text: string): string[] {
   return UNSUPPORTED_CLAIM_PATTERNS.filter(({ pattern }) =>
     pattern.test(text)
@@ -471,9 +496,11 @@ export function unsupportedBriefLanguageHits(text: string): string[] {
 }
 
 function vegetationSignal(
-  observation: EnvironmentObservation | null
+  observation: EnvironmentObservation | null,
+  unavailableReason: EnvironmentUnavailableReason
 ): EnvironmentSignalBrief {
-  if (!observation) return unavailableSignal(VEGETATION_META);
+  if (!observation)
+    return unavailableSignal(VEGETATION_META, unavailableReason);
 
   const coverage = vegetationCoverage(observation);
   const status = coverage.status;
@@ -498,9 +525,10 @@ function vegetationSignal(
 function climateSignal(
   meta: SignalMeta & { metricId: ClimateMetricId },
   observation: EnvironmentObservation | null,
-  availableThrough: YearMonth
+  availableThrough: YearMonth,
+  unavailableReason: EnvironmentUnavailableReason
 ): EnvironmentSignalBrief {
-  if (!observation) return unavailableSignal(meta);
+  if (!observation) return unavailableSignal(meta, unavailableReason);
 
   const climateSummary = summarizeMonthlyClimate(
     {
@@ -543,11 +571,14 @@ function climateSignal(
   };
 }
 
-function unavailableSignal(meta: SignalMeta): EnvironmentSignalBrief {
+function unavailableSignal(
+  meta: SignalMeta,
+  reason: EnvironmentUnavailableReason
+): EnvironmentSignalBrief {
   const coverage: EnvironmentSignalCoverage = {
     status: "unavailable",
     validFraction: null,
-    reason: "not-supplied",
+    reason,
   };
   return {
     ...meta,
@@ -555,7 +586,7 @@ function unavailableSignal(meta: SignalMeta): EnvironmentSignalBrief {
     coverage,
     status: "unavailable",
     observedValue: null,
-    statement: `${meta.label}: no supplied observation; data month unavailable; coverage not supplied; source ${sourceLabel(meta.source)}.`,
+    statement: `${meta.label}: unavailable observation (${reason}); data month unavailable; coverage not supplied; source ${sourceLabel(meta.source)}.`,
   };
 }
 
