@@ -37,7 +37,12 @@ export interface MarinePlaceInsightReading {
   dataMonth: YearMonth;
   observedValue: number | null;
   source: typeof SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE;
+  /** Explicit data-path state; null only when sampling produced a usable result. */
+  unavailableReason: MarineBoundarySstUnavailableReason | null;
 }
+
+export type MarineBoundarySstUnavailableReason =
+  "source-colormap-unavailable" | "boundary-sampling-failed";
 
 /**
  * Format a boundary SST observation without turning partial coverage into a
@@ -67,7 +72,9 @@ export function marineBoundarySstReading(
   const coverageText =
     coverage.coverage.validFraction === null
       ? "sampled coverage not supplied"
-      : `${Math.round(coverage.coverage.validFraction * 100)}% sampled boundary coverage`;
+      : `${Math.round(
+          coverage.coverage.validFraction * 100
+        )}% sampled boundary coverage`;
 
   return {
     id: MARINE_PLACE_METRIC.id,
@@ -82,23 +89,37 @@ export function marineBoundarySstReading(
     dataMonth: input.dataMonth,
     observedValue: usable ? input.observedValue : null,
     source: coverage.source,
+    unavailableReason: null,
   };
 }
 
-/** Surface a source-mapping failure without relabeling it as absent SST. */
+/** Surface a workflow failure without relabeling it as absent SST. */
 export function unavailableMarineBoundarySstReading(
-  dataMonth: YearMonth
+  dataMonth: YearMonth,
+  reason: MarineBoundarySstUnavailableReason
 ): MarinePlaceInsightReading {
+  const unavailableDetail =
+    reason === "source-colormap-unavailable"
+      ? "could not be mapped from the published source colormap"
+      : "could not be sampled for the searched boundary";
+
   return {
     id: MARINE_PLACE_METRIC.id,
     value: "Unavailable",
-    detail: `${formatYm(dataMonth)} SST observation could not be sampled from the published source colormap; source ${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.shortName} v${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.version}; not a marine-biology observation`,
+    detail: `${formatYm(
+      dataMonth
+    )} SST observation ${unavailableDetail}; source ${
+      SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.shortName
+    } v${
+      SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.version
+    }; not a marine-biology observation`,
     kind: "observed-boundary-sea-surface-temperature",
     marineBiologyObservation: false,
     isForecast: false,
     dataMonth,
     observedValue: null,
     source: SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE,
+    unavailableReason: reason,
   };
 }
 
