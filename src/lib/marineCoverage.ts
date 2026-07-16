@@ -43,6 +43,11 @@ export interface MarineCoverageInput {
   footprint: MarineFootprint;
   /** Usable share of the sampled footprint, when the sampler provides it. */
   validFraction?: number;
+  /** Native sampler counts, when available; no count is estimated from a fraction. */
+  sampleCounts?: {
+    usable: number;
+    total: number;
+  };
   /** Dimensions of the rendered source image, when sampling provides them. */
   sourceImageDimensions?: SourceImageDimensions;
 }
@@ -68,6 +73,8 @@ export interface MarineCoverageSummary {
     footprint: MarineFootprint;
     /** Null means spatial coverage was not supplied by the sampler. */
     validFraction: number | null;
+    /** Native sampler counts; null means the sampler did not supply them. */
+    sampleCounts: { usable: number; total: number } | null;
     reason: string | null;
   };
   sourceImageDimensions: SourceImageDimensions | null;
@@ -104,10 +111,18 @@ export function summarizeMarineCoverage(
 function coverageFor(
   input: MarineCoverageInput
 ): MarineCoverageSummary["coverage"] {
-  const validFraction = input.validFraction;
+  const counts = validSampleCounts(input.sampleCounts);
+  const countsWereSupplied = input.sampleCounts !== undefined;
+  const countFraction = counts
+    ? counts.total === 0
+      ? null
+      : counts.usable / counts.total
+    : null;
+  const validFraction = input.validFraction ?? countFraction ?? undefined;
   const base = {
     footprint: input.footprint,
     validFraction: validFraction ?? null,
+    sampleCounts: counts,
   };
   if (!isYearMonth(input.dataMonth)) {
     return { ...base, status: "invalid", reason: "invalid-month" };
@@ -123,16 +138,49 @@ function coverageFor(
       reason: "invalid-coverage",
     };
   }
+  if (countsWereSupplied && counts === null) {
+    return {
+      ...base,
+      validFraction: null,
+      status: "invalid",
+      reason: "invalid-sample-counts",
+    };
+  }
+  if (
+    input.validFraction !== undefined &&
+    countFraction !== null &&
+    Math.abs(input.validFraction - countFraction) > 1e-12
+  ) {
+    return {
+      ...base,
+      validFraction: null,
+      status: "invalid",
+      reason: "inconsistent-sample-coverage",
+    };
+  }
   if (input.footprint === "land") {
     return { ...base, status: "land", reason: "land-footprint" };
   }
-  if (validFraction === 0) {
+  if (validFraction === 0 || counts?.total === 0) {
     return { ...base, status: "no-sst-coverage", reason: "zero-sst-coverage" };
   }
   if (input.footprint === "unknown") {
     return { ...base, status: "unknown", reason: "unknown-footprint" };
   }
   return { ...base, status: input.footprint, reason: null };
+}
+
+function validSampleCounts(
+  counts: MarineCoverageInput["sampleCounts"]
+): { usable: number; total: number } | null {
+  if (!counts) return null;
+  return Number.isInteger(counts.usable) &&
+    Number.isInteger(counts.total) &&
+    counts.usable >= 0 &&
+    counts.total >= 0 &&
+    counts.usable <= counts.total
+    ? counts
+    : null;
 }
 
 function dimensionsFor(
