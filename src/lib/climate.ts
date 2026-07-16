@@ -22,6 +22,8 @@ export interface ClimateMetric {
   label: string;
   /** Unit of the source product value, before any display conversion. */
   nativeUnit: string;
+  /** Exact GIBS variable/layer sampled for this metric. */
+  sourceLayer: string;
   source: DatasetRef;
 }
 
@@ -35,7 +37,14 @@ function citedMetric(
   if (!source) {
     throw new Error(`RoamingEye: ${layerId} must retain a cited dataset`);
   }
-  return { id, layerId, label, nativeUnit, source };
+  return {
+    id,
+    layerId,
+    label,
+    nativeUnit,
+    sourceLayer: LAYERS[layerId].wmsLayer,
+    source,
+  };
 }
 
 /** Cited product metadata and native units for each climate observation. */

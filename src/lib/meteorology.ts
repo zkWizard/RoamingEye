@@ -129,6 +129,7 @@ export function climateInsightText(
   current: MonthlyClimateSummary
 ): ClimateInsightText {
   const source = `${current.metric.source.shortName} v${current.metric.source.version}`;
+  const sourceVariable = `GIBS layer ${current.metric.sourceLayer}`;
   const month = formatMonth(current.dataMonth);
   const provenance = imageProvenance(current.sourceImageDimensions);
   const coverage = coverageText(current.coverage.validFraction);
@@ -139,7 +140,7 @@ export function climateInsightText(
   ) {
     return {
       value: "Unavailable",
-      detail: `No usable ${month} observation (${unavailableReason(current)}); ${coverage}; ${provenance}; source ${source}`,
+      detail: `No usable ${month} observation (${unavailableReason(current)}); ${coverage}; ${provenance}; ${sourceVariable}; source ${source}`,
     };
   }
 
@@ -160,7 +161,7 @@ export function climateInsightText(
       : "";
   return {
     value,
-    detail: `${month} observed${comparison}; ${coverage}; ${provenance}; approximate regional mean; source ${source}`,
+    detail: `${month} observed${comparison}; ${coverage}; ${provenance}; approximate regional mean; ${sourceVariable}; source ${source}`,
   };
 }
 

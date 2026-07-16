@@ -38,6 +38,9 @@ describe("rendered monthly meteorology", () => {
       ],
     });
     expect(series.metric.nativeUnit).toBe("kg/m\u00b2/s");
+    expect(series.metric.sourceLayer).toBe(
+      "GLDAS_Surface_Total_Precipitation_Rate_Monthly"
+    );
     expect(series.observations[1].sourceImageDimensions).toEqual({
       width: 512,
       height: 512,
@@ -68,7 +71,7 @@ describe("rendered monthly meteorology", () => {
     expect(climateInsightText(summaries[0], summaries[1])).toEqual({
       value: "Unavailable",
       detail:
-        "No usable 2026-03 observation (missing-value); 0% sampled coverage; rendered source image 1024 x 512 px; source M2TMNXSLV v5.12.4",
+        "No usable 2026-03 observation (missing-value); 0% sampled coverage; rendered source image 1024 x 512 px; GIBS layer MERRA2_2m_Air_Temperature_Monthly; source M2TMNXSLV v5.12.4",
     });
   });
 
@@ -90,7 +93,7 @@ describe("rendered monthly meteorology", () => {
     expect(climateInsightText(summaries[0], summaries[1])).toEqual({
       value: "7.8 kg/m\u00b2",
       detail:
-        "2026-02 observed; +0.6 kg/m\u00b2 vs 2026-01; 90% sampled coverage; rendered source image dimensions not supplied; approximate regional mean; source GLDAS_NOAH025_M v2.1",
+        "2026-02 observed; +0.6 kg/m\u00b2 vs 2026-01; 90% sampled coverage; rendered source image dimensions not supplied; approximate regional mean; GIBS layer GLDAS_Underground_Soil_Moisture_Monthly; source GLDAS_NOAH025_M v2.1",
     });
     expect(climateMetricForLayer("precip")).toBe("precipitation-rate");
     expect(climateMetricForLayer("ndvi")).toBeNull();
