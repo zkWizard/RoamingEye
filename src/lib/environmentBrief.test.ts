@@ -4,6 +4,7 @@ import {
   attributeBrief,
   composeEnvironmentBrief,
   summarizeCompleteness,
+  summarizeCoverageContext,
   summarizeTemporalAlignment,
   unsupportedBriefLanguageHits,
   type EnvironmentSignalBrief,
@@ -201,6 +202,68 @@ describe("environment provenance brief", () => {
     expect(brief.statements.join(" ")).not.toMatch(
       /\b(risk|diagnos|forecast|predict|compliance|health|cause|because|due to)\b/i
     );
+  });
+});
+
+describe("environment brief cross-signal coverage context", () => {
+  it("preserves supplied coverage while warning that source footprints are independent", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: {
+        dataMonth: { year: 2026, month: 1 },
+        value: 0.61,
+        validFraction: 0.82,
+      },
+      rainfall: {
+        dataMonth: { year: 2026, month: 1 },
+        value: 0.00012,
+        validFraction: 0.745,
+      },
+      soilMoisture: { dataMonth: { year: 2026, month: 1 }, value: 6.4 },
+      airTemperature: {
+        dataMonth: { year: 2026, month: 2 },
+        value: null,
+        validFraction: 0.9,
+      },
+      availableThrough: { year: 2026, month: 2 },
+    });
+
+    expect(brief.coverageContext).toEqual({
+      suppliedSignalIds: ["vegetation", "rainfall"],
+      unsuppliedSignalIds: ["soil-moisture"],
+      minimumValidFraction: 0.745,
+      maximumValidFraction: 0.82,
+      statement:
+        "2 usable signals reported 74.5% to 82% sampled coverage. Coverage was not supplied for: soil-moisture. Fractions describe independent source samples and do not establish a shared spatial footprint.",
+    });
+    expect(brief.coverageContext.statement).not.toMatch(/overlap|score|risk/i);
+  });
+
+  it("keeps unavailable and invalid signals out of the cross-signal range", () => {
+    const summary = summarizeCoverageContext([
+      ...composeEnvironmentBrief({
+        vegetation: {
+          dataMonth: { year: 2026, month: 1 },
+          value: null,
+          validFraction: 0.2,
+        },
+        rainfall: null,
+        soilMoisture: {
+          dataMonth: { year: 2026, month: 1 },
+          value: -1,
+          validFraction: 0.9,
+        },
+        airTemperature: null,
+        availableThrough: { year: 2026, month: 1 },
+      }).signals,
+    ]);
+
+    expect(summary).toEqual({
+      suppliedSignalIds: [],
+      unsuppliedSignalIds: [],
+      minimumValidFraction: null,
+      maximumValidFraction: null,
+      statement: "No usable observations with spatial coverage to summarize.",
+    });
   });
 });
 

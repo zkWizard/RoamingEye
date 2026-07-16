@@ -121,6 +121,19 @@ export interface EnvironmentBriefCompleteness {
   statement: string;
 }
 
+export interface EnvironmentCoverageContext {
+  /** Available signals whose samplers supplied a valid-fraction value. */
+  suppliedSignalIds: EnvironmentSignalId[];
+  /** Available signals without sampler-reported spatial coverage. */
+  unsuppliedSignalIds: EnvironmentSignalId[];
+  /** Smallest supplied valid fraction; null when no available signal supplies it. */
+  minimumValidFraction: number | null;
+  /** Largest supplied valid fraction; null when no available signal supplies it. */
+  maximumValidFraction: number | null;
+  /** Provenance caveat: independent fractions do not establish shared footprint. */
+  statement: string;
+}
+
 export interface EnvironmentBrief {
   kind: "provenance-first-environment-brief";
   signals: EnvironmentSignalBrief[];
@@ -129,6 +142,7 @@ export interface EnvironmentBrief {
   unsupportedLanguageHits: string[];
   methodLimits: string[];
   temporalAlignment: EnvironmentTemporalAlignment;
+  coverageContext: EnvironmentCoverageContext;
 }
 
 interface SignalMeta {
@@ -230,7 +244,69 @@ export function composeEnvironmentBrief(
     unsupportedLanguageHits: unsupportedBriefLanguageHits(statements.join(" ")),
     methodLimits: METHOD_LIMITS,
     temporalAlignment: summarizeTemporalAlignment(signals),
+    coverageContext: summarizeCoverageContext(signals),
   };
+}
+
+/**
+ * Summarize sampler-reported coverage without treating independent source
+ * footprints as spatially overlapping. Only usable observations participate;
+ * unavailable and invalid records retain their own per-signal coverage state.
+ */
+export function summarizeCoverageContext(
+  signals: readonly EnvironmentSignalBrief[]
+): EnvironmentCoverageContext {
+  const available = signals.filter((signal) => signal.status === "available");
+  const supplied = available.filter(
+    (signal) => signal.coverage.validFraction !== null
+  );
+  const suppliedSignalIds = supplied.map((signal) => signal.id);
+  const unsuppliedSignalIds = available
+    .filter((signal) => signal.coverage.validFraction === null)
+    .map((signal) => signal.id);
+  const fractions = supplied.map((signal) => signal.coverage.validFraction!);
+  const minimumValidFraction = fractions.length ? Math.min(...fractions) : null;
+  const maximumValidFraction = fractions.length ? Math.max(...fractions) : null;
+
+  return {
+    suppliedSignalIds,
+    unsuppliedSignalIds,
+    minimumValidFraction,
+    maximumValidFraction,
+    statement: coverageContextStatement(
+      available.length,
+      suppliedSignalIds,
+      unsuppliedSignalIds,
+      minimumValidFraction,
+      maximumValidFraction
+    ),
+  };
+}
+
+function coverageContextStatement(
+  availableCount: number,
+  suppliedIds: EnvironmentSignalId[],
+  unsuppliedIds: EnvironmentSignalId[],
+  minimum: number | null,
+  maximum: number | null
+): string {
+  if (availableCount === 0)
+    return "No usable observations with spatial coverage to summarize.";
+  if (suppliedIds.length === 0) {
+    return `Spatial coverage was not supplied for the usable signals: ${unsuppliedIds.join(", ")}.`;
+  }
+  const range =
+    minimum === maximum
+      ? `${formatPercent(minimum!)} sampled coverage`
+      : `${formatPercent(minimum!)} to ${formatPercent(maximum!)} sampled coverage`;
+  const missing = unsuppliedIds.length
+    ? ` Coverage was not supplied for: ${unsuppliedIds.join(", ")}.`
+    : "";
+  return `${suppliedIds.length} usable signal${plural(suppliedIds.length)} reported ${range}.${missing} Fractions describe independent source samples and do not establish a shared spatial footprint.`;
+}
+
+function formatPercent(fraction: number): string {
+  return `${Number((fraction * 100).toFixed(2))}%`;
 }
 
 /**
