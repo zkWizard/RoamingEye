@@ -43,6 +43,10 @@ describe("nearbyEarthquakeContext", () => {
         suppliedEventCount: 3,
         validEventCount: 3,
         matchedEventCount: 2,
+        matchedDistanceKm: {
+          min: expect.closeTo(11.12, 2),
+          max: expect.closeTo(27.8, 1),
+        },
         sourceEventTime: { min: 1_000, max: 3_000 },
         invalidQueryFields: [],
       },
@@ -99,6 +103,7 @@ describe("nearbyEarthquakeContext", () => {
         suppliedEventCount: 1,
         validEventCount: 1,
         matchedEventCount: 0,
+        matchedDistanceKm: { min: null, max: null },
         sourceEventTime: {
           min: 1_750_000_000_000,
           max: 1_750_000_000_000,
@@ -112,6 +117,7 @@ describe("nearbyEarthquakeContext", () => {
         suppliedEventCount: 0,
         validEventCount: 0,
         matchedEventCount: 0,
+        matchedDistanceKm: { min: null, max: null },
         sourceEventTime: { min: null, max: null },
       },
     });
@@ -157,6 +163,7 @@ describe("nearbyEarthquakeContext", () => {
         suppliedEventCount: 1,
         validEventCount: 1,
         matchedEventCount: 0,
+        matchedDistanceKm: { min: null, max: null },
         invalidQueryFields: ["latitude", "longitude", "radiusKm"],
       },
     });
