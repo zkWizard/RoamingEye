@@ -266,6 +266,7 @@ function validateInput(input: PlaceObservationExportInput): void {
   }
 
   const layerIds = new Set<LayerId>();
+  const generatedMonth = yearMonthFromIsoTimestamp(input.generatedIso);
   for (const product of input.products) {
     if (layerIds.has(product.layerId)) {
       throw new Error(`Duplicate product layer: ${product.layerId}.`);
@@ -287,6 +288,11 @@ function validateInput(input: PlaceObservationExportInput): void {
         );
       }
       const month = formatYearMonth(observation.dataMonth);
+      if (month > generatedMonth) {
+        throw new Error(
+          `Product ${product.layerId} has future data month ${month} after export month ${generatedMonth}.`
+        );
+      }
       if (months.has(month)) {
         throw new Error(
           `Product ${product.layerId} has duplicate month ${month}.`
@@ -388,10 +394,19 @@ function isIsoTimestamp(value: string): boolean {
 function isYearMonth(value: YearMonth): boolean {
   return (
     Number.isInteger(value.year) &&
+    value.year >= 1 &&
+    value.year <= 9999 &&
     Number.isInteger(value.month) &&
     value.month >= 1 &&
     value.month <= 12
   );
+}
+
+function yearMonthFromIsoTimestamp(value: string): string {
+  const instant = new Date(value);
+  return `${instant.getUTCFullYear()}-${String(
+    instant.getUTCMonth() + 1
+  ).padStart(2, "0")}`;
 }
 
 function formatYearMonth(value: YearMonth): string {

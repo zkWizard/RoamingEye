@@ -232,6 +232,49 @@ describe("place observation export", () => {
     ).toThrow("Product ndvi has a value with zero sampled coverage.");
   });
 
+  it("rejects future or non-canonical observation months", () => {
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        generatedIso: "2026-07-01T00:30:00+02:00",
+        products: [
+          {
+            ...input.products[0],
+            observations: [
+              {
+                dataMonth: { year: 2026, month: 7 },
+                value: 0.62,
+                validFraction: 0.82,
+              },
+            ],
+          },
+        ],
+      })
+    ).toThrow(
+      "Product ndvi has future data month 2026-07 after export month 2026-06."
+    );
+
+    for (const year of [0, 10_000]) {
+      expect(() =>
+        createPlaceObservationExport({
+          ...input,
+          products: [
+            {
+              ...input.products[0],
+              observations: [
+                {
+                  dataMonth: { year, month: 4 },
+                  value: 0.62,
+                  validFraction: 0.82,
+                },
+              ],
+            },
+          ],
+        })
+      ).toThrow("Product ndvi has an invalid data month.");
+    }
+  });
+
   it("reverses display conversions before exporting cited native units", () => {
     const precipitation = placeObservationProductFromSample({
       layerId: "precip",
