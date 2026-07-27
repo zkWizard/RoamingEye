@@ -25,9 +25,15 @@ function precip(
 
 describe("seasonal climate baseline comparisons", () => {
   it("reports a same-calendar-month anomaly with native units, source, publication lag, and uncertainty", () => {
-    const baseline = Array.from({ length: 10 }, (_, index) =>
-      precip(2013 + index, 8, 0.001 + index * 0.0001, 0.65 + index * 0.01)
-    );
+    const baseline = Array.from({ length: 10 }, (_, index) => ({
+      ...precip(2013 + index, 8, 0.001 + index * 0.0001, 0.65 + index * 0.01),
+      sourceImageDimensions:
+        index === 0
+          ? { width: 400, height: 200 }
+          : index === 1
+            ? { width: 0, height: 200 }
+            : undefined,
+    }));
 
     const comparison = compareMonthlyClimateToSeasonalBaseline(
       precip(2023, 8, 0.002, 0.9),
@@ -83,6 +89,16 @@ describe("seasonal climate baseline comparisons", () => {
     expect(comparison.samples.map((sample) => sample.month.month)).toEqual(
       Array(10).fill(8)
     );
+    expect(comparison.samples[0]?.sourceImageDimensions).toEqual({
+      width: 400,
+      height: 200,
+    });
+    expect(comparison.samples[1]?.sourceImageDimensions).toBeNull();
+    expect(
+      comparison.samples
+        .slice(2)
+        .every((sample) => sample.sourceImageDimensions === null)
+    ).toBe(true);
     expect(comparison.baseline.sampleStandardDeviation).toBeGreaterThan(0);
     expect(comparison.baseline.standardErrorOfMean).toBeGreaterThan(0);
   });
