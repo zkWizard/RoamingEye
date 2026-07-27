@@ -53,3 +53,16 @@ One line per run: date — what was done. Terse.
   venue's rules (Project Pythia / a university course network) and adapt it into that format.
   Verified every claim against README.md / METHODS.md (9 layers, MIT, live URL, CITATION.cff,
   provenance CSV headers).
+- 2026-07-15 — Monitored signals (`gh api`): 1 star, 0 forks, 0 external watchers, and every
+  open issue is maintainer-authored — the project is pre-traction with no newcomer activity
+  to welcome yet, and the outbox already holds 5 unsent drafts. So instead of a 6th draft,
+  expanded the venue pipeline (Duty 1), reading each venue's actual rules first. Added two
+  vetted entries to TARGETS.md: **OSGeo Discourse** (ToS bans "advertisements/solicitations"
+  → compliant path is Introductions/participation, or an OSGeo Community Projects application;
+  MIT satisfies its license bar — never a promo post) and **Fediverse/Mastodon** Earth-science
+  & open-science community (value-first norm, 3–5 hashtags; FediScience.org + curated
+  all-geo/germanrepro account lists; ready to draft once zkWizard has an account). Vetted and
+  **declined** Project Pythia's Resource Gallery — its criteria are "Python-justified learning
+  resources" and RoamingEye is a TS/browser app (off-scope; recorded so no one files an
+  off-topic PR — the drafted Pangeo Showcase post already reaches that audience). Trimmed the
+  "candidate venues" note accordingly. No outbox draft this run (avoids saturating the queue).

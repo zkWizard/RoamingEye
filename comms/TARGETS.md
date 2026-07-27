@@ -72,6 +72,55 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
   workflow, not the link.
 - **Status:** researched (rules pending sidebar confirmation)
 
+### OSGeo Discourse / OSGeo community
+
+- **URL:** https://discourse.osgeo.org/ (Introductions: https://discourse.osgeo.org/c/introductions/75);
+  Community Projects program: https://wiki.osgeo.org/wiki/OSGeo_Community_Projects
+- **Audience & size:** the Open Source Geospatial Foundation community — the developers,
+  analysts, and users behind and around the OSGeo project ecosystem (QGIS, GDAL,
+  GeoServer, and more). Discourse is OSGeo's primary communication hub.
+- **Why RoamingEye fits:** open-source (MIT) and contributor-welcoming — exactly the kind
+  of tool this community builds and discusses; a genuinely useful browser-native way to
+  preview open EO archives and export a provenance-stamped series.
+- **Posting rules / compliant path:** **the OSGeo Discourse ToS bans "advertisements …
+  or other solicitations"** — a drive-by promo post is _not_ compliant and risks removal.
+  The compliant path is participation-first: introduce the project in the **Introductions**
+  category and engage in relevant threads as a community member. For a deeper commitment,
+  RoamingEye could apply to the **OSGeo Community Projects** program (requires an
+  OSI-approved / free license — MIT qualifies — and a welcoming-to-contributors posture),
+  which offers promotion and incubation support. Follow the code of conduct. Never post a
+  standalone advertisement.
+- **Best angle:** show up as a community member sharing a useful open tool and asking for
+  feedback, not announcing a product. Lead with the open license, open data, and provenance.
+- **Status:** researched (compliant path = Introductions/participation, or a Community
+  Projects application — not a promo post; no draft yet)
+
+### Fediverse / Mastodon — Earth-science & open-science community
+
+- **URL / channel:** an account on a science-friendly instance such as
+  https://fediscience.org/; curated audiences at Earth Science on Mastodon
+  (https://all-geo.org/mastodon-earthsci/) and Open Science on Mastodon
+  (https://germanrepro.github.io/Mastodon-OpenScience/).
+- **Audience & size:** Earth scientists, remote-sensing / geospatial professionals, and
+  the open-science community active on the fediverse — researchers, educators, and data
+  people who explicitly value open data and reproducibility. Reachable via hashtags rather
+  than a single forum.
+- **Why RoamingEye fits:** open data + provenance-stamped CSV + honest uncertainty labelling
+  is inherently value-providing content, which is what this crowd rewards; RoamingEye is an
+  open-science tool, not a commercial pitch.
+- **Posting rules / compliant path:** fediverse norms favor **value over self-promotion** —
+  no repetitive or marketing-style spam, participate authentically, and keep hashtags
+  moderate (3–5). A single, genuinely useful post (e.g. "scrub 20+ years of open NASA
+  imagery in-browser and export a provenance-stamped CSV, no account") tagged
+  `#RemoteSensing #EarthObservation #OpenData #geoscience` is welcome. zkWizard posts from
+  a personal account and should build presence by engaging first; this is not an automated
+  channel.
+- **Best angle:** value-first — a short "here's a free, open thing you can use right now"
+  post with a screenshot or the demo GIF, 3–5 relevant hashtags, honest about the probe
+  approximation. Optionally reply into relevant #geoscience / #OpenScience threads.
+- **Status:** researched (rules clear; ready to draft a short post once zkWizard has a
+  fediverse account — low effort, high fit)
+
 ---
 
 ## Curated "awesome" lists (contribute via pull request)
@@ -134,15 +183,34 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
 
 ---
 
+## Vetted & set aside (do not re-pursue without a new angle)
+
+### Project Pythia Resource Gallery — declined (off-scope)
+
+- **URL:** https://projectpythia.org/resource-gallery/ (Pythia is Pangeo's education working group)
+- **Why it was considered:** an educational-geoscience audience overlapping our classroom
+  goal, tied to the Pangeo community we already target.
+- **Why declined:** the Gallery's stated inclusion criteria are **"Python-justified
+  learning resources"** that are open-source, community-owned, and geoscience-focused.
+  RoamingEye is a TypeScript / browser tool with no Python or Jupyter surface, so it does
+  **not** meet the gallery's scope — submitting it would be an off-topic PR. Do not open one.
+- **Still reachable:** the same broad Pangeo/Pythia audience is already addressed by the
+  drafted **Pangeo Showcase** post (`outbox/pangeo-showcase-roamingeye.md`). If RoamingEye
+  ever ships a companion Python notebook that loads a probe-export CSV into Xarray, _that
+  notebook_ (not the app) could be a legitimate Pythia Cookbook/Gallery candidate.
+
+---
+
 ## Notes for future runs
 
 - Prefer **quality over quantity** — one excellent, rules-respecting artifact per venue
   beats a spray list. Do not add venues you have not actually vetted.
-- Candidate venues still to research (do NOT add until rules are read): OSGeo Discourse /
-  community, Project Pythia / educational geoscience networks, r/dataisbeautiful (OC
-  rules), Mastodon/fediverse open-science tags, university remote-sensing course
-  networks, and complementary open-tool maintainers (STAC / stackstac / leafmap /
-  TiTiler) as potential contributors.
+- Candidate venues still to research (do NOT add until rules are read): r/dataisbeautiful
+  (OC rules), university remote-sensing course networks, and complementary open-tool
+  maintainers (STAC / stackstac / leafmap / TiTiler) as potential contributors.
+  _Researched this round:_ OSGeo Discourse (added — participation-first path),
+  Mastodon/fediverse (added — value-first path); Project Pythia Resource Gallery (declined
+  as off-scope — see _Vetted & set aside_).
 - **Educator reach:** `outbox/classroom-lab-one-pager.md` is now a ready source asset —
   the next educator-facing step is to vet a _specific_ venue's rules (Project Pythia /
   educational-geoscience networks, a university remote-sensing course network) and adapt
