@@ -22,6 +22,23 @@ export interface Earthquake {
 }
 
 /**
+ * Compact, source-faithful text for inspecting one parsed feed observation.
+ * The feed's reported magnitude is left unclassified because summary feeds
+ * may mix magnitude types; depth remains in its native kilometres and the
+ * event timestamp is rendered explicitly in UTC.
+ */
+export function formatEarthquakeObservation(earthquake: Earthquake): string {
+  const timeUtc = new Date(earthquake.time).toISOString();
+  const parts = [
+    earthquake.place.trim() || "Location not supplied",
+    `M ${earthquake.magnitude} (reported)`,
+    `${earthquake.depthKm} km depth`,
+    timeUtc.replace("Z", " UTC"),
+  ];
+  return parts.join(" · ");
+}
+
+/**
  * Provenance retained by seismic filters and summaries. The USGS feed reports
  * earthquake magnitude values, hypocentre depth in kilometres, and UTC epoch
  * timestamps; it does not supply a hazard assessment or forecast.

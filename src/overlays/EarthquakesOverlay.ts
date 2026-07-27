@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { GLOBE_RADIUS, type MapOverlay } from "./types";
+import { GLOBE_RADIUS, type HoverPointSource, type MapOverlay } from "./types";
 import { ICONS } from "../ui/icons";
 import { latLngToVector3 } from "../lib/geo";
 import { fetchJson } from "../lib/net";
@@ -8,6 +8,7 @@ import {
   depthClass,
   DEPTH_CLASS_COLORS,
   USGS_FEED_URL,
+  formatEarthquakeObservation,
   type DepthClass,
   type Earthquake,
 } from "../lib/earthquakes";
@@ -45,6 +46,9 @@ export class EarthquakesOverlay implements MapOverlay {
   readonly label = "Quakes";
   readonly icon = ICONS.quakes;
   readonly object = new THREE.Group();
+  readonly hoverSources: Array<HoverPointSource | undefined> = new Array(
+    SIZE_BUCKETS.length
+  );
 
   private loadPromise: Promise<void> | undefined;
 
@@ -62,10 +66,18 @@ export class EarthquakesOverlay implements MapOverlay {
   private async load(): Promise<void> {
     const quakes = parseEarthquakeFeed(await fetchJson<unknown>(this.url));
 
-    for (const bucket of SIZE_BUCKETS) {
+    for (const [index, bucket] of SIZE_BUCKETS.entries()) {
       const inBucket = quakes.filter((q) => bucketFor(q.magnitude) === bucket);
       if (inBucket.length === 0) continue;
-      this.object.add(this.buildPoints(inBucket, bucket.size));
+      const points = this.buildPoints(inBucket, bucket.size);
+      this.object.add(points);
+      this.hoverSources[index] = {
+        points,
+        describe: (pointIndex) => {
+          const quake = inBucket[pointIndex];
+          return quake ? formatEarthquakeObservation(quake) : undefined;
+        },
+      };
     }
   }
 

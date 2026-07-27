@@ -232,6 +232,7 @@ const errorToast = new ErrorToast();
 
 const citiesOverlay = new CitiesOverlay();
 const volcanoesOverlay = new VolcanoesOverlay();
+const earthquakesOverlay = new EarthquakesOverlay();
 // "You are here" — opt-in geolocation pin; denial reverts its toggle + toasts.
 const userLocationOverlay = new UserLocationOverlay((message) =>
   errorToast.show(message)
@@ -246,7 +247,7 @@ const overlays: MapOverlay[] = [
   // up on the globe to tell the plate-tectonics story.
   new PlateBoundariesOverlay(),
   volcanoesOverlay,
-  new EarthquakesOverlay(),
+  earthquakesOverlay,
   userLocationOverlay,
 ];
 for (const overlay of overlays) scene.add(overlay.object);
@@ -274,6 +275,13 @@ if (tooltipEl) {
   const inspector = new HoverInspector(canvas, camera, earth, tooltipEl);
   inspector.addPointSource(() => citiesOverlay.hoverSource);
   inspector.addPointSource(() => volcanoesOverlay.hoverSource);
+  for (
+    let index = 0;
+    index < earthquakesOverlay.hoverSources.length;
+    index += 1
+  ) {
+    inspector.addPointSource(() => earthquakesOverlay.hoverSources[index]);
+  }
   inspector.addPointSource(() => userLocationOverlay.hoverSource);
   loadCountryIndex()
     .then((index) => {
