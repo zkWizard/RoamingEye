@@ -16,7 +16,7 @@ import {
  */
 
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
-  "roamingeye-place-observation-export/v2" as const;
+  "roamingeye-place-observation-export/v3" as const;
 
 export const GIBS_IMAGERY_SOURCE = {
   name: "NASA Global Imagery Browse Services (GIBS)",
@@ -98,9 +98,13 @@ export interface PlaceObservationExport {
     "Values are supplied sampling results in native source units.",
     "Rendered-imagery values are approximate; use the cited data product for measurement-grade work.",
     "This export does not infer conditions, causes, risks, or future values.",
+    "Coverage status describes the sampling result, not environmental condition or source-product availability.",
     "Data-month record states do not make values across products interchangeable or describe environmental condition.",
   ];
 }
+
+export type PlaceObservationCoverageStatus =
+  "fraction-recorded" | "no-valid-samples" | "not-supplied";
 
 export interface PlaceObservationExportProduct {
   layerId: LayerId;
@@ -111,6 +115,7 @@ export interface PlaceObservationExportProduct {
     dataMonth: string;
     value: number | null;
     validFraction: number | null;
+    coverageStatus: PlaceObservationCoverageStatus;
   }[];
 }
 
@@ -159,6 +164,7 @@ const LIMITATIONS = [
   "Values are supplied sampling results in native source units.",
   "Rendered-imagery values are approximate; use the cited data product for measurement-grade work.",
   "This export does not infer conditions, causes, risks, or future values.",
+  "Coverage status describes the sampling result, not environmental condition or source-product availability.",
   "Data-month record states do not make values across products interchangeable or describe environmental condition.",
 ] as const;
 
@@ -329,10 +335,18 @@ function exportProducts(
           dataMonth: formatYearMonth(observation.dataMonth),
           value: observation.value,
           validFraction: observation.validFraction ?? null,
+          coverageStatus: coverageStatus(observation.validFraction),
         }))
         .sort((left, right) => compareText(left.dataMonth, right.dataMonth)),
     }))
     .sort((left, right) => compareText(left.layerId, right.layerId));
+}
+
+function coverageStatus(
+  validFraction: number | undefined
+): PlaceObservationCoverageStatus {
+  if (validFraction === undefined) return "not-supplied";
+  return validFraction === 0 ? "no-valid-samples" : "fraction-recorded";
 }
 
 function dataMonthMatrix(
