@@ -47,6 +47,7 @@ describe("ocean condition series summaries", () => {
       water: 1,
       "land-mixed-coastal": 0,
       land: 1,
+      unknown: 0,
       missing: 1,
       invalid: 1,
     });
@@ -121,6 +122,22 @@ describe("ocean condition series summaries", () => {
     });
   });
 
+  it("tallies unknown geography while retaining its physical observation", () => {
+    const summary = summarizeOceanConditionSeries([
+      {
+        dataMonth: { year: 2026, month: 6 },
+        value: 18.4,
+        validFraction: 0.4,
+        footprint: "unknown",
+      },
+    ]);
+
+    expect(summary.usableMonthCount).toBe(1);
+    expect(summary.coverageTally.unknown).toBe(1);
+    expect(summary.months[0].coverage.reason).toBe("unknown-footprint");
+    expect(summary.extremes.warmest?.observedValue).toBe(18.4);
+  });
+
   it("returns null extremes and range when nothing is usable", () => {
     const summary = summarizeOceanConditionSeries([
       { dataMonth: { year: 2026, month: 3 }, value: null, footprint: "land" },
@@ -142,6 +159,7 @@ describe("ocean condition series summaries", () => {
       water: 0,
       "land-mixed-coastal": 0,
       land: 0,
+      unknown: 0,
       missing: 0,
       invalid: 0,
     });

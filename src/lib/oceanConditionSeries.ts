@@ -40,7 +40,7 @@ export interface OceanConditionSeriesSummary {
   metric: typeof SEA_SURFACE_TEMPERATURE_METRIC;
   /** Total supplied observations, including unusable months. */
   monthCount: number;
-  /** Months carrying a usable SST value (water or coastal/land-mixed footprint). */
+  /** Months carrying a usable SST value, including unknown supplied geography. */
   usableMonthCount: number;
   /** Supplied months without a usable SST value (land, missing, or invalid). */
   unusableMonthCount: number;
@@ -76,6 +76,7 @@ const EMPTY_COVERAGE_TALLY: OceanCoverageTally = {
   water: 0,
   "land-mixed-coastal": 0,
   land: 0,
+  unknown: 0,
   missing: 0,
   invalid: 0,
 };

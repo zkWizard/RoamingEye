@@ -45,7 +45,7 @@ export interface SeaSurfaceTemperatureObservation {
 }
 
 export type OceanCoverageStatus =
-  "water" | "land-mixed-coastal" | "land" | "missing" | "invalid";
+  "water" | "land-mixed-coastal" | "land" | "unknown" | "missing" | "invalid";
 
 export type OceanCoverageReason =
   | "invalid-month"
@@ -53,6 +53,7 @@ export type OceanCoverageReason =
   | "invalid-value"
   | "land-footprint"
   | "missing-sst-value"
+  | "unknown-footprint"
   | "zero-sst-coverage"
   | null;
 
@@ -86,7 +87,9 @@ export function summarizeOceanConditions(
 ): OceanConditionSummary {
   const coverage = coverageFor(observation);
   const observedValue =
-    coverage.status === "water" || coverage.status === "land-mixed-coastal"
+    coverage.status === "water" ||
+    coverage.status === "land-mixed-coastal" ||
+    coverage.status === "unknown"
       ? observation.value
       : null;
 
@@ -135,6 +138,9 @@ function coverageFor(
   }
   if (observation.footprint === "land-mixed-coastal") {
     return { ...base, status: "land-mixed-coastal", reason: null };
+  }
+  if (observation.footprint === "unknown") {
+    return { ...base, status: "unknown", reason: "unknown-footprint" };
   }
   return { ...base, status: "water", reason: null };
 }
@@ -210,7 +216,9 @@ export function describeOceanCondition(summary: OceanConditionSummary): string {
     const coastalNote =
       coverage.status === "land-mixed-coastal"
         ? " The footprint is coastal or land-mixed, so some samples fall on land."
-        : "";
+        : coverage.status === "unknown"
+          ? " The supplied footprint type is unknown; the SST value does not establish water, coastal, or land geography."
+          : "";
     body = `${value}.${coastalNote}${coverageNote(coverage.validFraction)}`;
   }
 
