@@ -194,31 +194,32 @@ null`, `https_enforced: false`, `https://roamingeye.org/` still fails TLS, and
   `zkwizard.github.io/RoamingEye/` still `301`s to plain `http://`. Seven drafts now wait on one
   maintainer action. Also still pending for zkWizard: the empty repo **description** and the
   stale **homepage** field (`gh repo edit` commands in TARGETS Notes).
-- 2026-07-27 — **Contributor onboarding (Duty 4): made `ARCHITECTURE.md` tell the truth about
-  `src/lib/`.** Chose onboarding over an eighth outreach draft because the outbox already holds
-  seven unsent drafts behind the ⛔ HTTPS gate (re-measured today, still `https_certificate: null`,
-  `https_enforced: false`) — draft supply is not the constraint — and because refilling the
-  good-first-issue queue would be wrong while #373/#374/#375 are all still open and unclaimed.
-  Signals re-checked and still flat: 1 star, 0 forks, 0 external watchers, and every issue and
-  non-Dependabot PR is maintainer-authored.
-  The defect: `ARCHITECTURE.md` described `src/lib/` with a **9-row table**, and `src/lib/` now
-  holds **176** non-test modules. A newcomer following our own orientation doc met a directory
-  ~20× larger than the map, with no way to tell which files matter. Walked the real import graph
-  from `src/main.ts` (not an assumption — a script, then cross-checked): **42 of the 176 are
-  reachable from the app; 134 are not.** Of those 134, **108 are imported by nothing but their own
-  unit test** and the other 26 only by each other; **none** are used by `scripts/`, `contract/`,
-  or the e2e suite, so "not reachable from `main.ts`" is the precise and complete statement.
-  (Counts re-derived after merging `origin/main` — six more unwired modules landed mid-run, which
-  is itself the trend the section documents.)
-  Replaced the stale table with a grouped map of all 42 wired modules (geometry & projection;
-  time/catalog/session; probe, colormaps & statistics; domain datasets; provenance & export;
-  platform), with each responsibility taken from the module's own doc comment and exports rather
-  than guessed. Added a short, non-judgmental "library beyond the app surface" subsection stating
-  the 134/108/26 split, a `grep` a contributor can run to check whether any given module is wired,
-  and the constructive read: **wiring an existing tested module into the UI is among the
-  highest-impact changes available**, with a "open an issue on placement first" guardrail. Stamped
-  the counts with today's date and told readers to re-derive rather than trust them, since they
-  drift. Deliberately did _not_ characterize the 134 as dead code or propose deletions — that is a
-  maintainer/engineering call, not comms'.
-  Committed onto the #408 consolidation branch rather than opening a new PR, per the standing
-  "never stack comms PRs" rule, and merged `origin/main` to clear its `BEHIND` state.
+- 2026-07-27 — **Duplicated an existing PR; backed it out. Net result: one measured follow-up
+  note, no doc change.** Picked contributor onboarding (Duty 4) because the outbox holds seven
+  unsent drafts behind the ⛔ HTTPS gate (re-measured today: `https_certificate: null`,
+  `https_enforced: false`) and refilling the good-first-issue queue would be wrong while
+  #373/#374/#375 are all still open and unclaimed. Signals still flat: 1 star, 0 forks, 0
+  external watchers, every issue and non-Dependabot PR maintainer-authored.
+  Target was a real defect — `ARCHITECTURE.md` mapped `src/lib/` with a **9-row table** against
+  **176** non-test modules. Walked the import graph from `src/main.ts` and measured: **42 wired,
+  134 not**; of the 134, **108 imported by nothing but their own unit test** and **26 only by
+  each other**; **none** used by `scripts/`, `contract/`, or e2e. Every directory outside
+  `src/lib/` is 100% wired. Wrote a grouped map of all 42 wired modules and a "beyond the app
+  surface" section, committed it here, and got all 5 required checks green.
+  **Then found PR #570** — opened ~3 h earlier, same defect, same fix ("Wired vs. staged
+  modules"), plus a stale-CI-note fix in `.github/CONTRIBUTING.md` this PR did not touch. I had
+  not checked open PRs against `ARCHITECTURE.md` before starting. Two PRs editing the same
+  section would conflict, and #570 is first and better-placed, so I **reverted `ARCHITECTURE.md`
+  here** and left #408 as the single-purpose comms workspace it is meant to be. **Do not re-do
+  this work; track #570.**
+  **Standing check for future runs: `gh pr list --state open --json number,title,files` and
+  filter for the file you intend to edit, _before_ writing anything.** At ~185 open PRs this
+  repo will silently duplicate any docs work.
+  One measured thing #570 does _not_ do, kept as a scoped follow-up: it preserves the original
+  9-row table as "core modules", so **33 of the 42 wired modules remain undocumented** —
+  including `probe.ts`, `colormap.ts`, `trend.ts`, `numerics.ts`, `citation.ts`,
+  `placeObservationExport.ts`, `viewState.ts`, `legend.ts` and `tiles.ts`. Once #570 lands, a
+  future run can add the grouped map of all 42 (geometry & projection; time/catalog/session;
+  probe/colormaps/statistics; domain datasets; provenance & export; platform) on top of it,
+  taking each responsibility from the module's own doc comment. Also worth folding in: the
+  108-vs-26 breakdown of the unwired set, which #570 does not carry.
