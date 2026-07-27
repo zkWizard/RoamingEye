@@ -32,7 +32,7 @@ jobs:
         id: checks
         run: |
           set -u
-          SITE="${{ inputs.site_url != '' && inputs.site_url || 'https://zkwizard.github.io/RoamingEye/' }}"
+          SITE="${{ inputs.site_url != '' && inputs.site_url || 'https://roamingeye.org/' }}"
           FAILURES=""
 
           note() { FAILURES="${FAILURES}${1}\n"; echo "::warning::$1"; }
