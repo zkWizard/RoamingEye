@@ -90,6 +90,16 @@ describe("summarizePlateBoundaryLengths", () => {
     expect(summary.totalLengthKm).toBeCloseTo(3 * DEG_KM, 6);
     expect(summary.usableBoundaryCount).toBe(2);
     expect(summary.suppliedBoundaryCount).toBe(2);
+    expect(summary.coverage).toEqual({
+      status: "available",
+      suppliedBoundaryCount: 2,
+      usableBoundaryCount: 2,
+      suppliedVertexCount: 4,
+      invalidVertexCount: 0,
+      suppliedSpanCount: 2,
+      measuredSpanCount: 2,
+      skippedSpanCount: 0,
+    });
   });
 
   it("groups delimiter variants of the same pair together", () => {
@@ -203,6 +213,16 @@ describe("summarizePlateBoundaryLengths", () => {
     expect(summary.entries).toHaveLength(1);
     expect(summary.entries[0].name).toBe("NA-PA");
     expect(summary.totalLengthKm).toBeCloseTo(DEG_KM, 6);
+    expect(summary.coverage).toEqual({
+      status: "partial",
+      suppliedBoundaryCount: 3,
+      usableBoundaryCount: 1,
+      suppliedVertexCount: 5,
+      invalidVertexCount: 1,
+      suppliedSpanCount: 2,
+      measuredSpanCount: 1,
+      skippedSpanCount: 1,
+    });
   });
 
   it("returns an empty, provenance-tagged summary for no input", () => {
@@ -211,6 +231,29 @@ describe("summarizePlateBoundaryLengths", () => {
     expect(summary.totalLengthKm).toBe(0);
     expect(summary.suppliedBoundaryCount).toBe(0);
     expect(summary.usableBoundaryCount).toBe(0);
+    expect(summary.coverage.status).toBe("no-boundaries");
+  });
+
+  it("distinguishes supplied linework with no measurable spans", () => {
+    const summary = summarizePlateBoundaryLengths([
+      boundary("AF-AN", [[0, 0]]),
+      boundary("EU-NA", [
+        [Number.NaN, 0],
+        [0, 1],
+      ]),
+    ]);
+
+    expect(summary.totalLengthKm).toBe(0);
+    expect(summary.coverage).toEqual({
+      status: "no-measurable-boundaries",
+      suppliedBoundaryCount: 2,
+      usableBoundaryCount: 0,
+      suppliedVertexCount: 3,
+      invalidVertexCount: 1,
+      suppliedSpanCount: 1,
+      measuredSpanCount: 0,
+      skippedSpanCount: 1,
+    });
   });
 
   it("retains provenance, units, and honest limitations", () => {
