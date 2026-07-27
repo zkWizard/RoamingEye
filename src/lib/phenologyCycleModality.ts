@@ -106,12 +106,28 @@ export interface NdviContiguousSegment {
 }
 
 export interface NdviCycleModalityCoverage {
+  /** Records supplied to the parent monthly-change summary. */
+  observationCount: number;
+  /** Distinct months with a usable NDVI value meeting the coverage floor. */
+  usableMonthCount: number;
+  /** Valid months with null NDVI or explicitly zero coverage. */
+  missingMonthCount: number;
+  /** Valid months excluded for falling below the required coverage floor. */
+  lowCoverageMonthCount: number;
+  /** Records rejected for invalid month, value, coverage, or duplicate month. */
+  invalidRecordCount: number;
   /** Consecutive-month transitions supplied by the change summary. */
   transitionCount: number;
   /** Maximal gap-free runs those transitions form. */
   segmentCount: number;
-  /** Breaks between gap-free runs (data gaps within the monthly series). */
+  /**
+   * Gaps between adjacent usable months in the parent monthly series. This is
+   * inherited rather than inferred from segments, so isolated usable months
+   * that form no transition remain represented.
+   */
   gapCount: number;
+  /** Breaks between the transition segments represented below. */
+  segmentBreakCount: number;
   /** Little-change transitions treated as dead-band trend continuations. */
   littleChangeCount: number;
 }
@@ -124,6 +140,8 @@ export interface NdviCycleModalitySummary {
   status: NdviCycleModalityStatus;
   /** Dead band inherited from the change summary that suppressed noise wiggles. */
   stabilityThreshold: number;
+  /** Parent summary's minimum usable sampled fraction, preserved verbatim. */
+  requiredValidFraction: number;
   coverage: NdviCycleModalityCoverage;
   /** Gap-free runs, in calendar order. */
   segments: NdviContiguousSegment[];
@@ -164,6 +182,7 @@ export function summarizeNdviCycleModality(
     isForecast: false as const,
     hemisphere: change.hemisphere,
     stabilityThreshold: change.stabilityThreshold,
+    requiredValidFraction: change.requiredValidFraction,
     source: change.source ?? NDVI_SOURCE,
     unit: NDVI_UNIT as typeof NDVI_UNIT,
   };
@@ -178,9 +197,15 @@ export function summarizeNdviCycleModality(
       ...base,
       status: "no-transitions",
       coverage: {
+        observationCount: change.coverage.observationCount,
+        usableMonthCount: change.coverage.usableMonthCount,
+        missingMonthCount: change.coverage.missingMonthCount,
+        lowCoverageMonthCount: change.coverage.lowCoverageMonthCount,
+        invalidRecordCount: change.coverage.invalidRecordCount,
         transitionCount: 0,
         segmentCount: 0,
-        gapCount: 0,
+        gapCount: change.coverage.gapCount,
+        segmentBreakCount: 0,
         littleChangeCount: 0,
       },
       segments: [],
@@ -209,9 +234,15 @@ export function summarizeNdviCycleModality(
     ...base,
     status: "available",
     coverage: {
+      observationCount: change.coverage.observationCount,
+      usableMonthCount: change.coverage.usableMonthCount,
+      missingMonthCount: change.coverage.missingMonthCount,
+      lowCoverageMonthCount: change.coverage.lowCoverageMonthCount,
+      invalidRecordCount: change.coverage.invalidRecordCount,
       transitionCount: transitions.length,
       segmentCount: segments.length,
-      gapCount: segments.length - 1,
+      gapCount: change.coverage.gapCount,
+      segmentBreakCount: segments.length - 1,
       littleChangeCount,
     },
     segments,

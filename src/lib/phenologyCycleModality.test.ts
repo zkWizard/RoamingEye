@@ -40,6 +40,7 @@ describe("NDVI cycle modality", () => {
       isForecast: false,
       hemisphere: "northern",
       status: "available",
+      requiredValidFraction: 0,
       totalGreennessMaximaCount: 1,
       totalGreennessMinimaCount: 0,
       source: NDVI_SOURCE,
@@ -50,6 +51,7 @@ describe("NDVI cycle modality", () => {
       transitionCount: 4,
       segmentCount: 1,
       gapCount: 0,
+      segmentBreakCount: 0,
       littleChangeCount: 0,
     });
     expect(summary.segments).toHaveLength(1);
@@ -157,6 +159,7 @@ describe("NDVI cycle modality", () => {
       transitionCount: 4,
       segmentCount: 2,
       gapCount: 1,
+      segmentBreakCount: 1,
     });
     expect(summary.segments.map((s) => s.greennessMaximaCount)).toEqual([1, 1]);
     expect(summary.totalGreennessMaximaCount).toBe(2);
@@ -183,10 +186,66 @@ describe("NDVI cycle modality", () => {
       transitionCount: 0,
       segmentCount: 0,
       gapCount: 0,
+      segmentBreakCount: 0,
       littleChangeCount: 0,
     });
     expect(summary.segments).toEqual([]);
     expect(summary.reversals).toEqual([]);
+  });
+
+  it("preserves parent coverage when isolated months form no transition segment", () => {
+    const change = summarizeNdviMonthlyChange(
+      [
+        { month: { year: 2025, month: 1 }, ndvi: 0.2, validFraction: 0.9 },
+        { month: { year: 2025, month: 2 }, ndvi: 0.4, validFraction: 0.9 },
+        { month: { year: 2025, month: 5 }, ndvi: 0.3, validFraction: 0.9 },
+        { month: { year: 2025, month: 7 }, ndvi: null, validFraction: 0 },
+        { month: { year: 2025, month: 8 }, ndvi: 0.5, validFraction: 0.4 },
+        { month: { year: 2025, month: 13 }, ndvi: 0.6, validFraction: 1 },
+      ],
+      48.8,
+      { minimumValidFraction: 0.6 }
+    );
+
+    const summary = summarizeNdviCycleModality(change);
+
+    expect(summary.requiredValidFraction).toBe(0.6);
+    expect(summary.coverage).toEqual({
+      observationCount: 6,
+      usableMonthCount: 3,
+      missingMonthCount: 1,
+      lowCoverageMonthCount: 1,
+      invalidRecordCount: 1,
+      transitionCount: 1,
+      segmentCount: 1,
+      gapCount: 1,
+      segmentBreakCount: 0,
+      littleChangeCount: 0,
+    });
+  });
+
+  it("keeps gap and exclusion coverage even when no transitions are available", () => {
+    const change = summarizeNdviMonthlyChange(
+      [
+        { month: { year: 2025, month: 1 }, ndvi: 0.2, validFraction: 1 },
+        { month: { year: 2025, month: 4 }, ndvi: 0.5, validFraction: 1 },
+        { month: { year: 2025, month: 5 }, ndvi: null, validFraction: 0 },
+      ],
+      0
+    );
+
+    const summary = summarizeNdviCycleModality(change);
+
+    expect(summary.status).toBe("no-transitions");
+    expect(summary.coverage).toMatchObject({
+      observationCount: 3,
+      usableMonthCount: 2,
+      missingMonthCount: 1,
+      transitionCount: 0,
+      segmentCount: 0,
+      gapCount: 1,
+      segmentBreakCount: 0,
+    });
   });
 
   it("labels turning-point seasons by hemisphere", () => {
