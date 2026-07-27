@@ -147,7 +147,11 @@ export interface LandCoverContextSummary {
   provenance: LandCoverProvenance;
   coverage: LandCoverCoverage;
   classCoverage: LandCoverClassCoverage[];
-  /** Most common informative class by sample count; null for no known class. */
+  /** Whether the largest informative-class count is unique, tied, or absent. */
+  mostFrequentClassStatus: "unique" | "tied" | "no-data";
+  /** Every informative class sharing the largest sample count. */
+  mostFrequentClasses: LandCoverClassCoverage[];
+  /** Unique most frequent informative class; null for a tie or no known class. */
   dominantClass: LandCoverClassCoverage | null;
 }
 
@@ -219,8 +223,25 @@ export function summarizeLandCoverContext(
     })
     .sort((a, b) => b.sampleCount - a.sampleCount || a.classCode - b.classCode);
 
+  const informativeClassCoverage = classCoverage.filter(
+    (entry) => entry.isInformativeLandCover
+  );
+  const largestInformativeClassCount =
+    informativeClassCoverage[0]?.sampleCount ?? null;
+  const mostFrequentClasses =
+    largestInformativeClassCount === null
+      ? []
+      : informativeClassCoverage.filter(
+          (entry) => entry.sampleCount === largestInformativeClassCount
+        );
+  const mostFrequentClassStatus =
+    mostFrequentClasses.length === 0
+      ? "no-data"
+      : mostFrequentClasses.length === 1
+        ? "unique"
+        : "tied";
   const dominantClass =
-    classCoverage.find((entry) => entry.isInformativeLandCover) ?? null;
+    mostFrequentClassStatus === "unique" ? mostFrequentClasses[0] : null;
   const coverage: LandCoverCoverage = {
     status: knownLandCoverSampleCount > 0 ? "available" : "no-data",
     totalSampleCount,
@@ -256,6 +277,8 @@ export function summarizeLandCoverContext(
     },
     coverage,
     classCoverage,
+    mostFrequentClassStatus,
+    mostFrequentClasses,
     dominantClass,
   };
 }

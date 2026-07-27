@@ -64,6 +64,27 @@ describe("land-cover observation narratives", () => {
     );
   });
 
+  it("reports tied class frequencies without choosing a class-code winner", () => {
+    const narrative = describeLandCoverObservation(
+      summarizeLandCoverContext(
+        [
+          { classCode: 12, sampleCount: 3 },
+          { classCode: 4, sampleCount: 3 },
+          { classCode: 10, sampleCount: 1 },
+        ],
+        2024
+      )
+    );
+
+    expect(narrative.headline).toBe(
+      "Tied most frequent observed classes: Deciduous broadleaf forest, Cropland"
+    );
+    expect(narrative.detail).toBe(
+      "Deciduous broadleaf forest, Cropland each occurred in 3 of 7 counted selected-boundary samples (43% each). Known IGBP classes occurred in 7 of 7 counted samples (100%)."
+    );
+    expect(narrative.headline).not.toContain("dominant");
+  });
+
   it("does not present out-of-range or invalid annual records as published observations", () => {
     const outsideRange = describeLandCoverObservation(
       summarizeLandCoverContext([{ classCode: 12 }], 2025)
