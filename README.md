@@ -15,7 +15,7 @@
 
 **Roam a high-fidelity 3D Earth, scrub through decades of satellite imagery, and zoom into any region at 30-metre detail — all powered entirely by open data, free for anyone, anywhere.**
 
-<p align="center"><strong>🌐 Live: <a href="https://zkwizard.github.io/RoamingEye/">zkwizard.github.io/RoamingEye</a></strong> — no account, no install, no fee.</p>
+<p align="center"><strong>🌐 Live: <a href="https://roamingeye.org/">roamingeye.org</a></strong> — no account, no install, no fee.</p>
 
 <p align="center">
   <img src="docs/demo.gif" alt="Scrubbing two years of monthly NDVI composites on the RoamingEye globe" width="720" />
