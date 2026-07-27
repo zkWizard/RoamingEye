@@ -1,11 +1,40 @@
 import { describe, it, expect } from "vitest";
 import {
+  apportionBoundsPartWidths,
   regionAround,
   legalLonBounds,
   splitBoundsAtAntimeridian,
   gibsRegionUrl,
   studyDate,
 } from "./imagery";
+
+describe("apportionBoundsPartWidths", () => {
+  const part = (fraction: number) => ({
+    bounds: { south: -1, north: 1, west: -1, east: 1 },
+    fraction,
+  });
+
+  it("keeps a barely crossing antimeridian piece requestable", () => {
+    expect(
+      apportionBoundsPartWidths([part(0.9999), part(0.0001)], 1024)
+    ).toEqual([1023, 1]);
+  });
+
+  it("conserves the exact image width with deterministic ties", () => {
+    const widths = apportionBoundsPartWidths(
+      [part(1 / 3), part(1 / 3), part(1 / 3)],
+      8
+    );
+    expect(widths).toEqual([3, 3, 2]);
+    expect(widths.reduce((sum, width) => sum + width, 0)).toBe(8);
+  });
+
+  it("rejects widths that cannot represent every non-empty piece", () => {
+    expect(() => apportionBoundsPartWidths([part(0.5), part(0.5)], 1)).toThrow(
+      "invalid imagery width apportionment"
+    );
+  });
+});
 
 describe("regionAround", () => {
   it("centres a span on the point", () => {

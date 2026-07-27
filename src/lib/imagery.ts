@@ -78,6 +78,43 @@ export interface BoundsPart {
 }
 
 /**
+ * Allocate an exact pixel width across non-empty antimeridian pieces.
+ *
+ * Each piece receives at least one column. This matters when a bounds only
+ * barely crosses the seam: ordinary rounding can give the narrow piece zero
+ * columns, yielding an invalid WMS WIDTH=0 request and making the whole sample
+ * unavailable. Remaining columns use largest-remainder apportionment, with
+ * input order as the deterministic tie-break.
+ */
+export function apportionBoundsPartWidths(
+  parts: readonly BoundsPart[],
+  totalWidth: number
+): number[] {
+  if (
+    !Number.isInteger(totalWidth) ||
+    totalWidth < parts.length ||
+    parts.some((part) => !Number.isFinite(part.fraction) || part.fraction <= 0)
+  ) {
+    throw new Error("RoamingEye: invalid imagery width apportionment");
+  }
+  if (parts.length === 0) return [];
+
+  const fractionTotal = parts.reduce((sum, part) => sum + part.fraction, 0);
+  const distributable = totalWidth - parts.length;
+  const quotas = parts.map(
+    (part) => (distributable * part.fraction) / fractionTotal
+  );
+  const widths = quotas.map((quota) => 1 + Math.floor(quota));
+  const remaining =
+    totalWidth - widths.reduce((sum, partWidth) => sum + partWidth, 0);
+  const order = quotas
+    .map((quota, index) => ({ index, remainder: quota - Math.floor(quota) }))
+    .sort((a, b) => b.remainder - a.remainder || a.index - b.index);
+  for (let i = 0; i < remaining; i++) widths[order[i].index]++;
+  return widths;
+}
+
+/**
  * Split a continuous-longitude box at the ±180° seam into legal WMS pieces.
  * RFC 7946 §3.1.9 canonized splitting at the antimeridian for geometry; this
  * is the imagery equivalent: each piece is a legal GetMap BBOX, pieces are
