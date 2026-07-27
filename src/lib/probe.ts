@@ -257,24 +257,49 @@ export function regionGridSize(
   return Math.min(max, Math.max(min, Math.ceil(span / degPerCell)));
 }
 
+/**
+ * Independent row/column counts for a rectangular sampling grid.
+ *
+ * A single square size wastes reads on long, narrow regions. Sizing each
+ * geographic axis independently preserves the same coverage target and
+ * bounds while avoiding redundant samples along the short axis.
+ */
+export function regionGridDimensions(
+  bounds: Bounds,
+  degPerCell = 0.25,
+  min = 8,
+  max = 28
+): { rows: number; columns: number } {
+  const size = (span: number): number =>
+    Math.min(max, Math.max(min, Math.ceil(span / degPerCell)));
+  return {
+    rows: size(bounds.north - bounds.south),
+    columns: size(bounds.east - bounds.west),
+  };
+}
+
 // --- Area sampling grid ---------------------------------------------------------
 
 /**
- * Cell-center grid of n×n lat/lon points inside a bounding box — the sample
- * layout for area (region-mean) probing. Cell centers, not corners, so all
- * points are strictly inside the box. Longitudes are emitted normalized to
- * [-180, 180), so a box in continuous longitudes (crossing the antimeridian,
- * `east > 180`) samples the correct pixels on both sides of the seam.
+ * Cell-center grid of rows × columns lat/lon points inside a bounding box —
+ * the sample layout for area (region-mean) probing. Omitting `columns` keeps
+ * square-grid behavior. Cell centers, not corners, keep every point strictly
+ * inside the box. Longitudes are emitted normalized to [-180, 180), so a box
+ * in continuous longitudes (crossing the antimeridian, `east > 180`) samples
+ * the correct pixels on both sides of the seam.
  */
 export function gridPoints(
   bounds: Bounds,
-  n: number
+  rows: number,
+  columns = rows
 ): { lat: number; lon: number }[] {
   const points: { lat: number; lon: number }[] = [];
-  for (let i = 0; i < n; i++) {
-    const lat = bounds.south + ((i + 0.5) / n) * (bounds.north - bounds.south);
-    for (let j = 0; j < n; j++) {
-      const lon = bounds.west + ((j + 0.5) / n) * (bounds.east - bounds.west);
+  for (let i = 0; i < rows; i++) {
+    const lat =
+      bounds.south + ((i + 0.5) / rows) * (bounds.north - bounds.south);
+    for (let j = 0; j < columns; j++) {
+      const lon =
+        bounds.west + ((j + 0.5) / columns) * (bounds.east - bounds.west);
       points.push({ lat, lon: normalizeLon(lon) });
     }
   }

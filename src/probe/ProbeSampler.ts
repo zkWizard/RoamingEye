@@ -15,6 +15,7 @@ import {
   normalizeLon,
   weightedMeanValid,
   gridPoints,
+  regionGridDimensions,
   regionGridSize,
   type Rgb,
 } from "../lib/probe";
@@ -163,10 +164,11 @@ export class ProbeSampler {
     bounds: Bounds,
     options: Omit<SampleOptions, "mode"> = {}
   ): Promise<SampleResult> {
+    const { rows, columns } = regionGridDimensions(bounds);
     return this.run(
       layer,
       months,
-      this.dedupedPixels(gridPoints(bounds, regionGridSize(bounds))),
+      this.dedupedPixels(gridPoints(bounds, rows, columns)),
       (inversions, weights) => weightedMeanValid(inversions, weights),
       this.legendInverter(layer),
       options
