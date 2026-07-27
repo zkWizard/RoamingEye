@@ -102,6 +102,77 @@ describe("geometryToRings", () => {
     expect(geometryGridPoints(geometry, 5)).toHaveLength(24);
   });
 
+  it("classifies every outer edge consistently regardless of ring direction", () => {
+    const clockwise = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [0, 0],
+          [0, 10],
+          [10, 10],
+          [10, 0],
+          [0, 0],
+        ],
+      ],
+    };
+    const counterclockwise = {
+      type: "Polygon",
+      coordinates: [[...clockwise.coordinates[0]].reverse()],
+    };
+    const edgePoints = [
+      { lat: 0, lon: 5 },
+      { lat: 5, lon: 10 },
+      { lat: 10, lon: 5 },
+      { lat: 5, lon: 0 },
+      { lat: 0, lon: 0 },
+    ];
+    for (const point of edgePoints) {
+      expect(geometryContains(clockwise, point.lat, point.lon)).toBe(true);
+      expect(geometryContains(counterclockwise, point.lat, point.lon)).toBe(
+        true
+      );
+    }
+  });
+
+  it("excludes hole edges consistently regardless of ring direction", () => {
+    const geometry = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [0, 0],
+          [10, 0],
+          [10, 10],
+          [0, 10],
+          [0, 0],
+        ],
+        [
+          [4, 4],
+          [6, 4],
+          [6, 6],
+          [4, 6],
+          [4, 4],
+        ],
+      ],
+    };
+    const reversedHole = {
+      ...geometry,
+      coordinates: [
+        geometry.coordinates[0],
+        [...geometry.coordinates[1]].reverse(),
+      ],
+    };
+    for (const point of [
+      { lat: 4, lon: 5 },
+      { lat: 5, lon: 6 },
+      { lat: 6, lon: 5 },
+      { lat: 5, lon: 4 },
+      { lat: 4, lon: 4 },
+    ]) {
+      expect(geometryContains(geometry, point.lat, point.lon)).toBe(false);
+      expect(geometryContains(reversedHole, point.lat, point.lon)).toBe(false);
+    }
+  });
+
   it("recognizes multipolygons as sampleable areas", () => {
     const geometry = {
       type: "MultiPolygon",
@@ -151,6 +222,25 @@ describe("geometryToRings", () => {
     expect(geometryContains(geometry, 0, 179.5)).toBe(true);
     expect(geometryContains(geometry, 0, -179.5)).toBe(true);
     expect(geometryContains(geometry, 0, 0)).toBe(false);
+  });
+
+  it("classifies both antimeridian boundary meridians consistently", () => {
+    const geometry = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [179, -1],
+          [-179, -1],
+          [-179, 1],
+          [179, 1],
+          [179, -1],
+        ],
+      ],
+    };
+    expect(geometryContains(geometry, 0, 179)).toBe(true);
+    expect(geometryContains(geometry, 0, -179)).toBe(true);
+    expect(geometryContains(geometry, -1, 180)).toBe(true);
+    expect(geometryContains(geometry, 1, -180)).toBe(true);
   });
 
   it("keeps antimeridian grid points in the continuous short-arc frame", () => {

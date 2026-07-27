@@ -200,6 +200,42 @@ function pointInRing(lon: number, lat: number, ring: Position[]): boolean {
   return inside;
 }
 
+/**
+ * Whether a point lies on a ring segment. The tolerance only absorbs
+ * floating-point roundoff in the collinearity calculation; it does not add a
+ * geographic buffer around the boundary.
+ */
+function pointOnRing(lon: number, lat: number, ring: Position[]): boolean {
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    const segmentLon = xj - xi;
+    const segmentLat = yj - yi;
+    const pointLon = lon - xi;
+    const pointLat = lat - yi;
+    const lengthSquared = segmentLon * segmentLon + segmentLat * segmentLat;
+    // Closed GeoJSON rings repeat their first vertex. Do not treat that
+    // zero-length closing segment as collinear with every possible point.
+    if (lengthSquared === 0) {
+      if (lon === xi && lat === yi) return true;
+      continue;
+    }
+    const cross = pointLon * segmentLat - pointLat * segmentLon;
+    const crossTolerance =
+      Number.EPSILON *
+      16 *
+      (Math.abs(pointLon * segmentLat) + Math.abs(pointLat * segmentLon) + 1);
+    if (Math.abs(cross) > crossTolerance) continue;
+
+    const dot = pointLon * segmentLon + pointLat * segmentLat;
+    const dotTolerance =
+      Number.EPSILON * 16 * (Math.abs(dot) + Math.abs(lengthSquared) + 1);
+    if (dot >= -dotTolerance && dot <= lengthSquared + dotTolerance)
+      return true;
+  }
+  return false;
+}
+
 /** Test whether a longitude/latitude point falls inside a polygon or multipolygon. */
 export function geometryContains(
   geometry: GeoGeometry,
@@ -210,8 +246,12 @@ export function geometryContains(
     const reference = averageLon(outer);
     const framedLon = lonInFrame(lon, reference);
     return (
-      pointInRing(framedLon, lat, outer) &&
-      !holes.some((hole) => pointInRing(framedLon, lat, hole))
+      (pointOnRing(framedLon, lat, outer) ||
+        pointInRing(framedLon, lat, outer)) &&
+      !holes.some(
+        (hole) =>
+          pointOnRing(framedLon, lat, hole) || pointInRing(framedLon, lat, hole)
+      )
     );
   });
 }
