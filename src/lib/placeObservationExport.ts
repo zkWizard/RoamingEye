@@ -1,4 +1,4 @@
-import { isAreaGeometry, type GeoGeometry } from "./geojson";
+import type { GeoGeometry, Position } from "./geojson";
 import {
   LAYERS,
   type DatasetRef,
@@ -247,9 +247,9 @@ export function placeObservationProductFromSample(
 }
 
 function validateInput(input: PlaceObservationExportInput): void {
-  if (!isAreaGeometry(input.boundary)) {
+  if (!isValidExportBoundary(input.boundary)) {
     throw new Error(
-      "A Polygon or MultiPolygon boundary is required for export."
+      "A valid, closed Polygon or MultiPolygon boundary is required for export."
     );
   }
   if (!isIsoTimestamp(input.generatedIso)) {
@@ -313,6 +313,58 @@ function validateInput(input: PlaceObservationExportInput): void {
       }
     }
   }
+}
+
+/**
+ * Validate the exact geography written to the reproducibility record.
+ * Export must fail closed: a type label alone cannot make malformed,
+ * out-of-range, or degenerate coordinates a defensible sampled boundary.
+ */
+function isValidExportBoundary(geometry: GeoGeometry): boolean {
+  const polygons =
+    geometry.type === "Polygon"
+      ? [geometry.coordinates]
+      : geometry.type === "MultiPolygon"
+        ? geometry.coordinates
+        : null;
+  if (!Array.isArray(polygons) || polygons.length === 0) return false;
+
+  return polygons.every(
+    (polygon) =>
+      Array.isArray(polygon) &&
+      polygon.length > 0 &&
+      polygon.every((ring) => isValidLinearRing(ring) && ringHasArea(ring))
+  );
+}
+
+function isValidLinearRing(value: unknown): value is Position[] {
+  if (!Array.isArray(value) || value.length < 4) return false;
+  if (!value.every(isValidPosition)) return false;
+  const first = value[0];
+  const last = value[value.length - 1];
+  return first[0] === last[0] && first[1] === last[1];
+}
+
+function isValidPosition(value: unknown): value is Position {
+  return (
+    Array.isArray(value) &&
+    value.length === 2 &&
+    Number.isFinite(value[0]) &&
+    Number.isFinite(value[1]) &&
+    value[0] >= -180 &&
+    value[0] <= 180 &&
+    value[1] >= -90 &&
+    value[1] <= 90
+  );
+}
+
+function ringHasArea(ring: Position[]): boolean {
+  let twiceArea = 0;
+  for (let index = 0; index + 1 < ring.length; index++) {
+    twiceArea +=
+      ring[index][0] * ring[index + 1][1] - ring[index + 1][0] * ring[index][1];
+  }
+  return Number.isFinite(twiceArea) && Math.abs(twiceArea) > Number.EPSILON;
 }
 
 function exportProducts(

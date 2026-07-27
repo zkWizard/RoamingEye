@@ -232,6 +232,56 @@ describe("place observation export", () => {
     ).toThrow("Product ndvi has a value with zero sampled coverage.");
   });
 
+  it("fails closed when exported geography is malformed or not an area", () => {
+    const invalidBoundaries = [
+      {
+        type: "Polygon",
+        coordinates: [
+          [
+            [-77.1, 38.8],
+            [-76.9, 38.8],
+            [-76.9, 39],
+            [-77.1, 39],
+          ],
+        ],
+      },
+      {
+        type: "Polygon",
+        coordinates: [
+          [
+            [-77.1, 38.8],
+            [181, 38.8],
+            [-76.9, 39],
+            [-77.1, 38.8],
+          ],
+        ],
+      },
+      {
+        type: "Polygon",
+        coordinates: [
+          [
+            [-77, 38.8],
+            [-77, 38.9],
+            [-77, 39],
+            [-77, 38.8],
+          ],
+        ],
+      },
+      { type: "MultiPolygon", coordinates: [] },
+    ];
+
+    for (const invalidBoundary of invalidBoundaries) {
+      expect(() =>
+        createPlaceObservationExport({
+          ...input,
+          boundary: invalidBoundary,
+        })
+      ).toThrow(
+        "A valid, closed Polygon or MultiPolygon boundary is required for export."
+      );
+    }
+  });
+
   it("reverses display conversions before exporting cited native units", () => {
     const precipitation = placeObservationProductFromSample({
       layerId: "precip",
