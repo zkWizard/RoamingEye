@@ -78,7 +78,7 @@ describe("eruptionClass", () => {
     expect(eruptionClass(1899)).toBe("historic");
     expect(eruptionClass(79)).toBe("historic"); // Vesuvius
     expect(eruptionClass(1)).toBe("historic");
-    expect(eruptionClass(0)).toBe("holocene");
+    expect(eruptionClass(0)).toBe("historic");
     expect(eruptionClass(-4360)).toBe("holocene"); // BCE eruptions
     expect(eruptionClass(null)).toBe("holocene");
   });
@@ -127,6 +127,10 @@ describe("lastEruptionLabel", () => {
     expect(lastEruptionLabel(-6850)).toBe("last erupted 6850 BCE");
   });
 
+  it("preserves GVP's source year zero without converting it to BCE", () => {
+    expect(lastEruptionLabel(0)).toBe("last erupted 0 CE (GVP source year)");
+  });
+
   it("is honest about undated volcanoes", () => {
     expect(lastEruptionLabel(null)).toBe("Holocene evidence only");
   });
@@ -144,5 +148,15 @@ describe("volcanoHoverLabel", () => {
       volcano({ type: null, lastEruptionYear: null }),
     ])[0];
     expect(volcanoHoverLabel(v)).toBe("Etna · Holocene evidence only");
+  });
+
+  it("shows the GVP source-year convention for the shipped year-zero record", () => {
+    const v = parseVolcanoList([
+      volcano({ name: "Arxan-Chaihe", lastEruptionYear: 0 }),
+    ])[0];
+    expect(volcanoHoverLabel(v)).toContain(
+      "last erupted 0 CE (GVP source year)"
+    );
+    expect(volcanoHoverLabel(v)).not.toContain("0 BCE");
   });
 });

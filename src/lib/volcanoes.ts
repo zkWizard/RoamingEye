@@ -23,15 +23,17 @@ export interface Volcano {
 /**
  * Activity recency classes, used to color markers:
  *  - "recent": erupted in the satellite/instrumental era (since 1900).
- *  - "historic": eruption known from the written record (1 CE – 1899).
- *  - "holocene": Holocene evidence only — no dated eruption since 1 CE.
+ *  - "historic": eruption dated by GVP from 0 CE through 1899.
+ *  - "holocene": Holocene evidence only — no dated eruption since 0 CE.
  */
 export type EruptionClass = "recent" | "historic" | "holocene";
 
 export function eruptionClass(lastEruptionYear: number | null): EruptionClass {
   if (lastEruptionYear === null) return "holocene";
   if (lastEruptionYear >= 1900) return "recent";
-  if (lastEruptionYear >= 1) return "historic";
+  // GVP reports Arxan-Chaihe with the source convention "0 CE". Preserve that
+  // dated record in the historic class instead of treating it as undated.
+  if (lastEruptionYear >= 0) return "historic";
   return "holocene";
 }
 
@@ -52,6 +54,9 @@ export const ERUPTION_CLASS_COLORS: Record<EruptionClass, string> = {
  */
 export function lastEruptionLabel(lastEruptionYear: number | null): string {
   if (lastEruptionYear === null) return "Holocene evidence only";
+  // Civil calendars have no year zero, but GVP explicitly publishes this
+  // value for Arxan-Chaihe. State the source convention without converting it.
+  if (lastEruptionYear === 0) return "last erupted 0 CE (GVP source year)";
   if (lastEruptionYear >= 1) return `last erupted ${lastEruptionYear}`;
   return `last erupted ${Math.abs(lastEruptionYear)} BCE`;
 }
