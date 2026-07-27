@@ -18,4 +18,6 @@ Date:    <YYYY-MM-DD>
 **Nothing here is ever sent automatically.** These are drafts for zkWizard to review
 and personally post. When you send one, flip its `Status` to `SENT`.
 
-_(No drafts yet — the pipeline in `../TARGETS.md` is the source for the next draft.)_
+## Drafts
+
+- `pangeo-showcase-roamingeye.md` — Pangeo Discourse (_Pangeo Showcase_ category). **DRAFT.**
