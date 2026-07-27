@@ -35,6 +35,8 @@ describe("annual NDVI phenology summaries", () => {
         validMonthCount: 6,
         missingMonthCount: 0,
         invalidRecordCount: 0,
+        validFractionReportedCount: 6,
+        validFractionUnavailableCount: 0,
         minimumValidFraction: 0.6,
         isSparse: false,
       },
@@ -80,9 +82,34 @@ describe("annual NDVI phenology summaries", () => {
         validMonthCount: 3,
         missingMonthCount: 1,
         invalidRecordCount: 2,
+        validFractionReportedCount: 2,
+        validFractionUnavailableCount: 1,
         minimumValidFraction: 0.7,
         isSparse: true,
       },
     });
+  });
+
+  it("preserves unavailable spatial coverage instead of assuming complete coverage", () => {
+    const [summary] = summarizeAnnualNdviPhenology(
+      [1, 2, 3, 4, 5, 6].map((month) => ({
+        month: { year: 2025, month },
+        ndvi: 0.2 + month / 100,
+      })),
+      48.8
+    );
+
+    expect(summary.coverage).toEqual({
+      validMonthCount: 6,
+      missingMonthCount: 0,
+      invalidRecordCount: 0,
+      validFractionReportedCount: 0,
+      validFractionUnavailableCount: 6,
+      minimumValidFraction: null,
+      isSparse: false,
+    });
+    expect(summary.peak?.month).toEqual({ year: 2025, month: 6 });
+    expect(summary.source).toBe(NDVI_SOURCE);
+    expect(summary.unit).toBe(NDVI_UNIT);
   });
 });

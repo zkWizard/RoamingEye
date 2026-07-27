@@ -146,6 +146,8 @@ describe("NDVI trough greenness timing", () => {
         validMonthCount: 2,
         missingMonthCount: 0,
         invalidRecordCount: 0,
+        validFractionReportedCount: 2,
+        validFractionUnavailableCount: 0,
         minimumValidFraction: 0.9,
         isSparse: true,
       },
