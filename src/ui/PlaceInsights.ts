@@ -8,7 +8,10 @@ import {
   type MarinePlaceInsightReading,
 } from "../lib/marinePlaceInsight";
 import { GVP_VOLCANO_SOURCE } from "../lib/volcanoContext";
-import type { VolcanoExtentContext } from "../lib/volcanoExtent";
+import {
+  volcanoCoordinateLabel,
+  type VolcanoExtentContext,
+} from "../lib/volcanoExtent";
 import { ICONS } from "./icons";
 
 interface MetricElements {
@@ -207,6 +210,7 @@ export class PlaceInsights {
       const item = document.createElement("li");
       const details = [
         record.country,
+        volcanoCoordinateLabel(record),
         record.primaryType ?? "primary type not supplied",
         record.elevationMeters === null
           ? "elevation not supplied"

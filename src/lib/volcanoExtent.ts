@@ -16,6 +16,8 @@ export type SearchBoundingBox = readonly [
 
 export interface VolcanoExtentRecord {
   name: string;
+  latitudeDegrees: number;
+  longitudeDegrees: number;
   country: string | null;
   primaryType: string | null;
   elevationMeters: number | null;
@@ -78,6 +80,21 @@ export function volcanoesInSearchExtent(
   );
 }
 
+/**
+ * Format a record's source coordinates for the place workflow. Coordinates
+ * remain decimal degrees and retain hemisphere explicitly; this is a display
+ * label, not a claim about positional accuracy.
+ */
+export function volcanoCoordinateLabel(
+  record: Pick<VolcanoExtentRecord, "latitudeDegrees" | "longitudeDegrees">
+): string {
+  return `${coordinatePart(record.latitudeDegrees, "N", "S")}, ${coordinatePart(
+    record.longitudeDegrees,
+    "E",
+    "W"
+  )}`;
+}
+
 function contextFor(
   records: VolcanoExtentRecord[],
   suppliedRecordCount: number,
@@ -127,9 +144,20 @@ function longitudeInBounds(lon: number, west: number, east: number): boolean {
 function toExtentRecord(volcano: Volcano): VolcanoExtentRecord {
   return {
     name: volcano.name,
+    latitudeDegrees: volcano.lat,
+    longitudeDegrees: volcano.lon,
     country: volcano.country,
     primaryType: volcano.type,
     elevationMeters: volcano.elevation,
     lastEruptionText: lastEruptionLabel(volcano.lastEruptionYear),
   };
+}
+
+function coordinatePart(
+  value: number,
+  positiveHemisphere: string,
+  negativeHemisphere: string
+): string {
+  const hemisphere = value < 0 ? negativeHemisphere : positiveHemisphere;
+  return `${Math.abs(value).toFixed(2)}° ${hemisphere}`;
 }
