@@ -306,6 +306,79 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
 
 ---
 
+## Complementary open-tool maintainers (contributor outreach)
+
+The people most likely to contribute usefully to RoamingEye are maintainers and users of
+tools that sit **next to** it in a workflow — Python/notebook analysis stacks that start
+where a browser globe stops. This is outreach to _people_, not a venue post, so the bar is
+different: lead with something genuinely useful to them, keep the ask small enough for a
+volunteer, and never cold-email an individual — post to the project's own public board and
+address the project.
+
+### leafmap (opengeos/leafmap) — drafted
+
+- **URL:** https://github.com/opengeos/leafmap (docs: https://leafmap.org)
+- **Audience & size:** ~3.7k stars, MIT, **actively developed** (last push 2026-07-27,
+  verified via GitHub API). A Python package for interactive mapping and geospatial
+  analysis in Jupyter with minimal coding; JOSS-published, maintained under the
+  Open Geospatial Solutions (`opengeos`) org alongside geemap and segment-geospatial.
+- **Why RoamingEye fits:** the strongest complementarity in the pipeline, and it is
+  genuine rather than rhetorical. RoamingEye's own statement of need positions it as the
+  reconnaissance step **before** you pull L3 granules; leafmap is where that pull happens.
+  Same audience (researchers, educators, students), same licence (MIT), same
+  no-friction-for-newcomers value. Crucially they do **not** compete — leafmap is
+  Python/Jupyter, RoamingEye is browser/no-install, and RoamingEye sends traffic _toward_
+  notebook work rather than away from it.
+- **The concrete seam:** the probe's CSV header already carries `lat`, `lon`,
+  `data_product` (short name + version), `data_doi`, the date range, and an explicit
+  uncertainty line (`src/lib/probe.ts`). That is very nearly the argument list for a
+  leafmap starter snippet — so a "copy as Python" action at the export is a small, real
+  feature, not a pretext.
+- **Posting rules / compliant path:** `docs/contributing.md` routes bug reports and
+  feature requests to the **issue tracker** and asks proposals to "explain in detail how
+  it would work" and "keep the scope as narrow as possible," noting it is volunteer-driven.
+  Code of Conduct is the Contributor Covenant. No explicit self-promotion ban. Discussions
+  are enabled with categories General / Ideas / Polls / Q&A / **Show and tell**.
+  **Compliant path chosen: Discussions → "Ideas."** Not an issue, because the work being
+  proposed lives in _our_ repo and an unsolicited external proposal shouldn't consume a
+  volunteer's triage queue; if a maintainer wants it tracked, a discussion converts to a
+  narrow issue on request. **Not "Show and tell"** — that category is for things built
+  _with_ leafmap, which RoamingEye is not; posting there would be drive-by promotion.
+- **Best angle:** ask, don't pitch. The post asks which leafmap entry points are stable
+  enough to generate code against, so the snippet we ship is idiomatic and doesn't age
+  badly — an implicit compliment, zero maintenance burden for them, and all the work on
+  our side. The contributor invitation rides along at the end (flagship #170, real GIBS
+  colormap inversion) rather than leading.
+- **Status:** drafted → `outbox/leafmap-interop-invitation.md` (awaiting zkWizard review &
+  post; ⛔ also gated on the HTTPS block)
+
+### stackstac (gjoseph92/stackstac) — declined, dormant
+
+- **URL:** https://github.com/gjoseph92/stackstac
+- **Why it was considered:** "turn a STAC catalog into a dask-based xarray" is squarely the
+  next step after visual reconnaissance, and it was listed as a candidate in earlier rounds.
+- **Why declined:** **the project has not been pushed to since 2024-08-10** — nearly two
+  years dormant as of 2026-07-27 (verified via GitHub API; 269 stars, MIT, not archived).
+  Approaching a single-maintainer project that has gone quiet asks for time its maintainer
+  has evidently not had. There is no version of this outreach that is useful to them.
+- **Re-open only if:** the repo shows renewed commit activity, or maintenance moves to a
+  new owner. Re-check the `pushed_at` date before reconsidering — that one API call is the
+  whole test.
+
+### TiTiler (developmentseed/titiler) — researched, not a contributor target
+
+- **URL:** https://github.com/developmentseed/titiler
+- **State:** active (last push 2026-07-27), ~1.1k stars, MIT, maintained by Development Seed.
+- **Why not outreach:** it is a **server-side** dynamic raster tile service, and RoamingEye
+  is deliberately a static, no-backend site — so there is no shared user journey to offer,
+  and a company-maintained project is not a plausible source of volunteer contributors to a
+  29-day-old globe. Logged so a future run doesn't re-research it.
+- **Where it _is_ relevant:** as a possible future **dependency**, not a comms target — if
+  RoamingEye ever needs to serve derived or user-supplied rasters, this is the reference
+  implementation. That would be an engineering decision, not a comms one.
+
+---
+
 ## Vetted & set aside (do not re-pursue without a new angle)
 
 ### Project Pythia Resource Gallery — declined (off-scope)
@@ -361,15 +434,19 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
   the canonical domain. Apply together with the description above:
   > `gh repo edit zkWizard/RoamingEye --homepage "https://roamingeye.org/"`
 - Candidate venues still to research (do NOT add until rules are read): university
-  remote-sensing course networks, and complementary open-tool maintainers (STAC /
-  stackstac / leafmap / TiTiler) as potential contributors — the latter is Duty 3
-  (contributor outreach), which has not been attempted yet and is the clearest gap in this
-  pipeline. r/dataisbeautiful is parked with the other Reddit entries until the Reddit
-  rules blocker above is cleared by zkWizard.
-  _Researched this round:_ **JOSS** (declined-for-now with a dated 2026-12-29 revisit) and
-  the **NASA Earthdata Forum** (participation-only, no announcement). Prior rounds: three.js
-  Showcase (drafted), OSGeo Discourse (participation-first), Mastodon/fediverse
-  (value-first), Project Pythia (declined).
+  remote-sensing course networks. **Duty 3 (contributor outreach) is no longer the open
+  gap** — the complementary-open-tool track was researched on 2026-07-27 and now has its
+  own section above: leafmap **drafted**, stackstac **declined** (dormant since 2024-08-10),
+  TiTiler **not a contributor target** (server-side; possible future dependency). The
+  remaining untouched contributor source is RoamingEye's own stargazers/forkers — currently
+  1 star and 0 forks, so there is nobody to invite until something has actually been sent.
+  r/dataisbeautiful is parked with the other Reddit entries until the Reddit rules blocker
+  above is cleared by zkWizard.
+  _Researched most recently:_ **leafmap** (drafted), **stackstac** (declined — dormant),
+  **TiTiler** (not a contributor target). Before that: **JOSS** (declined-for-now with a
+  dated 2026-12-29 revisit) and the **NASA Earthdata Forum** (participation-only, no
+  announcement). Prior rounds: three.js Showcase (drafted), OSGeo Discourse
+  (participation-first), Mastodon/fediverse (value-first), Project Pythia (declined).
 - **Venue maturity gate — worth knowing across the pipeline:** this repository is only
   **29 days old** (first commit 2026-06-28). Venues that gate on project maturity — JOSS
   (6 months), some awesome-lists' quality bars, and OSGeo Community Projects — will judge

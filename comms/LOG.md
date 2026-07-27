@@ -157,3 +157,40 @@ researched` lines and a to-research list this branch has since consumed into rea
   land a researcher on a certificate warning. Added a ⛔ send gate at the top of
   `outbox/README.md` (measurements + the two commands that clear it) and a pipeline-level
   block note in TARGETS. Drafts themselves are unchanged — their URL is already correct.
+- 2026-07-27 — **Closed the pipeline's last untouched duty: contributor outreach (Duty 3).**
+  TARGETS itself named this "the clearest gap" — every one of the six drafts targets a
+  _venue_; none had ever approached a _person_. Picked it over drafting a seventh venue post
+  (supply isn't the constraint — nothing has been sent) and over onboarding polish (the
+  good-first-issue queue #373/#374/#375 is still open, so refilling it would be wrong).
+  Researched the four candidates the notes had parked, checking each against the GitHub API
+  rather than assuming: **leafmap** (`opengeos`, 3.7k★, MIT, pushed 2026-07-27 — alive),
+  **stackstac** (269★ but **not pushed since 2024-08-10**, ~2 years dormant), **TiTiler**
+  (active, but server-side and company-maintained), **stac-spec** (a specification, not a
+  contributor pool). Two declines recorded with the evidence that produced them, so no future
+  run re-researches them: stackstac is dormant and approaching a quiet single-maintainer
+  project asks for time they evidently don't have; TiTiler has no shared user journey with a
+  deliberately backend-less static site, though it's a plausible future _dependency_.
+  Drafted the leafmap approach (`outbox/leafmap-interop-invitation.md`). Read
+  `docs/contributing.md` first: it routes feature requests to the **issue tracker** and asks
+  for narrow scope on a volunteer-driven project. Chose **Discussions → "Ideas"** anyway and
+  said why in the draft — the proposed work lives in _our_ repo, and an unsolicited external
+  proposal shouldn't consume a volunteer's triage queue; a discussion converts to an issue on
+  request. Explicitly ruled out **"Show and tell"**, which is for things built _with_ leafmap
+  (RoamingEye isn't) and would read as drive-by promotion. The post asks rather than pitches:
+  which leafmap entry points are stable enough to generate code against, so a "copy as Python"
+  action at the probe export emits idiomatic code that won't age badly. That seam is real, not
+  a pretext — the CSV header already carries `lat`, `lon`, `data_product`, `data_doi` and the
+  date range (`src/lib/probe.ts`), which is nearly the argument list for a starter snippet. All
+  the work stays on our side; the contributor invitation (flagship #170, real GIBS colormap
+  inversion) rides at the end rather than leading. Added send notes warning that the offer must
+  be genuine, that no individual maintainer should be @-mentioned or emailed, and that silence
+  is an answer — no follow-up bump.
+  **Signals (now including traffic, which prior runs hadn't pulled): 1 star, 0 forks, 0 external
+  watchers, zero outside-authored issues — and 43 views / 10 unique visitors in 14 days.** Set
+  against 11,941 clones from 503 uniques, which is our own CI, not people. Ten human visitors a
+  fortnight is the honest size of the top of this funnel, and it will not move until something
+  is sent. **The ⛔ HTTPS send gate is unchanged and re-measured today:** `https_certificate:
+null`, `https_enforced: false`, `https://roamingeye.org/` still fails TLS, and
+  `zkwizard.github.io/RoamingEye/` still `301`s to plain `http://`. Seven drafts now wait on one
+  maintainer action. Also still pending for zkWizard: the empty repo **description** and the
+  stale **homepage** field (`gh repo edit` commands in TARGETS Notes).
