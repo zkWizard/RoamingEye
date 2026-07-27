@@ -129,6 +129,71 @@ describe("geometryToRings", () => {
     expect(geometryContains(geometry, 2, 2)).toBe(false);
   });
 
+  it.each([
+    ["null coordinates", null],
+    ["a non-array coordinate object", { lon: 0, lat: 0 }],
+    [
+      "an unclosed ring",
+      [
+        [
+          [0, 0],
+          [1, 0],
+          [1, 1],
+          [0, 1],
+        ],
+      ],
+    ],
+    [
+      "a non-finite coordinate",
+      [
+        [
+          [0, 0],
+          [1, 0],
+          [1, Number.NaN],
+          [0, 0],
+        ],
+      ],
+    ],
+    [
+      "an out-of-range latitude",
+      [
+        [
+          [0, 0],
+          [1, 0],
+          [1, 91],
+          [0, 0],
+        ],
+      ],
+    ],
+  ])("withholds malformed Polygon area sampling for %s", (_, coordinates) => {
+    const geometry = { type: "Polygon", coordinates };
+    expect(isAreaGeometry(geometry)).toBe(false);
+    expect(geometryBounds(geometry)).toBeNull();
+    expect(geometryContains(geometry, 0.5, 0.5)).toBe(false);
+    expect(geometryGridPoints(geometry, 4)).toEqual([]);
+    expect(geometrySamplingPlan(geometry, 4)).toBeNull();
+  });
+
+  it("rejects a MultiPolygon atomically when any polygon is malformed", () => {
+    const geometry = {
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [0, 0],
+            [1, 0],
+            [1, 1],
+            [0, 0],
+          ],
+        ],
+        null,
+      ],
+    };
+    expect(isAreaGeometry(geometry)).toBe(false);
+    expect(geometryBounds(geometry)).toBeNull();
+    expect(geometrySamplingPlan(geometry, 4)).toBeNull();
+  });
+
   it("bounds and contains a polygon over the antimeridian on the short arc", () => {
     const geometry = {
       type: "Polygon",

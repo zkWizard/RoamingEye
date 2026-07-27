@@ -72,15 +72,47 @@ interface PreparedPolygon {
   holes: Position[][];
 }
 
+function validPosition(value: unknown): value is Position {
+  return (
+    Array.isArray(value) &&
+    value.length >= 2 &&
+    typeof value[0] === "number" &&
+    Number.isFinite(value[0]) &&
+    value[0] >= -180 &&
+    value[0] <= 180 &&
+    typeof value[1] === "number" &&
+    Number.isFinite(value[1]) &&
+    value[1] >= -90 &&
+    value[1] <= 90
+  );
+}
+
+function validLinearRing(value: unknown): value is Position[] {
+  if (!Array.isArray(value) || value.length < 4) return false;
+  if (!value.every(validPosition)) return false;
+  const first = value[0];
+  const last = value[value.length - 1];
+  return first[0] === last[0] && first[1] === last[1];
+}
+
+function validPolygon(value: unknown): value is Polygon {
+  return (
+    Array.isArray(value) && value.length > 0 && value.every(validLinearRing)
+  );
+}
+
 function areaPolygons(geometry: GeoGeometry): Polygon[] {
   if (geometry.type === "Polygon") {
-    const polygon = geometry.coordinates as Polygon;
-    return polygon.length > 0 ? [polygon] : [];
+    return validPolygon(geometry.coordinates) ? [geometry.coordinates] : [];
   }
   if (geometry.type === "MultiPolygon") {
-    return (geometry.coordinates as Polygon[]).filter(
-      (polygon) => polygon.length > 0
-    );
+    if (
+      !Array.isArray(geometry.coordinates) ||
+      !geometry.coordinates.every(validPolygon)
+    ) {
+      return [];
+    }
+    return geometry.coordinates;
   }
   return [];
 }
