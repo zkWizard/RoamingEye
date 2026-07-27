@@ -22,3 +22,5 @@ and personally post. When you send one, flip its `Status` to `SENT`.
 
 - `pangeo-showcase-roamingeye.md` — Pangeo Discourse (_Pangeo Showcase_ category). **DRAFT.**
 - `hacker-news-show-hn.md` — Hacker News (_Show HN_), title + first comment. **DRAFT.**
+- `awesome-open-geoscience-pr.md` — Awesome Open Geoscience (SWUNG), ready-to-submit PR entry + body. **DRAFT.**
+- `awesome-earthobservation-code-pr.md` — Awesome Earth Observation Code, ready-to-submit PR entry + body. **DRAFT.**

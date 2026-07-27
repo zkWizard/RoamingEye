@@ -90,7 +90,7 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
   criteria.
 - **Best angle:** one honest line — "RoamingEye — browser-based, provenance-first 3D
   globe for scrubbing decades of open NASA/HLS imagery, MIT."
-- **Status:** researched
+- **Status:** drafted → `outbox/awesome-open-geoscience-pr.md` (ready-to-submit PR for zkWizard to open)
 
 ### awesome-earthobservation-code (acgeospatial)
 
@@ -104,8 +104,8 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
   section as the existing structure dictates. Verify the current section headings in the
   README at PR time.
 - **Best angle:** same one-line honest description; emphasize open data + native-res tile
-  streaming.
-- **Status:** researched
+  streaming. Mirror the existing **Worldview** row (JS satellite viewer + live link).
+- **Status:** drafted → `outbox/awesome-earthobservation-code-pr.md` (ready-to-submit PR for zkWizard to open)
 
 ---
 
