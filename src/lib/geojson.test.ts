@@ -34,6 +34,7 @@ describe("geometryToRings", () => {
           [
             [0, 0],
             [1, 0],
+            [1, 1],
             [0, 0],
           ],
         ],
@@ -41,11 +42,13 @@ describe("geometryToRings", () => {
           [
             [2, 2],
             [3, 2],
+            [3, 3],
             [2, 2],
           ],
           [
             [2.4, 2.4],
             [2.6, 2.4],
+            [2.6, 2.6],
             [2.4, 2.4],
           ], // a hole
         ],
@@ -68,6 +71,68 @@ describe("geometryToRings", () => {
 
   it("returns nothing for unsupported geometry", () => {
     expect(geometryToRings({ type: "Point", coordinates: [0, 0] })).toEqual([]);
+  });
+
+  it("withholds malformed area rings from rendering and sampling", () => {
+    const impossibleLatitude = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [0, 0],
+          [1, 0],
+          [1, 91],
+          [0, 0],
+        ],
+      ],
+    };
+    const openRing = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [0, 0],
+          [1, 0],
+          [1, 1],
+          [0, 1],
+        ],
+      ],
+    };
+
+    for (const geometry of [impossibleLatitude, openRing]) {
+      expect(isAreaGeometry(geometry)).toBe(false);
+      expect(geometryBounds(geometry)).toBeNull();
+      expect(geometryContains(geometry, 0.5, 0.5)).toBe(false);
+      expect(geometrySamplingPlan(geometry, 8)).toBeNull();
+      expect(geometryToRings(geometry)).toEqual([]);
+    }
+  });
+
+  it("does not silently keep only valid pieces of a malformed multipolygon", () => {
+    const geometry = {
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [0, 0],
+            [1, 0],
+            [1, 1],
+            [0, 0],
+          ],
+        ],
+        [
+          [
+            [2, 2],
+            [3, 2],
+            [Number.NaN, 3],
+            [2, 2],
+          ],
+        ],
+      ],
+    };
+
+    expect(isAreaGeometry(geometry)).toBe(false);
+    expect(geometryBounds(geometry)).toBeNull();
+    expect(geometrySamplingPlan(geometry, 8)).toBeNull();
+    expect(geometryToRings(geometry)).toEqual([]);
   });
 
   it("masks a sampling grid to the exact polygon and excludes holes", () => {
