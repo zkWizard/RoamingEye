@@ -29,3 +29,14 @@ One line per run: date — what was done. Terse.
   (kept "9 scientific layers" to match the public count). TARGETS.md HN entry → drafted.
   Still researched-not-drafted: the two awesome-list PRs (draft as ready-to-submit PR
   bodies next) and Reddit (rules still pending in-app confirmation).
+- 2026-07-15 — Drafted both awesome-list PR submissions (compliant path = a PR to those
+  external repos; drafted into the outbox for zkWizard to open, never submitted by me).
+  Fetched each list's live format: `outbox/awesome-open-geoscience-pr.md` (SWUNG →
+  Visualization section, en-dash + JS-badge + no-trailing-period house style, alphabetical
+  placement + badge-path caveats noted) and `outbox/awesome-earthobservation-code-pr.md`
+  (→ Visualisation, mirrors the existing Worldview row: name - one sentence - `Javascript`
+  - [here](live)). Each file carries the exact entry line, a suggested PR title/body, and
+    a "read before submitting" checklist. Verified all claims against README (MIT, live URL,
+    MODIS + HLS, ~31 m, TS + Three.js). TARGETS.md both entries → drafted. Remaining pipeline:
+    Reddit (rules pending in-app confirmation); candidate venues in TARGETS "Notes" still to
+    vet before drafting.
