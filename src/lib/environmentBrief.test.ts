@@ -4,6 +4,7 @@ import {
   attributeBrief,
   composeEnvironmentBrief,
   summarizeCompleteness,
+  summarizeDataCurrency,
   summarizeTemporalAlignment,
   unsupportedBriefLanguageHits,
   type EnvironmentSignalBrief,
@@ -494,5 +495,135 @@ describe("environment brief attribution", () => {
     expect(attribution.sources).toEqual([]);
     expect(attribution.acknowledgment).toBe(GIBS_ACKNOWLEDGMENT);
     expect(attribution.line).toBe("No data sources to credit.");
+  });
+});
+
+describe("environment brief data currency", () => {
+  it("reports the lag of each usable signal behind its availability checkpoint", () => {
+    const brief = composeEnvironmentBrief({
+      // Vegetation is one month behind; the aligned GLDAS signals are current.
+      vegetation: { dataMonth: { year: 2026, month: 2 }, value: 0.61 },
+      rainfall: { dataMonth: { year: 2026, month: 3 }, value: 0.00012 },
+      soilMoisture: { dataMonth: { year: 2026, month: 3 }, value: 6.4 },
+      airTemperature: { dataMonth: { year: 2026, month: 3 }, value: 289.4 },
+      availableThrough: { year: 2026, month: 3 },
+    });
+
+    expect(brief.dataCurrency).toMatchObject({
+      comparedSignalIds: [
+        "vegetation",
+        "rainfall",
+        "soil-moisture",
+        "air-temperature",
+      ],
+      freshestLagMonths: 0,
+      stalestLagMonths: 1,
+      freshestSignalId: "rainfall",
+      stalestSignalId: "vegetation",
+    });
+    expect(brief.dataCurrency.perSignal[0]).toEqual({
+      id: "vegetation",
+      dataMonth: { year: 2026, month: 2 },
+      availableThrough: { year: 2026, month: 3 },
+      lagMonths: 1,
+    });
+    expect(brief.dataCurrency.statement).toBe(
+      "4 usable observations lag their availability checkpoints by 0 to 1 months (freshest rainfall, stalest vegetation); currency varies across signals."
+    );
+    // A currency caveat must never introduce condition/comparison language.
+    expect(unsupportedBriefLanguageHits(brief.dataCurrency.statement)).toEqual(
+      []
+    );
+    expect("score" in brief.dataCurrency).toBe(false);
+  });
+
+  it("honors per-signal availability checkpoints when they differ", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: { dataMonth: { year: 2026, month: 5 }, value: 0.5 },
+      rainfall: { dataMonth: { year: 2026, month: 4 }, value: 0.0001 },
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 5 },
+      // Rainfall publishes on a later frontier, so its two-month gap is a lag,
+      // not an unpublished (future) month.
+      availableThroughBySignal: { rainfall: { year: 2026, month: 6 } },
+    });
+
+    const rainfall = brief.dataCurrency.perSignal.find(
+      (entry) => entry.id === "rainfall"
+    );
+    expect(rainfall).toEqual({
+      id: "rainfall",
+      dataMonth: { year: 2026, month: 4 },
+      availableThrough: { year: 2026, month: 6 },
+      lagMonths: 2,
+    });
+    expect(brief.dataCurrency.freshestSignalId).toBe("vegetation");
+    expect(brief.dataCurrency.stalestSignalId).toBe("rainfall");
+  });
+
+  it("floors a data month at or ahead of its checkpoint to zero lag", () => {
+    // A vegetation composite has no upstream publication gate, so a month that
+    // sits at the checkpoint is fully current — never negative lag.
+    const brief = composeEnvironmentBrief({
+      vegetation: { dataMonth: { year: 2026, month: 4 }, value: 0.5 },
+      rainfall: null,
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 4 },
+    });
+
+    expect(brief.dataCurrency.perSignal[0].lagMonths).toBe(0);
+    expect(brief.dataCurrency.statement).toBe(
+      "1 usable observation (vegetation, dated 2026-04) lags its availability checkpoint by 0 months."
+    );
+  });
+
+  it("collapses a shared lag into a single each-lag statement", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: { dataMonth: { year: 2026, month: 2 }, value: 0.5 },
+      rainfall: { dataMonth: { year: 2026, month: 2 }, value: 0.0001 },
+      soilMoisture: { dataMonth: { year: 2026, month: 2 }, value: 6 },
+      airTemperature: { dataMonth: { year: 2026, month: 2 }, value: 289 },
+      availableThrough: { year: 2026, month: 3 },
+    });
+
+    expect(brief.dataCurrency.freshestLagMonths).toBe(1);
+    expect(brief.dataCurrency.stalestLagMonths).toBe(1);
+    expect(brief.dataCurrency.statement).toBe(
+      "4 usable observations each lag their availability checkpoint by 1 month."
+    );
+  });
+
+  it("assesses only usable signals, ignoring no-data, invalid, and unpublished", () => {
+    const summary = summarizeDataCurrency(
+      [
+        {
+          id: "vegetation",
+          label: "Vegetation (NDVI)",
+          layerId: "ndvi",
+          source: NDVI_SOURCE,
+          nativeUnit: NDVI_UNIT,
+          dataMonth: { year: 2026, month: 1 },
+          coverage: { status: "no-data", validFraction: null, reason: null },
+          status: "no-data",
+          observedValue: null,
+          statement: "",
+        },
+      ],
+      { year: 2026, month: 3 }
+    );
+
+    expect(summary).toMatchObject({
+      comparedSignalIds: [],
+      perSignal: [],
+      freshestLagMonths: null,
+      stalestLagMonths: null,
+      freshestSignalId: null,
+      stalestSignalId: null,
+    });
+    expect(summary.statement).toBe(
+      "No usable observations to assess for data currency."
+    );
   });
 });
