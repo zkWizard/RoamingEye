@@ -98,7 +98,21 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
   in-app first.
 - **Best angle:** classroom/fieldwork utility and open data — lead with a question or a
   workflow, not the link.
-- **Status:** researched (rules pending sidebar confirmation)
+- **Status:** **blocked on zkWizard — needs a 2-minute in-app rules check.** Programmatic
+  verification has now failed **twice** (2026-07-15 and 2026-07-27): Reddit is unreachable
+  from this agent's fetch layer, and web search returns only third-party SEO articles about
+  "Reddit self-promotion rules" in general — not the actual sidebar text of these two subs.
+  Third-hand rule summaries are not a sound basis for a compliance decision, so **no draft
+  will be written for Reddit until the real rules are read.** This entry is deliberately
+  parked rather than left ambiguous. What zkWizard needs to check in the sidebar / wiki of
+  each sub (r/gis, r/remotesensing) — takes about two minutes:
+  1. Is there a **self-promotion rule**, and does it confine promo to a designated
+     weekly/monthly showcase or "what are you working on" thread?
+  2. Is **post flair** required, and which flair covers a project/tool share?
+  3. Is there a **karma / account-age minimum** for link posts?
+  4. Does the sub require **affiliation disclosure** ("I built this") in the post body?
+     Paste the answers into this entry and the draft can be written in the next run. Until
+     then: no post, no link drop.
 
 ### OSGeo Discourse / OSGeo community
 
@@ -148,6 +162,37 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
   approximation. Optionally reply into relevant #geoscience / #OpenScience threads.
 - **Status:** researched (rules clear; ready to draft a short post once zkWizard has a
   fediverse account — low effort, high fit)
+
+### NASA Earthdata Forum — participation-only (no announcement post)
+
+- **URL:** https://forum.earthdata.nasa.gov/ (boards include _Projects → MODIS_,
+  _Services/Usage → Visualization_, and a Worldview/GIBS board)
+- **Audience & size:** the NASA Earth-science data user community talking directly with
+  subject-matter experts from NASA's Distributed Active Archive Centers (DAACs). This is
+  the most precisely on-target audience in the whole pipeline — these are literally the
+  people using the MODIS, HLS, and GIBS products RoamingEye renders.
+- **Why RoamingEye fits:** it is built entirely on the data these boards support (GIBS
+  WMTS tiles, MODIS, Harmonized Landsat-Sentinel), and its provenance-first stance —
+  every layer cited, every probe export uncertainty-labelled — matches how this community
+  expects data to be handled and cited.
+- **Posting rules / compliant path:** **this is a question-and-answer support forum, not a
+  showcase.** Its stated purpose is for the scientific user community and DAAC experts to
+  "discuss research needs, data, and data applications," moderators explicitly work to
+  "prevent users from going off-question," and each board administrator sets additional
+  rules with warnings for breaches. The published FAQ and Usage Terms do **not** grant any
+  self-promotion allowance — so a "check out my tool" thread would be off-question by
+  default and is **not** a compliant path. The only compliant path is
+  **participation-first**: answer real GIBS/MODIS/HLS questions as a knowledgeable
+  community member, and mention RoamingEye _only_ where it directly answers the specific
+  question someone asked (e.g. someone asking how to eyeball a GIBS layer over time before
+  ordering granules).
+- **Best angle:** none as an announcement. Treat this as a long-game credibility venue:
+  genuine help earns standing, and standing is what later makes a Worldview/GIBS-board
+  mention welcome rather than spam. Also a strong listening post for real user problems
+  worth putting on the roadmap.
+- **Status:** researched → **participation-only; no draft, and none should be written.**
+  Revisit only if a forum user asks a question RoamingEye genuinely answers. Requires
+  zkWizard posting personally as himself — never an automated or agent-written post.
 
 ---
 
@@ -211,6 +256,56 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
 
 ---
 
+## Academic & citation venues
+
+### Journal of Open Source Software (JOSS) — declined **for now**; earliest eligible 2026-12-29
+
+- **URL:** https://joss.theoj.org/ (submission guide:
+  https://joss.readthedocs.io/en/latest/submitting.html)
+- **Audience & size:** JOSS is a peer-reviewed, open-access academic journal
+  (ISSN 2475-9066) for research software. A JOSS paper is indexed and citable and comes
+  with a DOI — it converts "a cool website" into something a researcher can _cite in a
+  methods section_, which is the single highest-leverage credibility artifact available to
+  this project and directly serves the roadmap's teaching- and research-adoption goals.
+- **Why RoamingEye would fit (eventually):** it is MIT-licensed (JOSS requires an
+  OSI-approved license ✅), has public development history, comprehensive tests, real
+  documentation, `CITATION.cff`, a published methodology (`METHODS.md`), and clear
+  contribution pathways — several of JOSS's "open development practices" indicators are
+  already satisfied.
+- **Why it is declined right now — two gates, one of them hard:**
+  1. **Hard gate — age.** JOSS rejects software with **fewer than six months of public
+     development history**. This repository's first commit is **2026-06-28** and it was
+     created **2026-06-29**, making it **29 days old** as of this entry. A submission now
+     would be desk-rejected on a rule with no judgment component. **Earliest eligible date:
+     2026-12-29.** Do not submit before then.
+  2. **Soft gate — "substantial scholarly effort."** JOSS wants evidence of research
+     impact: publications _using_ the software, external adopters, integrations, or
+     benchmarks showing credible near-term significance. Current signals are 1 star,
+     0 forks, 0 outside contributors and zero outside-authored issues — no external
+     adoption story exists yet. JOSS also rejects "minor utility" packages and single-
+     function tools, so the submission must argue **research enablement**, not a nice
+     globe.
+- **What to accumulate before 2026-12-29 (this is the actual work):**
+  - **External adopters** — even 2–3 named classrooms or researchers using it. This is
+    exactly what the drafted outreach in `outbox/` is for; sending those drafts _is_ the
+    JOSS runway.
+  - **A defensible scholarly core.** The strongest claim is not the visualization but the
+    combination of (a) the screen-space-error WMTS tile-streaming engine (RFC-001), (b) the
+    provenance- and uncertainty-stamped time-series export, and (c) the documented
+    colormap-inversion methodology. Note that flagship issue
+    [#170](https://github.com/zkWizard/RoamingEye/issues/170) (invert against GIBS's real
+    colormaps for accurate absolute probe values) is squarely on the critical path — until
+    the probe returns defensible absolute values, a reviewer can fairly call the science
+    surface approximate.
+  - **Feature completeness**, since JOSS rejects "half-baked solutions."
+- **Best angle when the time comes:** a paper framed as _"a zero-install, provenance-first
+  reconnaissance instrument for multi-decadal open EO archives"_ — emphasize reproducibility
+  and the citable export, not the rendering.
+- **Status:** **declined for now (dated).** Re-evaluate on or after **2026-12-29** against
+  both gates. Do not submit early — a desk rejection is a public record and burns the shot.
+
+---
+
 ## Vetted & set aside (do not re-pursue without a new angle)
 
 ### Project Pythia Resource Gallery — declined (off-scope)
@@ -255,12 +350,22 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
   field is what GitHub shows in the "About" sidebar and in link previews, so it should be
   the canonical domain. Apply together with the description above:
   > `gh repo edit zkWizard/RoamingEye --homepage "https://roamingeye.org/"`
-- Candidate venues still to research (do NOT add until rules are read): r/dataisbeautiful
-  (OC rules), university remote-sensing course networks, and complementary open-tool
-  maintainers (STAC / stackstac / leafmap / TiTiler) as potential contributors.
-  _Researched this round:_ **three.js forum Showcase** (added — reaches the graphics-engineer
-  contributor persona; on-topic by definition, moderator-approved). Prior rounds: OSGeo
-  Discourse (participation-first), Mastodon/fediverse (value-first); Project Pythia (declined).
+- Candidate venues still to research (do NOT add until rules are read): university
+  remote-sensing course networks, and complementary open-tool maintainers (STAC /
+  stackstac / leafmap / TiTiler) as potential contributors — the latter is Duty 3
+  (contributor outreach), which has not been attempted yet and is the clearest gap in this
+  pipeline. r/dataisbeautiful is parked with the other Reddit entries until the Reddit
+  rules blocker above is cleared by zkWizard.
+  _Researched this round:_ **JOSS** (declined-for-now with a dated 2026-12-29 revisit) and
+  the **NASA Earthdata Forum** (participation-only, no announcement). Prior rounds: three.js
+  Showcase (drafted), OSGeo Discourse (participation-first), Mastodon/fediverse
+  (value-first), Project Pythia (declined).
+- **Venue maturity gate — worth knowing across the pipeline:** this repository is only
+  **29 days old** (first commit 2026-06-28). Venues that gate on project maturity — JOSS
+  (6 months), some awesome-lists' quality bars, and OSGeo Community Projects — will judge
+  it as very young. Nothing in the pipeline is blocked by this _except_ JOSS, but it is a
+  reason to prefer venues that reward usefulness now (three.js Showcase, HN, Pangeo,
+  classrooms) and to let the citation-track venues mature.
 - **Educator reach:** `outbox/classroom-lab-one-pager.md` is now a ready source asset —
   the next educator-facing step is to vet a _specific_ venue's rules (Project Pythia /
   educational-geoscience networks, a university remote-sensing course network) and adapt

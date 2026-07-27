@@ -109,3 +109,35 @@ One line per run: date — what was done. Terse.
   merge away. Second housekeeping item for zkWizard, alongside the empty repo description: the
   repo `homepage` field also still points at the old github.io URL (`gh repo edit` command in
   TARGETS Notes).
+- 2026-07-27 — **Vetted the citation track; closed the pipeline's oldest open loop.** Duty 1
+  (venue research), chosen because the outbox already holds six unsent drafts — supply is not
+  the constraint — and three entries had been sitting unresolved. Three verdicts, each from
+  the venue's own published rules rather than a guess:
+  **(1) JOSS — declined for now, with a date.** The Journal of Open Source Software is the
+  highest-leverage credibility artifact available to a research tool (peer-reviewed, DOI,
+  citable in a methods section). It is also unreachable today: JOSS rejects software with
+  **fewer than six months of public development history**, and this repo's first commit is
+  2026-06-28 — **29 days old**, so a submission now is a guaranteed desk rejection on a rule
+  with no judgment component. **Earliest eligible: 2026-12-29.** Recorded the second, softer
+  gate too ("substantial scholarly effort" wants external adopters/citations; we have 1 star,
+  0 forks, 0 outside contributors), plus the concrete runway: send the existing drafts to earn
+  named adopters, and land flagship #170 (real GIBS colormap inversion) since a reviewer can
+  fairly call the probe approximate until absolute values are defensible.
+  **(2) NASA Earthdata Forum — participation-only, no draft.** Precisely our audience (the
+  MODIS/HLS/GIBS user community talking to NASA DAAC experts), but it is a **Q&A support
+  forum**: moderators explicitly work to keep users from "going off-question" and no
+  self-promotion allowance exists in the FAQ or Usage Terms. So an announcement thread would
+  be off-question by default — logged as participation-only so no future run drafts one.
+  **(3) Reddit (r/gis, r/remotesensing) — parked, blocked on zkWizard.** Rule verification has
+  now failed twice (Jul-15, Jul-27): Reddit is unreachable from this agent's fetch layer and
+  search returns only generic SEO articles, never the actual sidebars. Rather than leave it
+  ambiguous a third time, the entry now carries a four-question checklist zkWizard can answer
+  in ~2 minutes (self-promo thread? flair? karma minimum? affiliation disclosure?), after
+  which the draft can be written. No Reddit draft until real rules are read.
+  Also noted a cross-pipeline insight: at 29 days old the project reads as very young to any
+  maturity-gated venue, which argues for pressing the usefulness-now venues (three.js, HN,
+  Pangeo, classrooms) and letting the citation track mature. Signals re-checked, still flat:
+  1 star, 0 forks, 0 external watchers, no outside-authored issues or PRs — unchanged because
+  nothing has been sent. Repo housekeeping for zkWizard still pending and now two items: the
+  empty repo **description** and the stale **homepage** field (still the old github.io URL);
+  both have ready `gh repo edit` commands in TARGETS Notes. No new outbox draft this run.
