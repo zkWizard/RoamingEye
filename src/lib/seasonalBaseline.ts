@@ -149,7 +149,14 @@ export function compareMonthlyClimateToSeasonalBaseline(
     );
   }
 
-  const seenYears = new Set<number>();
+  const candidateYearCounts = countCandidateYears(
+    targetObservation,
+    baselineCandidates,
+    targetMonth,
+    options.baselineStartYear,
+    baselineEndYear
+  );
+  const countedDuplicateYears = new Set<number>();
   const samples: SeasonalBaselineSample[] = [];
   let coverageEligibleCount = 0;
 
@@ -174,11 +181,14 @@ export function compareMonthlyClimateToSeasonalBaseline(
       exclusions.outOfBounds += 1;
       continue;
     }
-    if (seenYears.has(candidate.dataMonth.year)) {
-      exclusions.duplicateYear += 1;
+    if ((candidateYearCounts.get(candidate.dataMonth.year) ?? 0) > 1) {
+      if (countedDuplicateYears.has(candidate.dataMonth.year)) {
+        exclusions.duplicateYear += 1;
+      } else {
+        countedDuplicateYears.add(candidate.dataMonth.year);
+      }
       continue;
     }
-    seenYears.add(candidate.dataMonth.year);
 
     const summary = summarizeMonthlyClimate(candidate, availableThrough);
     if (summary.publicationStatus !== "published") {
@@ -414,4 +424,36 @@ function isCalendarMonth(month: YearMonth): boolean {
 
 function validYearBound(year: number | undefined): boolean {
   return year === undefined || Number.isInteger(year);
+}
+
+/**
+ * Count otherwise eligible records by year before selecting samples. This
+ * makes duplicate handling independent of input order: no record from an
+ * ambiguous year may silently become the baseline value.
+ */
+function countCandidateYears(
+  targetObservation: MonthlyClimateObservation,
+  candidates: readonly MonthlyClimateObservation[],
+  targetMonth: number,
+  baselineStartYear: number | undefined,
+  baselineEndYear: number
+): Map<number, number> {
+  const counts = new Map<number, number>();
+  for (const candidate of candidates) {
+    if (
+      candidate.metricId !== targetObservation.metricId ||
+      !isCalendarMonth(candidate.dataMonth) ||
+      candidate.dataMonth.month !== targetMonth ||
+      (baselineStartYear !== undefined &&
+        candidate.dataMonth.year < baselineStartYear) ||
+      candidate.dataMonth.year > baselineEndYear
+    ) {
+      continue;
+    }
+    counts.set(
+      candidate.dataMonth.year,
+      (counts.get(candidate.dataMonth.year) ?? 0) + 1
+    );
+  }
+  return counts;
 }
