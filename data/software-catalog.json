@@ -1,0 +1,299 @@
+{
+  "version": 1,
+  "generatedAt": "2026-07-12T22:11:45.316Z",
+  "tools": [
+    {
+      "id": "geopandas-geopandas",
+      "name": "geopandas",
+      "summary": "Python tools for geographic data",
+      "repository": "https://github.com/geopandas/geopandas",
+      "documentation": "https://github.com/geopandas/geopandas#readme",
+      "license": "BSD-3-Clause",
+      "domains": [
+        "Data science",
+        "GIS"
+      ],
+      "workflows": [
+        "Reproducible analysis",
+        "Vector analysis"
+      ],
+      "formats": [
+        "GeoJSON",
+        "GeoPackage",
+        "Shapefile"
+      ],
+      "platforms": [
+        "Linux",
+        "macOS",
+        "Windows"
+      ],
+      "access": [
+        "Python library"
+      ],
+      "languages": [
+        "English"
+      ],
+      "verifiedAt": "2026-07-12",
+      "evidence": {
+        "repositoryApi": "https://api.github.com/repos/geopandas/geopandas",
+        "repositoryUpdatedAt": "2026-07-11T14:27:04Z"
+      },
+      "accessNotes": [
+        "Use an isolated Python environment and follow the project guide."
+      ]
+    },
+    {
+      "id": "scitools-iris",
+      "name": "iris",
+      "summary": "A powerful, format-agnostic, and community-driven Python package for analysing and visualising Earth science data",
+      "repository": "https://github.com/SciTools/iris",
+      "homepage": "https://scitools-iris.readthedocs.io/en/stable/",
+      "documentation": "https://github.com/SciTools/iris#readme",
+      "license": "BSD-3-Clause",
+      "domains": [
+        "Climate",
+        "Meteorology"
+      ],
+      "workflows": [
+        "Climate modelling",
+        "Multidimensional analysis"
+      ],
+      "formats": [
+        "GRIB",
+        "NetCDF",
+        "PP"
+      ],
+      "platforms": [
+        "Linux",
+        "macOS",
+        "Windows"
+      ],
+      "access": [
+        "Python library"
+      ],
+      "languages": [
+        "English"
+      ],
+      "verifiedAt": "2026-07-12",
+      "evidence": {
+        "repositoryApi": "https://api.github.com/repos/SciTools/iris",
+        "repositoryUpdatedAt": "2026-07-10T17:03:33Z"
+      },
+      "accessNotes": [
+        "Use an isolated Python environment and follow the project guide."
+      ]
+    },
+    {
+      "id": "unidata-metpy",
+      "name": "MetPy",
+      "summary": "MetPy is a collection of tools in Python for reading, visualizing and performing calculations with weather data.",
+      "repository": "https://github.com/Unidata/MetPy",
+      "homepage": "https://unidata.github.io/MetPy/",
+      "documentation": "https://github.com/Unidata/MetPy#readme",
+      "license": "BSD-3-Clause",
+      "domains": [
+        "Climate",
+        "Meteorology"
+      ],
+      "workflows": [
+        "Multidimensional analysis",
+        "Reproducible analysis",
+        "Weather analysis"
+      ],
+      "formats": [
+        "GRIB",
+        "NetCDF"
+      ],
+      "platforms": [
+        "Linux",
+        "macOS",
+        "Windows"
+      ],
+      "access": [
+        "Python library"
+      ],
+      "languages": [
+        "English"
+      ],
+      "verifiedAt": "2026-07-12",
+      "evidence": {
+        "repositoryApi": "https://api.github.com/repos/Unidata/MetPy",
+        "repositoryUpdatedAt": "2026-07-08T20:36:15Z"
+      },
+      "accessNotes": [
+        "Use an isolated Python environment and follow the project guide."
+      ]
+    },
+    {
+      "id": "opendronemap-odm",
+      "name": "ODM",
+      "summary": "A command line toolkit to generate maps, point clouds, 3D models and DEMs from drone, balloon or kite images. 📷",
+      "repository": "https://github.com/OpenDroneMap/ODM",
+      "homepage": "https://opendronemap.org",
+      "documentation": "https://github.com/OpenDroneMap/ODM#readme",
+      "license": "AGPL-3.0",
+      "domains": [
+        "Field mapping",
+        "Remote sensing"
+      ],
+      "workflows": [
+        "Drone photogrammetry",
+        "Raster processing"
+      ],
+      "formats": [
+        "GeoTIFF",
+        "LAS",
+        "LAZ"
+      ],
+      "platforms": [
+        "Linux",
+        "macOS",
+        "Windows"
+      ],
+      "access": [
+        "Command line",
+        "Desktop"
+      ],
+      "languages": [
+        "English"
+      ],
+      "verifiedAt": "2026-07-12",
+      "evidence": {
+        "repositoryApi": "https://api.github.com/repos/OpenDroneMap/ODM",
+        "repositoryUpdatedAt": "2026-07-12T16:47:47Z"
+      },
+      "accessNotes": [
+        "Follow the documented package or source-install guide.",
+        "Use the documented installer or package for your operating system."
+      ]
+    },
+    {
+      "id": "genericmappingtools-pygmt",
+      "name": "pygmt",
+      "summary": "A Python interface for the Generic Mapping Tools.",
+      "repository": "https://github.com/GenericMappingTools/pygmt",
+      "homepage": "https://www.pygmt.org",
+      "documentation": "https://github.com/GenericMappingTools/pygmt#readme",
+      "license": "BSD-3-Clause",
+      "domains": [
+        "Cartography",
+        "Geophysics",
+        "Seismology"
+      ],
+      "workflows": [
+        "Reproducible analysis",
+        "Scientific visualization",
+        "Waveform analysis"
+      ],
+      "formats": [
+        "GeoTIFF",
+        "NetCDF",
+        "Shapefile"
+      ],
+      "platforms": [
+        "Linux",
+        "macOS",
+        "Windows"
+      ],
+      "access": [
+        "Python library"
+      ],
+      "languages": [
+        "English"
+      ],
+      "verifiedAt": "2026-07-12",
+      "evidence": {
+        "repositoryApi": "https://api.github.com/repos/GenericMappingTools/pygmt",
+        "repositoryUpdatedAt": "2026-07-10T06:08:52Z"
+      },
+      "accessNotes": [
+        "Use an isolated Python environment and follow the project guide."
+      ]
+    },
+    {
+      "id": "qgis-qgis",
+      "name": "QGIS",
+      "summary": "QGIS is a free, open source, cross platform (lin/win/mac) geographical information system (GIS)",
+      "repository": "https://github.com/qgis/QGIS",
+      "homepage": "https://qgis.org",
+      "documentation": "https://github.com/qgis/QGIS#readme",
+      "license": "GPL-2.0",
+      "domains": [
+        "Cartography",
+        "GIS"
+      ],
+      "workflows": [
+        "Desktop analysis",
+        "Map production",
+        "Vector analysis"
+      ],
+      "formats": [
+        "GeoJSON",
+        "GeoTIFF",
+        "NetCDF",
+        "Shapefile"
+      ],
+      "platforms": [
+        "Linux",
+        "macOS",
+        "Windows"
+      ],
+      "access": [
+        "Desktop"
+      ],
+      "languages": [
+        "English"
+      ],
+      "verifiedAt": "2026-07-12",
+      "evidence": {
+        "repositoryApi": "https://api.github.com/repos/qgis/QGIS",
+        "repositoryUpdatedAt": "2026-07-12T20:09:42Z"
+      },
+      "accessNotes": [
+        "Use the documented installer or package for your operating system."
+      ]
+    },
+    {
+      "id": "pydata-xarray",
+      "name": "xarray",
+      "summary": "N-D labeled arrays and datasets in Python",
+      "repository": "https://github.com/pydata/xarray",
+      "homepage": "https://xarray.dev",
+      "documentation": "https://github.com/pydata/xarray#readme",
+      "license": "Apache-2.0",
+      "domains": [
+        "Climate",
+        "Data science",
+        "Oceanography"
+      ],
+      "workflows": [
+        "Multidimensional analysis",
+        "Reproducible analysis"
+      ],
+      "formats": [
+        "GRIB",
+        "NetCDF",
+        "Zarr"
+      ],
+      "platforms": [
+        "Linux",
+        "macOS",
+        "Windows"
+      ],
+      "access": [
+        "Python library"
+      ],
+      "languages": [
+        "English"
+      ],
+      "verifiedAt": "2026-07-12",
+      "evidence": {
+        "repositoryApi": "https://api.github.com/repos/pydata/xarray",
+        "repositoryUpdatedAt": "2026-07-09T18:05:22Z"
+      },
+      "accessNotes": [
+        "Use an isolated Python environment and follow the project guide."
+      ]
+    }
+  ]
+}
