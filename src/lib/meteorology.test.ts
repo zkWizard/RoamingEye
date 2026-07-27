@@ -103,4 +103,68 @@ describe("rendered monthly meteorology", () => {
       })
     ).toThrow("matching lengths");
   });
+
+  it("rejects invalid, duplicate, and reversed data months before pairing samples", () => {
+    const input = {
+      metricId: "precipitation-rate" as const,
+      sampledValues: [0.1, 0.2],
+      nativeToSampledValueFactor: 1,
+    };
+
+    expect(() =>
+      observationsFromRenderedClimateSample({
+        ...input,
+        months: [
+          { year: 2026, month: 0 },
+          { year: 2026, month: 1 },
+        ],
+      })
+    ).toThrow("invalid data month");
+    expect(() =>
+      observationsFromRenderedClimateSample({
+        ...input,
+        months: [
+          { year: 2026, month: 1 },
+          { year: 2026, month: 1 },
+        ],
+      })
+    ).toThrow("strictly increasing");
+    expect(() =>
+      observationsFromRenderedClimateSample({
+        ...input,
+        months: [
+          { year: 2026, month: 2 },
+          { year: 2026, month: 1 },
+        ],
+      })
+    ).toThrow("strictly increasing");
+  });
+
+  it("preserves intentional gaps between ordered source months", () => {
+    const series = observationsFromRenderedClimateSample({
+      metricId: "air-temperature-2m",
+      months: [
+        { year: 2025, month: 11 },
+        { year: 2026, month: 2 },
+      ],
+      sampledValues: [280, null],
+      nativeToSampledValueFactor: 1,
+      validFractions: [0.75, 0],
+    });
+
+    expect(series.observations).toEqual([
+      {
+        metricId: "air-temperature-2m",
+        dataMonth: { year: 2025, month: 11 },
+        value: 280,
+        validFraction: 0.75,
+      },
+      {
+        metricId: "air-temperature-2m",
+        dataMonth: { year: 2026, month: 2 },
+        value: null,
+        validFraction: 0,
+      },
+    ]);
+  });
 });
