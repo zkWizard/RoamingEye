@@ -110,6 +110,27 @@ describe("ocean condition summaries", () => {
       }).coverage
     ).toMatchObject({ status: "invalid", reason: "invalid-value" });
   });
+
+  it("withholds SST when deserialized footprint geography is unsupported", () => {
+    const summary = summarizeOceanConditions({
+      dataMonth: { year: 2026, month: 3 },
+      value: 16,
+      footprint: "reef" as "water",
+    });
+
+    expect(summary).toMatchObject({
+      observedValue: null,
+      temperatureBand: null,
+      coverage: {
+        status: "invalid",
+        footprint: "reef",
+        reason: "invalid-footprint",
+      },
+    });
+    expect(describeOceanCondition(summary)).toContain(
+      "invalid (invalid-footprint)"
+    );
+  });
 });
 
 describe("ocean condition narratives", () => {

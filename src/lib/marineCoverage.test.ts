@@ -95,4 +95,28 @@ describe("marine coverage summaries", () => {
     });
     expect(summary.sourceImageDimensions).toBeNull();
   });
+
+  it("preserves unsupported footprint geography as invalid metadata", () => {
+    const summary = summarizeMarineCoverage({
+      dataMonth: { year: 2026, month: 3 },
+      footprint: "reef" as "water",
+      validFraction: 0.8,
+      sourceImageDimensions: { width: 2048, height: 1024 },
+    });
+
+    expect(summary.coverage).toEqual({
+      status: "invalid",
+      footprint: "reef",
+      validFraction: 0.8,
+      reason: "invalid-footprint",
+    });
+    expect(summary.sourceImageDimensions).toEqual({
+      width: 2048,
+      height: 1024,
+    });
+    expect(summary.accessibleText).toContain("Coverage metadata is invalid.");
+    expect(summary.accessibleText).toContain(
+      "not a marine-biology observation"
+    );
+  });
 });
