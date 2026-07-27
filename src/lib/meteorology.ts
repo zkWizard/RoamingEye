@@ -5,6 +5,7 @@ import {
   type MonthlyClimateObservation,
   type MonthlyClimateSummary,
 } from "./climate";
+import { classifyModality } from "./observationModality";
 import type { LayerId, YearMonth } from "./timeline";
 
 /**
@@ -130,6 +131,7 @@ export function climateInsightText(
 ): ClimateInsightText {
   const source = `${current.metric.source.shortName} v${current.metric.source.version}`;
   const month = formatMonth(current.dataMonth);
+  const modality = climateModalityText(current);
   const provenance = imageProvenance(current.sourceImageDimensions);
   const coverage = coverageText(current.coverage.validFraction);
   if (
@@ -139,7 +141,7 @@ export function climateInsightText(
   ) {
     return {
       value: "Unavailable",
-      detail: `No usable ${month} observation (${unavailableReason(current)}); ${coverage}; ${provenance}; source ${source}`,
+      detail: `No usable ${month} ${modality.field} (${unavailableReason(current)}); ${coverage}; ${provenance}; ${modality.limit}; source ${source}`,
     };
   }
 
@@ -160,8 +162,36 @@ export function climateInsightText(
       : "";
   return {
     value,
-    detail: `${month} observed${comparison}; ${coverage}; ${provenance}; approximate regional mean; source ${source}`,
+    detail: `${month} ${modality.field}${comparison}; ${coverage}; ${provenance}; approximate regional mean; ${modality.limit}; source ${source}`,
   };
+}
+
+function climateModalityText(summary: MonthlyClimateSummary): {
+  field: string;
+  limit: string;
+} {
+  switch (classifyModality(summary.metric.source)) {
+    case "land-surface-model":
+      return {
+        field: "land-surface-model field",
+        limit: "model-derived, not a direct measurement",
+      };
+    case "atmospheric-reanalysis":
+      return {
+        field: "atmospheric reanalysis field",
+        limit: "reanalysis-derived, not a direct measurement",
+      };
+    case "satellite-derived-index":
+      return {
+        field: "satellite-derived field",
+        limit: "remotely sensed, not a direct in-situ measurement",
+      };
+    case "unclassified":
+      return {
+        field: "source field",
+        limit: "production method not classified",
+      };
+  }
 }
 
 function unavailableReason(summary: MonthlyClimateSummary): string {

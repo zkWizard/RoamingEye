@@ -68,11 +68,11 @@ describe("rendered monthly meteorology", () => {
     expect(climateInsightText(summaries[0], summaries[1])).toEqual({
       value: "Unavailable",
       detail:
-        "No usable 2026-03 observation (missing-value); 0% sampled coverage; rendered source image 1024 x 512 px; source M2TMNXSLV v5.12.4",
+        "No usable 2026-03 atmospheric reanalysis field (missing-value); 0% sampled coverage; rendered source image 1024 x 512 px; reanalysis-derived, not a direct measurement; source M2TMNXSLV v5.12.4",
     });
   });
 
-  it("uses native-unit comparisons and refuses misaligned positional series", () => {
+  it("identifies GLDAS values as model fields while retaining native comparisons", () => {
     const summaries = summarizeRenderedClimateSample(
       {
         metricId: "soil-moisture",
@@ -90,8 +90,11 @@ describe("rendered monthly meteorology", () => {
     expect(climateInsightText(summaries[0], summaries[1])).toEqual({
       value: "7.8 kg/m\u00b2",
       detail:
-        "2026-02 observed; +0.6 kg/m\u00b2 vs 2026-01; 90% sampled coverage; rendered source image dimensions not supplied; approximate regional mean; source GLDAS_NOAH025_M v2.1",
+        "2026-02 land-surface-model field; +0.6 kg/m\u00b2 vs 2026-01; 90% sampled coverage; rendered source image dimensions not supplied; approximate regional mean; model-derived, not a direct measurement; source GLDAS_NOAH025_M v2.1",
     });
+  });
+
+  it("refuses misaligned positional series", () => {
     expect(climateMetricForLayer("precip")).toBe("precipitation-rate");
     expect(climateMetricForLayer("ndvi")).toBeNull();
     expect(() =>
