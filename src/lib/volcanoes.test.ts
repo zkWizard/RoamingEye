@@ -139,10 +139,29 @@ describe("volcanoHoverLabel", () => {
     );
   });
 
+  it("explains GVP multiplicity and uncertainty qualifiers", () => {
+    expect(
+      volcanoHoverLabel(
+        parseVolcanoList([volcano({ type: "Stratovolcano(es)?" })])[0]
+      )
+    ).toBe(
+      "Etna · Stratovolcano (multiple landforms; type uncertain) · last erupted 2025"
+    );
+  });
+
   it("skips a missing type", () => {
     const v = parseVolcanoList([
       volcano({ type: null, lastEruptionYear: null }),
     ])[0];
     expect(volcanoHoverLabel(v)).toBe("Etna · Holocene evidence only");
+  });
+
+  it("does not render a blank or qualifier-only type", () => {
+    for (const type of ["   ", "?"]) {
+      const v = parseVolcanoList([
+        volcano({ type, lastEruptionYear: null }),
+      ])[0];
+      expect(volcanoHoverLabel(v)).toBe("Etna · Holocene evidence only");
+    }
   });
 });

@@ -1,3 +1,8 @@
+import {
+  canonicalVolcanoType,
+  canonicalVolcanoTypeLabel,
+} from "./volcanoMorphology";
+
 /**
  * Holocene volcanoes from the Smithsonian Global Volcanism Program's
  * "Volcanoes of the World" database, slimmed into public/data/volcanoes.json
@@ -104,7 +109,10 @@ export function elevationRegimeLabel(elevationMeters: number | null): string {
 /** Tooltip text for a hovered marker, e.g. "Etna · Stratovolcano · last erupted 2025". */
 export function volcanoHoverLabel(volcano: Volcano): string {
   const parts = [volcano.name];
-  if (volcano.type) parts.push(volcano.type);
+  const morphology = canonicalVolcanoType(volcano.type);
+  if (morphology.base !== null) {
+    parts.push(canonicalVolcanoTypeLabel(morphology));
+  }
   parts.push(lastEruptionLabel(volcano.lastEruptionYear));
   return parts.join(" · ");
 }
