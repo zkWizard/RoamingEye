@@ -75,7 +75,8 @@ export interface MonthlyClimateObservation {
   sourceImageDimensions?: { width: number; height: number };
 }
 
-export type ClimateCoverageStatus = "available" | "no-data" | "invalid";
+export type ClimateCoverageStatus =
+  "available" | "unavailable" | "no-data" | "invalid";
 
 export interface ClimateCoverage {
   status: ClimateCoverageStatus;
@@ -124,7 +125,7 @@ export function summarizeMonthlyClimate(
       : lag < 0
         ? "not-yet-published"
         : "published";
-  const coverage = coverageFor(observation, validMonths);
+  const coverage = coverageFor(observation, publicationStatus);
 
   return {
     kind: "observed-monthly-climate",
@@ -146,10 +147,17 @@ export function summarizeMonthlyClimate(
 
 function coverageFor(
   observation: MonthlyClimateObservation,
-  validMonths: boolean
+  publicationStatus: MonthlyClimateSummary["publicationStatus"]
 ): ClimateCoverage {
-  if (!validMonths) {
+  if (publicationStatus === "invalid-reference-month") {
     return { status: "invalid", validFraction: null, reason: "invalid-month" };
+  }
+  if (publicationStatus === "not-yet-published") {
+    return {
+      status: "unavailable",
+      validFraction: null,
+      reason: "not-yet-published",
+    };
   }
   const fraction = observation.validFraction;
   if (
