@@ -50,7 +50,7 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
   satellite imagery."_ Top comment: the "watch the Earth change" thesis, the open-data
   provenance stance, the honest-about-approximation probe, and the TypeScript + Three.js
   stack. Timing matters — a US-morning weekday tends to do best.
-- **Status:** researched
+- **Status:** drafted → `outbox/hacker-news-show-hn.md` (awaiting zkWizard review & post)
 
 ### Reddit — r/gis and r/remotesensing
 

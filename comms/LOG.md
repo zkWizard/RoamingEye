@@ -21,3 +21,11 @@ One line per run: date — what was done. Terse.
   Held for a future run: a "Searching…" in-flight indicator for `SearchBox` (overlaps
   #374's file) and reconciling the README "9 layers" count with the 11 in `LAYERS`
   (maintainer judgment call — continuous seasonal layers vs. incl. land-cover/terrain).
+- 2026-07-15 — Drafted the Show HN post (`outbox/hacker-news-show-hn.md`): "Show HN:
+  RoamingEye – open-source 3D Earth for scrubbing decades of satellite imagery", with a
+  title + author's first comment (thesis, feature list, build notes, and the
+  colormap-inversion caveat up front), plus posting notes (submit the live URL, no
+  upvote-soliciting, US-morning weekday timing). Verified all claims against README
+  (kept "9 scientific layers" to match the public count). TARGETS.md HN entry → drafted.
+  Still researched-not-drafted: the two awesome-list PRs (draft as ready-to-submit PR
+  bodies next) and Reddit (rules still pending in-app confirmation).
