@@ -349,21 +349,21 @@ export interface BriefAttribution {
 export function attributeBrief(
   signals: readonly EnvironmentSignalBrief[]
 ): BriefAttribution {
-  const byDoi = new Map<string, SourceAttribution>();
+  const byIdentity = new Map<string, SourceAttribution>();
   const order: string[] = [];
   for (const signal of signals) {
-    const key = signal.source.doi;
-    let entry = byDoi.get(key);
+    const doi = normalizedDoi(signal.source.doi);
+    const key = sourceIdentity(signal.source, doi);
+    let entry = byIdentity.get(key);
     if (!entry) {
-      const doi = signal.source.doi.trim();
       entry = {
         source: signal.source,
         signalIds: [],
         signalLabels: [],
         contributedValue: false,
-        doiUrl: doi ? `${DOI_RESOLVER}${doi}` : null,
+        doiUrl: doi ? `${DOI_RESOLVER}${signal.source.doi.trim()}` : null,
       };
-      byDoi.set(key, entry);
+      byIdentity.set(key, entry);
       order.push(key);
     }
     entry.signalIds.push(signal.id);
@@ -371,12 +371,25 @@ export function attributeBrief(
     if (signal.status === "available") entry.contributedValue = true;
   }
 
-  const sources = order.map((key) => byDoi.get(key)!);
+  const sources = order.map((key) => byIdentity.get(key)!);
   return {
     sources,
     acknowledgment: GIBS_ACKNOWLEDGMENT,
     line: attributionLine(sources),
   };
+}
+
+function normalizedDoi(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function sourceIdentity(source: DatasetRef, doi: string): string {
+  if (doi) return `doi:${doi}`;
+  return `dataset:${JSON.stringify([
+    source.shortName.trim(),
+    source.version.trim(),
+    source.title.trim(),
+  ])}`;
 }
 
 function attributionLine(sources: readonly SourceAttribution[]): string {

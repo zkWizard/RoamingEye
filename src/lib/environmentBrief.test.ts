@@ -489,6 +489,91 @@ describe("environment brief attribution", () => {
     );
   });
 
+  it("keeps distinct DOI-less datasets as separate provenance credits", () => {
+    const sourceWithoutDoi = {
+      shortName: "LOCAL_VEGETATION",
+      version: "2026.1",
+      doi: " ",
+      title: "Local vegetation composite",
+    };
+    const signals: EnvironmentSignalBrief[] = [
+      {
+        id: "vegetation",
+        label: "Vegetation (NDVI)",
+        layerId: "ndvi",
+        source: sourceWithoutDoi,
+        nativeUnit: NDVI_UNIT,
+        dataMonth: { year: 2026, month: 1 },
+        coverage: { status: "available", validFraction: 0.8, reason: null },
+        status: "available",
+        observedValue: 0.5,
+        statement: "",
+      },
+      {
+        id: "rainfall",
+        label: "Rainfall",
+        layerId: "precip",
+        source: {
+          shortName: "LOCAL_RAINFALL",
+          version: "2026.1",
+          doi: "",
+          title: "Local rainfall composite",
+        },
+        nativeUnit: "kg/m²/s",
+        dataMonth: { year: 2026, month: 1 },
+        coverage: { status: "no-data", validFraction: 0, reason: "no-data" },
+        status: "no-data",
+        observedValue: null,
+        statement: "",
+      },
+    ];
+
+    const attribution = attributeBrief(signals);
+
+    expect(attribution.sources).toHaveLength(2);
+    expect(attribution.sources.map((entry) => entry.source.shortName)).toEqual([
+      "LOCAL_VEGETATION",
+      "LOCAL_RAINFALL",
+    ]);
+    expect(attribution.sources.map((entry) => entry.signalIds)).toEqual([
+      ["vegetation"],
+      ["rainfall"],
+    ]);
+    expect(attribution.sources.map((entry) => entry.doiUrl)).toEqual([
+      null,
+      null,
+    ]);
+  });
+
+  it("deduplicates equivalent DOI spellings without losing signal provenance", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: null,
+      rainfall: { dataMonth: { year: 2026, month: 1 }, value: 0.00012 },
+      soilMoisture: { dataMonth: { year: 2026, month: 1 }, value: 6.4 },
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 1 },
+    });
+    const signals = brief.signals.map((signal) =>
+      signal.id === "soil-moisture"
+        ? {
+            ...signal,
+            source: {
+              ...signal.source,
+              doi: ` ${signal.source.doi.toLowerCase()} `,
+            },
+          }
+        : signal
+    );
+
+    const attribution = attributeBrief(signals);
+    const gldas = attribution.sources.find(
+      (entry) => entry.source.shortName === "GLDAS_NOAH025_M"
+    );
+
+    expect(gldas?.signalIds).toEqual(["rainfall", "soil-moisture"]);
+    expect(gldas?.doiUrl).toBe("https://doi.org/10.5067/SXAVCZFAQLNO");
+  });
+
   it("reports when there is nothing to credit", () => {
     const attribution = attributeBrief([]);
     expect(attribution.sources).toEqual([]);
