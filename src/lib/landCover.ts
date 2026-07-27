@@ -91,7 +91,10 @@ export const IGBP_LAND_COVER_CLASSES: readonly IgbpLandCoverClass[] = [
 export interface LandCoverClassObservation {
   /** MCD12Q1 IGBP class code; null means the sampler observed no usable code. */
   classCode: number | null;
-  /** Count of samples/pixels represented by this record. Defaults to one. */
+  /**
+   * Count of samples/pixels represented by this record. Defaults to one and
+   * must be a positive safe integer so native counts remain exact.
+   */
   sampleCount?: number;
 }
 
@@ -109,7 +112,10 @@ export interface LandCoverCoverage {
   noDataSampleCount: number;
   /** Samples whose code was outside the IGBP contract. */
   invalidClassSampleCount: number;
-  /** Records rejected because their sample count was not a positive integer. */
+  /**
+   * Records rejected because their sample count was not a positive safe
+   * integer or would make the cumulative sample count unsafe.
+   */
   invalidRecordCount: number;
   /** Share of all counted samples that carried an IGBP land-cover class 1..17. */
   knownLandCoverFraction: number | null;
@@ -169,7 +175,11 @@ export function summarizeLandCoverContext(
 
   for (const observation of observations) {
     const sampleCount = observation.sampleCount ?? 1;
-    if (!Number.isInteger(sampleCount) || sampleCount <= 0) {
+    if (
+      !Number.isSafeInteger(sampleCount) ||
+      sampleCount <= 0 ||
+      !Number.isSafeInteger(totalSampleCount + sampleCount)
+    ) {
       invalidRecordCount += 1;
       continue;
     }
