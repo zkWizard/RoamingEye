@@ -16,6 +16,13 @@ export const MARINE_PLACE_METRIC = {
   label: "Sea surface temperature",
 } as const;
 
+export interface MarineBoundaryGeography {
+  /** Place label supplied by the search result used to obtain the boundary. */
+  label: string;
+  /** Sampling fallback/anchor supplied with that same search result. */
+  center: { lat: number; lon: number };
+}
+
 export interface MarineBoundarySstInput {
   /** The actual monthly product time represented by the sample. */
   dataMonth: YearMonth;
@@ -25,6 +32,8 @@ export interface MarineBoundarySstInput {
   validFraction: number;
   /** Dimensions of the rendered source image sampled for that boundary. */
   sourceImageDimensions: SourceImageDimensions;
+  /** Search-result geography whose exact boundary was sampled. */
+  geography: MarineBoundaryGeography;
 }
 
 export interface MarinePlaceInsightReading {
@@ -35,6 +44,7 @@ export interface MarinePlaceInsightReading {
   marineBiologyObservation: false;
   isForecast: false;
   dataMonth: YearMonth;
+  geography: MarineBoundaryGeography;
   observedValue: number | null;
   source: typeof SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE;
 }
@@ -58,6 +68,7 @@ export function marineBoundarySstReading(
   const usable =
     coverage.coverage.status !== "invalid" &&
     coverage.coverage.status !== "no-sst-coverage" &&
+    isBoundaryGeography(input.geography) &&
     isSstSourceValue(input.observedValue);
   const month = formatYm(input.dataMonth);
   const image = coverage.sourceImageDimensions
@@ -68,6 +79,9 @@ export function marineBoundarySstReading(
     coverage.coverage.validFraction === null
       ? "sampled coverage not supplied"
       : `${Math.round(coverage.coverage.validFraction * 100)}% sampled boundary coverage`;
+  const geographyText = isBoundaryGeography(input.geography)
+    ? `searched boundary ${input.geography.label} centered at ${input.geography.center.lat.toFixed(4)}, ${input.geography.center.lon.toFixed(4)}`
+    : "invalid searched-boundary geography";
 
   return {
     id: MARINE_PLACE_METRIC.id,
@@ -75,11 +89,12 @@ export function marineBoundarySstReading(
       input.observedValue !== null && usable
         ? `${input.observedValue.toFixed(1)} ${coverage.source.sourceUnit}`
         : "No usable SST observation",
-    detail: `${month} approximate boundary-mean SST observation; ${coverageText}; ${image}; source ${source}; not a marine-biology observation`,
+    detail: `${month} approximate boundary-mean SST observation; ${geographyText}; ${coverageText}; ${image}; source ${source}; not a marine-biology observation`,
     kind: "observed-boundary-sea-surface-temperature",
     marineBiologyObservation: false,
     isForecast: false,
     dataMonth: input.dataMonth,
+    geography: input.geography,
     observedValue: usable ? input.observedValue : null,
     source: coverage.source,
   };
@@ -87,19 +102,33 @@ export function marineBoundarySstReading(
 
 /** Surface a source-mapping failure without relabeling it as absent SST. */
 export function unavailableMarineBoundarySstReading(
-  dataMonth: YearMonth
+  dataMonth: YearMonth,
+  geography: MarineBoundaryGeography
 ): MarinePlaceInsightReading {
   return {
     id: MARINE_PLACE_METRIC.id,
     value: "Unavailable",
-    detail: `${formatYm(dataMonth)} SST observation could not be sampled from the published source colormap; source ${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.shortName} v${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.version}; not a marine-biology observation`,
+    detail: `${formatYm(dataMonth)} SST observation for searched boundary ${geography.label} could not be sampled from the published source colormap; source ${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.shortName} v${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.version}; not a marine-biology observation`,
     kind: "observed-boundary-sea-surface-temperature",
     marineBiologyObservation: false,
     isForecast: false,
     dataMonth,
+    geography,
     observedValue: null,
     source: SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE,
   };
+}
+
+function isBoundaryGeography(geography: MarineBoundaryGeography): boolean {
+  return (
+    geography.label.trim().length > 0 &&
+    Number.isFinite(geography.center.lat) &&
+    geography.center.lat >= -90 &&
+    geography.center.lat <= 90 &&
+    Number.isFinite(geography.center.lon) &&
+    geography.center.lon >= -180 &&
+    geography.center.lon <= 180
+  );
 }
 
 function isSstSourceValue(value: number | null): value is number {

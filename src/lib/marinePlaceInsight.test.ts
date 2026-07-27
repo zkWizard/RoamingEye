@@ -11,6 +11,10 @@ describe("marine boundary SST insights", () => {
       observedValue: 18.375,
       validFraction: 0.37,
       sourceImageDimensions: { width: 512, height: 512 },
+      geography: {
+        label: "Monterey Bay, California, United States",
+        center: { lat: 36.8, lon: -121.9 },
+      },
     });
 
     expect(reading).toMatchObject({
@@ -20,8 +24,15 @@ describe("marine boundary SST insights", () => {
       marineBiologyObservation: false,
       isForecast: false,
       dataMonth: { year: 2026, month: 3 },
+      geography: {
+        label: "Monterey Bay, California, United States",
+        center: { lat: 36.8, lon: -121.9 },
+      },
       observedValue: 18.375,
     });
+    expect(reading.detail).toContain(
+      "searched boundary Monterey Bay, California, United States centered at 36.8000, -121.9000"
+    );
     expect(reading.detail).toContain("37% sampled boundary coverage");
     expect(reading.detail).toContain("rendered source image 512 x 512 px");
     expect(reading.detail).toContain(
@@ -36,6 +47,10 @@ describe("marine boundary SST insights", () => {
       observedValue: null,
       validFraction: 0,
       sourceImageDimensions: { width: 512, height: 512 },
+      geography: {
+        label: "Monterey Bay",
+        center: { lat: 36.8, lon: -121.9 },
+      },
     });
 
     expect(reading.value).toBe("No usable SST observation");
@@ -49,6 +64,10 @@ describe("marine boundary SST insights", () => {
       observedValue: 21.2,
       validFraction: 1.1,
       sourceImageDimensions: { width: 512, height: 512 },
+      geography: {
+        label: "Monterey Bay",
+        center: { lat: 36.8, lon: -121.9 },
+      },
     });
 
     expect(reading.value).toBe("No usable SST observation");
@@ -62,9 +81,34 @@ describe("marine boundary SST insights", () => {
       observedValue: 40,
       validFraction: 1,
       sourceImageDimensions: { width: 512, height: 512 },
+      geography: {
+        label: "Monterey Bay",
+        center: { lat: 36.8, lon: -121.9 },
+      },
     });
 
     expect(reading.value).toBe("No usable SST observation");
     expect(reading.observedValue).toBeNull();
+  });
+
+  it("withholds SST when the supplied searched-boundary geography is invalid", () => {
+    const reading = marineBoundarySstReading({
+      dataMonth: { year: 2026, month: 3 },
+      observedValue: 18.4,
+      validFraction: 0.75,
+      sourceImageDimensions: { width: 512, height: 512 },
+      geography: {
+        label: "Monterey Bay",
+        center: { lat: 91, lon: -121.9 },
+      },
+    });
+
+    expect(reading.value).toBe("No usable SST observation");
+    expect(reading.observedValue).toBeNull();
+    expect(reading.geography).toEqual({
+      label: "Monterey Bay",
+      center: { lat: 91, lon: -121.9 },
+    });
+    expect(reading.detail).toContain("invalid searched-boundary geography");
   });
 });

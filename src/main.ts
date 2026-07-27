@@ -577,12 +577,21 @@ function runPlaceInsights(result: GeoResult): void {
         observedValue: sample.values[0],
         validFraction: sample.validFractions[0],
         sourceImageDimensions: sample.sourceImageDimensions,
+        geography: {
+          label: result.displayName,
+          center: { lat: result.lat, lon: result.lon },
+        },
       })
     );
   })().catch((error: unknown) => {
     if (isAbortError(error) || abort.signal.aborted) return;
     console.warn("RoamingEye: marine place insight sampling failed", error);
-    placeInsights.setReading(unavailableMarineBoundarySstReading(sstMonth));
+    placeInsights.setReading(
+      unavailableMarineBoundarySstReading(sstMonth, {
+        label: result.displayName,
+        center: { lat: result.lat, lon: result.lon },
+      })
+    );
   });
 
   void Promise.all(samplingTasks).then(() => {
