@@ -31,7 +31,7 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
 - **Best angle:** "A zero-install, provenance-first 3D globe for eyeballing multi-decadal
   open records before you pull granules — and it exports the time series you charted as
   a citable CSV." Lead with reproducibility and the open-data catalogue.
-- **Status:** researched
+- **Status:** drafted → `outbox/pangeo-showcase-roamingeye.md` (awaiting zkWizard review & post)
 
 ### Hacker News — "Show HN"
 
