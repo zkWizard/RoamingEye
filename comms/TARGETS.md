@@ -120,3 +120,9 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
   TiTiler) as potential contributors.
 - Always re-skim `README.md` and recent `git log` before drafting so claims match the
   current app (feature set, layer count, resolution).
+- **Contributor funnel:** the README links newcomers to the `good first issue` label, so
+  keep that queue non-empty. As of 2026-07-15 it was refilled with #373/#374/#375 (see
+  LOG). When those close, verify the code afresh and open 1–3 new well-scoped ones —
+  never file vague or stale tasks. Held candidates already vetted: a "Searching…"
+  in-flight indicator for `SearchBox`, and reconciling the README layer count with
+  `LAYERS`.
