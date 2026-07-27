@@ -55,6 +55,24 @@ but can take up to ~24h; once it lands, turn on **Enforce HTTPS** in
 _Settings → Pages_ (that is also what flips the `github.io` redirect from `http://` to
 `https://`). No draft text needs to change — the URL in them is already correct.
 
+**Re-measured later on 2026-07-27 — unchanged, and no cert has appeared:**
+`https_certificate` is still `null`, `https_enforced` still `false`, and
+`https://roamingeye.org/` does not merely warn — `curl` returns status `000` and exits
+non-zero, i.e. **the connection never completes**. `zkwizard.github.io/RoamingEye/` still
+`301`s to plain `http://`. The gate stands.
+
+### While you are blocked: one thing that _is_ safe to do now
+
+The repo's one-line **description is empty** (`"description": null`). That is plain text,
+touches no link, and is therefore independent of this gate — it shows in GitHub search,
+the repo card, and social/OG previews. Suggested text and the exact command are in
+`../TARGETS.md` ("Repo discoverability").
+
+**Do not also change the repo `homepage` field yet.** Pointing it at
+`https://roamingeye.org/` while the certificate is missing replaces a link that currently
+works (`301` → the app) with one a browser cannot open at all. The homepage flip belongs
+_after_ the two commands above pass — see the corrected sequence in `../TARGETS.md`.
+
 ## Before you send any draft
 
 Drafts age. RoamingEye ships continuously, so re-check these three things against the

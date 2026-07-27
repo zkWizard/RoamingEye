@@ -223,3 +223,28 @@ null`, `https_enforced: false`, `https://roamingeye.org/` still fails TLS, and
   probe/colormaps/statistics; domain datasets; provenance & export; platform) on top of it,
   taking each responsibility from the module's own doc comment. Also worth folding in: the
   108-vs-26 breakdown of the unwired set, which #570 does not carry.
+- 2026-07-27 (later run) — **Caught and corrected a foot-gun in our own housekeeping advice;
+  no new draft.** Checked open PRs by file first (the standing check): `comms/TARGETS.md` and
+  `comms/outbox/README.md` are touched only by the stranded stack this PR consolidates and by
+  the conflicting #410, so editing them here is safe. Skipped Duty 1 (14 venues researched, 0
+  sent — more would be a spray list), Duty 4 (#373/#374/#375 still open and unclaimed) and
+  Duty 6 (signals pulled hours ago, still 1 star / 0 forks / 0 external watchers).
+  **The correction:** TARGETS told zkWizard to set the repo `homepage` to
+  `https://roamingeye.org/` and to "apply together with the description above". Measured both
+  values today — current `https://zkwizard.github.io/RoamingEye/` gives `301` →
+  `http://roamingeye.org/` → `200` (reaches the app, downgraded), while
+  `https://roamingeye.org/` returns curl status `000` and exits non-zero: **the connection
+  never completes**, so that command would swap a working About-sidebar link for an unopenable
+  one. Rewrote the note as an explicit hold with a 5-step sequence putting the homepage flip
+  _after_ the cert/Enforce-HTTPS/`curl` checks, and split the **description** fix out as safe
+  to apply today — it is plain text, independent of the gate, and the only awareness win
+  available while seven drafts sit blocked.
+  **Also audited, clean, so nobody redoes it:** every in-repo link in the outbox resolves on
+  `main` — `ARCHITECTURE.md`, `METHODS.md`, `docs/research-recipes.md`,
+  `.github/CONTRIBUTING.md`, `.github/ISSUE_TEMPLATE/feedback.yml`, and the
+  `good first issue` label (3 issues). The gate itself is re-measured and unchanged:
+  `https_certificate: null`, `https_enforced: false`.
+  _Windows note for future runs:_ `git cat-file -e <ref>:<path/with/slashes>` and grep output
+  get mangled by MSYS path conversion (`origin/main:.github/x` → `origin\main;.github\x`),
+  which produced two false "MISSING on main" readings before `git ls-tree` settled it. Verify
+  with `git ls-tree -r --name-only` or `cat -A`, not `cat-file -e`.

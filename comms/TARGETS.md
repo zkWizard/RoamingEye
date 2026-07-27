@@ -427,12 +427,30 @@ address the project.
   > `gh repo edit zkWizard/RoamingEye --description "<text above>"`
   > (Left for zkWizard rather than auto-applied — editing public repo metadata is a
   > maintainer call, not something the comms agent pushes unattended.)
-- **Repo homepage is stale (housekeeping — for zkWizard to apply):** as of 2026-07-27 the
-  repo's `homepage` field still reads `https://zkwizard.github.io/RoamingEye/`, even though
-  the site moved to the custom domain `https://roamingeye.org/` that same day. The homepage
-  field is what GitHub shows in the "About" sidebar and in link previews, so it should be
-  the canonical domain. Apply together with the description above:
-  > `gh repo edit zkWizard/RoamingEye --homepage "https://roamingeye.org/"`
+  > **Safe to apply today.** The description is plain text and touches no link, so it is
+  > independent of the HTTPS gate — it is the one awareness win available while all seven
+  > drafts are send-blocked. Do _not_ bundle it with the homepage change below.
+- **Repo homepage — DO NOT change it yet (corrected 2026-07-27, second measurement).** An
+  earlier revision of this note told zkWizard to point `homepage` at
+  `https://roamingeye.org/` and to "apply together with the description above". **Running
+  that command today would break the repo's About link.** Re-measured:
+  - `https://zkwizard.github.io/RoamingEye/` (the current, "stale" value) → `301` →
+    `http://roamingeye.org/` → `200`. It reaches the app, over plain HTTP.
+  - `https://roamingeye.org/` (previously recommended) → **connection failure.** No
+    certificate exists for the host, so the browser cannot open it at all.
+
+  A downgraded link is bad; an unopenable one is worse, and the About sidebar is the first
+  thing anyone arriving from an awesome-list entry or a GitHub search clicks. The stale
+  value is, for now, the _safer_ of the two.
+  **Correct sequence — the homepage flip is the last step, not a companion step:**
+  1. Wait for GitHub to issue the certificate (`https_certificate.state` → `approved`).
+  2. Turn on **Enforce HTTPS** in _Settings → Pages_.
+  3. Confirm `curl -sS -o /dev/null -w '%{http_code}\n' https://roamingeye.org/` returns
+     `200` with no TLS error.
+  4. _Then_ apply: `gh repo edit zkWizard/RoamingEye --homepage "https://roamingeye.org/"`
+  5. The drafts unblock at the same moment — steps 1–3 are exactly the send gate in
+     `outbox/README.md`.
+
 - Candidate venues still to research (do NOT add until rules are read): university
   remote-sensing course networks. **Duty 3 (contributor outreach) is no longer the open
   gap** — the complementary-open-tool track was researched on 2026-07-27 and now has its
