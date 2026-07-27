@@ -1,4 +1,5 @@
 import { isAreaGeometry, type GeoGeometry } from "./geojson";
+import { NDVI_UNIT } from "./phenology";
 import {
   LAYERS,
   type DatasetRef,
@@ -127,7 +128,7 @@ export interface PlaceObservationDataMonth {
 
 /** Native product units for the independently sampled place-insight signals. */
 export const PLACE_OBSERVATION_NATIVE_UNITS = {
-  ndvi: "NDVI",
+  ndvi: NDVI_UNIT,
   precip: "kg/m²/s",
   soil: "kg/m²",
   airtemp: "K",

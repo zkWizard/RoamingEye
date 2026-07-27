@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { NDVI_UNIT } from "./phenology";
 import { LAYERS } from "./timeline";
 import {
   GIBS_IMAGERY_SOURCE,
@@ -269,5 +270,31 @@ describe("place observation export", () => {
         sourceValueFactor: 0,
       })
     ).toThrow("sourceValueFactor must be a positive finite number.");
+  });
+
+  it("uses the canonical unitless NDVI label for generated vegetation products", () => {
+    const vegetation = placeObservationProductFromSample({
+      layerId: "ndvi",
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 4 },
+          value: 0.62,
+          validFraction: 0.82,
+        },
+      ],
+    });
+
+    expect(vegetation).toMatchObject({
+      layerId: "ndvi",
+      source: LAYERS.ndvi.dataset,
+      nativeUnit: NDVI_UNIT,
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 4 },
+          value: 0.62,
+          validFraction: 0.82,
+        },
+      ],
+    });
   });
 });

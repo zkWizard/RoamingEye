@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { CLIMATE_METRICS } from "./climate";
 import { NDVI_UNIT } from "./phenology";
-import { createPlaceObservationExport } from "./placeObservationExport";
+import {
+  createPlaceObservationExport,
+  placeObservationProductFromSample,
+} from "./placeObservationExport";
 import { composePlaceObservationBrief } from "./placeObservationBrief";
 import { LAYERS } from "./timeline";
 
@@ -91,6 +94,51 @@ function exportRecord() {
 }
 
 describe("place observation environmental brief", () => {
+  it("accepts vegetation produced by the sample-to-export data path", () => {
+    const vegetation = placeObservationProductFromSample({
+      layerId: "ndvi",
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 1 },
+          value: 0.58,
+          validFraction: 0.8,
+        },
+      ],
+    });
+    const record = createPlaceObservationExport({
+      boundary: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [-120, 35],
+            [-119, 35],
+            [-119, 36],
+            [-120, 35],
+          ],
+        ],
+      },
+      products: [vegetation],
+      method: {
+        sampling: "area-weighted-grid-mean",
+        imageWidth: 512,
+        imageHeight: 512,
+      },
+      generatedIso: "2026-07-13T07:00:00.000Z",
+      toolVersion: "test",
+    });
+
+    expect(vegetation.nativeUnit).toBe(NDVI_UNIT);
+    const result = composePlaceObservationBrief(record);
+    expect(result.productStatus.vegetation).toBe("accepted");
+    expect(result.brief.signals[0]).toMatchObject({
+      id: "vegetation",
+      nativeUnit: NDVI_UNIT,
+      dataMonth: { year: 2026, month: 1 },
+      observedValue: 0.58,
+      coverage: { status: "available", validFraction: 0.8 },
+    });
+  });
+
   it("adapts latest native-unit observations with product-specific availability", () => {
     const result = composePlaceObservationBrief(exportRecord());
 
