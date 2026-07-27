@@ -6,7 +6,7 @@ no API keys, all open data.
 
 **Body:**
 
-Live site: https://zkwizard.github.io/RoamingEye/ · Code (MIT):
+Live site: https://roamingeye.org/ · Code (MIT):
 https://github.com/zkWizard/RoamingEye
 
 I kept hitting the same wall: decades of open EO data (MODIS, MERRA-2, GLDAS,
