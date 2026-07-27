@@ -194,3 +194,31 @@ null`, `https_enforced: false`, `https://roamingeye.org/` still fails TLS, and
   `zkwizard.github.io/RoamingEye/` still `301`s to plain `http://`. Seven drafts now wait on one
   maintainer action. Also still pending for zkWizard: the empty repo **description** and the
   stale **homepage** field (`gh repo edit` commands in TARGETS Notes).
+- 2026-07-27 — **Contributor onboarding (Duty 4): made `ARCHITECTURE.md` tell the truth about
+  `src/lib/`.** Chose onboarding over an eighth outreach draft because the outbox already holds
+  seven unsent drafts behind the ⛔ HTTPS gate (re-measured today, still `https_certificate: null`,
+  `https_enforced: false`) — draft supply is not the constraint — and because refilling the
+  good-first-issue queue would be wrong while #373/#374/#375 are all still open and unclaimed.
+  Signals re-checked and still flat: 1 star, 0 forks, 0 external watchers, and every issue and
+  non-Dependabot PR is maintainer-authored.
+  The defect: `ARCHITECTURE.md` described `src/lib/` with a **9-row table**, and `src/lib/` now
+  holds **176** non-test modules. A newcomer following our own orientation doc met a directory
+  ~20× larger than the map, with no way to tell which files matter. Walked the real import graph
+  from `src/main.ts` (not an assumption — a script, then cross-checked): **42 of the 176 are
+  reachable from the app; 134 are not.** Of those 134, **108 are imported by nothing but their own
+  unit test** and the other 26 only by each other; **none** are used by `scripts/`, `contract/`,
+  or the e2e suite, so "not reachable from `main.ts`" is the precise and complete statement.
+  (Counts re-derived after merging `origin/main` — six more unwired modules landed mid-run, which
+  is itself the trend the section documents.)
+  Replaced the stale table with a grouped map of all 42 wired modules (geometry & projection;
+  time/catalog/session; probe, colormaps & statistics; domain datasets; provenance & export;
+  platform), with each responsibility taken from the module's own doc comment and exports rather
+  than guessed. Added a short, non-judgmental "library beyond the app surface" subsection stating
+  the 134/108/26 split, a `grep` a contributor can run to check whether any given module is wired,
+  and the constructive read: **wiring an existing tested module into the UI is among the
+  highest-impact changes available**, with a "open an issue on placement first" guardrail. Stamped
+  the counts with today's date and told readers to re-derive rather than trust them, since they
+  drift. Deliberately did _not_ characterize the 134 as dead code or propose deletions — that is a
+  maintainer/engineering call, not comms'.
+  Committed onto the #408 consolidation branch rather than opening a new PR, per the standing
+  "never stack comms PRs" rule, and merged `origin/main` to clear its `BEHIND` state.
