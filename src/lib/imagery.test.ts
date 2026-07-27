@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  boundsPartPixelWidths,
   regionAround,
   legalLonBounds,
   splitBoundsAtAntimeridian,
@@ -147,6 +148,42 @@ describe("splitBoundsAtAntimeridian", () => {
     ).toEqual([
       { bounds: { south: 0, north: 1, west: -180, east: 180 }, fraction: 1 },
     ]);
+  });
+});
+
+describe("boundsPartPixelWidths", () => {
+  it("keeps a sub-pixel east-crossing sliver request valid", () => {
+    const parts = splitBoundsAtAntimeridian({
+      south: -1,
+      north: 1,
+      west: 179,
+      east: 180.0001,
+    });
+    expect(boundsPartPixelWidths(parts, 2048)).toEqual([2047, 1]);
+  });
+
+  it("keeps a sub-pixel west-crossing sliver and exact total width", () => {
+    const parts = splitBoundsAtAntimeridian({
+      south: -1,
+      north: 1,
+      west: -180.0001,
+      east: -179,
+    });
+    const widths = boundsPartPixelWidths(parts, 2048);
+    expect(widths).toEqual([1, 2047]);
+    expect(widths.reduce((sum, width) => sum + width, 0)).toBe(2048);
+  });
+
+  it("rejects an image too narrow to represent every piece", () => {
+    expect(() =>
+      boundsPartPixelWidths(
+        [
+          { bounds: { south: 0, north: 1, west: 0, east: 1 }, fraction: 0.5 },
+          { bounds: { south: 0, north: 1, west: 1, east: 2 }, fraction: 0.5 },
+        ],
+        1
+      )
+    ).toThrow("image width cannot represent bounds pieces");
   });
 });
 
