@@ -144,7 +144,12 @@ describe("NDVI trough greenness timing", () => {
       hemisphere: "northern",
       coverage: {
         validMonthCount: 2,
+        validMonths: [
+          { year: 2017, month: 5 },
+          { year: 2017, month: 6 },
+        ],
         missingMonthCount: 0,
+        missingMonths: [],
         invalidRecordCount: 0,
         minimumValidFraction: 0.9,
         isSparse: true,

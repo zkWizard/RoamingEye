@@ -33,7 +33,16 @@ describe("annual NDVI phenology summaries", () => {
       seasonalRange: 0.58,
       coverage: {
         validMonthCount: 6,
+        validMonths: [
+          { year: 2025, month: 3 },
+          { year: 2025, month: 4 },
+          { year: 2025, month: 5 },
+          { year: 2025, month: 6 },
+          { year: 2025, month: 7 },
+          { year: 2025, month: 8 },
+        ],
         missingMonthCount: 0,
+        missingMonths: [],
         invalidRecordCount: 0,
         minimumValidFraction: 0.6,
         isSparse: false,
@@ -78,11 +87,46 @@ describe("annual NDVI phenology summaries", () => {
       seasonalRange: null,
       coverage: {
         validMonthCount: 3,
+        validMonths: [
+          { year: 2025, month: 1 },
+          { year: 2025, month: 3 },
+          { year: 2025, month: 5 },
+        ],
         missingMonthCount: 1,
+        missingMonths: [{ year: 2025, month: 2 }],
         invalidRecordCount: 2,
         minimumValidFraction: 0.7,
         isSparse: true,
       },
+    });
+  });
+
+  it("sorts exact coverage months without treating omitted months as missing", () => {
+    const [summary] = summarizeAnnualNdviPhenology(
+      [
+        { month: { year: 2024, month: 11 }, ndvi: null },
+        { month: { year: 2024, month: 8 }, ndvi: 0.51 },
+        { month: { year: 2024, month: 2 }, ndvi: null, validFraction: 0 },
+        { month: { year: 2024, month: 5 }, ndvi: 0.43 },
+      ],
+      45
+    );
+
+    expect(summary.coverage).toMatchObject({
+      validMonthCount: 2,
+      validMonths: [
+        { year: 2024, month: 5 },
+        { year: 2024, month: 8 },
+      ],
+      missingMonthCount: 2,
+      missingMonths: [
+        { year: 2024, month: 2 },
+        { year: 2024, month: 11 },
+      ],
+    });
+    expect(summary.coverage.validMonths).not.toContainEqual({
+      year: 2024,
+      month: 3,
     });
   });
 });

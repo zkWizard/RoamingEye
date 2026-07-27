@@ -48,8 +48,12 @@ export interface NdviExtremum {
 export interface NdviCoverage {
   /** Valid calendar months supplied for this year (not an assumed 12 months). */
   validMonthCount: number;
+  /** Exact months retained as usable observations, sorted chronologically. */
+  validMonths: YearMonth[];
   /** Supplied months without a usable NDVI observation. */
   missingMonthCount: number;
+  /** Exact supplied months reported as unavailable, sorted chronologically. */
+  missingMonths: YearMonth[];
   /** Supplied records rejected for invalid date, value, coverage, or duplicate. */
   invalidRecordCount: number;
   /** Lowest reported regional valid fraction among the retained observations. */
@@ -150,6 +154,7 @@ export function summarizeAnnualNdviPhenology(
 
     if (observation.ndvi === null || observation.validFraction === 0) {
       accumulator.missingMonthCount += 1;
+      accumulator.missingMonths.push(observation.month);
       continue;
     }
     if (
@@ -176,6 +181,7 @@ export function summarizeAnnualNdviPhenology(
 interface YearAccumulator {
   seenMonths: Set<number>;
   valid: NdviMonthlyObservation[];
+  missingMonths: YearMonth[];
   missingMonthCount: number;
   invalidRecordCount: number;
 }
@@ -184,6 +190,7 @@ function emptyYearAccumulator(): YearAccumulator {
   return {
     seenMonths: new Set<number>(),
     valid: [],
+    missingMonths: [],
     missingMonthCount: 0,
     invalidRecordCount: 0,
   };
@@ -204,9 +211,17 @@ function annualSummary(
   hemisphere: Hemisphere
 ): NdviAnnualPhenology {
   const valid = accumulator.valid;
+  const validMonths = valid
+    .map(({ month }) => month)
+    .sort((a, b) => a.month - b.month);
+  const missingMonths = [...accumulator.missingMonths].sort(
+    (a, b) => a.month - b.month
+  );
   const coverage: NdviCoverage = {
     validMonthCount: valid.length,
+    validMonths,
     missingMonthCount: accumulator.missingMonthCount,
+    missingMonths,
     invalidRecordCount: accumulator.invalidRecordCount,
     minimumValidFraction:
       valid.length === 0
