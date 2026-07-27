@@ -65,6 +65,11 @@ describe("coastal ocean observation contract", () => {
           validFraction: 0.37,
         },
       },
+      sstCoverageLink: {
+        linked: true,
+        status: "linked",
+        reason: null,
+      },
       biology: {
         kind: "direct-marine-biological-observation",
         biologicalObservation: true,
@@ -116,6 +121,11 @@ describe("coastal ocean observation contract", () => {
       sstAndCoverage: "different-data-month",
       sstAndBiology: "different-data-month",
     });
+    expect(summary.sstCoverageLink).toEqual({
+      linked: false,
+      status: "not-linkable",
+      reason: "different-data-month",
+    });
     expect(summary.biology).toMatchObject({
       status: "observed",
       dataMonth: { year: 2026, month: 2 },
@@ -154,6 +164,43 @@ describe("coastal ocean observation contract", () => {
       observedValue: null,
     });
     expect(summary.dataMonthAlignment.sstAndBiology).toBe("not-applicable");
+  });
+
+  it("does not link invalid SST or coverage metadata into one observation", () => {
+    const invalidSst = createCoastalOceanObservation({
+      sst: {
+        dataMonth: { year: 2026, month: 0 },
+        value: 14.5,
+        footprint: "water",
+      },
+      sstCoverage: {
+        dataMonth: { year: 2026, month: 3 },
+        footprint: "water",
+      },
+    });
+    const invalidCoverage = createCoastalOceanObservation({
+      sst: {
+        dataMonth: { year: 2026, month: 3 },
+        value: 14.5,
+        footprint: "water",
+      },
+      sstCoverage: {
+        dataMonth: { year: 2026, month: 3 },
+        footprint: "water",
+        validFraction: Number.NaN,
+      },
+    });
+
+    expect(invalidSst.sstCoverageLink).toEqual({
+      linked: false,
+      status: "not-linkable",
+      reason: "invalid-sst-metadata",
+    });
+    expect(invalidCoverage.sstCoverageLink).toEqual({
+      linked: false,
+      status: "not-linkable",
+      reason: "invalid-coverage-metadata",
+    });
   });
 
   it("preserves missing and invalid biological data as explicit non-observations", () => {

@@ -118,6 +118,22 @@ export type ObservationMonthAlignment =
   | "invalid-data-month"
   | "not-applicable";
 
+export type SstCoverageLinkReason =
+  | "different-data-month"
+  | "invalid-sst-metadata"
+  | "invalid-coverage-metadata"
+  | null;
+
+export interface SstCoverageLink {
+  /**
+   * True only when the SST value record and coverage record can be treated as
+   * metadata for the same valid source month.
+   */
+  linked: boolean;
+  status: "linked" | "not-linkable";
+  reason: SstCoverageLinkReason;
+}
+
 export interface CoastalOceanObservation {
   schema: typeof COASTAL_OCEAN_OBSERVATION_SCHEMA;
   kind: "coastal-ocean-observation";
@@ -125,6 +141,8 @@ export interface CoastalOceanObservation {
   claimScope: "separate-sst-and-direct-biological-observations-only";
   sst: OceanConditionSummary;
   sstCoverage: MarineCoverageSummary;
+  /** Prevents coverage from a different or invalid month being paired to SST. */
+  sstCoverageLink: SstCoverageLink;
   biology: MarineBiologicalObservationSummary;
   dataMonthAlignment: {
     /** Whether the SST value and its supplied image coverage cite one month. */
@@ -154,6 +172,7 @@ export function createCoastalOceanObservation(
   const biology = summarizeDirectMarineBiologicalObservation(
     input.biologicalObservation ?? null
   );
+  const sstCoverageLink = linkSstCoverage(sst, sstCoverage);
 
   return {
     schema: COASTAL_OCEAN_OBSERVATION_SCHEMA,
@@ -162,6 +181,7 @@ export function createCoastalOceanObservation(
     claimScope: "separate-sst-and-direct-biological-observations-only",
     sst,
     sstCoverage,
+    sstCoverageLink,
     biology,
     dataMonthAlignment: {
       sstAndCoverage: alignMonths(
@@ -175,6 +195,34 @@ export function createCoastalOceanObservation(
     },
     limitations: COASTAL_OCEAN_OBSERVATION_LIMITATIONS,
   };
+}
+
+function linkSstCoverage(
+  sst: OceanConditionSummary,
+  coverage: MarineCoverageSummary
+): SstCoverageLink {
+  if (sst.coverage.status === "invalid") {
+    return {
+      linked: false,
+      status: "not-linkable",
+      reason: "invalid-sst-metadata",
+    };
+  }
+  if (coverage.coverage.status === "invalid") {
+    return {
+      linked: false,
+      status: "not-linkable",
+      reason: "invalid-coverage-metadata",
+    };
+  }
+  if (alignMonths(sst.dataMonth, coverage.dataMonth) !== "same-data-month") {
+    return {
+      linked: false,
+      status: "not-linkable",
+      reason: "different-data-month",
+    };
+  }
+  return { linked: true, status: "linked", reason: null };
 }
 
 export function summarizeDirectMarineBiologicalObservation(
