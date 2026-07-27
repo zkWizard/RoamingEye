@@ -436,6 +436,44 @@ export function textureBudgetBytes(deviceMemoryGb: number | undefined): number {
   return mib * 1024 * 1024;
 }
 
+/** Initial and maximum cooldowns for retrying an unavailable imagery tile. */
+export const TILE_RETRY_BASE_MS = 15_000;
+export const TILE_RETRY_MAX_MS = 5 * 60_000;
+
+interface TileRetryState {
+  attempts: number;
+  retryAtMs: number;
+}
+
+/**
+ * Tracks per-URL imagery failures so a missing tile or provider outage cannot
+ * turn the idle prefetch pump into an unbounded request loop.
+ *
+ * Callers supply monotonic times (performance.now()) so wall-clock changes do
+ * not alter retry behavior. Successful loads remove their history.
+ */
+export class TileRetryLedger {
+  private readonly failures = new Map<string, TileRetryState>();
+
+  canAttempt(key: string, nowMs: number): boolean {
+    return nowMs >= (this.failures.get(key)?.retryAtMs ?? 0);
+  }
+
+  recordFailure(key: string, nowMs: number): number {
+    const attempts = (this.failures.get(key)?.attempts ?? 0) + 1;
+    const delayMs = Math.min(
+      TILE_RETRY_MAX_MS,
+      TILE_RETRY_BASE_MS * 2 ** (attempts - 1)
+    );
+    this.failures.set(key, { attempts, retryAtMs: nowMs + delayMs });
+    return delayMs;
+  }
+
+  recordSuccess(key: string): void {
+    this.failures.delete(key);
+  }
+}
+
 /**
  * Build a GIBS WMTS REST tile URL. Timed layers address a month by its first
  * day; static (time-less) layers omit the time path segment entirely.
