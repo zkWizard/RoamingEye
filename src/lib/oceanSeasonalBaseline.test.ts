@@ -226,6 +226,33 @@ describe("SST same-calendar-month seasonal baseline", () => {
     expect(comparison.anomaly).toBeNull();
   });
 
+  it("withholds an anomaly when the target surface footprint is unknown", () => {
+    const target: SeaSurfaceTemperatureObservation = {
+      dataMonth: { year: 2026, month: 8 },
+      value: 22,
+      validFraction: 0.95,
+      footprint: "unknown",
+    };
+
+    const comparison = compareSstToSeasonalBaseline(
+      target,
+      tenAugustWaterYears(2016, 20)
+    );
+
+    expect(comparison.target).toMatchObject({
+      observedValue: 22,
+      coverage: {
+        status: "unknown",
+        footprint: "unknown",
+        reason: "unknown-footprint",
+      },
+    });
+    expect(comparison.status).toBe("no-data");
+    expect(comparison.reason).toBe("target-unknown-footprint");
+    expect(comparison.anomaly).toBeNull();
+    expect(comparison.samples).toEqual([]);
+  });
+
   it("rejects an out-of-range target SST as invalid", () => {
     const comparison = compareSstToSeasonalBaseline(
       waterMonth(2026, 99),

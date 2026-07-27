@@ -76,6 +76,7 @@ const EMPTY_COVERAGE_TALLY: OceanCoverageTally = {
   water: 0,
   "land-mixed-coastal": 0,
   land: 0,
+  unknown: 0,
   missing: 0,
   invalid: 0,
 };
@@ -96,7 +97,10 @@ export function summarizeOceanConditionSeries(
 
   const usable = months.filter(
     (month): month is OceanConditionSummary & { observedValue: number } =>
-      month.observedValue !== null && month.temperatureBand !== null
+      (month.coverage.status === "water" ||
+        month.coverage.status === "land-mixed-coastal") &&
+      month.observedValue !== null &&
+      month.temperatureBand !== null
   );
 
   const warmest = pickExtreme(usable, "warmest");
