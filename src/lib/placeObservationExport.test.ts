@@ -34,7 +34,11 @@ const input = {
           value: 0.62,
           validFraction: 0.82,
         },
-        { dataMonth: { year: 2026, month: 5 }, value: null },
+        {
+          dataMonth: { year: 2026, month: 5 },
+          value: null,
+          validFraction: 0,
+        },
       ],
     },
     {
@@ -65,7 +69,7 @@ describe("place observation export", () => {
     const exported = createPlaceObservationExport(input);
 
     expect(exported).toMatchObject({
-      schema: "roamingeye-place-observation-export/v2",
+      schema: "roamingeye-place-observation-export/v3",
       kind: "place-observation-export",
       boundary,
       products: [
@@ -75,8 +79,18 @@ describe("place observation export", () => {
           source: LAYERS.ndvi.dataset,
           nativeUnit: "NDVI",
           observations: [
-            { dataMonth: "2026-04", value: 0.62, validFraction: 0.82 },
-            { dataMonth: "2026-05", value: null, validFraction: null },
+            {
+              dataMonth: "2026-04",
+              observationStatus: "value",
+              value: 0.62,
+              validFraction: 0.82,
+            },
+            {
+              dataMonth: "2026-05",
+              observationStatus: "no-data",
+              value: null,
+              validFraction: 0,
+            },
           ],
         },
         {
@@ -84,7 +98,12 @@ describe("place observation export", () => {
           source: LAYERS.precip.dataset,
           nativeUnit: "kg m^-2 s^-1",
           observations: [
-            { dataMonth: "2026-04", value: 0.00014, validFraction: 0.61 },
+            {
+              dataMonth: "2026-04",
+              observationStatus: "value",
+              value: 0.00014,
+              validFraction: 0.61,
+            },
           ],
         },
       ],
@@ -128,6 +147,50 @@ describe("place observation export", () => {
     expect(exported.limitations.join(" ")).toMatch(
       /do not make values across products interchangeable/i
     );
+  });
+
+  it("distinguishes unavailable sampling from a completed no-data sample", () => {
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [
+        {
+          ...input.products[0],
+          observations: [
+            { dataMonth: { year: 2026, month: 3 }, value: null },
+            {
+              dataMonth: { year: 2026, month: 4 },
+              value: null,
+              validFraction: 0,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(exported.products[0].observations).toEqual([
+      {
+        dataMonth: "2026-03",
+        observationStatus: "unavailable",
+        value: null,
+        validFraction: null,
+      },
+      {
+        dataMonth: "2026-04",
+        observationStatus: "no-data",
+        value: null,
+        validFraction: 0,
+      },
+    ]);
+    expect(exported.reproducibility.dataMonthMatrix).toEqual([
+      {
+        dataMonth: "2026-03",
+        layers: [{ layerId: "ndvi", recordStatus: "unavailable-recorded" }],
+      },
+      {
+        dataMonth: "2026-04",
+        layers: [{ layerId: "ndvi", recordStatus: "no-data-recorded" }],
+      },
+    ]);
   });
 
   it("uses a whitelist-only contract with no personal-data or hidden-telemetry fields", () => {

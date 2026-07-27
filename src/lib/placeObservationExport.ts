@@ -16,7 +16,7 @@ import {
  */
 
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
-  "roamingeye-place-observation-export/v2" as const;
+  "roamingeye-place-observation-export/v3" as const;
 
 export const GIBS_IMAGERY_SOURCE = {
   name: "NASA Global Imagery Browse Services (GIBS)",
@@ -47,7 +47,11 @@ export interface PlaceObservationProductInput {
 
 export interface PlaceObservationInput {
   dataMonth: YearMonth;
-  /** Supplied value in `nativeUnit`; null retains a source no-data result. */
+  /**
+   * Supplied value in `nativeUnit`. A null with supplied coverage records a
+   * completed no-data sample; a null without coverage records that sampling
+   * was unavailable.
+   */
   value: number | null;
   /** Supplied share of sampled area with a usable value. */
   validFraction?: number;
@@ -109,13 +113,19 @@ export interface PlaceObservationExportProduct {
   nativeUnit: string;
   observations: {
     dataMonth: string;
+    observationStatus: PlaceObservationStatus;
     value: number | null;
     validFraction: number | null;
   }[];
 }
 
+export type PlaceObservationStatus = "value" | "no-data" | "unavailable";
+
 export type PlaceObservationRecordStatus =
-  "value-recorded" | "no-data-recorded" | "not-recorded";
+  | "value-recorded"
+  | "no-data-recorded"
+  | "unavailable-recorded"
+  | "not-recorded";
 
 export interface PlaceObservationDataMonth {
   dataMonth: string;
@@ -327,6 +337,7 @@ function exportProducts(
       observations: product.observations
         .map((observation) => ({
           dataMonth: formatYearMonth(observation.dataMonth),
+          observationStatus: observationStatus(observation),
           value: observation.value,
           validFraction: observation.validFraction ?? null,
         }))
@@ -356,12 +367,25 @@ function dataMonthMatrix(
         recordStatus:
           observation === undefined
             ? "not-recorded"
-            : observation.value === null
-              ? "no-data-recorded"
-              : "value-recorded",
+            : recordStatus(observation.observationStatus),
       };
     }),
   }));
+}
+
+function observationStatus(
+  observation: PlaceObservationInput
+): PlaceObservationStatus {
+  if (observation.value !== null) return "value";
+  return observation.validFraction === undefined ? "unavailable" : "no-data";
+}
+
+function recordStatus(
+  status: PlaceObservationStatus
+): Exclude<PlaceObservationRecordStatus, "not-recorded"> {
+  if (status === "value") return "value-recorded";
+  if (status === "no-data") return "no-data-recorded";
+  return "unavailable-recorded";
 }
 
 function cloneGeometry(geometry: GeoGeometry): GeoGeometry {
