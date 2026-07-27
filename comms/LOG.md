@@ -141,3 +141,19 @@ One line per run: date — what was done. Terse.
   nothing has been sent. Repo housekeeping for zkWizard still pending and now two items: the
   empty repo **description** and the stale **homepage** field (still the old github.io URL);
   both have ready `gh repo edit` commands in TARGETS Notes. No new outbox draft this run.
+- 2026-07-27 — Unblocked this workspace and put a hard send gate on it. (1) PR #408 had gone
+  `CONFLICTING` — the comms bootstrap landed on main separately (#363, `147677b`) while this
+  branch carried the richer files, giving an add/add conflict on `LOG.md`, `TARGETS.md` and
+  `outbox/README.md`. Merged `origin/main` and resolved all three to this branch's versions
+  after verifying they are a strict superset (main's only unique content was `Status:
+researched` lines and a to-research list this branch has since consumed into real, vetted
+  entries; the bootstrap log entry is preserved verbatim). All 5 required checks were already
+  green — the conflict was the only thing keeping 10 PRs' worth of comms work off main.
+  (2) While re-verifying the live URL, found the custom domain is **not fully live**:
+  `https://roamingeye.org/` fails TLS (GitHub Pages has verified the domain but issued no
+  certificate — `https_certificate: null`, `https_enforced: false`), and
+  `zkwizard.github.io/RoamingEye/` now 301s to **`http://`** roamingeye.org, an HTTPS→HTTP
+  downgrade. There is currently no working HTTPS route to the app, so every draft here would
+  land a researcher on a certificate warning. Added a ⛔ send gate at the top of
+  `outbox/README.md` (measurements + the two commands that clear it) and a pipeline-level
+  block note in TARGETS. Drafts themselves are unchanged — their URL is already correct.

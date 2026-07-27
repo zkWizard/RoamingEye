@@ -328,6 +328,16 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
 
 - Prefer **quality over quantity** — one excellent, rules-respecting artifact per venue
   beats a spray list. Do not add venues you have not actually vetted.
+- **⛔ EVERYTHING IN THE PIPELINE IS SEND-BLOCKED until HTTPS works on the custom domain**
+  (verified 2026-07-27). `https://roamingeye.org/` fails TLS — GitHub Pages has verified
+  the domain but not yet issued a certificate (`https_certificate: null`,
+  `https_enforced: false`), so the host serves the default `*.github.io` cert and browsers
+  reject it. `https://zkwizard.github.io/RoamingEye/` now `301`s to **`http://`**
+  roamingeye.org, an HTTPS→HTTP downgrade — so there is currently no working HTTPS route to
+  the app. Do not send, and do not open awesome-list PRs (those links are permanent). The
+  full gate, measurements, and the two commands that clear it are at the top of
+  `outbox/README.md`. Nothing else in the pipeline needs to change — the drafts already
+  carry the right URL.
 - **Canonical live URL is `https://roamingeye.org/`** (custom domain, landed 2026-07-27 in
   `7bafef4`; `scripts/deploy.mjs` writes the `CNAME` on every deploy). The old
   `https://zkwizard.github.io/RoamingEye/` only redirects — never put it in a draft, and
