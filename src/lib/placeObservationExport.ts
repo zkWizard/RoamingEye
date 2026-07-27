@@ -16,7 +16,7 @@ import {
  */
 
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
-  "roamingeye-place-observation-export/v2" as const;
+  "roamingeye-place-observation-export/v3" as const;
 
 export const GIBS_IMAGERY_SOURCE = {
   name: "NASA Global Imagery Browse Services (GIBS)",
@@ -42,8 +42,15 @@ export interface PlaceObservationProductInput {
   /** Underlying data product citation; this is not replaced by imagery metadata. */
   source: DatasetRef;
   nativeUnit: string;
+  /** Exact rendered-value mapping used, or why it was unavailable. */
+  valueMapping?: PlaceObservationValueMapping;
   observations: readonly PlaceObservationInput[];
 }
+
+export type PlaceObservationValueMapping =
+  | { status: "gibs-colormap"; url: string }
+  | { status: "ui-legend-approximation"; url: null }
+  | { status: "not-available"; url: null };
 
 export interface PlaceObservationInput {
   dataMonth: YearMonth;
@@ -107,6 +114,7 @@ export interface PlaceObservationExportProduct {
   wmsLayer: string;
   source: DatasetRef;
   nativeUnit: string;
+  valueMapping: PlaceObservationValueMapping;
   observations: {
     dataMonth: string;
     value: number | null;
@@ -145,6 +153,10 @@ export interface PlaceObservationExportSample {
   layerId: PlaceObservationExportLayerId;
   observations: readonly PlaceObservationInput[];
   sourceValueFactor?: number;
+  /** URL of the GIBS colormap document actually loaded for this sample. */
+  colormapUrl?: string | null;
+  /** True only for a fallback decoded with RoamingEye's UI legend. */
+  usedUiLegendApproximation?: boolean;
 }
 
 const EXCLUDED_FIELDS = [
@@ -236,6 +248,11 @@ export function placeObservationProductFromSample(
     wmsLayer: layer.wmsLayer,
     source: layer.dataset,
     nativeUnit,
+    valueMapping: sample.colormapUrl
+      ? { status: "gibs-colormap", url: sample.colormapUrl }
+      : sample.usedUiLegendApproximation
+        ? { status: "ui-legend-approximation", url: null }
+        : { status: "not-available", url: null },
     observations: sample.observations.map((observation) => ({
       ...observation,
       value:
@@ -274,6 +291,7 @@ function validateInput(input: PlaceObservationExportInput): void {
     if (!product.wmsLayer.trim() || !product.nativeUnit.trim()) {
       throw new Error("Each product needs a WMS layer and native unit.");
     }
+    validateValueMapping(product.layerId, product.valueMapping);
     if (!hasCitation(product.source)) {
       throw new Error(
         `Product ${product.layerId} needs a complete source citation.`
@@ -324,6 +342,7 @@ function exportProducts(
       wmsLayer: product.wmsLayer,
       source: { ...product.source },
       nativeUnit: product.nativeUnit,
+      valueMapping: exportValueMapping(product.valueMapping),
       observations: product.observations
         .map((observation) => ({
           dataMonth: formatYearMonth(observation.dataMonth),
@@ -333,6 +352,32 @@ function exportProducts(
         .sort((left, right) => compareText(left.dataMonth, right.dataMonth)),
     }))
     .sort((left, right) => compareText(left.layerId, right.layerId));
+}
+
+function exportValueMapping(
+  mapping: PlaceObservationValueMapping | undefined
+): PlaceObservationValueMapping {
+  return mapping ? { ...mapping } : { status: "not-available", url: null };
+}
+
+function validateValueMapping(
+  layerId: LayerId,
+  mapping: PlaceObservationValueMapping | undefined
+): void {
+  if (!mapping || mapping.status !== "gibs-colormap") return;
+  let url: URL;
+  try {
+    url = new URL(mapping.url);
+  } catch {
+    throw new Error(`Product ${layerId} has an invalid colormap URL.`);
+  }
+  if (
+    url.protocol !== "https:" ||
+    url.hostname !== "gibs.earthdata.nasa.gov" ||
+    !/^\/colormaps\/v\d+(?:\.\d+)*\/[^/]+\.xml$/.test(url.pathname)
+  ) {
+    throw new Error(`Product ${layerId} has an invalid GIBS colormap URL.`);
+  }
 }
 
 function dataMonthMatrix(

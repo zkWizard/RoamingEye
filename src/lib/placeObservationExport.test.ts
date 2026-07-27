@@ -28,6 +28,10 @@ const input = {
       wmsLayer: LAYERS.ndvi.wmsLayer,
       source: LAYERS.ndvi.dataset!,
       nativeUnit: "NDVI",
+      valueMapping: {
+        status: "ui-legend-approximation" as const,
+        url: null,
+      },
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -42,6 +46,10 @@ const input = {
       wmsLayer: LAYERS.precip.wmsLayer,
       source: LAYERS.precip.dataset!,
       nativeUnit: "kg m^-2 s^-1",
+      valueMapping: {
+        status: "gibs-colormap" as const,
+        url: "https://gibs.earthdata.nasa.gov/colormaps/v1.3/GLDAS_Surface_Total_Precipitation_Rate_Monthly.xml",
+      },
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -65,7 +73,7 @@ describe("place observation export", () => {
     const exported = createPlaceObservationExport(input);
 
     expect(exported).toMatchObject({
-      schema: "roamingeye-place-observation-export/v2",
+      schema: "roamingeye-place-observation-export/v3",
       kind: "place-observation-export",
       boundary,
       products: [
@@ -74,6 +82,10 @@ describe("place observation export", () => {
           wmsLayer: LAYERS.ndvi.wmsLayer,
           source: LAYERS.ndvi.dataset,
           nativeUnit: "NDVI",
+          valueMapping: {
+            status: "ui-legend-approximation",
+            url: null,
+          },
           observations: [
             { dataMonth: "2026-04", value: 0.62, validFraction: 0.82 },
             { dataMonth: "2026-05", value: null, validFraction: null },
@@ -83,6 +95,10 @@ describe("place observation export", () => {
           layerId: "precip",
           source: LAYERS.precip.dataset,
           nativeUnit: "kg m^-2 s^-1",
+          valueMapping: {
+            status: "gibs-colormap",
+            url: "https://gibs.earthdata.nasa.gov/colormaps/v1.3/GLDAS_Surface_Total_Precipitation_Rate_Monthly.xml",
+          },
           observations: [
             { dataMonth: "2026-04", value: 0.00014, validFraction: 0.61 },
           ],
@@ -230,12 +246,28 @@ describe("place observation export", () => {
         ],
       })
     ).toThrow("Product ndvi has a value with zero sampled coverage.");
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[1],
+            valueMapping: {
+              status: "gibs-colormap",
+              url: "https://example.com/precip.xml",
+            },
+          },
+        ],
+      })
+    ).toThrow("Product precip has an invalid GIBS colormap URL.");
   });
 
   it("reverses display conversions before exporting cited native units", () => {
     const precipitation = placeObservationProductFromSample({
       layerId: "precip",
       sourceValueFactor: 86_400,
+      colormapUrl:
+        "https://gibs.earthdata.nasa.gov/colormaps/v1.3/GLDAS_Surface_Total_Precipitation_Rate_Monthly.xml",
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -251,6 +283,10 @@ describe("place observation export", () => {
       layerId: "precip",
       wmsLayer: LAYERS.precip.wmsLayer,
       source: LAYERS.precip.dataset,
+      valueMapping: {
+        status: "gibs-colormap",
+        url: "https://gibs.earthdata.nasa.gov/colormaps/v1.3/GLDAS_Surface_Total_Precipitation_Rate_Monthly.xml",
+      },
       nativeUnit: "kg/m²/s",
       observations: [
         {
@@ -269,5 +305,22 @@ describe("place observation export", () => {
         sourceValueFactor: 0,
       })
     ).toThrow("sourceValueFactor must be a positive finite number.");
+  });
+
+  it("keeps fallback and unavailable value mappings explicit", () => {
+    expect(
+      placeObservationProductFromSample({
+        layerId: "ndvi",
+        observations: [],
+        usedUiLegendApproximation: true,
+      }).valueMapping
+    ).toEqual({ status: "ui-legend-approximation", url: null });
+    expect(
+      placeObservationProductFromSample({
+        layerId: "soil",
+        observations: [],
+        colormapUrl: null,
+      }).valueMapping
+    ).toEqual({ status: "not-available", url: null });
   });
 });

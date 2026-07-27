@@ -28,6 +28,7 @@ import {
   placeInsightPhysicalReading,
   placeInsightReading,
 } from "./lib/placeInsights";
+import { COLORMAP_DOCS, colormapUrl } from "./lib/colormap";
 import {
   marineBoundarySstReading,
   unavailableMarineBoundarySstReading,
@@ -466,6 +467,7 @@ function runPlaceInsights(result: GeoResult): void {
     exportSamples.set(metric.layerId, {
       layerId: metric.layerId,
       observations: months.map((dataMonth) => ({ dataMonth, value: null })),
+      colormapUrl: null,
     });
     samplingTasks.push(
       (async () => {
@@ -531,6 +533,12 @@ function runPlaceInsights(result: GeoResult): void {
           exportSamples.set(metric.layerId, {
             layerId: metric.layerId,
             sourceValueFactor: colormap?.factor ?? 1,
+            colormapUrl: colormap
+              ? colormapUrl(
+                  COLORMAP_DOCS[metric.layerId as keyof typeof COLORMAP_DOCS]
+                )
+              : null,
+            usedUiLegendApproximation: !colormap && metric.layerId === "ndvi",
             observations: months.map((dataMonth, index) => ({
               dataMonth,
               value: values[index] ?? null,
