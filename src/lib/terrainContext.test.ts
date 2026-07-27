@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { LAYERS } from "./timeline";
-import { TERRAIN_CONTEXT_SOURCE, terrainLayerContext } from "./terrainContext";
+import {
+  ASTER_GDEM_COVERAGE,
+  TERRAIN_CONTEXT_SOURCE,
+  terrainLayerContext,
+} from "./terrainContext";
 
 describe("terrainLayerContext", () => {
   it("retains the configured ASTER GDEM and GIBS provenance", () => {
@@ -14,6 +18,9 @@ describe("terrainLayerContext", () => {
     expect(context.provenance.datasetUrl).toBe(
       "https://doi.org/10.5067/ASTER/ASTGTM.003"
     );
+    expect(context.provenance.coverageReference).toBe(
+      "https://www.earthdata.nasa.gov/s3fs-public/2025-04/ASTGTM_User_Guide_V3.pdf"
+    );
   });
 
   it("does not manufacture a data month or geographic coverage sample", () => {
@@ -21,7 +28,28 @@ describe("terrainLayerContext", () => {
 
     expect(context.dataMonth).toBeNull();
     expect(context.temporalCoverage).toBe("static-no-time-dimension");
-    expect(context.geographicCoverage).toBe("not-sampled");
+    expect(context.geographicCoverage.viewSample).toBe("not-sampled");
+  });
+
+  it("retains the published land-only latitude coverage separately from view sampling", () => {
+    const context = terrainLayerContext();
+
+    expect(context.geographicCoverage.source).toEqual(ASTER_GDEM_COVERAGE);
+    expect(context.geographicCoverage.source).toEqual({
+      surface: "land-surfaces-only",
+      latitude: {
+        south: -83,
+        north: 83,
+        units: "decimal degrees",
+        boundary: "inclusive",
+      },
+    });
+    expect(context.accessibleNotice).toContain(
+      "land surfaces from 83°S through 83°N"
+    );
+    expect(context.accessibleNotice).toContain(
+      "has not sampled coverage at a location"
+    );
   });
 
   it("marks shaded-relief colors as non-calibrated and not point elevations", () => {
