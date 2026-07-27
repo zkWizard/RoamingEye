@@ -21,6 +21,24 @@ export interface Earthquake {
   place: string;
 }
 
+/** Source-declared metadata and parser coverage for one feed retrieval. */
+export interface EarthquakeFeedCoverage {
+  /** Feed generation time in epoch milliseconds (UTC), when supplied. */
+  generatedTime: number | null;
+  title: string | null;
+  apiVersion: string | null;
+  /** Native GeoJSON bbox order: west, south, min depth, east, north, max depth. */
+  bbox: readonly [number, number, number, number, number, number] | null;
+  suppliedFeatureCount: number;
+  usableFeatureCount: number;
+  rejectedFeatureCount: number;
+}
+
+export interface ParsedEarthquakeFeed {
+  earthquakes: Earthquake[];
+  coverage: EarthquakeFeedCoverage;
+}
+
 /**
  * Provenance retained by seismic filters and summaries. The USGS feed reports
  * earthquake magnitude values, hypocentre depth in kilometres, and UTC epoch
@@ -251,9 +269,31 @@ const toNumber = (v: unknown): number =>
   typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
 
 export function parseEarthquakeFeed(json: unknown): Earthquake[] {
-  if (typeof json !== "object" || json === null) return [];
-  const features = (json as { features?: unknown }).features;
-  if (!Array.isArray(features)) return [];
+  return parseEarthquakeFeedWithCoverage(json).earthquakes;
+}
+
+/**
+ * Parse events while retaining source-declared feed metadata and explicit
+ * parser coverage. Missing or malformed metadata remains null; it is never
+ * inferred from the accepted events.
+ */
+export function parseEarthquakeFeedWithCoverage(
+  json: unknown
+): ParsedEarthquakeFeed {
+  if (typeof json !== "object" || json === null) {
+    return emptyParsedFeed();
+  }
+  const feed = json as {
+    features?: unknown;
+    metadata?: {
+      generated?: unknown;
+      title?: unknown;
+      api?: unknown;
+    };
+    bbox?: unknown;
+  };
+  const features = feed.features;
+  if (!Array.isArray(features)) return emptyParsedFeed(feed);
 
   const out: Earthquake[] = [];
   for (const feature of features) {
@@ -285,5 +325,59 @@ export function parseEarthquakeFeed(json: unknown): Earthquake[] {
       place: typeof props.place === "string" ? props.place : "",
     });
   }
-  return out;
+  return {
+    earthquakes: out,
+    coverage: {
+      ...feedMetadata(feed),
+      suppliedFeatureCount: features.length,
+      usableFeatureCount: out.length,
+      rejectedFeatureCount: features.length - out.length,
+    },
+  };
+}
+
+function emptyParsedFeed(
+  feed?: Parameters<typeof feedMetadata>[0]
+): ParsedEarthquakeFeed {
+  return {
+    earthquakes: [],
+    coverage: {
+      ...feedMetadata(feed),
+      suppliedFeatureCount: 0,
+      usableFeatureCount: 0,
+      rejectedFeatureCount: 0,
+    },
+  };
+}
+
+function feedMetadata(feed?: {
+  metadata?: {
+    generated?: unknown;
+    title?: unknown;
+    api?: unknown;
+  };
+  bbox?: unknown;
+}): Pick<
+  EarthquakeFeedCoverage,
+  "generatedTime" | "title" | "apiVersion" | "bbox"
+> {
+  const generated = toNumber(feed?.metadata?.generated);
+  const bbox = Array.isArray(feed?.bbox) ? feed.bbox.map(toNumber) : undefined;
+  return {
+    generatedTime: Number.isFinite(generated) ? generated : null,
+    title:
+      typeof feed?.metadata?.title === "string" &&
+      feed.metadata.title.trim().length > 0
+        ? feed.metadata.title
+        : null,
+    apiVersion:
+      typeof feed?.metadata?.api === "string" &&
+      feed.metadata.api.trim().length > 0
+        ? feed.metadata.api
+        : null,
+    bbox:
+      bbox?.length === 6 && bbox.every(Number.isFinite)
+        ? (bbox as [number, number, number, number, number, number])
+        : null,
+  };
 }

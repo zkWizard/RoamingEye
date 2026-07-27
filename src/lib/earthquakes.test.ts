@@ -5,6 +5,7 @@ import {
   depthClass,
   magnitudeClass,
   MAGNITUDE_CLASS_ORDER,
+  parseEarthquakeFeedWithCoverage,
   summarizeEarthquakes,
 } from "./earthquakes";
 
@@ -61,6 +62,60 @@ describe("parseEarthquakeFeed", () => {
       features: [feature(0, 0, 10, 5, { place: undefined })],
     });
     expect(quakes[0].place).toBe("");
+  });
+
+  it("preserves source metadata and reports parser coverage", () => {
+    const parsed = parseEarthquakeFeedWithCoverage({
+      metadata: {
+        generated: 1_750_000_123_456,
+        title: "USGS Magnitude 4.5+ Earthquakes, Past Month",
+        api: "1.14.1",
+      },
+      bbox: [-179.9, -65.2, -3.1, 179.8, 74.4, 638.2],
+      features: [
+        feature(152.3, -4.2, 45, 6.1),
+        { geometry: { coordinates: [1, 2] }, properties: { mag: 5 } },
+      ],
+    });
+
+    expect(parsed.earthquakes).toHaveLength(1);
+    expect(parsed.coverage).toEqual({
+      generatedTime: 1_750_000_123_456,
+      title: "USGS Magnitude 4.5+ Earthquakes, Past Month",
+      apiVersion: "1.14.1",
+      bbox: [-179.9, -65.2, -3.1, 179.8, 74.4, 638.2],
+      suppliedFeatureCount: 2,
+      usableFeatureCount: 1,
+      rejectedFeatureCount: 1,
+    });
+  });
+
+  it("keeps unavailable or malformed feed metadata explicit", () => {
+    expect(
+      parseEarthquakeFeedWithCoverage({
+        metadata: { generated: "not-a-time", title: " ", api: 1.14 },
+        bbox: [-180, -90, 0, 180, 90],
+        features: [],
+      }).coverage
+    ).toEqual({
+      generatedTime: null,
+      title: null,
+      apiVersion: null,
+      bbox: null,
+      suppliedFeatureCount: 0,
+      usableFeatureCount: 0,
+      rejectedFeatureCount: 0,
+    });
+
+    expect(parseEarthquakeFeedWithCoverage(null).coverage).toEqual({
+      generatedTime: null,
+      title: null,
+      apiVersion: null,
+      bbox: null,
+      suppliedFeatureCount: 0,
+      usableFeatureCount: 0,
+      rejectedFeatureCount: 0,
+    });
   });
 });
 
