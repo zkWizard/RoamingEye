@@ -166,11 +166,13 @@ describe("nearbyEarthquakeContext", () => {
     const earthquakes = parseEarthquakeFeed({
       features: [
         {
+          id: "us-parsed",
           geometry: { coordinates: [-122.42, 37.77, 8.4] },
           properties: {
             mag: 4.6,
             time: 1_750_000_000_000,
             place: "San Francisco Bay Area",
+            url: "https://earthquake.usgs.gov/earthquakes/eventpage/us-parsed",
           },
         },
       ],
@@ -189,6 +191,9 @@ describe("nearbyEarthquakeContext", () => {
         magnitude: 4.6,
         time: 1_750_000_000_000,
         place: "San Francisco Bay Area",
+        sourceEventId: "us-parsed",
+        sourceEventUrl:
+          "https://earthquake.usgs.gov/earthquakes/eventpage/us-parsed",
         distanceKm: 0,
         depthClass: "shallow",
       },

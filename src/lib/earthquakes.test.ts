@@ -13,10 +13,18 @@ const feature = (
   lat: number,
   depth: number,
   mag: number,
-  extra: object = {}
+  extra: object = {},
+  id: unknown = "us-test-event"
 ) => ({
+  id,
   geometry: { coordinates: [lon, lat, depth] },
-  properties: { mag, time: 1_750_000_000_000, place: "somewhere", ...extra },
+  properties: {
+    mag,
+    time: 1_750_000_000_000,
+    place: "somewhere",
+    url: "https://earthquake.usgs.gov/earthquakes/eventpage/us-test-event",
+    ...extra,
+  },
 });
 
 describe("parseEarthquakeFeed", () => {
@@ -31,6 +39,9 @@ describe("parseEarthquakeFeed", () => {
       depthKm: 45,
       magnitude: 6.1,
       place: "somewhere",
+      sourceEventId: "us-test-event",
+      sourceEventUrl:
+        "https://earthquake.usgs.gov/earthquakes/eventpage/us-test-event",
     });
   });
 
@@ -61,6 +72,25 @@ describe("parseEarthquakeFeed", () => {
       features: [feature(0, 0, 10, 5, { place: undefined })],
     });
     expect(quakes[0].place).toBe("");
+  });
+
+  it("preserves unavailable source identifiers and URLs as null", () => {
+    const quakes = parseEarthquakeFeed({
+      features: [
+        feature(0, 0, 10, 5, { url: undefined }, null),
+        feature(1, 1, 20, 6, { url: "   " }, "   "),
+      ],
+    });
+
+    expect(quakes).toHaveLength(2);
+    expect(quakes[0]).toMatchObject({
+      sourceEventId: null,
+      sourceEventUrl: null,
+    });
+    expect(quakes[1]).toMatchObject({
+      sourceEventId: null,
+      sourceEventUrl: null,
+    });
   });
 });
 

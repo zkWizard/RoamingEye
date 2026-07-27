@@ -19,6 +19,10 @@ export interface Earthquake {
   time: number;
   /** Human-readable location, e.g. "63 km SW of Kokopo, Papua New Guinea". */
   place: string;
+  /** USGS event identifier when supplied by the GeoJSON feature. */
+  sourceEventId?: string | null;
+  /** Canonical USGS event page when supplied by the GeoJSON properties. */
+  sourceEventUrl?: string | null;
 }
 
 /**
@@ -283,6 +287,14 @@ export function parseEarthquakeFeed(json: unknown): Earthquake[] {
       magnitude,
       time,
       place: typeof props.place === "string" ? props.place : "",
+      sourceEventId:
+        typeof feature.id === "string" && feature.id.trim() !== ""
+          ? feature.id
+          : null,
+      sourceEventUrl:
+        typeof props.url === "string" && props.url.trim() !== ""
+          ? props.url
+          : null,
     });
   }
   return out;
