@@ -270,4 +270,51 @@ describe("place observation export", () => {
       })
     ).toThrow("sourceValueFactor must be a positive finite number.");
   });
+
+  it("exports sampled SST in native units with its own month, coverage, and citation", () => {
+    const sst = placeObservationProductFromSample({
+      layerId: "sst",
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 3 },
+          value: 18.375,
+          validFraction: 0.37,
+        },
+      ],
+    });
+
+    expect(sst).toEqual({
+      layerId: "sst",
+      wmsLayer: LAYERS.sst.wmsLayer,
+      source: LAYERS.sst.dataset,
+      nativeUnit: "°C",
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 3 },
+          value: 18.375,
+          validFraction: 0.37,
+        },
+      ],
+    });
+
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [sst],
+    });
+    expect(exported.products[0]).toMatchObject({
+      layerId: "sst",
+      source: LAYERS.sst.dataset,
+      nativeUnit: "°C",
+      observations: [
+        {
+          dataMonth: "2026-03",
+          value: 18.375,
+          validFraction: 0.37,
+        },
+      ],
+    });
+    expect(exported.limitations.join(" ")).not.toMatch(
+      /biological|ecological|organism|habitat/i
+    );
+  });
 });
