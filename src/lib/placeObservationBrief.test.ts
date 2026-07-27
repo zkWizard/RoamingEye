@@ -92,9 +92,23 @@ function exportRecord() {
 
 describe("place observation environmental brief", () => {
   it("adapts latest native-unit observations with product-specific availability", () => {
-    const result = composePlaceObservationBrief(exportRecord());
+    const record = exportRecord();
+    const result = composePlaceObservationBrief(record);
 
     expect(result.kind).toBe("place-observation-environment-brief");
+    expect(result.provenance).toEqual({
+      exportSchema: "roamingeye-place-observation-export/v2",
+      boundary: record.boundary,
+      sampling: "area-weighted-grid-mean",
+      imagery: record.method.imagery,
+      sourceImage: { width: 512, height: 512 },
+      valueMethod: "approximate-colormap-inversion",
+      generated: {
+        iso: "2026-07-13T07:00:00.000Z",
+        tool: "RoamingEye",
+        version: "test",
+      },
+    });
     expect(result.productStatus).toEqual({
       vegetation: "accepted",
       rainfall: "accepted",
@@ -124,6 +138,25 @@ describe("place observation environmental brief", () => {
     });
     expect(result.brief.unsupportedLanguageHits).toEqual([]);
     expect("score" in result).toBe(false);
+  });
+
+  it("copies geography and method provenance instead of aliasing the export", () => {
+    const record = exportRecord();
+    const result = composePlaceObservationBrief(record);
+
+    expect(result.provenance.boundary).not.toBe(record.boundary);
+    expect(result.provenance.sourceImage).not.toBe(record.method.sourceImage);
+    expect(result.provenance.generated).not.toBe(record.generated);
+
+    (record.boundary.coordinates as [number, number][][])[0][0][0] = 999;
+    record.method.sourceImage.width = 1;
+    record.generated.iso = "changed";
+
+    expect(
+      (result.provenance.boundary.coordinates as [number, number][][])[0][0]
+    ).toEqual([-120, 35]);
+    expect(result.provenance.sourceImage.width).toBe(512);
+    expect(result.provenance.generated.iso).toBe("2026-07-13T07:00:00.000Z");
   });
 
   it("rejects source or unit mismatches instead of relabelling them", () => {
