@@ -91,6 +91,12 @@ export interface EnvironmentSignalBrief {
 export interface EnvironmentTemporalAlignment {
   /** Available signals whose data months were compared, in signal order. */
   comparedSignalIds: EnvironmentSignalId[];
+  /**
+   * Signals excluded from the month comparison, with the source month and
+   * reason preserved so the comparison can be reproduced without treating
+   * no-data, invalid, or unavailable observations as usable.
+   */
+  excludedSignals: EnvironmentTemporalExclusion[];
   /** Oldest data month among available signals; null when none are usable. */
   earliestMonth: YearMonth | null;
   /** Newest data month among available signals; null when none are usable. */
@@ -104,6 +110,15 @@ export interface EnvironmentTemporalAlignment {
   aligned: boolean;
   /** Honest caveat sentence; carries no value comparison or condition claim. */
   statement: string;
+}
+
+export interface EnvironmentTemporalExclusion {
+  id: EnvironmentSignalId;
+  status: Exclude<EnvironmentSignalStatus, "available">;
+  /** Source month when one was supplied; null for a not-supplied signal. */
+  dataMonth: YearMonth | null;
+  /** Source/validation reason carried by the signal coverage contract. */
+  reason: string | null;
 }
 
 export interface EnvironmentBriefCompleteness {
@@ -247,10 +262,25 @@ export function summarizeTemporalAlignment(
     (signal): signal is EnvironmentSignalBrief & { dataMonth: YearMonth } =>
       signal.status === "available" && signal.dataMonth !== null
   );
+  const excludedSignals = signals
+    .filter(
+      (
+        signal
+      ): signal is EnvironmentSignalBrief & {
+        status: Exclude<EnvironmentSignalStatus, "available">;
+      } => signal.status !== "available"
+    )
+    .map(({ id, status, dataMonth, coverage }) => ({
+      id,
+      status,
+      dataMonth,
+      reason: coverage.reason,
+    }));
 
   if (usable.length === 0) {
     return {
       comparedSignalIds: [],
+      excludedSignals,
       earliestMonth: null,
       latestMonth: null,
       spanMonths: null,
@@ -270,6 +300,7 @@ export function summarizeTemporalAlignment(
 
   return {
     comparedSignalIds,
+    excludedSignals,
     earliestMonth: earliest,
     latestMonth: latest,
     spanMonths,
