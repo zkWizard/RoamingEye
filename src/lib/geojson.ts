@@ -128,6 +128,28 @@ function preparedPolygons(geometry: GeoGeometry): PreparedPolygon[] {
   });
 }
 
+function preparedGeometryBounds(
+  polygons: readonly PreparedPolygon[]
+): GeometryBounds | null {
+  if (polygons.length === 0) return null;
+  let south = Infinity;
+  let north = -Infinity;
+  const lons: number[] = [];
+  for (const { outer } of polygons) {
+    for (const [lon, lat] of outer) {
+      south = Math.min(south, lat);
+      north = Math.max(north, lat);
+      lons.push(lon);
+    }
+  }
+  const lonBounds = shortArcLonBounds(lons);
+  return Number.isFinite(south) &&
+    south < north &&
+    lonBounds.west < lonBounds.east
+    ? { south, north, ...lonBounds }
+    : null;
+}
+
 function lonInFrame(lon: number, reference: number): number {
   let framed = normalizeLon(lon);
   while (framed - reference > 180) framed -= 360;
@@ -168,24 +190,7 @@ export function isAreaGeometry(geometry: GeoGeometry | null): boolean {
 
 /** Bounds of all outer polygon rings, or null when no area is present. */
 export function geometryBounds(geometry: GeoGeometry): GeometryBounds | null {
-  const polygons = preparedPolygons(geometry);
-  if (polygons.length === 0) return null;
-  let south = Infinity;
-  let north = -Infinity;
-  const lons: number[] = [];
-  for (const { outer } of polygons) {
-    for (const [lon, lat] of outer) {
-      south = Math.min(south, lat);
-      north = Math.max(north, lat);
-      lons.push(lon);
-    }
-  }
-  const lonBounds = shortArcLonBounds(lons);
-  return Number.isFinite(south) &&
-    south < north &&
-    lonBounds.west < lonBounds.east
-    ? { south, north, ...lonBounds }
-    : null;
+  return preparedGeometryBounds(preparedPolygons(geometry));
 }
 
 function pointInRing(lon: number, lat: number, ring: Position[]): boolean {
@@ -200,13 +205,12 @@ function pointInRing(lon: number, lat: number, ring: Position[]): boolean {
   return inside;
 }
 
-/** Test whether a longitude/latitude point falls inside a polygon or multipolygon. */
-export function geometryContains(
-  geometry: GeoGeometry,
+function preparedGeometryContains(
+  polygons: readonly PreparedPolygon[],
   lat: number,
   lon: number
 ): boolean {
-  return preparedPolygons(geometry).some(({ outer, holes }) => {
+  return polygons.some(({ outer, holes }) => {
     const reference = averageLon(outer);
     const framedLon = lonInFrame(lon, reference);
     return (
@@ -214,6 +218,15 @@ export function geometryContains(
       !holes.some((hole) => pointInRing(framedLon, lat, hole))
     );
   });
+}
+
+/** Test whether a longitude/latitude point falls inside a polygon or multipolygon. */
+export function geometryContains(
+  geometry: GeoGeometry,
+  lat: number,
+  lon: number
+): boolean {
+  return preparedGeometryContains(preparedPolygons(geometry), lat, lon);
 }
 
 /**
@@ -225,7 +238,8 @@ export function geometryGridPoints(
   geometry: GeoGeometry,
   n: number
 ): { lat: number; lon: number }[] {
-  const bounds = geometryBounds(geometry);
+  const polygons = preparedPolygons(geometry);
+  const bounds = preparedGeometryBounds(polygons);
   if (!bounds || n < 1) return [];
   const points: { lat: number; lon: number }[] = [];
   for (let row = 0; row < n; row++) {
@@ -233,7 +247,9 @@ export function geometryGridPoints(
       bounds.south + ((row + 0.5) / n) * (bounds.north - bounds.south);
     for (let col = 0; col < n; col++) {
       const lon = bounds.west + ((col + 0.5) / n) * (bounds.east - bounds.west);
-      if (geometryContains(geometry, lat, lon)) points.push({ lat, lon });
+      if (preparedGeometryContains(polygons, lat, lon)) {
+        points.push({ lat, lon });
+      }
     }
   }
   return points;
