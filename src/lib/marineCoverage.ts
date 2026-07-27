@@ -36,6 +36,18 @@ export interface SourceImageDimensions {
   height: number;
 }
 
+export type SourceImageMetadataStatus =
+  "available" | "not-supplied" | "invalid";
+
+export interface SourceImageMetadata {
+  status: SourceImageMetadataStatus;
+  /** Dimensions exactly as supplied by the sampler, including invalid values. */
+  suppliedDimensions: SourceImageDimensions | null;
+  /** Positive integer dimensions safe for downstream display or export. */
+  dimensions: SourceImageDimensions | null;
+  reason: "dimensions-not-supplied" | "invalid-dimensions" | null;
+}
+
 export interface MarineCoverageInput {
   /** Calendar month represented by the sampled SST image. */
   dataMonth: YearMonth;
@@ -70,6 +82,9 @@ export interface MarineCoverageSummary {
     validFraction: number | null;
     reason: string | null;
   };
+  /** Distinguishes missing image metadata from malformed supplied metadata. */
+  sourceImageMetadata: SourceImageMetadata;
+  /** @deprecated Use sourceImageMetadata.dimensions and status. */
   sourceImageDimensions: SourceImageDimensions | null;
   /** Ready for an aria-label or other screen-reader-visible presentation. */
   accessibleText: string;
@@ -83,7 +98,7 @@ export function summarizeMarineCoverage(
   input: MarineCoverageInput
 ): MarineCoverageSummary {
   const coverage = coverageFor(input);
-  const sourceImageDimensions = dimensionsFor(input.sourceImageDimensions);
+  const sourceImageMetadata = imageMetadataFor(input.sourceImageDimensions);
 
   return {
     kind: "sea-surface-temperature-coverage",
@@ -92,11 +107,12 @@ export function summarizeMarineCoverage(
     source: SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE,
     dataMonth: input.dataMonth,
     coverage,
-    sourceImageDimensions,
+    sourceImageMetadata,
+    sourceImageDimensions: sourceImageMetadata.dimensions,
     accessibleText: accessibleTextFor(
       input.dataMonth,
       coverage,
-      sourceImageDimensions
+      sourceImageMetadata
     ),
   };
 }
@@ -135,22 +151,34 @@ function coverageFor(
   return { ...base, status: input.footprint, reason: null };
 }
 
-function dimensionsFor(
+function imageMetadataFor(
   dimensions: SourceImageDimensions | undefined
-): SourceImageDimensions | null {
-  if (!dimensions) return null;
-  return Number.isInteger(dimensions.width) &&
+): SourceImageMetadata {
+  if (!dimensions) {
+    return {
+      status: "not-supplied",
+      suppliedDimensions: null,
+      dimensions: null,
+      reason: "dimensions-not-supplied",
+    };
+  }
+  const valid =
+    Number.isInteger(dimensions.width) &&
     Number.isInteger(dimensions.height) &&
     dimensions.width > 0 &&
-    dimensions.height > 0
-    ? dimensions
-    : null;
+    dimensions.height > 0;
+  return {
+    status: valid ? "available" : "invalid",
+    suppliedDimensions: dimensions,
+    dimensions: valid ? dimensions : null,
+    reason: valid ? null : "invalid-dimensions",
+  };
 }
 
 function accessibleTextFor(
   dataMonth: YearMonth,
   coverage: MarineCoverageSummary["coverage"],
-  dimensions: SourceImageDimensions | null
+  imageMetadata: SourceImageMetadata
 ): string {
   const month = isYearMonth(dataMonth)
     ? formatYm(dataMonth)
@@ -169,9 +197,12 @@ function accessibleTextFor(
           : coverage.status === "invalid"
             ? "Coverage metadata is invalid."
             : fraction;
-  const image = dimensions
-    ? ` Source image dimensions: ${dimensions.width} by ${dimensions.height} pixels.`
-    : " Source image dimensions were not supplied.";
+  const image =
+    imageMetadata.status === "available"
+      ? ` Source image dimensions: ${imageMetadata.dimensions!.width} by ${imageMetadata.dimensions!.height} pixels.`
+      : imageMetadata.status === "invalid"
+        ? ` Supplied source image dimensions are invalid (${imageMetadata.suppliedDimensions!.width} by ${imageMetadata.suppliedDimensions!.height}); no usable dimensions are reported.`
+        : " Source image dimensions were not supplied.";
 
   return `Sea surface temperature coverage for ${month}: ${footprint} Source: ${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.shortName} v${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.version}. This is an SST observation, not a marine-biology observation.${image}`;
 }

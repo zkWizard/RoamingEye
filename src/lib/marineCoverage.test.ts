@@ -25,6 +25,12 @@ describe("marine coverage summaries", () => {
         validFraction: 0.74,
         reason: null,
       },
+      sourceImageMetadata: {
+        status: "available",
+        suppliedDimensions: { width: 2048, height: 1024 },
+        dimensions: { width: 2048, height: 1024 },
+        reason: null,
+      },
       sourceImageDimensions: { width: 2048, height: 1024 },
     });
     expect(summary.accessibleText).toContain("74% of the supplied footprint");
@@ -47,6 +53,12 @@ describe("marine coverage summaries", () => {
       reason: null,
     });
     expect(summary.sourceImageDimensions).toBeNull();
+    expect(summary.sourceImageMetadata).toEqual({
+      status: "not-supplied",
+      suppliedDimensions: null,
+      dimensions: null,
+      reason: "dimensions-not-supplied",
+    });
     expect(summary.accessibleText).toContain(
       "Source image dimensions were not supplied"
     );
@@ -79,7 +91,7 @@ describe("marine coverage summaries", () => {
     });
   });
 
-  it("rejects invalid coverage and discards invalid image dimensions", () => {
+  it("rejects invalid coverage while preserving invalid image metadata", () => {
     const summary = summarizeMarineCoverage({
       dataMonth: { year: 2026, month: 3 },
       footprint: "water",
@@ -94,5 +106,17 @@ describe("marine coverage summaries", () => {
       reason: "invalid-coverage",
     });
     expect(summary.sourceImageDimensions).toBeNull();
+    expect(summary.sourceImageMetadata).toEqual({
+      status: "invalid",
+      suppliedDimensions: { width: 0, height: 1024 },
+      dimensions: null,
+      reason: "invalid-dimensions",
+    });
+    expect(summary.accessibleText).toContain(
+      "Supplied source image dimensions are invalid (0 by 1024)"
+    );
+    expect(summary.accessibleText).not.toContain(
+      "Source image dimensions were not supplied"
+    );
   });
 });
