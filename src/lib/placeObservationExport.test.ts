@@ -55,6 +55,15 @@ const input = {
     sampling: "area-weighted-grid-mean" as const,
     imageWidth: 1024,
     imageHeight: 512,
+    boundarySampling: {
+      strategy: "boundary-grid" as const,
+      gridSize: 16,
+      candidatePointCount: 256,
+      interiorPointCount: 180,
+      retainedPointCount: 96,
+      sourcePixelCount: 91,
+      pointLimitApplied: true,
+    },
   },
   generatedIso: "2026-07-13T06:00:00Z",
   toolVersion: "1.1.0",
@@ -65,7 +74,7 @@ describe("place observation export", () => {
     const exported = createPlaceObservationExport(input);
 
     expect(exported).toMatchObject({
-      schema: "roamingeye-place-observation-export/v2",
+      schema: "roamingeye-place-observation-export/v3",
       kind: "place-observation-export",
       boundary,
       products: [
@@ -93,6 +102,16 @@ describe("place observation export", () => {
         imagery: GIBS_IMAGERY_SOURCE,
         sourceImage: { width: 1024, height: 512 },
         valueMethod: "approximate-colormap-inversion",
+        boundarySampling: {
+          status: "recorded",
+          strategy: "boundary-grid",
+          gridSize: 16,
+          candidatePointCount: 256,
+          interiorPointCount: 180,
+          retainedPointCount: 96,
+          sourcePixelCount: 91,
+          pointLimitApplied: true,
+        },
       },
       generated: {
         iso: "2026-07-13T06:00:00Z",
@@ -230,6 +249,49 @@ describe("place observation export", () => {
         ],
       })
     ).toThrow("Product ndvi has a value with zero sampled coverage.");
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        method: {
+          ...input.method,
+          boundarySampling: {
+            ...input.method.boundarySampling,
+            retainedPointCount: 181,
+          },
+        },
+      })
+    ).toThrow(
+      "Boundary sampling counts must satisfy source pixels <= retained points <= interior points <= candidate points."
+    );
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        method: {
+          ...input.method,
+          boundarySampling: {
+            ...input.method.boundarySampling,
+            pointLimitApplied: false,
+          },
+        },
+      })
+    ).toThrow(
+      "Boundary sampling pointLimitApplied must match whether interior points were omitted."
+    );
+  });
+
+  it("keeps unavailable boundary-sampling evidence explicit", () => {
+    const exported = createPlaceObservationExport({
+      ...input,
+      method: {
+        sampling: "area-weighted-grid-mean",
+        imageWidth: 1024,
+        imageHeight: 512,
+      },
+    });
+
+    expect(exported.method.boundarySampling).toEqual({
+      status: "not-supplied",
+    });
   });
 
   it("reverses display conversions before exporting cited native units", () => {

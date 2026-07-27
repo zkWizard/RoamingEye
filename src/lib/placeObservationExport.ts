@@ -16,7 +16,7 @@ import {
  */
 
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
-  "roamingeye-place-observation-export/v2" as const;
+  "roamingeye-place-observation-export/v3" as const;
 
 export const GIBS_IMAGERY_SOURCE = {
   name: "NASA Global Imagery Browse Services (GIBS)",
@@ -57,6 +57,19 @@ export interface PlaceObservationMethodInput {
   sampling: PlaceObservationSampling;
   imageWidth: number;
   imageHeight: number;
+  /**
+   * Pixel-accounting evidence from an exact searched-boundary sample. Omit
+   * only when the caller did not retain the sampler's geometry plan.
+   */
+  boundarySampling?: {
+    strategy: "boundary-grid" | "boundary-point";
+    gridSize: number;
+    candidatePointCount: number;
+    interiorPointCount: number;
+    retainedPointCount: number;
+    sourcePixelCount: number;
+    pointLimitApplied: boolean;
+  };
 }
 
 export interface PlaceObservationExport {
@@ -69,6 +82,18 @@ export interface PlaceObservationExport {
     imagery: typeof GIBS_IMAGERY_SOURCE;
     sourceImage: { width: number; height: number };
     valueMethod: "approximate-colormap-inversion";
+    boundarySampling:
+      | {
+          status: "recorded";
+          strategy: "boundary-grid" | "boundary-point";
+          gridSize: number;
+          candidatePointCount: number;
+          interiorPointCount: number;
+          retainedPointCount: number;
+          sourcePixelCount: number;
+          pointLimitApplied: boolean;
+        }
+      | { status: "not-supplied" };
   };
   generated: { iso: string; tool: "RoamingEye"; version: string };
   privacy: {
@@ -182,6 +207,21 @@ export function createPlaceObservationExport(
         height: input.method.imageHeight,
       },
       valueMethod: "approximate-colormap-inversion",
+      boundarySampling: input.method.boundarySampling
+        ? {
+            status: "recorded",
+            strategy: input.method.boundarySampling.strategy,
+            gridSize: input.method.boundarySampling.gridSize,
+            candidatePointCount:
+              input.method.boundarySampling.candidatePointCount,
+            interiorPointCount:
+              input.method.boundarySampling.interiorPointCount,
+            retainedPointCount:
+              input.method.boundarySampling.retainedPointCount,
+            sourcePixelCount: input.method.boundarySampling.sourcePixelCount,
+            pointLimitApplied: input.method.boundarySampling.pointLimitApplied,
+          }
+        : { status: "not-supplied" },
     },
     generated: {
       iso: input.generatedIso,
@@ -264,6 +304,7 @@ function validateInput(input: PlaceObservationExportInput): void {
   ) {
     throw new Error("Source image dimensions must be positive integers.");
   }
+  validateBoundarySampling(input.method.boundarySampling);
 
   const layerIds = new Set<LayerId>();
   for (const product of input.products) {
@@ -312,6 +353,49 @@ function validateInput(input: PlaceObservationExportInput): void {
         );
       }
     }
+  }
+}
+
+function validateBoundarySampling(
+  sampling: PlaceObservationMethodInput["boundarySampling"]
+): void {
+  if (!sampling) return;
+  const counts = [
+    sampling.gridSize,
+    sampling.candidatePointCount,
+    sampling.interiorPointCount,
+    sampling.retainedPointCount,
+    sampling.sourcePixelCount,
+  ];
+  if (!counts.every(isPositiveInteger)) {
+    throw new Error(
+      "Boundary sampling counts and grid size must be positive integers."
+    );
+  }
+  if (
+    sampling.interiorPointCount > sampling.candidatePointCount ||
+    sampling.retainedPointCount > sampling.interiorPointCount ||
+    sampling.sourcePixelCount > sampling.retainedPointCount
+  ) {
+    throw new Error(
+      "Boundary sampling counts must satisfy source pixels <= retained points <= interior points <= candidate points."
+    );
+  }
+  if (
+    sampling.pointLimitApplied !==
+    sampling.retainedPointCount < sampling.interiorPointCount
+  ) {
+    throw new Error(
+      "Boundary sampling pointLimitApplied must match whether interior points were omitted."
+    );
+  }
+  if (
+    sampling.strategy === "boundary-point" &&
+    sampling.retainedPointCount !== 1
+  ) {
+    throw new Error(
+      "Boundary-point sampling must retain exactly one in-boundary point."
+    );
   }
 }
 
