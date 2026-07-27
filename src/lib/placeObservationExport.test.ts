@@ -95,7 +95,7 @@ describe("place observation export", () => {
         valueMethod: "approximate-colormap-inversion",
       },
       generated: {
-        iso: "2026-07-13T06:00:00Z",
+        iso: "2026-07-13T06:00:00.000Z",
         tool: "RoamingEye",
         version: "1.1.0",
       },
@@ -104,6 +104,7 @@ describe("place observation export", () => {
           products: "layer-id-ascending",
           observations: "data-month-ascending",
         },
+        generatedTimestamp: "utc-iso-8601-milliseconds",
         dataMonthMatrix: [
           {
             dataMonth: "2026-04",
@@ -178,6 +179,25 @@ describe("place observation export", () => {
     };
 
     expect(serializePlaceObservationExport(reordered)).toBe(json);
+  });
+
+  it("canonicalizes equivalent generation instants for reproducible JSON", () => {
+    const utc = serializePlaceObservationExport({
+      ...input,
+      generatedIso: "2026-07-13T06:00:00Z",
+    });
+    const offset = serializePlaceObservationExport({
+      ...input,
+      generatedIso: "2026-07-13T08:00:00.000+02:00",
+    });
+    const fractional = serializePlaceObservationExport({
+      ...input,
+      generatedIso: "2026-07-13T06:00:00.0000Z",
+    });
+
+    expect(offset).toBe(utc);
+    expect(fractional).toBe(utc);
+    expect(JSON.parse(utc).generated.iso).toBe("2026-07-13T06:00:00.000Z");
   });
 
   it("rejects ambiguous or invalid reproducibility metadata", () => {

@@ -31,7 +31,10 @@ export interface PlaceObservationExportInput {
   boundary: GeoGeometry;
   products: readonly PlaceObservationProductInput[];
   method: PlaceObservationMethodInput;
-  /** ISO 8601 timestamp when this export was generated. */
+  /**
+   * ISO 8601 timestamp when this export was generated. The exported value is
+   * normalized to UTC with millisecond precision for reproducible JSON.
+   */
   generatedIso: string;
   toolVersion: string;
 }
@@ -87,6 +90,7 @@ export interface PlaceObservationExport {
       products: "layer-id-ascending";
       observations: "data-month-ascending";
     };
+    generatedTimestamp: "utc-iso-8601-milliseconds";
     /**
      * Per-month record states across all exported products. This describes
      * only what the export contains; `not-recorded` makes no claim about
@@ -184,7 +188,7 @@ export function createPlaceObservationExport(
       valueMethod: "approximate-colormap-inversion",
     },
     generated: {
-      iso: input.generatedIso,
+      iso: canonicalIsoTimestamp(input.generatedIso),
       tool: "RoamingEye",
       version: input.toolVersion,
     },
@@ -198,6 +202,7 @@ export function createPlaceObservationExport(
         products: "layer-id-ascending",
         observations: "data-month-ascending",
       },
+      generatedTimestamp: "utc-iso-8601-milliseconds",
       dataMonthMatrix: dataMonthMatrix(products),
     },
     limitations: LIMITATIONS,
@@ -383,6 +388,10 @@ function isPositiveInteger(value: number): boolean {
 
 function isIsoTimestamp(value: string): boolean {
   return !Number.isNaN(Date.parse(value)) && /^\d{4}-\d{2}-\d{2}T/.test(value);
+}
+
+function canonicalIsoTimestamp(value: string): string {
+  return new Date(value).toISOString();
 }
 
 function isYearMonth(value: YearMonth): boolean {
