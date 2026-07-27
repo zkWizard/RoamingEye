@@ -6,6 +6,7 @@ import {
   type MonthlyClimateObservation,
   type MonthlyClimateSummary,
 } from "./climate";
+import { doiResolverUrl } from "./citation";
 import { NDVI_SOURCE, NDVI_UNIT } from "./phenology";
 import { GIBS_ACKNOWLEDGMENT } from "./providers";
 import {
@@ -439,9 +440,6 @@ function lagPhrase(lag: number): string {
   return `${lag} ${lag === 1 ? "month" : "months"}`;
 }
 
-/** DOI resolver prefix, so every credited source carries a resolvable link. */
-const DOI_RESOLVER = "https://doi.org/";
-
 /** One credited source dataset, with the brief signals it backed. */
 export interface SourceAttribution {
   /** The distinct source dataset (deduplicated by DOI). */
@@ -507,7 +505,7 @@ export function attributeBrief(
         signalIds: [],
         signalLabels: [],
         contributedValue: false,
-        doiUrl: doi ? `${DOI_RESOLVER}${doi}` : null,
+        doiUrl: doi ? doiResolverUrl(doi) : null,
       };
       bySource.set(key, entry);
       order.push(key);
