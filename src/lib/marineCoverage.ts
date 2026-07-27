@@ -70,6 +70,12 @@ export interface MarineCoverageSummary {
     validFraction: number | null;
     reason: string | null;
   };
+  sourceImage: {
+    status: "available" | "not-supplied" | "invalid";
+    dimensions: SourceImageDimensions | null;
+    reason: "not-supplied" | "invalid-dimensions" | null;
+  };
+  /** @deprecated Prefer `sourceImage.dimensions`, which preserves its state. */
   sourceImageDimensions: SourceImageDimensions | null;
   /** Ready for an aria-label or other screen-reader-visible presentation. */
   accessibleText: string;
@@ -83,7 +89,7 @@ export function summarizeMarineCoverage(
   input: MarineCoverageInput
 ): MarineCoverageSummary {
   const coverage = coverageFor(input);
-  const sourceImageDimensions = dimensionsFor(input.sourceImageDimensions);
+  const sourceImage = sourceImageFor(input.sourceImageDimensions);
 
   return {
     kind: "sea-surface-temperature-coverage",
@@ -92,12 +98,9 @@ export function summarizeMarineCoverage(
     source: SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE,
     dataMonth: input.dataMonth,
     coverage,
-    sourceImageDimensions,
-    accessibleText: accessibleTextFor(
-      input.dataMonth,
-      coverage,
-      sourceImageDimensions
-    ),
+    sourceImage,
+    sourceImageDimensions: sourceImage.dimensions,
+    accessibleText: accessibleTextFor(input.dataMonth, coverage, sourceImage),
   };
 }
 
@@ -135,22 +138,35 @@ function coverageFor(
   return { ...base, status: input.footprint, reason: null };
 }
 
-function dimensionsFor(
+function sourceImageFor(
   dimensions: SourceImageDimensions | undefined
-): SourceImageDimensions | null {
-  if (!dimensions) return null;
-  return Number.isInteger(dimensions.width) &&
+): MarineCoverageSummary["sourceImage"] {
+  if (!dimensions) {
+    return {
+      status: "not-supplied",
+      dimensions: null,
+      reason: "not-supplied",
+    };
+  }
+  if (
+    Number.isInteger(dimensions.width) &&
     Number.isInteger(dimensions.height) &&
     dimensions.width > 0 &&
     dimensions.height > 0
-    ? dimensions
-    : null;
+  ) {
+    return { status: "available", dimensions, reason: null };
+  }
+  return {
+    status: "invalid",
+    dimensions: null,
+    reason: "invalid-dimensions",
+  };
 }
 
 function accessibleTextFor(
   dataMonth: YearMonth,
   coverage: MarineCoverageSummary["coverage"],
-  dimensions: SourceImageDimensions | null
+  sourceImage: MarineCoverageSummary["sourceImage"]
 ): string {
   const month = isYearMonth(dataMonth)
     ? formatYm(dataMonth)
@@ -169,9 +185,12 @@ function accessibleTextFor(
           : coverage.status === "invalid"
             ? "Coverage metadata is invalid."
             : fraction;
-  const image = dimensions
-    ? ` Source image dimensions: ${dimensions.width} by ${dimensions.height} pixels.`
-    : " Source image dimensions were not supplied.";
+  const image =
+    sourceImage.status === "available" && sourceImage.dimensions
+      ? ` Source image dimensions: ${sourceImage.dimensions.width} by ${sourceImage.dimensions.height} pixels.`
+      : sourceImage.status === "invalid"
+        ? " Source image dimensions were invalid and are not reported."
+        : " Source image dimensions were not supplied.";
 
   return `Sea surface temperature coverage for ${month}: ${footprint} Source: ${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.shortName} v${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.version}. This is an SST observation, not a marine-biology observation.${image}`;
 }

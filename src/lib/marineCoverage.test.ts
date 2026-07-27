@@ -25,6 +25,11 @@ describe("marine coverage summaries", () => {
         validFraction: 0.74,
         reason: null,
       },
+      sourceImage: {
+        status: "available",
+        dimensions: { width: 2048, height: 1024 },
+        reason: null,
+      },
       sourceImageDimensions: { width: 2048, height: 1024 },
     });
     expect(summary.accessibleText).toContain("74% of the supplied footprint");
@@ -45,6 +50,11 @@ describe("marine coverage summaries", () => {
       footprint: "coastal-or-land-mixed",
       validFraction: 0.31,
       reason: null,
+    });
+    expect(summary.sourceImage).toEqual({
+      status: "not-supplied",
+      dimensions: null,
+      reason: "not-supplied",
     });
     expect(summary.sourceImageDimensions).toBeNull();
     expect(summary.accessibleText).toContain(
@@ -94,5 +104,32 @@ describe("marine coverage summaries", () => {
       reason: "invalid-coverage",
     });
     expect(summary.sourceImageDimensions).toBeNull();
+    expect(summary.sourceImage).toEqual({
+      status: "invalid",
+      dimensions: null,
+      reason: "invalid-dimensions",
+    });
+    expect(summary.accessibleText).toContain(
+      "Source image dimensions were invalid"
+    );
+  });
+
+  it.each([
+    { width: 1024.5, height: 512 },
+    { width: 1024, height: Number.NaN },
+    { width: 1024, height: -1 },
+  ])("preserves malformed dimensions as an invalid state: %o", (dimensions) => {
+    const summary = summarizeMarineCoverage({
+      dataMonth: { year: 2026, month: 3 },
+      footprint: "water",
+      validFraction: 0.74,
+      sourceImageDimensions: dimensions,
+    });
+
+    expect(summary.sourceImage).toEqual({
+      status: "invalid",
+      dimensions: null,
+      reason: "invalid-dimensions",
+    });
   });
 });
