@@ -95,7 +95,7 @@ export interface LandCoverClassObservation {
   sampleCount?: number;
 }
 
-export type LandCoverCoverageStatus = "available" | "no-data";
+export type LandCoverCoverageStatus = "available" | "no-data" | "unavailable";
 
 export interface LandCoverCoverage {
   status: LandCoverCoverageStatus;
@@ -113,7 +113,7 @@ export interface LandCoverCoverage {
   invalidRecordCount: number;
   /** Share of all counted samples that carried an IGBP land-cover class 1..17. */
   knownLandCoverFraction: number | null;
-  reason: "no-samples" | "no-known-land-cover" | null;
+  reason: "record-not-published" | "no-samples" | "no-known-land-cover" | null;
 }
 
 export interface LandCoverClassCoverage {
@@ -159,6 +159,28 @@ export function summarizeLandCoverContext(
   observations: readonly LandCoverClassObservation[],
   dataYear: number
 ): LandCoverContextSummary {
+  const publicationStatus = publicationStatusForYear(dataYear);
+  if (publicationStatus !== "published") {
+    return {
+      kind: "observed-class-coded-land-cover",
+      isForecast: false,
+      provenance: landCoverProvenance(dataYear, publicationStatus),
+      coverage: {
+        status: "unavailable",
+        totalSampleCount: 0,
+        knownLandCoverSampleCount: 0,
+        unclassifiedSampleCount: 0,
+        noDataSampleCount: 0,
+        invalidClassSampleCount: 0,
+        invalidRecordCount: 0,
+        knownLandCoverFraction: null,
+        reason: "record-not-published",
+      },
+      classCoverage: [],
+      dominantClass: null,
+    };
+  }
+
   const classCounts = new Map<IgbpLandCoverClassCode, number>();
   let totalSampleCount = 0;
   let knownLandCoverSampleCount = 0;
@@ -244,19 +266,26 @@ export function summarizeLandCoverContext(
   return {
     kind: "observed-class-coded-land-cover",
     isForecast: false,
-    provenance: {
-      layerId: "landcover",
-      wmsLayer: layer.wmsLayer,
-      dataYear,
-      cadence: "annual",
-      classScheme: "IGBP",
-      sourceResolution: "500 m",
-      source: LAND_COVER_SOURCE,
-      publicationStatus: publicationStatusForYear(dataYear),
-    },
+    provenance: landCoverProvenance(dataYear, publicationStatus),
     coverage,
     classCoverage,
     dominantClass,
+  };
+}
+
+function landCoverProvenance(
+  dataYear: number,
+  publicationStatus: LandCoverPublicationStatus
+): LandCoverProvenance {
+  return {
+    layerId: "landcover",
+    wmsLayer: layer.wmsLayer,
+    dataYear,
+    cadence: "annual",
+    classScheme: "IGBP",
+    sourceResolution: "500 m",
+    source: LAND_COVER_SOURCE,
+    publicationStatus,
   };
 }
 

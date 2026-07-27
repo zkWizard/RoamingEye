@@ -76,9 +76,17 @@ describe("land-cover observation narratives", () => {
       "Land-cover record not published for 2025"
     );
     expect(outsideRange.detail).toContain("outside the published layer range");
+    expect(outsideRange.coverage).toMatchObject({
+      status: "unavailable",
+      totalSampleCount: 0,
+      reason: "record-not-published",
+    });
     expect(invalidYear.headline).toBe(
       "Land-cover record not published for 2024.5"
     );
     expect(invalidYear.detail).toContain("not a whole calendar year");
+    expect(invalidYear.detail).toContain(
+      "No countable selected-boundary samples were supplied."
+    );
   });
 });

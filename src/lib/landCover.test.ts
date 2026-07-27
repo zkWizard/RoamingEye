@@ -89,23 +89,44 @@ describe("land-cover context summaries", () => {
     expect(summary.dominantClass).toBeNull();
   });
 
-  it("reports no-data and invalid-year outcomes explicitly", () => {
+  it("withholds samples for an invalid annual record", () => {
     const summary = summarizeLandCoverContext(
-      [{ classCode: 12, sampleCount: 0 }],
+      [{ classCode: 12, sampleCount: 4 }],
       2024.5
     );
 
     expect(summary.provenance.publicationStatus).toBe("invalid-year");
     expect(summary.coverage).toEqual({
-      status: "no-data",
+      status: "unavailable",
       totalSampleCount: 0,
       knownLandCoverSampleCount: 0,
       unclassifiedSampleCount: 0,
       noDataSampleCount: 0,
       invalidClassSampleCount: 0,
-      invalidRecordCount: 1,
+      invalidRecordCount: 0,
       knownLandCoverFraction: null,
-      reason: "no-samples",
+      reason: "record-not-published",
+    });
+    expect(summary.classCoverage).toEqual([]);
+    expect(summary.dominantClass).toBeNull();
+  });
+
+  it("withholds samples outside the published annual layer range", () => {
+    const summary = summarizeLandCoverContext(
+      [{ classCode: 12, sampleCount: 4 }],
+      2025
+    );
+
+    expect(summary.provenance).toMatchObject({
+      dataYear: 2025,
+      publicationStatus: "outside-layer-range",
+      source: LAND_COVER_SOURCE,
+    });
+    expect(summary.coverage).toMatchObject({
+      status: "unavailable",
+      totalSampleCount: 0,
+      knownLandCoverSampleCount: 0,
+      reason: "record-not-published",
     });
     expect(summary.classCoverage).toEqual([]);
     expect(summary.dominantClass).toBeNull();
