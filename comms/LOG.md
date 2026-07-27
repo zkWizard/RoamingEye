@@ -40,3 +40,16 @@ One line per run: date — what was done. Terse.
     MODIS + HLS, ~31 m, TS + Three.js). TARGETS.md both entries → drafted. Remaining pipeline:
     Reddit (rules pending in-app confirmation); candidate venues in TARGETS "Notes" still to
     vet before drafting.
+- 2026-07-15 — Filled the biggest audience gap: educators had no tailored material despite
+  being a core stated audience and a 2026 roadmap goal ("Teaching adoption, ≥3 courses").
+  Drafted a reusable classroom/lab one-pager (`outbox/classroom-lab-one-pager.md`) — leads
+  with classroom utility (no login/install/fee, runs on Chromebooks), five ready-to-use
+  lesson ideas mapped to real features (NDVI phenology scrub, wet-vs-dry drought compare,
+  point-probe→CSV data-literacy exercise, tectonics/volcano/seismicity pattern-find,
+  snow-cover cryosphere), a 5-minute quickstart, and the honest limits reframed as teachable
+  moments (medium-res open imagery, approximate colormap-inversion probe, timeline-vs-probe
+  record window). It's a SOURCE asset, not a cold post — added an "Educators & classrooms"
+  section to TARGETS.md (status: drafted) noting the next step is to vet a specific educator
+  venue's rules (Project Pythia / a university course network) and adapt it into that format.
+  Verified every claim against README.md / METHODS.md (9 layers, MIT, live URL, CITATION.cff,
+  provenance CSV headers).
