@@ -60,6 +60,31 @@ interface WeightedPixel {
   weight: number;
 }
 
+/**
+ * The unique source pixels in a 3×3 point-probe neighborhood.
+ *
+ * Global imagery is periodic in longitude, so horizontal neighbors wrap at
+ * the antimeridian instead of falling outside the canvas and appearing as
+ * unavailable black/transparent pixels. Latitude is not periodic: polar
+ * neighbors clamp to the nearest row and are deduplicated so that row is not
+ * counted two or three times in the median or coverage fraction.
+ */
+export function globalPointBlockPixels(
+  center: { x: number; y: number },
+  width: number,
+  height: number
+): { x: number; y: number }[] {
+  const pixels = new Map<string, { x: number; y: number }>();
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const x = (((center.x + dx) % width) + width) % width;
+      const y = Math.min(height - 1, Math.max(0, center.y + dy));
+      pixels.set(`${x}:${y}`, { x, y });
+    }
+  }
+  return [...pixels.values()];
+}
+
 /** A sampled series plus, per month, how much of the sampled area held data. */
 export interface SampleResult {
   values: (number | null)[];
@@ -378,13 +403,11 @@ export class ProbeSampler {
   ): WeightedPixel[] {
     const { width, height } = this.imageSize;
     if (mode === "point") {
-      const { x, y } = latLonToPixel(lat, lon, width, height);
-      const block: WeightedPixel[] = [];
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++)
-          block.push({ x: x + dx, y: y + dy, weight: 1 });
-      }
-      return block;
+      return globalPointBlockPixels(
+        latLonToPixel(lat, lon, width, height),
+        width,
+        height
+      ).map((pixel) => ({ ...pixel, weight: 1 }));
     }
     return this.dedupedPixels(gridPoints(this.areaBounds(lat, lon), AREA_GRID));
   }
