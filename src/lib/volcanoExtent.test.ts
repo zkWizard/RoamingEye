@@ -29,6 +29,11 @@ describe("volcanoesInSearchExtent", () => {
       status: "available",
       suppliedRecordCount: 3,
       matchedRecordCount: 2,
+      elevationCoverage: {
+        presentCount: 2,
+        missingCount: 0,
+        fraction: 1,
+      },
       geographicCoverage:
         "Coordinates inside the search result bounding box; the exact selected boundary is not tested.",
       provenance: { org: "Smithsonian Institution Global Volcanism Program" },
@@ -62,12 +67,41 @@ describe("volcanoesInSearchExtent", () => {
       status: "available",
       suppliedRecordCount: 0,
       matchedRecordCount: 0,
+      elevationCoverage: {
+        presentCount: 0,
+        missingCount: 0,
+        fraction: null,
+      },
     });
     expect(volcanoesInSearchExtent([volcano()], [0, 10, 0, 10])).toMatchObject({
       status: "available",
       suppliedRecordCount: 1,
       matchedRecordCount: 0,
     });
+  });
+
+  it("reports partial summit-elevation coverage without filling missing values", () => {
+    const context = volcanoesInSearchExtent(
+      [
+        volcano({ name: "Known", elevation: -120 }),
+        volcano({ name: "Missing", elevation: null }),
+        volcano({ name: "Outside", lat: 50, elevation: 2400 }),
+      ],
+      [30, 40, 0, 20]
+    );
+
+    expect(context).toMatchObject({
+      matchedRecordCount: 2,
+      elevationCoverage: {
+        presentCount: 1,
+        missingCount: 1,
+        fraction: 0.5,
+      },
+    });
+    expect(context.records).toEqual([
+      expect.objectContaining({ name: "Known", elevationMeters: -120 }),
+      expect.objectContaining({ name: "Missing", elevationMeters: null }),
+    ]);
   });
 
   it("does not silently broaden a missing or invalid bounding box", () => {

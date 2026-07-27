@@ -202,7 +202,7 @@ export class PlaceInsights {
     this.volcanoDetail.textContent =
       count === 0
         ? "No bundled GVP volcano records have coordinates inside this search bounding box."
-        : context.geographicCoverage;
+        : `${context.geographicCoverage} Summit elevation is supplied for ${context.elevationCoverage.presentCount} of ${count} matched ${count === 1 ? "record" : "records"} in metres relative to sea level.`;
     for (const record of context.records.slice(0, 5)) {
       const item = document.createElement("li");
       const details = [
