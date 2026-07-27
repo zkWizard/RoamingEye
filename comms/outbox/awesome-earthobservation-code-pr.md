@@ -3,6 +3,7 @@ Venue: GitHub — Awesome Earth Observation Code
 Channel: Pull request → `Visualisation` section
 Status: DRAFT
 Date: 2026-07-15
+Claims re-verified: 2026-07-27 — live URL now https://roamingeye.org/ (custom domain); feature/layer claims re-checked against README.md
 
 ---
 
@@ -28,7 +29,7 @@ NASA imagery), so Visualisation is the natural home.
 ## The entry to add (under `## Visualisation`)
 
 ```text
-*   [RoamingEye](https://github.com/zkWizard/RoamingEye) - Provenance-first 3D globe for scrubbing decades of open NASA MODIS + Harmonized Landsat-Sentinel imagery, with a point time-series probe and citable CSV export `Javascript` application [here](https://zkwizard.github.io/RoamingEye/)
+*   [RoamingEye](https://github.com/zkWizard/RoamingEye) - Provenance-first 3D globe for scrubbing decades of open NASA MODIS + Harmonized Landsat-Sentinel imagery, with a point time-series probe and citable CSV export `Javascript` application [here](https://roamingeye.org/)
 ```
 
 (RoamingEye is written in TypeScript; the list tags browser tools with `` `Javascript` ``,
@@ -53,7 +54,7 @@ a point time-series probe with a provenance-stamped CSV export, and a plate-tect
 volcano / live-seismicity context pack. TypeScript + Three.js, no account or install.
 
 - Repo:  https://github.com/zkWizard/RoamingEye
-- Live:  https://zkwizard.github.io/RoamingEye/
+- Live:  https://roamingeye.org/
 - License: MIT
 
 Same category as the existing Worldview entry (browser viewer over open NASA imagery),

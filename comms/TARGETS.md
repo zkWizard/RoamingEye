@@ -233,6 +233,11 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
 
 - Prefer **quality over quantity** — one excellent, rules-respecting artifact per venue
   beats a spray list. Do not add venues you have not actually vetted.
+- **Canonical live URL is `https://roamingeye.org/`** (custom domain, landed 2026-07-27 in
+  `7bafef4`; `scripts/deploy.mjs` writes the `CNAME` on every deploy). The old
+  `https://zkwizard.github.io/RoamingEye/` only redirects — never put it in a draft, and
+  **never** in an awesome-list entry, where the link is permanent and gets scraped. All
+  outbox drafts were corrected on 2026-07-27; check this before adding any new one.
 - **Repo discoverability (housekeeping — for zkWizard to apply):** the GitHub repo's
   one-line **description is currently empty** (`gh api repos/zkWizard/RoamingEye`
   → `"description": null`), even though topics and homepage are set. That one line is what
@@ -244,6 +249,12 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
   > `gh repo edit zkWizard/RoamingEye --description "<text above>"`
   > (Left for zkWizard rather than auto-applied — editing public repo metadata is a
   > maintainer call, not something the comms agent pushes unattended.)
+- **Repo homepage is stale (housekeeping — for zkWizard to apply):** as of 2026-07-27 the
+  repo's `homepage` field still reads `https://zkwizard.github.io/RoamingEye/`, even though
+  the site moved to the custom domain `https://roamingeye.org/` that same day. The homepage
+  field is what GitHub shows in the "About" sidebar and in link previews, so it should be
+  the canonical domain. Apply together with the description above:
+  > `gh repo edit zkWizard/RoamingEye --homepage "https://roamingeye.org/"`
 - Candidate venues still to research (do NOT add until rules are read): r/dataisbeautiful
   (OC rules), university remote-sensing course networks, and complementary open-tool
   maintainers (STAC / stackstac / leafmap / TiTiler) as potential contributors.

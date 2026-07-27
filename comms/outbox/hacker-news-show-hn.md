@@ -3,12 +3,13 @@ Venue: Hacker News (https://news.ycombinator.com/)
 Channel: "Show HN" submission (URL = live app) + author's first comment. Guidelines: https://news.ycombinator.com/showhn.html
 Status: DRAFT
 Date: 2026-07-15
+Claims re-verified: 2026-07-27 — live URL now https://roamingeye.org/ (custom domain); feature/layer claims re-checked against README.md
 
 ---
 
 **Posting notes for zkWizard (not part of the post):**
 
-- Submit as a **Show HN**. The submission URL should be the live app: `https://zkwizard.github.io/RoamingEye/` (Show HN wants something people can try right away — the live, no-signup site qualifies; a repo or landing page does not).
+- Submit as a **Show HN**. The submission URL should be the live app: `https://roamingeye.org/` (Show HN wants something people can try right away — the live, no-signup site qualifies; a repo or landing page does not).
 - Title field goes in verbatim (below). Then post the "First comment" immediately as the top comment ("explain how and why you built it").
 - **Timing:** a US-morning weekday (roughly 8–10am ET, Tue–Thu) tends to do best. Post once.
 - **Do not** ask for upvotes anywhere (against the rules). Just be around for a few hours to answer questions — that's what actually makes a Show HN work.
@@ -35,6 +36,7 @@ What it does right now:
 - Native-resolution tile streaming: zoom in and the visible globe re-drapes itself with tiles chosen by screen-space error, down to ~31 m, with parent-tile fallback so detail refines instead of popping.
 - A point time-series probe: click anywhere, chart that layer's value at that point across its full record (26–46 years depending on the product), and download a provenance-stamped CSV.
 - A plate-tectonics context pack: Bird (2003) plate boundaries, ~1,200 Smithsonian GVP Holocene volcanoes, and live USGS seismicity, all on the terrain.
+- Search any place (geocoded via OpenStreetMap): the globe traces that postcode/city/state/country boundary and surfaces its latest month-over-month vegetation, rainfall, soil-moisture, and air-temperature signals.
 - Every high-res scene is stamped with its instrument and acquisition date (e.g. "Sentinel-2 · HLS S30 · 30 m · 2024-08-05") so what you see is citable.
 
 The honest caveat, up front: the point probe does **not** read source granules. It inverts the rendered colormap back to a physical value, which is approximate — and the app says so everywhere it matters. METHODS.md documents the probe pipeline, the area weighting, the measured per-layer inversion accuracy, and the seasonal Mann-Kendall / Sen's-slope trend test, so you can see exactly where it stops being trustworthy. It's a reconnaissance-and-teaching instrument, not a replacement for pulling the real data.

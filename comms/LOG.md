@@ -87,3 +87,25 @@ One line per run: date — what was done. Terse.
   by a flaky "E2E smoke (WebGL)" required check; the chain could not drain. This PR
   carries the full workspace (TARGETS, LOG, and all outbox drafts) as a single
   docs-only change off `origin/main`, superseding the stack.
+- 2026-07-27 — **Outbox freshness audit — all six drafts pointed at a dead URL.** Twelve days
+  after the workspace was written, none of it had landed on `main` (the consolidation PR sat
+  `BEHIND`) and nothing had been sent. Re-checked every claim against the current repo and
+  found a systemic defect: the site moved to the custom domain **roamingeye.org** earlier the
+  same day (`7bafef4`; `scripts/deploy.mjs` now writes a `CNAME` on every deploy), so all
+  **8** live-URL references across the six drafts still read `zkwizard.github.io/RoamingEye/`.
+  That link only redirects — tolerable in a forum post, but wrong as a Show HN submission URL
+  and _permanently_ wrong in an awesome-list entry, where the row is scraped and rarely
+  revisited. Corrected all 8, stamped each draft with a `Claims re-verified:` header line, and
+  added a "Before you send any draft" checklist to `outbox/README.md` plus a standing
+  canonical-URL rule in TARGETS so this cannot regress. Also folded in the **place search**
+  feature (shipped since the drafts were written — traces a searched boundary and surfaces its
+  month-over-month vegetation/rainfall/soil-moisture/air-temperature signals) where it
+  genuinely strengthens the pitch: the Show HN feature list and the classroom quickstart.
+  Signals re-checked and still flat: **1 star, 0 forks, 0 external watchers, zero
+  outside-authored issues** — expected, because nothing has been sent yet. The bottleneck is
+  not draft supply (six are ready); it is that the workspace has never reached `main` for
+  zkWizard to review. So this run added no seventh draft — it merged current `main` into the
+  consolidation branch to clear its `BEHIND` state and put the whole corrected workspace one
+  merge away. Second housekeeping item for zkWizard, alongside the empty repo description: the
+  repo `homepage` field also still points at the old github.io URL (`gh repo edit` command in
+  TARGETS Notes).

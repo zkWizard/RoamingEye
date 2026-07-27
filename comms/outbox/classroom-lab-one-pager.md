@@ -3,6 +3,7 @@ Venue: reusable asset (not a single-venue post) — hand out as a course-page li
 Channel: classroom handout / course website / workshop packet / instructor email
 Status: DRAFT
 Date: 2026-07-15
+Claims re-verified: 2026-07-27 — live URL now https://roamingeye.org/ (custom domain); feature/layer claims re-checked against README.md
 
 <!--
   This is a SOURCE ASSET, not a one-off message. It is a single-page,
@@ -21,7 +22,7 @@ Date: 2026-07-15
 
 RoamingEye turns the public satellite archives that governments already fund — NASA's MODIS and Harmonized Landsat–Sentinel collections — into a browser-based globe your students can grab, spin, and scrub through time. It runs on any modern laptop or Chromebook, opens from a single link, and asks for no login. Open-source (MIT), so you can fork it, screenshot it, or build a lab around it freely.
 
-**Open it and go:** https://zkwizard.github.io/RoamingEye/
+**Open it and go:** https://roamingeye.org/
 **Source & license (MIT):** https://github.com/zkWizard/RoamingEye
 
 ---
@@ -61,12 +62,13 @@ Scrub the monthly snow-cover layer across a winter and into spring over a mounta
 
 ## Getting started in five minutes
 
-1. Open **https://zkwizard.github.io/RoamingEye/** — the globe loads with no sign-in.
+1. Open **https://roamingeye.org/** — the globe loads with no sign-in.
 2. Drag to rotate, scroll to zoom. Zoom in and the imagery re-draws at higher resolution automatically.
 3. Open the **layer picker** and choose a scientific layer (start with vegetation / NDVI).
 4. Drag the **temporal scrubber** to step through months and watch the layer change.
 5. **Click a point** to chart its time series, then **download the CSV** for a spreadsheet exercise.
-6. Copy the browser URL to hand the class the exact view you set up.
+6. Or **search a place by name** — the globe traces that town, state, or country's boundary and shows its latest month-over-month vegetation, rainfall, soil-moisture, and air-temperature signals. Starting from somewhere students know lands the lesson faster.
+7. Copy the browser URL to hand the class the exact view you set up.
 
 ---
 

@@ -18,6 +18,19 @@ Date:    <YYYY-MM-DD>
 **Nothing here is ever sent automatically.** These are drafts for zkWizard to review
 and personally post. When you send one, flip its `Status` to `SENT`.
 
+## Before you send any draft
+
+Drafts age. RoamingEye ships continuously, so re-check these three things against the
+repo right before posting — each draft carries a `Claims re-verified:` line saying when
+this was last done:
+
+1. **The live URL.** Canonical is **`https://roamingeye.org/`** (custom domain since
+   2026-07-27). The old `zkwizard.github.io/RoamingEye/` link only redirects — it is wrong
+   in a Show HN submission and permanently wrong in an awesome-list entry.
+2. **The feature and layer claims** — re-skim `README.md`; the layer count, resolution, and
+   record lengths quoted in the drafts must match what the app does today.
+3. **The venue's own rules** — re-read them at post time; forum policies change.
+
 ## Drafts
 
 - `pangeo-showcase-roamingeye.md` — Pangeo Discourse (_Pangeo Showcase_ category). **DRAFT.**
