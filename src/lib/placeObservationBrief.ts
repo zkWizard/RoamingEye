@@ -8,6 +8,7 @@ import {
 import { NDVI_UNIT } from "./phenology";
 import type {
   PlaceObservationExport,
+  PlaceObservationExportProduct,
   PlaceObservationSampling,
 } from "./placeObservationExport";
 import type { GeoGeometry } from "./geojson";
@@ -57,6 +58,26 @@ export interface PlaceObservationSelectionProvenance {
   selectedDataMonth: YearMonth | null;
 }
 
+export interface PlaceObservationSamplingProvenance {
+  /** Exact searched-boundary strategy reported by the accepted product. */
+  samplingStrategy: PlaceObservationExportProduct["samplingStrategy"];
+  /**
+   * Bounded sampler counts for the requested geography. Null means the export
+   * did not report support; it must not be read as zero usable source pixels.
+   */
+  samplingSupport: PlaceObservationExportProduct["samplingSupport"];
+  /** Exact conversion from rendered sample values to the cited native unit. */
+  sampleToNative: PlaceObservationExportProduct["sampleToNative"];
+  /** Provenance attached to the observation selected for the brief. */
+  selectedObservation: {
+    dataMonth: YearMonth;
+    validFraction: number | null;
+    unavailableReason: NonNullable<
+      PlaceObservationExportProduct["observations"][number]["unavailableReason"]
+    > | null;
+  } | null;
+}
+
 export interface PlaceObservationBrief {
   kind: "place-observation-environment-brief";
   brief: EnvironmentBrief;
@@ -80,6 +101,14 @@ export interface PlaceObservationBrief {
   observationSelection: Record<
     EnvironmentSignalId,
     PlaceObservationSelectionProvenance
+  >;
+  /**
+   * Per-product evidence supporting the brief. Rejected or absent products
+   * expose null so their sampling metadata is never presented as accepted.
+   */
+  samplingProvenance: Record<
+    EnvironmentSignalId,
+    PlaceObservationSamplingProvenance | null
   >;
   limitations: readonly [
     "Only products matching the expected layer, WMS layer, citation, and native unit are used.",
@@ -119,6 +148,10 @@ export function composePlaceObservationBrief(
     EnvironmentSignalId,
     PlaceObservationSelectionProvenance
   >;
+  const samplingProvenance = {} as Record<
+    EnvironmentSignalId,
+    PlaceObservationSamplingProvenance | null
+  >;
 
   for (const binding of SIGNAL_BINDINGS) {
     const product = exportRecord.products.find(
@@ -131,6 +164,11 @@ export function composePlaceObservationBrief(
         ? latestObservation(product.observations)
         : null;
     observationSelection[binding.signalId] = selectionProvenance(
+      product,
+      status,
+      observations[binding.signalId]
+    );
+    samplingProvenance[binding.signalId] = productSamplingProvenance(
       product,
       status,
       observations[binding.signalId]
@@ -162,7 +200,39 @@ export function composePlaceObservationBrief(
     }),
     productStatus,
     observationSelection,
+    samplingProvenance,
     limitations: LIMITATIONS,
+  };
+}
+
+function productSamplingProvenance(
+  product: PlaceObservationExportProduct | undefined,
+  status: PlaceObservationProductStatus,
+  selected: EnvironmentObservation | null
+): PlaceObservationSamplingProvenance | null {
+  if (status !== "accepted" || !product) return null;
+  const selectedSourceObservation = selected
+    ? product.observations.find(
+        (observation) =>
+          observation.dataMonth === formatYearMonth(selected.dataMonth)
+      )
+    : undefined;
+
+  return {
+    samplingStrategy: product.samplingStrategy,
+    samplingSupport: product.samplingSupport
+      ? { ...product.samplingSupport }
+      : null,
+    sampleToNative: { ...product.sampleToNative },
+    selectedObservation:
+      selected && selectedSourceObservation
+        ? {
+            dataMonth: { ...selected.dataMonth },
+            validFraction: selectedSourceObservation.validFraction ?? null,
+            unavailableReason:
+              selectedSourceObservation.unavailableReason ?? null,
+          }
+        : null,
   };
 }
 
@@ -289,6 +359,10 @@ function parseYearMonth(value: string): YearMonth | null {
     month <= 12
     ? { year, month }
     : null;
+}
+
+function formatYearMonth(value: YearMonth): string {
+  return `${value.year}-${String(value.month).padStart(2, "0")}`;
 }
 
 function latestForLayer(layerId: LayerId): YearMonth {
