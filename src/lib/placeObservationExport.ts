@@ -53,6 +53,8 @@ export interface PlaceObservationProductInput {
   sampleToNative?: PlaceObservationValueTransform;
   /** Exact searched-boundary strategy used for this product's observations. */
   samplingStrategy?: GeometrySamplingStrategy | "unavailable";
+  /** Actual rendered image returned by the sampler for this product. */
+  sourceImageDimensions?: { width: number; height: number };
   observations: readonly PlaceObservationInput[];
 }
 
@@ -141,6 +143,7 @@ export interface PlaceObservationExportProduct {
   samplingSupport: PlaceObservationSamplingSupport | null;
   sampleToNative: PlaceObservationValueTransform;
   samplingStrategy: GeometrySamplingStrategy | "unavailable";
+  sourceImage: { width: number; height: number } | null;
   observations: {
     dataMonth: string;
     value: number | null;
@@ -183,6 +186,7 @@ export interface PlaceObservationExportSample {
   /** Unit represented by the sampled values before native-unit conversion. */
   sampledUnit?: string;
   samplingStrategy?: GeometrySamplingStrategy;
+  sourceImageDimensions?: { width: number; height: number };
   sourceValueFactor?: number;
   samplingSupport?: PlaceObservationSamplingSupport;
 }
@@ -284,6 +288,9 @@ export function placeObservationProductFromSample(
       factor: sourceValueFactor,
     },
     samplingStrategy: sample.samplingStrategy ?? "unavailable",
+    sourceImageDimensions: sample.sourceImageDimensions
+      ? { ...sample.sourceImageDimensions }
+      : undefined,
     observations: sample.observations.map((observation) => ({
       ...observation,
       value:
@@ -350,6 +357,23 @@ function validateInput(input: PlaceObservationExportInput): void {
     ) {
       throw new Error(
         `Product ${product.layerId} has an invalid sampling strategy.`
+      );
+    }
+    if (
+      product.sourceImageDimensions !== undefined &&
+      (!isPositiveInteger(product.sourceImageDimensions.width) ||
+        !isPositiveInteger(product.sourceImageDimensions.height))
+    ) {
+      throw new Error(
+        `Product ${product.layerId} has invalid source-image dimensions.`
+      );
+    }
+    if (
+      product.observations.some((observation) => observation.value !== null) &&
+      product.sourceImageDimensions === undefined
+    ) {
+      throw new Error(
+        `Product ${product.layerId} must identify its source image when a value is recorded.`
       );
     }
     if (!hasCitation(product.source)) {
@@ -502,6 +526,9 @@ function exportProducts(
             factor: 1,
           },
       samplingStrategy: product.samplingStrategy ?? "unavailable",
+      sourceImage: product.sourceImageDimensions
+        ? { ...product.sourceImageDimensions }
+        : null,
       observations: product.observations
         .map((observation) => ({
           dataMonth: formatYearMonth(observation.dataMonth),

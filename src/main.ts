@@ -546,6 +546,7 @@ function runPlaceInsights(result: GeoResult): void {
             sourceValueFactor: colormap?.factor ?? 1,
             samplingSupport: geometrySampling,
             samplingStrategy: geometrySamplingStrategy,
+            sourceImageDimensions,
             observations: months.map((dataMonth, index) => {
               const value = values[index] ?? null;
               if (value === null) {
@@ -614,6 +615,8 @@ function runPlaceInsights(result: GeoResult): void {
       exportSamples.set("sst", {
         layerId: "sst",
         sourceValueFactor: colormap.factor,
+        samplingStrategy: sample.geometrySamplingStrategy,
+        sourceImageDimensions: sample.sourceImageDimensions,
         observations: [
           {
             dataMonth: sstMonth,
