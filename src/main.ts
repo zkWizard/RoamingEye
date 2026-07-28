@@ -473,8 +473,7 @@ function runPlaceInsights(result: GeoResult): void {
     if (!months) continue;
     // Start with explicit no-data observations. A failed request or an
     // unavailable authoritative colormap must not be replaced with a
-    // display-converted value labelled as a native-unit measurement. NDVI is
-    // the exception: its 0..1 physical range is already its native unit.
+    // display-converted value labelled as a native-unit measurement.
     exportSamples.set(metric.layerId, {
       layerId: metric.layerId,
       observations: months.map((dataMonth) => ({
@@ -543,7 +542,7 @@ function runPlaceInsights(result: GeoResult): void {
                   geometrySamplingStrategy,
                 })
         );
-        if (colormap || metric.layerId === "ndvi") {
+        if (colormap) {
           exportSamples.set(metric.layerId, {
             layerId: metric.layerId,
             sampledUnit:
