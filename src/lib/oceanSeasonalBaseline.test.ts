@@ -161,7 +161,7 @@ describe("SST same-calendar-month seasonal baseline", () => {
     expect(comparison.exclusions.outOfBounds).toBe(1);
   });
 
-  it("counts only the first candidate for a duplicated baseline year", () => {
+  it("withholds every candidate for an ambiguous duplicated baseline year", () => {
     const baseline: SeaSurfaceTemperatureObservation[] = [
       ...tenAugustWaterYears(2016, 20),
       waterMonth(2020, 99),
@@ -172,8 +172,37 @@ describe("SST same-calendar-month seasonal baseline", () => {
       baseline
     );
 
-    expect(comparison.exclusions.duplicateYear).toBe(1);
+    expect(comparison.status).toBe("insufficient-samples");
+    expect(comparison.exclusions.duplicateYear).toBe(2);
+    expect(comparison.baseline.sampleCount).toBe(9);
     expect(comparison.baseline.max).toBe(20);
+    expect(
+      comparison.samples.some((sample) => sample.month.year === 2020)
+    ).toBe(false);
+    expect(comparison.anomaly).toBeNull();
+  });
+
+  it("does not let duplicate input order choose the retained SST value", () => {
+    const candidates = [
+      ...tenAugustWaterYears(2016, 20).filter(
+        (candidate) => candidate.dataMonth.year !== 2020
+      ),
+      waterMonth(2020, 18, 0.95),
+      waterMonth(2020, 27, 0.95),
+    ];
+
+    const forward = compareSstToSeasonalBaseline(
+      waterMonth(2026, 22),
+      candidates
+    );
+    const reversed = compareSstToSeasonalBaseline(
+      waterMonth(2026, 22),
+      [...candidates].reverse()
+    );
+
+    expect(forward.samples).toEqual(reversed.samples);
+    expect(forward.baseline).toEqual(reversed.baseline);
+    expect(forward.exclusions.duplicateYear).toBe(2);
   });
 
   it("flags insufficient coverage separately from insufficient samples", () => {
