@@ -764,3 +764,52 @@ false`) even though a usable image already exists in-repo — a Settings-UI uplo
   github.io still `301`s to plain `http://`. Gate holds, revisit **2026-07-29**, outbox stays
   send-blocked. Worked in a detached `git worktree`; the shared clone and zkWizard's uncommitted
   changes were not touched.
+- 2026-07-28 (later run) — **Audited the four issues we advertise to newcomers by building
+  them, and found one that cannot be landed by the person we are inviting.** Duty 4. The
+  README and `CONTRIBUTING.md` both point first-timers at the
+  [`good first issue`](https://github.com/zkWizard/RoamingEye/labels/good%20first%20issue)
+  label; with traction at zero those four issues **are** the contributor funnel, and no run
+  had verified them since #373/#374/#375 were opened on 2026-07-15.
+  **All four are still real, and every cited line number still resolves** — checked against
+  `origin/main` at `d48c5d4`, not against the issue text: `.github/CONTRIBUTING.md` still says
+  "Node.js 20+" against `engines: ^20.19.0 || >=22.12.0` (#375); `TimeSlider.ts:53` is still
+  the hardcoded `aria-label", "Month"` (#373); `SearchBox.ts:34–37` is still input + Escape
+  only, and the `LayerSelector.ts:75–101` reference implementation the issue tells a newcomer
+  to copy is intact (#374); `check-bundle-size.mjs` still carries the stale "app ~34 kB"
+  header (#638).
+  **The finding: #374 fails the required Build check, and a newcomer cannot fix that.** Built
+  it to measure rather than estimating — implemented the issue's own acceptance criteria
+  (ArrowDown/ArrowUp with wrap, Enter to select, `aria-selected`, `aria-activedescendant`),
+  type-checked clean, then built. Baseline `main` is **61,414 bytes gzip against the
+  61,440-byte cap — 26 bytes**. The patch costs **+225 bytes → 61,639, i.e. 199 over**, and
+  `npm run build` exits 1 with `FAIL index-….js: 60.2 kB`. So the newcomer we are courting
+  does the work correctly, opens their first PR, and hits a red **required** check whose
+  remedy — raise the cap — is explicitly a maintainer decision they have no standing to make.
+  **#373 fits, but only just: +12 bytes → 61,426, leaving 14.** Which also means #373 and #374
+  cannot both land, and #373 is effectively the last app-surface change that fits. #375 (docs)
+  and #638 (`scripts/`, not bundled) cost zero bytes and are unaffected — those two are the
+  safe recommendations today.
+  **Acted on it in the two places a newcomer actually looks.** Commented the measurement on
+  #374 and #373, and **removed `good first issue` from #374** — it is a good issue and a bad
+  first issue while the cap is full — noting on the thread that the label should go straight
+  back when the budget question is settled. Left the issue open; the work is still wanted.
+  **Did not spend the budget.** Raising the cap would have made #374 landable in one line and
+  is precisely the call comms does not get to make (`check-bundle-size.mjs`'s own rule: a bump
+  must be justified by the PR that makes it). Flagged for the maintainer instead.
+  **In `CONTRIBUTING.md`:** the budget section already existed from an earlier run today, but
+  it sat 50 lines below the "look for `good first issue`" line with nothing connecting them.
+  Added the pointer at the label mention, and replaced "well under a tenth of a kB" with the
+  measured 26 bytes plus both worked examples (+12 fits, +225 does not) — a contributor can
+  now tell before starting whether their task fits.
+  **Standing by-file check run first:** of the open PRs, only #650 (comms) and the #652 merge
+  train touch `comms/`, and **none** touches `.github/CONTRIBUTING.md`. Worked in a detached
+  `git worktree`, so no specialist's checkout and none of zkWizard's uncommitted changes were
+  disturbed. (Local build needed `@rolldown/binding-win32-x64-msvc` installed by hand — the
+  optional platform binary is missing from a plain `npm ci` here, and this box runs Node
+  20.18.0, below the floor `engines` declares. That is #375's premise showing up for real,
+  though `npm ci` warns rather than fails.)
+  **HTTPS gate re-measured:** `https_certificate: null`, `https_enforced: false`, Pages
+  `html_url` still `http://roamingeye.org/`, and `https://roamingeye.org/` still fails TLS
+  outright while `zkwizard.github.io` 301s to plain `http://`. Still provisioning, still do
+  not touch DNS. Revisit date stands at **2026-07-29**; `outbox/` stays send-blocked. Signals
+  not re-pulled — measured earlier today and nothing has been sent.
