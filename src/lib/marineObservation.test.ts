@@ -36,6 +36,7 @@ describe("coastal ocean observation contract", () => {
         value: 0,
         nativeUnit: "individuals",
         source: BIOLOGICAL_SOURCE,
+        sourceRecordId: "survey-row-0042",
         validFraction: 0.65,
         geography: {
           kind: "boundary",
@@ -72,6 +73,7 @@ describe("coastal ocean observation contract", () => {
         observationKind: "organism-count",
         taxonName: "Example coastal taxon",
         source: BIOLOGICAL_SOURCE,
+        sourceRecordId: "survey-row-0042",
         nativeUnit: "individuals",
         geography: {
           kind: "boundary",
@@ -154,6 +156,7 @@ describe("coastal ocean observation contract", () => {
       taxonName: null,
       dataMonth: null,
       source: null,
+      sourceRecordId: null,
       nativeUnit: null,
       geography: null,
       coverage: { validFraction: null, reason: "not-supplied" },
@@ -344,6 +347,57 @@ describe("coastal ocean observation contract", () => {
     ).toMatchObject({
       status: "invalid",
       coverage: { reason: "invalid-geography" },
+      observedValue: null,
+    });
+  });
+
+  it("preserves exact biological source record identifiers and unavailable states", () => {
+    const identified = summarizeDirectMarineBiologicalObservation({
+      observationKind: "occurrence-record",
+      taxonName: "Example pelagic taxon",
+      dataMonth: { year: 2026, month: 3 },
+      value: 1,
+      nativeUnit: "records",
+      source: BIOLOGICAL_SOURCE,
+      sourceRecordId: "obis:dataset-17:record-0042",
+    });
+    const unavailable = summarizeDirectMarineBiologicalObservation({
+      observationKind: "occurrence-record",
+      taxonName: "Example pelagic taxon",
+      dataMonth: { year: 2026, month: 3 },
+      value: 1,
+      nativeUnit: "records",
+      source: BIOLOGICAL_SOURCE,
+      sourceRecordId: null,
+    });
+
+    expect(identified).toMatchObject({
+      status: "observed",
+      sourceRecordId: "obis:dataset-17:record-0042",
+      observedValue: 1,
+    });
+    expect(unavailable).toMatchObject({
+      status: "observed",
+      sourceRecordId: null,
+      observedValue: 1,
+    });
+  });
+
+  it("rejects blank biological source record identifiers", () => {
+    expect(
+      summarizeDirectMarineBiologicalObservation({
+        observationKind: "occurrence-record",
+        taxonName: "Example pelagic taxon",
+        dataMonth: { year: 2026, month: 3 },
+        value: 1,
+        nativeUnit: "records",
+        source: BIOLOGICAL_SOURCE,
+        sourceRecordId: "   ",
+      })
+    ).toMatchObject({
+      status: "invalid",
+      sourceRecordId: "   ",
+      coverage: { reason: "invalid-source-record-id" },
       observedValue: null,
     });
   });
