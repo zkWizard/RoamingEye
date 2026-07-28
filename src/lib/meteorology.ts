@@ -5,6 +5,7 @@ import {
   type MonthlyClimateObservation,
   type MonthlyClimateSummary,
 } from "./climate";
+import { SCALE_CONVERSIONS } from "./colormap";
 import type { LayerId, YearMonth } from "./timeline";
 import { toConventionalClimateValue } from "./climateConventionalUnits";
 import type { GeometrySamplingStrategy } from "./geojson";
@@ -27,6 +28,15 @@ const CLIMATE_METRIC_BY_LAYER: Partial<Record<LayerId, ClimateMetricId>> = {
   precip: "precipitation-rate",
   airtemp: "air-temperature-2m",
   soil: "soil-moisture",
+};
+
+const CLIMATE_LAYER_BY_METRIC: Record<
+  ClimateMetricId,
+  "precip" | "airtemp" | "soil"
+> = {
+  "precipitation-rate": "precip",
+  "air-temperature-2m": "airtemp",
+  "soil-moisture": "soil",
 };
 
 export interface RenderedClimateSampleInput {
@@ -90,6 +100,13 @@ export function observationsFromRenderedClimateSample(
   ) {
     throw new Error(
       "RoamingEye: native-to-sampled climate value factor must be positive"
+    );
+  }
+  const layerId = CLIMATE_LAYER_BY_METRIC[input.metricId];
+  const expectedFactor = SCALE_CONVERSIONS[layerId]?.factor ?? 1;
+  if (nativeToSampledValueFactor !== expectedFactor) {
+    throw new Error(
+      `RoamingEye: ${input.metricId} rendered samples require native-to-sampled factor ${expectedFactor}`
     );
   }
 
@@ -292,7 +309,7 @@ function exportUnavailableReason(
 function coverageText(validFraction: number | null): string {
   return validFraction === null
     ? "sampled coverage not supplied"
-    : `${Math.round(validFraction * 100)}% sampled coverage`;
+    : `${formatNumber(validFraction * 100)}% sampled coverage`;
 }
 
 function imageProvenance(

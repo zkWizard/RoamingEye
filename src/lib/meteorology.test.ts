@@ -281,4 +281,51 @@ describe("rendered monthly meteorology", () => {
       })
     ).toThrow("invalid data month");
   });
+
+  it("rejects a display conversion that does not belong to the cited climate metric", () => {
+    expect(() =>
+      observationsFromRenderedClimateSample({
+        metricId: "soil-moisture",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [7.2],
+        nativeToSampledValueFactor: 86_400,
+      })
+    ).toThrow(
+      "soil-moisture rendered samples require native-to-sampled factor 1"
+    );
+
+    expect(() =>
+      observationsFromRenderedClimateSample({
+        metricId: "precipitation-rate",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [8.64],
+        nativeToSampledValueFactor: 1,
+      })
+    ).toThrow(
+      "precipitation-rate rendered samples require native-to-sampled factor 86400"
+    );
+  });
+
+  it("does not round partial sampled coverage to zero or complete coverage", () => {
+    const summaries = summarizeRenderedClimateSample(
+      {
+        metricId: "soil-moisture",
+        months: [
+          { year: 2026, month: 1 },
+          { year: 2026, month: 2 },
+        ],
+        sampledValues: [0.00001, 0.00002],
+        nativeToSampledValueFactor: 1,
+        validFractions: [0.004, 0.9996],
+      },
+      { year: 2026, month: 2 }
+    );
+
+    expect(climateInsightText(undefined, summaries[0]).detail).toContain(
+      "0.4% sampled coverage"
+    );
+    expect(climateInsightText(summaries[0], summaries[1]).detail).toContain(
+      "99.96% sampled coverage"
+    );
+  });
 });

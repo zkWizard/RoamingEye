@@ -15,6 +15,14 @@ export interface Earthquake {
   /** Hypocenter depth in km (positive down). */
   depthKm: number;
   magnitude: number;
+  /**
+   * Magnitude method/type exactly as reported by USGS (for example "mww" or
+   * "mb"). Null means the feed did not supply a non-empty type.
+   *
+   * Optional only for compatibility with callers constructing observations
+   * outside the feed parser; summaries treat omission as unavailable.
+   */
+  magnitudeType?: string | null;
   /** Event time, epoch milliseconds. */
   time: number;
   /**
@@ -119,6 +127,11 @@ export interface EarthquakeRange {
 export interface EarthquakeSummary {
   eventCount: number;
   magnitude: EarthquakeRange;
+  /** Exact reported magnitude-type labels and explicit unavailable coverage. */
+  magnitudeTypes: {
+    reportedCounts: Record<string, number>;
+    unavailableCount: number;
+  };
   depthKm: EarthquakeRange;
   time: EarthquakeRange;
   depthClassCounts: Record<DepthClass, number>;
@@ -251,17 +264,38 @@ export function summarizeEarthquakes(
     deep: 0,
   };
   const magnitudeClassCounts = emptyMagnitudeClassCounts();
+  const magnitudeTypeCounts = new Map<string, number>();
+  let unavailableMagnitudeTypeCount = 0;
   for (const earthquake of valid) {
     depthClassCounts[depthClass(earthquake.depthKm)] += 1;
     const magClass = magnitudeClass(earthquake.magnitude);
     // magClass is non-null here: valid events already passed a finite-magnitude
     // check, but the guard keeps the aggregation total-safe regardless.
     if (magClass !== null) magnitudeClassCounts[magClass] += 1;
+    if (
+      typeof earthquake.magnitudeType === "string" &&
+      earthquake.magnitudeType.trim() !== ""
+    ) {
+      magnitudeTypeCounts.set(
+        earthquake.magnitudeType,
+        (magnitudeTypeCounts.get(earthquake.magnitudeType) ?? 0) + 1
+      );
+    } else {
+      unavailableMagnitudeTypeCount += 1;
+    }
   }
 
   return {
     eventCount: valid.length,
     magnitude: rangeFor(valid.map((earthquake) => earthquake.magnitude)),
+    magnitudeTypes: {
+      reportedCounts: Object.fromEntries(
+        [...magnitudeTypeCounts.entries()].sort(([first], [second]) =>
+          first < second ? -1 : first > second ? 1 : 0
+        )
+      ),
+      unavailableCount: unavailableMagnitudeTypeCount,
+    },
     depthKm: rangeFor(valid.map((earthquake) => earthquake.depthKm)),
     time: rangeFor(valid.map((earthquake) => earthquake.time)),
     depthClassCounts,
@@ -390,6 +424,10 @@ export function parseEarthquakeFeedWithCoverage(
       lon,
       depthKm,
       magnitude,
+      magnitudeType:
+        typeof props.magType === "string" && props.magType.trim() !== ""
+          ? props.magType
+          : null,
       time,
       place: typeof props.place === "string" ? props.place : null,
       sourceRecord: {

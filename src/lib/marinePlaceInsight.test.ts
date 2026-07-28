@@ -19,6 +19,7 @@ describe("marine boundary SST insights", () => {
       id: MARINE_PLACE_METRIC.id,
       value: "18.4 °C",
       kind: "observed-boundary-sea-surface-temperature",
+      availability: "available",
       marineBiologyObservation: false,
       isForecast: false,
       dataMonth: { year: 2026, month: 3 },
@@ -28,6 +29,10 @@ describe("marine boundary SST insights", () => {
         kind: "searched-area-boundary",
         label: "Monterey Bay",
       },
+      // Coverage and image provenance are also surfaced at the top level for
+      // consumers that do not read the structured summary below.
+      validFraction: 0.37,
+      sourceImageDimensions: { width: 512, height: 512 },
     });
     expect(reading.coverage).toMatchObject({
       kind: "sea-surface-temperature-coverage",
@@ -61,8 +66,14 @@ describe("marine boundary SST insights", () => {
     });
 
     expect(reading.value).toBe("No usable SST observation");
+    expect(reading.availability).toBe("no-usable-sst");
     expect(reading.observedValue).toBeNull();
     expect(reading.observationStatus).toBe("no-sst-coverage");
+    expect(reading.validFraction).toBe(0);
+    expect(reading.sourceImageDimensions).toEqual({
+      width: 512,
+      height: 512,
+    });
     expect(reading.coverage?.coverage).toEqual({
       status: "no-sst-coverage",
       footprint: "unknown",
@@ -85,9 +96,11 @@ describe("marine boundary SST insights", () => {
     });
 
     expect(reading.value).toBe("No usable SST observation");
+    expect(reading.availability).toBe("no-usable-sst");
     expect(reading.observedValue).toBeNull();
     expect(reading.observationStatus).toBe("invalid-sample");
     expect(reading.coverage?.coverage.reason).toBe("invalid-coverage");
+    expect(reading.validFraction).toBeNull();
     expect(reading.detail).toContain("sampled coverage not supplied");
   });
 
@@ -165,5 +178,39 @@ describe("marine boundary SST insights", () => {
 
     expect(reading.sampledGeography.label).toBe("unknown searched area");
     expect(reading.detail).toContain("for unknown searched area");
+  });
+
+  it("preserves exact low coverage even when display text rounds it", () => {
+    const reading = marineBoundarySstReading({
+      geographyLabel: "Monterey Bay",
+      dataMonth: { year: 2026, month: 3 },
+      observedValue: 18.375,
+      validFraction: 0.004,
+      sourceImageDimensions: { width: 1024, height: 512 },
+    });
+
+    expect(reading.value).toBe("18.4 °C");
+    expect(reading.detail).toContain("0% sampled boundary coverage");
+    expect(reading.validFraction).toBe(0.004);
+    expect(reading.sourceImageDimensions).toEqual({
+      width: 1024,
+      height: 512,
+    });
+  });
+
+  it("distinguishes sampling failure from sampled no-data", () => {
+    const reading = unavailableMarineBoundarySstReading(
+      { year: 2026, month: 3 },
+      "Monterey Bay"
+    );
+
+    expect(reading).toMatchObject({
+      availability: "sampling-unavailable",
+      observedValue: null,
+      validFraction: null,
+      sourceImageDimensions: null,
+      marineBiologyObservation: false,
+      isForecast: false,
+    });
   });
 });

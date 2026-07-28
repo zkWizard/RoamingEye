@@ -45,6 +45,7 @@ import {
   latLonToRegionPixel,
   pointProbePixels,
   ProbeSampler,
+  readSourcePixels,
 } from "../probe/ProbeSampler";
 
 describe("latLonToPixel", () => {
@@ -136,6 +137,29 @@ describe("pointProbePixels", () => {
         pixels.every(({ x, y }) => x >= 0 && x < 8 && y >= 0 && y < 4)
       ).toBe(true);
     }
+  });
+});
+
+describe("probe source pixel reads", () => {
+  it("closes decoded imagery when a canvas read fails", () => {
+    const close = vi.fn();
+    const ctx = {
+      clearRect: vi.fn(),
+      drawImage: vi.fn(() => {
+        throw new Error("canvas context lost");
+      }),
+      getImageData: vi.fn(),
+    } as unknown as CanvasRenderingContext2D;
+
+    expect(() =>
+      readSourcePixels(
+        { image: {} as CanvasImageSource, close },
+        [{ x: 4, y: 7, weight: 1 }],
+        ctx
+      )
+    ).toThrow("canvas context lost");
+    expect(close).toHaveBeenCalledOnce();
+    expect(ctx.getImageData).not.toHaveBeenCalled();
   });
 });
 
