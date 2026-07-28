@@ -28,6 +28,11 @@ const input = {
       wmsLayer: LAYERS.ndvi.wmsLayer,
       source: LAYERS.ndvi.dataset!,
       nativeUnit: "NDVI",
+      sampleToNative: {
+        sampledUnit: "NDVI",
+        operation: "divide" as const,
+        factor: 1,
+      },
       samplingStrategy: "boundary-grid" as const,
       observations: [
         {
@@ -47,6 +52,11 @@ const input = {
       wmsLayer: LAYERS.precip.wmsLayer,
       source: LAYERS.precip.dataset!,
       nativeUnit: "kg m^-2 s^-1",
+      sampleToNative: {
+        sampledUnit: "mm/day",
+        operation: "divide" as const,
+        factor: 86_400,
+      },
       samplingStrategy: "boundary-point" as const,
       observations: [
         {
@@ -110,6 +120,11 @@ describe("place observation export", () => {
           wmsLayer: LAYERS.ndvi.wmsLayer,
           source: LAYERS.ndvi.dataset,
           nativeUnit: "NDVI",
+          sampleToNative: {
+            sampledUnit: "NDVI",
+            operation: "divide",
+            factor: 1,
+          },
           samplingStrategy: "boundary-grid",
           observations: [
             {
@@ -130,6 +145,11 @@ describe("place observation export", () => {
           layerId: "precip",
           source: LAYERS.precip.dataset,
           nativeUnit: "kg m^-2 s^-1",
+          sampleToNative: {
+            sampledUnit: "mm/day",
+            operation: "divide",
+            factor: 86_400,
+          },
           samplingStrategy: "boundary-point",
           observations: [
             {
@@ -425,6 +445,7 @@ describe("place observation export", () => {
   it("reverses display conversions before exporting cited native units", () => {
     const precipitation = placeObservationProductFromSample({
       layerId: "precip",
+      sampledUnit: "mm/day",
       sourceValueFactor: 86_400,
       samplingStrategy: "boundary-point",
       observations: [
@@ -447,6 +468,11 @@ describe("place observation export", () => {
       wmsLayer: LAYERS.precip.wmsLayer,
       source: LAYERS.precip.dataset,
       nativeUnit: "kg/m²/s",
+      sampleToNative: {
+        sampledUnit: "mm/day",
+        operation: "divide",
+        factor: 86_400,
+      },
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -464,6 +490,24 @@ describe("place observation export", () => {
         sourceValueFactor: 0,
       })
     ).toThrow("sourceValueFactor must be a positive finite number.");
+  });
+
+  it("rejects non-reproducible sample-to-native transforms", () => {
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            sampleToNative: {
+              sampledUnit: "NDVI",
+              operation: "divide",
+              factor: 0,
+            },
+          },
+        ],
+      })
+    ).toThrow("Product ndvi has an invalid sample-to-native transform.");
   });
 
   it("does not invent a sampling strategy for unavailable samples", () => {
