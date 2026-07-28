@@ -17,10 +17,14 @@ import { latLngToVector3, vector3ToLatLng, formatLatLng } from "./lib/geo";
 import { buildProbeCsv, normalizeLon, PROBE_SCALES } from "./lib/probe";
 import { isAreaGeometry } from "./lib/geojson";
 import {
+  PLACE_OBSERVATION_NATIVE_UNITS,
   placeObservationProductFromSample,
   serializePlaceObservationExport,
+  sstPlaceObservationFromSample,
   type PlaceObservationExportSample,
 } from "./lib/placeObservationExport";
+import { SCALE_CONVERSIONS } from "./lib/colormap";
+import { environmentUnavailableSample } from "./lib/environmentUnavailableSample";
 import {
   PLACE_METRICS,
   latestComparisonMonths,
@@ -35,10 +39,11 @@ import {
 import {
   climateInsightText,
   climateMetricForLayer,
+  exportObservationsFromRenderedClimateSample,
   summarizeRenderedClimateSample,
 } from "./lib/meteorology";
 import { volcanoesInSearchExtent } from "./lib/volcanoExtent";
-import { parseVolcanoList } from "./lib/volcanoes";
+import { parseVolcanoDataset } from "./lib/volcanoes";
 import type { GeoResult } from "./lib/geocoding";
 import { refreshDataLatest } from "./lib/freshness";
 import { fetchJson, isAbortError, isOnline, OfflineError } from "./lib/net";
@@ -63,7 +68,10 @@ import { GraticuleOverlay } from "./overlays/GraticuleOverlay";
 import { BordersOverlay } from "./overlays/BordersOverlay";
 import { CitiesOverlay } from "./overlays/CitiesOverlay";
 import { AtmosphereOverlay } from "./overlays/AtmosphereOverlay";
-import { EarthquakesOverlay } from "./overlays/EarthquakesOverlay";
+import {
+  EARTHQUAKE_HOVER_SOURCE_COUNT,
+  EarthquakesOverlay,
+} from "./overlays/EarthquakesOverlay";
 import { PlateBoundariesOverlay } from "./overlays/PlateBoundariesOverlay";
 import { VolcanoesOverlay } from "./overlays/VolcanoesOverlay";
 import { TiledImageryOverlay } from "./overlays/TiledImageryOverlay";
@@ -82,9 +90,6 @@ import {
 import type { Bounds } from "./lib/imagery";
 import { StudyRegion } from "./scene/StudyRegion";
 import { StudyChip } from "./ui/StudyChip";
-import { ProvidersPage } from "./ui/ProvidersPage";
-import { SoftwareFinder } from "./ui/SoftwareFinder";
-import { FleetDashboard } from "./ui/FleetDashboard";
 import { PlaceInsights } from "./ui/PlaceInsights";
 import { ShortcutsOverlay } from "./ui/ShortcutsOverlay";
 import { loadAdmin1Index, loadCountryIndex } from "./lib/countryIndex";
@@ -232,6 +237,7 @@ const errorToast = new ErrorToast();
 
 const citiesOverlay = new CitiesOverlay();
 const volcanoesOverlay = new VolcanoesOverlay();
+const earthquakesOverlay = new EarthquakesOverlay();
 // "You are here" — opt-in geolocation pin; denial reverts its toggle + toasts.
 const userLocationOverlay = new UserLocationOverlay((message) =>
   errorToast.show(message)
@@ -246,7 +252,7 @@ const overlays: MapOverlay[] = [
   // up on the globe to tell the plate-tectonics story.
   new PlateBoundariesOverlay(),
   volcanoesOverlay,
-  new EarthquakesOverlay(),
+  earthquakesOverlay,
   userLocationOverlay,
 ];
 for (const overlay of overlays) scene.add(overlay.object);
@@ -274,6 +280,9 @@ if (tooltipEl) {
   const inspector = new HoverInspector(canvas, camera, earth, tooltipEl);
   inspector.addPointSource(() => citiesOverlay.hoverSource);
   inspector.addPointSource(() => volcanoesOverlay.hoverSource);
+  for (let index = 0; index < EARTHQUAKE_HOVER_SOURCE_COUNT; index += 1) {
+    inspector.addPointSource(() => earthquakesOverlay.hoverSources[index]);
+  }
   inspector.addPointSource(() => userLocationOverlay.hoverSource);
   loadCountryIndex()
     .then((index) => {
@@ -412,6 +421,9 @@ function buildTimeline(): void {
 buildTimeline();
 
 const legend = legendEl ? new Legend(legendEl, currentLayer) : undefined;
+hdTiles.onVisibleCoverageChange(({ requested, loaded, failed }) => {
+  legend?.setTerrainTileCoverage(requested, loaded, failed);
+});
 
 // Assigned by the probe/compare sections below; the layer selector closes
 // both because their contents belong to the previous layer.
@@ -440,11 +452,12 @@ function runPlaceInsights(result: GeoResult): void {
     void fetchJson<unknown>(`${import.meta.env.BASE_URL}data/volcanoes.json`, {
       signal: abort.signal,
     })
-      .then(parseVolcanoList)
-      .then((volcanoes) => {
+      .then(parseVolcanoDataset)
+      .then((dataset) => {
         if (abort.signal.aborted) return;
         placeInsights.setVolcanoContext(
-          volcanoesInSearchExtent(volcanoes, result.boundingBox)
+          volcanoesInSearchExtent(dataset.volcanoes, result.boundingBox),
+          dataset.dataMonth
         );
       })
       .catch((error: unknown) => {
@@ -463,10 +476,10 @@ function runPlaceInsights(result: GeoResult): void {
     // unavailable authoritative colormap must not be replaced with a
     // display-converted value labelled as a native-unit measurement. NDVI is
     // the exception: its 0..1 physical range is already its native unit.
-    exportSamples.set(metric.layerId, {
-      layerId: metric.layerId,
-      observations: months.map((dataMonth) => ({ dataMonth, value: null })),
-    });
+    exportSamples.set(
+      metric.layerId,
+      environmentUnavailableSample(metric.layerId, months)
+    );
     samplingTasks.push(
       (async () => {
         const colormap = await loadPlaceColormap(metric.layerId);
@@ -491,6 +504,7 @@ function runPlaceInsights(result: GeoResult): void {
           values,
           validFractions,
           sourceImageDimensions,
+          geometrySampling,
           geometrySamplingStrategy,
         } = await sample;
         if (abort.signal.aborted) return;
@@ -505,6 +519,7 @@ function runPlaceInsights(result: GeoResult): void {
                   nativeToSampledValueFactor: colormap.factor,
                   validFractions,
                   sourceImageDimensions,
+                  geometrySamplingStrategy,
                 },
                 months[1]
               )
@@ -527,15 +542,49 @@ function runPlaceInsights(result: GeoResult): void {
                   geometrySamplingStrategy,
                 })
         );
-        if (colormap || metric.layerId === "ndvi") {
+        if (colormap) {
           exportSamples.set(metric.layerId, {
             layerId: metric.layerId,
+            sampledUnit:
+              SCALE_CONVERSIONS[
+                metric.layerId as keyof typeof SCALE_CONVERSIONS
+              ]?.unit ?? PLACE_OBSERVATION_NATIVE_UNITS[metric.layerId],
             sourceValueFactor: colormap?.factor ?? 1,
-            observations: months.map((dataMonth, index) => ({
-              dataMonth,
-              value: values[index] ?? null,
-              validFraction: validFractions[index],
-            })),
+            samplingSupport: geometrySampling,
+            samplingStrategy: geometrySamplingStrategy,
+            observations:
+              colormap && climateMetricId
+                ? exportObservationsFromRenderedClimateSample(
+                    {
+                      metricId: climateMetricId,
+                      months,
+                      sampledValues: values,
+                      nativeToSampledValueFactor: colormap.factor,
+                      validFractions,
+                      sourceImageDimensions,
+                      geometrySamplingStrategy,
+                    },
+                    months[1]
+                  )
+                : months.map((dataMonth, index) => {
+                    const value = values[index] ?? null;
+                    if (value === null) {
+                      return {
+                        dataMonth,
+                        value,
+                        unavailableReason:
+                          (validFractions[index] ?? 0) > 0
+                            ? ("insufficient-valid-coverage" as const)
+                            : ("source-no-data" as const),
+                        validFraction: validFractions[index],
+                      };
+                    }
+                    return {
+                      dataMonth,
+                      value,
+                      validFraction: validFractions[index],
+                    };
+                  }),
           });
         }
       })().catch((error: unknown) => {
@@ -556,55 +605,80 @@ function runPlaceInsights(result: GeoResult): void {
   // NASA GIBS's published physical colormap so the value remains in °C.
   const sstMonths = monthRangeForLayer(LAYERS.sst);
   const sstMonth = sstMonths[sstMonths.length - 1];
-  void (async () => {
-    const colormap = await loadPlaceColormap("sst");
-    if (!colormap) {
-      throw new Error("RoamingEye: SST physical colormap is unavailable");
-    }
-    const sample = await placeSampler.sampleGeometryPhysical(
-      LAYERS.sst,
-      [sstMonth],
-      geometry,
-      { lat: result.lat, lon: result.lon },
-      colormap.entries,
-      colormap.factor,
-      { signal: abort.signal }
-    );
-    if (abort.signal.aborted) return;
-    placeInsights.setReading(
-      marineBoundarySstReading({
-        dataMonth: sstMonth,
-        observedValue: sample.values[0],
-        validFraction: sample.validFractions[0],
-        sourceImageDimensions: sample.sourceImageDimensions,
-      })
-    );
-  })().catch((error: unknown) => {
-    if (isAbortError(error) || abort.signal.aborted) return;
-    console.warn("RoamingEye: marine place insight sampling failed", error);
-    placeInsights.setReading(unavailableMarineBoundarySstReading(sstMonth));
-  });
+  exportSamples.set("sst", environmentUnavailableSample("sst", [sstMonth]));
+  samplingTasks.push(
+    (async () => {
+      const colormap = await loadPlaceColormap("sst");
+      if (!colormap) {
+        throw new Error("RoamingEye: SST physical colormap is unavailable");
+      }
+      const sample = await placeSampler.sampleGeometryPhysical(
+        LAYERS.sst,
+        [sstMonth],
+        geometry,
+        { lat: result.lat, lon: result.lon },
+        colormap.entries,
+        colormap.factor,
+        { signal: abort.signal }
+      );
+      if (abort.signal.aborted) return;
+      placeInsights.setReading(
+        marineBoundarySstReading({
+          geographyLabel: result.name,
+          dataMonth: sstMonth,
+          observedValue: sample.values[0],
+          validFraction: sample.validFractions[0],
+          sourceImageDimensions: sample.sourceImageDimensions,
+        })
+      );
+      exportSamples.set("sst", {
+        layerId: "sst",
+        sourceValueFactor: colormap.factor,
+        observations: [
+          sstPlaceObservationFromSample(
+            sstMonth,
+            sample.values[0],
+            sample.validFractions[0]
+          ),
+        ],
+      });
+    })().catch((error: unknown) => {
+      if (isAbortError(error) || abort.signal.aborted) return;
+      console.warn("RoamingEye: marine place insight sampling failed", error);
+      placeInsights.setReading(
+        unavailableMarineBoundarySstReading(sstMonth, result.name)
+      );
+    })
+  );
 
-  void Promise.all(samplingTasks).then(() => {
-    if (abort.signal.aborted) return;
-    const products = [...exportSamples.values()].map(
-      placeObservationProductFromSample
-    );
-    if (products.length === 0) return;
-    placeInsights.setObservationExport(
-      serializePlaceObservationExport({
-        boundary: geometry,
-        products,
-        method: {
-          sampling: "area-weighted-grid-mean",
-          imageWidth: 512,
-          imageHeight: 512,
-        },
-        generatedIso: new Date().toISOString(),
-        toolVersion: __APP_VERSION__,
-      })
-    );
-  });
+  void Promise.all(samplingTasks)
+    .then(() => {
+      if (abort.signal.aborted) return;
+      const products = [...exportSamples.values()].map(
+        placeObservationProductFromSample
+      );
+      if (products.length === 0) return;
+      placeInsights.setObservationExport(
+        serializePlaceObservationExport({
+          boundary: geometry,
+          products,
+          method: {
+            sampling: "area-weighted-grid-mean",
+            imageWidth: 512,
+            imageHeight: 512,
+          },
+          generatedIso: new Date().toISOString(),
+          toolVersion: __APP_VERSION__,
+        })
+      );
+    })
+    .catch((error: unknown) => {
+      // Export validation throws on contract violations (unexplained nulls,
+      // invalid footprints). Losing the export beats an unhandled rejection
+      // that would silently strand the whole insights panel.
+      if (isAbortError(error) || abort.signal.aborted) return;
+      console.warn("RoamingEye: place observation export failed", error);
+    });
 }
 
 if (layerEl) {
@@ -1154,22 +1228,48 @@ if (probeEl) {
   });
 }
 
-// --- Providers page ---------------------------------------------------------
+// --- Secondary panels -------------------------------------------------------
+// The providers, software and fleet panels are reference material: none of it is
+// needed to render the globe, and each drags in its own catalog and formatting
+// code. They are loaded on first open instead of at boot, which keeps that code
+// out of the entry chunk (see scripts/check-bundle-size.mjs). A failed chunk
+// load clears the cache so the next click retries, and rejects so the global
+// error surface reports it.
+function lazyPanel(
+  container: HTMLElement,
+  link: HTMLElement,
+  load: () => Promise<new (el: HTMLElement) => { open(): void }>
+): void {
+  let panel: Promise<{ open(): void }> | null = null;
+  link.addEventListener("click", () => {
+    if (!panel) {
+      panel = load().then((Panel) => new Panel(container));
+      panel.catch(() => {
+        panel = null;
+      });
+    }
+    void panel.then((p) => p.open());
+  });
+}
+
 if (providersPageEl && providersLinkEl) {
-  const providers = new ProvidersPage(providersPageEl);
-  providersLinkEl.addEventListener("click", () => providers.open());
+  lazyPanel(providersPageEl, providersLinkEl, () =>
+    import("./ui/ProvidersPage").then((m) => m.ProvidersPage)
+  );
 }
 
 // Software discovery is static and review-gated: the finder reads only the
 // approved catalog artifact produced by the catalog agent fleet.
 if (softwarePageEl && softwareLinkEl) {
-  const softwareFinder = new SoftwareFinder(softwarePageEl);
-  softwareLinkEl.addEventListener("click", () => softwareFinder.open());
+  lazyPanel(softwarePageEl, softwareLinkEl, () =>
+    import("./ui/SoftwareFinder").then((m) => m.SoftwareFinder)
+  );
 }
 
 if (fleetPageEl && fleetLinkEl) {
-  const fleetDashboard = new FleetDashboard(fleetPageEl);
-  fleetLinkEl.addEventListener("click", () => fleetDashboard.open());
+  lazyPanel(fleetPageEl, fleetLinkEl, () =>
+    import("./ui/FleetDashboard").then((m) => m.FleetDashboard)
+  );
 }
 
 // --- Keyboard shortcuts overlay -----------------------------------------------

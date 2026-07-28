@@ -43,6 +43,10 @@ export interface RefinedGeometrySamplingPlan extends GeometrySamplingPlan {
   candidatePointCount: number;
   /** Interior cells before the stable point-limit guard was applied. */
   interiorPointCount: number;
+  /** Polygon components present in the input MultiPolygon (1 for Polygon). */
+  polygonComponentCount: number;
+  /** Polygon components represented by at least one retained sample cell. */
+  sampledComponentCount: number;
   /** True when the plan retained a representative subset for bounded work. */
   pointLimitApplied: boolean;
 }
@@ -72,15 +76,45 @@ interface PreparedPolygon {
   holes: Position[][];
 }
 
+function isValidPosition(position: unknown): position is Position {
+  if (!Array.isArray(position) || position.length < 2) return false;
+  const [lon, lat] = position;
+  return (
+    typeof lon === "number" &&
+    Number.isFinite(lon) &&
+    lon >= -180 &&
+    lon <= 180 &&
+    typeof lat === "number" &&
+    Number.isFinite(lat) &&
+    lat >= -90 &&
+    lat <= 90
+  );
+}
+
+function isValidRing(ring: unknown): ring is Position[] {
+  if (!Array.isArray(ring) || ring.length < 4) return false;
+  if (!ring.every(isValidPosition)) return false;
+  const first = ring[0];
+  const last = ring[ring.length - 1];
+  return first[0] === last[0] && first[1] === last[1];
+}
+
+function isValidPolygon(polygon: unknown): polygon is Polygon {
+  return (
+    Array.isArray(polygon) && polygon.length > 0 && polygon.every(isValidRing)
+  );
+}
+
 function areaPolygons(geometry: GeoGeometry): Polygon[] {
   if (geometry.type === "Polygon") {
-    const polygon = geometry.coordinates as Polygon;
-    return polygon.length > 0 ? [polygon] : [];
+    return isValidPolygon(geometry.coordinates) ? [geometry.coordinates] : [];
   }
   if (geometry.type === "MultiPolygon") {
-    return (geometry.coordinates as Polygon[]).filter(
-      (polygon) => polygon.length > 0
-    );
+    if (!Array.isArray(geometry.coordinates)) return [];
+    const polygons = geometry.coordinates.filter(isValidPolygon);
+    // A partially malformed MultiPolygon is not the same geography. Withhold
+    // the whole boundary instead of silently sampling only its valid pieces.
+    return polygons.length === geometry.coordinates.length ? polygons : [];
   }
   return [];
 }
@@ -188,16 +222,57 @@ export function geometryBounds(geometry: GeoGeometry): GeometryBounds | null {
     : null;
 }
 
+function pointOnSegment(
+  lon: number,
+  lat: number,
+  [startLon, startLat]: Position,
+  [endLon, endLat]: Position
+): boolean {
+  const deltaLon = endLon - startLon;
+  const deltaLat = endLat - startLat;
+  const pointLon = lon - startLon;
+  const pointLat = lat - startLat;
+  const squaredLength = deltaLon * deltaLon + deltaLat * deltaLat;
+  if (squaredLength === 0) return pointLon === 0 && pointLat === 0;
+  const cross = pointLon * deltaLat - pointLat * deltaLon;
+  const scale = Math.max(
+    1,
+    Math.abs(pointLon * deltaLat),
+    Math.abs(pointLat * deltaLon)
+  );
+  if (Math.abs(cross) > Number.EPSILON * 8 * scale) return false;
+  const dot = pointLon * deltaLon + pointLat * deltaLat;
+  return dot >= 0 && dot <= squaredLength;
+}
+
 function pointInRing(lon: number, lat: number, ring: Position[]): boolean {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
     const [xi, yi] = ring[i];
     const [xj, yj] = ring[j];
+    // Ray casting alone assigns shared vertices and horizontal edges
+    // inconsistently. Treat the ring edge as part of the ring so an exact
+    // searched-boundary coordinate has deterministic semantics. Callers still
+    // subtract hole rings below, including their edges.
+    if (pointOnSegment(lon, lat, ring[j], ring[i])) return true;
     const crosses =
       yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
     if (crosses) inside = !inside;
   }
   return inside;
+}
+
+function preparedPolygonContains(
+  polygon: PreparedPolygon,
+  lat: number,
+  lon: number
+): boolean {
+  const reference = averageLon(polygon.outer);
+  const framedLon = lonInFrame(lon, reference);
+  return (
+    pointInRing(framedLon, lat, polygon.outer) &&
+    !polygon.holes.some((hole) => pointInRing(framedLon, lat, hole))
+  );
 }
 
 /** Test whether a longitude/latitude point falls inside a polygon or multipolygon. */
@@ -206,14 +281,43 @@ export function geometryContains(
   lat: number,
   lon: number
 ): boolean {
-  return preparedPolygons(geometry).some(({ outer, holes }) => {
-    const reference = averageLon(outer);
-    const framedLon = lonInFrame(lon, reference);
-    return (
-      pointInRing(framedLon, lat, outer) &&
-      !holes.some((hole) => pointInRing(framedLon, lat, hole))
-    );
-  });
+  return preparedPolygons(geometry).some((polygon) =>
+    preparedPolygonContains(polygon, lat, lon)
+  );
+}
+
+interface GeometryGridCandidate {
+  point: { lat: number; lon: number };
+  polygonIndex: number;
+  gridIndex: number;
+}
+
+function geometryGridCandidates(
+  geometry: GeoGeometry,
+  n: number
+): GeometryGridCandidate[] {
+  const bounds = geometryBounds(geometry);
+  if (!bounds || n < 1) return [];
+  const polygons = preparedPolygons(geometry);
+  const candidates: GeometryGridCandidate[] = [];
+  for (let row = 0; row < n; row++) {
+    const lat =
+      bounds.south + ((row + 0.5) / n) * (bounds.north - bounds.south);
+    for (let col = 0; col < n; col++) {
+      const lon = bounds.west + ((col + 0.5) / n) * (bounds.east - bounds.west);
+      const polygonIndex = polygons.findIndex((polygon) =>
+        preparedPolygonContains(polygon, lat, lon)
+      );
+      if (polygonIndex >= 0) {
+        candidates.push({
+          point: { lat, lon },
+          polygonIndex,
+          gridIndex: row * n + col,
+        });
+      }
+    }
+  }
+  return candidates;
 }
 
 /**
@@ -225,18 +329,7 @@ export function geometryGridPoints(
   geometry: GeoGeometry,
   n: number
 ): { lat: number; lon: number }[] {
-  const bounds = geometryBounds(geometry);
-  if (!bounds || n < 1) return [];
-  const points: { lat: number; lon: number }[] = [];
-  for (let row = 0; row < n; row++) {
-    const lat =
-      bounds.south + ((row + 0.5) / n) * (bounds.north - bounds.south);
-    for (let col = 0; col < n; col++) {
-      const lon = bounds.west + ((col + 0.5) / n) * (bounds.east - bounds.west);
-      if (geometryContains(geometry, lat, lon)) points.push({ lat, lon });
-    }
-  }
-  return points;
+  return geometryGridCandidates(geometry, n).map(({ point }) => point);
 }
 
 function positiveInteger(value: number, fallback: number): number {
@@ -253,6 +346,46 @@ function evenlySpacedPoints<T>(points: T[], maxPoints: number): T[] {
     (_, index) =>
       points[Math.floor(((index + 0.5) * points.length) / maxPoints)]
   );
+}
+
+function componentBalancedPoints(
+  candidates: GeometryGridCandidate[],
+  maxPoints: number
+): { lat: number; lon: number }[] {
+  if (candidates.length <= maxPoints) {
+    return candidates.map(({ point }) => point);
+  }
+  const groups = new Map<number, GeometryGridCandidate[]>();
+  for (const candidate of candidates) {
+    const group = groups.get(candidate.polygonIndex) ?? [];
+    group.push(candidate);
+    groups.set(candidate.polygonIndex, group);
+  }
+  if (groups.size > maxPoints) {
+    return evenlySpacedPoints(candidates, maxPoints).map(({ point }) => point);
+  }
+
+  const allocations = [...groups].map(([polygonIndex, points]) => ({
+    polygonIndex,
+    points,
+    count: 1,
+  }));
+  for (
+    let remaining = maxPoints - allocations.length;
+    remaining > 0;
+    remaining--
+  ) {
+    allocations.sort(
+      (a, b) =>
+        b.points.length / b.count - a.points.length / a.count ||
+        a.polygonIndex - b.polygonIndex
+    );
+    allocations[0].count++;
+  }
+  return allocations
+    .flatMap(({ points, count }) => evenlySpacedPoints(points, count))
+    .sort((a, b) => a.gridIndex - b.gridIndex)
+    .map(({ point }) => point);
 }
 
 /**
@@ -319,20 +452,29 @@ export function geometrySamplingPlan(
     )
   );
   let gridSize = Math.min(maxGridSize, positiveInteger(initialGridSize, 1));
-  let points = geometryGridPoints(geometry, gridSize);
+  let candidates = geometryGridCandidates(geometry, gridSize);
+  const polygonComponentCount = preparedPolygons(geometry).length;
+  const representedComponentCount = (): number =>
+    new Set(candidates.map(({ polygonIndex }) => polygonIndex)).size;
 
-  while (points.length < minPoints && gridSize < maxGridSize) {
+  while (
+    (candidates.length < minPoints ||
+      representedComponentCount() < polygonComponentCount) &&
+    gridSize < maxGridSize
+  ) {
     gridSize = Math.min(maxGridSize, gridSize * 2);
-    points = geometryGridPoints(geometry, gridSize);
+    candidates = geometryGridCandidates(geometry, gridSize);
   }
 
   return {
-    points: evenlySpacedPoints(points, maxPoints),
+    points: componentBalancedPoints(candidates, maxPoints),
     strategy: "boundary-grid",
     gridSize,
     candidatePointCount: gridSize * gridSize,
-    interiorPointCount: points.length,
-    pointLimitApplied: points.length > maxPoints,
+    interiorPointCount: candidates.length,
+    polygonComponentCount,
+    sampledComponentCount: representedComponentCount(),
+    pointLimitApplied: candidates.length > maxPoints,
   };
 }
 
@@ -344,18 +486,37 @@ export function geometryToRings(geom: GeoGeometry): Position[][] {
   const rings: Position[][] = [];
   switch (geom.type) {
     case "Polygon":
-      for (const ring of geom.coordinates as Position[][]) rings.push(ring);
+      if (!isValidPolygon(geom.coordinates)) return rings;
+      for (const ring of geom.coordinates) rings.push(ring);
       break;
     case "MultiPolygon":
-      for (const poly of geom.coordinates as Position[][][]) {
+      if (
+        !Array.isArray(geom.coordinates) ||
+        !geom.coordinates.every(isValidPolygon)
+      ) {
+        return rings;
+      }
+      for (const poly of geom.coordinates) {
         for (const ring of poly) rings.push(ring);
       }
       break;
+    // Linework stays permissive by design: line consumers (plate boundaries)
+    // split raw coordinates into contiguous valid runs so a malformed vertex
+    // becomes a gap — dropping the whole line here would discard the valid
+    // segments, and per-position filtering would invent segments that join
+    // across the bad data. Area strictness above is unaffected.
     case "LineString":
-      rings.push(geom.coordinates as Position[]);
+      if (Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
+        rings.push(geom.coordinates as Position[]);
+      }
       break;
     case "MultiLineString":
-      for (const line of geom.coordinates as Position[][]) rings.push(line);
+      if (!Array.isArray(geom.coordinates)) return rings;
+      for (const line of geom.coordinates) {
+        if (Array.isArray(line) && line.length >= 2) {
+          rings.push(line as Position[]);
+        }
+      }
       break;
   }
   return rings;

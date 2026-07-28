@@ -115,9 +115,13 @@ describe("NDVI peak greenness timing", () => {
       year: 2017,
       hemisphere: "northern",
       coverage: {
+        suppliedCalendarMonths: [1, 2],
+        omittedCalendarMonths: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
         validMonthCount: 2,
         missingMonthCount: 0,
         invalidRecordCount: 0,
+        validFractionReportedCount: 2,
+        validFractionUnavailableCount: 0,
         minimumValidFraction: 0.9,
         isSparse: true,
       },

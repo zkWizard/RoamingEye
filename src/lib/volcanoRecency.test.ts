@@ -36,7 +36,10 @@ describe("summarizeEruptionRecency", () => {
       provenance: {
         org: "Smithsonian Institution Global Volcanism Program",
       },
-      units: { lastEruptionYear: "calendar year; negative values are BCE" },
+      units: {
+        lastEruptionYear:
+          "source calendar year; negative values are BCE and zero is preserved without era conversion",
+      },
     });
   });
 

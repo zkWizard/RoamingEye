@@ -63,4 +63,100 @@ describe("buildCountryIndex", () => {
     expect(index.lookup(25, 25)).toBe("Holeystan"); // in the ring
     expect(index.lookup(30, 30)).toBeNull(); // inside the hole
   });
+
+  it("uses the short arc for polygons crossing the antimeridian", () => {
+    const dateline = buildCountryIndex({
+      features: [
+        {
+          properties: { name: "Dateline Islands" },
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [178, -10],
+                [-178, -10],
+                [-178, 10],
+                [178, 10],
+                [178, -10],
+              ],
+            ],
+          },
+        },
+      ],
+    });
+
+    expect(dateline.lookup(0, 179)).toBe("Dateline Islands");
+    expect(dateline.lookup(0, -179)).toBe("Dateline Islands");
+    expect(dateline.lookup(0, 0)).toBeNull();
+  });
+
+  it("keeps antimeridian-crossing holes unavailable", () => {
+    const dateline = buildCountryIndex({
+      features: [
+        {
+          properties: { name: "Dateline Atoll" },
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [176, -10],
+                [-176, -10],
+                [-176, 10],
+                [176, 10],
+                [176, -10],
+              ],
+              [
+                [179, -2],
+                [-179, -2],
+                [-179, 2],
+                [179, 2],
+                [179, -2],
+              ],
+            ],
+          },
+        },
+      ],
+    });
+
+    expect(dateline.lookup(5, 179.5)).toBe("Dateline Atoll");
+    expect(dateline.lookup(0, 179.5)).toBeNull();
+    expect(dateline.lookup(0, -179.5)).toBeNull();
+  });
+
+  it("indexes MultiPolygon pieces in their own longitude frames", () => {
+    const islands = buildCountryIndex({
+      features: [
+        {
+          properties: { name: "Separated Islands" },
+          geometry: {
+            type: "MultiPolygon",
+            coordinates: [
+              [
+                [
+                  [178, -5],
+                  [-179, -5],
+                  [-179, 5],
+                  [178, 5],
+                  [178, -5],
+                ],
+              ],
+              [
+                [
+                  [20, -5],
+                  [22, -5],
+                  [22, 5],
+                  [20, 5],
+                  [20, -5],
+                ],
+              ],
+            ],
+          },
+        },
+      ],
+    });
+
+    expect(islands.lookup(0, -179.5)).toBe("Separated Islands");
+    expect(islands.lookup(0, 21)).toBe("Separated Islands");
+    expect(islands.lookup(0, 100)).toBeNull();
+  });
 });

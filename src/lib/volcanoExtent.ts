@@ -16,10 +16,21 @@ export type SearchBoundingBox = readonly [
 
 export interface VolcanoExtentRecord {
   name: string;
+  latitudeDegrees: number;
+  longitudeDegrees: number;
   country: string | null;
   primaryType: string | null;
   elevationMeters: number | null;
+  /** Source calendar year; negative values are BCE and null is unavailable. */
+  lastEruptionYear: number | null;
+  /** Human-readable companion; consumers should retain the raw year above. */
   lastEruptionText: string;
+  volcanoNumber: number | null;
+  sourceUrl: string | null;
+  region: string | null;
+  subregion: string | null;
+  /** Verbatim GVP label; not a causal interpretation. */
+  tectonicSetting: string | null;
 }
 
 export interface VolcanoExtentContext {
@@ -29,6 +40,13 @@ export interface VolcanoExtentContext {
   suppliedRecordCount: number;
   /** Records whose coordinates lie inside the search bounding box. */
   matchedRecordCount: number;
+  /** Coverage of the native GVP summit-elevation field within matched records. */
+  elevationCoverage: {
+    presentCount: number;
+    missingCount: number;
+    /** Null when there are no matched records, rather than an invented 0%. */
+    fraction: number | null;
+  };
   records: readonly VolcanoExtentRecord[];
   bounds: SearchBoundingBox | null;
   crossesAntimeridian: boolean;
@@ -42,7 +60,14 @@ const LIMITATIONS = [
   "Uses the search result bounding box, not the exact selected boundary.",
   "Includes only volcano records supplied by the bundled GVP-derived file.",
   "Does not forecast eruptions, rank hazards, score risk, or infer causes.",
+  "Region, subregion, and tectonic setting are retained GVP catalog labels, not classifications inferred by RoamingEye.",
 ] as const;
+
+export function gvpVolcanoUrl(volcanoNumber: number | null): string | null {
+  return volcanoNumber === null || !Number.isInteger(volcanoNumber)
+    ? null
+    : `https://volcano.si.edu/volcano.cfm?vn=${volcanoNumber}`;
+}
 
 /**
  * Filter GVP-derived records to a Nominatim search bounding box. Longitude
@@ -78,6 +103,21 @@ export function volcanoesInSearchExtent(
   );
 }
 
+/**
+ * Format a record's source coordinates for the place workflow. Coordinates
+ * remain decimal degrees and retain hemisphere explicitly; this is a display
+ * label, not a claim about positional accuracy.
+ */
+export function volcanoCoordinateLabel(
+  record: Pick<VolcanoExtentRecord, "latitudeDegrees" | "longitudeDegrees">
+): string {
+  return `${coordinatePart(record.latitudeDegrees, "N", "S")}, ${coordinatePart(
+    record.longitudeDegrees,
+    "E",
+    "W"
+  )}`;
+}
+
 function contextFor(
   records: VolcanoExtentRecord[],
   suppliedRecordCount: number,
@@ -85,11 +125,21 @@ function contextFor(
   crossesAntimeridian: boolean,
   status: VolcanoExtentContext["status"]
 ): VolcanoExtentContext {
+  const presentElevationCount = records.filter(
+    (record) =>
+      record.elevationMeters !== null && Number.isFinite(record.elevationMeters)
+  ).length;
   return {
     kind: "gvp-search-extent-context",
     status,
     suppliedRecordCount,
     matchedRecordCount: records.length,
+    elevationCoverage: {
+      presentCount: presentElevationCount,
+      missingCount: records.length - presentElevationCount,
+      fraction:
+        records.length === 0 ? null : presentElevationCount / records.length,
+    },
     records,
     bounds,
     crossesAntimeridian,
@@ -125,11 +175,30 @@ function longitudeInBounds(lon: number, west: number, east: number): boolean {
 }
 
 function toExtentRecord(volcano: Volcano): VolcanoExtentRecord {
+  const sourceRecord = volcano.sourceRecord;
+  const volcanoNumber = sourceRecord?.volcanoNumber ?? null;
   return {
     name: volcano.name,
+    latitudeDegrees: volcano.lat,
+    longitudeDegrees: volcano.lon,
     country: volcano.country,
     primaryType: volcano.type,
     elevationMeters: volcano.elevation,
+    lastEruptionYear: volcano.lastEruptionYear,
     lastEruptionText: lastEruptionLabel(volcano.lastEruptionYear),
+    volcanoNumber,
+    sourceUrl: gvpVolcanoUrl(volcanoNumber),
+    region: sourceRecord?.region ?? null,
+    subregion: sourceRecord?.subregion ?? null,
+    tectonicSetting: sourceRecord?.tectonicSetting ?? null,
   };
+}
+
+function coordinatePart(
+  value: number,
+  positiveHemisphere: string,
+  negativeHemisphere: string
+): string {
+  const hemisphere = value < 0 ? negativeHemisphere : positiveHemisphere;
+  return `${Math.abs(value).toFixed(2)}° ${hemisphere}`;
 }

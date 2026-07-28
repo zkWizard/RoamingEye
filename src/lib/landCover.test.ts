@@ -23,13 +23,18 @@ describe("land-cover context summaries", () => {
     expect(summary).toMatchObject({
       kind: "observed-class-coded-land-cover",
       isForecast: false,
+      observationStatus: "available",
+      unavailableReason: null,
       provenance: {
         layerId: "landcover",
         wmsLayer: "MODIS_Combined_L3_IGBP_Land_Cover_Type_Annual",
         dataYear: 2024,
         cadence: "annual",
         classScheme: "IGBP",
+        nativeValue: "IGBP LC_Type1 class code",
+        nativeUnit: "categorical",
         sourceResolution: "500 m",
+        geographicCoverage: "selected-boundary samples",
         source: LAND_COVER_SOURCE,
         publicationStatus: "published",
       },
@@ -43,6 +48,14 @@ describe("land-cover context summaries", () => {
         knownLandCoverFraction: 0.7,
         reason: null,
       },
+      mostFrequentClassStatus: "unique",
+      mostFrequentClasses: [
+        {
+          classCode: 12,
+          label: "Cropland",
+          sampleCount: 4,
+        },
+      ],
       dominantClass: {
         classCode: 12,
         label: "Cropland",
@@ -56,6 +69,17 @@ describe("land-cover context summaries", () => {
     ]);
     expect(summary).not.toHaveProperty("meanClassCode");
     expect(JSON.stringify(summary)).not.toContain("mean");
+  });
+
+  it("keeps categorical units and sampled geography in the reusable source contract", () => {
+    const summary = summarizeLandCoverContext([{ classCode: 10 }], 2024);
+
+    expect(summary.provenance).toMatchObject({
+      nativeValue: "IGBP LC_Type1 class code",
+      nativeUnit: "categorical",
+      geographicCoverage: "selected-boundary samples",
+    });
+    expect(summary.provenance.nativeUnit).not.toBe("percent");
   });
 
   it("keeps source unclassified pixels separate from no-data and informative classes", () => {
@@ -87,6 +111,8 @@ describe("land-cover context summaries", () => {
       },
     ]);
     expect(summary.dominantClass).toBeNull();
+    expect(summary.mostFrequentClassStatus).toBe("no-data");
+    expect(summary.mostFrequentClasses).toEqual([]);
   });
 
   it("reports no-data and invalid-year outcomes explicitly", () => {
@@ -96,6 +122,8 @@ describe("land-cover context summaries", () => {
     );
 
     expect(summary.provenance.publicationStatus).toBe("invalid-year");
+    expect(summary.observationStatus).toBe("unavailable");
+    expect(summary.unavailableReason).toBe("invalid-year");
     expect(summary.coverage).toEqual({
       status: "no-data",
       totalSampleCount: 0,
@@ -109,6 +137,74 @@ describe("land-cover context summaries", () => {
     });
     expect(summary.classCoverage).toEqual([]);
     expect(summary.dominantClass).toBeNull();
+    expect(summary.mostFrequentClassStatus).toBe("no-data");
+    expect(summary.mostFrequentClasses).toEqual([]);
+  });
+
+  it("distinguishes unpublished years from sampled no-data", () => {
+    const unpublished = summarizeLandCoverContext([{ classCode: 12 }], 2025);
+    const noData = summarizeLandCoverContext([{ classCode: 255 }], 2024);
+
+    expect(unpublished.observationStatus).toBe("unavailable");
+    expect(unpublished.unavailableReason).toBe("outside-layer-range");
+    expect(unpublished.coverage.status).toBe("available");
+    expect(noData.observationStatus).toBe("unavailable");
+    expect(noData.unavailableReason).toBe("no-known-land-cover");
+    expect(noData.provenance.publicationStatus).toBe("published");
+  });
+
+  it("rejects unsafe sample weights instead of rounding native counts", () => {
+    const summary = summarizeLandCoverContext(
+      [
+        { classCode: 12, sampleCount: Number.MAX_SAFE_INTEGER + 1 },
+        { classCode: 13, sampleCount: 2.5 },
+      ],
+      2024
+    );
+
+    expect(summary.coverage).toEqual({
+      status: "no-data",
+      totalSampleCount: 0,
+      knownLandCoverSampleCount: 0,
+      unclassifiedSampleCount: 0,
+      noDataSampleCount: 0,
+      invalidClassSampleCount: 0,
+      invalidRecordCount: 2,
+      knownLandCoverFraction: null,
+      reason: "no-samples",
+    });
+    expect(summary.classCoverage).toEqual([]);
+    expect(summary.dominantClass).toBeNull();
+  });
+
+  it("rejects a record that would overflow the cumulative exact count", () => {
+    const summary = summarizeLandCoverContext(
+      [
+        { classCode: 12, sampleCount: Number.MAX_SAFE_INTEGER },
+        { classCode: 13, sampleCount: 1 },
+      ],
+      2024
+    );
+
+    expect(summary.coverage).toMatchObject({
+      status: "available",
+      totalSampleCount: Number.MAX_SAFE_INTEGER,
+      knownLandCoverSampleCount: Number.MAX_SAFE_INTEGER,
+      invalidRecordCount: 1,
+      knownLandCoverFraction: 1,
+      reason: null,
+    });
+    expect(summary.classCoverage).toEqual([
+      {
+        classCode: 12,
+        label: "Cropland",
+        sampleCount: Number.MAX_SAFE_INTEGER,
+        fractionOfAllSamples: 1,
+        fractionOfSourceClassSamples: 1,
+        isInformativeLandCover: true,
+      },
+    ]);
+    expect(summary.dominantClass?.classCode).toBe(12);
   });
 
   it("exposes the complete IGBP contract including unclassified source pixels", () => {
@@ -116,6 +212,29 @@ describe("land-cover context summaries", () => {
     expect(IGBP_LAND_COVER_CLASSES.map((entry) => entry.code)).toEqual([
       1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 255,
     ]);
+  });
+
+  it("preserves tied most-frequent classes instead of inventing a dominant class", () => {
+    const summary = summarizeLandCoverContext(
+      [
+        { classCode: 12, sampleCount: 3 },
+        { classCode: 4, sampleCount: 3 },
+        { classCode: 10, sampleCount: 1 },
+      ],
+      2024
+    );
+
+    expect(summary.mostFrequentClassStatus).toBe("tied");
+    expect(
+      summary.mostFrequentClasses.map((entry) => ({
+        classCode: entry.classCode,
+        sampleCount: entry.sampleCount,
+      }))
+    ).toEqual([
+      { classCode: 4, sampleCount: 3 },
+      { classCode: 12, sampleCount: 3 },
+    ]);
+    expect(summary.dominantClass).toBeNull();
   });
 });
 
@@ -149,6 +268,8 @@ describe("land-cover formation groups", () => {
 
     expect(formations.kind).toBe("observed-land-cover-formation-groups");
     expect(formations.isForecast).toBe(false);
+    expect(formations.observationStatus).toBe("available");
+    expect(formations.unavailableReason).toBeNull();
     expect(formations.provenance).toBe(context.provenance);
     expect(formations.provenance.source).toBe(LAND_COVER_SOURCE);
     expect(formations.ungroupedKnownSampleCount).toBe(0);
@@ -194,5 +315,34 @@ describe("land-cover formation groups", () => {
     expect(formations.formationCoverage).toEqual([]);
     expect(formations.dominantFormation).toBeNull();
     expect(formations.ungroupedKnownSampleCount).toBe(0);
+  });
+
+  it("withholds formation claims when the annual source year is unavailable", () => {
+    const context = summarizeLandCoverContext(
+      [
+        { classCode: 1, sampleCount: 3 },
+        { classCode: 12, sampleCount: 2 },
+      ],
+      2025
+    );
+
+    const formations = summarizeLandCoverFormations(context);
+
+    expect(context.coverage.status).toBe("available");
+    expect(formations).toMatchObject({
+      observationStatus: "unavailable",
+      unavailableReason: "outside-layer-range",
+      provenance: {
+        dataYear: 2025,
+        nativeUnit: "categorical",
+        geographicCoverage: "selected-boundary samples",
+        publicationStatus: "outside-layer-range",
+        source: LAND_COVER_SOURCE,
+      },
+      formationCoverage: [],
+      dominantFormation: null,
+      ungroupedKnownSampleCount: 0,
+    });
+    expect(formations.provenance).toBe(context.provenance);
   });
 });

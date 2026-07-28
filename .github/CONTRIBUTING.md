@@ -21,7 +21,16 @@ You don't have to write code to help:
 - **Write code** — fix a bug or build a feature.
 
 Look for issues labelled [`good first issue`](https://github.com/zkWizard/RoamingEye/labels/good%20first%20issue)
-to get started.
+to get started. Some of them add code the app imports, and the app's size budget
+is currently full — see [**The bundle budget**](#the-bundle-budget--read-this-before-adding-code-to-the-app)
+below before you start one. Where an issue is affected, it says so on the issue
+itself; docs-only and tooling-only issues are unaffected.
+
+Before picking something in `src/lib/`, read
+[**Wired vs. staged modules**](../ARCHITECTURE.md#wired-vs-staged-modules--read-this-before-picking-a-task)
+in the architecture guide — most modules there are tested but not yet connected
+to the app, so editing one won't change what a user sees. Connecting one is a
+great first project.
 
 ---
 
@@ -53,11 +62,84 @@ npm run dev        # start the local dev server (http://localhost:5173)
 | `npm run verify:full` | `verify` plus the Playwright e2e suite — the full CI mirror     |
 
 Before opening a PR, please run **`npm run verify`** locally — these are the
-same checks CI runs.
+same checks CI runs. Every PR then runs the full suite on GitHub Actions
+(`.github/workflows/ci.yml` — type-check, lint/format, unit, build, plus CodeQL,
+OpenSSF Scorecard, and the WebGL e2e smoke tests); a maintainer merges once it's
+approved and the required checks are green.
 
-> **Interim gate:** hosted CI is temporarily unavailable for this repository.
-> Until it's restored, maintainers run `npm run verify:full` locally on the
-> merge result before merging any PR. PRs are still required for every change.
+A red **E2E smoke (WebGL)** check is sometimes flaky rather than a real failure —
+if it fails and your change doesn't touch rendering, say so in the PR and a
+maintainer will re-run it.
+
+### The bundle budget — read this before adding code to the app
+
+The **Build** check does more than compile. It also runs
+[`scripts/check-bundle-size.mjs`](../scripts/check-bundle-size.mjs), which fails
+the build if the app's JavaScript chunk exceeds **60 kB gzipped** (the separate
+`three-*` vendor chunk has its own, roomier 170 kB budget). `npm run build` runs
+that same check locally, so you can see the verdict before you push:
+
+```text
+ok  index-CDzPGmQE.js: 60.0 kB gzip (budget 60 kB)
+ok  three-eDZqjHhA.js: 133.3 kB gzip (budget 170 kB)
+     total JS: 193.3 kB gzip
+```
+
+**The app chunk is currently sitting on its cap.** That is real output from CI on
+`main` at `156822f` (2026-07-28) — 60.0 kB against a budget of 60. Measured
+exactly, on `main` at `d48c5d4` (2026-07-28), the app chunk is **61,414 bytes
+gzipped against a 61,440-byte cap: 26 bytes of headroom.** If your PR adds code
+the app actually imports, expect Build to go red on the budget, and please read
+that as a repo-wide condition rather than a mistake in your patch.
+
+For a sense of scale, both measured on that commit: adding a ternary to one
+`setAttribute` call costs **+12 bytes** and still fits; adding arrow-key
+navigation to the search box (issue #374 — one keydown handler, an active-option
+index, and `aria-selected` bookkeeping) costs **+225 bytes**, which lands 199
+bytes over the cap. A single small feature is enough to exceed the remaining
+room, so the budget is worth checking before you start, not after.
+
+Two things make the result easy to misread:
+
+- **The size looks the same either way.** At this margin a chunk that is _over_
+  budget still prints `60.0 kB`; only the leading word changes. Read the `ok` /
+  `FAIL` at the start of the line, not the number after it.
+- **Only wired code counts.** A module nothing imports is tree-shaken out of the
+  bundle and costs zero bytes — which is how `src/lib/` keeps growing while the
+  budget barely moves. The bytes land at the moment the module gets a call site
+  (see [Wired vs. staged modules](../ARCHITECTURE.md#wired-vs-staged-modules--read-this-before-picking-a-task)).
+
+If you do hit the cap, **say so in the PR and leave it there** — please don't
+raise the number in `check-bundle-size.mjs` to get to green. Whether to trim
+elsewhere, split the chunk, or deliberately spend more budget is a maintainer
+call, and the script's own rule is that a budget bump must be justified by the
+PR that makes it.
+
+### Work that costs no budget
+
+The budget check only ever reads the **`.js` chunks** in `dist/assets`. Four
+kinds of change are therefore unaffected by it entirely, and all four are real
+contributions rather than consolation prizes:
+
+- **Docs** — anything in `docs/`, `README.md`, or this file.
+- **Build and tooling** — `scripts/`, CI workflows, config. Not part of the app
+  bundle at all.
+- **End-to-end tests** — `e2e/`. Playwright specs are never imported by `src/`,
+  so they add nothing to the bundle. This is also where behaviour in a real
+  browser gets covered, which is the kind of test this project leans on most.
+- **CSS** — `src/style.css` is emitted as its own `.css` asset (a separate file
+  from the `.js` the check measures), so styling, layout, and theming work is
+  unbudgeted. Plenty of visible polish lives here.
+
+**One thing that is _not_ a way around the cap: adding unit tests to the files
+that don't have them.** That looks like free, useful work, and it isn't — the
+gap is deliberate. `src/lib/` and `src/probe/` are already covered (every module
+there is imported by at least one test). What's left uncovered is `src/ui/`,
+`src/overlays/`, `src/scene/`, `src/textures/`, and `src/main.ts` — all DOM and
+rendering code, which Vitest here runs `environment: "node"` for and so cannot
+touch without a DOM. Covering them means changing the test environment, which is
+an architectural decision rather than a starter task; see _Testing_ below for
+what is and isn't worth unit-testing in a WebGL app. Reach for `e2e/` instead.
 
 ---
 

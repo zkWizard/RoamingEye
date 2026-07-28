@@ -1,4 +1,19 @@
-# v0.2.0 launch checklist
+# v0.2.0 launch checklist (HISTORICAL — superseded)
+
+> **⚠️ This is a historical record of the v0.2.0 release, kept for provenance. Do not
+> work from it.** v1.1.0 shipped on 2026-07-10, so §1 (merge #41/#42) and §2 (tag
+> `v0.2.0`) are done and gone.
+>
+> **The live documents are:**
+>
+> - [`LAUNCH_CHECKLIST.md`](../../LAUNCH_CHECKLIST.md) (repo root) — the current launch
+>   strategy and channel order.
+> - [`comms/`](../../comms/) — the live comms workspace: venue pipeline
+>   (`TARGETS.md`), drafts (`outbox/`), and the order to send them in.
+>
+> **One item below is still outstanding:** §3/§4, the **Zenodo DOI**. It was never
+> minted — `README.md` still says a DOI "is planned". The steps in §3 remain correct;
+> just substitute the current version tag for `v0.2.0`.
 
 The ~10 minutes of maintainer-only steps, in order. Everything else (docs,
 demo GIF, release notes, post drafts) is already in the repo.

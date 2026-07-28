@@ -4,6 +4,8 @@ import {
   attributeBrief,
   composeEnvironmentBrief,
   summarizeCompleteness,
+  summarizeCoverageContext,
+  summarizeDataCurrency,
   summarizeTemporalAlignment,
   unsupportedBriefLanguageHits,
   type EnvironmentSignalBrief,
@@ -12,6 +14,66 @@ import { NDVI_SOURCE, NDVI_UNIT } from "./phenology";
 import { GIBS_ACKNOWLEDGMENT } from "./providers";
 
 describe("environment provenance brief", () => {
+  it("snapshots source months so later sampler mutation cannot rewrite provenance", () => {
+    const vegetation = {
+      dataMonth: { year: 2026, month: 1 },
+      value: 0.61,
+    };
+    const rainfall = {
+      dataMonth: { year: 2026, month: 1 },
+      value: 0.00012,
+    };
+    const availableThrough = { year: 2026, month: 2 };
+    const vegetationAvailableThrough = { year: 2026, month: 2 };
+    const rainfallAvailableThrough = { year: 2026, month: 2 };
+    const input = {
+      vegetation,
+      rainfall,
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough,
+      availableThroughBySignal: {
+        vegetation: vegetationAvailableThrough,
+        rainfall: rainfallAvailableThrough,
+      },
+    };
+
+    const brief = composeEnvironmentBrief(input);
+
+    vegetation.dataMonth.month = 7;
+    rainfall.dataMonth.month = 8;
+    availableThrough.month = 9;
+    vegetationAvailableThrough.month = 9;
+    rainfallAvailableThrough.month = 10;
+
+    expect(brief.signals[0].dataMonth).toEqual({ year: 2026, month: 1 });
+    expect(brief.signals[1].dataMonth).toEqual({ year: 2026, month: 1 });
+    expect(brief.signals[1].climateSummary).toMatchObject({
+      dataMonth: { year: 2026, month: 1 },
+      availableThrough: { year: 2026, month: 2 },
+    });
+    expect(brief.temporalAlignment).toMatchObject({
+      earliestMonth: { year: 2026, month: 1 },
+      latestMonth: { year: 2026, month: 1 },
+    });
+    expect(brief.dataCurrency.perSignal).toEqual([
+      {
+        id: "vegetation",
+        dataMonth: { year: 2026, month: 1 },
+        availableThrough: { year: 2026, month: 2 },
+        lagMonths: 1,
+      },
+      {
+        id: "rainfall",
+        dataMonth: { year: 2026, month: 1 },
+        availableThrough: { year: 2026, month: 2 },
+        lagMonths: 1,
+      },
+    ]);
+    expect(brief.statements[0]).toContain("2026-01");
+    expect(brief.statements[1]).toContain("2026-01");
+  });
+
   it("composes four independent signals with month, coverage, unit, and source", () => {
     const brief = composeEnvironmentBrief({
       vegetation: {
@@ -89,6 +151,52 @@ describe("environment provenance brief", () => {
     expect(brief.unsupportedLanguageHits).toEqual([]);
   });
 
+  it("snapshots source citations so returned briefs cannot rewrite provenance", () => {
+    const first = composeEnvironmentBrief({
+      vegetation: {
+        dataMonth: { year: 2026, month: 1 },
+        value: 0.61,
+      },
+      rainfall: {
+        dataMonth: { year: 2026, month: 1 },
+        value: 0.00012,
+      },
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 1 },
+    });
+    const attribution = attributeBrief(first.signals);
+    const expectedNdviTitle = NDVI_SOURCE.title;
+    const expectedRainfallTitle =
+      CLIMATE_METRICS["precipitation-rate"].source.title;
+
+    first.signals[0].source.title = "consumer-mutated NDVI citation";
+    attribution.sources[1].source.title =
+      "consumer-mutated rainfall attribution";
+
+    const second = composeEnvironmentBrief({
+      vegetation: {
+        dataMonth: { year: 2026, month: 1 },
+        value: 0.61,
+      },
+      rainfall: {
+        dataMonth: { year: 2026, month: 1 },
+        value: 0.00012,
+      },
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 1 },
+    });
+
+    expect(second.signals[0].source.title).toBe(expectedNdviTitle);
+    expect(second.signals[1].source.title).toBe(expectedRainfallTitle);
+    expect(NDVI_SOURCE.title).toBe(expectedNdviTitle);
+    expect(CLIMATE_METRICS["precipitation-rate"].source.title).toBe(
+      expectedRainfallTitle
+    );
+    expect(attribution.sources[0].source).not.toBe(first.signals[0].source);
+  });
+
   it("keeps missing, invalid, not-yet-published, and not-supplied states explicit", () => {
     const brief = composeEnvironmentBrief({
       vegetation: {
@@ -142,8 +250,30 @@ describe("environment provenance brief", () => {
       observedValue: null,
       coverage: { reason: "not-supplied" },
     });
+    expect(brief.statements[3]).toContain(
+      "unavailable observation (not-supplied)"
+    );
     expect(brief.statements[3]).toContain("data month unavailable");
     expect(brief.statements[3]).toContain("coverage not supplied");
+  });
+
+  it("preserves a supplied unavailable reason without implying a condition", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: null,
+      rainfall: null,
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 1 },
+      unavailableReasonBySignal: {
+        vegetation: "no-observations-recorded",
+        rainfall: "rejected-source",
+      },
+    });
+
+    expect(brief.signals[0].coverage.reason).toBe("no-observations-recorded");
+    expect(brief.signals[1].coverage.reason).toBe("rejected-source");
+    expect(brief.signals[2].coverage.reason).toBe("not-supplied");
+    expect(brief.unsupportedLanguageHits).toEqual([]);
   });
 
   it("uses product-specific availability checkpoints when schedules differ", () => {
@@ -163,6 +293,7 @@ describe("environment provenance brief", () => {
       },
       availableThrough: { year: 2026, month: 1 },
       availableThroughBySignal: {
+        vegetation: { year: 2026, month: 1 },
         "air-temperature": { year: 2026, month: 3 },
       },
     });
@@ -176,6 +307,62 @@ describe("environment provenance brief", () => {
     expect(brief.signals[3].climateSummary).toMatchObject({
       availableThrough: { year: 2026, month: 3 },
       publicationStatus: "published",
+    });
+  });
+
+  it("withholds vegetation beyond its explicit product checkpoint", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: {
+        dataMonth: { year: 2026, month: 2 },
+        value: 0.61,
+        validFraction: 0.82,
+      },
+      rainfall: null,
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 2 },
+      availableThroughBySignal: {
+        vegetation: { year: 2026, month: 1 },
+      },
+    });
+
+    expect(brief.signals[0]).toMatchObject({
+      id: "vegetation",
+      dataMonth: { year: 2026, month: 2 },
+      status: "unavailable",
+      observedValue: null,
+      coverage: {
+        status: "unavailable",
+        validFraction: 0.82,
+        reason: "not-yet-published",
+      },
+    });
+    expect(brief.statements[0]).toContain(
+      "unavailable observation for 2026-02 (not-yet-published)"
+    );
+    expect(brief.completeness).toMatchObject({
+      available: 0,
+      byStatus: { unavailable: 4 },
+    });
+    expect(brief.temporalAlignment.comparedSignalIds).toEqual([]);
+    expect(brief.unsupportedLanguageHits).toEqual([]);
+  });
+
+  it("keeps vegetation behavior unchanged without a product checkpoint", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: {
+        dataMonth: { year: 2026, month: 2 },
+        value: 0.61,
+      },
+      rainfall: null,
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 1 },
+    });
+
+    expect(brief.signals[0]).toMatchObject({
+      status: "available",
+      observedValue: 0.61,
     });
   });
 
@@ -201,6 +388,68 @@ describe("environment provenance brief", () => {
     expect(brief.statements.join(" ")).not.toMatch(
       /\b(risk|diagnos|forecast|predict|compliance|health|cause|because|due to)\b/i
     );
+  });
+});
+
+describe("environment brief cross-signal coverage context", () => {
+  it("preserves supplied coverage while warning that source footprints are independent", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: {
+        dataMonth: { year: 2026, month: 1 },
+        value: 0.61,
+        validFraction: 0.82,
+      },
+      rainfall: {
+        dataMonth: { year: 2026, month: 1 },
+        value: 0.00012,
+        validFraction: 0.745,
+      },
+      soilMoisture: { dataMonth: { year: 2026, month: 1 }, value: 6.4 },
+      airTemperature: {
+        dataMonth: { year: 2026, month: 2 },
+        value: null,
+        validFraction: 0.9,
+      },
+      availableThrough: { year: 2026, month: 2 },
+    });
+
+    expect(brief.coverageContext).toEqual({
+      suppliedSignalIds: ["vegetation", "rainfall"],
+      unsuppliedSignalIds: ["soil-moisture"],
+      minimumValidFraction: 0.745,
+      maximumValidFraction: 0.82,
+      statement:
+        "2 usable signals reported 74.5% to 82% sampled coverage. Coverage was not supplied for: soil-moisture. Fractions describe independent source samples and do not establish a shared spatial footprint.",
+    });
+    expect(brief.coverageContext.statement).not.toMatch(/overlap|score|risk/i);
+  });
+
+  it("keeps unavailable and invalid signals out of the cross-signal range", () => {
+    const summary = summarizeCoverageContext([
+      ...composeEnvironmentBrief({
+        vegetation: {
+          dataMonth: { year: 2026, month: 1 },
+          value: null,
+          validFraction: 0.2,
+        },
+        rainfall: null,
+        soilMoisture: {
+          dataMonth: { year: 2026, month: 1 },
+          value: -1,
+          validFraction: 0.9,
+        },
+        airTemperature: null,
+        availableThrough: { year: 2026, month: 1 },
+      }).signals,
+    ]);
+
+    expect(summary).toEqual({
+      suppliedSignalIds: [],
+      unsuppliedSignalIds: [],
+      minimumValidFraction: null,
+      maximumValidFraction: null,
+      statement: "No usable observations with spatial coverage to summarize.",
+    });
   });
 });
 
@@ -248,6 +497,26 @@ describe("environment brief temporal alignment", () => {
     // (not-yet-published) are excluded, so only vegetation remains.
     expect(brief.temporalAlignment).toMatchObject({
       comparedSignalIds: ["vegetation"],
+      excludedSignals: [
+        {
+          id: "rainfall",
+          status: "no-data",
+          dataMonth: { year: 2025, month: 1 },
+          reason: "missing-value",
+        },
+        {
+          id: "soil-moisture",
+          status: "invalid",
+          dataMonth: { year: 2020, month: 1 },
+          reason: "invalid-value",
+        },
+        {
+          id: "air-temperature",
+          status: "unavailable",
+          dataMonth: { year: 2030, month: 6 },
+          reason: "not-yet-published",
+        },
+      ],
       earliestMonth: { year: 2026, month: 1 },
       latestMonth: { year: 2026, month: 1 },
       spanMonths: 0,
@@ -298,12 +567,61 @@ describe("environment brief temporal alignment", () => {
     const summary = summarizeTemporalAlignment([]);
     expect(summary).toMatchObject({
       comparedSignalIds: [],
+      excludedSignals: [],
       earliestMonth: null,
       latestMonth: null,
       spanMonths: null,
       aligned: false,
     });
     expect(summary.statement).toBe(
+      "No usable observations to compare across time."
+    );
+  });
+
+  it("preserves exclusion provenance when no observation is usable", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: null,
+      rainfall: {
+        dataMonth: { year: 2026, month: 2 },
+        value: 0.0001,
+        validFraction: 0.75,
+      },
+      soilMoisture: {
+        dataMonth: { year: 2026, month: 1 },
+        value: null,
+        validFraction: 0,
+      },
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 1 },
+    });
+
+    expect(brief.temporalAlignment.excludedSignals).toEqual([
+      {
+        id: "vegetation",
+        status: "unavailable",
+        dataMonth: null,
+        reason: "not-supplied",
+      },
+      {
+        id: "rainfall",
+        status: "unavailable",
+        dataMonth: { year: 2026, month: 2 },
+        reason: "not-yet-published",
+      },
+      {
+        id: "soil-moisture",
+        status: "no-data",
+        dataMonth: { year: 2026, month: 1 },
+        reason: "missing-value",
+      },
+      {
+        id: "air-temperature",
+        status: "unavailable",
+        dataMonth: null,
+        reason: "not-supplied",
+      },
+    ]);
+    expect(brief.temporalAlignment.statement).toBe(
       "No usable observations to compare across time."
     );
   });
@@ -489,10 +807,341 @@ describe("environment brief attribution", () => {
     );
   });
 
+  it("credits one product once when the same DOI is cited with different casing or spacing", () => {
+    // The handle system resolves ASCII DOIs case-insensitively, so a product
+    // cited as "10.5067/ABC", "  10.5067/abc  ", and "10.5067/AbC" is one
+    // product — crediting it three times would over-count a single source.
+    const signal = (
+      id: EnvironmentSignalBrief["id"],
+      label: string,
+      doi: string
+    ): EnvironmentSignalBrief => ({
+      id,
+      label,
+      layerId: "ndvi",
+      source: { shortName: "PROD", version: "1", doi, title: "Product" },
+      nativeUnit: NDVI_UNIT,
+      dataMonth: { year: 2026, month: 1 },
+      coverage: { status: "available", validFraction: null, reason: null },
+      status: "available",
+      observedValue: 0.4,
+      statement: "",
+    });
+
+    const attribution = attributeBrief([
+      signal("vegetation", "First", "10.5067/ABC"),
+      signal("rainfall", "Second", "  10.5067/abc  "),
+      signal("soil-moisture", "Third", "10.5067/AbC"),
+    ]);
+
+    expect(attribution.sources).toHaveLength(1);
+    const [only] = attribution.sources;
+    expect(only.signalIds).toEqual(["vegetation", "rainfall", "soil-moisture"]);
+    // The first-seen casing is preserved for the resolvable link — a DOI suffix
+    // can be case-sensitive, so the displayed link is never lower-cased.
+    expect(only.doiUrl).toBe("https://doi.org/10.5067/ABC");
+  });
+
+  it("keeps different source versions separate when they share one DOI", () => {
+    const signal = (
+      id: EnvironmentSignalBrief["id"],
+      version: string,
+      label: string
+    ): EnvironmentSignalBrief => ({
+      id,
+      label,
+      layerId: "ndvi",
+      source: {
+        shortName: "PROD",
+        version,
+        doi: "10.5067/SHARED",
+        title: "Versioned product",
+      },
+      nativeUnit: NDVI_UNIT,
+      dataMonth: { year: 2026, month: 1 },
+      coverage: { status: "available", validFraction: null, reason: null },
+      status: "available",
+      observedValue: 0.4,
+      statement: "",
+    });
+
+    const attribution = attributeBrief([
+      signal("vegetation", "1", "First release"),
+      signal("rainfall", "2", "Second release"),
+    ]);
+
+    expect(attribution.sources).toHaveLength(2);
+    expect(
+      attribution.sources.map(({ source, signalIds }) => ({
+        version: source.version,
+        signalIds,
+      }))
+    ).toEqual([
+      { version: "1", signalIds: ["vegetation"] },
+      { version: "2", signalIds: ["rainfall"] },
+    ]);
+    expect(attribution.line).toContain("PROD v1 — First release");
+    expect(attribution.line).toContain("PROD v2 — Second release");
+  });
+
+  it("keeps two distinct DOI-less products as separate credits", () => {
+    // Without a resolvable DOI, two references cannot be asserted to be the same
+    // product, so each keeps its own credit rather than collapsing into one.
+    const doiless = (
+      id: EnvironmentSignalBrief["id"],
+      shortName: string,
+      label: string
+    ): EnvironmentSignalBrief => ({
+      id,
+      label,
+      layerId: "ndvi",
+      source: { shortName, version: "1", doi: "", title: shortName },
+      nativeUnit: NDVI_UNIT,
+      dataMonth: { year: 2026, month: 1 },
+      coverage: { status: "available", validFraction: null, reason: null },
+      status: "available",
+      observedValue: 0.4,
+      statement: "",
+    });
+
+    const attribution = attributeBrief([
+      doiless("vegetation", "PROD_A", "Signal A"),
+      doiless("rainfall", "PROD_B", "Signal B"),
+    ]);
+
+    expect(attribution.sources.map((s) => s.source.shortName)).toEqual([
+      "PROD_A",
+      "PROD_B",
+    ]);
+    expect(attribution.sources.every((s) => s.doiUrl === null)).toBe(true);
+  });
+
   it("reports when there is nothing to credit", () => {
     const attribution = attributeBrief([]);
     expect(attribution.sources).toEqual([]);
     expect(attribution.acknowledgment).toBe(GIBS_ACKNOWLEDGMENT);
     expect(attribution.line).toBe("No data sources to credit.");
+  });
+});
+
+describe("environment brief data currency", () => {
+  it("reports the lag of each usable signal behind its availability checkpoint", () => {
+    const brief = composeEnvironmentBrief({
+      // Vegetation is one month behind; the aligned GLDAS signals are current.
+      vegetation: { dataMonth: { year: 2026, month: 2 }, value: 0.61 },
+      rainfall: { dataMonth: { year: 2026, month: 3 }, value: 0.00012 },
+      soilMoisture: { dataMonth: { year: 2026, month: 3 }, value: 6.4 },
+      airTemperature: { dataMonth: { year: 2026, month: 3 }, value: 289.4 },
+      availableThrough: { year: 2026, month: 3 },
+      availableThroughBySignal: {
+        vegetation: { year: 2026, month: 3 },
+      },
+    });
+
+    expect(brief.dataCurrency).toMatchObject({
+      comparedSignalIds: [
+        "vegetation",
+        "rainfall",
+        "soil-moisture",
+        "air-temperature",
+      ],
+      freshestLagMonths: 0,
+      stalestLagMonths: 1,
+      freshestSignalId: "rainfall",
+      stalestSignalId: "vegetation",
+    });
+    expect(brief.dataCurrency.perSignal[0]).toEqual({
+      id: "vegetation",
+      dataMonth: { year: 2026, month: 2 },
+      availableThrough: { year: 2026, month: 3 },
+      lagMonths: 1,
+    });
+    expect(brief.dataCurrency.statement).toBe(
+      "4 usable observations lag their availability checkpoints by 0 to 1 months (freshest rainfall, stalest vegetation); currency varies across signals."
+    );
+    // A currency caveat must never introduce condition/comparison language.
+    expect(unsupportedBriefLanguageHits(brief.dataCurrency.statement)).toEqual(
+      []
+    );
+    expect("score" in brief.dataCurrency).toBe(false);
+  });
+
+  it("honors per-signal availability checkpoints when they differ", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: { dataMonth: { year: 2026, month: 5 }, value: 0.5 },
+      rainfall: { dataMonth: { year: 2026, month: 4 }, value: 0.0001 },
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 5 },
+      // Rainfall publishes on a later frontier, so its two-month gap is a lag,
+      // not an unpublished (future) month.
+      availableThroughBySignal: {
+        vegetation: { year: 2026, month: 5 },
+        rainfall: { year: 2026, month: 6 },
+      },
+    });
+
+    const rainfall = brief.dataCurrency.perSignal.find(
+      (entry) => entry.id === "rainfall"
+    );
+    expect(rainfall).toEqual({
+      id: "rainfall",
+      dataMonth: { year: 2026, month: 4 },
+      availableThrough: { year: 2026, month: 6 },
+      lagMonths: 2,
+    });
+    expect(brief.dataCurrency.freshestSignalId).toBe("vegetation");
+    expect(brief.dataCurrency.stalestSignalId).toBe("rainfall");
+  });
+
+  it("measures vegetation currency against its product checkpoint", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: { dataMonth: { year: 2026, month: 3 }, value: 0.5 },
+      rainfall: { dataMonth: { year: 2026, month: 4 }, value: 0.0001 },
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 6 },
+      availableThroughBySignal: {
+        vegetation: { year: 2026, month: 4 },
+        rainfall: { year: 2026, month: 6 },
+      },
+    });
+
+    expect(brief.dataCurrency.perSignal).toEqual([
+      {
+        id: "vegetation",
+        dataMonth: { year: 2026, month: 3 },
+        availableThrough: { year: 2026, month: 4 },
+        lagMonths: 1,
+      },
+      {
+        id: "rainfall",
+        dataMonth: { year: 2026, month: 4 },
+        availableThrough: { year: 2026, month: 6 },
+        lagMonths: 2,
+      },
+    ]);
+    expect(brief.dataCurrency).toMatchObject({
+      freshestSignalId: "vegetation",
+      freshestLagMonths: 1,
+      stalestSignalId: "rainfall",
+      stalestLagMonths: 2,
+    });
+  });
+
+  it("does not infer vegetation currency from the shared climate checkpoint", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: { dataMonth: { year: 2026, month: 3 }, value: 0.5 },
+      rainfall: null,
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 5 },
+      availableThroughBySignal: {
+        rainfall: { year: 2026, month: 6 },
+      },
+    });
+
+    expect(brief.dataCurrency).toMatchObject({
+      comparedSignalIds: [],
+      unassessedSignalIds: ["vegetation"],
+      perSignal: [],
+      freshestLagMonths: null,
+      stalestLagMonths: null,
+    });
+    expect(brief.dataCurrency.statement).toBe(
+      "Currency was not assessed for vegetation because no product-specific availability checkpoint was supplied."
+    );
+  });
+
+  it("keeps unassessed vegetation explicit beside assessed climate currency", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: { dataMonth: { year: 2026, month: 2 }, value: 0.5 },
+      rainfall: { dataMonth: { year: 2026, month: 2 }, value: 0.0001 },
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 3 },
+    });
+
+    expect(brief.dataCurrency).toMatchObject({
+      comparedSignalIds: ["rainfall"],
+      unassessedSignalIds: ["vegetation"],
+      freshestLagMonths: 1,
+      stalestLagMonths: 1,
+    });
+    expect(brief.dataCurrency.statement).toBe(
+      "1 usable observation (rainfall, dated 2026-02) lags its availability checkpoint by 1 month. Currency was not assessed for vegetation because no product-specific availability checkpoint was supplied."
+    );
+  });
+
+  it("floors a data month at or ahead of its checkpoint to zero lag", () => {
+    // A vegetation composite has no upstream publication gate, so a month that
+    // sits at the checkpoint is fully current — never negative lag.
+    const brief = composeEnvironmentBrief({
+      vegetation: { dataMonth: { year: 2026, month: 4 }, value: 0.5 },
+      rainfall: null,
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 4 },
+      availableThroughBySignal: {
+        vegetation: { year: 2026, month: 4 },
+      },
+    });
+
+    expect(brief.dataCurrency.perSignal[0].lagMonths).toBe(0);
+    expect(brief.dataCurrency.statement).toBe(
+      "1 usable observation (vegetation, dated 2026-04) lags its availability checkpoint by 0 months."
+    );
+  });
+
+  it("collapses a shared lag into a single each-lag statement", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: { dataMonth: { year: 2026, month: 2 }, value: 0.5 },
+      rainfall: { dataMonth: { year: 2026, month: 2 }, value: 0.0001 },
+      soilMoisture: { dataMonth: { year: 2026, month: 2 }, value: 6 },
+      airTemperature: { dataMonth: { year: 2026, month: 2 }, value: 289 },
+      availableThrough: { year: 2026, month: 3 },
+      availableThroughBySignal: {
+        vegetation: { year: 2026, month: 3 },
+      },
+    });
+
+    expect(brief.dataCurrency.freshestLagMonths).toBe(1);
+    expect(brief.dataCurrency.stalestLagMonths).toBe(1);
+    expect(brief.dataCurrency.statement).toBe(
+      "4 usable observations each lag their availability checkpoint by 1 month."
+    );
+  });
+
+  it("assesses only usable signals, ignoring no-data, invalid, and unpublished", () => {
+    const summary = summarizeDataCurrency(
+      [
+        {
+          id: "vegetation",
+          label: "Vegetation (NDVI)",
+          layerId: "ndvi",
+          source: NDVI_SOURCE,
+          nativeUnit: NDVI_UNIT,
+          dataMonth: { year: 2026, month: 1 },
+          coverage: { status: "no-data", validFraction: null, reason: null },
+          status: "no-data",
+          observedValue: null,
+          statement: "",
+        },
+      ],
+      { year: 2026, month: 3 }
+    );
+
+    expect(summary).toMatchObject({
+      comparedSignalIds: [],
+      perSignal: [],
+      freshestLagMonths: null,
+      stalestLagMonths: null,
+      freshestSignalId: null,
+      stalestSignalId: null,
+      unassessedSignalIds: [],
+    });
+    expect(summary.statement).toBe(
+      "No usable observations to assess for data currency."
+    );
   });
 });

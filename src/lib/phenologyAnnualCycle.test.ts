@@ -58,10 +58,20 @@ describe("NDVI mean annual cycle", () => {
       unit: "NDVI (unitless)",
       observationsSupplied: 36,
       observationsUsed: 36,
+      dataPeriod: {
+        firstMonth: { year: 2023, month: 1 },
+        lastMonth: { year: 2025, month: 12 },
+        yearsRepresented: 3,
+      },
       calendarMonthsCovered: 12,
       reason: null,
     });
     expect(cycle.monthlyClimatology).toHaveLength(12);
+    expect(cycle.monthlyClimatology[0]).toMatchObject({
+      calendarMonth: 1,
+      yearsUsed: 3,
+      interannualStandardDeviation: expect.closeTo(0.02, 10),
+    });
     expect(cycle.greenestMonth).toEqual({
       calendarMonth: 7,
       meteorologicalSeason: "summer",
@@ -108,16 +118,34 @@ describe("NDVI mean annual cycle", () => {
     expect(july?.maxNdvi).toBeCloseTo(1.0, 10);
   });
 
-  it("counts a repeat (year, month) as a duplicate rather than averaging it twice", () => {
+  it("withholds every value in a repeated (year, month)", () => {
     const observations = [
       ...fullCycleObservations(),
       ndvi(0.99, 7, 2024), // duplicate of the 2024 July already present
     ];
     const cycle = describeNdviAnnualCycle(observations, NORTHERN_LATITUDE);
     const july = cycle.monthlyClimatology.find((m) => m.calendarMonth === 7);
-    expect(july?.yearsUsed).toBe(3);
-    expect(cycle.exclusions.duplicateYearMonth).toBe(1);
-    expect(cycle.greenestMonth?.meanNdvi).toBeCloseTo(0.82, 10);
+    expect(july).toBeUndefined();
+    expect(cycle.status).toBe("insufficient-monthly-coverage");
+    expect(cycle.observationsUsed).toBe(33);
+    expect(cycle.exclusions.duplicateYearMonth).toBe(2);
+    expect(cycle.greenestMonth).toBeNull();
+  });
+
+  it("is input-order invariant when a data month is duplicated", () => {
+    const duplicate = ndvi(0.99, 7, 2024);
+    const original = fullCycleObservations();
+    const duplicateFirst = describeNdviAnnualCycle(
+      [duplicate, ...original],
+      NORTHERN_LATITUDE
+    );
+    const duplicateLast = describeNdviAnnualCycle(
+      [...original, duplicate],
+      NORTHERN_LATITUDE
+    );
+
+    expect(duplicateFirst).toEqual(duplicateLast);
+    expect(duplicateFirst.exclusions.duplicateYearMonth).toBe(2);
   });
 
   it("withholds the amplitude when a calendar month is short of the year floor", () => {
@@ -134,6 +162,26 @@ describe("NDVI mean annual cycle", () => {
     expect(cycle.reason).toBe("not-all-calendar-months-covered");
     // The eleven covered months are still exposed.
     expect(cycle.monthlyClimatology).toHaveLength(11);
+    expect(cycle.dataPeriod).toEqual({
+      firstMonth: { year: 2023, month: 1 },
+      lastMonth: { year: 2025, month: 11 },
+      yearsRepresented: 3,
+    });
+  });
+
+  it("derives the data period only from observations in reported monthly means", () => {
+    const observations = [
+      ...fullCycleObservations(),
+      ndvi(0.5, 6, 1999, { validFraction: 0.2 }),
+      ndvi(0.5, 6, 2030),
+      ndvi(0.5, 13, 2040),
+    ];
+    const cycle = describeNdviAnnualCycle(observations, NORTHERN_LATITUDE);
+    expect(cycle.dataPeriod).toEqual({
+      firstMonth: { year: 2023, month: 1 },
+      lastMonth: { year: 2030, month: 6 },
+      yearsRepresented: 4,
+    });
   });
 
   it("reports no usable observations when nothing meets the year floor", () => {
@@ -146,6 +194,7 @@ describe("NDVI mean annual cycle", () => {
     expect(cycle.status).toBe("no-usable-observations");
     expect(cycle.calendarMonthsCovered).toBe(0);
     expect(cycle.monthlyClimatology).toEqual([]);
+    expect(cycle.dataPeriod).toBeNull();
     expect(cycle.amplitude).toBeNull();
     expect(cycle.reason).toBe("no-calendar-month-met-year-floor");
   });
@@ -163,6 +212,37 @@ describe("NDVI mean annual cycle", () => {
     expect(cycle.status).toBe("available");
     expect(cycle.requiredYearsPerMonth).toBe(2);
     expect(cycle.amplitude).toBeCloseTo(0.7, 10);
+  });
+
+  it("keeps interannual spread unavailable for a one-year monthly mean", () => {
+    const observations: NdviMonthlyObservation[] = [];
+    for (let month = 1; month <= 12; month++) {
+      observations.push(ndvi(BASE_NDVI[month - 1], month, 2024));
+    }
+    const cycle = describeNdviAnnualCycle(observations, NORTHERN_LATITUDE, {
+      minimumYearsPerMonth: 1,
+    });
+
+    expect(cycle.status).toBe("available");
+    expect(
+      cycle.monthlyClimatology.every(
+        (month) => month.interannualStandardDeviation === null
+      )
+    ).toBe(true);
+  });
+
+  it("computes sample spread without changing native NDVI units or provenance", () => {
+    const observations = fullCycleObservations();
+    observations.push(ndvi(0.2, 1, 2026));
+    const cycle = describeNdviAnnualCycle(observations, NORTHERN_LATITUDE);
+    const january = cycle.monthlyClimatology[0];
+
+    expect(january.interannualStandardDeviation).toBeCloseTo(
+      Math.sqrt(0.0056 / 3),
+      10
+    );
+    expect(cycle.unit).toBe("NDVI (unitless)");
+    expect(cycle.source).toMatchObject({ shortName: expect.any(String) });
   });
 
   it("excludes missing, out-of-range, and low-coverage observations honestly", () => {
@@ -236,6 +316,7 @@ describe("NDVI mean annual cycle", () => {
     expect(text).toContain("Jul greenest");
     expect(text).toContain("Jan least green");
     expect(text).toContain("not a climate normal");
+    expect(text).toContain("2023-01 to 2025-12 across 3 distinct years");
   });
 
   it("formats an honest unavailable readout", () => {
@@ -246,5 +327,6 @@ describe("NDVI mean annual cycle", () => {
     const text = formatNdviAnnualCycle(cycle);
     expect(text).toContain("No mean annual NDVI cycle");
     expect(text).toContain(`11/${CALENDAR_MONTHS_IN_YEAR}`);
+    expect(text).toContain("2023-01 to 2025-11 across 3 distinct years");
   });
 });

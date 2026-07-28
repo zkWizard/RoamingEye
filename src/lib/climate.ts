@@ -4,6 +4,7 @@ import {
   type LayerId,
   type YearMonth,
 } from "./timeline";
+import type { GeometrySamplingStrategy } from "./geojson";
 
 /**
  * Source-aware descriptions of supplied monthly climate observations.
@@ -22,6 +23,8 @@ export interface ClimateMetric {
   label: string;
   /** Unit of the source product value, before any display conversion. */
   nativeUnit: string;
+  /** Exact GIBS variable/layer sampled for this metric. */
+  sourceLayer: string;
   source: DatasetRef;
 }
 
@@ -35,7 +38,14 @@ function citedMetric(
   if (!source) {
     throw new Error(`RoamingEye: ${layerId} must retain a cited dataset`);
   }
-  return { id, layerId, label, nativeUnit, source };
+  return {
+    id,
+    layerId,
+    label,
+    nativeUnit,
+    sourceLayer: LAYERS[layerId].wmsLayer,
+    source,
+  };
 }
 
 /** Cited product metadata and native units for each climate observation. */
@@ -73,6 +83,8 @@ export interface MonthlyClimateObservation {
    * from imagery. This is provenance, not a ground-resolution claim.
    */
   sourceImageDimensions?: { width: number; height: number };
+  /** Spatial method used to derive this rendered observation. */
+  geometrySamplingStrategy?: GeometrySamplingStrategy;
 }
 
 export type ClimateCoverageStatus = "available" | "no-data" | "invalid";
@@ -91,17 +103,27 @@ export interface MonthlyClimateSummary {
   isForecast: false;
   metric: ClimateMetric;
   dataMonth: YearMonth;
+  /** Earliest monthly observation published by the metric's cited layer. */
+  firstAvailableMonth: YearMonth;
   /** Month through which the caller had confirmed source availability. */
   availableThrough: YearMonth;
-  /** Whether this data month is within the caller's confirmed availability. */
+  /** Whether this data month is within the cited source's known record. */
   publicationStatus:
-    "published" | "not-yet-published" | "invalid-reference-month";
+    | "published"
+    | "before-source-record"
+    | "not-yet-published"
+    | "invalid-reference-month";
   /** Calendar-month difference, or null when data month is not yet published. */
   publicationLagMonths: number | null;
   coverage: ClimateCoverage;
   /** Rendered-image provenance, or null when it was not supplied or invalid. */
   sourceImageDimensions: { width: number; height: number } | null;
-  /** Retained unchanged in `metric.nativeUnit`, or null when not usable. */
+  /** Retained so a point sample cannot be presented as a regional mean. */
+  geometrySamplingStrategy: GeometrySamplingStrategy | null;
+  /**
+   * Retained unchanged in `metric.nativeUnit` only for a published, usable
+   * observation; null for unavailable, missing, or invalid records.
+   */
   observedValue: number | null;
 }
 
@@ -115,23 +137,33 @@ export function summarizeMonthlyClimate(
   availableThrough: YearMonth
 ): MonthlyClimateSummary {
   const metric = CLIMATE_METRICS[observation.metricId];
+  const firstAvailableMonth = LAYERS[metric.layerId].start;
   const dataMonth = observation.dataMonth;
-  const validMonths = isYearMonth(dataMonth) && isYearMonth(availableThrough);
+  const validMonths =
+    isYearMonth(dataMonth) &&
+    isYearMonth(firstAvailableMonth) &&
+    isYearMonth(availableThrough);
   const lag = validMonths ? monthDistance(dataMonth, availableThrough) : null;
   const publicationStatus =
     lag === null
       ? "invalid-reference-month"
-      : lag < 0
-        ? "not-yet-published"
-        : "published";
+      : monthDistance(firstAvailableMonth, dataMonth) < 0
+        ? "before-source-record"
+        : lag < 0
+          ? "not-yet-published"
+          : "published";
   const coverage = coverageFor(observation, validMonths);
 
   return {
     kind: "observed-monthly-climate",
     isForecast: false,
     metric,
-    dataMonth,
-    availableThrough,
+    // Snapshot every month value at the contract boundary. Timeline month
+    // objects are reused by callers, and later mutation must not re-date an
+    // observation that has already been paired with a source value.
+    dataMonth: { ...dataMonth },
+    firstAvailableMonth: { ...firstAvailableMonth },
+    availableThrough: { ...availableThrough },
     publicationStatus,
     publicationLagMonths: lag === null || lag < 0 ? null : lag,
     coverage,
@@ -140,7 +172,15 @@ export function summarizeMonthlyClimate(
     )
       ? { ...observation.sourceImageDimensions }
       : null,
-    observedValue: coverage.status === "available" ? observation.value : null,
+    geometrySamplingStrategy:
+      observation.geometrySamplingStrategy === "boundary-grid" ||
+      observation.geometrySamplingStrategy === "boundary-point"
+        ? observation.geometrySamplingStrategy
+        : null,
+    observedValue:
+      publicationStatus === "published" && coverage.status === "available"
+        ? observation.value
+        : null,
   };
 }
 

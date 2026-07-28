@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  PLACE_COLORMAP_DOCS,
   PLACE_METRICS,
   latestComparisonMonths,
   placeInsightPhysicalReading,
@@ -7,6 +8,10 @@ import {
 } from "./placeInsights";
 
 describe("place insights", () => {
+  it("binds vegetation sampling to the MOD13A3 rendered colormap", () => {
+    expect(PLACE_COLORMAP_DOCS.ndvi).toBe("MODIS_L3_NDVI");
+  });
+
   it("uses each product's own latest two months", () => {
     expect(latestComparisonMonths("precip")).toEqual([
       { year: 2025, month: 12 },
@@ -50,6 +55,27 @@ describe("place insights", () => {
       id: "rainfall",
       value: "268 mm",
       detail: "+134 mm vs Dec 2025 · Jan 2026",
+    });
+  });
+
+  it("preserves native NDVI values decoded from NASA's colormap", () => {
+    const vegetation = PLACE_METRICS.find(
+      (metric) => metric.id === "vegetation"
+    );
+    if (!vegetation) throw new Error("vegetation metric missing");
+    expect(
+      placeInsightPhysicalReading(
+        vegetation,
+        [
+          { year: 2026, month: 1 },
+          { year: 2026, month: 2 },
+        ],
+        [-0.15, 0.34]
+      )
+    ).toEqual({
+      id: "vegetation",
+      value: "0.34",
+      detail: "+0.49 vs Jan 2026 · Feb 2026",
     });
   });
 

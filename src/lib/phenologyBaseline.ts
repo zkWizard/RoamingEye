@@ -247,7 +247,12 @@ export function compareMonthlyNdviToSeasonalBaseline(
     );
   }
 
-  const seenYears = new Set<number>();
+  const candidateYearCounts = countInBoundsCandidateYears(
+    baselineCandidates,
+    targetMonth,
+    options.baselineStartYear,
+    baselineEndYear
+  );
   const samples: NdviSeasonalBaselineSample[] = [];
   let coverageEligibleCount = 0;
 
@@ -268,11 +273,10 @@ export function compareMonthlyNdviToSeasonalBaseline(
       exclusions.outOfBounds += 1;
       continue;
     }
-    if (seenYears.has(candidate.month.year)) {
+    if ((candidateYearCounts.get(candidate.month.year) ?? 0) > 1) {
       exclusions.duplicateYear += 1;
       continue;
     }
-    seenYears.add(candidate.month.year);
 
     const summary = summarizeMonthlyNdvi(candidate, availableThrough);
     if (summary.publicationStatus === "invalid-reference-month") {
@@ -578,6 +582,31 @@ function isCalendarMonth(value: YearMonth): boolean {
 
 function validYearBound(year: number | undefined): boolean {
   return year === undefined || Number.isInteger(year);
+}
+
+function countInBoundsCandidateYears(
+  candidates: readonly NdviMonthlyObservation[],
+  calendarMonth: number,
+  baselineStartYear: number | undefined,
+  baselineEndYear: number
+): Map<number, number> {
+  const counts = new Map<number, number>();
+  for (const candidate of candidates) {
+    if (
+      !isCalendarMonth(candidate.month) ||
+      candidate.month.month !== calendarMonth ||
+      (baselineStartYear !== undefined &&
+        candidate.month.year < baselineStartYear) ||
+      candidate.month.year > baselineEndYear
+    ) {
+      continue;
+    }
+    counts.set(
+      candidate.month.year,
+      (counts.get(candidate.month.year) ?? 0) + 1
+    );
+  }
+  return counts;
 }
 
 function monthDistance(earlier: YearMonth, later: YearMonth): number {

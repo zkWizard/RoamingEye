@@ -28,6 +28,11 @@ describe("ocean condition series summaries", () => {
       { dataMonth: { year: 2026, month: 3 }, value: null, footprint: "land" },
       {
         dataMonth: { year: 2026, month: 4 },
+        value: 14,
+        footprint: "unknown",
+      },
+      {
+        dataMonth: { year: 2026, month: 5 },
         value: 5,
         footprint: "water",
         validFraction: 2,
@@ -40,17 +45,21 @@ describe("ocean condition series summaries", () => {
       "descriptive-sea-surface-temperature-extent-only"
     );
     expect(summary.metric).toBe(SEA_SURFACE_TEMPERATURE_METRIC);
-    expect(summary.monthCount).toBe(4);
+    expect(summary.status).toBe("available");
+    expect(summary.monthCount).toBe(5);
+    expect(summary.distinctMonthCount).toBe(5);
+    expect(summary.duplicateMonths).toEqual([]);
     expect(summary.usableMonthCount).toBe(1);
-    expect(summary.unusableMonthCount).toBe(3);
+    expect(summary.unusableMonthCount).toBe(4);
     expect(summary.coverageTally).toEqual({
       water: 1,
       "land-mixed-coastal": 0,
       land: 1,
+      unknown: 1,
       missing: 1,
       invalid: 1,
     });
-    expect(summary.months).toHaveLength(4);
+    expect(summary.months).toHaveLength(5);
     expect(summary.months[0].metric.source.shortName).toBe(
       SEA_SURFACE_TEMPERATURE_METRIC.source.shortName
     );
@@ -137,16 +146,57 @@ describe("ocean condition series summaries", () => {
     const summary = summarizeOceanConditionSeries([]);
 
     expect(summary.monthCount).toBe(0);
+    expect(summary.distinctMonthCount).toBe(0);
     expect(summary.usableMonthCount).toBe(0);
     expect(summary.coverageTally).toEqual({
       water: 0,
       "land-mixed-coastal": 0,
       land: 0,
+      unknown: 0,
       missing: 0,
       invalid: 0,
     });
     expect(summary.extremes.warmest).toBeNull();
     expect(summary.observedValueRange).toBeNull();
+  });
+
+  it("retains duplicate observations but withholds ambiguous extremes", () => {
+    const summary = summarizeOceanConditionSeries([
+      water(2026, 3, 12),
+      water(2026, 3, 24),
+      water(2026, 4, 18),
+      water(2025, 12, 10),
+      water(2025, 12, null),
+    ]);
+
+    expect(summary).toMatchObject({
+      status: "duplicate-months",
+      monthCount: 5,
+      distinctMonthCount: 3,
+      usableMonthCount: 4,
+      unusableMonthCount: 1,
+      duplicateMonths: [
+        { year: 2025, month: 12 },
+        { year: 2026, month: 3 },
+      ],
+      extremes: { warmest: null, coolest: null },
+      observedValueRange: null,
+    });
+    expect(summary.months).toHaveLength(5);
+  });
+
+  it("does not treat repeated invalid calendar metadata as a duplicate month", () => {
+    const invalid = {
+      dataMonth: { year: 2026, month: 13 },
+      value: 12,
+      footprint: "water" as const,
+    };
+    const summary = summarizeOceanConditionSeries([invalid, invalid]);
+
+    expect(summary.status).toBe("available");
+    expect(summary.distinctMonthCount).toBe(0);
+    expect(summary.duplicateMonths).toEqual([]);
+    expect(summary.coverageTally.invalid).toBe(2);
   });
 
   it("does not derive a mean, trend, or forecast", () => {

@@ -5,7 +5,11 @@ import {
   legendTicks,
   overlayKeyFor,
 } from "../lib/legend";
-import { terrainLayerContext } from "../lib/terrainContext";
+import {
+  terrainLayerContext,
+  terrainTileAvailability,
+  terrainTileAvailabilityNotice,
+} from "../lib/terrainContext";
 
 /**
  * A compact key for the active data layer: a color-scale bar with end labels
@@ -29,6 +33,9 @@ export class Legend {
   private readonly keyRows = new Map<string, HTMLElement>();
   private readonly classes: HTMLDivElement;
   private scaleRow!: HTMLElement;
+  private terrainCoverageNotice = terrainTileAvailabilityNotice(
+    terrainTileAvailability(0, 0, 0)
+  );
 
   constructor(container: HTMLElement, initial: LayerId) {
     container.classList.add("legend");
@@ -138,9 +145,13 @@ export class Legend {
     const spec = LEGENDS[id];
     this.measures.textContent = spec.measures;
     this.caption.textContent = LAYERS[id].description;
-    this.sourceNote.hidden = id !== "terrain";
+    this.sourceNote.hidden = id !== "terrain" && !spec.interpretationNote;
     this.sourceNote.replaceChildren();
-    if (id === "terrain") this.renderTerrainSourceNote();
+    if (id === "terrain") {
+      this.renderTerrainSourceNote();
+    } else if (spec.interpretationNote) {
+      this.renderInterpretationNote(id, spec.interpretationNote);
+    }
 
     // Categorical layers get named class swatches instead of a gradient bar.
     const categorical = spec.kind === "classes";
@@ -181,6 +192,17 @@ export class Legend {
     );
   }
 
+  setTerrainTileCoverage(
+    requested: number,
+    loaded: number,
+    failed: number
+  ): void {
+    this.terrainCoverageNotice = terrainTileAvailabilityNotice(
+      terrainTileAvailability(requested, loaded, failed)
+    );
+    if (!this.sourceNote.hidden) this.renderTerrainSourceNote();
+  }
+
   private renderTerrainSourceNote(): void {
     const context = terrainLayerContext();
     const source = document.createElement("a");
@@ -189,10 +211,27 @@ export class Legend {
     source.rel = "noreferrer";
     source.textContent = `${context.provenance.dataset.shortName} v${context.provenance.dataset.version}`;
     source.setAttribute("aria-label", "ASTER GDEM V003 dataset DOI");
+    this.sourceNote.replaceChildren();
     this.sourceNote.append(
       "Source: NASA GIBS rendering ",
       source,
-      `. ${context.accessibleNotice}`
+      `. ${context.accessibleNotice} ${this.terrainCoverageNotice}`
     );
+  }
+
+  private renderInterpretationNote(id: LayerId, note: string): void {
+    const dataset = LAYERS[id].dataset;
+    if (!dataset) {
+      this.sourceNote.textContent = note;
+      return;
+    }
+
+    const source = document.createElement("a");
+    source.href = `https://doi.org/${dataset.doi}`;
+    source.target = "_blank";
+    source.rel = "noreferrer";
+    source.textContent = `${dataset.shortName} v${dataset.version}`;
+    source.setAttribute("aria-label", `${dataset.shortName} dataset DOI`);
+    this.sourceNote.append("Source: ", source, `. ${note}`);
   }
 }

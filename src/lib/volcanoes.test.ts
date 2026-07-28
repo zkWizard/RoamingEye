@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseVolcanoList,
+  parseVolcanoDataset,
   eruptionClass,
   elevationRegime,
   elevationRegimeLabel,
@@ -31,6 +32,30 @@ describe("parseVolcanoList", () => {
       elevation: 3357,
       lastEruptionYear: 2025,
       country: "Italy",
+      sourceRecord: {
+        volcanoNumber: null,
+        region: null,
+        subregion: null,
+        tectonicSetting: null,
+      },
+    });
+  });
+
+  it("retains GVP source identity and tectonic labels verbatim", () => {
+    const [parsed] = parseVolcanoList([
+      volcano({
+        volcanoNumber: 211060,
+        region: "Mediterranean and Western Asia Volcanic Regions",
+        subregion: "Italy",
+        tectonicSetting: "Subduction zone / Continental crust (> 25 km)",
+      }),
+    ]);
+
+    expect(parsed.sourceRecord).toEqual({
+      volcanoNumber: 211060,
+      region: "Mediterranean and Western Asia Volcanic Regions",
+      subregion: "Italy",
+      tectonicSetting: "Subduction zone / Continental crust (> 25 km)",
     });
   });
 
@@ -68,6 +93,42 @@ describe("parseVolcanoList", () => {
       lastEruptionYear: null,
       country: null,
     });
+  });
+});
+
+describe("parseVolcanoDataset", () => {
+  it("preserves snapshot provenance and derives its UTC data month", () => {
+    const dataset = parseVolcanoDataset({
+      provenance: {
+        source: "Smithsonian GVP",
+        sourceUrl: "https://volcano.si.edu/",
+        service: "GVP-VOTW WFS",
+        retrievedAt: "2026-07-16T18:42:00.000Z",
+      },
+      records: [volcano()],
+    });
+
+    expect(dataset.volcanoes).toHaveLength(1);
+    expect(dataset.provenance?.service).toBe("GVP-VOTW WFS");
+    expect(dataset.dataMonth).toBe("2026-07");
+  });
+
+  it("keeps records but marks malformed snapshot metadata unavailable", () => {
+    const dataset = parseVolcanoDataset({
+      provenance: { retrievedAt: "sometime" },
+      records: [volcano()],
+    });
+
+    expect(dataset.volcanoes).toHaveLength(1);
+    expect(dataset.provenance).toBeNull();
+    expect(dataset.dataMonth).toBeNull();
+  });
+
+  it("continues to read legacy arrays with unavailable provenance", () => {
+    const dataset = parseVolcanoDataset([volcano()]);
+    expect(dataset.volcanoes).toHaveLength(1);
+    expect(dataset.provenance).toBeNull();
+    expect(dataset.dataMonth).toBeNull();
   });
 });
 
@@ -127,22 +188,50 @@ describe("lastEruptionLabel", () => {
     expect(lastEruptionLabel(-6850)).toBe("last erupted 6850 BCE");
   });
 
+  it("preserves source year zero without inventing 0 BCE", () => {
+    expect(lastEruptionLabel(0)).toBe(
+      "last eruption year 0 (source value; era not converted)"
+    );
+    expect(lastEruptionLabel(0)).not.toContain("BCE");
+  });
+
   it("is honest about undated volcanoes", () => {
     expect(lastEruptionLabel(null)).toBe("Holocene evidence only");
+    expect(lastEruptionLabel(Number.NaN)).toBe("Holocene evidence only");
   });
 });
 
 describe("volcanoHoverLabel", () => {
-  it("joins name, type, and eruption recency", () => {
+  it("preserves source geography, native summit units, and eruption recency", () => {
     expect(volcanoHoverLabel(parseVolcanoList([volcano()])[0])).toBe(
-      "Etna · Stratovolcano · last erupted 2025"
+      "Etna · Stratovolcano · Italy · summit elevation 3357 m · last erupted 2025"
     );
   });
 
-  it("skips a missing type", () => {
+  it("states unavailable source fields instead of silently omitting them", () => {
     const v = parseVolcanoList([
-      volcano({ type: null, lastEruptionYear: null }),
+      volcano({
+        type: null,
+        country: null,
+        elevation: null,
+        lastEruptionYear: null,
+      }),
     ])[0];
-    expect(volcanoHoverLabel(v)).toBe("Etna · Holocene evidence only");
+    expect(volcanoHoverLabel(v)).toBe(
+      "Etna · volcano type not recorded · country/territory not recorded · summit elevation not recorded · Holocene evidence only"
+    );
+  });
+
+  it("retains zero and negative summit elevations in native metres", () => {
+    expect(
+      volcanoHoverLabel(
+        parseVolcanoList([volcano({ elevation: 0, country: "Tonga" })])[0]
+      )
+    ).toContain("summit elevation 0 m");
+    expect(
+      volcanoHoverLabel(
+        parseVolcanoList([volcano({ elevation: -55, country: "Tonga" })])[0]
+      )
+    ).toContain("summit elevation -55 m");
   });
 });

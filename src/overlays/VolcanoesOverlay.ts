@@ -2,7 +2,10 @@ import * as THREE from "three";
 import { latLngToVector3 } from "../lib/geo";
 import { fetchJson } from "../lib/net";
 import {
-  parseVolcanoList,
+  parseVolcanoCatalog,
+  type VolcanoCatalogSnapshot,
+} from "../lib/volcanoCatalog";
+import {
   eruptionClass,
   volcanoHoverLabel,
   ERUPTION_CLASS_COLORS,
@@ -38,6 +41,8 @@ export class VolcanoesOverlay implements MapOverlay {
   private loadPromise: Promise<void> | undefined;
   /** Set once loaded — lets the HoverInspector describe the marker under the cursor. */
   hoverSource: HoverPointSource | undefined;
+  /** Source and parser coverage for the exact records rendered by this load. */
+  catalogSnapshot: VolcanoCatalogSnapshot | undefined;
 
   constructor(
     // BASE_URL-aware so the fetch works when the site is hosted on a subpath.
@@ -52,7 +57,9 @@ export class VolcanoesOverlay implements MapOverlay {
   }
 
   private async load(): Promise<void> {
-    const volcanoes = parseVolcanoList(await fetchJson<unknown>(this.url));
+    const snapshot = parseVolcanoCatalog(await fetchJson<unknown>(this.url));
+    this.catalogSnapshot = snapshot;
+    const volcanoes = snapshot.records;
     const points = this.buildPoints(volcanoes);
     this.object.add(points);
     this.hoverSource = {
@@ -62,7 +69,7 @@ export class VolcanoesOverlay implements MapOverlay {
     };
   }
 
-  private buildPoints(volcanoes: Volcano[]): THREE.Points {
+  private buildPoints(volcanoes: readonly Volcano[]): THREE.Points {
     const positions: number[] = [];
     const colors: number[] = [];
     for (const v of volcanoes) {

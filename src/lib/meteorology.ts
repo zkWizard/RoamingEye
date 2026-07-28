@@ -5,7 +5,14 @@ import {
   type MonthlyClimateObservation,
   type MonthlyClimateSummary,
 } from "./climate";
+import { SCALE_CONVERSIONS } from "./colormap";
 import type { LayerId, YearMonth } from "./timeline";
+import { toConventionalClimateValue } from "./climateConventionalUnits";
+import type { GeometrySamplingStrategy } from "./geojson";
+import type {
+  PlaceObservationInput,
+  PlaceObservationUnavailableReason,
+} from "./placeObservationExport";
 
 /**
  * Bridges sampled GIBS rendered imagery into the climate contracts.
@@ -23,6 +30,15 @@ const CLIMATE_METRIC_BY_LAYER: Partial<Record<LayerId, ClimateMetricId>> = {
   soil: "soil-moisture",
 };
 
+const CLIMATE_LAYER_BY_METRIC: Record<
+  ClimateMetricId,
+  "precip" | "airtemp" | "soil"
+> = {
+  "precipitation-rate": "precip",
+  "air-temperature-2m": "airtemp",
+  "soil-moisture": "soil",
+};
+
 export interface RenderedClimateSampleInput {
   metricId: ClimateMetricId;
   months: readonly YearMonth[];
@@ -37,6 +53,8 @@ export interface RenderedClimateSampleInput {
   validFractions?: readonly number[];
   /** Rendered source-image dimensions; provenance only, never resolution. */
   sourceImageDimensions?: { width: number; height: number };
+  /** Spatial method used by the place sampler for every supplied month. */
+  geometrySamplingStrategy?: GeometrySamplingStrategy;
 }
 
 export interface RenderedClimateSeries {
@@ -75,12 +93,20 @@ export function observationsFromRenderedClimateSample(
       "RoamingEye: rendered climate months and coverage must have matching lengths"
     );
   }
+  assertStrictlyIncreasingMonths(months);
   if (
     !Number.isFinite(nativeToSampledValueFactor) ||
     nativeToSampledValueFactor <= 0
   ) {
     throw new Error(
       "RoamingEye: native-to-sampled climate value factor must be positive"
+    );
+  }
+  const layerId = CLIMATE_LAYER_BY_METRIC[input.metricId];
+  const expectedFactor = SCALE_CONVERSIONS[layerId]?.factor ?? 1;
+  if (nativeToSampledValueFactor !== expectedFactor) {
+    throw new Error(
+      `RoamingEye: ${input.metricId} rendered samples require native-to-sampled factor ${expectedFactor}`
     );
   }
 
@@ -91,7 +117,9 @@ export function observationsFromRenderedClimateSample(
     nativeToSampledValueFactor,
     observations: months.map((dataMonth, index) => ({
       metricId: input.metricId,
-      dataMonth,
+      // Keep the sampled value bound to the month supplied at sampling time,
+      // even when a caller later reuses or advances its timeline month object.
+      dataMonth: { ...dataMonth },
       value:
         sampledValues[index] === null
           ? null
@@ -100,8 +128,35 @@ export function observationsFromRenderedClimateSample(
       ...(input.sourceImageDimensions
         ? { sourceImageDimensions: { ...input.sourceImageDimensions } }
         : {}),
+      ...(input.geometrySamplingStrategy
+        ? { geometrySamplingStrategy: input.geometrySamplingStrategy }
+        : {}),
     })),
   };
+}
+
+function assertStrictlyIncreasingMonths(months: readonly YearMonth[]): void {
+  let previousOrdinal: number | null = null;
+  for (const month of months) {
+    if (
+      !Number.isInteger(month.year) ||
+      !Number.isInteger(month.month) ||
+      month.month < 1 ||
+      month.month > 12
+    ) {
+      throw new Error(
+        "RoamingEye: rendered climate series contains an invalid data month"
+      );
+    }
+
+    const ordinal = month.year * 12 + month.month - 1;
+    if (previousOrdinal !== null && ordinal <= previousOrdinal) {
+      throw new Error(
+        "RoamingEye: rendered climate data months must be unique and strictly increasing"
+      );
+    }
+    previousOrdinal = ordinal;
+  }
 }
 
 /** Summarize every supplied image-sampled month against one availability checkpoint. */
@@ -112,6 +167,47 @@ export function summarizeRenderedClimateSample(
   return observationsFromRenderedClimateSample(input).observations.map(
     (observation) => summarizeMonthlyClimate(observation, availableThrough)
   );
+}
+
+/**
+ * Prepare rendered climate months for the place-observation export contract.
+ *
+ * Values remain in sampled/display units here because
+ * `placeObservationProductFromSample` performs the cited native-unit
+ * conversion exactly once. Unusable observations are withheld instead of
+ * allowing a non-finite or physically impossible value to invalidate the
+ * entire download.
+ */
+export function exportObservationsFromRenderedClimateSample(
+  input: RenderedClimateSampleInput,
+  availableThrough: YearMonth
+): PlaceObservationInput[] {
+  const summaries = summarizeRenderedClimateSample(input, availableThrough);
+
+  return summaries.map((summary, index) => {
+    if (
+      summary.publicationStatus === "published" &&
+      summary.coverage.status === "available" &&
+      summary.observedValue !== null
+    ) {
+      return {
+        dataMonth: summary.dataMonth,
+        value: input.sampledValues[index],
+        ...(summary.coverage.validFraction !== null
+          ? { validFraction: summary.coverage.validFraction }
+          : {}),
+      };
+    }
+
+    return {
+      dataMonth: summary.dataMonth,
+      value: null,
+      unavailableReason: exportUnavailableReason(summary),
+      ...(summary.coverage.validFraction !== null
+        ? { validFraction: summary.coverage.validFraction }
+        : {}),
+    };
+  });
 }
 
 export interface ClimateInsightText {
@@ -129,9 +225,11 @@ export function climateInsightText(
   current: MonthlyClimateSummary
 ): ClimateInsightText {
   const source = `${current.metric.source.shortName} v${current.metric.source.version}`;
+  const sourceVariable = `GIBS layer ${current.metric.sourceLayer}`;
   const month = formatMonth(current.dataMonth);
   const provenance = imageProvenance(current.sourceImageDimensions);
   const coverage = coverageText(current.coverage.validFraction);
+  const sampling = samplingText(current.geometrySamplingStrategy);
   if (
     current.publicationStatus !== "published" ||
     current.coverage.status !== "available" ||
@@ -139,29 +237,52 @@ export function climateInsightText(
   ) {
     return {
       value: "Unavailable",
-      detail: `No usable ${month} observation (${unavailableReason(current)}); ${coverage}; ${provenance}; source ${source}`,
+      detail: `No usable ${month} observation (${unavailableReason(
+        current
+      )}); ${sampling}; ${coverage}; ${provenance}; ${sourceVariable}; source ${source}`,
     };
   }
 
-  const value = formatNativeValue(
-    current.observedValue,
-    current.metric.nativeUnit
-  );
+  const conventional = toConventionalClimateValue(current);
+  const value =
+    conventional?.value !== null && conventional
+      ? formatNativeValue(conventional.value, conventional.conventionalUnit)
+      : formatNativeValue(current.observedValue, current.metric.nativeUnit);
   const previousUsable =
     previous?.publicationStatus === "published" &&
     previous.coverage.status === "available" &&
     previous.observedValue !== null;
-  const comparison =
+  const nativeDelta =
     previousUsable && previous?.observedValue !== null
-      ? `; ${formatNativeDelta(
-          current.observedValue - previous.observedValue,
-          current.metric.nativeUnit
-        )} vs ${formatMonth(previous.dataMonth)}`
-      : "";
+      ? current.observedValue - previous.observedValue
+      : null;
+  const comparison =
+    nativeDelta === null
+      ? ""
+      : `; ${formatNativeDelta(
+          conventional
+            ? nativeDelta * conventional.conversion.scale
+            : nativeDelta,
+          conventional?.conventionalUnit ?? current.metric.nativeUnit
+        )} vs ${formatMonth(previous!.dataMonth)}`;
+  const nativeProvenance = conventional
+    ? `; native source value ${formatNativeValue(current.observedValue, current.metric.nativeUnit)} (${conventional.conversion.basis})`
+    : "";
   return {
     value,
-    detail: `${month} observed${comparison}; ${coverage}; ${provenance}; approximate regional mean; source ${source}`,
+    detail: `${month} observed${comparison}${nativeProvenance}; ${coverage}; ${provenance}; ${sampling}; ${sourceVariable}; source ${source}`,
   };
+}
+
+function samplingText(strategy: GeometrySamplingStrategy | null): string {
+  switch (strategy) {
+    case "boundary-grid":
+      return "approximate regional mean from a boundary grid";
+    case "boundary-point":
+      return "single in-boundary image sample, not a regional mean";
+    default:
+      return "sampling strategy not supplied";
+  }
 }
 
 function unavailableReason(summary: MonthlyClimateSummary): string {
@@ -171,10 +292,24 @@ function unavailableReason(summary: MonthlyClimateSummary): string {
   return summary.coverage.reason ?? "unspecified";
 }
 
+function exportUnavailableReason(
+  summary: MonthlyClimateSummary
+): PlaceObservationUnavailableReason {
+  if (
+    summary.publicationStatus !== "published" ||
+    summary.coverage.status === "invalid"
+  ) {
+    return "sampling-failed";
+  }
+  return (summary.coverage.validFraction ?? 0) > 0
+    ? "insufficient-valid-coverage"
+    : "source-no-data";
+}
+
 function coverageText(validFraction: number | null): string {
   return validFraction === null
     ? "sampled coverage not supplied"
-    : `${Math.round(validFraction * 100)}% sampled coverage`;
+    : `${formatNumber(validFraction * 100)}% sampled coverage`;
 }
 
 function imageProvenance(

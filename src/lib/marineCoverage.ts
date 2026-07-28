@@ -43,6 +43,11 @@ export interface MarineCoverageInput {
   footprint: MarineFootprint;
   /** Usable share of the sampled footprint, when the sampler provides it. */
   validFraction?: number;
+  /** Native sampler counts, when available; no count is estimated from a fraction. */
+  sampleCounts?: {
+    usable: number;
+    total: number;
+  };
   /** Dimensions of the rendered source image, when sampling provides them. */
   sourceImageDimensions?: SourceImageDimensions;
 }
@@ -68,9 +73,13 @@ export interface MarineCoverageSummary {
     footprint: MarineFootprint;
     /** Null means spatial coverage was not supplied by the sampler. */
     validFraction: number | null;
+    /** Native sampler counts; null means the sampler did not supply them. */
+    sampleCounts: { usable: number; total: number } | null;
     reason: string | null;
   };
   sourceImageDimensions: SourceImageDimensions | null;
+  /** Distinguishes absent image provenance from malformed sampler metadata. */
+  sourceImageDimensionsStatus: "supplied" | "not-supplied" | "invalid";
   /** Ready for an aria-label or other screen-reader-visible presentation. */
   accessibleText: string;
 }
@@ -84,6 +93,10 @@ export function summarizeMarineCoverage(
 ): MarineCoverageSummary {
   const coverage = coverageFor(input);
   const sourceImageDimensions = dimensionsFor(input.sourceImageDimensions);
+  const sourceImageDimensionsStatus = dimensionsStatusFor(
+    input.sourceImageDimensions,
+    sourceImageDimensions
+  );
 
   return {
     kind: "sea-surface-temperature-coverage",
@@ -93,10 +106,12 @@ export function summarizeMarineCoverage(
     dataMonth: input.dataMonth,
     coverage,
     sourceImageDimensions,
+    sourceImageDimensionsStatus,
     accessibleText: accessibleTextFor(
       input.dataMonth,
       coverage,
-      sourceImageDimensions
+      sourceImageDimensions,
+      sourceImageDimensionsStatus
     ),
   };
 }
@@ -104,10 +119,18 @@ export function summarizeMarineCoverage(
 function coverageFor(
   input: MarineCoverageInput
 ): MarineCoverageSummary["coverage"] {
-  const validFraction = input.validFraction;
+  const counts = validSampleCounts(input.sampleCounts);
+  const countsWereSupplied = input.sampleCounts !== undefined;
+  const countFraction = counts
+    ? counts.total === 0
+      ? null
+      : counts.usable / counts.total
+    : null;
+  const validFraction = input.validFraction ?? countFraction ?? undefined;
   const base = {
     footprint: input.footprint,
     validFraction: validFraction ?? null,
+    sampleCounts: counts,
   };
   if (!isYearMonth(input.dataMonth)) {
     return { ...base, status: "invalid", reason: "invalid-month" };
@@ -123,16 +146,59 @@ function coverageFor(
       reason: "invalid-coverage",
     };
   }
+  if (countsWereSupplied && counts === null) {
+    return {
+      ...base,
+      validFraction: null,
+      status: "invalid",
+      reason: "invalid-sample-counts",
+    };
+  }
+  if (
+    input.validFraction !== undefined &&
+    countFraction !== null &&
+    Math.abs(input.validFraction - countFraction) > 1e-12
+  ) {
+    return {
+      ...base,
+      validFraction: null,
+      status: "invalid",
+      reason: "inconsistent-sample-coverage",
+    };
+  }
+  // Every branch below reads the footprint as a known label, so an
+  // unrecognized one is rejected here rather than falling through to a
+  // status that would misreport it.
+  if (!isMarineFootprint(input.footprint)) {
+    return {
+      ...base,
+      status: "invalid",
+      reason: "invalid-footprint",
+    };
+  }
   if (input.footprint === "land") {
     return { ...base, status: "land", reason: "land-footprint" };
   }
-  if (validFraction === 0) {
+  if (validFraction === 0 || counts?.total === 0) {
     return { ...base, status: "no-sst-coverage", reason: "zero-sst-coverage" };
   }
   if (input.footprint === "unknown") {
     return { ...base, status: "unknown", reason: "unknown-footprint" };
   }
   return { ...base, status: input.footprint, reason: null };
+}
+
+function validSampleCounts(
+  counts: MarineCoverageInput["sampleCounts"]
+): { usable: number; total: number } | null {
+  if (!counts) return null;
+  return Number.isInteger(counts.usable) &&
+    Number.isInteger(counts.total) &&
+    counts.usable >= 0 &&
+    counts.total >= 0 &&
+    counts.usable <= counts.total
+    ? counts
+    : null;
 }
 
 function dimensionsFor(
@@ -147,10 +213,19 @@ function dimensionsFor(
     : null;
 }
 
+function dimensionsStatusFor(
+  supplied: SourceImageDimensions | undefined,
+  normalized: SourceImageDimensions | null
+): MarineCoverageSummary["sourceImageDimensionsStatus"] {
+  if (supplied === undefined) return "not-supplied";
+  return normalized === null ? "invalid" : "supplied";
+}
+
 function accessibleTextFor(
   dataMonth: YearMonth,
   coverage: MarineCoverageSummary["coverage"],
-  dimensions: SourceImageDimensions | null
+  dimensions: SourceImageDimensions | null,
+  dimensionsStatus: MarineCoverageSummary["sourceImageDimensionsStatus"]
 ): string {
   const month = isYearMonth(dataMonth)
     ? formatYm(dataMonth)
@@ -171,7 +246,9 @@ function accessibleTextFor(
             : fraction;
   const image = dimensions
     ? ` Source image dimensions: ${dimensions.width} by ${dimensions.height} pixels.`
-    : " Source image dimensions were not supplied.";
+    : dimensionsStatus === "invalid"
+      ? " Supplied source image dimensions were invalid."
+      : " Source image dimensions were not supplied.";
 
   return `Sea surface temperature coverage for ${month}: ${footprint} Source: ${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.shortName} v${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.version}. This is an SST observation, not a marine-biology observation.${image}`;
 }
@@ -183,4 +260,8 @@ function isYearMonth(value: YearMonth): boolean {
     value.month >= 1 &&
     value.month <= 12
   );
+}
+
+function isMarineFootprint(value: MarineFootprint): boolean {
+  return ["water", "coastal-or-land-mixed", "land", "unknown"].includes(value);
 }

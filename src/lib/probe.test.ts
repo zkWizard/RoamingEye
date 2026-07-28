@@ -1,4 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { fetchBlob } from "./net";
+
+vi.mock("./net", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./net")>();
+  return { ...actual, fetchBlob: vi.fn() };
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.mocked(fetchBlob).mockReset();
+});
 import {
   latLonToPixel,
   hexToRgb,
@@ -7,12 +18,14 @@ import {
   invertColormapEntries,
   medianValid,
   weightedMeanValid,
+  weightedValidFraction,
   areaWeight,
   gridPoints,
   dragBounds,
   boundsUsable,
   crossesAntimeridian,
   normalizeLon,
+  regionGridDimensions,
   regionGridSize,
   monthlyClimatology,
   anomalySeries,
@@ -28,7 +41,12 @@ import {
 import { LEGENDS, type GradientLegendSpec } from "./legend";
 import { LAYERS } from "./timeline";
 import { decodeViewState } from "./viewState";
-import { latLonToRegionPixel, ProbeSampler } from "../probe/ProbeSampler";
+import {
+  latLonToRegionPixel,
+  pointProbePixels,
+  ProbeSampler,
+  readSourcePixels,
+} from "../probe/ProbeSampler";
 
 describe("latLonToPixel", () => {
   it("maps the equirectangular corners and center", () => {
@@ -73,6 +91,76 @@ describe("latLonToRegionPixel", () => {
       y: 100,
     });
   });
+
+  it("preserves the outermost pixels of a regional image", () => {
+    const bounds = { south: -10, north: 10, west: 20, east: 40 };
+    expect(latLonToRegionPixel(10, 20, bounds, 400, 200)).toEqual({
+      x: 0,
+      y: 0,
+    });
+    expect(latLonToRegionPixel(-10, 40, bounds, 400, 200)).toEqual({
+      x: 399,
+      y: 199,
+    });
+  });
+
+  it("maps both cells of a two-pixel antimeridian region without collapsing them", () => {
+    const bounds = { south: -1, north: 1, west: 179, east: 181 };
+    expect(latLonToRegionPixel(0, 179.5, bounds, 2, 1)).toEqual({
+      x: 0,
+      y: 0,
+    });
+    expect(latLonToRegionPixel(0, -179.5, bounds, 2, 1)).toEqual({
+      x: 1,
+      y: 0,
+    });
+  });
+});
+
+describe("pointProbePixels", () => {
+  it("wraps the 3×3 point neighbourhood across the antimeridian", () => {
+    const pixels = pointProbePixels(0, -180, 8, 4);
+
+    expect(pixels).toHaveLength(9);
+    expect(new Set(pixels.map((pixel) => pixel.x))).toEqual(new Set([7, 0, 1]));
+    expect(pixels.every(({ x, y }) => x >= 0 && x < 8 && y >= 0 && y < 4)).toBe(
+      true
+    );
+  });
+
+  it("clamps and deduplicates the neighbourhood at each pole", () => {
+    for (const lat of [-90, 90]) {
+      const pixels = pointProbePixels(lat, 45, 8, 4);
+      expect(pixels).toHaveLength(6);
+      expect(new Set(pixels.map((pixel) => pixel.y)).size).toBe(2);
+      expect(
+        pixels.every(({ x, y }) => x >= 0 && x < 8 && y >= 0 && y < 4)
+      ).toBe(true);
+    }
+  });
+});
+
+describe("probe source pixel reads", () => {
+  it("closes decoded imagery when a canvas read fails", () => {
+    const close = vi.fn();
+    const ctx = {
+      clearRect: vi.fn(),
+      drawImage: vi.fn(() => {
+        throw new Error("canvas context lost");
+      }),
+      getImageData: vi.fn(),
+    } as unknown as CanvasRenderingContext2D;
+
+    expect(() =>
+      readSourcePixels(
+        { image: {} as CanvasImageSource, close },
+        [{ x: 4, y: 7, weight: 1 }],
+        ctx
+      )
+    ).toThrow("canvas context lost");
+    expect(close).toHaveBeenCalledOnce();
+    expect(ctx.getImageData).not.toHaveBeenCalled();
+  });
 });
 
 describe("boundary probe sampling", () => {
@@ -100,6 +188,8 @@ describe("boundary probe sampling", () => {
       gridSize: 28,
       candidatePointCount: 784,
       interiorPointCount: 784,
+      polygonComponentCount: 1,
+      sampledComponentCount: 1,
       retainedPointCount: 784,
       sourcePixelCount: 784,
       pointLimitApplied: false,
@@ -136,6 +226,39 @@ describe("boundary probe sampling", () => {
         lon: 5,
       })
     ).rejects.toThrow("no interior cells at bounded sampling resolution");
+  });
+});
+
+describe("regional imagery resource cleanup", () => {
+  it("closes a decoded antimeridian segment when its peer fails", async () => {
+    vi.mocked(fetchBlob).mockResolvedValue(new Blob(["image"]));
+    const close = vi.fn();
+    vi.stubGlobal(
+      "createImageBitmap",
+      vi
+        .fn()
+        .mockResolvedValueOnce({ close })
+        .mockRejectedValueOnce(new Error("decode failed"))
+    );
+    const sampler = new ProbeSampler({ width: 400, height: 200 });
+    const loadRegionSource = (
+      sampler as unknown as {
+        loadRegionSource: (
+          layer: (typeof LAYERS)["ndvi"],
+          month: { year: number; month: number },
+          bounds: { south: number; west: number; north: number; east: number }
+        ) => Promise<unknown>;
+      }
+    ).loadRegionSource.bind(sampler);
+
+    await expect(
+      loadRegionSource(
+        LAYERS.ndvi,
+        { year: 2024, month: 7 },
+        { south: -2, west: 179, north: 2, east: 181 }
+      )
+    ).rejects.toThrow("decode failed");
+    expect(close).toHaveBeenCalledOnce();
   });
 });
 
@@ -254,6 +377,24 @@ describe("weightedMeanValid", () => {
   });
 });
 
+describe("weightedValidFraction", () => {
+  it("reports the area-weighted share of samples containing data", () => {
+    expect(weightedValidFraction([0.2, null, 0.8], [1, 2, 1])).toBe(0.5);
+    expect(weightedValidFraction([], [])).toBe(0);
+  });
+
+  it("is stable when equivalent geographic samples are enumerated differently", () => {
+    const values = [null, null, 1, null, null, null, 1, 1];
+    const weights = [1e12, 1e11, 1e4, 1e17, 1e17, 1e2, 1e5, 1e2];
+    const reversedValues = [...values].reverse();
+    const reversedWeights = [...weights].reverse();
+
+    expect(weightedValidFraction(values, weights)).toBe(
+      weightedValidFraction(reversedValues, reversedWeights)
+    );
+  });
+});
+
 describe("gridPoints", () => {
   const bounds = { south: 0, north: 4, west: 10, east: 14 };
 
@@ -282,6 +423,15 @@ describe("gridPoints", () => {
     expect(lons).toEqual([-179.5, -178.5, 178.5, 179.5]);
     const greenwich = gridPoints({ ...seam, west: -2, east: 2 }, 4);
     expect(greenwich.map((p) => p.lat)).toEqual(points.map((p) => p.lat));
+  });
+
+  it("supports independent latitude and longitude coverage", () => {
+    const points = gridPoints(bounds, 2, 4);
+    expect(points).toHaveLength(8);
+    expect([...new Set(points.map((p) => p.lat))]).toEqual([1, 3]);
+    expect([...new Set(points.map((p) => p.lon))]).toEqual([
+      10.5, 11.5, 12.5, 13.5,
+    ]);
   });
 });
 
@@ -511,6 +661,42 @@ describe("buildProbeCsv", () => {
     expect(pointCsv).not.toContain("valid_fraction");
   });
 
+  it("preserves unavailable numeric and coverage states as empty cells", () => {
+    const unavailableFractions = new Array<number>(4);
+    unavailableFractions[1] = Number.NaN;
+    unavailableFractions[2] = -0.01;
+    unavailableFractions[3] = 1.01;
+    const unavailableCsv = buildProbeCsv(
+      {
+        ...meta,
+        mode: "region" as const,
+        sampledBounds: { south: -4, north: -3, west: -63, east: -62 },
+      },
+      [
+        { year: 2001, month: 1 },
+        { year: 2001, month: 2 },
+        { year: 2001, month: 3 },
+        { year: 2001, month: 4 },
+      ],
+      [Number.NaN, Number.POSITIVE_INFINITY, null, 0.5],
+      [Number.NEGATIVE_INFINITY, Number.NaN, null, 0],
+      unavailableFractions
+    );
+    const rows = unavailableCsv
+      .trim()
+      .split("\n")
+      .filter((line) => !line.startsWith("#"));
+
+    expect(rows).toEqual([
+      "year_month,value,anomaly,valid_fraction",
+      "2001-01,,,",
+      "2001-02,,,",
+      "2001-03,,,",
+      "2001-04,0.500,0.000,",
+    ]);
+    expect(unavailableCsv).not.toMatch(/NaN|Infinity/);
+  });
+
   it("stamps tool version and reproduction URL when provided", () => {
     const stamped = buildProbeCsv(
       {
@@ -639,5 +825,27 @@ describe("regionGridSize", () => {
 
   it("uses the larger of the two spans", () => {
     expect(regionGridSize({ south: 0, north: 0.5, west: 0, east: 5 })).toBe(20);
+  });
+});
+
+describe("regionGridDimensions", () => {
+  it("sizes each axis independently for narrow regions", () => {
+    const bounds = { south: 0, north: 0.5, west: 0, east: 5 };
+    expect(regionGridDimensions(bounds)).toEqual({
+      latitude: 8,
+      longitude: 20,
+    });
+    expect(gridPoints(bounds, 8, 20)).toHaveLength(160);
+  });
+
+  it("preserves the per-axis sampling caps", () => {
+    expect(
+      regionGridDimensions({
+        south: -20,
+        north: 20,
+        west: -30,
+        east: 30,
+      })
+    ).toEqual({ latitude: 28, longitude: 28 });
   });
 });

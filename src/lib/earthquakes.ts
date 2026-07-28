@@ -15,10 +15,76 @@ export interface Earthquake {
   /** Hypocenter depth in km (positive down). */
   depthKm: number;
   magnitude: number;
+  /**
+   * Magnitude method/type exactly as reported by USGS (for example "mww" or
+   * "mb"). Null means the feed did not supply a non-empty type.
+   *
+   * Optional only for compatibility with callers constructing observations
+   * outside the feed parser; summaries treat omission as unavailable.
+   */
+  magnitudeType?: string | null;
   /** Event time, epoch milliseconds. */
   time: number;
-  /** Human-readable location, e.g. "63 km SW of Kokopo, Papua New Guinea". */
-  place: string;
+  /**
+   * Source-supplied human-readable location, e.g.
+   * "63 km SW of Kokopo, Papua New Guinea"; null when unavailable.
+   */
+  place: string | null;
+  /**
+   * Source-record identity and review metadata, when this event came from the
+   * parsed USGS GeoJSON feed. Optional for caller-constructed observations;
+   * parsed records always carry the object and use null for unavailable fields.
+   */
+  sourceRecord?: EarthquakeSourceRecord;
+}
+
+/** Metadata retained verbatim from one USGS GeoJSON feature. */
+export interface EarthquakeSourceRecord {
+  /** Stable catalog event identifier from GeoJSON feature.id. */
+  id: string | null;
+  /** USGS event page URL from properties.url. */
+  url: string | null;
+  /** Last source update, epoch milliseconds UTC. */
+  updatedTime: number | null;
+  /** Reported magnitude scale/type, such as "mw" or "mb". */
+  magnitudeType: string | null;
+  /** USGS review status, commonly "automatic" or "reviewed". */
+  reviewStatus: string | null;
+  /**
+   * USGS-reported horizontal location uncertainty in km. Null when the feed
+   * omits it; zero remains a reported value rather than an unavailable state.
+   */
+  horizontalErrorKm: number | null;
+  /**
+   * USGS-reported hypocentral-depth uncertainty in km. This is uncertainty on
+   * `depthKm`, not depth itself, and is null when unavailable.
+   */
+  depthErrorKm: number | null;
+}
+
+export type EarthquakeFeedStatus =
+  "available" | "no-usable-events" | "invalid-feed";
+
+export type EarthquakeRejectionReason =
+  | "invalid-geometry"
+  | "invalid-coordinates"
+  | "invalid-properties"
+  | "invalid-measurements";
+
+export interface EarthquakeFeedCoverage {
+  status: EarthquakeFeedStatus;
+  suppliedFeatureCount: number;
+  usableEventCount: number;
+  rejectedFeatureCount: number;
+  rejectedByReason: Record<EarthquakeRejectionReason, number>;
+}
+
+/** Auditable parse result for a supplied USGS GeoJSON payload. */
+export interface EarthquakeFeedParseResult {
+  earthquakes: Earthquake[];
+  coverage: EarthquakeFeedCoverage;
+  source: typeof SEISMICITY_SOURCE;
+  units: typeof SEISMICITY_UNITS;
 }
 
 /**
@@ -61,6 +127,11 @@ export interface EarthquakeRange {
 export interface EarthquakeSummary {
   eventCount: number;
   magnitude: EarthquakeRange;
+  /** Exact reported magnitude-type labels and explicit unavailable coverage. */
+  magnitudeTypes: {
+    reportedCounts: Record<string, number>;
+    unavailableCount: number;
+  };
   depthKm: EarthquakeRange;
   time: EarthquakeRange;
   depthClassCounts: Record<DepthClass, number>;
@@ -69,9 +140,33 @@ export interface EarthquakeSummary {
   units: typeof SEISMICITY_UNITS;
 }
 
+/**
+ * Whether an event has the finite measurements and valid GeoJSON geography
+ * required by seismic filters, summaries, and rendering consumers.
+ */
+export function isValidEarthquakeObservation(earthquake: Earthquake): boolean {
+  return (
+    Number.isFinite(earthquake.lat) &&
+    Math.abs(earthquake.lat) <= 90 &&
+    Number.isFinite(earthquake.lon) &&
+    Math.abs(earthquake.lon) <= 180 &&
+    Number.isFinite(earthquake.depthKm) &&
+    Number.isFinite(earthquake.magnitude) &&
+    Number.isFinite(earthquake.time)
+  );
+}
+
 /** Magnitude 4.5+, last 30 days in the USGS global summary feed. */
 export const USGS_FEED_URL =
   "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_month.geojson";
+
+/**
+ * Compact, source-faithful text for inspecting a rendered earthquake marker.
+ * Values remain in the feed's native magnitude, kilometre, and UTC time units.
+ */
+export function earthquakeHoverLabel(earthquake: Earthquake): string {
+  return `${earthquake.place} · M ${earthquake.magnitude} · ${earthquake.depthKm} km depth · ${new Date(earthquake.time).toISOString()}`;
+}
 
 /**
  * Seismology's conventional depth classes, used to color events:
@@ -153,11 +248,10 @@ export function filterEarthquakes(
   filters: EarthquakeFilters = {}
 ): Earthquake[] {
   if (!validFilters(filters)) return [];
-  return earthquakes.filter(
-    ({ magnitude, depthKm, time }) =>
-      Number.isFinite(magnitude) &&
-      Number.isFinite(depthKm) &&
-      Number.isFinite(time) &&
+  return earthquakes.filter((earthquake) => {
+    const { magnitude, depthKm, time } = earthquake;
+    return (
+      isValidEarthquakeObservation(earthquake) &&
       (filters.minMagnitude === undefined ||
         magnitude >= filters.minMagnitude) &&
       (filters.maxMagnitude === undefined ||
@@ -166,36 +260,53 @@ export function filterEarthquakes(
       (filters.maxDepthKm === undefined || depthKm <= filters.maxDepthKm) &&
       (filters.startTime === undefined || time >= filters.startTime) &&
       (filters.endTime === undefined || time <= filters.endTime)
-  );
+    );
+  });
 }
 
 /** Aggregate supplied events while retaining source and native unit labels. */
 export function summarizeEarthquakes(
   earthquakes: readonly Earthquake[]
 ): EarthquakeSummary {
-  const valid = earthquakes.filter(
-    ({ magnitude, depthKm, time }) =>
-      Number.isFinite(magnitude) &&
-      Number.isFinite(depthKm) &&
-      Number.isFinite(time)
-  );
+  const valid = earthquakes.filter(isValidEarthquakeObservation);
   const depthClassCounts: Record<DepthClass, number> = {
     shallow: 0,
     intermediate: 0,
     deep: 0,
   };
   const magnitudeClassCounts = emptyMagnitudeClassCounts();
+  const magnitudeTypeCounts = new Map<string, number>();
+  let unavailableMagnitudeTypeCount = 0;
   for (const earthquake of valid) {
     depthClassCounts[depthClass(earthquake.depthKm)] += 1;
     const magClass = magnitudeClass(earthquake.magnitude);
     // magClass is non-null here: valid events already passed a finite-magnitude
     // check, but the guard keeps the aggregation total-safe regardless.
     if (magClass !== null) magnitudeClassCounts[magClass] += 1;
+    if (
+      typeof earthquake.magnitudeType === "string" &&
+      earthquake.magnitudeType.trim() !== ""
+    ) {
+      magnitudeTypeCounts.set(
+        earthquake.magnitudeType,
+        (magnitudeTypeCounts.get(earthquake.magnitudeType) ?? 0) + 1
+      );
+    } else {
+      unavailableMagnitudeTypeCount += 1;
+    }
   }
 
   return {
     eventCount: valid.length,
     magnitude: rangeFor(valid.map((earthquake) => earthquake.magnitude)),
+    magnitudeTypes: {
+      reportedCounts: Object.fromEntries(
+        [...magnitudeTypeCounts.entries()].sort(([first], [second]) =>
+          first < second ? -1 : first > second ? 1 : 0
+        )
+      ),
+      unavailableCount: unavailableMagnitudeTypeCount,
+    },
     depthKm: rangeFor(valid.map((earthquake) => earthquake.depthKm)),
     time: rangeFor(valid.map((earthquake) => earthquake.time)),
     depthClassCounts,
@@ -251,28 +362,73 @@ const toNumber = (v: unknown): number =>
   typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
 
 export function parseEarthquakeFeed(json: unknown): Earthquake[] {
-  if (typeof json !== "object" || json === null) return [];
+  return parseEarthquakeFeedWithCoverage(json).earthquakes;
+}
+
+/**
+ * Parse the USGS feed while retaining whether an empty result came from an
+ * invalid payload, zero usable records, or a successfully parsed event set.
+ * Each rejected feature is assigned exactly one reason in validation order.
+ */
+export function parseEarthquakeFeedWithCoverage(
+  json: unknown
+): EarthquakeFeedParseResult {
+  const rejectedByReason: Record<EarthquakeRejectionReason, number> = {
+    "invalid-geometry": 0,
+    "invalid-coordinates": 0,
+    "invalid-properties": 0,
+    "invalid-measurements": 0,
+  };
+  const invalidFeed = (): EarthquakeFeedParseResult => ({
+    earthquakes: [],
+    coverage: {
+      status: "invalid-feed",
+      suppliedFeatureCount: 0,
+      usableEventCount: 0,
+      rejectedFeatureCount: 0,
+      rejectedByReason,
+    },
+    source: SEISMICITY_SOURCE,
+    units: SEISMICITY_UNITS,
+  });
+
+  if (typeof json !== "object" || json === null) return invalidFeed();
   const features = (json as { features?: unknown }).features;
-  if (!Array.isArray(features)) return [];
+  if (!Array.isArray(features)) return invalidFeed();
 
   const out: Earthquake[] = [];
   for (const feature of features) {
     const coords = feature?.geometry?.coordinates;
     const props = feature?.properties;
-    if (!Array.isArray(coords) || coords.length < 3 || !props) continue;
+    if (!Array.isArray(coords) || coords.length < 3) {
+      rejectedByReason["invalid-geometry"] += 1;
+      continue;
+    }
+    if (!props || typeof props !== "object") {
+      rejectedByReason["invalid-properties"] += 1;
+      continue;
+    }
 
     const [lon, lat, depthKm] = coords.map(toNumber);
     const magnitude = toNumber(props.mag);
     const time = toNumber(props.time);
+    // Kept as two checks rather than one predicate so each rejection is
+    // counted under the reason that actually disqualified the feature.
     if (
       !Number.isFinite(lat) ||
       !Number.isFinite(lon) ||
-      !Number.isFinite(depthKm) ||
-      !Number.isFinite(magnitude) ||
-      !Number.isFinite(time) ||
       Math.abs(lat) > 90 ||
       Math.abs(lon) > 180
     ) {
+      rejectedByReason["invalid-coordinates"] += 1;
+      continue;
+    }
+    if (
+      !Number.isFinite(depthKm) ||
+      !Number.isFinite(magnitude) ||
+      !Number.isFinite(time)
+    ) {
+      rejectedByReason["invalid-measurements"] += 1;
       continue;
     }
 
@@ -281,9 +437,45 @@ export function parseEarthquakeFeed(json: unknown): Earthquake[] {
       lon,
       depthKm,
       magnitude,
+      magnitudeType:
+        typeof props.magType === "string" && props.magType.trim() !== ""
+          ? props.magType
+          : null,
       time,
-      place: typeof props.place === "string" ? props.place : "",
+      place: typeof props.place === "string" ? props.place : null,
+      sourceRecord: {
+        id: typeof feature.id === "string" ? feature.id : null,
+        url: typeof props.url === "string" ? props.url : null,
+        updatedTime: finiteNumberOrNull(props.updated),
+        magnitudeType: typeof props.magType === "string" ? props.magType : null,
+        reviewStatus: typeof props.status === "string" ? props.status : null,
+        horizontalErrorKm: nonNegativeFiniteNumberOrNull(props.horizontalError),
+        depthErrorKm: nonNegativeFiniteNumberOrNull(props.depthError),
+      },
     });
   }
-  return out;
+
+  const rejectedFeatureCount = features.length - out.length;
+  return {
+    earthquakes: out,
+    coverage: {
+      status: out.length > 0 ? "available" : "no-usable-events",
+      suppliedFeatureCount: features.length,
+      usableEventCount: out.length,
+      rejectedFeatureCount,
+      rejectedByReason,
+    },
+    source: SEISMICITY_SOURCE,
+    units: SEISMICITY_UNITS,
+  };
+}
+
+function finiteNumberOrNull(value: unknown): number | null {
+  const number = toNumber(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function nonNegativeFiniteNumberOrNull(value: unknown): number | null {
+  const number = finiteNumberOrNull(value);
+  return number !== null && number >= 0 ? number : null;
 }

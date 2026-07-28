@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { awaitAppInteractive } from "./boot";
+import { globePoint } from "./globe";
 
 /**
  * Behavioural e2e for the interactive surfaces that don't depend on external
@@ -79,12 +80,11 @@ test("HD tile streaming is on by default (RFC-001 milestone 6)", async ({
 });
 
 test("hovering the globe shows a coordinate readout", async ({ page }) => {
-  const canvas = page.locator("#globe");
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error("globe canvas has no bounding box");
-
-  // Centre of the canvas is over the globe — a hover there must resolve coords.
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  // A point over the globe and clear of the HUD — a hover there must resolve
+  // coords. The canvas centre no longer qualifies: the bottom HUD stack now
+  // reaches it.
+  const pt = await globePoint(page);
+  await page.mouse.move(pt.x, pt.y);
 
   const tooltip = page.locator("#hover-tooltip");
   await expect(tooltip).toHaveClass(/is-visible/);
@@ -246,8 +246,19 @@ test("hovering a volcano marker shows its details", async ({ page }) => {
 
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport");
-  // Darwin volcano, Galápagos (-0.18, -91.28) — near the default view centre.
-  const pt = screenPointFor(-0.18, -91.28, viewport.width, viewport.height);
+  // Acatenango, Guatemala (14.501, -90.876) — facing the default camera and
+  // clear of the bottom-centre HUD stack (layer selector + legend), whose
+  // height varies with the active layer's legend content.
+  const pt = screenPointFor(14.501, -90.876, viewport.width, viewport.height);
+
+  // A HUD panel over this point would swallow the pointermove and make the
+  // hover assertion below fail for a reason that has nothing to do with
+  // markers, so state the precondition explicitly.
+  const hitId = await page.evaluate(
+    ([x, y]) => document.elementFromPoint(x, y)?.id ?? "",
+    [pt.x, pt.y] as const
+  );
+  expect(hitId).toBe("globe");
 
   const tooltip = page.locator("#hover-tooltip");
   let jitter = 0;
@@ -271,9 +282,9 @@ test("city labels appear at close zoom and not from orbit", async ({
 
   // Wheel-zoom toward the surface; OrbitControls needs a few frames of
   // damping, so poll until the label layer fades in.
-  const viewport = page.viewportSize();
-  if (!viewport) throw new Error("no viewport");
-  await page.mouse.move(viewport.width / 2, viewport.height / 2);
+  // Wheel events must land on the globe, not the bottom HUD stack.
+  const pt = await globePoint(page);
+  await page.mouse.move(pt.x, pt.y);
   await expect(async () => {
     await page.mouse.wheel(0, -400);
     await expect(layer).toBeVisible({ timeout: 400 });
@@ -512,6 +523,14 @@ test("modals trap focus and restore it on close", async ({ page }) => {
 });
 
 test("restores the last session; a URL hash still wins", async ({ page }) => {
+  // Three full boots (the beforeEach, plus two revisits), and beforeEach time
+  // counts against the test budget. A boot is only fast when imagery is warm:
+  // a cold sharp image is allowed 15s before it times out and the curtain
+  // lifts on the retry path, so the worst case is ~45s of boot alone and the
+  // default 30s cannot cover it. This spec asserts session restore, not
+  // network speed — give it room rather than letting GIBS latency decide.
+  test.setTimeout(120_000);
+
   // Change the working context: EVI layer + Grid overlay.
   await page.locator(".layer-selector__trigger").click();
   await page

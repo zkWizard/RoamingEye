@@ -179,7 +179,22 @@ export function compareSstToSeasonalBaseline(
     );
   }
 
-  const seenYears = new Set<number>();
+  const candidateYearCounts = new Map<number, number>();
+  for (const candidate of baselineCandidates) {
+    if (
+      isCalendarMonth(candidate.dataMonth) &&
+      candidate.dataMonth.month === targetMonth &&
+      (options.baselineStartYear === undefined ||
+        candidate.dataMonth.year >= options.baselineStartYear) &&
+      candidate.dataMonth.year <= baselineEndYear
+    ) {
+      candidateYearCounts.set(
+        candidate.dataMonth.year,
+        (candidateYearCounts.get(candidate.dataMonth.year) ?? 0) + 1
+      );
+    }
+  }
+
   const samples: OceanSeasonalBaselineSample[] = [];
   let coverageEligibleCount = 0;
 
@@ -200,11 +215,10 @@ export function compareSstToSeasonalBaseline(
       exclusions.outOfBounds += 1;
       continue;
     }
-    if (seenYears.has(candidate.dataMonth.year)) {
+    if ((candidateYearCounts.get(candidate.dataMonth.year) ?? 0) > 1) {
       exclusions.duplicateYear += 1;
       continue;
     }
-    seenYears.add(candidate.dataMonth.year);
 
     const summary = summarizeOceanConditions(candidate);
     const footprint = usableFootprint(summary);
@@ -313,6 +327,8 @@ function targetReadiness(
       return { status: "invalid", reason: target.coverage.reason ?? "invalid" };
     case "land":
       return { status: "land", reason: "target-land-footprint" };
+    case "unknown":
+      return { status: "no-data", reason: "target-unknown-footprint" };
     case "missing":
       return { status: "no-data", reason: "target-missing-sst" };
     case "water":
