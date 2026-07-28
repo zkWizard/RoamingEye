@@ -620,4 +620,43 @@ describe("place observation export", () => {
 
     expect(product.samplingStrategy).toBe("unavailable");
   });
+
+  it("retains successful products when SST sampling fails", () => {
+    const sst = placeObservationProductFromSample({
+      layerId: "sst",
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 5 },
+          value: null,
+          unavailableReason: "sampling-failed",
+        },
+      ],
+    });
+
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [...input.products, sst],
+    });
+
+    expect(exported.products).toHaveLength(3);
+    expect(
+      exported.products
+        .find(({ layerId }) => layerId === "ndvi")
+        ?.observations.find(({ dataMonth }) => dataMonth === "2026-04")
+    ).toMatchObject({ value: 0.62 });
+    expect(
+      exported.products.find(({ layerId }) => layerId === "sst")
+    ).toMatchObject({
+      nativeUnit: "°C",
+      samplingStrategy: "unavailable",
+      observations: [
+        {
+          dataMonth: "2026-05",
+          value: null,
+          validFraction: null,
+          unavailableReason: "sampling-failed",
+        },
+      ],
+    });
+  });
 });
