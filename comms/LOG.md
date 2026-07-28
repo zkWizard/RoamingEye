@@ -715,3 +715,52 @@ verified` — still provisioning, still do not touch DNS. Revisit date stands at
   `html_url` still `http://roamingeye.org/`. Still provisioning, still do not touch DNS.
   Revisit date stands at **2026-07-29**; `outbox/` stays send-blocked. Signals not re-pulled —
   measured earlier today and nothing has been sent.
+- 2026-07-28 (later run) — **Closed the pipeline's last named unresearched category:
+  university remote-sensing course networks (Duty 1).** `TARGETS.md`'s own "notes for future
+  runs" had queued exactly one category and nothing else; the educator track had two ready
+  assets (`outbox/classroom-lab-one-pager.md`, and as of #647 `docs/teaching/ndvi-phenology-lab.md`)
+  but no vetted venue to route them to. Read each venue's actual rules before writing a word, and
+  the three answers came out genuinely different — which is the point of reading them.
+  **UCGIS Instructional Resources — the find, and the recommended next draft.** The
+  University Consortium for GIScience (65+ member/affiliate institutions) curates an Open
+  Educational Resources list for teaching with GIS, and the page invites suggestions outright:
+  _"If you have something that you'd like to see included here, please let us know!"_ **No
+  membership requirement is stated** — suggesting a resource is separate from UCGIS institutional
+  membership and separate again from authoring a GIS&T Body of Knowledge chapter. The list already
+  mixes MIT/NASA/Esri/university material, so a free MIT-licensed tool is in-scope. Only published
+  contact is the UCGIS office (`arock@ucgis.org`). Angle recorded: **lead with the lab, not the
+  globe** — instructors have plenty of globes, and this page lists things to teach _with_.
+  Left **researched, not drafted**, deliberately: a syllabus-scraped listing link is
+  semi-permanent, so it sits behind the ⛔ HTTPS gate alongside the awesome-lists.
+  **GeoForAll (ICA–OSGeo) — two doors, and only one is open to us.** The criteria admit
+  **institutions and organizations, not individual software projects**, and require an
+  institutional lead, a lab website within a year, and annual activity reports. So lab membership
+  is a **decline on their own rules** and the note says explicitly: do not email a regional chair
+  asking to join — applying would be a public misread of their rules. The open door is the
+  `geoforall@lists.osgeo.org` list (free subscribe, any subscriber may post, roster hidden but
+  **archive public**), which feeds a monthly newsletter that already carries "free software and
+  data, courses, training programs, websites". Recorded honestly that **no code of conduct or
+  anti-promotion policy is published** on the list-info page — an absence, not a green light — so
+  the evident norm (educators sharing material, not vendors announcing) is the rule to follow.
+  **AmericaView — best audience fit of the three, no published way in.** A USGS-linked consortium
+  of **39 state university members** with a 255-dataset CKAN grouped into Tutorials / Courses /
+  K-12 — literally "university remote-sensing course networks". But the education page, the contact
+  page and the CKAN front page were each read and **none states whether outsiders may submit, under
+  what licence, or who curates.** Contributions appear to come from member-state programmes, but
+  that is an inference we cannot cite. **Parked pending a one-line question** to the Education &
+  Outreach Committee chairs, mirroring the EET precedent rather than inventing a submission path.
+  **Also corrected a near-miss in my own research:** I first read `og:image` as pointing at a
+  missing `social-card.jpg` and nearly logged a broken-social-card finding — the file _is_ in the
+  repo (`public/social-card.jpg`, 2400×1260) and serves `200`. No such claim was written. Related:
+  zkWizard has **uncommitted local work in flight** on `index.html` + an untracked `public/og.png`
+  swapping that card; left entirely untouched.
+  **Not repeated as findings** (already logged by prior runs, still unfixed, still zkWizard's call):
+  the empty repo `description`, the `homepage` HOLD, and the Releases tab sitting at **v1.0.1**
+  while `package.json` reads **1.1.0**. One genuinely new housekeeping item worth a future line:
+  the repo's **social preview is still GitHub's auto-generated card** (`usesCustomOpenGraphImage:
+false`) even though a usable image already exists in-repo — a Settings-UI upload, not scriptable.
+  **HTTPS gate re-measured (3×):** `https_certificate: null`, `https_enforced: false`, Pages
+  `html_url` still `http://roamingeye.org/`; `https://roamingeye.org/` fails to connect and
+  github.io still `301`s to plain `http://`. Gate holds, revisit **2026-07-29**, outbox stays
+  send-blocked. Worked in a detached `git worktree`; the shared clone and zkWizard's uncommitted
+  changes were not touched.

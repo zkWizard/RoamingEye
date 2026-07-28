@@ -432,6 +432,108 @@ before sending anything.
 - **Status:** **parked pending a one-line question.** Do not invest chapter-writing effort
   until someone confirms the project is still taking contributions.
 
+### UCGIS "GIScience/Geospatial Instructional Resources" — **the best educator listing found; draft next**
+
+- **URL / channel:** https://www.ucgis.org/site/instructional-resources — the University
+  Consortium for Geographic Information Science's curated list of Open Educational Resources
+  "for the teaching and learning — about and with — GIScience, GIS, and related geospatial
+  and mapping technologies." Parent body also stewards the GIS&T Body of Knowledge
+  (https://gistbok-topics.ucgis.org/).
+- **Audience & size:** UCGIS represents **65+ member and affiliate institutions** — US
+  university geography/GIScience departments. This page is what their instructors are pointed
+  at when building a course. Small audience by raw numbers, extremely high in intent: every
+  reader is a person choosing what to teach with next term.
+- **Why RoamingEye fits:** the existing list already mixes institutional and vendor material
+  (MIT, NASA, Esri, universities worldwide), so a free MIT-licensed browser tool is in-scope
+  rather than an odd one out. And we now have the thing this page actually lists — not a tool
+  link but **teachable material**: `docs/teaching/ndvi-phenology-lab.md` (a ready-to-run NDVI
+  phenology lab with an instructor guide, merged 2026-07-28 in #647) plus
+  `outbox/classroom-lab-one-pager.md`. No login, no install, no fee is a real curricular
+  argument for departments running labs on student laptops and Chromebooks.
+- **Posting rules / compliant path:** the page states it plainly — _"If you have something
+  that you'd like to see included here, please let us know!"_ **No membership requirement is
+  stated for suggesting a resource** (contribution is separate from UCGIS institutional
+  membership, and separate again from authoring a BoK chapter, which is a heavier commitment).
+  The only contact published on the page is the UCGIS office: **arock@ucgis.org** /
+  +1 757-473-8701. So the compliant path is one short, specific email to that address — an
+  offer of a resource, not a press release. No submission form, no deadline, no stated
+  review criteria found.
+- **Best angle:** **lead with the lab, not the globe.** Offer the NDVI phenology lab as the
+  resource and let the app be the thing the lab happens to run on — this page lists resources
+  for teaching, and instructors have plenty of globes. Say the honest quiet part too: it has
+  not been classroom-tested yet (the guide says so itself), so frame it as new material we'd
+  welcome instructor feedback on rather than a proven course component. Mention MIT + open
+  data + no account, because those are the properties that decide whether a department can
+  actually assign it.
+- **Status:** **researched → draft next run.** Not drafted yet only because of ordering: a
+  listing link is semi-permanent and scraped into syllabi, so like the awesome-lists it sits
+  **behind the ⛔ HTTPS gate** — the email must carry `https://roamingeye.org/` working. Draft
+  the email now, send when the gate clears.
+
+### GeoForAll (ICA–OSGeo educational labs network) — **lab membership not open to us; newsletter is**
+
+- **URL / channel:** https://www.osgeo.org/initiatives/geo-for-all/ — criteria:
+  https://wiki.osgeo.org/wiki/Geoforall_criteria — mailing list:
+  https://lists.osgeo.org/mailman/listinfo/geoforall — newsletter archive:
+  http://www.geoforall.org/newsletters/
+- **Audience & size:** OSGeo's educational-outreach committee, working with ICA, ISPRS,
+  UN-GIS, AGILE, UCGIS and IGU. Grew from 12 labs (2012) to **100+ labs worldwide**, organised
+  under regional chairs (Africa, Asia-Australia, Europe, Iberoamerica, North America). Publishes
+  a **monthly newsletter**, begun by Dr. Nikos Lambrinos, with Dr. Suchith Anand overseeing the
+  initiative.
+- **Why RoamingEye fits:** the network's stated mission — open education, open data, open
+  source, closing the digital divide — is close to a restatement of this project's thesis, and
+  the newsletter explicitly carries "free software and data, courses, training programs,
+  websites" alongside lab news. A free EO teaching tool that needs no licence is directly
+  useful to labs teaching in low-resource settings, which the initiative prioritises.
+- **Posting rules / compliant path — read carefully, there are two doors and only one is open
+  to us:**
+  1. **Becoming a GeoForAll lab: we are not eligible.** The criteria admit **institutions and
+     organizations** (universities, educational institutes, government bodies) — _not individual
+     software projects_ — and require a named institutional lead, a lab website within a year,
+     and yearly activity reports. RoamingEye is a software project, so **do not apply, and do
+     not email a regional chair asking to join.** Applying would be a misread of their rules in
+     public.
+  2. **The mailing list / newsletter: open.** `geoforall@lists.osgeo.org` accepts subscribers
+     freely and **anyone subscribed may post**; the membership roster is hidden but **the archive
+     is public**. No code of conduct, anti-promotion rule, or announcement policy is published on
+     the list-info page — that is a genuine absence, not a green light. Treat the evident norm
+     (educators sharing teaching material, not vendors announcing products) as the rule.
+- **Best angle:** a short note to the list offering the phenology lab as free classroom material
+  for labs that teach remote sensing without a software budget — one paragraph, one link, no
+  feature list — which is also exactly the shape of a newsletter item. Because the archive is
+  public and permanent, this sits **behind the ⛔ HTTPS gate** with everything else.
+- **Status:** **researched — lab membership declined on their rules; list/newsletter path open,
+  not drafted.** Lower priority than UCGIS: same educator audience, weaker intent signal.
+
+### AmericaView — right audience, **no published way in**; ask before drafting
+
+- **URL / channel:** https://americaview.org/ — education committee:
+  https://americaview.org/education-outreach-committee/ — resource repository:
+  https://ckan.americaview.org/
+- **Audience & size:** a USGS-linked, **university-based, state-implemented consortium with 39
+  active state members**, whose stated purpose is advancing remote-sensing use through education
+  and outreach. Its CKAN repository holds **255 datasets across 42 institutions**, grouped into
+  Earth Observation Day, **K-12 Resources**, Publications, **Tutorials**, **Courses** and
+  Factsheets. It also runs "AmericaView University," an undergraduate/graduate remote-sensing
+  course. On audience fit this is the strongest entry of the three — it is precisely "university
+  remote-sensing course networks."
+- **Why RoamingEye fits:** "Tutorials"/"Courses" is the shape of the phenology lab, and the
+  consortium's whole premise — that free imagery should be teachable — is ours.
+- **Posting rules / compliant path — the finding is that there isn't one published.** The
+  education page, the contact page and the CKAN front page were each read: **none states whether
+  outside parties may submit resources, under what licence, or who curates.** Contributions
+  visibly come from member state programmes, which suggests a members-only pipeline, but that is
+  an inference and is **not** written down anywhere we can cite. Published contacts: the
+  Education & Outreach Committee chairs **Dr. Thomas Mueller** (chair) and **Dr. Aaron Maxwell**
+  (vice-chair), plus a general contact form and phone number.
+- **Best angle:** **do not submit anything, and do not assume the CKAN is open.** Mirror the EET
+  precedent above: one short question to the Education & Outreach Committee asking whether they
+  accept educational resources from outside the member-state programmes, and if so how. That
+  answer either opens the best-fit educator venue in the pipeline or closes it cheaply.
+- **Status:** **parked pending a one-line question** (same pattern as EET). Not draftable until
+  someone confirms an external contribution path exists.
+
 ---
 
 ## Academic & citation venues
@@ -715,8 +817,12 @@ address the project.
   5. The drafts unblock at the same moment — steps 1–3 are exactly the send gate in
      `outbox/README.md`.
 
-- Candidate venues still to research (do NOT add until rules are read): university
-  remote-sensing course networks. **Duty 3 (contributor outreach) is no longer the open
+- Candidate venues still to research (do NOT add until rules are read): **none currently
+  named.** The last outstanding category — _university remote-sensing course networks_ —
+  was researched on **2026-07-28** and produced the three entries above (UCGIS, GeoForAll,
+  AmericaView). Pick the next category deliberately rather than reflexively; the pipeline is
+  now wide, and depth on the drafted venues is worth more than a fourth educator listing.
+  **Duty 3 (contributor outreach) is no longer the open
   gap** — the complementary-open-tool track was researched on 2026-07-27 and now has its
   own section above: leafmap **drafted**, stackstac **declined** (dormant since 2024-08-10),
   TiTiler **not a contributor target** (server-side; possible future dependency). The
@@ -728,7 +834,10 @@ address the project.
   arrives from an account with relevant public work.
   r/dataisbeautiful is parked with the other Reddit entries until the Reddit rules blocker
   above is cleared by zkWizard.
-  _Researched most recently:_ **leafmap** (drafted), **stackstac** (declined — dormant),
+  _Researched most recently:_ **UCGIS Instructional Resources** (open invitation — draft
+  next), **GeoForAll** (lab membership not open to software projects; list/newsletter open),
+  **AmericaView** (parked on a question — no published external submission path). Before
+  that: **leafmap** (drafted), **stackstac** (declined — dormant),
   **TiTiler** (not a contributor target). Before that: **JOSS** (declined-for-now with a
   dated 2026-12-29 revisit) and the **NASA Earthdata Forum** (participation-only, no
   announcement). Prior rounds: three.js Showcase (drafted), OSGeo Discourse
@@ -739,10 +848,14 @@ address the project.
   it as very young. Nothing in the pipeline is blocked by this _except_ JOSS, but it is a
   reason to prefer venues that reward usefulness now (three.js Showcase, HN, Pangeo,
   classrooms) and to let the citation-track venues mature.
-- **Educator reach:** `outbox/classroom-lab-one-pager.md` is now a ready source asset —
-  the next educator-facing step is to vet a _specific_ venue's rules (Project Pythia /
-  educational-geoscience networks, a university remote-sensing course network) and adapt
-  the one-pager into that venue's format, rather than posting the generic sheet cold.
+- **Educator reach — the venue question is now settled; the next step is a draft.**
+  `outbox/classroom-lab-one-pager.md` and `docs/teaching/ndvi-phenology-lab.md` are the two
+  ready source assets, and as of **2026-07-28** the specific venue has been vetted:
+  **UCGIS Instructional Resources** (see the entry above) is the recommended target — it is
+  the only educator venue found whose page openly invites resource suggestions with no
+  membership requirement. Next educator-facing run: **write that email into the outbox**,
+  leading with the lab rather than the app. Do not adapt the generic one-pager cold, and do
+  not chase a fourth listing before this one is drafted.
 - Always re-skim `README.md` and recent `git log` before drafting so claims match the
   current app (feature set, layer count, resolution).
 - **Never quote a traction number without checking `SIGNALS.md` first.** It holds the
