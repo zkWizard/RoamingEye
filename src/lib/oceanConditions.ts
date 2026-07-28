@@ -50,6 +50,7 @@ export type OceanCoverageStatus =
 export type OceanCoverageReason =
   | "invalid-month"
   | "invalid-coverage"
+  | "invalid-footprint"
   | "invalid-value"
   | "land-footprint"
   | "unknown-footprint"
@@ -122,6 +123,9 @@ function coverageFor(
   ) {
     return { ...base, status: "invalid", reason: "invalid-coverage" };
   }
+  if (!isSstFootprint(observation.footprint)) {
+    return { ...base, status: "invalid", reason: "invalid-footprint" };
+  }
   if (observation.footprint === "land") {
     return { ...base, status: "land", reason: "land-footprint" };
   }
@@ -152,6 +156,10 @@ function isSstSourceValue(value: number): boolean {
     value >= PROBE_SCALES.sst.min &&
     value <= PROBE_SCALES.sst.max
   );
+}
+
+function isSstFootprint(value: SstFootprint): boolean {
+  return ["water", "land-mixed-coastal", "land", "unknown"].includes(value);
 }
 
 function temperatureBandForSst(value: number): SeaSurfaceTemperatureBand {
