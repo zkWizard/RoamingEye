@@ -62,8 +62,13 @@ export const ERUPTION_CLASS_COLORS: Record<EruptionClass, string> = {
  * a null year means Holocene evidence only, and negative years are BCE.
  */
 export function lastEruptionLabel(lastEruptionYear: number | null): string {
-  if (lastEruptionYear === null) return "Holocene evidence only";
+  if (lastEruptionYear === null || !Number.isFinite(lastEruptionYear)) {
+    return "Holocene evidence only";
+  }
   if (lastEruptionYear >= 1) return `last erupted ${lastEruptionYear}`;
+  if (lastEruptionYear === 0) {
+    return "last eruption year 0 (source value; era not converted)";
+  }
   return `last erupted ${Math.abs(lastEruptionYear)} BCE`;
 }
 

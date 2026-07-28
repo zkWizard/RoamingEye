@@ -151,8 +151,16 @@ describe("lastEruptionLabel", () => {
     expect(lastEruptionLabel(-6850)).toBe("last erupted 6850 BCE");
   });
 
+  it("preserves source year zero without inventing 0 BCE", () => {
+    expect(lastEruptionLabel(0)).toBe(
+      "last eruption year 0 (source value; era not converted)"
+    );
+    expect(lastEruptionLabel(0)).not.toContain("BCE");
+  });
+
   it("is honest about undated volcanoes", () => {
     expect(lastEruptionLabel(null)).toBe("Holocene evidence only");
+    expect(lastEruptionLabel(Number.NaN)).toBe("Holocene evidence only");
   });
 });
 

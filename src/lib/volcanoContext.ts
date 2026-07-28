@@ -19,7 +19,8 @@ export const GVP_VOLCANO_SOURCE = {
 export const VOLCANO_CONTEXT_UNITS = {
   coordinates: "decimal degrees",
   elevation: "metres relative to sea level",
-  lastEruptionYear: "calendar year; negative values are BCE",
+  lastEruptionYear:
+    "source calendar year; negative values are BCE and zero is preserved without era conversion",
 } as const;
 
 export type VolcanoFactField =
