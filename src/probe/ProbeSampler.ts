@@ -14,6 +14,7 @@ import {
   medianValid,
   normalizeLon,
   weightedMeanValid,
+  weightedValidFraction,
   gridPoints,
   regionGridDimensions,
   regionGridSize,
@@ -451,18 +452,15 @@ export class ProbeSampler {
     // Coverage alongside the statistic: the (area-weighted) share of the
     // sampled grid that held data — combine-independent, so point mode's
     // unit weights reduce it to a plain count share.
-    let totalWeight = 0;
-    let validWeight = 0;
-    for (let i = 0; i < pixels.length; i++) {
-      totalWeight += pixels[i].weight;
-      if (inversions[i] !== null) validWeight += pixels[i].weight;
-    }
     return {
       value: combine(
         inversions,
         pixels.map((p) => p.weight)
       ),
-      validFraction: totalWeight > 0 ? validWeight / totalWeight : 0,
+      validFraction: weightedValidFraction(
+        inversions,
+        pixels.map((p) => p.weight)
+      ),
     };
   }
 

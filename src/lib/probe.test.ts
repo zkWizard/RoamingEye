@@ -7,6 +7,7 @@ import {
   invertColormapEntries,
   medianValid,
   weightedMeanValid,
+  weightedValidFraction,
   areaWeight,
   gridPoints,
   dragBounds,
@@ -303,6 +304,24 @@ describe("weightedMeanValid", () => {
 
   it("returns null for an empty grid", () => {
     expect(weightedMeanValid([], [])).toBeNull();
+  });
+});
+
+describe("weightedValidFraction", () => {
+  it("reports the area-weighted share of samples containing data", () => {
+    expect(weightedValidFraction([0.2, null, 0.8], [1, 2, 1])).toBe(0.5);
+    expect(weightedValidFraction([], [])).toBe(0);
+  });
+
+  it("is stable when equivalent geographic samples are enumerated differently", () => {
+    const values = [null, null, 1, null, null, null, 1, 1];
+    const weights = [1e12, 1e11, 1e4, 1e17, 1e17, 1e2, 1e5, 1e2];
+    const reversedValues = [...values].reverse();
+    const reversedWeights = [...weights].reverse();
+
+    expect(weightedValidFraction(values, weights)).toBe(
+      weightedValidFraction(reversedValues, reversedWeights)
+    );
   });
 });
 
