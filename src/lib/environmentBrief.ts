@@ -72,6 +72,7 @@ export type EnvironmentUnavailableReason =
   | "rejected-wms-layer"
   | "rejected-source"
   | "rejected-native-unit"
+  | "rejected-generation-timestamp"
   | "rejected-sampling-support"
   | "rejected-observation-months"
   | "rejected-observation-after-generation"

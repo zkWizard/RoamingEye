@@ -594,7 +594,13 @@ function runPlaceInsights(result: GeoResult): void {
   const sstMonth = sstMonths[sstMonths.length - 1];
   exportSamples.set("sst", {
     layerId: "sst",
-    observations: [{ dataMonth: sstMonth, value: null }],
+    observations: [
+      {
+        dataMonth: sstMonth,
+        value: null,
+        unavailableReason: "sampling-failed",
+      },
+    ],
   });
   samplingTasks.push(
     (async () => {
