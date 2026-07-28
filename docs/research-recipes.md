@@ -5,7 +5,7 @@ day-one research tool. Each maps to a workflow we've seen in real earth-science
 and geology work — no GIS software, no API keys, no downloads beyond a CSV.
 
 Everything below runs in the browser at
-**[zkwizard.github.io/RoamingEye](https://zkwizard.github.io/RoamingEye/)**.
+**[roamingeye.org](https://roamingeye.org/)**.
 
 > **A note on probe values.** The point probe reconstructs values by inverting
 > the layer's colormap on the rendered imagery. That makes it **approximate** —
