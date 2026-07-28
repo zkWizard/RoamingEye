@@ -131,6 +131,64 @@ describe("parseRetryAfter", () => {
   });
 });
 
+describe("timeouts vs. caller aborts", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** A fetch that never settles on its own — only its signal ends it. */
+  const hangingFetch = (calls: { count: number }): void => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url: string, init?: { signal?: AbortSignal }) =>
+          new Promise<Response>((_resolve, reject) => {
+            calls.count++;
+            init?.signal?.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError"))
+            );
+          })
+      )
+    );
+  };
+
+  // Regression: the per-attempt timeout cancels through the same controller as
+  // a caller abort, so it used to arrive as an indistinguishable AbortError —
+  // skipping every retry and reaching callers as "someone cancelled this".
+  // GlobeTextureManager treats an abort as a non-event, so a slow first image
+  // left the boot curtain over the whole app for ever: no error, no retry
+  // button, no way through (main went red on 2026-07-28 this way).
+  it("reports a timeout as a retryable 408, not as an abort", async () => {
+    const calls = { count: 0 };
+    hangingFetch(calls);
+    const err = await fetchWithRetry("https://gibs.test/slow", {
+      retries: 1,
+      timeoutMs: 5,
+      backoffMs: 1,
+    }).catch((e: unknown) => e);
+    expect(isAbortError(err)).toBe(false);
+    expect(err).toBeInstanceOf(HttpError);
+    expect((err as HttpError).status).toBe(408);
+    // A timeout is a real failure, so it earns its retry.
+    expect(calls.count).toBe(2);
+  });
+
+  it("still reports a caller abort as an abort, and burns no retries", async () => {
+    const calls = { count: 0 };
+    hangingFetch(calls);
+    const controller = new AbortController();
+    const pending = fetchWithRetry("https://gibs.test/superseded", {
+      retries: 3,
+      timeoutMs: 10_000,
+      backoffMs: 1,
+      signal: controller.signal,
+    }).catch((e: unknown) => e);
+    controller.abort();
+    expect(isAbortError(await pending)).toBe(true);
+    expect(calls.count).toBe(1);
+  });
+});
+
 describe("retry semantics by status", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
