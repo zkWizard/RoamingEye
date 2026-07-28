@@ -90,6 +90,19 @@ export function observationsFromRenderedClimateSample(
       "RoamingEye: rendered climate months and coverage must have matching lengths"
     );
   }
+  for (let index = 0; index < months.length; index += 1) {
+    const month = months[index];
+    if (!isYearMonth(month)) {
+      throw new Error(
+        "RoamingEye: rendered climate series contains an invalid data month"
+      );
+    }
+    if (index > 0 && compareYearMonths(months[index - 1], month) >= 0) {
+      throw new Error(
+        "RoamingEye: rendered climate months must be strictly increasing"
+      );
+    }
+  }
   if (
     sourceImageDimensionsByMonth &&
     sourceImageDimensionsByMonth.length !== months.length
@@ -241,4 +254,17 @@ function formatNumber(value: number): string {
 
 function formatMonth(month: YearMonth): string {
   return `${month.year}-${String(month.month).padStart(2, "0")}`;
+}
+
+function isYearMonth(value: YearMonth): boolean {
+  return (
+    Number.isInteger(value.year) &&
+    Number.isInteger(value.month) &&
+    value.month >= 1 &&
+    value.month <= 12
+  );
+}
+
+function compareYearMonths(left: YearMonth, right: YearMonth): number {
+  return left.year - right.year || left.month - right.month;
 }
