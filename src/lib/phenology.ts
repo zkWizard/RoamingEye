@@ -56,7 +56,15 @@ export interface NdviCoverage {
   missingMonthCount: number;
   /** Supplied records rejected for invalid date, value, coverage, or duplicate. */
   invalidRecordCount: number;
-  /** Lowest reported regional valid fraction among the retained observations. */
+  /** Retained observations that supplied a regional valid fraction. */
+  validFractionReportedCount: number;
+  /** Retained observations whose regional valid fraction was unavailable. */
+  validFractionUnavailableCount: number;
+  /**
+   * Lowest reported regional valid fraction among retained observations, or
+   * null when none supplied coverage metadata. Unknown coverage is never
+   * interpreted as complete coverage.
+   */
   minimumValidFraction: number | null;
   /** Whether the record is shorter than the threshold for annual extrema. */
   isSparse: boolean;
@@ -219,6 +227,9 @@ function annualSummary(
   hemisphere: Hemisphere
 ): NdviAnnualPhenology {
   const valid = accumulator.valid;
+  const reportedValidFractions = valid.flatMap(({ validFraction }) =>
+    validFraction === undefined ? [] : [validFraction]
+  );
   const suppliedCalendarMonths = [...accumulator.monthRecords.keys()].sort(
     (a, b) => a - b
   );
@@ -232,10 +243,12 @@ function annualSummary(
     validMonthCount: valid.length,
     missingMonthCount: accumulator.missingMonthCount,
     invalidRecordCount: accumulator.invalidRecordCount,
+    validFractionReportedCount: reportedValidFractions.length,
+    validFractionUnavailableCount: valid.length - reportedValidFractions.length,
     minimumValidFraction:
-      valid.length === 0
+      reportedValidFractions.length === 0
         ? null
-        : Math.min(...valid.map(({ validFraction }) => validFraction ?? 1)),
+        : Math.min(...reportedValidFractions),
     isSparse: valid.length < MINIMUM_MONTHS_FOR_ANNUAL_EXTREMA,
   };
   const base: Pick<
