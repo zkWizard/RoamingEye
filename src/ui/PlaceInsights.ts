@@ -7,7 +7,10 @@ import {
   MARINE_PLACE_METRIC,
   type MarinePlaceInsightReading,
 } from "../lib/marinePlaceInsight";
-import { GVP_VOLCANO_SOURCE } from "../lib/volcanoContext";
+import {
+  GVP_VOLCANO_SOURCE,
+  gvpVolcanoSourceLabel,
+} from "../lib/volcanoContext";
 import type { VolcanoExtentContext } from "../lib/volcanoExtent";
 import { ICONS } from "./icons";
 
@@ -95,8 +98,7 @@ export class PlaceInsights {
     this.volcanoSource.href = GVP_VOLCANO_SOURCE.url;
     this.volcanoSource.target = "_blank";
     this.volcanoSource.rel = "noopener";
-    this.volcanoSource.textContent =
-      "Source: Smithsonian Global Volcanism Program — Volcanoes of the World";
+    this.volcanoSource.textContent = `Source: ${gvpVolcanoSourceLabel()}`;
     volcanoes.append(
       volcanoTitle,
       this.volcanoValue,

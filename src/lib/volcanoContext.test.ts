@@ -5,6 +5,7 @@ import { parseVolcanoList, type Volcano } from "./volcanoes";
 import {
   GVP_VOLCANO_SOURCE,
   VOLCANO_CONTEXT_UNITS,
+  gvpVolcanoSourceLabel,
   selectedVolcanoContext,
   volcanoSelectionOptions,
 } from "./volcanoContext";
@@ -137,6 +138,12 @@ describe("selectedVolcanoContext", () => {
     expect(context.coverage.status).toBe("selected");
     expect(context.coverage.suppliedRecordCount).toBeGreaterThanOrEqual(1000);
     expect(context.provenance.localFile).toBe("public/data/volcanoes.json");
+    expect(context.provenance).toMatchObject({
+      databaseVersion: "5.3.6",
+      dataDate: "2026-05-26",
+      dataMonth: "2026-05",
+      doi: "10.5479/si.GVP.VOTW5-2025.5.3",
+    });
     expect(context.selected).toMatchObject({
       name: "Vesuvius",
       country: "Italy",
@@ -157,5 +164,13 @@ describe("volcanoSelectionOptions", () => {
         "Etna, Italy; Stratovolcano; 3357 metres elevation; last erupted 2025",
       selection: { name: "Etna", country: "Italy" },
     });
+  });
+});
+
+describe("GVP volcano source citation", () => {
+  it("keeps the database version and data month visible to users", () => {
+    expect(gvpVolcanoSourceLabel()).toBe(
+      "Smithsonian Institution Global Volcanism Program — Volcanoes of the World v5.3.6 (2026-05)"
+    );
   });
 });
