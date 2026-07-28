@@ -275,3 +275,45 @@ null`, `https_enforced: false`, `https://roamingeye.org/` still fails TLS, and
   no open PR touches any of those four paths.
   Skipped Duty 1 (14 venues researched, 0 sent), Duty 4 (#373/#374/#375 still open and
   unclaimed) and Duty 3 — all still blocked behind the same gate.
+- 2026-07-27 (fourth run) — **Found and filled a gap no prior run had looked for: the shipped
+  v1.1.0 release is publicly invisible.** The tag `v1.1.0` exists (`610ef2a`, 2026-07-10) and
+  went live the same day, but `gh release list` shows **only `v1.0.0` and `v1.0.1`** — so the
+  Releases page has advertised "Latest: v1.0.1 (2026-07-09)" for 17 days, and
+  `docs/launch/` carries release-notes files for `v0.2.0` and `v1.0.0` with **nothing for
+  v1.1.0**. Anyone evaluating the project sees a repo whose newest published release predates
+  its best work. Drafted `docs/launch/release-notes-v1.1.0.md` (Duty 5) — pure release body,
+  same shape as its two siblings so `--notes-file` takes it directly.
+  **Why this duty:** Duties 1–3 are all downstream of the ⛔ HTTPS gate (14 venues researched,
+  7 drafts unsent — supply is not the constraint); Duty 4 would be wrong while #373/#374/#375
+  are open and unclaimed; Duty 6's signals were pulled hours ago and #593 now owns `SIGNALS.md`.
+  This is the one awareness surface that is **not** an external venue — it lives on our own
+  repo, so it needs no send permission from anyone, and GitHub's release feed distributes it
+  without us posting anywhere.
+  **Content is narrative, not a changelog paste**, and leads with the two things that
+  distinguish this project for a research audience: the seasonal Mann-Kendall + Sen's slope
+  trend test, and the fact that we **published our own bad accuracy numbers** (the full
+  `docs/validation.md` RMSE table — aerosol 0.13, SST 5.1 °C, soil 8.2 kg/m², air temp 19.0 K,
+  precip 20.4 mm/day, LST no-data — with the honest "relative use, not absolute" reading and
+  #170 named as the fix). Then units/uncertainty/legends, the DOI + BibTeX/RIS + METHODS.md
+  citation chain, the geolocation pin, and a contributor call-out. Every figure re-verified
+  today against `CHANGELOG.md`, `docs/validation.md`, `METHODS.md` and the tag range
+  (`git log v1.0.1..v1.1.0` = 18 commits); the "314 → ~375 unit tests" and "22 → 44 contract
+  assertions" spans are the two rounds combined, taken from the changelog's own round footers.
+  **⛔ This release is gated too — and for a sharper reason than the outbox drafts.** It links
+  the canonical `https://roamingeye.org/`, which still fails TLS today (re-measured: curl now
+  reaches the host but gets `SEC_E_WRONG_PRINCIPAL` — GitHub's default `*.github.io` cert, so
+  the hostname mismatches; `https_enforced: false`, Pages' own `html_url` is `http://`). On top
+  of that, **the release's own "You are here" feature cannot work while the site is
+  plain-HTTP** — geolocation requires a secure context — so publishing now would announce a
+  headline feature that is dead for every reader who tries it. Publish after Enforce-HTTPS.
+  **Exact command once the gate clears** (`+8` strips the DRAFT comment and the H1, which
+  becomes the release title — verified against the formatted file, re-check if it is edited):
+  `gh release create v1.1.0 --title "v1.1.0 — measure the trend, and how much to trust it" --notes-file <(tail -n +8 docs/launch/release-notes-v1.1.0.md)`
+  **Deliberate minimal footprint:** this PR touches one new file plus this log. It does **not**
+  edit `TARGETS.md` (not a venue) or `outbox/README.md` — the standing by-file check found
+  **five** open comms PRs (#571, #573, #580, #593, #606) already queued on those two paths, and
+  a sixth editor would just add conflicts. #606 is adding a `docs/launch/README.md` index and
+  will pick this file up. Verified first that no open PR of the 176 covers release notes.
+  **Also measured, not acted on:** there is **no Zenodo integration in the repo** (no
+  `.zenodo.json`, no mention anywhere), so a GitHub release does not currently mint a DOI —
+  worth knowing before anyone counts on the release for the citation track.
