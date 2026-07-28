@@ -181,7 +181,7 @@ Processing Levels, L0–L4): higher levels carry more algorithmic processing,
 gridding, or modeling between the sensor and the reported value. The brief's
 products span two tiers — NDVI (MOD13A3) is a **Level-3** gridded index, while
 the GLDAS land-surface fields and the MERRA-2 reanalysis are **Level-4** model
-output. `src/lib/processingLevel.ts` makes that L3/L4 split (already noted in §8
+output. `src/lib/processingLevel.ts` makes that L3/L4 split (already noted in §9
 below) checkable per signal and reports whether the usable signals share one
 tier or span several. It is a companion to observation modality
 (`src/lib/observationModality.ts`), not a duplicate: modality asks _how_ a value
@@ -190,7 +190,48 @@ the two partition the products differently. A higher level is **not** worse
 data; it is a position on a processing ladder, never a quality judgement, and a
 product absent from the table is reported as unclassified rather than guessed.
 
-## 8. What this tool does not do
+## 8. Temporal commensurability
+
+§7 covers whether the four signals are comparable _in kind_ (units, provenance,
+coverage). Two further descriptors cover whether two monthly values may be read
+together _in time_ — a distinct axis that a shared data month alone does not
+settle.
+
+**Within-month aggregation** (`src/lib/temporalAggregation.ts`). Each product
+reduces its sub-monthly record to one monthly value differently, and the
+reduction is a fixed property of the cited product, keyed by its short name:
+
+| Signal (product)                          | Within-month value                  |
+| ----------------------------------------- | ----------------------------------- |
+| Vegetation NDVI (MOD13A3)                 | within-month composite (best-value) |
+| Rainfall, soil moisture (GLDAS_NOAH025_M) | monthly time-average                |
+| Air temperature 2 m (M2TMNXSLV)           | monthly time-average                |
+
+A **composite** reports a single favourable within-month state (the best pixel
+selected in the compositing window — e.g. peak greenness), **not** a mean over
+the month; a **time-average** is the mean of the model's sub-monthly fields
+across the whole month. So a composite and a time-average dated the same month
+are **not temporally commensurate** — one is a selected within-month state, the
+other a whole-month mean — and must not be read as the same reduction of the
+month. A product not in the table is reported as `unclassified`, never inferred
+from its value.
+
+**Quantity kind & time-integrability** (`src/lib/quantityKind.ts`). Placing four
+monthly numbers side by side invites accumulating them over time the same way,
+but only one may be. Rainfall (precipitation rate, kg/m²/s) is a per-unit-time
+**flux**: its integral over a period is a meaningful accumulated total (multiply
+the mean rate by the period's seconds to reach a precipitation depth). Soil
+moisture (kg/m²) and air temperature (K) are **states** — levels at an instant or
+mean, with no such accumulation — and NDVI is a bounded **dimensionless index**,
+not a physical amount at all. So the flux is time-integrable and the states and
+index are not; a level must never be summed into a meaningless "total". Kind is a
+property of the geophysical variable, not the product: the two GLDAS fields share
+a product yet differ (rainfall is a flux, soil moisture a state).
+
+Both descriptors report structure only — neither combines, accumulates, or ranks
+the values, and every signal keeps its source DOI.
+
+## 9. What this tool does not do
 
 - It does **not** validate the GIBS L3 products against in-situ measurements —
   that is the instrument teams' published validation, which we cite via the
