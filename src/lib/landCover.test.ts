@@ -153,6 +153,60 @@ describe("land-cover context summaries", () => {
     expect(noData.provenance.publicationStatus).toBe("published");
   });
 
+  it("rejects unsafe sample weights instead of rounding native counts", () => {
+    const summary = summarizeLandCoverContext(
+      [
+        { classCode: 12, sampleCount: Number.MAX_SAFE_INTEGER + 1 },
+        { classCode: 13, sampleCount: 2.5 },
+      ],
+      2024
+    );
+
+    expect(summary.coverage).toEqual({
+      status: "no-data",
+      totalSampleCount: 0,
+      knownLandCoverSampleCount: 0,
+      unclassifiedSampleCount: 0,
+      noDataSampleCount: 0,
+      invalidClassSampleCount: 0,
+      invalidRecordCount: 2,
+      knownLandCoverFraction: null,
+      reason: "no-samples",
+    });
+    expect(summary.classCoverage).toEqual([]);
+    expect(summary.dominantClass).toBeNull();
+  });
+
+  it("rejects a record that would overflow the cumulative exact count", () => {
+    const summary = summarizeLandCoverContext(
+      [
+        { classCode: 12, sampleCount: Number.MAX_SAFE_INTEGER },
+        { classCode: 13, sampleCount: 1 },
+      ],
+      2024
+    );
+
+    expect(summary.coverage).toMatchObject({
+      status: "available",
+      totalSampleCount: Number.MAX_SAFE_INTEGER,
+      knownLandCoverSampleCount: Number.MAX_SAFE_INTEGER,
+      invalidRecordCount: 1,
+      knownLandCoverFraction: 1,
+      reason: null,
+    });
+    expect(summary.classCoverage).toEqual([
+      {
+        classCode: 12,
+        label: "Cropland",
+        sampleCount: Number.MAX_SAFE_INTEGER,
+        fractionOfAllSamples: 1,
+        fractionOfSourceClassSamples: 1,
+        isInformativeLandCover: true,
+      },
+    ]);
+    expect(summary.dominantClass?.classCode).toBe(12);
+  });
+
   it("exposes the complete IGBP contract including unclassified source pixels", () => {
     expect(IGBP_LAND_COVER_CLASSES).toHaveLength(18);
     expect(IGBP_LAND_COVER_CLASSES.map((entry) => entry.code)).toEqual([
