@@ -74,7 +74,8 @@ export type EnvironmentUnavailableReason =
   | "rejected-native-unit"
   | "rejected-sampling-support"
   | "rejected-observation-months"
-  | "rejected-observation-state";
+  | "rejected-observation-state"
+  | "rejected-duplicate-products";
 
 export interface EnvironmentSignalCoverage {
   status: EnvironmentSignalStatus;
