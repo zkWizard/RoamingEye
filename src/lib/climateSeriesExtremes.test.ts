@@ -182,7 +182,29 @@ describe("climate series extremes", () => {
         air(290, 1),
         summary("precipitation-rate", 0.0001, { year: 2026, month: 2 }),
       ])
-    ).toThrow(/single, consistent metric/i);
+    ).toThrow(/consistent metric provenance/i);
+  });
+
+  it("rejects a reused metric ID with conflicting unit or source provenance", () => {
+    const canonical = air(290, 1);
+    const wrongUnit = {
+      ...air(16.85, 2),
+      metric: { ...canonical.metric, nativeUnit: "Â°C" },
+    };
+    const wrongSource = {
+      ...air(292, 3),
+      metric: {
+        ...canonical.metric,
+        source: { ...canonical.metric.source, version: "uncited-revision" },
+      },
+    };
+
+    expect(() => climateSeriesExtremes([canonical, wrongUnit])).toThrow(
+      /consistent metric provenance/i
+    );
+    expect(() => climateSeriesExtremes([canonical, wrongSource])).toThrow(
+      /consistent metric provenance/i
+    );
   });
 
   it("documents that extremes are a sample reduction, not a record", () => {
