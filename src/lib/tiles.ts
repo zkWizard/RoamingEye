@@ -188,12 +188,16 @@ export function tilesInView(
   );
 
   // Column range, wrapped. A window ≥ 360° means every column.
-  const fullRing = lonSpanDeg >= 360;
-  const west = centerLon - lonSpanDeg / 2;
+  const boundedLonSpan = Math.max(0, Math.min(360, lonSpanDeg));
+  const fullRing = boundedLonSpan >= 360;
+  const west = centerLon - boundedLonSpan / 2;
+  const east = centerLon + boundedLonSpan / 2;
   const colStart = Math.floor((west + 180) / span);
   const colCount = fullRing
     ? cols
-    : Math.min(cols, Math.ceil(lonSpanDeg / span) + 1);
+    : boundedLonSpan === 0
+      ? 1
+      : Math.min(cols, Math.max(1, Math.ceil((east + 180) / span) - colStart));
 
   // Emit in rings outward from the centre tile so a cap keeps the middle.
   const center = tileForLatLon(centerLat, centerLon, level);
