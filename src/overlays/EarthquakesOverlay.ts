@@ -4,7 +4,7 @@ import { ICONS } from "../ui/icons";
 import { latLngToVector3 } from "../lib/geo";
 import { fetchJson } from "../lib/net";
 import {
-  parseEarthquakeFeed,
+  parseEarthquakeFeedWithCoverage,
   depthClass,
   DEPTH_CLASS_COLORS,
   USGS_FEED_URL,
@@ -60,7 +60,9 @@ export class EarthquakesOverlay implements MapOverlay {
   }
 
   private async load(): Promise<void> {
-    const quakes = parseEarthquakeFeed(await fetchJson<unknown>(this.url));
+    const { earthquakes: quakes } = parseEarthquakeFeedWithCoverage(
+      await fetchJson<unknown>(this.url)
+    );
 
     for (const bucket of SIZE_BUCKETS) {
       const inBucket = quakes.filter((q) => bucketFor(q.magnitude) === bucket);
