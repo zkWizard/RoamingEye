@@ -1,4 +1,9 @@
-import { geometryBounds, isAreaGeometry, type GeoGeometry } from "./geojson";
+import {
+  geometryBounds,
+  isAreaGeometry,
+  type GeoGeometry,
+  type GeometrySamplingStrategy,
+} from "./geojson";
 import {
   LAYERS,
   type DatasetRef,
@@ -44,6 +49,8 @@ export interface PlaceObservationProductInput {
   nativeUnit: string;
   /** Exact transformation applied to sampled values before export. */
   sampleToNative?: PlaceObservationValueTransform;
+  /** Exact searched-boundary strategy used for this product's observations. */
+  samplingStrategy?: GeometrySamplingStrategy | "unavailable";
   observations: readonly PlaceObservationInput[];
 }
 
@@ -121,6 +128,7 @@ export interface PlaceObservationExportProduct {
   source: DatasetRef;
   nativeUnit: string;
   sampleToNative: PlaceObservationValueTransform;
+  samplingStrategy: GeometrySamplingStrategy | "unavailable";
   observations: {
     dataMonth: string;
     value: number | null;
@@ -162,6 +170,7 @@ export interface PlaceObservationExportSample {
   observations: readonly PlaceObservationInput[];
   /** Unit represented by the sampled values before native-unit conversion. */
   sampledUnit?: string;
+  samplingStrategy?: GeometrySamplingStrategy;
   sourceValueFactor?: number;
 }
 
@@ -260,6 +269,7 @@ export function placeObservationProductFromSample(
       operation: "divide",
       factor: sourceValueFactor,
     },
+    samplingStrategy: sample.samplingStrategy ?? "unavailable",
     observations: sample.observations.map((observation) => ({
       ...observation,
       value:
@@ -318,6 +328,16 @@ function validateInput(input: PlaceObservationExportInput): void {
     ) {
       throw new Error(
         `Product ${product.layerId} has an invalid sample-to-native transform.`
+      );
+    }
+    if (
+      product.samplingStrategy !== undefined &&
+      !["boundary-grid", "boundary-point", "unavailable"].includes(
+        product.samplingStrategy
+      )
+    ) {
+      throw new Error(
+        `Product ${product.layerId} has an invalid sampling strategy.`
       );
     }
     if (!hasCitation(product.source)) {
@@ -468,6 +488,7 @@ function exportProducts(
             operation: "divide" as const,
             factor: 1,
           },
+      samplingStrategy: product.samplingStrategy ?? "unavailable",
       observations: product.observations
         .map((observation) => ({
           dataMonth: formatYearMonth(observation.dataMonth),

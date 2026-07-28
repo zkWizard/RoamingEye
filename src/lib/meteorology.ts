@@ -7,6 +7,7 @@ import {
 } from "./climate";
 import type { LayerId, YearMonth } from "./timeline";
 import { toConventionalClimateValue } from "./climateConventionalUnits";
+import type { GeometrySamplingStrategy } from "./geojson";
 
 /**
  * Bridges sampled GIBS rendered imagery into the climate contracts.
@@ -47,6 +48,8 @@ export interface RenderedClimateSampleInput {
     width: number;
     height: number;
   } | null)[];
+  /** Spatial method used by the place sampler for every supplied month. */
+  geometrySamplingStrategy?: GeometrySamplingStrategy;
 }
 
 export interface RenderedClimateSeries {
@@ -144,6 +147,9 @@ export function observationsFromRenderedClimateSample(
                 ? { ...monthDimensions }
                 : null,
             }),
+        ...(input.geometrySamplingStrategy
+          ? { geometrySamplingStrategy: input.geometrySamplingStrategy }
+          : {}),
       };
     }),
   };
@@ -177,6 +183,7 @@ export function climateInsightText(
   const month = formatMonth(current.dataMonth);
   const provenance = imageProvenance(current.sourceImageDimensions);
   const coverage = coverageText(current.coverage.validFraction);
+  const sampling = samplingText(current.geometrySamplingStrategy);
   if (
     current.publicationStatus !== "published" ||
     current.coverage.status !== "available" ||
@@ -184,7 +191,9 @@ export function climateInsightText(
   ) {
     return {
       value: "Unavailable",
-      detail: `No usable ${month} observation (${unavailableReason(current)}); ${coverage}; ${provenance}; source ${source}`,
+      detail: `No usable ${month} observation (${unavailableReason(
+        current
+      )}); ${sampling}; ${coverage}; ${provenance}; source ${source}`,
     };
   }
 
@@ -215,8 +224,19 @@ export function climateInsightText(
     : "";
   return {
     value,
-    detail: `${month} observed${comparison}${nativeProvenance}; ${coverage}; ${provenance}; approximate regional mean; source ${source}`,
+    detail: `${month} observed${comparison}${nativeProvenance}; ${coverage}; ${provenance}; ${sampling}; source ${source}`,
   };
+}
+
+function samplingText(strategy: GeometrySamplingStrategy | null): string {
+  switch (strategy) {
+    case "boundary-grid":
+      return "approximate regional mean from a boundary grid";
+    case "boundary-point":
+      return "single in-boundary image sample, not a regional mean";
+    default:
+      return "sampling strategy not supplied";
+  }
 }
 
 function unavailableReason(summary: MonthlyClimateSummary): string {

@@ -33,6 +33,7 @@ const input = {
         operation: "divide" as const,
         factor: 1,
       },
+      samplingStrategy: "boundary-grid" as const,
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -56,6 +57,7 @@ const input = {
         operation: "divide" as const,
         factor: 86_400,
       },
+      samplingStrategy: "boundary-point" as const,
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -123,6 +125,7 @@ describe("place observation export", () => {
             operation: "divide",
             factor: 1,
           },
+          samplingStrategy: "boundary-grid",
           observations: [
             {
               dataMonth: "2026-04",
@@ -147,6 +150,7 @@ describe("place observation export", () => {
             operation: "divide",
             factor: 86_400,
           },
+          samplingStrategy: "boundary-point",
           observations: [
             {
               dataMonth: "2026-04",
@@ -489,6 +493,7 @@ describe("place observation export", () => {
       layerId: "precip",
       sampledUnit: "mm/day",
       sourceValueFactor: 86_400,
+      samplingStrategy: "boundary-point",
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -549,5 +554,16 @@ describe("place observation export", () => {
         ],
       })
     ).toThrow("Product ndvi has an invalid sample-to-native transform.");
+  });
+
+  it("does not invent a sampling strategy for unavailable samples", () => {
+    const product = placeObservationProductFromSample({
+      layerId: "ndvi",
+      observations: [
+        { dataMonth: { year: 2026, month: 4 }, value: null, validFraction: 0 },
+      ],
+    });
+
+    expect(product.samplingStrategy).toBe("unavailable");
   });
 });

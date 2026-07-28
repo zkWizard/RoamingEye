@@ -520,6 +520,7 @@ function runPlaceInsights(result: GeoResult): void {
                   nativeToSampledValueFactor: colormap.factor,
                   validFractions,
                   sourceImageDimensions,
+                  geometrySamplingStrategy,
                 },
                 months[1]
               )
@@ -550,6 +551,7 @@ function runPlaceInsights(result: GeoResult): void {
                 metric.layerId as keyof typeof SCALE_CONVERSIONS
               ]?.unit ?? PLACE_OBSERVATION_NATIVE_UNITS[metric.layerId],
             sourceValueFactor: colormap?.factor ?? 1,
+            samplingStrategy: geometrySamplingStrategy,
             observations: months.map((dataMonth, index) => {
               const value = values[index] ?? null;
               if (value === null) {
