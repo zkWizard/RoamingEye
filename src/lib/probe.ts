@@ -185,6 +185,27 @@ export function weightedMeanValid(
   return sum.sum() / valid;
 }
 
+/**
+ * Area-weighted share of samples that contain data. Compensated accumulation
+ * keeps coverage reproducible when the same geographic cells are enumerated
+ * in a different order; downstream availability thresholds must not depend on
+ * row order or antimeridian stitching order.
+ */
+export function weightedValidFraction(
+  values: (number | null)[],
+  weights: number[]
+): number {
+  const totalWeight = makeNeumaierAcc();
+  const validWeight = makeNeumaierAcc();
+  for (let i = 0; i < values.length; i++) {
+    const weight = weights[i];
+    totalWeight.add(weight);
+    if (values[i] !== null) validWeight.add(weight);
+  }
+  const total = totalWeight.sum();
+  return total > 0 ? validWeight.sum() / total : 0;
+}
+
 /** The cos(latitude) area weight of a sample on an equal-angle grid. */
 export function areaWeight(lat: number): number {
   return Math.cos((lat * Math.PI) / 180);
