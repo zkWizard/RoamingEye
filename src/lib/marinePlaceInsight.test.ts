@@ -61,6 +61,9 @@ describe("marine boundary SST insights", () => {
       footprint: "unknown",
       validFraction: 0,
       reason: "zero-sst-coverage",
+      // Native sample counts travel with coverage; zero-coverage boundaries
+      // carry none rather than an invented zero tally.
+      sampleCounts: null,
     });
     expect(reading.detail).toContain("0% sampled boundary coverage");
   });
