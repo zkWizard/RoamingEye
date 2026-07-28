@@ -50,12 +50,12 @@ export interface EnvironmentBriefInput {
   availableThrough: YearMonth;
   /**
    * Optional product-specific availability checkpoints. Use this when cited
-   * climate products publish on different monthly schedules; omitted entries
-   * retain the shared `availableThrough` fallback.
+   * products publish on different monthly schedules. Omitted climate entries
+   * retain the shared `availableThrough` fallback; an omitted vegetation entry
+   * leaves vegetation availability unchecked because the shared checkpoint is
+   * climate-scoped.
    */
-  availableThroughBySignal?: Partial<
-    Record<Exclude<EnvironmentSignalId, "vegetation">, YearMonth>
-  >;
+  availableThroughBySignal?: Partial<Record<EnvironmentSignalId, YearMonth>>;
 }
 
 export interface EnvironmentSignalCoverage {
@@ -252,7 +252,10 @@ export function composeEnvironmentBrief(
   input: EnvironmentBriefInput
 ): EnvironmentBrief {
   const signals = [
-    vegetationSignal(input.vegetation),
+    vegetationSignal(
+      input.vegetation,
+      input.availableThroughBySignal?.vegetation
+    ),
     climateSignal(
       CLIMATE_SIGNAL_META.rainfall,
       input.rainfall,
@@ -634,11 +637,23 @@ export function unsupportedBriefLanguageHits(text: string): string[] {
 }
 
 function vegetationSignal(
-  observation: EnvironmentObservation | null
+  observation: EnvironmentObservation | null,
+  availableThrough?: YearMonth
 ): EnvironmentSignalBrief {
   if (!observation) return unavailableSignal(VEGETATION_META);
 
-  const coverage = vegetationCoverage(observation);
+  const observedCoverage = vegetationCoverage(observation);
+  const publicationUnavailable =
+    observedCoverage.status !== "invalid" &&
+    availableThrough !== undefined &&
+    compareYm(observation.dataMonth, availableThrough) > 0;
+  const coverage = publicationUnavailable
+    ? {
+        ...observedCoverage,
+        status: "unavailable" as const,
+        reason: "not-yet-published",
+      }
+    : observedCoverage;
   const status = coverage.status;
   const observedValue = status === "available" ? observation.value : null;
 

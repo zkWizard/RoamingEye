@@ -164,6 +164,7 @@ describe("environment provenance brief", () => {
       },
       availableThrough: { year: 2026, month: 1 },
       availableThroughBySignal: {
+        vegetation: { year: 2026, month: 1 },
         "air-temperature": { year: 2026, month: 3 },
       },
     });
@@ -177,6 +178,62 @@ describe("environment provenance brief", () => {
     expect(brief.signals[3].climateSummary).toMatchObject({
       availableThrough: { year: 2026, month: 3 },
       publicationStatus: "published",
+    });
+  });
+
+  it("withholds vegetation beyond its explicit product checkpoint", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: {
+        dataMonth: { year: 2026, month: 2 },
+        value: 0.61,
+        validFraction: 0.82,
+      },
+      rainfall: null,
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 2 },
+      availableThroughBySignal: {
+        vegetation: { year: 2026, month: 1 },
+      },
+    });
+
+    expect(brief.signals[0]).toMatchObject({
+      id: "vegetation",
+      dataMonth: { year: 2026, month: 2 },
+      status: "unavailable",
+      observedValue: null,
+      coverage: {
+        status: "unavailable",
+        validFraction: 0.82,
+        reason: "not-yet-published",
+      },
+    });
+    expect(brief.statements[0]).toContain(
+      "unavailable observation for 2026-02 (not-yet-published)"
+    );
+    expect(brief.completeness).toMatchObject({
+      available: 0,
+      byStatus: { unavailable: 4 },
+    });
+    expect(brief.temporalAlignment.comparedSignalIds).toEqual([]);
+    expect(brief.unsupportedLanguageHits).toEqual([]);
+  });
+
+  it("keeps vegetation behavior unchanged without a product checkpoint", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: {
+        dataMonth: { year: 2026, month: 2 },
+        value: 0.61,
+      },
+      rainfall: null,
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 1 },
+    });
+
+    expect(brief.signals[0]).toMatchObject({
+      status: "available",
+      observedValue: 0.61,
     });
   });
 
