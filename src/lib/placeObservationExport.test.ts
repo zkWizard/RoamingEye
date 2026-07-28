@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { LAYERS } from "./timeline";
 import {
   GIBS_IMAGERY_SOURCE,
+  PLACE_OBSERVATION_SPATIAL_REFERENCE,
   createPlaceObservationExport,
   placeObservationProductFromSample,
   serializePlaceObservationExport,
@@ -69,7 +70,7 @@ describe("place observation export", () => {
     const exported = createPlaceObservationExport(input);
 
     expect(exported).toMatchObject({
-      schema: "roamingeye-place-observation-export/v3",
+      schema: "roamingeye-place-observation-export/v4",
       kind: "place-observation-export",
       boundary,
       products: [
@@ -119,6 +120,7 @@ describe("place observation export", () => {
         version: "1.1.0",
       },
       reproducibility: {
+        spatialReference: PLACE_OBSERVATION_SPATIAL_REFERENCE,
         canonicalOrder: {
           products: "layer-id-ascending",
           observations: "data-month-ascending",
@@ -279,6 +281,52 @@ describe("place observation export", () => {
         ],
       })
     ).toThrow("Product ndvi has a value with zero sampled coverage.");
+  });
+
+  it("rejects boundaries that cannot reproduce valid CRS84 geography", () => {
+    const withBoundary = (coordinates: unknown) => ({
+      ...input,
+      boundary: { type: "Polygon", coordinates },
+    });
+
+    expect(() =>
+      createPlaceObservationExport(
+        withBoundary([
+          [
+            [-77.1, 38.8],
+            [-76.9, 38.8],
+            [-76.9, 39],
+            [-77.1, 39],
+          ],
+        ])
+      )
+    ).toThrow(
+      "Each boundary ring must close with the same first and last position."
+    );
+    expect(() =>
+      createPlaceObservationExport(
+        withBoundary([
+          [
+            [-181, 38.8],
+            [-76.9, 38.8],
+            [-76.9, 39],
+            [-181, 38.8],
+          ],
+        ])
+      )
+    ).toThrow("Boundary longitude must be between -180 and 180.");
+    expect(() =>
+      createPlaceObservationExport(
+        withBoundary([
+          [
+            [-77.1, 38.8],
+            [-76.9, Number.NaN],
+            [-76.9, 39],
+            [-77.1, 38.8],
+          ],
+        ])
+      )
+    ).toThrow("Boundary positions must contain finite longitude and latitude.");
   });
 
   it("reverses display conversions before exporting cited native units", () => {

@@ -16,7 +16,12 @@ import {
  */
 
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
-  "roamingeye-place-observation-export/v3" as const;
+  "roamingeye-place-observation-export/v4" as const;
+
+export const PLACE_OBSERVATION_SPATIAL_REFERENCE = {
+  id: "OGC:CRS84",
+  axisOrder: "longitude-latitude",
+} as const;
 
 export const GIBS_IMAGERY_SOURCE = {
   name: "NASA Global Imagery Browse Services (GIBS)",
@@ -88,6 +93,7 @@ export interface PlaceObservationExport {
     ];
   };
   reproducibility: {
+    spatialReference: typeof PLACE_OBSERVATION_SPATIAL_REFERENCE;
     canonicalOrder: {
       products: "layer-id-ascending";
       observations: "data-month-ascending";
@@ -200,6 +206,7 @@ export function createPlaceObservationExport(
       excludedFields: EXCLUDED_FIELDS,
     },
     reproducibility: {
+      spatialReference: PLACE_OBSERVATION_SPATIAL_REFERENCE,
       canonicalOrder: {
         products: "layer-id-ascending",
         observations: "data-month-ascending",
@@ -258,6 +265,7 @@ function validateInput(input: PlaceObservationExportInput): void {
       "A Polygon or MultiPolygon boundary is required for export."
     );
   }
+  validateBoundaryCoordinates(input.boundary);
   if (!isIsoTimestamp(input.generatedIso)) {
     throw new Error("generatedIso must be an ISO 8601 timestamp.");
   }
@@ -325,6 +333,51 @@ function validateInput(input: PlaceObservationExportInput): void {
       ) {
         throw new Error(
           `Product ${product.layerId} has invalid sampled coverage.`
+        );
+      }
+    }
+  }
+}
+
+function validateBoundaryCoordinates(boundary: GeoGeometry): void {
+  const polygons =
+    boundary.type === "Polygon"
+      ? [boundary.coordinates]
+      : (boundary.coordinates as unknown[]);
+
+  for (const polygon of polygons) {
+    if (!Array.isArray(polygon) || polygon.length === 0) {
+      throw new Error("Each boundary polygon must contain a linear ring.");
+    }
+    for (const ring of polygon) {
+      if (!Array.isArray(ring) || ring.length < 4) {
+        throw new Error(
+          "Each boundary ring must contain at least four positions."
+        );
+      }
+      for (const position of ring) {
+        if (
+          !Array.isArray(position) ||
+          position.length < 2 ||
+          !Number.isFinite(position[0]) ||
+          !Number.isFinite(position[1])
+        ) {
+          throw new Error(
+            "Boundary positions must contain finite longitude and latitude."
+          );
+        }
+        if (position[0] < -180 || position[0] > 180) {
+          throw new Error("Boundary longitude must be between -180 and 180.");
+        }
+        if (position[1] < -90 || position[1] > 90) {
+          throw new Error("Boundary latitude must be between -90 and 90.");
+        }
+      }
+      const first = ring[0];
+      const last = ring[ring.length - 1];
+      if (first[0] !== last[0] || first[1] !== last[1]) {
+        throw new Error(
+          "Each boundary ring must close with the same first and last position."
         );
       }
     }
