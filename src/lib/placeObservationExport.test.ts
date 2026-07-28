@@ -338,6 +338,22 @@ describe("place observation export", () => {
     ).toBe(json);
   });
 
+  it("detaches static provenance metadata from previously created exports", () => {
+    const first = createPlaceObservationExport(input);
+    const expected = serializePlaceObservationExport(input);
+
+    // Export objects cross an application boundary and may be handed to
+    // consumers that do not preserve readonly TypeScript types. Mutating one
+    // result must not rewrite the module-level provenance used by later runs.
+    (first.method.imagery as { name: string; url: string }).name =
+      "mutated imagery source";
+    (first.privacy.excludedFields as unknown as string[])[0] =
+      "mutated excluded field";
+    (first.limitations as unknown as string[])[0] = "mutated limitation";
+
+    expect(serializePlaceObservationExport(input)).toBe(expected);
+  });
+
   it("rejects ambiguous or invalid reproducibility metadata", () => {
     expect(() =>
       createPlaceObservationExport({

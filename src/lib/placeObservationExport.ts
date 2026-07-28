@@ -247,7 +247,7 @@ export function createPlaceObservationExport(
     products,
     method: {
       sampling: input.method.sampling,
-      imagery: GIBS_IMAGERY_SOURCE,
+      imagery: { ...GIBS_IMAGERY_SOURCE },
       sourceImage: {
         width: input.method.imageWidth,
         height: input.method.imageHeight,
@@ -262,7 +262,7 @@ export function createPlaceObservationExport(
     privacy: {
       includesPersonalData: false,
       includesHiddenTelemetry: false,
-      excludedFields: EXCLUDED_FIELDS,
+      excludedFields: [...EXCLUDED_FIELDS],
     },
     reproducibility: {
       canonicalOrder: {
@@ -271,7 +271,7 @@ export function createPlaceObservationExport(
       },
       dataMonthMatrix: dataMonthMatrix(products),
     },
-    limitations: LIMITATIONS,
+    limitations: [...LIMITATIONS],
   };
 }
 
