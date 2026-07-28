@@ -284,29 +284,30 @@ const UNSUPPORTED_CLAIM_PATTERNS: readonly {
 export function composeEnvironmentBrief(
   input: EnvironmentBriefInput
 ): EnvironmentBrief {
+  const snapshot = snapshotBriefInput(input);
   const signals = [
     vegetationSignal(
-      input.vegetation,
-      input.availableThroughBySignal?.vegetation,
-      unavailableReasonFor(input, "vegetation")
+      snapshot.vegetation,
+      snapshot.availableThroughBySignal?.vegetation,
+      unavailableReasonFor(snapshot, "vegetation")
     ),
     climateSignal(
       CLIMATE_SIGNAL_META.rainfall,
-      input.rainfall,
-      availableThroughFor(input, "rainfall"),
-      unavailableReasonFor(input, "rainfall")
+      snapshot.rainfall,
+      availableThroughFor(snapshot, "rainfall"),
+      unavailableReasonFor(snapshot, "rainfall")
     ),
     climateSignal(
       CLIMATE_SIGNAL_META["soil-moisture"],
-      input.soilMoisture,
-      availableThroughFor(input, "soil-moisture"),
-      unavailableReasonFor(input, "soil-moisture")
+      snapshot.soilMoisture,
+      availableThroughFor(snapshot, "soil-moisture"),
+      unavailableReasonFor(snapshot, "soil-moisture")
     ),
     climateSignal(
       CLIMATE_SIGNAL_META["air-temperature"],
-      input.airTemperature,
-      availableThroughFor(input, "air-temperature"),
-      unavailableReasonFor(input, "air-temperature")
+      snapshot.airTemperature,
+      availableThroughFor(snapshot, "air-temperature"),
+      unavailableReasonFor(snapshot, "air-temperature")
     ),
   ];
   const statements = signals.map((signal) => signal.statement);
@@ -322,9 +323,48 @@ export function composeEnvironmentBrief(
     coverageContext: summarizeCoverageContext(signals),
     dataCurrency: summarizeDataCurrency(
       signals,
-      input.availableThrough,
-      input.availableThroughBySignal
+      snapshot.availableThrough,
+      snapshot.availableThroughBySignal
     ),
+  };
+}
+
+/**
+ * Detach the brief's temporal provenance from mutable sampler state. Callers
+ * commonly reuse observation objects while stepping through months; retaining
+ * those references would let an already-composed brief change after its
+ * statements were written, making the structured month disagree with the
+ * narrative. Values and coverage are primitives, so only month records need
+ * copying.
+ */
+function snapshotBriefInput(
+  input: EnvironmentBriefInput
+): EnvironmentBriefInput {
+  const snapshotObservation = (
+    observation: EnvironmentObservation | null
+  ): EnvironmentObservation | null =>
+    observation
+      ? { ...observation, dataMonth: { ...observation.dataMonth } }
+      : null;
+  const availableThroughBySignal = input.availableThroughBySignal
+    ? Object.fromEntries(
+        Object.entries(input.availableThroughBySignal).map(([id, month]) => [
+          id,
+          { ...month },
+        ])
+      )
+    : undefined;
+
+  return {
+    vegetation: snapshotObservation(input.vegetation),
+    rainfall: snapshotObservation(input.rainfall),
+    soilMoisture: snapshotObservation(input.soilMoisture),
+    airTemperature: snapshotObservation(input.airTemperature),
+    availableThrough: { ...input.availableThrough },
+    availableThroughBySignal,
+    unavailableReasonBySignal: input.unavailableReasonBySignal
+      ? { ...input.unavailableReasonBySignal }
+      : undefined,
   };
 }
 
