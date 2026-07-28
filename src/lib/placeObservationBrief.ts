@@ -46,6 +46,7 @@ export type PlaceObservationProductStatus =
   | "rejected-source"
   | "rejected-native-unit"
   | "rejected-sampling-support"
+  | "rejected-observation-coverage"
   | "rejected-observation-months";
 
 export interface PlaceObservationSelectionProvenance {
@@ -287,9 +288,12 @@ function productStatusFor(
   if (!hasConsistentSamplingSupport(product.samplingSupport)) {
     return "rejected-sampling-support";
   }
-  return hasCanonicalObservationMonths(product.observations)
+  if (!hasCanonicalObservationMonths(product.observations)) {
+    return "rejected-observation-months";
+  }
+  return hasConsistentObservationCoverage(product.observations)
     ? "accepted"
-    : "rejected-observation-months";
+    : "rejected-observation-coverage";
 }
 
 /**
@@ -344,6 +348,27 @@ function hasCanonicalObservationMonths(
     months.add(observation.dataMonth);
   }
   return true;
+}
+
+/**
+ * Recheck serialized coverage before it is used or repeated as provenance.
+ * Null means coverage was not reported; a numeric fraction is bounded to the
+ * sampled area, and zero usable coverage cannot support a recorded value.
+ */
+function hasConsistentObservationCoverage(
+  observations: PlaceObservationExport["products"][number]["observations"]
+): boolean {
+  return observations.every((observation) => {
+    const fraction = observation.validFraction;
+    if (fraction === null || fraction === undefined) return true;
+    return (
+      typeof fraction === "number" &&
+      Number.isFinite(fraction) &&
+      fraction >= 0 &&
+      fraction <= 1 &&
+      (observation.value === null || fraction > 0)
+    );
+  });
 }
 
 function nativeUnitFor(signalId: EnvironmentSignalId): string {
