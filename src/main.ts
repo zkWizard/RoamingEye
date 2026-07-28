@@ -620,26 +620,34 @@ function runPlaceInsights(result: GeoResult): void {
     })
   );
 
-  void Promise.all(samplingTasks).then(() => {
-    if (abort.signal.aborted) return;
-    const products = [...exportSamples.values()].map(
-      placeObservationProductFromSample
-    );
-    if (products.length === 0) return;
-    placeInsights.setObservationExport(
-      serializePlaceObservationExport({
-        boundary: geometry,
-        products,
-        method: {
-          sampling: "area-weighted-grid-mean",
-          imageWidth: 512,
-          imageHeight: 512,
-        },
-        generatedIso: new Date().toISOString(),
-        toolVersion: __APP_VERSION__,
-      })
-    );
-  });
+  void Promise.all(samplingTasks)
+    .then(() => {
+      if (abort.signal.aborted) return;
+      const products = [...exportSamples.values()].map(
+        placeObservationProductFromSample
+      );
+      if (products.length === 0) return;
+      placeInsights.setObservationExport(
+        serializePlaceObservationExport({
+          boundary: geometry,
+          products,
+          method: {
+            sampling: "area-weighted-grid-mean",
+            imageWidth: 512,
+            imageHeight: 512,
+          },
+          generatedIso: new Date().toISOString(),
+          toolVersion: __APP_VERSION__,
+        })
+      );
+    })
+    .catch((error: unknown) => {
+      // Export validation throws on contract violations (unexplained nulls,
+      // invalid footprints). Losing the export beats an unhandled rejection
+      // that would silently strand the whole insights panel.
+      if (isAbortError(error) || abort.signal.aborted) return;
+      console.warn("RoamingEye: place observation export failed", error);
+    });
 }
 
 if (layerEl) {
