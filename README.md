@@ -64,6 +64,14 @@ snowpack tracking, deforestation figures). For **how the tool computes what it
 shows and where it stops being trustworthy** — the probe pipeline, area
 weighting, uncertainty, the seasonal Mann-Kendall / Sen's slope trend test, and
 the measured per-layer inversion accuracy — read [**METHODS.md**](METHODS.md).
+
+**Teaching with it?**
+[**docs/teaching/ndvi-phenology-lab.md**](docs/teaching/ndvi-phenology-lab.md)
+is a ready-to-run 60–75 minute classroom lab — "when does the Earth turn
+green?" — with learning objectives, a student worksheet, an assessment rubric,
+instructor answer notes, and the honest limits written up as teachable
+material. No accounts, no install, works on a Chromebook. Free to adapt (MIT).
+
 A few examples it already supports:
 
 | Field                               | What you can observe                                                       |
