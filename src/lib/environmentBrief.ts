@@ -39,6 +39,9 @@ export interface EnvironmentObservation {
   value: number | null;
   /** Usable share of the sampled area, when spatial sampling provides it. */
   validFraction?: number;
+  /** Bounded source/sampling state retained when no usable value was produced. */
+  unavailableReason?:
+    "source-no-data" | "insufficient-valid-coverage" | "sampling-failed";
 }
 
 export interface EnvironmentBriefInput {
@@ -798,6 +801,13 @@ function climateSignal(
   const publicationUnavailable =
     climateSummary.publicationStatus !== "published";
   const coverage = signalCoverageFromClimate(climateSummary.coverage);
+  if (
+    observation.value === null &&
+    observation.unavailableReason &&
+    coverage.status === "no-data"
+  ) {
+    coverage.reason = observation.unavailableReason;
+  }
   const status = publicationUnavailable ? "unavailable" : coverage.status;
   const observedValue =
     status === "available" ? climateSummary.observedValue : null;
@@ -868,7 +878,10 @@ function vegetationCoverage(
     return {
       status: "no-data",
       validFraction: fraction ?? null,
-      reason: observation.value === null ? "missing-value" : "zero-coverage",
+      reason:
+        observation.value === null
+          ? (observation.unavailableReason ?? "missing-value")
+          : "zero-coverage",
     };
   }
   if (

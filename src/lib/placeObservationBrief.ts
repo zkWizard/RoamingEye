@@ -437,6 +437,7 @@ function latestObservation(
     dataMonth: latest.month,
     value: latest.observation.value,
     validFraction: latest.observation.validFraction ?? undefined,
+    unavailableReason: latest.observation.unavailableReason ?? undefined,
   };
 }
 
@@ -447,6 +448,7 @@ function invalidObservation(
     dataMonth: { year: 0, month: 0 },
     value: observation.value,
     validFraction: observation.validFraction ?? undefined,
+    unavailableReason: observation.unavailableReason ?? undefined,
   };
 }
 
