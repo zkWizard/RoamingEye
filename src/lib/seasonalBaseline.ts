@@ -64,6 +64,11 @@ export interface SeasonalBaselineSample {
   value: number;
   validFraction: number;
   publicationLagMonths: number;
+  /**
+   * Rendered source-image dimensions retained from the monthly observation.
+   * Null means unavailable or invalid; dimensions are not ground resolution.
+   */
+  sourceImageDimensions: { width: number; height: number } | null;
 }
 
 export interface SeasonalBaselineStatistics {
@@ -226,6 +231,9 @@ export function compareMonthlyClimateToSeasonalBaseline(
       value: summary.observedValue,
       validFraction: summary.coverage.validFraction,
       publicationLagMonths: summary.publicationLagMonths,
+      sourceImageDimensions: summary.sourceImageDimensions
+        ? { ...summary.sourceImageDimensions }
+        : null,
     });
   }
 

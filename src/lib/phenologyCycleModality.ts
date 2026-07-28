@@ -114,6 +114,15 @@ export interface NdviCycleModalityCoverage {
   gapCount: number;
   /** Little-change transitions treated as dead-band trend continuations. */
   littleChangeCount: number;
+  /** Distinct observed months represented by transition endpoints. */
+  observedMonthCount: number;
+}
+
+export interface NdviCycleModalityDataPeriod {
+  /** Earliest month represented by a retained consecutive-month transition. */
+  firstMonth: YearMonth;
+  /** Latest month represented by a retained consecutive-month transition. */
+  lastMonth: YearMonth;
 }
 
 export interface NdviCycleModalitySummary {
@@ -125,6 +134,11 @@ export interface NdviCycleModalitySummary {
   /** Dead band inherited from the change summary that suppressed noise wiggles. */
   stabilityThreshold: number;
   coverage: NdviCycleModalityCoverage;
+  /**
+   * Bounds of months represented by retained transitions. Null when there are
+   * no transitions; bounds do not imply continuous coverage between them.
+   */
+  dataPeriod: NdviCycleModalityDataPeriod | null;
   /** Gap-free runs, in calendar order. */
   segments: NdviContiguousSegment[];
   /** All turning points across every run, in calendar order. */
@@ -182,7 +196,9 @@ export function summarizeNdviCycleModality(
         segmentCount: 0,
         gapCount: 0,
         littleChangeCount: 0,
+        observedMonthCount: 0,
       },
+      dataPeriod: null,
       segments: [],
       reversals: [],
       totalGreennessMaximaCount: 0,
@@ -194,6 +210,11 @@ export function summarizeNdviCycleModality(
 
   const runs = groupContiguousRuns(transitions);
   const segments = runs.map((run) => describeSegment(run, change.hemisphere));
+  const observedMonths = new Set<number>();
+  for (const transition of transitions) {
+    observedMonths.add(monthIndex(transition.from));
+    observedMonths.add(monthIndex(transition.to));
+  }
 
   const reversals = segments.flatMap((segment) => segment.reversals);
   const totalGreennessMaximaCount = segments.reduce(
@@ -213,6 +234,11 @@ export function summarizeNdviCycleModality(
       segmentCount: segments.length,
       gapCount: segments.length - 1,
       littleChangeCount,
+      observedMonthCount: observedMonths.size,
+    },
+    dataPeriod: {
+      firstMonth: segments[0].startMonth,
+      lastMonth: segments[segments.length - 1].endMonth,
     },
     segments,
     reversals,

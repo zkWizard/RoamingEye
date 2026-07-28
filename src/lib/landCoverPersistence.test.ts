@@ -28,6 +28,7 @@ describe("land-cover persistence summaries", () => {
         knownLandCoverYearCount: 4,
         unclassifiedYearCount: 0,
         noDataYearCount: 0,
+        outsideLayerRangeYearCount: 0,
         invalidRecordCount: 0,
         isSparse: false,
         reason: null,
@@ -162,6 +163,62 @@ describe("land-cover persistence summaries", () => {
     expect(summary.coverage.knownLandCoverYearCount).toBe(0);
     expect(summary.coverage.reason).toBe("no-years");
     expect(summary.persistence).toBeNull();
+  });
+
+  it("withholds classes from years outside the published layer range", () => {
+    const summary = summarizeLandCoverPersistence([
+      { year: 2023, classCode: 12 },
+      { year: 2024, classCode: 12 },
+      { year: 2025, classCode: 10 },
+    ]);
+
+    expect(summary.coverage).toMatchObject({
+      status: "available",
+      yearSpan: { firstYear: 2023, lastYear: 2024 },
+      knownLandCoverYearCount: 2,
+      outsideLayerRangeYearCount: 1,
+      invalidRecordCount: 0,
+      reason: null,
+    });
+    expect(summary.classTenure).toEqual([
+      {
+        classCode: 12,
+        label: "Cropland",
+        yearCount: 2,
+        fractionOfKnownYears: 1,
+        years: [2023, 2024],
+      },
+    ]);
+    expect(summary.persistence?.modalClassCode).toBe(12);
+  });
+
+  it("reports a distinct unavailable state when no requested year is published", () => {
+    const summary = summarizeLandCoverPersistence([
+      { year: 2000, classCode: 2 },
+      { year: 2025, classCode: 12 },
+    ]);
+
+    expect(summary.coverage).toMatchObject({
+      status: "no-data",
+      yearSpan: null,
+      knownLandCoverYearCount: 0,
+      outsideLayerRangeYearCount: 2,
+      invalidRecordCount: 0,
+      isSparse: true,
+      reason: "no-published-years",
+    });
+    expect(summary.classTenure).toEqual([]);
+    expect(summary.persistence).toBeNull();
+  });
+
+  it("rejects unsafe integer years rather than treating them as calendar years", () => {
+    const summary = summarizeLandCoverPersistence([
+      { year: Number.MAX_SAFE_INTEGER + 1, classCode: 12 },
+    ]);
+
+    expect(summary.coverage.invalidRecordCount).toBe(1);
+    expect(summary.coverage.outsideLayerRangeYearCount).toBe(0);
+    expect(summary.coverage.reason).toBe("no-years");
   });
 
   it("reports no-years for an empty series", () => {

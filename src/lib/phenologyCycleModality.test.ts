@@ -51,6 +51,11 @@ describe("NDVI cycle modality", () => {
       segmentCount: 1,
       gapCount: 0,
       littleChangeCount: 0,
+      observedMonthCount: 5,
+    });
+    expect(summary.dataPeriod).toEqual({
+      firstMonth: { year: 2025, month: 1 },
+      lastMonth: { year: 2025, month: 5 },
     });
     expect(summary.segments).toHaveLength(1);
     expect(summary.segments[0]).toMatchObject({
@@ -157,6 +162,11 @@ describe("NDVI cycle modality", () => {
       transitionCount: 4,
       segmentCount: 2,
       gapCount: 1,
+      observedMonthCount: 6,
+    });
+    expect(summary.dataPeriod).toEqual({
+      firstMonth: { year: 2025, month: 1 },
+      lastMonth: { year: 2025, month: 8 },
     });
     expect(summary.segments.map((s) => s.greennessMaximaCount)).toEqual([1, 1]);
     expect(summary.totalGreennessMaximaCount).toBe(2);
@@ -184,7 +194,9 @@ describe("NDVI cycle modality", () => {
       segmentCount: 0,
       gapCount: 0,
       littleChangeCount: 0,
+      observedMonthCount: 0,
     });
+    expect(summary.dataPeriod).toBeNull();
     expect(summary.segments).toEqual([]);
     expect(summary.reversals).toEqual([]);
   });

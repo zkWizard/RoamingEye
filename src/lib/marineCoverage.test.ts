@@ -27,6 +27,7 @@ describe("marine coverage summaries", () => {
         reason: null,
       },
       sourceImageDimensions: { width: 2048, height: 1024 },
+      sourceImageDimensionsStatus: "supplied",
     });
     expect(summary.accessibleText).toContain("74% of the supplied footprint");
     expect(summary.accessibleText).toContain(
@@ -49,6 +50,7 @@ describe("marine coverage summaries", () => {
       reason: null,
     });
     expect(summary.sourceImageDimensions).toBeNull();
+    expect(summary.sourceImageDimensionsStatus).toBe("not-supplied");
     expect(summary.accessibleText).toContain(
       "Source image dimensions were not supplied"
     );
@@ -83,7 +85,7 @@ describe("marine coverage summaries", () => {
     });
   });
 
-  it("rejects invalid coverage and discards invalid image dimensions", () => {
+  it("rejects invalid coverage and exposes invalid image dimensions", () => {
     const summary = summarizeMarineCoverage({
       dataMonth: { year: 2026, month: 3 },
       footprint: "water",
@@ -99,6 +101,10 @@ describe("marine coverage summaries", () => {
       reason: "invalid-coverage",
     });
     expect(summary.sourceImageDimensions).toBeNull();
+    expect(summary.sourceImageDimensionsStatus).toBe("invalid");
+    expect(summary.accessibleText).toContain(
+      "Supplied source image dimensions were invalid"
+    );
   });
 
   it("preserves native sample counts and derives coverage when no fraction is supplied", () => {

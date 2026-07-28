@@ -1,6 +1,5 @@
 import {
   geometryBounds,
-  isAreaGeometry,
   type GeoGeometry,
   type GeometrySamplingStrategy,
 } from "./geojson";
@@ -295,7 +294,13 @@ export function placeObservationProductFromSample(
 }
 
 function validateInput(input: PlaceObservationExportInput): void {
-  if (!isAreaGeometry(input.boundary)) {
+  // Type check first, then detailed ring validation: isAreaGeometry also
+  // rejects malformed rings, which would mask the specific footprint
+  // diagnostics below behind the generic wrong-type message.
+  if (
+    input.boundary.type !== "Polygon" &&
+    input.boundary.type !== "MultiPolygon"
+  ) {
     throw new Error(
       "A Polygon or MultiPolygon boundary is required for export."
     );
@@ -489,7 +494,10 @@ function exportProducts(
     .map((product) => ({
       layerId: product.layerId,
       wmsLayer: product.wmsLayer,
-      source: { ...product.source },
+      // Emit citation fields in contract order rather than preserving the
+      // caller's object insertion order. Equivalent citations must produce
+      // byte-identical reproducibility records.
+      source: canonicalDatasetRef(product.source),
       nativeUnit: product.nativeUnit,
       samplingSupport: product.samplingSupport
         ? { ...product.samplingSupport }
@@ -586,6 +594,15 @@ function hasCitation(source: DatasetRef): boolean {
   );
 }
 
+function canonicalDatasetRef(source: DatasetRef): DatasetRef {
+  return {
+    shortName: source.shortName,
+    version: source.version,
+    doi: source.doi,
+    title: source.title,
+  };
+}
+
 function isPositiveInteger(value: number): boolean {
   return Number.isInteger(value) && value > 0;
 }
@@ -597,6 +614,8 @@ function isIsoTimestamp(value: string): boolean {
 function isYearMonth(value: YearMonth): boolean {
   return (
     Number.isInteger(value.year) &&
+    value.year >= 1000 &&
+    value.year <= 9999 &&
     Number.isInteger(value.month) &&
     value.month >= 1 &&
     value.month <= 12
