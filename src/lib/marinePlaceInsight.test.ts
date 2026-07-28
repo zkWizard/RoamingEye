@@ -23,6 +23,7 @@ describe("marine boundary SST insights", () => {
       dataMonth: { year: 2026, month: 3 },
       observedValue: 18.375,
       observationStatus: "observed",
+      unavailableReason: null,
     });
     expect(reading.coverage).toMatchObject({
       kind: "sea-surface-temperature-coverage",
@@ -56,6 +57,7 @@ describe("marine boundary SST insights", () => {
     expect(reading.value).toBe("No usable SST observation");
     expect(reading.observedValue).toBeNull();
     expect(reading.observationStatus).toBe("no-sst-coverage");
+    expect(reading.unavailableReason).toBe("zero-sst-coverage");
     expect(reading.coverage?.coverage).toEqual({
       status: "no-sst-coverage",
       footprint: "unknown",
@@ -79,6 +81,7 @@ describe("marine boundary SST insights", () => {
     expect(reading.value).toBe("No usable SST observation");
     expect(reading.observedValue).toBeNull();
     expect(reading.observationStatus).toBe("invalid-sample");
+    expect(reading.unavailableReason).toBe("invalid-coverage");
     expect(reading.coverage?.coverage.reason).toBe("invalid-coverage");
     expect(reading.detail).toContain("sampled coverage not supplied");
   });
@@ -94,6 +97,28 @@ describe("marine boundary SST insights", () => {
     expect(reading.value).toBe("No usable SST observation");
     expect(reading.observedValue).toBeNull();
     expect(reading.observationStatus).toBe("invalid-sample");
+    expect(reading.unavailableReason).toBe("invalid-sst-value");
+  });
+
+  it("withholds SST when source image dimensions are invalid", () => {
+    const reading = marineBoundarySstReading({
+      dataMonth: { year: 2026, month: 3 },
+      observedValue: 18.4,
+      validFraction: 0.75,
+      sourceImageDimensions: { width: 0, height: 512 },
+    });
+
+    expect(reading).toMatchObject({
+      value: "No usable SST observation",
+      observedValue: null,
+      observationStatus: "invalid-sample",
+      unavailableReason: "invalid-source-image-dimensions",
+    });
+    expect(reading.coverage?.sourceImageDimensions).toBeNull();
+    expect(reading.detail).toContain(
+      "rendered source image dimensions invalid"
+    );
+    expect(reading.detail).toContain("not a marine-biology observation");
   });
 
   it("keeps source mapping failures distinct from sampled no-coverage", () => {
@@ -108,6 +133,7 @@ describe("marine boundary SST insights", () => {
       coverage: null,
       marineBiologyObservation: false,
       dataMonth: { year: 2026, month: 3 },
+      unavailableReason: "source-colormap-unavailable",
     });
   });
 });
