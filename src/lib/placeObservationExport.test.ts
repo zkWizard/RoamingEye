@@ -5,6 +5,7 @@ import {
   createPlaceObservationExport,
   placeObservationProductFromSample,
   serializePlaceObservationExport,
+  sstPlaceObservationFromSample,
 } from "./placeObservationExport";
 
 const boundary = {
@@ -85,6 +86,56 @@ const input = {
 };
 
 describe("place observation export", () => {
+  it("preserves distinct unavailable states for completed SST sampling", () => {
+    const dataMonth = { year: 2026, month: 5 };
+
+    expect(sstPlaceObservationFromSample(dataMonth, null, 0)).toEqual({
+      dataMonth,
+      value: null,
+      validFraction: 0,
+      unavailableReason: "source-no-data",
+    });
+    expect(sstPlaceObservationFromSample(dataMonth, null, 0.18)).toEqual({
+      dataMonth,
+      value: null,
+      validFraction: 0.18,
+      unavailableReason: "insufficient-valid-coverage",
+    });
+    expect(sstPlaceObservationFromSample(dataMonth, 18.375, 0.37)).toEqual({
+      dataMonth,
+      value: 18.375,
+      validFraction: 0.37,
+    });
+  });
+
+  it("serializes unavailable SST without dropping the place export", () => {
+    const sst = placeObservationProductFromSample({
+      layerId: "sst",
+      observations: [
+        sstPlaceObservationFromSample({ year: 2026, month: 5 }, null, 0.18),
+      ],
+    });
+
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [sst],
+    });
+
+    expect(exported.products[0].observations).toEqual([
+      {
+        dataMonth: "2026-05",
+        value: null,
+        validFraction: 0.18,
+        unavailableReason: "insufficient-valid-coverage",
+      },
+    ]);
+    expect(exported.reproducibility.dataMonthMatrix).toEqual([
+      {
+        dataMonth: "2026-05",
+        layers: [{ layerId: "sst", recordStatus: "no-data-recorded" }],
+      },
+    ]);
+  });
   it("exports boundary SST in native °C with MODIS provenance and coverage", () => {
     const product = placeObservationProductFromSample({
       layerId: "sst",
@@ -287,6 +338,22 @@ describe("place observation export", () => {
     ).toBe(json);
   });
 
+  it("detaches static provenance metadata from previously created exports", () => {
+    const first = createPlaceObservationExport(input);
+    const expected = serializePlaceObservationExport(input);
+
+    // Export objects cross an application boundary and may be handed to
+    // consumers that do not preserve readonly TypeScript types. Mutating one
+    // result must not rewrite the module-level provenance used by later runs.
+    (first.method.imagery as { name: string; url: string }).name =
+      "mutated imagery source";
+    (first.privacy.excludedFields as unknown as string[])[0] =
+      "mutated excluded field";
+    (first.limitations as unknown as string[])[0] = "mutated limitation";
+
+    expect(serializePlaceObservationExport(input)).toBe(expected);
+  });
+
   it("rejects ambiguous or invalid reproducibility metadata", () => {
     expect(() =>
       createPlaceObservationExport({
@@ -357,6 +424,32 @@ describe("place observation export", () => {
     expect(() =>
       createPlaceObservationExport({
         ...input,
+        generatedIso: "2026-04-30T23:30:00-07:00",
+        products: [
+          {
+            ...input.products[0],
+            observations: [{ dataMonth: { year: 2026, month: 5 }, value: 0.1 }],
+          },
+        ],
+      })
+    ).toThrow(
+      "Product ndvi has data month 2026-05 after export generation month 2026-04."
+    );
+    expect(
+      createPlaceObservationExport({
+        ...input,
+        generatedIso: "2026-05-01T00:30:00+14:00",
+        products: [
+          {
+            ...input.products[0],
+            observations: [{ dataMonth: { year: 2026, month: 5 }, value: 0.1 }],
+          },
+        ],
+      }).products[0].observations[0].dataMonth
+    ).toBe("2026-05");
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
         products: [
           {
             ...input.products[0],
@@ -396,6 +489,89 @@ describe("place observation export", () => {
         ],
       })
     ).toThrow("Product ndvi has an invalid data month.");
+  });
+
+  it("rejects product identifiers paired with different source provenance", () => {
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            wmsLayer: LAYERS.precip.wmsLayer,
+          },
+        ],
+      })
+    ).toThrow(
+      "Product ndvi WMS layer does not match the configured RoamingEye data product."
+    );
+
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            source: LAYERS.precip.dataset!,
+          },
+        ],
+      })
+    ).toThrow(
+      "Product ndvi citation does not match the configured RoamingEye data product."
+    );
+  });
+
+  it.each([
+    "source-no-data",
+    "insufficient-valid-coverage",
+    "sampling-failed",
+  ] as const)("preserves the supported unavailable state %s", (reason) => {
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [
+        {
+          ...input.products[0],
+          observations: [
+            {
+              dataMonth: { year: 2026, month: 4 },
+              value: null,
+              unavailableReason: reason,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(exported.products[0].observations[0]).toMatchObject({
+      value: null,
+      unavailableReason: reason,
+    });
+  });
+
+  it("rejects unsupported unavailable states from untyped export inputs", () => {
+    const untypedInput = {
+      ...input,
+      products: [
+        {
+          ...input.products[0],
+          observations: [
+            {
+              dataMonth: { year: 2026, month: 4 },
+              value: null,
+              unavailableReason: "low-confidence",
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(() =>
+      createPlaceObservationExport(
+        untypedInput as unknown as Parameters<
+          typeof createPlaceObservationExport
+        >[0]
+      )
+    ).toThrow("Product ndvi has an unsupported unavailable reason.");
   });
 
   it.each([
@@ -590,6 +766,38 @@ describe("place observation export", () => {
         ],
       })
     ).toThrow("Product ndvi has inconsistent sampling-support counts.");
+  });
+
+  it("rejects contradictory geometry sampling-support plan metadata", () => {
+    for (const samplingSupport of [
+      {
+        ...input.products[0].samplingSupport,
+        candidatePointCount: 783,
+      },
+      {
+        ...input.products[0].samplingSupport,
+        pointLimitApplied: false,
+      },
+      {
+        ...input.products[0].samplingSupport,
+        pointLimitApplied: "yes",
+      },
+    ]) {
+      expect(() =>
+        createPlaceObservationExport({
+          ...input,
+          products: [
+            {
+              ...input.products[0],
+              samplingSupport:
+                samplingSupport as (typeof input.products)[0]["samplingSupport"],
+            },
+          ],
+        })
+      ).toThrow(
+        "Product ndvi has inconsistent sampling-support plan metadata."
+      );
+    }
   });
 
   it("rejects non-reproducible sample-to-native transforms", () => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   climateInsightText,
   climateMetricForLayer,
+  exportObservationsFromRenderedClimateSample,
   observationsFromRenderedClimateSample,
   summarizeRenderedClimateSample,
 } from "./meteorology";
@@ -172,5 +173,71 @@ describe("rendered monthly meteorology", () => {
         "+1 °C vs 2026-01; native source value 274.15 K (kelvin to Celsius is an exact −273.15 offset)"
       ),
     });
+  });
+
+  it("withholds unusable rendered values from exports without losing month or coverage", () => {
+    const observations = exportObservationsFromRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [
+          { year: 2026, month: 1 },
+          { year: 2026, month: 2 },
+          { year: 2026, month: 3 },
+          { year: 2026, month: 4 },
+        ],
+        sampledValues: [280, Number.NaN, null, null],
+        nativeToSampledValueFactor: 1,
+        validFractions: [0.9, 0.8, 0.25, 0],
+      },
+      { year: 2026, month: 3 }
+    );
+
+    expect(observations).toEqual([
+      {
+        dataMonth: { year: 2026, month: 1 },
+        value: 280,
+        validFraction: 0.9,
+      },
+      {
+        dataMonth: { year: 2026, month: 2 },
+        value: null,
+        unavailableReason: "sampling-failed",
+        validFraction: 0.8,
+      },
+      {
+        dataMonth: { year: 2026, month: 3 },
+        value: null,
+        unavailableReason: "insufficient-valid-coverage",
+        validFraction: 0.25,
+      },
+      {
+        dataMonth: { year: 2026, month: 4 },
+        value: null,
+        unavailableReason: "sampling-failed",
+        validFraction: 0,
+      },
+    ]);
+  });
+
+  it("withholds physically impossible climate values from exports", () => {
+    expect(
+      exportObservationsFromRenderedClimateSample(
+        {
+          metricId: "precipitation-rate",
+          months: [{ year: 2026, month: 1 }],
+          sampledValues: [-1],
+          nativeToSampledValueFactor: 86_400,
+          validFractions: [1],
+        },
+        { year: 2026, month: 1 }
+      )
+    ).toEqual([
+      {
+        dataMonth: { year: 2026, month: 1 },
+        value: null,
+        unavailableReason: "sampling-failed",
+        validFraction: 1,
+      },
+    ]);
   });
 });
