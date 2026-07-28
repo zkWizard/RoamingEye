@@ -1,6 +1,9 @@
 import {
   bibtexDataset,
   bibtexTool,
+  cslDataset,
+  cslJson,
+  cslTool,
   risDataset,
   risTool,
   textDataset,
@@ -67,6 +70,9 @@ export function briefCitationBundle(
   }
   if (format === "text") {
     return [textTool(), ...datasets.map(textDataset)].join("\n\n") + "\n";
+  }
+  if (format === "csljson") {
+    return cslJson([cslTool(), ...datasets.map(cslDataset)]);
   }
   return [bibtexTool(), ...datasets.map(bibtexDataset)].join("\n\n") + "\n";
 }
