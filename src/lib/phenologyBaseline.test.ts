@@ -125,8 +125,66 @@ describe("seasonal NDVI baseline comparisons", () => {
       status: "no-data",
       differenceFromBaseline: null,
       reason: "missing-value",
-      exclusions: { duplicateYear: 1 },
+      exclusions: { duplicateYear: 2 },
       target: { coverage: { status: "no-data", validFraction: 0.8 } },
+    });
+  });
+
+  it("withholds every record from a duplicated year regardless of input order", () => {
+    const uniqueYears = [
+      ndvi(2019, 7, 0.31),
+      ndvi(2020, 7, 0.36),
+      ndvi(2021, 7, 0.42),
+    ];
+    const duplicateA = ndvi(2022, 7, 0.1);
+    const duplicateB = ndvi(2022, 7, 0.9);
+    const compare = (candidates: NdviMonthlyObservation[]) =>
+      compareMonthlyNdviToSeasonalBaseline(
+        ndvi(2025, 7, 0.5),
+        candidates,
+        AVAILABLE_THROUGH,
+        45,
+        { minimumSamples: 3 }
+      );
+
+    const forward = compare([...uniqueYears, duplicateA, duplicateB]);
+    const reversed = compare([...uniqueYears, duplicateB, duplicateA]);
+
+    expect(forward).toMatchObject({
+      status: "available",
+      exclusions: { duplicateYear: 2 },
+      baseline: { sampleCount: 3 },
+      bounds: { calendarMonth: 7, endYear: 2024 },
+    });
+    expect(forward.samples.map((sample) => sample.month.year)).toEqual([
+      2019, 2020, 2021,
+    ]);
+    expect(forward.baseline).toEqual(reversed.baseline);
+    expect(forward.differenceFromBaseline).toBe(
+      reversed.differenceFromBaseline
+    );
+  });
+
+  it("reports insufficient samples when duplicate-year ambiguity removes the apparent floor", () => {
+    const comparison = compareMonthlyNdviToSeasonalBaseline(
+      ndvi(2025, 7, 0.5),
+      [
+        ndvi(2020, 7, 0.3),
+        ndvi(2021, 7, 0.4),
+        ndvi(2022, 7, 0.1),
+        ndvi(2022, 7, 0.9),
+      ],
+      AVAILABLE_THROUGH,
+      45,
+      { minimumSamples: 3 }
+    );
+
+    expect(comparison).toMatchObject({
+      status: "insufficient-samples",
+      reason: "too-few-same-calendar-month-samples",
+      differenceFromBaseline: null,
+      exclusions: { duplicateYear: 2 },
+      baseline: { sampleCount: 2, requiredSampleCount: 3 },
     });
   });
 
