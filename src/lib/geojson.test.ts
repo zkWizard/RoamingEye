@@ -102,6 +102,35 @@ describe("geometryToRings", () => {
     expect(geometryGridPoints(geometry, 5)).toHaveLength(24);
   });
 
+  it("classifies polygon boundaries consistently without filling hole interiors", () => {
+    const geometry = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [0, 0],
+          [10, 0],
+          [10, 10],
+          [0, 10],
+          [0, 0],
+        ],
+        [
+          [4, 4],
+          [6, 4],
+          [6, 6],
+          [4, 6],
+          [4, 4],
+        ],
+      ],
+    };
+
+    expect(geometryContains(geometry, 0, 5)).toBe(true);
+    expect(geometryContains(geometry, 10, 10)).toBe(true);
+    expect(geometryContains(geometry, 4, 5)).toBe(true);
+    expect(geometryContains(geometry, 4, 4)).toBe(true);
+    expect(geometryContains(geometry, 5, 5)).toBe(false);
+    expect(geometryContains(geometry, 0, 10.000_000_001)).toBe(false);
+  });
+
   it("recognizes multipolygons as sampleable areas", () => {
     const geometry = {
       type: "MultiPolygon",
@@ -173,6 +202,26 @@ describe("geometryToRings", () => {
     for (const point of points) {
       expect(geometryContains(geometry, point.lat, point.lon)).toBe(true);
     }
+  });
+
+  it("includes polygon edges in either antimeridian longitude frame", () => {
+    const geometry = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [179, -1],
+          [-179, -1],
+          [-179, 1],
+          [179, 1],
+          [179, -1],
+        ],
+      ],
+    };
+
+    expect(geometryContains(geometry, 0, 179)).toBe(true);
+    expect(geometryContains(geometry, 0, -179)).toBe(true);
+    expect(geometryContains(geometry, 0, 181)).toBe(true);
+    expect(geometryContains(geometry, 1.000_000_001, 180)).toBe(false);
   });
 
   it("refines sparse multipolygon masks without leaving the short-arc frame", () => {

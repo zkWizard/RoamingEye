@@ -188,16 +188,41 @@ export function geometryBounds(geometry: GeoGeometry): GeometryBounds | null {
     : null;
 }
 
-function pointInRing(lon: number, lat: number, ring: Position[]): boolean {
+type RingLocation = "exterior" | "interior" | "boundary";
+
+function pointOnSegment(
+  lon: number,
+  lat: number,
+  [startLon, startLat]: Position,
+  [endLon, endLat]: Position
+): boolean {
+  const dx = endLon - startLon;
+  const dy = endLat - startLat;
+  const cross = (lon - startLon) * dy - (lat - startLat) * dx;
+  const scale = Math.max(
+    1,
+    Math.abs(dx),
+    Math.abs(dy),
+    Math.abs(lon - startLon),
+    Math.abs(lat - startLat)
+  );
+  if (Math.abs(cross) > Number.EPSILON * scale * scale * 8) return false;
+  const dot =
+    (lon - startLon) * (lon - endLon) + (lat - startLat) * (lat - endLat);
+  return dot <= Number.EPSILON * scale * scale * 8;
+}
+
+function pointInRing(lon: number, lat: number, ring: Position[]): RingLocation {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
     const [xi, yi] = ring[i];
     const [xj, yj] = ring[j];
+    if (pointOnSegment(lon, lat, ring[j], ring[i])) return "boundary";
     const crosses =
       yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
     if (crosses) inside = !inside;
   }
-  return inside;
+  return inside ? "interior" : "exterior";
 }
 
 function preparedPolygonContains(
@@ -207,9 +232,13 @@ function preparedPolygonContains(
 ): boolean {
   const reference = averageLon(polygon.outer);
   const framedLon = lonInFrame(lon, reference);
-  return (
-    pointInRing(framedLon, lat, polygon.outer) &&
-    !polygon.holes.some((hole) => pointInRing(framedLon, lat, hole))
+  const outerLocation = pointInRing(framedLon, lat, polygon.outer);
+  if (outerLocation === "exterior") return false;
+  // A hole's interior is outside the polygon, but its ring remains part of the
+  // polygon boundary. Keeping that distinction avoids side-dependent results
+  // for exact search coordinates that land on an edge or vertex.
+  return !polygon.holes.some(
+    (hole) => pointInRing(framedLon, lat, hole) === "interior"
   );
 }
 
