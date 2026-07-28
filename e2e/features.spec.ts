@@ -523,6 +523,14 @@ test("modals trap focus and restore it on close", async ({ page }) => {
 });
 
 test("restores the last session; a URL hash still wins", async ({ page }) => {
+  // Three full boots (the beforeEach, plus two revisits), and beforeEach time
+  // counts against the test budget. A boot is only fast when imagery is warm:
+  // a cold sharp image is allowed 15s before it times out and the curtain
+  // lifts on the retry path, so the worst case is ~45s of boot alone and the
+  // default 30s cannot cover it. This spec asserts session restore, not
+  // network speed — give it room rather than letting GIBS latency decide.
+  test.setTimeout(120_000);
+
   // Change the working context: EVI layer + Grid overlay.
   await page.locator(".layer-selector__trigger").click();
   await page

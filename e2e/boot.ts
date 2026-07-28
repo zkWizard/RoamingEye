@@ -24,10 +24,21 @@ export async function awaitAppInteractive(
   timeout = 30_000
 ): Promise<void> {
   await page.waitForFunction(
-    () =>
-      window.__APP_READY__ === true &&
-      document.querySelector("#loader")?.classList.contains("is-hidden") ===
-        true,
+    () => {
+      const loader = document.querySelector("#loader");
+      // Computed visibility, not the class: `.is-hidden` starts a 0.6s fade,
+      // and until it finishes the curtain is still painted over the app and
+      // still in the accessibility tree. Tests that acted on the class raced
+      // the fade — clicks landed on a curtain that was merely going away, and
+      // an axe scan measured the fading "Loading Earth…" against the globe
+      // showing through it. Visibility flips only when the fade is done, so
+      // this waits for what a real person waits for.
+      return (
+        window.__APP_READY__ === true &&
+        !!loader &&
+        getComputedStyle(loader).visibility === "hidden"
+      );
+    },
     null,
     { timeout }
   );
