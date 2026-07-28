@@ -116,6 +116,7 @@ describe("place observation environmental brief", () => {
       id: "soil-moisture",
       status: "no-data",
       observedValue: null,
+      coverage: { reason: "source-no-data" },
     });
     expect(result.brief.signals[3]).toMatchObject({
       id: "air-temperature",
@@ -125,6 +126,32 @@ describe("place observation environmental brief", () => {
     });
     expect(result.brief.unsupportedLanguageHits).toEqual([]);
     expect("score" in result).toBe(false);
+  });
+
+  it.each([
+    "source-no-data",
+    "insufficient-valid-coverage",
+    "sampling-failed",
+  ] as const)("preserves the exported %s unavailable state", (reason) => {
+    const record = exportRecord();
+    record.products.find((p) => p.layerId === "precip")!.observations = [
+      {
+        dataMonth: "2026-01",
+        value: null,
+        validFraction: 0,
+        unavailableReason: reason,
+      },
+    ];
+
+    const result = composePlaceObservationBrief(record);
+
+    expect(result.brief.signals[1]).toMatchObject({
+      id: "rainfall",
+      status: "no-data",
+      observedValue: null,
+      coverage: { validFraction: 0, reason },
+    });
+    expect(result.brief.signals[1].statement).toContain(`(${reason})`);
   });
 
   it("rejects source or unit mismatches instead of relabelling them", () => {
