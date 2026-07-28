@@ -4,6 +4,7 @@ import {
   attributeBrief,
   composeEnvironmentBrief,
   summarizeCompleteness,
+  summarizeCoverageContext,
   summarizeDataCurrency,
   summarizeTemporalAlignment,
   unsupportedBriefLanguageHits,
@@ -202,6 +203,68 @@ describe("environment provenance brief", () => {
     expect(brief.statements.join(" ")).not.toMatch(
       /\b(risk|diagnos|forecast|predict|compliance|health|cause|because|due to)\b/i
     );
+  });
+});
+
+describe("environment brief cross-signal coverage context", () => {
+  it("preserves supplied coverage while warning that source footprints are independent", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: {
+        dataMonth: { year: 2026, month: 1 },
+        value: 0.61,
+        validFraction: 0.82,
+      },
+      rainfall: {
+        dataMonth: { year: 2026, month: 1 },
+        value: 0.00012,
+        validFraction: 0.745,
+      },
+      soilMoisture: { dataMonth: { year: 2026, month: 1 }, value: 6.4 },
+      airTemperature: {
+        dataMonth: { year: 2026, month: 2 },
+        value: null,
+        validFraction: 0.9,
+      },
+      availableThrough: { year: 2026, month: 2 },
+    });
+
+    expect(brief.coverageContext).toEqual({
+      suppliedSignalIds: ["vegetation", "rainfall"],
+      unsuppliedSignalIds: ["soil-moisture"],
+      minimumValidFraction: 0.745,
+      maximumValidFraction: 0.82,
+      statement:
+        "2 usable signals reported 74.5% to 82% sampled coverage. Coverage was not supplied for: soil-moisture. Fractions describe independent source samples and do not establish a shared spatial footprint.",
+    });
+    expect(brief.coverageContext.statement).not.toMatch(/overlap|score|risk/i);
+  });
+
+  it("keeps unavailable and invalid signals out of the cross-signal range", () => {
+    const summary = summarizeCoverageContext([
+      ...composeEnvironmentBrief({
+        vegetation: {
+          dataMonth: { year: 2026, month: 1 },
+          value: null,
+          validFraction: 0.2,
+        },
+        rainfall: null,
+        soilMoisture: {
+          dataMonth: { year: 2026, month: 1 },
+          value: -1,
+          validFraction: 0.9,
+        },
+        airTemperature: null,
+        availableThrough: { year: 2026, month: 1 },
+      }).signals,
+    ]);
+
+    expect(summary).toEqual({
+      suppliedSignalIds: [],
+      unsuppliedSignalIds: [],
+      minimumValidFraction: null,
+      maximumValidFraction: null,
+      statement: "No usable observations with spatial coverage to summarize.",
+    });
   });
 });
 
@@ -488,6 +551,73 @@ describe("environment brief attribution", () => {
     expect(attribution.line).toBe(
       `Data sources: MOD13A3 v061 — Vegetation (NDVI). ${GIBS_ACKNOWLEDGMENT}`
     );
+  });
+
+  it("credits one product once when the same DOI is cited with different casing or spacing", () => {
+    // The handle system resolves ASCII DOIs case-insensitively, so a product
+    // cited as "10.5067/ABC", "  10.5067/abc  ", and "10.5067/AbC" is one
+    // product — crediting it three times would over-count a single source.
+    const signal = (
+      id: EnvironmentSignalBrief["id"],
+      label: string,
+      doi: string
+    ): EnvironmentSignalBrief => ({
+      id,
+      label,
+      layerId: "ndvi",
+      source: { shortName: "PROD", version: "1", doi, title: "Product" },
+      nativeUnit: NDVI_UNIT,
+      dataMonth: { year: 2026, month: 1 },
+      coverage: { status: "available", validFraction: null, reason: null },
+      status: "available",
+      observedValue: 0.4,
+      statement: "",
+    });
+
+    const attribution = attributeBrief([
+      signal("vegetation", "First", "10.5067/ABC"),
+      signal("rainfall", "Second", "  10.5067/abc  "),
+      signal("soil-moisture", "Third", "10.5067/AbC"),
+    ]);
+
+    expect(attribution.sources).toHaveLength(1);
+    const [only] = attribution.sources;
+    expect(only.signalIds).toEqual(["vegetation", "rainfall", "soil-moisture"]);
+    // The first-seen casing is preserved for the resolvable link — a DOI suffix
+    // can be case-sensitive, so the displayed link is never lower-cased.
+    expect(only.doiUrl).toBe("https://doi.org/10.5067/ABC");
+  });
+
+  it("keeps two distinct DOI-less products as separate credits", () => {
+    // Without a resolvable DOI, two references cannot be asserted to be the same
+    // product, so each keeps its own credit rather than collapsing into one.
+    const doiless = (
+      id: EnvironmentSignalBrief["id"],
+      shortName: string,
+      label: string
+    ): EnvironmentSignalBrief => ({
+      id,
+      label,
+      layerId: "ndvi",
+      source: { shortName, version: "1", doi: "", title: shortName },
+      nativeUnit: NDVI_UNIT,
+      dataMonth: { year: 2026, month: 1 },
+      coverage: { status: "available", validFraction: null, reason: null },
+      status: "available",
+      observedValue: 0.4,
+      statement: "",
+    });
+
+    const attribution = attributeBrief([
+      doiless("vegetation", "PROD_A", "Signal A"),
+      doiless("rainfall", "PROD_B", "Signal B"),
+    ]);
+
+    expect(attribution.sources.map((s) => s.source.shortName)).toEqual([
+      "PROD_A",
+      "PROD_B",
+    ]);
+    expect(attribution.sources.every((s) => s.doiUrl === null)).toBe(true);
   });
 
   it("reports when there is nothing to credit", () => {

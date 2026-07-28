@@ -465,7 +465,11 @@ function runPlaceInsights(result: GeoResult): void {
     // the exception: its 0..1 physical range is already its native unit.
     exportSamples.set(metric.layerId, {
       layerId: metric.layerId,
-      observations: months.map((dataMonth) => ({ dataMonth, value: null })),
+      observations: months.map((dataMonth) => ({
+        dataMonth,
+        value: null,
+        unavailableReason: "sampling-failed" as const,
+      })),
     });
     samplingTasks.push(
       (async () => {
@@ -505,6 +509,7 @@ function runPlaceInsights(result: GeoResult): void {
                   nativeToSampledValueFactor: colormap.factor,
                   validFractions,
                   sourceImageDimensions,
+                  geometrySamplingStrategy,
                 },
                 months[1]
               )
@@ -531,11 +536,24 @@ function runPlaceInsights(result: GeoResult): void {
           exportSamples.set(metric.layerId, {
             layerId: metric.layerId,
             sourceValueFactor: colormap?.factor ?? 1,
-            observations: months.map((dataMonth, index) => ({
-              dataMonth,
-              value: values[index] ?? null,
-              validFraction: validFractions[index],
-            })),
+            samplingStrategy: geometrySamplingStrategy,
+            observations: months.map((dataMonth, index) => {
+              const value = values[index] ?? null;
+              if (value === null) {
+                return {
+                  dataMonth,
+                  value,
+                  // No native-unit mean for the month: partial coverage means
+                  // too few usable pixels; none at all is source no-data.
+                  unavailableReason:
+                    (validFractions[index] ?? 0) > 0
+                      ? ("insufficient-valid-coverage" as const)
+                      : ("source-no-data" as const),
+                  validFraction: validFractions[index],
+                };
+              }
+              return { dataMonth, value, validFraction: validFractions[index] };
+            }),
           });
         }
       })().catch((error: unknown) => {
@@ -556,55 +574,80 @@ function runPlaceInsights(result: GeoResult): void {
   // NASA GIBS's published physical colormap so the value remains in °C.
   const sstMonths = monthRangeForLayer(LAYERS.sst);
   const sstMonth = sstMonths[sstMonths.length - 1];
-  void (async () => {
-    const colormap = await loadPlaceColormap("sst");
-    if (!colormap) {
-      throw new Error("RoamingEye: SST physical colormap is unavailable");
-    }
-    const sample = await placeSampler.sampleGeometryPhysical(
-      LAYERS.sst,
-      [sstMonth],
-      geometry,
-      { lat: result.lat, lon: result.lon },
-      colormap.entries,
-      colormap.factor,
-      { signal: abort.signal }
-    );
-    if (abort.signal.aborted) return;
-    placeInsights.setReading(
-      marineBoundarySstReading({
-        dataMonth: sstMonth,
-        observedValue: sample.values[0],
-        validFraction: sample.validFractions[0],
-        sourceImageDimensions: sample.sourceImageDimensions,
-      })
-    );
-  })().catch((error: unknown) => {
-    if (isAbortError(error) || abort.signal.aborted) return;
-    console.warn("RoamingEye: marine place insight sampling failed", error);
-    placeInsights.setReading(unavailableMarineBoundarySstReading(sstMonth));
+  exportSamples.set("sst", {
+    layerId: "sst",
+    observations: [{ dataMonth: sstMonth, value: null }],
   });
+  samplingTasks.push(
+    (async () => {
+      const colormap = await loadPlaceColormap("sst");
+      if (!colormap) {
+        throw new Error("RoamingEye: SST physical colormap is unavailable");
+      }
+      const sample = await placeSampler.sampleGeometryPhysical(
+        LAYERS.sst,
+        [sstMonth],
+        geometry,
+        { lat: result.lat, lon: result.lon },
+        colormap.entries,
+        colormap.factor,
+        { signal: abort.signal }
+      );
+      if (abort.signal.aborted) return;
+      placeInsights.setReading(
+        marineBoundarySstReading({
+          dataMonth: sstMonth,
+          observedValue: sample.values[0],
+          validFraction: sample.validFractions[0],
+          sourceImageDimensions: sample.sourceImageDimensions,
+        })
+      );
+      exportSamples.set("sst", {
+        layerId: "sst",
+        sourceValueFactor: colormap.factor,
+        observations: [
+          {
+            dataMonth: sstMonth,
+            value: sample.values[0],
+            validFraction: sample.validFractions[0],
+          },
+        ],
+      });
+    })().catch((error: unknown) => {
+      if (isAbortError(error) || abort.signal.aborted) return;
+      console.warn("RoamingEye: marine place insight sampling failed", error);
+      placeInsights.setReading(unavailableMarineBoundarySstReading(sstMonth));
+    })
+  );
 
-  void Promise.all(samplingTasks).then(() => {
-    if (abort.signal.aborted) return;
-    const products = [...exportSamples.values()].map(
-      placeObservationProductFromSample
-    );
-    if (products.length === 0) return;
-    placeInsights.setObservationExport(
-      serializePlaceObservationExport({
-        boundary: geometry,
-        products,
-        method: {
-          sampling: "area-weighted-grid-mean",
-          imageWidth: 512,
-          imageHeight: 512,
-        },
-        generatedIso: new Date().toISOString(),
-        toolVersion: __APP_VERSION__,
-      })
-    );
-  });
+  void Promise.all(samplingTasks)
+    .then(() => {
+      if (abort.signal.aborted) return;
+      const products = [...exportSamples.values()].map(
+        placeObservationProductFromSample
+      );
+      if (products.length === 0) return;
+      placeInsights.setObservationExport(
+        serializePlaceObservationExport({
+          boundary: geometry,
+          products,
+          method: {
+            sampling: "area-weighted-grid-mean",
+            imageWidth: 512,
+            imageHeight: 512,
+          },
+          generatedIso: new Date().toISOString(),
+          toolVersion: __APP_VERSION__,
+        })
+      );
+    })
+    .catch((error: unknown) => {
+      // Export validation throws on contract violations (unexplained nulls,
+      // invalid footprints). Losing the export beats an unhandled rejection
+      // that would silently strand the whole insights panel.
+      if (isAbortError(error) || abort.signal.aborted) return;
+      console.warn("RoamingEye: place observation export failed", error);
+    });
 }
 
 if (layerEl) {
