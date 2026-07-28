@@ -317,7 +317,7 @@ describe("place observation environmental brief", () => {
       status: "unavailable",
       dataMonth: null,
       observedValue: null,
-      coverage: { reason: "not-supplied" },
+      coverage: { reason: "rejected-sampling-support" },
     });
   });
 
@@ -371,14 +371,31 @@ describe("place observation environmental brief", () => {
     );
     expect(result.brief.signals[1]).toMatchObject({
       status: "unavailable",
-      coverage: { reason: "not-supplied" },
+      coverage: { reason: "rejected-source" },
     });
     expect(result.brief.signals[3]).toMatchObject({
       status: "unavailable",
-      coverage: { reason: "not-supplied" },
+      coverage: { reason: "rejected-native-unit" },
     });
     expect(result.samplingProvenance.rainfall).toBeNull();
     expect(result.samplingProvenance["air-temperature"]).toBeNull();
+  });
+
+  it("distinguishes an accepted empty product from an unrecorded product", () => {
+    const record = exportRecord();
+    record.products.find((p) => p.layerId === "soil")!.observations = [];
+    record.products = record.products.filter((p) => p.layerId !== "ndvi");
+
+    const result = composePlaceObservationBrief(record);
+
+    expect(result.productStatus["soil-moisture"]).toBe("accepted");
+    expect(result.brief.signals[2].coverage.reason).toBe(
+      "no-observations-recorded"
+    );
+    expect(result.productStatus.vegetation).toBe("not-recorded");
+    expect(result.brief.signals[0].coverage.reason).toBe(
+      "product-not-recorded"
+    );
   });
 
   it("rejects an invalid serialized month rather than treating it as absent", () => {
@@ -393,7 +410,7 @@ describe("place observation environmental brief", () => {
     expect(result.brief.signals[0]).toMatchObject({
       status: "unavailable",
       observedValue: null,
-      coverage: { reason: "not-supplied" },
+      coverage: { reason: "rejected-observation-months" },
     });
   });
 
@@ -417,7 +434,7 @@ describe("place observation environmental brief", () => {
       status: "unavailable",
       dataMonth: null,
       observedValue: null,
-      coverage: { reason: "not-supplied" },
+      coverage: { reason: "rejected-observation-months" },
     });
   });
 
