@@ -35,6 +35,7 @@ export interface MarinePlaceInsightReading {
   value: string;
   detail: string;
   kind: "observed-boundary-sea-surface-temperature";
+  availability: "available" | "no-usable-sst" | "sampling-unavailable";
   marineBiologyObservation: false;
   isForecast: false;
   dataMonth: YearMonth;
@@ -43,6 +44,10 @@ export interface MarinePlaceInsightReading {
     label: string;
   };
   observedValue: number | null;
+  /** Exact sampler coverage; null only when sampling did not complete. */
+  validFraction: number | null;
+  /** Rendered image provenance; null only when sampling did not complete. */
+  sourceImageDimensions: SourceImageDimensions | null;
   source: typeof SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE;
   /** Structured sampler state for UI/export consumers; null when sampling failed. */
   coverage: MarineCoverageSummary | null;
@@ -94,6 +99,7 @@ export function marineBoundarySstReading(
         : "No usable SST observation",
     detail: `${month} approximate boundary-mean SST observation for ${geographyLabel}; ${coverageText}; ${image}; source ${source}; not a marine-biology observation`,
     kind: "observed-boundary-sea-surface-temperature",
+    availability: usable ? "available" : "no-usable-sst",
     marineBiologyObservation: false,
     isForecast: false,
     dataMonth: input.dataMonth,
@@ -102,6 +108,8 @@ export function marineBoundarySstReading(
       label: geographyLabel,
     },
     observedValue: usable ? input.observedValue : null,
+    validFraction: coverage.coverage.validFraction,
+    sourceImageDimensions: coverage.sourceImageDimensions,
     source: coverage.source,
     coverage,
     observationStatus: usable
@@ -129,6 +137,7 @@ export function unavailableMarineBoundarySstReading(
       SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.version
     }; not a marine-biology observation`,
     kind: "observed-boundary-sea-surface-temperature",
+    availability: "sampling-unavailable",
     marineBiologyObservation: false,
     isForecast: false,
     dataMonth,
@@ -137,6 +146,8 @@ export function unavailableMarineBoundarySstReading(
       label: sampledGeographyLabel,
     },
     observedValue: null,
+    validFraction: null,
+    sourceImageDimensions: null,
     source: SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE,
     coverage: null,
     observationStatus: "source-unavailable",
