@@ -1,4 +1,9 @@
-import { isAreaGeometry, type GeoGeometry } from "./geojson";
+import {
+  geometryBounds,
+  isAreaGeometry,
+  type GeoGeometry,
+  type GeometrySamplingStrategy,
+} from "./geojson";
 import {
   LAYERS,
   type DatasetRef,
@@ -16,7 +21,7 @@ import {
  */
 
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
-  "roamingeye-place-observation-export/v2" as const;
+  "roamingeye-place-observation-export/v3" as const;
 
 export const GIBS_IMAGERY_SOURCE = {
   name: "NASA Global Imagery Browse Services (GIBS)",
@@ -42,16 +47,31 @@ export interface PlaceObservationProductInput {
   /** Underlying data product citation; this is not replaced by imagery metadata. */
   source: DatasetRef;
   nativeUnit: string;
+  /** Exact transformation applied to sampled values before export. */
+  sampleToNative?: PlaceObservationValueTransform;
+  /** Exact searched-boundary strategy used for this product's observations. */
+  samplingStrategy?: GeometrySamplingStrategy | "unavailable";
   observations: readonly PlaceObservationInput[];
+}
+
+export interface PlaceObservationValueTransform {
+  sampledUnit: string;
+  operation: "divide";
+  factor: number;
 }
 
 export interface PlaceObservationInput {
   dataMonth: YearMonth;
-  /** Supplied value in `nativeUnit`; null retains a source no-data result. */
+  /** Supplied value in `nativeUnit`; null retains an explained unavailable result. */
   value: number | null;
+  /** Required for null values so an unavailable result is never ambiguous. */
+  unavailableReason?: PlaceObservationUnavailableReason;
   /** Supplied share of sampled area with a usable value. */
   validFraction?: number;
 }
+
+export type PlaceObservationUnavailableReason =
+  "source-no-data" | "insufficient-valid-coverage" | "sampling-failed";
 
 export interface PlaceObservationMethodInput {
   sampling: PlaceObservationSampling;
@@ -107,10 +127,13 @@ export interface PlaceObservationExportProduct {
   wmsLayer: string;
   source: DatasetRef;
   nativeUnit: string;
+  sampleToNative: PlaceObservationValueTransform;
+  samplingStrategy: GeometrySamplingStrategy | "unavailable";
   observations: {
     dataMonth: string;
     value: number | null;
     validFraction: number | null;
+    unavailableReason?: PlaceObservationUnavailableReason | null;
   }[];
 }
 
@@ -131,6 +154,7 @@ export const PLACE_OBSERVATION_NATIVE_UNITS = {
   precip: "kg/m²/s",
   soil: "kg/m²",
   airtemp: "K",
+  sst: "°C",
 } as const satisfies Partial<Record<LayerId, string>>;
 
 export type PlaceObservationExportLayerId =
@@ -144,6 +168,9 @@ export type PlaceObservationExportLayerId =
 export interface PlaceObservationExportSample {
   layerId: PlaceObservationExportLayerId;
   observations: readonly PlaceObservationInput[];
+  /** Unit represented by the sampled values before native-unit conversion. */
+  sampledUnit?: string;
+  samplingStrategy?: GeometrySamplingStrategy;
   sourceValueFactor?: number;
 }
 
@@ -213,8 +240,9 @@ export function serializePlaceObservationExport(
 
 /**
  * Build a cited, native-unit product record from a completed place sample.
- * This intentionally supports only the four independent place-insight
- * signals; no composite condition or derived score is introduced here.
+ * This intentionally supports only the independent place-insight signals;
+ * no composite condition or derived score is introduced here. SST remains a
+ * physical ocean observation and is never biological evidence.
  */
 export function placeObservationProductFromSample(
   sample: PlaceObservationExportSample
@@ -236,6 +264,12 @@ export function placeObservationProductFromSample(
     wmsLayer: layer.wmsLayer,
     source: layer.dataset,
     nativeUnit,
+    sampleToNative: {
+      sampledUnit: sample.sampledUnit ?? nativeUnit,
+      operation: "divide",
+      factor: sourceValueFactor,
+    },
+    samplingStrategy: sample.samplingStrategy ?? "unavailable",
     observations: sample.observations.map((observation) => ({
       ...observation,
       value:
@@ -250,6 +284,11 @@ function validateInput(input: PlaceObservationExportInput): void {
   if (!isAreaGeometry(input.boundary)) {
     throw new Error(
       "A Polygon or MultiPolygon boundary is required for export."
+    );
+  }
+  if (!hasValidBoundaryCoordinates(input.boundary)) {
+    throw new Error(
+      "Boundary must contain closed GeoJSON rings with finite longitude/latitude coordinates in range and a non-zero area extent."
     );
   }
   if (!isIsoTimestamp(input.generatedIso)) {
@@ -271,8 +310,33 @@ function validateInput(input: PlaceObservationExportInput): void {
       throw new Error(`Duplicate product layer: ${product.layerId}.`);
     }
     layerIds.add(product.layerId);
-    if (!product.wmsLayer.trim() || !product.nativeUnit.trim()) {
+    if (
+      !product.wmsLayer.trim() ||
+      !product.nativeUnit.trim() ||
+      (product.sampleToNative !== undefined &&
+        !product.sampleToNative.sampledUnit.trim())
+    ) {
       throw new Error("Each product needs a WMS layer and native unit.");
+    }
+    if (
+      product.sampleToNative !== undefined &&
+      (product.sampleToNative.operation !== "divide" ||
+        !Number.isFinite(product.sampleToNative.factor) ||
+        product.sampleToNative.factor <= 0)
+    ) {
+      throw new Error(
+        `Product ${product.layerId} has an invalid sample-to-native transform.`
+      );
+    }
+    if (
+      product.samplingStrategy !== undefined &&
+      !["boundary-grid", "boundary-point", "unavailable"].includes(
+        product.samplingStrategy
+      )
+    ) {
+      throw new Error(
+        `Product ${product.layerId} has an invalid sampling strategy.`
+      );
     }
     if (!hasCitation(product.source)) {
       throw new Error(
@@ -296,6 +360,16 @@ function validateInput(input: PlaceObservationExportInput): void {
       if (observation.value !== null && !Number.isFinite(observation.value)) {
         throw new Error(`Product ${product.layerId} has a non-finite value.`);
       }
+      if (observation.value === null && !observation.unavailableReason) {
+        throw new Error(
+          `Product ${product.layerId} must explain an unavailable value.`
+        );
+      }
+      if (observation.value !== null && observation.unavailableReason) {
+        throw new Error(
+          `Product ${product.layerId} cannot mark a recorded value unavailable.`
+        );
+      }
       if (observation.value !== null && observation.validFraction === 0) {
         throw new Error(
           `Product ${product.layerId} has a value with zero sampled coverage.`
@@ -315,6 +389,84 @@ function validateInput(input: PlaceObservationExportInput): void {
   }
 }
 
+/**
+ * Validate the exported geographic footprint before preserving it. The shared
+ * GeoJSON helpers intentionally accept loose external data for display, while
+ * a reproducibility record must not serialize malformed or ambiguous rings.
+ */
+function hasValidBoundaryCoordinates(boundary: GeoGeometry): boolean {
+  const polygons =
+    boundary.type === "Polygon"
+      ? [boundary.coordinates]
+      : boundary.type === "MultiPolygon"
+        ? boundary.coordinates
+        : null;
+  if (!Array.isArray(polygons) || polygons.length === 0) return false;
+
+  for (const polygon of polygons) {
+    if (!Array.isArray(polygon) || polygon.length === 0) return false;
+    for (const ring of polygon) {
+      if (!isValidLinearRing(ring)) return false;
+    }
+  }
+
+  return geometryBounds(boundary) !== null;
+}
+
+function isValidLinearRing(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length < 4) return false;
+  const positions = value.map(validPosition);
+  if (positions.some((position) => position === null)) return false;
+
+  const ring = positions as [number, number][];
+  const [firstLon, firstLat] = ring[0];
+  const [lastLon, lastLat] = ring[ring.length - 1];
+  if (firstLon !== lastLon || firstLat !== lastLat) return false;
+
+  return (
+    new Set(ring.slice(0, -1).map(([lon, lat]) => `${lon},${lat}`)).size >= 3 &&
+    ringHasArea(ring)
+  );
+}
+
+function ringHasArea(ring: [number, number][]): boolean {
+  const unwrapped: [number, number][] = [[...ring[0]]];
+  for (let index = 1; index < ring.length; index++) {
+    let lon = ring[index][0];
+    const lat = ring[index][1];
+    const previousLon = unwrapped[index - 1][0];
+    while (lon - previousLon > 180) lon -= 360;
+    while (lon - previousLon < -180) lon += 360;
+    unwrapped.push([lon, lat]);
+  }
+
+  let twiceArea = 0;
+  const [originLon, originLat] = unwrapped[0];
+  for (let index = 0; index + 1 < unwrapped.length; index++) {
+    const [lon, lat] = unwrapped[index];
+    const [nextLon, nextLat] = unwrapped[index + 1];
+    twiceArea +=
+      (lon - originLon) * (nextLat - originLat) -
+      (nextLon - originLon) * (lat - originLat);
+  }
+  return Math.abs(twiceArea) > 1e-12;
+}
+
+function validPosition(value: unknown): [number, number] | null {
+  if (!Array.isArray(value) || value.length !== 2) return null;
+  const [lon, lat] = value;
+  return typeof lon === "number" &&
+    Number.isFinite(lon) &&
+    lon >= -180 &&
+    lon <= 180 &&
+    typeof lat === "number" &&
+    Number.isFinite(lat) &&
+    lat >= -90 &&
+    lat <= 90
+    ? [lon, lat]
+    : null;
+}
+
 function exportProducts(
   products: readonly PlaceObservationProductInput[]
 ): PlaceObservationExportProduct[] {
@@ -324,11 +476,20 @@ function exportProducts(
       wmsLayer: product.wmsLayer,
       source: { ...product.source },
       nativeUnit: product.nativeUnit,
+      sampleToNative: product.sampleToNative
+        ? { ...product.sampleToNative }
+        : {
+            sampledUnit: product.nativeUnit,
+            operation: "divide" as const,
+            factor: 1,
+          },
+      samplingStrategy: product.samplingStrategy ?? "unavailable",
       observations: product.observations
         .map((observation) => ({
           dataMonth: formatYearMonth(observation.dataMonth),
           value: observation.value,
           validFraction: observation.validFraction ?? null,
+          unavailableReason: observation.unavailableReason ?? null,
         }))
         .sort((left, right) => compareText(left.dataMonth, right.dataMonth)),
     }))
