@@ -42,6 +42,16 @@ export interface MarinePlaceInsightReading {
   coverage: MarineCoverageSummary | null;
   observationStatus:
     "observed" | "no-sst-coverage" | "invalid-sample" | "source-unavailable";
+  /** Machine-readable unavailable state; never an ecological interpretation. */
+  observationReason:
+    | "zero-sst-coverage"
+    | "invalid-data-month"
+    | "invalid-coverage"
+    | "invalid-source-image-dimensions"
+    | "missing-sst-value"
+    | "invalid-sst-value"
+    | "source-mapping-failed"
+    | null;
 }
 
 /**
@@ -63,7 +73,9 @@ export function marineBoundarySstReading(
   const usable =
     coverage.coverage.status !== "invalid" &&
     coverage.coverage.status !== "no-sst-coverage" &&
+    coverage.sourceImageDimensions !== null &&
     isSstSourceValue(input.observedValue);
+  const observationReason = reasonFor(input, coverage);
   const month = formatYm(input.dataMonth);
   const image = coverage.sourceImageDimensions
     ? `rendered source image ${coverage.sourceImageDimensions.width} x ${coverage.sourceImageDimensions.height} px`
@@ -93,6 +105,7 @@ export function marineBoundarySstReading(
       : coverage.coverage.status === "no-sst-coverage"
         ? "no-sst-coverage"
         : "invalid-sample",
+    observationReason,
   };
 }
 
@@ -112,7 +125,33 @@ export function unavailableMarineBoundarySstReading(
     source: SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE,
     coverage: null,
     observationStatus: "source-unavailable",
+    observationReason: "source-mapping-failed",
   };
+}
+
+function reasonFor(
+  input: MarineBoundarySstInput,
+  coverage: MarineCoverageSummary
+): MarinePlaceInsightReading["observationReason"] {
+  if (coverage.coverage.reason === "invalid-month") {
+    return "invalid-data-month";
+  }
+  if (coverage.coverage.reason === "invalid-coverage") {
+    return "invalid-coverage";
+  }
+  if (coverage.coverage.reason === "zero-sst-coverage") {
+    return "zero-sst-coverage";
+  }
+  if (coverage.sourceImageDimensions === null) {
+    return "invalid-source-image-dimensions";
+  }
+  if (input.observedValue === null) {
+    return "missing-sst-value";
+  }
+  if (!isSstSourceValue(input.observedValue)) {
+    return "invalid-sst-value";
+  }
+  return null;
 }
 
 function isSstSourceValue(value: number | null): value is number {
