@@ -145,6 +145,7 @@ For a contributor's tour of the codebase, see [`ARCHITECTURE.md`](ARCHITECTURE.m
 
 **We are actively looking for collaborators** — Earth scientists, remote-sensing specialists, graphics engineers, designers, and data wranglers all have a place here.
 
+- 💬 **Just want to ask something?** [**Start a discussion**](https://github.com/zkWizard/RoamingEye/discussions) — [Q&A](https://github.com/zkWizard/RoamingEye/discussions/categories/q-a) for "how do I…?" and "is this layer trustworthy for…?", [Ideas](https://github.com/zkWizard/RoamingEye/discussions/categories/ideas) for anything you wish it did. No bug report required, and you don't need to have contributed anything first.
 - 🗣️ **Used RoamingEye in your research or teaching? [Give feedback](https://github.com/zkWizard/RoamingEye/issues/new?template=feedback.yml)** — three questions, two minutes, rough notes welcome. Open to a 15-minute chat about your workflow? Say so in the form; what researchers tell us directly shapes the [roadmap](ROADMAP.md).
 - 📘 Read [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md) — setup, workflow, and the (one-line, no-CLA) DCO sign-off.
 - 🏛️ [`GOVERNANCE.md`](GOVERNANCE.md) explains the trust ladder and how decisions get made.

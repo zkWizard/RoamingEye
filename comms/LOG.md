@@ -764,3 +764,52 @@ verified` — still provisioning, still do not touch DNS. Revisit date stands at
   outright while `zkwizard.github.io` 301s to plain `http://`. Still provisioning, still do
   not touch DNS. Revisit date stands at **2026-07-29**; `outbox/` stays send-blocked. Signals
   not re-pulled — measured earlier today and nothing has been sent.
+- 2026-07-28 (later run) — **Found the one venue in the pipeline we own, and it was empty
+  and invisible.** Duty 4/6. Every other entry in `TARGETS.md` is somebody else's room;
+  nobody had ever looked at **our own GitHub Discussions**. Measured it (GraphQL): enabled,
+  GitHub's **six stock categories**, **0 discussions**.
+  **Why that is a launch-critical hole, not a cosmetic one.**
+  [`.github/ISSUE_TEMPLATE/config.yml`](../.github/ISSUE_TEMPLATE/config.yml) routes every
+  "Question or discussion" there **and** sets `blank_issues_enabled: false` — so a visitor
+  who wants to _ask_ rather than _report_ has no other route into the project. And it was
+  unreachable in practice: the only pointer to Discussions anywhere in the repo was that one
+  line of issue-template YAML, which a person sees only after clicking "New issue". The
+  README's Contributing section had **seven bullets and not one said where to ask a
+  question**. Meanwhile Slots 1–4 of `SEND-PLAN.md` (three.js, Pangeo, leafmap, Show HN) all
+  promise an author present and answering, and all four generate questions by design. That
+  traffic was aimed at an empty room with no sign on the door.
+  **Fixed the signposting** (`README.md`): a "Just want to ask something?" bullet linking
+  **Q&A** and **Ideas** directly, stating that no bug report is required and that you need
+  not have contributed anything first. Zero bundle cost — `README.md` is not bundled, which
+  matters under the exhausted 61,440-byte cap.
+  **Drafted the post** (`outbox/github-discussions-welcome-post.md`, _Announcements_):
+  orientation rather than announcement — what the tool is, where a question versus an idea
+  versus a bug goes, and the three caveats a newcomer should hear from us before they find
+  them alone (the probe is approximate **by design**, the project is 30 days old, the PR
+  queue is automated and not in your way). Claims held to what is checkable: `~31 m` terrain
+  tiles and the 37-provider catalogue against `README.md:45,48`, first commit `2026-06-28`
+  from `git log --reverse`. It explicitly does **not** quote a traction number — per
+  `SIGNALS.md` none is quotable.
+  **One sequencing claim worth acting on: this goes out BEFORE Slot 1.** It is send-gated
+  like everything else (it links to the live site), but it is the cheapest send in the
+  pipeline — our own repo, editable after posting, no one-shot risk and no permanence — and
+  posting it after the first outreach lands defeats its purpose. Recorded in `TARGETS.md`
+  under a new **"The venue we own"** section and in the `outbox/README.md` index.
+  **Two optional housekeeping steps left to zkWizard rather than applied:** prune the stock
+  categories (_Polls_ has nothing to poll a community of zero about) and pin the post. Both
+  are public-repo-metadata calls, which this agent does not make unattended.
+  **Checked for duplication first, and it paid.** PR #654 had opened 30 minutes earlier and
+  had already audited all four `good first issue` issues by building them — so the GFI pass
+  this run started on would have been entirely duplicative. Re-verified #375 independently
+  anyway (still true; its cited line has drifted `30 → 36`). Standing by-file check run
+  before editing: of 109 open PRs, `README.md` is touched only by the stale merge-train batch
+  #573, and `.github/CONTRIBUTING.md` is held by the live #654 — **so CONTRIBUTING was left
+  alone deliberately** to avoid conflicting with it. Worked in a detached `git worktree`, not
+  the shared clone.
+  **HTTPS gate re-measured (4th time):** `https_certificate: null`, `https_enforced: false`,
+  Pages `html_url` still `http://roamingeye.org/`, apex still fails TLS
+  (`SEC_E_WRONG_PRINCIPAL`), `github.io` still `301`s to plain `http://`. Still provisioning;
+  do not touch DNS. Revisit date stands at **2026-07-29**; `outbox/` stays send-blocked.
+  **Signals re-pulled:** 1 star (`statuette`, the known drive-by), **0** forks, **0**
+  outside-authored issues or PRs, 26 views / 8 uniques (down from 43/10 — the 14-day window
+  shedding older days, not a decline in interest, since nothing has been sent).
