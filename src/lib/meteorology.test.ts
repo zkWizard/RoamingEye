@@ -281,4 +281,28 @@ describe("rendered monthly meteorology", () => {
       })
     ).toThrow("invalid data month");
   });
+
+  it("rejects a display conversion that does not belong to the cited climate metric", () => {
+    expect(() =>
+      observationsFromRenderedClimateSample({
+        metricId: "soil-moisture",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [7.2],
+        nativeToSampledValueFactor: 86_400,
+      })
+    ).toThrow(
+      "soil-moisture rendered samples require native-to-sampled factor 1"
+    );
+
+    expect(() =>
+      observationsFromRenderedClimateSample({
+        metricId: "precipitation-rate",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [8.64],
+        nativeToSampledValueFactor: 1,
+      })
+    ).toThrow(
+      "precipitation-rate rendered samples require native-to-sampled factor 86400"
+    );
+  });
 });
