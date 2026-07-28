@@ -591,6 +591,42 @@ describe("buildProbeCsv", () => {
     expect(pointCsv).not.toContain("valid_fraction");
   });
 
+  it("preserves unavailable numeric and coverage states as empty cells", () => {
+    const unavailableFractions = new Array<number>(4);
+    unavailableFractions[1] = Number.NaN;
+    unavailableFractions[2] = -0.01;
+    unavailableFractions[3] = 1.01;
+    const unavailableCsv = buildProbeCsv(
+      {
+        ...meta,
+        mode: "region" as const,
+        sampledBounds: { south: -4, north: -3, west: -63, east: -62 },
+      },
+      [
+        { year: 2001, month: 1 },
+        { year: 2001, month: 2 },
+        { year: 2001, month: 3 },
+        { year: 2001, month: 4 },
+      ],
+      [Number.NaN, Number.POSITIVE_INFINITY, null, 0.5],
+      [Number.NEGATIVE_INFINITY, Number.NaN, null, 0],
+      unavailableFractions
+    );
+    const rows = unavailableCsv
+      .trim()
+      .split("\n")
+      .filter((line) => !line.startsWith("#"));
+
+    expect(rows).toEqual([
+      "year_month,value,anomaly,valid_fraction",
+      "2001-01,,,",
+      "2001-02,,,",
+      "2001-03,,,",
+      "2001-04,0.500,0.000,",
+    ]);
+    expect(unavailableCsv).not.toMatch(/NaN|Infinity/);
+  });
+
   it("stamps tool version and reproduction URL when provided", () => {
     const stamped = buildProbeCsv(
       {

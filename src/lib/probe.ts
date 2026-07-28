@@ -597,7 +597,16 @@ export function buildProbeCsv(
   // printed 0.6338 from a ±0.002 measurement).
   const decimals = csvDecimals(meta.scale);
   const cell = (v: number | null | undefined, offset: number): string =>
-    v === null || v === undefined ? "" : (offset + v * span).toFixed(decimals);
+    v === null || v === undefined || !Number.isFinite(v)
+      ? ""
+      : (offset + v * span).toFixed(decimals);
+  const coverageCell = (fraction: number | undefined): string =>
+    fraction !== undefined &&
+    Number.isFinite(fraction) &&
+    fraction >= 0 &&
+    fraction <= 1
+      ? fraction.toFixed(2)
+      : "";
   // Coverage column for averaged modes: how much of the box's *area* held
   // data each month — a 25%-coverage mean and a 100% one should never look
   // alike downstream.
@@ -663,7 +672,7 @@ export function buildProbeCsv(
   for (let i = 0; i < months.length; i++) {
     lines.push(
       `${ymStr(months[i])},${cell(values[i], meta.scale.min)},${cell(anomalies[i], 0)}` +
-        (fractions ? `,${(validFractions[i] ?? 0).toFixed(2)}` : "")
+        (fractions ? `,${coverageCell(validFractions[i])}` : "")
     );
   }
   return lines.join("\n") + "\n";
