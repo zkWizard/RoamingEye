@@ -313,3 +313,57 @@ null`, `https_enforced: false`, `https://roamingeye.org/` still fails TLS, and
   `SEC_E_WRONG_PRINCIPAL` rather than a dead connection: the host completes the handshake and
   presents the default `*.github.io` certificate, which is the same "no cert for our domain"
   conclusion, not progress. Signals otherwise flat and unchanged.
+- 2026-07-27 (fifth run) — **Routed the classroom one-pager: vetted three educator venues and
+  drafted the one submission that takes a tool.** `SEND-PLAN.md` had just named this as the
+  pipeline's one explicitly-unfinished item — the one-pager sits in §4 as "not scheduled…
+  needs a specific educator venue vetted first" — so an asset written on 2026-07-15 had spent
+  twelve days with nowhere to go, against a roadmap goal ("teaching adoption, ≥3 courses") and
+  a core stated audience. Duty 1 was skipped by the last two runs on the correct reasoning that
+  14 researched venues with 0 sent means supply is not the constraint; that objection does not
+  apply here, because this adds no new draft looking for a venue — it gives an existing
+  stranded asset a route.
+  **Three verdicts, each read from the venue's own published rules:**
+  **(1) CLEAN (cleanet.org) — the route; drafted.** The peer-reviewed climate/energy education
+  collection at CU Boulder, mirrored by NOAA Climate.gov's teaching portal. Its submission form
+  accepts resources that "are educational activities **or are interactive tools,
+  visualizations, maps, or datasets that can be used to create classroom, lab, or field
+  activities**" — the only educator venue found that takes a _tool_ rather than a finished
+  lesson plan. Decisively, **developer self-submission is sanctioned**: the form carries a
+  checkbox to receive the reviewers' comments if you built the thing, so this is an invited
+  submission, not self-promotion. Drafted `outbox/clean-collection-submission.md` field-by-field
+  against the real form. **Pitched deliberately narrow** — CLEAN warns that "general websites
+  addressing many aspects of climate or energy science are not as useful as specific ones
+  geared toward a focused topic", and a nine-layer globe sold as "explore the Earth" is exactly
+  that shape, so the description leads with seasonal vegetation phenology + snow cover and lets
+  the rest be context. Also recorded their scored criteria, including the one we fail:
+  "presence of a teacher's guide" — we have none, so the draft says so plainly and links
+  `docs/research-recipes.md` instead of hoping a reviewer misses it. Added as **slot 2b** in
+  `SEND-PLAN.md`, marked a parallel track with no presence cost (a form is not a live thread,
+  so principle 3 does not bind it) and worth starting early because the four-stage review runs
+  for months.
+  **(2) SERC "Teach the Earth" / NAGT — parked, and _not_ on rules.** The largest US
+  geoscience-education portal, and it does not list tools at all: it takes classroom-**tested**
+  activities described with course context, goals, materials and assessment, plus "notes and
+  tips for instructors… common areas of confusion". So the compliant path is not "list
+  RoamingEye" — it is an instructor who has actually run a RoamingEye lab contributing that
+  lab. Writing one on spec would be dishonest against a form that asks how students met the
+  goals. Recorded as second-order: reachable _after_ adoption, which is what CLEAN and the
+  one-pager are for. Also logged the licence detail nobody would expect — TTE contributions go
+  out **CC BY-NC-SA 4.0** (the write-up only; RoamingEye stays MIT), a deliberate choice, not a
+  footnote.
+  **(3) Earth Exploration Toolbook — parked pending a one-line question.** Conceptually the best
+  fit in the whole pipeline (chapters are "step-by-step instructions to walk users through an
+  example of using data and tools", i.e. `docs/research-recipes.md` in their format, and the
+  template explicitly permits outside authors) — but the site's initial publication date is
+  2006, the newest dated item on it is a 2011 award, and there is no open call for authors. A
+  chapter is hours of work, so the entry says: **ask whether they still accept community
+  chapters before writing one**, and do not invest on spec.
+  Ran the standing by-file check first: the only open PRs touching `comms/` are #571 (this
+  branch's base) and #573, the merge train carrying it — no duplication. Branched off #571
+  rather than `main` so the LOG/TARGETS/SEND-PLAN appends do not collide with it in the train,
+  and worked in a detached `git worktree` because the shared clone had the active merge train
+  checked out. Gate re-measured, unchanged: `https_certificate: null`, `https_enforced: false`.
+  Signals unchanged: 1 star, 0 forks, 0 external watchers. Repo `description` is **still
+  `null`** — eleven days after it was first flagged, still the one awareness win available
+  while every draft is send-blocked, and still left for zkWizard because editing public repo
+  metadata unattended is a maintainer call.

@@ -141,3 +141,4 @@ this was last done:
 - `awesome-earthobservation-code-pr.md` — Awesome Earth Observation Code, ready-to-submit PR entry + body. **DRAFT.**
 - `classroom-lab-one-pager.md` — reusable classroom/lab one-pager (handout, course page, or educator email). **DRAFT.**
 - `leafmap-interop-invitation.md` — leafmap (`opengeos`) GitHub _Discussions → Ideas_, contributor/interop outreach. **DRAFT.**
+- `clean-collection-submission.md` — CLEAN (`cleanet.org`) _Suggest a Teaching Resource_ form, filled field-by-field; sanctioned developer self-submission to a peer-reviewed educator collection. **DRAFT.**
