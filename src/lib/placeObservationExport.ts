@@ -73,6 +73,12 @@ export interface PlaceObservationInput {
 export type PlaceObservationUnavailableReason =
   "source-no-data" | "insufficient-valid-coverage" | "sampling-failed";
 
+const PLACE_OBSERVATION_UNAVAILABLE_REASONS = [
+  "source-no-data",
+  "insufficient-valid-coverage",
+  "sampling-failed",
+] as const satisfies readonly PlaceObservationUnavailableReason[];
+
 export interface PlaceObservationMethodInput {
   sampling: PlaceObservationSampling;
   imageWidth: number;
@@ -365,6 +371,14 @@ function validateInput(input: PlaceObservationExportInput): void {
           `Product ${product.layerId} must explain an unavailable value.`
         );
       }
+      if (
+        observation.unavailableReason !== undefined &&
+        !isPlaceObservationUnavailableReason(observation.unavailableReason)
+      ) {
+        throw new Error(
+          `Product ${product.layerId} has an unsupported unavailable reason.`
+        );
+      }
       if (observation.value !== null && observation.unavailableReason) {
         throw new Error(
           `Product ${product.layerId} cannot mark a recorded value unavailable.`
@@ -540,6 +554,15 @@ function hasCitation(source: DatasetRef): boolean {
 
 function isPositiveInteger(value: number): boolean {
   return Number.isInteger(value) && value > 0;
+}
+
+function isPlaceObservationUnavailableReason(
+  value: unknown
+): value is PlaceObservationUnavailableReason {
+  return (
+    typeof value === "string" &&
+    PLACE_OBSERVATION_UNAVAILABLE_REASONS.some((reason) => reason === value)
+  );
 }
 
 function isIsoTimestamp(value: string): boolean {

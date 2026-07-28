@@ -336,6 +336,59 @@ describe("place observation export", () => {
   });
 
   it.each([
+    "source-no-data",
+    "insufficient-valid-coverage",
+    "sampling-failed",
+  ] as const)("preserves the supported unavailable state %s", (reason) => {
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [
+        {
+          ...input.products[0],
+          observations: [
+            {
+              dataMonth: { year: 2026, month: 4 },
+              value: null,
+              unavailableReason: reason,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(exported.products[0].observations[0]).toMatchObject({
+      value: null,
+      unavailableReason: reason,
+    });
+  });
+
+  it("rejects unsupported unavailable states from untyped export inputs", () => {
+    const untypedInput = {
+      ...input,
+      products: [
+        {
+          ...input.products[0],
+          observations: [
+            {
+              dataMonth: { year: 2026, month: 4 },
+              value: null,
+              unavailableReason: "low-confidence",
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(() =>
+      createPlaceObservationExport(
+        untypedInput as unknown as Parameters<
+          typeof createPlaceObservationExport
+        >[0]
+      )
+    ).toThrow("Product ndvi has an unsupported unavailable reason.");
+  });
+
+  it.each([
     {
       label: "an open ring",
       coordinates: [
