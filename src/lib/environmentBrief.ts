@@ -583,7 +583,7 @@ function lagPhrase(lag: number): string {
 
 /** One credited source dataset, with the brief signals it backed. */
 export interface SourceAttribution {
-  /** The distinct source dataset (deduplicated by DOI). */
+  /** The distinct source dataset version (deduplicated by DOI + version). */
   source: DatasetRef;
   /** Ids of the signals this source backed, in signal order. */
   signalIds: EnvironmentSignalId[];
@@ -601,11 +601,11 @@ export interface SourceAttribution {
 
 /**
  * Brief-scoped source credit: exactly the datasets that fed one environment
- * brief, deduplicated by DOI, plus GIBS's requested acknowledgment and a
+ * brief, deduplicated by DOI + version, plus GIBS's requested acknowledgment and a
  * ready-to-paste one-line credit for a figure caption or observation export.
  */
 export interface BriefAttribution {
-  /** Distinct credited sources, deduplicated by DOI, in first-seen order. */
+  /** Distinct credited source versions, in first-seen order. */
   sources: SourceAttribution[];
   /** GIBS's requested acknowledgment, verbatim. */
   acknowledgment: string;
@@ -615,21 +615,23 @@ export interface BriefAttribution {
 
 /**
  * Credit exactly the sources a brief drew on. Rainfall and soil moisture are
- * both GLDAS (one DOI), so a naive per-signal credit would list that product
- * twice and over-count it; this deduplicates by DOI and records every signal
- * each source backed. It credits every consulted source — including ones that
+ * both GLDAS (one DOI and version), so a naive per-signal credit would list
+ * that product version twice and over-count it; this deduplicates by DOI plus
+ * version and records every signal each source backed. It credits every
+ * consulted source — including ones that
  * only returned a no-data or unpublished state — so the credit never implies a
  * usable value where there was none (see `contributedValue`). This is a
  * provenance descriptor, not a value, comparison, or condition claim.
  *
  * DOI identity is compared case- and whitespace-insensitively (the handle
  * system resolves ASCII DOIs case-insensitively), matching the DOI convention
- * in `sourceIndependence.ts`, so the same product cited with incidental casing
- * or spacing differences is credited once rather than double-counted. A source
- * that carries no resolvable DOI is keyed by its own product identity
- * (short name + version) instead, so two distinct DOI-less products stay
- * separate credits rather than collapsing into one. The displayed resolver link
- * preserves the DOI's original casing, since a DOI suffix can be case-sensitive.
+ * in `sourceIndependence.ts`. Version remains part of the identity so citations
+ * to different releases under one DOI cannot silently inherit the first-seen
+ * version label. A source that carries no resolvable DOI is keyed by its own
+ * product identity (short name + version) instead, so two distinct DOI-less
+ * products stay separate credits rather than collapsing into one. The
+ * displayed resolver link preserves the DOI's original casing, since a DOI
+ * suffix can be case-sensitive.
  */
 export function attributeBrief(
   signals: readonly EnvironmentSignalBrief[]
@@ -670,16 +672,16 @@ function normalizedDoiText(doi: DatasetRef["doi"]): string {
 }
 
 /**
- * Stable dedup key identifying the *product* behind a source. Two references to
- * one product must credit it once, so a present DOI keys the entry
- * case-insensitively (whitespace stripped) — the same identity comparison
- * `sourceIndependence.ts` uses. Without a resolvable DOI we cannot assert two
- * references are the same product, so DOI-less sources fall back to their own
- * short-name + version identity rather than all collapsing under one empty key.
+ * Stable dedup key identifying the product version behind a source. Two
+ * references to one DOI and version must credit it once, so a present DOI is
+ * compared case-insensitively (whitespace stripped) while the native version
+ * remains explicit. Without a resolvable DOI we cannot assert two references
+ * are the same product, so DOI-less sources fall back to their own short-name
+ * and version identity rather than all collapsing under one empty key.
  */
 function sourceDedupKey(source: DatasetRef): string {
   const doi = normalizedDoiText(source.doi).toLowerCase();
-  if (doi) return `doi:${doi}`;
+  if (doi) return `doi:${doi}\0${source.version}`;
   return `nodoi:${source.shortName} ${source.version}`;
 }
 
