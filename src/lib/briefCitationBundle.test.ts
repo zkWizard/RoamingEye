@@ -4,7 +4,14 @@ import {
   briefCitationBundle,
   briefCitedDatasets,
 } from "./briefCitationBundle";
-import { bibtexDataset, bibtexTool, risTool, textTool } from "./citation";
+import {
+  bibtexDataset,
+  bibtexTool,
+  cslTool,
+  risTool,
+  textTool,
+  type CslItem,
+} from "./citation";
 import {
   composeEnvironmentBrief,
   type EnvironmentSignalBrief,
@@ -63,6 +70,33 @@ describe("brief-scoped citation bundle", () => {
     expect(bundle).toContain("https://doi.org/10.5067/MODIS/MOD13A3.061");
     // The shared GLDAS product resolves once.
     expect(bundle.match(/10\.5067\/SXAVCZFAQLNO/g)).toHaveLength(1);
+  });
+
+  it("emits CSL-JSON scoped to the brief (tool + deduped datasets), not BibTeX", () => {
+    const signals = fullBrief().signals;
+    const bundle = briefCitationBundle(signals, "csljson");
+    // Guards the fall-through: 'csljson' must NOT silently return BibTeX.
+    expect(bundle).not.toContain("@software{");
+    const items = JSON.parse(bundle) as CslItem[];
+    expect(items[0]).toMatchObject({ id: "roamingeye", type: "software" });
+
+    // Exactly the brief's own sources (GLDAS deduped to one), each resolvable —
+    // identical to the credit line, so the two can never disagree.
+    const expectedDois = briefCitedDatasets(signals).map((d) => d.doi);
+    expect(expectedDois).toHaveLength(3); // MOD13A3, GLDAS (shared), MERRA-2
+    const datasets = items.filter((i) => i.type === "dataset");
+    expect(datasets.map((i) => i.DOI)).toEqual(expectedDois);
+    for (const item of datasets) {
+      expect(item.URL).toBe(`https://doi.org/${item.DOI}`);
+    }
+  });
+
+  it("cites just the tool as CSL-JSON for an empty brief", () => {
+    const empty: EnvironmentSignalBrief[] = [];
+    const items = JSON.parse(
+      briefCitationBundle(empty, "csljson")
+    ) as CslItem[];
+    expect(items).toEqual([cslTool()]);
   });
 
   it("still cites a source the brief consulted that returned no usable value", () => {

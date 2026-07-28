@@ -248,6 +248,79 @@ describe("geometryToRings", () => {
     ).toBeGreaterThan(1);
   });
 
+  it("prepares complex boundaries a constant number of times per grid pass", () => {
+    const coordinates = [
+      [
+        [0, 0],
+        [10, 0],
+        [10, 10],
+        [0, 10],
+        [0, 0],
+      ],
+      [
+        [4, 4],
+        [6, 4],
+        [6, 6],
+        [4, 6],
+        [4, 4],
+      ],
+    ];
+    let coordinateReads = 0;
+    const geometry = {
+      type: "Polygon",
+      get coordinates() {
+        coordinateReads++;
+        return coordinates;
+      },
+    };
+
+    // Bounds + ring preparation may each read the geometry, but the per-cell
+    // containment loop (up to 4,096 cells) must not re-read it.
+    expect(geometryGridPoints(geometry, 64)).toHaveLength(3_952);
+    expect(coordinateReads).toBeLessThanOrEqual(2);
+  });
+
+  it("retains represented multipolygon components when applying the point cap", () => {
+    const geometry = {
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [0, 0],
+            [8, 0],
+            [8, 8],
+            [0, 8],
+            [0, 0],
+          ],
+        ],
+        [
+          [
+            [9, 7],
+            [10, 7],
+            [10, 8],
+            [9, 8],
+            [9, 7],
+          ],
+        ],
+      ],
+    };
+    const plan = geometrySamplingPlan(geometry, 8, {
+      minPoints: 1,
+      maxPoints: 4,
+    });
+
+    expect(plan).toMatchObject({
+      gridSize: 8,
+      pointLimitApplied: true,
+    });
+    expect(plan!.points).toHaveLength(4);
+    expect(plan!.points.filter(({ lon }) => lon < 8)).toHaveLength(3);
+    expect(plan!.points.filter(({ lon }) => lon > 9)).toHaveLength(1);
+    expect(plan!.points).toEqual(
+      [...plan!.points].sort((a, b) => a.lat - b.lat || a.lon - b.lon)
+    );
+  });
+
   it("does not let tuning options relax the hard sampling ceilings", () => {
     const geometry = {
       type: "Polygon",
