@@ -275,8 +275,10 @@ function validateInput(input: PlaceObservationExportInput): void {
       "Boundary must contain closed GeoJSON rings with finite longitude/latitude coordinates in range and a non-zero area extent."
     );
   }
-  if (!isIsoTimestamp(input.generatedIso)) {
-    throw new Error("generatedIso must be an ISO 8601 timestamp.");
+  if (!isCanonicalUtcTimestamp(input.generatedIso)) {
+    throw new Error(
+      "generatedIso must be a valid canonical UTC timestamp (YYYY-MM-DDTHH:mm:ss.sssZ)."
+    );
   }
   if (!input.toolVersion.trim()) throw new Error("toolVersion is required.");
   if (input.products.length === 0)
@@ -504,8 +506,14 @@ function isPositiveInteger(value: number): boolean {
   return Number.isInteger(value) && value > 0;
 }
 
-function isIsoTimestamp(value: string): boolean {
-  return !Number.isNaN(Date.parse(value)) && /^\d{4}-\d{2}-\d{2}T/.test(value);
+function isCanonicalUtcTimestamp(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) {
+    return false;
+  }
+  const timestamp = Date.parse(value);
+  return (
+    !Number.isNaN(timestamp) && new Date(timestamp).toISOString() === value
+  );
 }
 
 function isYearMonth(value: YearMonth): boolean {

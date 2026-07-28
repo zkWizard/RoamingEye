@@ -62,7 +62,7 @@ const input = {
     imageWidth: 1024,
     imageHeight: 512,
   },
-  generatedIso: "2026-07-13T06:00:00Z",
+  generatedIso: "2026-07-13T06:00:00.000Z",
   toolVersion: "1.1.0",
 };
 
@@ -148,7 +148,7 @@ describe("place observation export", () => {
         valueMethod: "approximate-colormap-inversion",
       },
       generated: {
-        iso: "2026-07-13T06:00:00Z",
+        iso: "2026-07-13T06:00:00.000Z",
         tool: "RoamingEye",
         version: "1.1.0",
       },
@@ -314,6 +314,25 @@ describe("place observation export", () => {
       })
     ).toThrow("Product ndvi has a value with zero sampled coverage.");
   });
+
+  it.each([
+    ["a timezone-less instant", "2026-07-13T06:00:00.000"],
+    ["an equivalent offset instant", "2026-07-12T23:00:00.000-07:00"],
+    ["an omitted millisecond field", "2026-07-13T06:00:00Z"],
+    ["an impossible calendar date", "2026-02-30T06:00:00.000Z"],
+  ])(
+    "rejects %s instead of exporting an ambiguous generated instant",
+    (_, generatedIso) => {
+      expect(() =>
+        createPlaceObservationExport({
+          ...input,
+          generatedIso,
+        })
+      ).toThrow(
+        "generatedIso must be a valid canonical UTC timestamp (YYYY-MM-DDTHH:mm:ss.sssZ)."
+      );
+    }
+  );
 
   it.each([
     {
