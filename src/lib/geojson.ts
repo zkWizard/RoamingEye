@@ -168,12 +168,7 @@ export function isAreaGeometry(geometry: GeoGeometry | null): boolean {
 
 /** Bounds of all outer polygon rings, or null when no area is present. */
 export function geometryBounds(geometry: GeoGeometry): GeometryBounds | null {
-  return boundsFromPreparedPolygons(preparedPolygons(geometry));
-}
-
-function boundsFromPreparedPolygons(
-  polygons: PreparedPolygon[]
-): GeometryBounds | null {
+  const polygons = preparedPolygons(geometry);
   if (polygons.length === 0) return null;
   let south = Infinity;
   let north = -Infinity;
@@ -205,19 +200,17 @@ function pointInRing(lon: number, lat: number, ring: Position[]): boolean {
   return inside;
 }
 
-function preparedGeometryContains(
-  polygons: PreparedPolygon[],
+function preparedPolygonContains(
+  polygon: PreparedPolygon,
   lat: number,
   lon: number
 ): boolean {
-  return polygons.some(({ outer, holes }) => {
-    const reference = averageLon(outer);
-    const framedLon = lonInFrame(lon, reference);
-    return (
-      pointInRing(framedLon, lat, outer) &&
-      !holes.some((hole) => pointInRing(framedLon, lat, hole))
-    );
-  });
+  const reference = averageLon(polygon.outer);
+  const framedLon = lonInFrame(lon, reference);
+  return (
+    pointInRing(framedLon, lat, polygon.outer) &&
+    !polygon.holes.some((hole) => pointInRing(framedLon, lat, hole))
+  );
 }
 
 /** Test whether a longitude/latitude point falls inside a polygon or multipolygon. */
@@ -226,7 +219,43 @@ export function geometryContains(
   lat: number,
   lon: number
 ): boolean {
-  return preparedGeometryContains(preparedPolygons(geometry), lat, lon);
+  return preparedPolygons(geometry).some((polygon) =>
+    preparedPolygonContains(polygon, lat, lon)
+  );
+}
+
+interface GeometryGridCandidate {
+  point: { lat: number; lon: number };
+  polygonIndex: number;
+  gridIndex: number;
+}
+
+function geometryGridCandidates(
+  geometry: GeoGeometry,
+  n: number
+): GeometryGridCandidate[] {
+  const bounds = geometryBounds(geometry);
+  if (!bounds || n < 1) return [];
+  const polygons = preparedPolygons(geometry);
+  const candidates: GeometryGridCandidate[] = [];
+  for (let row = 0; row < n; row++) {
+    const lat =
+      bounds.south + ((row + 0.5) / n) * (bounds.north - bounds.south);
+    for (let col = 0; col < n; col++) {
+      const lon = bounds.west + ((col + 0.5) / n) * (bounds.east - bounds.west);
+      const polygonIndex = polygons.findIndex((polygon) =>
+        preparedPolygonContains(polygon, lat, lon)
+      );
+      if (polygonIndex >= 0) {
+        candidates.push({
+          point: { lat, lon },
+          polygonIndex,
+          gridIndex: row * n + col,
+        });
+      }
+    }
+  }
+  return candidates;
 }
 
 /**
@@ -238,24 +267,7 @@ export function geometryGridPoints(
   geometry: GeoGeometry,
   n: number
 ): { lat: number; lon: number }[] {
-  if (n < 1) return [];
-  // Ring unwrapping is proportional to boundary complexity. Prepare it once
-  // per grid pass instead of once for every candidate cell (up to 4,096
-  // times at the bounded refinement ceiling).
-  const polygons = preparedPolygons(geometry);
-  const bounds = boundsFromPreparedPolygons(polygons);
-  if (!bounds) return [];
-  const points: { lat: number; lon: number }[] = [];
-  for (let row = 0; row < n; row++) {
-    const lat =
-      bounds.south + ((row + 0.5) / n) * (bounds.north - bounds.south);
-    for (let col = 0; col < n; col++) {
-      const lon = bounds.west + ((col + 0.5) / n) * (bounds.east - bounds.west);
-      if (preparedGeometryContains(polygons, lat, lon))
-        points.push({ lat, lon });
-    }
-  }
-  return points;
+  return geometryGridCandidates(geometry, n).map(({ point }) => point);
 }
 
 function positiveInteger(value: number, fallback: number): number {
@@ -272,6 +284,46 @@ function evenlySpacedPoints<T>(points: T[], maxPoints: number): T[] {
     (_, index) =>
       points[Math.floor(((index + 0.5) * points.length) / maxPoints)]
   );
+}
+
+function componentBalancedPoints(
+  candidates: GeometryGridCandidate[],
+  maxPoints: number
+): { lat: number; lon: number }[] {
+  if (candidates.length <= maxPoints) {
+    return candidates.map(({ point }) => point);
+  }
+  const groups = new Map<number, GeometryGridCandidate[]>();
+  for (const candidate of candidates) {
+    const group = groups.get(candidate.polygonIndex) ?? [];
+    group.push(candidate);
+    groups.set(candidate.polygonIndex, group);
+  }
+  if (groups.size > maxPoints) {
+    return evenlySpacedPoints(candidates, maxPoints).map(({ point }) => point);
+  }
+
+  const allocations = [...groups].map(([polygonIndex, points]) => ({
+    polygonIndex,
+    points,
+    count: 1,
+  }));
+  for (
+    let remaining = maxPoints - allocations.length;
+    remaining > 0;
+    remaining--
+  ) {
+    allocations.sort(
+      (a, b) =>
+        b.points.length / b.count - a.points.length / a.count ||
+        a.polygonIndex - b.polygonIndex
+    );
+    allocations[0].count++;
+  }
+  return allocations
+    .flatMap(({ points, count }) => evenlySpacedPoints(points, count))
+    .sort((a, b) => a.gridIndex - b.gridIndex)
+    .map(({ point }) => point);
 }
 
 /**
@@ -338,20 +390,20 @@ export function geometrySamplingPlan(
     )
   );
   let gridSize = Math.min(maxGridSize, positiveInteger(initialGridSize, 1));
-  let points = geometryGridPoints(geometry, gridSize);
+  let candidates = geometryGridCandidates(geometry, gridSize);
 
-  while (points.length < minPoints && gridSize < maxGridSize) {
+  while (candidates.length < minPoints && gridSize < maxGridSize) {
     gridSize = Math.min(maxGridSize, gridSize * 2);
-    points = geometryGridPoints(geometry, gridSize);
+    candidates = geometryGridCandidates(geometry, gridSize);
   }
 
   return {
-    points: evenlySpacedPoints(points, maxPoints),
+    points: componentBalancedPoints(candidates, maxPoints),
     strategy: "boundary-grid",
     gridSize,
     candidatePointCount: gridSize * gridSize,
-    interiorPointCount: points.length,
-    pointLimitApplied: points.length > maxPoints,
+    interiorPointCount: candidates.length,
+    pointLimitApplied: candidates.length > maxPoints,
   };
 }
 
