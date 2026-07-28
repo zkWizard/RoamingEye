@@ -97,9 +97,11 @@ export function climateSeriesExtremes(
     );
   }
   const metric = summaries[0].metric;
-  if (summaries.some((summary) => summary.metric.id !== metric.id)) {
+  if (
+    summaries.some((summary) => !sameMetricProvenance(summary.metric, metric))
+  ) {
     throw new Error(
-      "RoamingEye: climate series extremes require a single, consistent metric"
+      "RoamingEye: climate series extremes require consistent metric provenance"
     );
   }
 
@@ -148,6 +150,27 @@ export function climateSeriesExtremes(
     usableMonthSpan:
       earliest === null || latest === null ? null : { earliest, latest },
   };
+}
+
+/**
+ * Compare every field that determines what a climate value represents and how
+ * it must be cited. Matching IDs alone are insufficient because a deserialized
+ * or independently assembled summary could otherwise attach another unit,
+ * layer, or source citation to values entering the same reduction.
+ */
+function sameMetricProvenance(
+  candidate: ClimateMetric,
+  expected: ClimateMetric
+): boolean {
+  return (
+    candidate.id === expected.id &&
+    candidate.layerId === expected.layerId &&
+    candidate.nativeUnit === expected.nativeUnit &&
+    candidate.source.shortName === expected.source.shortName &&
+    candidate.source.version === expected.source.version &&
+    candidate.source.doi === expected.source.doi &&
+    candidate.source.title === expected.source.title
+  );
 }
 
 /**
