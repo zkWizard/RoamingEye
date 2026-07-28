@@ -3,6 +3,7 @@ import {
   regionAround,
   legalLonBounds,
   splitBoundsAtAntimeridian,
+  allocateBoundsPartWidths,
   gibsRegionUrl,
   studyDate,
 } from "./imagery";
@@ -147,6 +148,42 @@ describe("splitBoundsAtAntimeridian", () => {
     ).toEqual([
       { bounds: { south: 0, north: 1, west: -180, east: 180 }, fraction: 1 },
     ]);
+  });
+});
+
+describe("allocateBoundsPartWidths", () => {
+  it("preserves a subpixel antimeridian sliver without changing total width", () => {
+    const parts = splitBoundsAtAntimeridian({
+      south: -1,
+      north: 1,
+      west: 179,
+      east: 180.000_001,
+    });
+    const widths = allocateBoundsPartWidths(parts, 320);
+    expect(widths).toEqual([319, 1]);
+    expect(widths.reduce((sum, width) => sum + width, 0)).toBe(320);
+  });
+
+  it("allocates odd widths deterministically in west-to-east order", () => {
+    const parts = splitBoundsAtAntimeridian({
+      south: -1,
+      north: 1,
+      west: 179,
+      east: 181,
+    });
+    expect(allocateBoundsPartWidths(parts, 5)).toEqual([3, 2]);
+  });
+
+  it("rejects an output too narrow to represent every legal piece", () => {
+    const parts = splitBoundsAtAntimeridian({
+      south: -1,
+      north: 1,
+      west: 179,
+      east: 181,
+    });
+    expect(() => allocateBoundsPartWidths(parts, 1)).toThrow(
+      "at least one pixel per bounds part"
+    );
   });
 });
 
