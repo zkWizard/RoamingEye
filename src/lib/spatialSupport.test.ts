@@ -108,11 +108,15 @@ describe("summarizeSpatialSupport", () => {
     expect(summary.unknownGridSignalIds).toEqual([]);
     expect(summary.finestMetres).toBe(1000);
     expect(summary.coarsestMetres).toBe(0.25 * 111_320);
-    expect(summary.scaleRatio).toBeCloseTo((0.25 * 111_320) / 1000, 5);
+    const linear = (0.25 * 111_320) / 1000;
+    expect(summary.scaleRatio).toBeCloseTo(linear, 5);
+    // Areal grain contrast is the square of the linear ratio: ~28× → ~775×.
+    expect(summary.areaScaleRatio).toBeCloseTo(linear * linear, 5);
     expect(summary.commonGrid).toBe(false);
     expect(summary.statement).toContain("distinct native grids");
     expect(summary.statement).toContain("not co-registered");
     expect(summary.statement).toContain("28×");
+    expect(summary.statement).toContain("averages over about 775× the area");
   });
 
   it("asserts a common grid only when every considered signal shares one", () => {
@@ -127,6 +131,7 @@ describe("summarizeSpatialSupport", () => {
     expect(summary.distinctStatedGrids).toBe(1);
     expect(summary.commonGrid).toBe(true);
     expect(summary.scaleRatio).toBe(1);
+    expect(summary.areaScaleRatio).toBe(1);
     expect(summary.statement).toContain("share one");
     expect(summary.statement).not.toContain("not co-registered");
   });
@@ -157,6 +162,7 @@ describe("summarizeSpatialSupport", () => {
     expect(summary.consideredSignalIds).toEqual(["vegetation"]);
     expect(summary.commonGrid).toBe(false);
     expect(summary.scaleRatio).toBeNull();
+    expect(summary.areaScaleRatio).toBeNull();
     expect(summary.finestMetres).toBe(1000);
     expect(summary.statement).toContain("needs two or more");
   });
@@ -192,6 +198,7 @@ describe("summarizeSpatialSupport", () => {
     expect(summary.finestMetres).toBeNull();
     expect(summary.coarsestMetres).toBeNull();
     expect(summary.scaleRatio).toBeNull();
+    expect(summary.areaScaleRatio).toBeNull();
     expect(summary.commonGrid).toBe(false);
     expect(summary.statement).toContain("No usable observations");
   });
