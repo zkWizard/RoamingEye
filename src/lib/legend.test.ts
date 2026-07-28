@@ -64,6 +64,21 @@ describe("LEGENDS", () => {
     expect(labels.some((l) => l.includes("cropland"))).toBe(true);
     expect(labels.some((l) => l.includes("urban"))).toBe(true);
   });
+
+  it("describes vegetation-index colors without inferring cover or condition", () => {
+    expect(LEGENDS.ndvi).toMatchObject({
+      minLabel: "lower NDVI",
+      maxLabel: "higher NDVI",
+      interpretationNote:
+        "NDVI is a unitless vegetation index; color does not measure vegetation cover, biomass, or condition.",
+    });
+    expect(LEGENDS.evi).toMatchObject({
+      minLabel: "lower EVI",
+      maxLabel: "higher EVI",
+      interpretationNote:
+        "EVI is a unitless vegetation index; color does not measure vegetation cover, biomass, or condition.",
+    });
+  });
 });
 
 describe("OVERLAY_KEYS", () => {
