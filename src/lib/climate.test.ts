@@ -53,7 +53,7 @@ describe("monthly climate summaries", () => {
     expect(soil.observedValue).toBe(7.2);
   });
 
-  it("distinguishes missing, invalid, and not-yet-published records without forecasting", () => {
+  it("keeps missing, invalid, and not-yet-published values unavailable without forecasting", () => {
     const missing = summarizeMonthlyClimate(
       {
         metricId: "soil-moisture",
@@ -95,10 +95,40 @@ describe("monthly climate summaries", () => {
     });
     expect(future).toMatchObject({
       isForecast: false,
+      dataMonth: { year: 2026, month: 6 },
+      availableThrough: { year: 2026, month: 5 },
+      metric: {
+        nativeUnit: CLIMATE_METRICS["precipitation-rate"].nativeUnit,
+        source: CLIMATE_METRICS["precipitation-rate"].source,
+      },
       publicationStatus: "not-yet-published",
       publicationLagMonths: null,
-      observedValue: 0.0001,
+      observedValue: null,
       coverage: { status: "available" },
+    });
+  });
+
+  it("does not expose an otherwise usable value when the availability checkpoint is invalid", () => {
+    const summary = summarizeMonthlyClimate(
+      {
+        metricId: "soil-moisture",
+        dataMonth: { year: 2026, month: 4 },
+        value: 8.1,
+        validFraction: 0.91,
+      },
+      { year: 2026, month: 13 }
+    );
+
+    expect(summary).toMatchObject({
+      isForecast: false,
+      publicationStatus: "invalid-reference-month",
+      publicationLagMonths: null,
+      observedValue: null,
+      coverage: {
+        status: "invalid",
+        validFraction: null,
+        reason: "invalid-month",
+      },
     });
   });
 });

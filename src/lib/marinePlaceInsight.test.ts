@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MARINE_PLACE_METRIC,
   marineBoundarySstReading,
+  unavailableMarineBoundarySstReading,
 } from "./marinePlaceInsight";
 
 describe("marine boundary SST insights", () => {
@@ -21,6 +22,20 @@ describe("marine boundary SST insights", () => {
       isForecast: false,
       dataMonth: { year: 2026, month: 3 },
       observedValue: 18.375,
+      observationStatus: "observed",
+    });
+    expect(reading.coverage).toMatchObject({
+      kind: "sea-surface-temperature-coverage",
+      marineBiologyObservation: false,
+      isForecast: false,
+      dataMonth: { year: 2026, month: 3 },
+      coverage: {
+        status: "unknown",
+        footprint: "unknown",
+        validFraction: 0.37,
+        reason: "unknown-footprint",
+      },
+      sourceImageDimensions: { width: 512, height: 512 },
     });
     expect(reading.detail).toContain("37% sampled boundary coverage");
     expect(reading.detail).toContain("rendered source image 512 x 512 px");
@@ -40,6 +55,13 @@ describe("marine boundary SST insights", () => {
 
     expect(reading.value).toBe("No usable SST observation");
     expect(reading.observedValue).toBeNull();
+    expect(reading.observationStatus).toBe("no-sst-coverage");
+    expect(reading.coverage?.coverage).toEqual({
+      status: "no-sst-coverage",
+      footprint: "unknown",
+      validFraction: 0,
+      reason: "zero-sst-coverage",
+    });
     expect(reading.detail).toContain("0% sampled boundary coverage");
   });
 
@@ -53,6 +75,8 @@ describe("marine boundary SST insights", () => {
 
     expect(reading.value).toBe("No usable SST observation");
     expect(reading.observedValue).toBeNull();
+    expect(reading.observationStatus).toBe("invalid-sample");
+    expect(reading.coverage?.coverage.reason).toBe("invalid-coverage");
     expect(reading.detail).toContain("sampled coverage not supplied");
   });
 
@@ -66,5 +90,21 @@ describe("marine boundary SST insights", () => {
 
     expect(reading.value).toBe("No usable SST observation");
     expect(reading.observedValue).toBeNull();
+    expect(reading.observationStatus).toBe("invalid-sample");
+  });
+
+  it("keeps source mapping failures distinct from sampled no-coverage", () => {
+    const reading = unavailableMarineBoundarySstReading({
+      year: 2026,
+      month: 3,
+    });
+
+    expect(reading).toMatchObject({
+      value: "Unavailable",
+      observationStatus: "source-unavailable",
+      coverage: null,
+      marineBiologyObservation: false,
+      dataMonth: { year: 2026, month: 3 },
+    });
   });
 });
