@@ -371,6 +371,63 @@ describe("place observation environmental brief", () => {
     expect(result.brief.signals[0].status).toBe("unavailable");
   });
 
+  it.each([
+    {
+      name: "an unexplained null",
+      observation: {
+        dataMonth: "2026-01",
+        value: null,
+        unavailableReason: null,
+      },
+    },
+    {
+      name: "an unavailable reason attached to a value",
+      observation: {
+        dataMonth: "2026-01",
+        value: 0.45,
+        unavailableReason: "source-no-data",
+      },
+    },
+    {
+      name: "an unknown unavailable reason",
+      observation: {
+        dataMonth: "2026-01",
+        value: null,
+        unavailableReason: "cloudy",
+      },
+    },
+    {
+      name: "a non-finite value",
+      observation: {
+        dataMonth: "2026-01",
+        value: Number.NaN,
+        unavailableReason: null,
+      },
+    },
+  ])("rejects $name from an external export record", ({ observation }) => {
+    const record = exportRecord();
+    record.products.find((p) => p.layerId === "ndvi")!.observations = [
+      observation,
+    ] as (typeof record.products)[number]["observations"];
+
+    const result = composePlaceObservationBrief(record);
+
+    expect(result.productStatus.vegetation).toBe("rejected-observation-state");
+    expect(result.observationSelection.vegetation).toEqual({
+      recordedObservationCount: 1,
+      earliestDataMonth: null,
+      latestDataMonth: null,
+      selectedDataMonth: null,
+    });
+    expect(result.samplingProvenance.vegetation).toBeNull();
+    expect(result.brief.signals[0]).toMatchObject({
+      status: "unavailable",
+      dataMonth: null,
+      observedValue: null,
+      coverage: { reason: "not-supplied" },
+    });
+  });
+
   it("records an accepted empty product without inventing a selected month", () => {
     const record = exportRecord();
     record.products.find((p) => p.layerId === "ndvi")!.observations = [];
