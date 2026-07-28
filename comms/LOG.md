@@ -66,3 +66,18 @@ One line per run: date — what was done. Terse.
   resources" and RoamingEye is a TS/browser app (off-scope; recorded so no one files an
   off-topic PR — the drafted Pangeo Showcase post already reaches that audience). Trimmed the
   "candidate venues" note accordingly. No outbox draft this run (avoids saturating the queue).
+- 2026-07-16 — Reached a new contributor persona. The pipeline's 5 drafts all target science /
+  EO / educator audiences; none reached **graphics engineers**, whom the README explicitly
+  recruits. RoamingEye _is_ a three.js app, and the three.js forum has a dedicated **Showcase**
+  category whose stated purpose is literally "showcase any projects you have created using
+  three.js" — the rare venue where a project post is the intended content (moderator-approved,
+  standard civil/no-spam guidelines; posts are also considered for the three.js homepage).
+  Read the category + forum guidelines, added it to TARGETS.md, and drafted a tailored post
+  (`outbox/threejs-showcase-roamingeye.md`) that leads with the **rendering/engineering** story
+  (single-globe, screen-space-error WMTS LOD, parent-tile fallback, no-backend static site) and
+  invites help on the open graphics problems (tile skirts, polar handling, Sentinel-2 10 m) —
+  awareness plus contributor recruitment. Verified claims against README (9 layers, ~31 m,
+  Three.js, colormap-inversion probe). Also flagged a free discoverability win in TARGETS Notes:
+  the repo's GitHub **description is empty** (`"description": null`) despite topics/homepage being
+  set — left a ready-to-apply `gh repo edit` command + proposed text for zkWizard (editing public
+  repo metadata unattended is a maintainer call, not the comms agent's to push).
