@@ -301,6 +301,15 @@ function validateInput(input: PlaceObservationExportInput): void {
         `Product ${product.layerId} has an invalid sampling strategy.`
       );
     }
+    if (
+      (product.samplingStrategy === undefined ||
+        product.samplingStrategy === "unavailable") &&
+      product.observations.some((observation) => observation.value !== null)
+    ) {
+      throw new Error(
+        `Product ${product.layerId} must retain a boundary sampling strategy for recorded values.`
+      );
+    }
     if (!hasCitation(product.source)) {
       throw new Error(
         `Product ${product.layerId} needs a complete source citation.`
