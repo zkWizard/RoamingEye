@@ -142,6 +142,64 @@ describe("place observation environmental brief", () => {
         selectedDataMonth: { year: 2026, month: 3 },
       },
     });
+    expect(result.samplingProvenance).toEqual({
+      vegetation: {
+        samplingStrategy: "unavailable",
+        samplingSupport: null,
+        sampleToNative: {
+          sampledUnit: NDVI_UNIT,
+          operation: "divide",
+          factor: 1,
+        },
+        selectedObservation: {
+          dataMonth: { year: 2026, month: 1 },
+          validFraction: 0.8,
+          unavailableReason: null,
+        },
+      },
+      rainfall: {
+        samplingStrategy: "unavailable",
+        samplingSupport: null,
+        sampleToNative: {
+          sampledUnit: CLIMATE_METRICS["precipitation-rate"].nativeUnit,
+          operation: "divide",
+          factor: 1,
+        },
+        selectedObservation: {
+          dataMonth: { year: 2026, month: 1 },
+          validFraction: 0.7,
+          unavailableReason: null,
+        },
+      },
+      "soil-moisture": {
+        samplingStrategy: "unavailable",
+        samplingSupport: null,
+        sampleToNative: {
+          sampledUnit: CLIMATE_METRICS["soil-moisture"].nativeUnit,
+          operation: "divide",
+          factor: 1,
+        },
+        selectedObservation: {
+          dataMonth: { year: 2026, month: 1 },
+          validFraction: 0,
+          unavailableReason: "source-no-data",
+        },
+      },
+      "air-temperature": {
+        samplingStrategy: "unavailable",
+        samplingSupport: null,
+        sampleToNative: {
+          sampledUnit: CLIMATE_METRICS["air-temperature-2m"].nativeUnit,
+          operation: "divide",
+          factor: 1,
+        },
+        selectedObservation: {
+          dataMonth: { year: 2026, month: 3 },
+          validFraction: 0.9,
+          unavailableReason: null,
+        },
+      },
+    });
     expect(result.brief.signals[0]).toMatchObject({
       id: "vegetation",
       observedValue: 0.58,
@@ -186,6 +244,53 @@ describe("place observation environmental brief", () => {
     expect(result.provenance.generated.iso).toBe("2026-07-13T07:00:00.000Z");
   });
 
+  it("retains bounded product sampling evidence without aliasing the export", () => {
+    const record = exportRecord();
+    const vegetation = record.products.find((p) => p.layerId === "ndvi")!;
+    vegetation.samplingStrategy = "boundary-grid";
+    vegetation.samplingSupport = {
+      gridSize: 24,
+      candidatePointCount: 576,
+      interiorPointCount: 430,
+      retainedPointCount: 400,
+      sourcePixelCount: 388,
+      pointLimitApplied: true,
+    };
+    vegetation.sampleToNative = {
+      sampledUnit: "rendered NDVI",
+      operation: "divide",
+      factor: 10_000,
+    };
+
+    const result = composePlaceObservationBrief(record);
+
+    expect(result.samplingProvenance.vegetation).toEqual({
+      samplingStrategy: "boundary-grid",
+      samplingSupport: vegetation.samplingSupport,
+      sampleToNative: vegetation.sampleToNative,
+      selectedObservation: {
+        dataMonth: { year: 2026, month: 1 },
+        validFraction: 0.8,
+        unavailableReason: null,
+      },
+    });
+    expect(result.samplingProvenance.vegetation!.samplingSupport).not.toBe(
+      vegetation.samplingSupport
+    );
+    expect(result.samplingProvenance.vegetation!.sampleToNative).not.toBe(
+      vegetation.sampleToNative
+    );
+
+    vegetation.samplingSupport.sourcePixelCount = 1;
+    vegetation.sampleToNative.factor = 1;
+    expect(
+      result.samplingProvenance.vegetation!.samplingSupport!.sourcePixelCount
+    ).toBe(388);
+    expect(result.samplingProvenance.vegetation!.sampleToNative.factor).toBe(
+      10_000
+    );
+  });
+
   it("rejects source or unit mismatches instead of relabelling them", () => {
     const record = exportRecord();
     // Products are canonically ordered by layer id in the export, so address
@@ -209,6 +314,8 @@ describe("place observation environmental brief", () => {
       status: "unavailable",
       coverage: { reason: "not-supplied" },
     });
+    expect(result.samplingProvenance.rainfall).toBeNull();
+    expect(result.samplingProvenance["air-temperature"]).toBeNull();
   });
 
   it("rejects an invalid serialized month rather than treating it as absent", () => {
