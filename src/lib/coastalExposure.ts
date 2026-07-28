@@ -48,7 +48,18 @@ export type CoastalExposureClass =
   | "land-only";
 
 export type CoastalExposureStatus =
-  "graded" | "insufficient-classified-surface" | "no-classified-surface";
+  | "graded"
+  | "insufficient-classified-surface"
+  | "no-classified-surface"
+  | "invalid-context";
+
+export type CoastalExposureUnavailableReason =
+  | "invalid-sst-month"
+  | "invalid-context-year"
+  | "invalid-classified-surface-counts"
+  | "no-classified-surface-samples"
+  | "insufficient-classified-surface-samples"
+  | null;
 
 export interface CoastalExposureSummary {
   kind: "observed-coastal-surface-exposure";
@@ -63,7 +74,13 @@ export interface CoastalExposureSummary {
   sstDataMonth: YearMonth;
   /** Year of the annual MCD12Q1 surface context, retained unchanged. */
   contextDataYear: number;
+  /** Retained upstream timing state; invalid dates are never graded. */
+  timing: MarineSurfaceContextSummary["timing"];
+  /** Retained source-publication state from the annual land-cover context. */
+  sourcePublicationStatus: MarineSurfaceContextSummary["sourcePublicationStatus"];
   status: CoastalExposureStatus;
+  /** Machine-readable reason whenever no exposure band is available. */
+  unavailableReason: CoastalExposureUnavailableReason;
   /** Named exposure band, or null when the share cannot be graded honestly. */
   exposureClass: CoastalExposureClass | null;
   /**
@@ -106,15 +123,41 @@ export function summarizeCoastalExposure(
     source: context.source,
     sstDataMonth: context.sstDataMonth,
     contextDataYear: context.contextDataYear,
+    timing: context.timing,
+    sourcePublicationStatus: context.sourcePublicationStatus,
     classifiedSurfaceSampleCount: classified,
     igbpWaterSampleCount: water,
     otherIgbpClassSampleCount: other,
   } as const;
 
-  if (!areUsableCounts(water, other, classified) || classified <= 0) {
+  if (
+    context.timing === "invalid-sst-month" ||
+    context.timing === "invalid-context-year"
+  ) {
+    return {
+      ...base,
+      status: "invalid-context",
+      unavailableReason: context.timing,
+      exposureClass: null,
+      waterSurfaceFraction: null,
+    };
+  }
+
+  if (!areUsableCounts(water, other, classified)) {
+    return {
+      ...base,
+      status: "invalid-context",
+      unavailableReason: "invalid-classified-surface-counts",
+      exposureClass: null,
+      waterSurfaceFraction: null,
+    };
+  }
+
+  if (classified <= 0) {
     return {
       ...base,
       status: "no-classified-surface",
+      unavailableReason: "no-classified-surface-samples",
       exposureClass: null,
       waterSurfaceFraction: null,
     };
@@ -126,6 +169,7 @@ export function summarizeCoastalExposure(
     return {
       ...base,
       status: "insufficient-classified-surface",
+      unavailableReason: "insufficient-classified-surface-samples",
       exposureClass: null,
       waterSurfaceFraction,
     };
@@ -134,6 +178,7 @@ export function summarizeCoastalExposure(
   return {
     ...base,
     status: "graded",
+    unavailableReason: null,
     exposureClass: exposureClassFor(waterSurfaceFraction),
     waterSurfaceFraction,
   };
@@ -205,12 +250,18 @@ export function describeCoastalExposure(
   const lead = `Coastal surface exposure for the SST footprint of ${month}:`;
 
   let body: string;
-  if (summary.status === "no-classified-surface") {
+  if (summary.status === "invalid-context") {
+    body = `surface-context metadata is invalid (${
+      summary.unavailableReason ?? "unspecified"
+    }), so no water share or exposure band is reported.`;
+  } else if (summary.status === "no-classified-surface") {
     body =
       "no classified IGBP surface samples were supplied, so no water share is reported.";
   } else if (summary.status === "insufficient-classified-surface") {
     const count = summary.classifiedSurfaceSampleCount;
-    body = `only ${count} classified surface ${count === 1 ? "sample was" : "samples were"} supplied (below the ${MINIMUM_COASTAL_EXPOSURE_CLASSIFIED_SAMPLES}-sample floor), so the water share is not graded.`;
+    body = `only ${count} classified surface ${
+      count === 1 ? "sample was" : "samples were"
+    } supplied (below the ${MINIMUM_COASTAL_EXPOSURE_CLASSIFIED_SAMPLES}-sample floor), so the water share is not graded.`;
   } else {
     const phrase = summary.exposureClass
       ? EXPOSURE_CLASS_PHRASES[summary.exposureClass]
