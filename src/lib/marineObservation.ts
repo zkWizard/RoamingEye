@@ -41,6 +41,11 @@ export interface DirectMarineBiologicalObservationInput {
   nativeUnit: string;
   /** Citation for the direct biological source, distinct from the SST source. */
   source: DatasetRef;
+  /**
+   * Stable identifier supplied by the biological source for this exact record.
+   * Null explicitly means the source did not provide a record identifier.
+   */
+  sourceRecordId?: string | null;
   /** Usable share of the supplied biological survey or sampling footprint. */
   validFraction?: number;
   /** Geographic scope from the biological source, when it was supplied. */
@@ -66,6 +71,7 @@ export type DirectMarineBiologicalObservationReason =
   | "missing-taxon-name"
   | "missing-native-unit"
   | "incomplete-source-citation"
+  | "invalid-source-record-id"
   | "invalid-geography"
   | "missing-value"
   | "zero-biological-coverage"
@@ -81,6 +87,8 @@ export interface DirectMarineBiologicalObservationSummary {
   taxonName: string;
   dataMonth: YearMonth;
   source: DatasetRef;
+  /** Exact source-supplied record identifier, or null when unavailable. */
+  sourceRecordId: string | null;
   nativeUnit: string;
   /** Retained direct-source geography; never substituted from SST. */
   geography: DirectMarineBiologicalObservationGeography | null;
@@ -102,6 +110,7 @@ export interface NoDirectMarineBiologicalObservationSummary {
   taxonName: null;
   dataMonth: null;
   source: null;
+  sourceRecordId: null;
   nativeUnit: null;
   geography: null;
   coverage: { validFraction: null; reason: "not-supplied" };
@@ -242,6 +251,7 @@ export function summarizeDirectMarineBiologicalObservation(
     taxonName: input.taxonName,
     dataMonth: input.dataMonth,
     source: input.source,
+    sourceRecordId: input.sourceRecordId ?? null,
     nativeUnit: input.nativeUnit,
     geography: input.geography ?? null,
   };
@@ -281,6 +291,17 @@ export function summarizeDirectMarineBiologicalObservation(
       base,
       validFraction ?? null,
       "incomplete-source-citation"
+    );
+  }
+  if (
+    input.sourceRecordId !== undefined &&
+    input.sourceRecordId !== null &&
+    !input.sourceRecordId.trim()
+  ) {
+    return invalidBiologicalObservation(
+      base,
+      validFraction ?? null,
+      "invalid-source-record-id"
     );
   }
   if (input.geography !== undefined && !isGeography(input.geography)) {
@@ -326,6 +347,7 @@ function noDirectMarineBiologicalObservation(): NoDirectMarineBiologicalObservat
     taxonName: null,
     dataMonth: null,
     source: null,
+    sourceRecordId: null,
     nativeUnit: null,
     geography: null,
     coverage: { validFraction: null, reason: "not-supplied" },
