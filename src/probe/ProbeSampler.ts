@@ -501,7 +501,7 @@ export class ProbeSampler {
     }
 
     const widths = allocateBoundsPartWidths(parts, this.imageSize.width);
-    const bitmaps = await Promise.all(
+    const bitmapResults = await Promise.allSettled(
       parts.map(async (part, index) => {
         const blob = await fetchBlob(
           gibsRegionUrl(layer.wmsLayer, part.bounds, time, {
@@ -512,6 +512,18 @@ export class ProbeSampler {
         );
         return createImageBitmap(blob);
       })
+    );
+    const failed = bitmapResults.find(
+      (result): result is PromiseRejectedResult => result.status === "rejected"
+    );
+    if (failed) {
+      for (const result of bitmapResults) {
+        if (result.status === "fulfilled") result.value.close();
+      }
+      throw failed.reason;
+    }
+    const bitmaps = bitmapResults.flatMap((result) =>
+      result.status === "fulfilled" ? [result.value] : []
     );
     const canvas = document.createElement("canvas");
     canvas.width = this.imageSize.width;
