@@ -253,4 +253,27 @@ describe("rendered monthly meteorology", () => {
       },
     ]);
   });
+
+  it("does not round partial sampled coverage to zero or complete coverage", () => {
+    const summaries = summarizeRenderedClimateSample(
+      {
+        metricId: "precipitation-rate",
+        months: [
+          { year: 2026, month: 1 },
+          { year: 2026, month: 2 },
+        ],
+        sampledValues: [0.00001, 0.00002],
+        nativeToSampledValueFactor: 1,
+        validFractions: [0.004, 0.9996],
+      },
+      { year: 2026, month: 2 }
+    );
+
+    expect(climateInsightText(undefined, summaries[0]).detail).toContain(
+      "0.4% sampled coverage"
+    );
+    expect(climateInsightText(summaries[0], summaries[1]).detail).toContain(
+      "99.96% sampled coverage"
+    );
+  });
 });

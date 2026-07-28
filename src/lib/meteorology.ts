@@ -229,7 +229,7 @@ function unavailableReason(summary: MonthlyClimateSummary): string {
 function coverageText(validFraction: number | null): string {
   return validFraction === null
     ? "sampled coverage not supplied"
-    : `${Math.round(validFraction * 100)}% sampled coverage`;
+    : `${formatNumber(validFraction * 100)}% sampled coverage`;
 }
 
 function imageProvenance(
