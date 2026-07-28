@@ -23,6 +23,12 @@ You don't have to write code to help:
 Look for issues labelled [`good first issue`](https://github.com/zkWizard/RoamingEye/labels/good%20first%20issue)
 to get started.
 
+Before picking something in `src/lib/`, read
+[**Wired vs. staged modules**](../ARCHITECTURE.md#wired-vs-staged-modules--read-this-before-picking-a-task)
+in the architecture guide — most modules there are tested but not yet connected
+to the app, so editing one won't change what a user sees. Connecting one is a
+great first project.
+
 ---
 
 ## Development setup
@@ -54,8 +60,13 @@ npm run dev        # start the local dev server (http://localhost:5173)
 
 Before opening a PR, please run **`npm run verify`** locally — these are the
 same checks CI runs. Every PR then runs the full suite on GitHub Actions
-(type-check, lint/format, unit, build, CodeQL, and the WebGL e2e smoke tests);
-a maintainer merges once it's approved and the required checks are green.
+(`.github/workflows/ci.yml` — type-check, lint/format, unit, build, plus CodeQL,
+OpenSSF Scorecard, and the WebGL e2e smoke tests); a maintainer merges once it's
+approved and the required checks are green.
+
+A red **E2E smoke (WebGL)** check is sometimes flaky rather than a real failure —
+if it fails and your change doesn't touch rendering, say so in the PR and a
+maintainer will re-run it.
 
 ---
 

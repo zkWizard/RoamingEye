@@ -28,6 +28,17 @@ browser streams it directly into WebGL textures.
 
 ### `src/lib/` — pure logic (unit-tested)
 
+Everything here is framework-free: no Three.js, no DOM, no network side effects
+beyond `net.ts`. That makes it fast to test and easy to read in isolation.
+
+**It is also much bigger than the table below.** `src/lib/` holds **159 modules**
+(plus 166 test files) as of `eabc5ea`, 2026-07-27. Listing them all here would
+go stale quickly — the directory grows frequently. So this guide documents
+the **core modules on the app's critical path**, and the section below explains
+how to orient yourself among the rest.
+
+#### Start here — the core modules
+
 | File                | Responsibility                                                                                                                            |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `geo.ts`            | lat/lng ↔ 3D vector projection (and its inverse), great-circle distance. The projection is calibrated to align overlays with the imagery. |
@@ -39,6 +50,41 @@ browser streams it directly into WebGL textures.
 | `navigation.ts`     | Fly-to camera distance heuristic.                                                                                                         |
 | `geocoding.ts`      | OpenStreetMap Nominatim client.                                                                                                           |
 | `net.ts`            | Resilient fetch (timeout + backoff retries + abort) used by all data calls.                                                               |
+
+#### Wired vs. staged modules — read this before picking a task
+
+`src/lib/` contains two kinds of module, and telling them apart will save you a
+lot of confusion:
+
+- **Wired** — reachable by following `import` statements from `src/main.ts`.
+  Changing one of these changes what a user sees in the browser.
+- **Staged** — a self-contained, unit-tested analysis function that nothing in
+  the app imports yet. It is real, reviewed, passing code; it simply has no call
+  site on the critical path.
+
+Measured at `eabc5ea` (2026-07-27) by walking the import graph from
+`src/main.ts`: **42 of 159 `src/lib` modules are wired, and 117 are staged.**
+Every other source directory (`ui/`, `overlays/`, `scene/`, `textures/`,
+`probe/`) is fully wired.
+
+To check any single module, grep for imports of it:
+
+```bash
+# Is src/lib/degreeDays.ts wired into the app?
+grep -rn "from '\./degreeDays'" src/ --include='*.ts'
+```
+
+No hits outside its own test file means it is staged.
+
+This matters for two reasons. First, **if you edit a staged module, the app's
+behaviour will not change** — the unit tests will prove your logic works, but
+nothing will appear on the globe. That is worth knowing before you go looking
+for your change in the browser. Second, it is a standing opportunity:
+**connecting a staged module to the UI is one of the best-scoped contributions
+available here.** The hard parts — the science, the edge cases, the tests — are
+already done and reviewed; what is missing is a call site and a way to show the
+result. If you want to try one, open an issue naming the module first so we can
+agree where it belongs in the interface before you build it.
 
 ### `src/textures/`
 
