@@ -538,15 +538,18 @@ function validateSamplingSupport(product: PlaceObservationProductInput): void {
       `Product ${product.layerId} has invalid sampling-support counts.`
     );
   }
-  if (support.gridSize === 0 || support.candidatePointCount === 0) {
+  if (support.gridSize === 0) {
     throw new Error(
       `Product ${product.layerId} has an empty sampling-support plan.`
     );
   }
   if (
+    support.candidatePointCount !== support.gridSize * support.gridSize ||
     support.interiorPointCount > support.candidatePointCount ||
     support.retainedPointCount > support.interiorPointCount ||
-    support.sourcePixelCount > support.retainedPointCount
+    support.sourcePixelCount > support.retainedPointCount ||
+    support.pointLimitApplied !==
+      support.retainedPointCount < support.interiorPointCount
   ) {
     throw new Error(
       `Product ${product.layerId} has inconsistent sampling-support counts.`
