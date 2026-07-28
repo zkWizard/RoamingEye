@@ -6,6 +6,7 @@ import {
   type MonthlyClimateSummary,
 } from "./climate";
 import type { LayerId, YearMonth } from "./timeline";
+import { toConventionalClimateValue } from "./climateConventionalUnits";
 
 /**
  * Bridges sampled GIBS rendered imagery into the climate contracts.
@@ -143,24 +144,34 @@ export function climateInsightText(
     };
   }
 
-  const value = formatNativeValue(
-    current.observedValue,
-    current.metric.nativeUnit
-  );
+  const conventional = toConventionalClimateValue(current);
+  const value =
+    conventional?.value !== null && conventional
+      ? formatNativeValue(conventional.value, conventional.conventionalUnit)
+      : formatNativeValue(current.observedValue, current.metric.nativeUnit);
   const previousUsable =
     previous?.publicationStatus === "published" &&
     previous.coverage.status === "available" &&
     previous.observedValue !== null;
-  const comparison =
+  const nativeDelta =
     previousUsable && previous?.observedValue !== null
-      ? `; ${formatNativeDelta(
-          current.observedValue - previous.observedValue,
-          current.metric.nativeUnit
-        )} vs ${formatMonth(previous.dataMonth)}`
-      : "";
+      ? current.observedValue - previous.observedValue
+      : null;
+  const comparison =
+    nativeDelta === null
+      ? ""
+      : `; ${formatNativeDelta(
+          conventional
+            ? nativeDelta * conventional.conversion.scale
+            : nativeDelta,
+          conventional?.conventionalUnit ?? current.metric.nativeUnit
+        )} vs ${formatMonth(previous!.dataMonth)}`;
+  const nativeProvenance = conventional
+    ? `; native source value ${formatNativeValue(current.observedValue, current.metric.nativeUnit)} (${conventional.conversion.basis})`
+    : "";
   return {
     value,
-    detail: `${month} observed${comparison}; ${coverage}; ${provenance}; approximate regional mean; source ${source}`,
+    detail: `${month} observed${comparison}${nativeProvenance}; ${coverage}; ${provenance}; approximate regional mean; source ${source}`,
   };
 }
 
