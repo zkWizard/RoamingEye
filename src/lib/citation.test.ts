@@ -6,8 +6,13 @@ import {
   risDataset,
   textTool,
   textDataset,
+  cslTool,
+  cslDataset,
   citationBundle,
+  doiResolverUrl,
+  DOI_RESOLVER,
   TOOL_CITATION,
+  type CslItem,
 } from "./citation";
 import { citedDatasets } from "./providers";
 
@@ -17,6 +22,45 @@ const ndvi = {
   doi: "10.5067/MODIS/MOD13A3.061",
   title: "MODIS/Terra Vegetation Indices Monthly L3 Global 1km",
 };
+
+describe("doiResolverUrl", () => {
+  it("builds a resolvable link for a normal NASA DOI unchanged", () => {
+    expect(doiResolverUrl(ndvi.doi)).toBe(
+      "https://doi.org/10.5067/MODIS/MOD13A3.061"
+    );
+  });
+
+  it("preserves the DOI's structural slash separators", () => {
+    // The "/" between registrant and suffix (and within the suffix) is part of
+    // the DOI, not a character to encode.
+    expect(doiResolverUrl("10.5067/a/b/c")).toBe(
+      `${DOI_RESOLVER}10.5067/a/b/c`
+    );
+  });
+
+  it("percent-encodes URL-unsafe characters a DOI suffix may carry", () => {
+    // "#", "?", and a space would otherwise be read as a fragment, a query, and
+    // a break in the URL; each must be escaped so the link resolves.
+    expect(doiResolverUrl("10.1234/a#b?c d")).toBe(
+      `${DOI_RESOLVER}10.1234/a%23b%3Fc%20d`
+    );
+  });
+
+  it("encodes an existing percent sign without double-encoding it", () => {
+    // "%" maps to "%25" first, so a later escape is never re-read as a prefix.
+    expect(doiResolverUrl("10.1234/50%off")).toBe(
+      `${DOI_RESOLVER}10.1234/50%25off`
+    );
+  });
+
+  it("trims surrounding whitespace before building the link", () => {
+    expect(doiResolverUrl("  10.5067/x  ")).toBe(`${DOI_RESOLVER}10.5067/x`);
+  });
+
+  it("yields the bare resolver base for an empty DOI", () => {
+    expect(doiResolverUrl("")).toBe(DOI_RESOLVER);
+  });
+});
 
 describe("BibTeX", () => {
   it("emits a well-formed @software entry for the tool with a version", () => {
@@ -82,6 +126,55 @@ describe("plain text", () => {
     const text = textDataset(ndvi);
     expect(text.startsWith(ndvi.title)).toBe(true);
     expect(text).not.toMatch(/\b(19|20)\d{2}\b/); // no fabricated year
+  });
+});
+
+describe("CSL-JSON", () => {
+  it("emits a 'software' item for the tool with author, year, and version", () => {
+    const item = cslTool();
+    expect(item.id).toBe("roamingeye");
+    expect(item.type).toBe("software");
+    expect(item.title).toBe(TOOL_CITATION.title);
+    expect(item.author).toEqual([{ literal: TOOL_CITATION.author }]);
+    expect(item.issued).toEqual({ "date-parts": [[TOOL_CITATION.year]] });
+    expect(item.version).toBe(TOOL_CITATION.version);
+    expect(item.URL).toBe(TOOL_CITATION.url);
+    // The tool carries no DOI, so the field is omitted rather than emitted null.
+    expect("DOI" in item).toBe(false);
+  });
+
+  it("emits a 'dataset' item carrying the DOI and a resolvable URL", () => {
+    const item = cslDataset(ndvi);
+    expect(item.type).toBe("dataset");
+    expect(item.title).toContain("MOD13A3 v061");
+    expect(item.publisher).toBe("NASA Global Imagery Browse Services (GIBS)");
+    expect(item.version).toBe("061");
+    expect(item.DOI).toBe("10.5067/MODIS/MOD13A3.061");
+    expect(item.URL).toBe("https://doi.org/10.5067/MODIS/MOD13A3.061");
+    // The CSL id matches the BibTeX key for the same work (stable, ASCII).
+    expect(item.id).toMatch(/^dataset_MOD13A3_v061$/);
+  });
+
+  it("invents no author or release date beyond the DatasetRef fields", () => {
+    const item = cslDataset(ndvi);
+    expect("author" in item).toBe(false);
+    expect("issued" in item).toBe(false);
+  });
+
+  it("bundles valid, parseable CSL-JSON: the tool first, then each dataset", () => {
+    const bundle = citationBundle("csljson");
+    expect(bundle.endsWith("\n")).toBe(true);
+    const items = JSON.parse(bundle) as CslItem[];
+    expect(Array.isArray(items)).toBe(true);
+    expect(items[0]).toMatchObject({ id: "roamingeye", type: "software" });
+
+    // One dataset item per unique DOI, each resolvable — no product double-counted.
+    const uniqueDois = new Set(citedDatasets().map((c) => c.dataset.doi));
+    const datasetItems = items.filter((i) => i.type === "dataset");
+    expect(datasetItems).toHaveLength(uniqueDois.size);
+    for (const item of datasetItems) {
+      expect(item.URL).toBe(`https://doi.org/${item.DOI}`);
+    }
   });
 });
 

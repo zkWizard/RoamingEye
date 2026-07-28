@@ -111,6 +111,7 @@ export class ProvidersPage {
     };
     makeCopyBtn("Copy BibTeX", "bibtex");
     makeCopyBtn("Copy RIS", "ris");
+    makeCopyBtn("Copy CSL-JSON", "csljson");
 
     citing.append(citingTitle, citingIntro, list, ack, actions);
     body.appendChild(citing);

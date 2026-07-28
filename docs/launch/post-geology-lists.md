@@ -14,7 +14,7 @@ I wanted to share a free teaching resource that might be useful for
 <course / intro geology>: **RoamingEye**, an open-source 3D globe built
 entirely on open data (NASA GIBS, USGS, Smithsonian GVP).
 
-https://zkwizard.github.io/RoamingEye/
+https://roamingeye.org/
 
 Two things it does well for teaching:
 
