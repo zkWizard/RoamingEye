@@ -41,9 +41,9 @@ const feature = (
 });
 
 describe("parseEarthquakeFeed", () => {
-  it("extracts lat/lon/depth/magnitude from valid features", () => {
+  it("extracts coordinates and preserves the reported magnitude type", () => {
     const quakes = parseEarthquakeFeed({
-      features: [feature(152.3, -4.2, 45, 6.1)],
+      features: [feature(152.3, -4.2, 45, 6.1, { magType: "mww" })],
     });
     expect(quakes).toHaveLength(1);
     expect(quakes[0]).toMatchObject({
@@ -51,6 +51,7 @@ describe("parseEarthquakeFeed", () => {
       lat: -4.2,
       depthKm: 45,
       magnitude: 6.1,
+      magnitudeType: "mww",
       place: "somewhere",
     });
   });
@@ -126,6 +127,22 @@ describe("parseEarthquakeFeed", () => {
       horizontalErrorKm: 0,
       depthErrorKm: null,
     });
+  });
+
+  it("makes an omitted or blank magnitude type explicitly unavailable", () => {
+    const quakes = parseEarthquakeFeed({
+      features: [
+        feature(0, 0, 10, 5),
+        feature(1, 1, 20, 5.1, { magType: "   " }),
+        feature(2, 2, 30, 5.2, { magType: 12 }),
+      ],
+    });
+
+    expect(quakes.map(({ magnitudeType }) => magnitudeType)).toEqual([
+      null,
+      null,
+      null,
+    ]);
   });
 
   it("returns [] for non-feed input", () => {
@@ -327,6 +344,7 @@ describe("summarizeEarthquakes", () => {
         lon: 2,
         depthKm: 10,
         magnitude: 4.5,
+        magnitudeType: "mb",
         time: 1_000,
         place: "A",
       },
@@ -335,6 +353,7 @@ describe("summarizeEarthquakes", () => {
         lon: 4,
         depthKm: 70,
         magnitude: 6.5,
+        magnitudeType: "mww",
         time: 3_000,
         place: "B",
       },
@@ -343,6 +362,7 @@ describe("summarizeEarthquakes", () => {
         lon: 6,
         depthKm: 301,
         magnitude: 5.5,
+        magnitudeType: "mb",
         time: 2_000,
         place: "C",
       },
@@ -351,6 +371,10 @@ describe("summarizeEarthquakes", () => {
     expect(summary).toMatchObject({
       eventCount: 3,
       magnitude: { min: 4.5, max: 6.5 },
+      magnitudeTypes: {
+        reportedCounts: { mb: 2, mww: 1 },
+        unavailableCount: 0,
+      },
       depthKm: { min: 10, max: 301 },
       time: { min: 1_000, max: 3_000 },
       depthClassCounts: { shallow: 1, intermediate: 1, deep: 1 },
@@ -372,6 +396,7 @@ describe("summarizeEarthquakes", () => {
     expect(summarizeEarthquakes([])).toMatchObject({
       eventCount: 0,
       magnitude: { min: null, max: null },
+      magnitudeTypes: { reportedCounts: {}, unavailableCount: 0 },
       depthKm: { min: null, max: null },
       time: { min: null, max: null },
       depthClassCounts: { shallow: 0, intermediate: 0, deep: 0 },
@@ -384,6 +409,43 @@ describe("summarizeEarthquakes", () => {
         major: 0,
         great: 0,
       },
+    });
+  });
+
+  it("counts omitted magnitude types as unavailable without homogenizing labels", () => {
+    const summary = summarizeEarthquakes([
+      {
+        lat: 1,
+        lon: 2,
+        depthKm: 10,
+        magnitude: 5,
+        magnitudeType: "ML",
+        time: 1_000,
+        place: "A",
+      },
+      {
+        lat: 3,
+        lon: 4,
+        depthKm: 20,
+        magnitude: 5.1,
+        magnitudeType: "ml",
+        time: 2_000,
+        place: "B",
+      },
+      {
+        lat: 5,
+        lon: 6,
+        depthKm: 30,
+        magnitude: 5.2,
+        magnitudeType: null,
+        time: 3_000,
+        place: "C",
+      },
+    ]);
+
+    expect(summary.magnitudeTypes).toEqual({
+      reportedCounts: { ML: 1, ml: 1 },
+      unavailableCount: 1,
     });
   });
 });

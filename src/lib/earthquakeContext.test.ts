@@ -194,6 +194,9 @@ describe("nearbyEarthquakeContext", () => {
         lon: -122.42,
         depthKm: 8.4,
         magnitude: 4.6,
+        // A feed that omits magType reports the type as explicitly unavailable
+        // rather than inventing one.
+        magnitudeType: null,
         time: 1_750_000_000_000,
         place: "San Francisco Bay Area",
         // Native USGS record provenance travels with the event; a minimal
