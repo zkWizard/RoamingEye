@@ -14,6 +14,25 @@ const volcano = (overrides: Partial<Volcano> = {}): Volcano => ({
 });
 
 describe("volcanoesInSearchExtent", () => {
+  it("preserves a source year zero without presenting a nonexistent 0 BCE", () => {
+    const context = volcanoesInSearchExtent(
+      [
+        volcano({
+          name: "Arxan-Chaihe",
+          lat: 47.45,
+          lon: 120.8,
+          lastEruptionYear: 0,
+        }),
+      ],
+      [40, 50, 115, 125]
+    );
+
+    expect(context.records[0].lastEruptionText).toBe(
+      "last eruption year 0 (source value; era not converted)"
+    );
+    expect(context.units.lastEruptionYear).toContain("zero is preserved");
+  });
+
   it("returns descriptive GVP records inside inclusive search bounds", () => {
     const context = volcanoesInSearchExtent(
       [
