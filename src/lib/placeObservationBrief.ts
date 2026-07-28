@@ -46,6 +46,17 @@ export type PlaceObservationProductStatus =
   | "rejected-native-unit"
   | "rejected-observation-months";
 
+export interface PlaceObservationSelectionProvenance {
+  /** Number of source observations recorded for this product. */
+  recordedObservationCount: number;
+  /** Earliest canonical source month considered; null for absent/rejected data. */
+  earliestDataMonth: YearMonth | null;
+  /** Latest canonical source month considered; null for absent/rejected data. */
+  latestDataMonth: YearMonth | null;
+  /** Month selected for the brief; null when no observation was selected. */
+  selectedDataMonth: YearMonth | null;
+}
+
 export interface PlaceObservationBrief {
   kind: "place-observation-environment-brief";
   brief: EnvironmentBrief;
@@ -61,6 +72,15 @@ export interface PlaceObservationBrief {
   };
   /** Source acceptance is independent for every signal; it is not a score. */
   productStatus: Record<EnvironmentSignalId, PlaceObservationProductStatus>;
+  /**
+   * Bounded selection provenance for reproducing the latest-month choice.
+   * Rejected products expose only their recorded count; malformed months are
+   * never normalized or silently interpreted.
+   */
+  observationSelection: Record<
+    EnvironmentSignalId,
+    PlaceObservationSelectionProvenance
+  >;
   limitations: readonly [
     "Only products matching the expected layer, WMS layer, citation, and native unit are used.",
     "The sampled boundary and export method are retained as provenance, not interpreted as environmental condition.",
@@ -95,6 +115,10 @@ export function composePlaceObservationBrief(
     EnvironmentSignalId,
     EnvironmentObservation | null
   >;
+  const observationSelection = {} as Record<
+    EnvironmentSignalId,
+    PlaceObservationSelectionProvenance
+  >;
 
   for (const binding of SIGNAL_BINDINGS) {
     const product = exportRecord.products.find(
@@ -106,6 +130,11 @@ export function composePlaceObservationBrief(
       status === "accepted" && product
         ? latestObservation(product.observations)
         : null;
+    observationSelection[binding.signalId] = selectionProvenance(
+      product,
+      status,
+      observations[binding.signalId]
+    );
   }
 
   return {
@@ -132,7 +161,44 @@ export function composePlaceObservationBrief(
       },
     }),
     productStatus,
+    observationSelection,
     limitations: LIMITATIONS,
+  };
+}
+
+function selectionProvenance(
+  product: PlaceObservationExport["products"][number] | undefined,
+  status: PlaceObservationProductStatus,
+  selected: EnvironmentObservation | null
+): PlaceObservationSelectionProvenance {
+  const recordedObservationCount = product?.observations.length ?? 0;
+  if (status !== "accepted" || !product || product.observations.length === 0) {
+    return {
+      recordedObservationCount,
+      earliestDataMonth: null,
+      latestDataMonth: null,
+      selectedDataMonth: null,
+    };
+  }
+
+  const months = product.observations.map((observation) => {
+    const month = parseYearMonth(observation.dataMonth);
+    // Accepted products have already passed hasCanonicalObservationMonths.
+    if (!month) throw new Error("Accepted observation month was not canonical");
+    return month;
+  });
+  let earliestDataMonth = months[0];
+  let latestDataMonth = months[0];
+  for (const month of months) {
+    if (compareYm(month, earliestDataMonth) < 0) earliestDataMonth = month;
+    if (compareYm(month, latestDataMonth) > 0) latestDataMonth = month;
+  }
+
+  return {
+    recordedObservationCount,
+    earliestDataMonth: { ...earliestDataMonth },
+    latestDataMonth: { ...latestDataMonth },
+    selectedDataMonth: selected ? { ...selected.dataMonth } : null,
   };
 }
 
