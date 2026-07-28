@@ -275,3 +275,41 @@ null`, `https_enforced: false`, `https://roamingeye.org/` still fails TLS, and
   no open PR touches any of those four paths.
   Skipped Duty 1 (14 venues researched, 0 sent), Duty 4 (#373/#374/#375 still open and
   unclaimed) and Duty 3 — all still blocked behind the same gate.
+- 2026-07-27 (fourth run) — **Wrote the missing send plan (`comms/SEND-PLAN.md`).** Seven
+  drafts are written and claim-checked, and nothing anywhere recorded **what to send first,
+  when, or what each one costs to run** — `TARGETS.md` holds per-venue research and `outbox/`
+  holds content, but the sequencing lived nowhere. When the gate clears, zkWizard would have
+  faced seven ready drafts and no plan; the failure mode is firing them all in one day, which
+  wastes the only Show HN shot this project gets and leaves every thread unanswered.
+  The plan orders the five sendable items — **three.js Showcase → Pangeo → leafmap → Show HN
+  → the two awesome-list PRs** — from five principles taken from rules already read and
+  recorded here, not invented: reversible before permanent (an awesome-list row is scraped
+  and mirrored; a forum post can be edited); rehearse before the one-shot (slots 1–3 generate
+  the FAQ that sharpens the HN top comment); one live thread at a time (HN and three.js both
+  expect the author present — two at once means both answered badly); moderator latency is
+  free (three.js Showcase queues, so posting early costs nothing); and traction helps
+  gatekeepers. Each slot carries its **presence cost** — slot 4 is flagged as a real
+  2–4 hour calendar commitment, not a submit-and-leave.
+  Also folded in three project-specific **"verify it healed"** checks that no generic launch
+  checklist would contain, because they are consequences of the gate this workspace measured:
+  the geolocation pin is dead over plain HTTP (`isSecureContext: false`), `health-check.yml`
+  is red on the public Actions tab, and HTTPS must actually return `200`. All three self-heal
+  when the cert lands — the plan says confirm they did, before sending traffic.
+  Recorded a **pre-launch baseline** so "did this work?" has an answer later: 1 star, 0 forks,
+  0 external watchers, 0 outside-authored issues/PRs, **43 views / 10 unique visitors** in the
+  rolling 14-day window, and — the sharpest number — the **only referrer is `github.com`, 2
+  uniques**, i.e. no external traffic source exists at all. (11,941 clones from 503 uniques is
+  our own CI; the plan says to ignore it.) Explicitly listed the six items that are _not_ in
+  the sequence with the reason each is excluded, so no future run mistakes an unscheduled item
+  for an overlooked one.
+  **Verified, so nobody redoes it:** all three `good first issue` entries still hold exactly
+  against current `main` — #373 (`TimeSlider.ts:53` still hardcodes `aria-label` "Month" while
+  `stepUnit` sits at line 36), #374 (`SearchBox.ts` still has only the `Escape` handler at
+  lines 35–36), #375 (`.github/CONTRIBUTING.md:30` still says "Node.js 20+" vs `package.json`
+  `^20.19.0 || >=22.12.0`). All three are unclaimed with zero comments, so the queue is healthy
+  and refilling it would be wrong. Ran the standing by-file check first: only this PR and #410
+  touch `comms/`. Gate re-measured and unchanged (`https_certificate: null`,
+  `https_enforced: false`) — though the TLS failure has changed shape, now
+  `SEC_E_WRONG_PRINCIPAL` rather than a dead connection: the host completes the handshake and
+  presents the default `*.github.io` certificate, which is the same "no cert for our domain"
+  conclusion, not progress. Signals otherwise flat and unchanged.
