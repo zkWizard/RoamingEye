@@ -17,8 +17,11 @@ export interface Earthquake {
   magnitude: number;
   /** Event time, epoch milliseconds. */
   time: number;
-  /** Human-readable location, e.g. "63 km SW of Kokopo, Papua New Guinea". */
-  place: string;
+  /**
+   * Source-supplied human-readable location, e.g.
+   * "63 km SW of Kokopo, Papua New Guinea"; null when unavailable.
+   */
+  place: string | null;
   /**
    * Source-record identity and review metadata, when this event came from the
    * parsed USGS GeoJSON feed. Optional for caller-constructed observations;
@@ -378,7 +381,7 @@ export function parseEarthquakeFeedWithCoverage(
       depthKm,
       magnitude,
       time,
-      place: typeof props.place === "string" ? props.place : "",
+      place: typeof props.place === "string" ? props.place : null,
       sourceRecord: {
         id: typeof feature.id === "string" ? feature.id : null,
         url: typeof props.url === "string" ? props.url : null,

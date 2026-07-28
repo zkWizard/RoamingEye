@@ -99,6 +99,39 @@ describe("land-cover class-composition summaries", () => {
     expect(composition.provenance.source).toBe(context.provenance.source);
   });
 
+  it.each([
+    [2025, "outside-layer-range"],
+    [2024.5, "invalid-year"],
+  ] as const)(
+    "withholds composition for unpublished data year %s",
+    (dataYear, unavailableReason) => {
+      const context = summarizeLandCoverContext(
+        [
+          { classCode: 1, sampleCount: 6 },
+          { classCode: 10, sampleCount: 4 },
+        ],
+        dataYear
+      );
+
+      const composition = summarizeLandCoverComposition(context);
+
+      expect(context.coverage.knownLandCoverSampleCount).toBe(10);
+      expect(composition).toMatchObject({
+        status: "unavailable",
+        reason: unavailableReason,
+        metrics: null,
+        classShares: [],
+        provenance: {
+          dataYear,
+          publicationStatus: unavailableReason,
+          geographicCoverage: "selected-boundary samples",
+          nativeUnit: "categorical",
+        },
+      });
+      expect(composition.provenance).toBe(context.provenance);
+    }
+  );
+
   it("never averages categorical class codes", () => {
     const context = summarizeLandCoverContext(
       [

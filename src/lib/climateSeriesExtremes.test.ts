@@ -103,6 +103,16 @@ describe("climate series extremes", () => {
     expect(result.monthsUsable).toBe(2);
     expect(result.minimum?.value).toBe(295);
     expect(result.maximum?.value).toBe(299);
+    expect(result.excludedMonths).toEqual([
+      {
+        dataMonth: { year: 2026, month: 1 },
+        reason: "no-data",
+      },
+      {
+        dataMonth: { year: 2026, month: 8 },
+        reason: "not-yet-published",
+      },
+    ]);
     expect(result.usableMonthSpan).toEqual({
       earliest: { year: 2026, month: 6 },
       latest: { year: 2026, month: 7 },
@@ -118,6 +128,37 @@ describe("climate series extremes", () => {
     expect(result.maximum).toBeNull();
     expect(result.rangeNative).toBeNull();
     expect(result.usableMonthSpan).toBeNull();
+    expect(result.excludedMonths).toEqual([
+      { dataMonth: { year: 2026, month: 1 }, reason: "no-data" },
+      { dataMonth: { year: 2026, month: 2 }, reason: "no-data" },
+    ]);
+  });
+
+  it("distinguishes invalid observations from invalid availability months", () => {
+    const invalidValue = air(-1, 3);
+    const invalidReferenceMonth = summarizeMonthlyClimate(
+      {
+        metricId: "air-temperature-2m",
+        dataMonth: { year: 2026, month: 4 },
+        value: 290,
+      },
+      { year: 2026, month: 13 }
+    );
+
+    const result = climateSeriesExtremes([
+      invalidValue,
+      invalidReferenceMonth,
+      air(295, 5),
+    ]);
+
+    expect(result.monthsUsable).toBe(1);
+    expect(result.excludedMonths).toEqual([
+      { dataMonth: { year: 2026, month: 3 }, reason: "invalid" },
+      {
+        dataMonth: { year: 2026, month: 4 },
+        reason: "invalid-reference-month",
+      },
+    ]);
   });
 
   it("breaks value ties toward the earlier month, order-independently", () => {

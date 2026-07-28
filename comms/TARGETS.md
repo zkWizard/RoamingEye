@@ -8,6 +8,20 @@ zkWizard to review and personally send — this file never triggers a send.
 
 Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `declined`.
 
+**This file is the research; [`SEND-PLAN.md`](SEND-PLAN.md) is the order.** Eight drafts
+are ready and they should not all go out at once — the send plan holds the recommended
+sequence (three.js → Pangeo → leafmap → Show HN → the awesome-list PRs, with the CLEAN
+form submission running as a no-presence parallel track), the reasoning behind that order,
+the presence cost of each slot, and the pre-launch baseline to measure against. Read it
+before sending anything.
+
+> **Drafts live in two places.** `outbox/` is the canonical home, but four sendable
+> drafts predate this workspace and live in
+> [`docs/launch/`](../docs/launch/README.md) — Reddit, EO chat venues, geology teaching
+> contacts, and the maintainer comment template. They are indexed there and their claims
+> were re-verified on 2026-07-27. **Check both before drafting anything new**, or you
+> will rewrite work that already exists (this happened once already, to Reddit).
+
 ---
 
 ## Forums & communities
@@ -98,10 +112,22 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
   in-app first.
 - **Best angle:** classroom/fieldwork utility and open data — lead with a question or a
   workflow, not the link.
+- **A draft already exists — do not write another.**
+  [`docs/launch/post-reddit-r-gis.md`](../docs/launch/post-reddit-r-gis.md) has held a
+  complete r/gis post since the v0.2.0 era; this entry said "no draft will be written"
+  for twelve days without noticing it. Its claims were re-verified and repaired on
+  2026-07-27 (tiled streaming had shipped, the test count was 20× low, the record length
+  understated). It is written as a link-led post, so **if the sidebar check below turns
+  up a showcase-thread-only rule, the draft needs reframing, not rewriting.**
 - **Status:** **blocked on zkWizard — needs a 2-minute in-app rules check.** Programmatic
-  verification has now failed **twice** (2026-07-15 and 2026-07-27): Reddit is unreachable
-  from this agent's fetch layer, and web search returns only third-party SEO articles about
-  "Reddit self-promotion rules" in general — not the actual sidebar text of these two subs.
+  verification has now failed **three times** (2026-07-15, 2026-07-27, 2026-07-28): Reddit is
+  unreachable from this agent's fetch layer, and web search returns only third-party SEO
+  articles about "Reddit self-promotion rules" in general — not the actual sidebar text of
+  these two subs. **Do not spend another run retrying** — the 2026-07-28 attempt exhausted
+  the machine-readable routes so the next run does not have to: `about/rules.json` on both
+  `www.reddit.com` and `old.reddit.com`, via the fetch layer (domain-blocked outright) and
+  via direct `curl` (`403` from `www`, `302` from `old`). Reddit blocks unauthenticated
+  datacenter requests; this needs a human with a browser, or nothing.
   Third-hand rule summaries are not a sound basis for a compliance decision, so **no draft
   will be written for Reddit until the real rules are read.** This entry is deliberately
   parked rather than left ambiguous. What zkWizard needs to check in the sidebar / wiki of
@@ -111,8 +137,8 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
   2. Is **post flair** required, and which flair covers a project/tool share?
   3. Is there a **karma / account-age minimum** for link posts?
   4. Does the sub require **affiliation disclosure** ("I built this") in the post body?
-     Paste the answers into this entry and the draft can be written in the next run. Until
-     then: no post, no link drop.
+     Paste the answers into this entry and the existing draft can be adapted to the
+     compliant path in the next run. Until then: no post, no link drop.
 
 ### OSGeo Discourse / OSGeo community
 
@@ -252,7 +278,100 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
   and five ready-to-use lesson ideas mapped to features; make the honest limits a
   teachable moment rather than a disclaimer.
 - **Status:** drafted → `outbox/classroom-lab-one-pager.md` (reusable; awaiting zkWizard
-  review before adapting to specific educator venues)
+  review before adapting to specific educator venues). **Now routed** — the three venues
+  below were vetted on 2026-07-27 to answer "where does this asset actually go?"; CLEAN is
+  the route that takes it as-is.
+
+### CLEAN — Climate Literacy & Energy Awareness Network (**the educator route — recommended**)
+
+- **URL / channel:** https://cleanet.org/ — submit via the **"Suggest a Teaching Resource"**
+  form (https://cleanet.org/clean/community/suggestresource.html). Review process:
+  https://cleanet.org/clean/about_project/review.html
+- **Audience & size:** a peer-reviewed collection of ~700 climate and energy education
+  resources for grades 6–16, hosted at CU Boulder's CIRES/CEEE and mirrored by **NOAA
+  Climate.gov's teaching portal** and the USDA Climate Hubs. Teachers reach it through
+  those partners as much as through the site itself, so an accepted entry keeps paying out.
+- **Why RoamingEye fits:** CLEAN's form explicitly welcomes resources that "are educational
+  activities **or are interactive tools, visualizations, maps, or datasets that can be used
+  to create classroom, lab, or field activities**." That second clause is exactly what
+  RoamingEye is, and it is the only educator venue found so far that takes a _tool_ rather
+  than requiring a finished lesson plan.
+- **Posting rules / compliant path:** **the developer may submit their own resource** — the
+  form has a checkbox: "If you are the developer of the resource and want the CLEAN team to
+  contact you with the reviewers' comments, please indicate this below." So this is a
+  sanctioned submission, not self-promotion, and it is _the_ reason this venue outranks the
+  other two. Tick that box: the reviewers' comments are a free expert critique of the
+  teaching value from one educator and one scientist.
+  Submission then enters a four-stage review: triage → two rounds of general review (one
+  educator + one scientist) → a four-person panel → an expert science review, scored on
+  **scientific accuracy**, **pedagogic effectiveness** ("learning objectives, learning
+  styles targeted, prerequisite skills…, assessment strategies, level of engagement…, and
+  whether an activity is inquiry-based"), and **technical quality/usability** ("readiness
+  for use, clear presentation…, amount of necessary guidance for students by the
+  instructor, and the presence of a teacher's guide"). Expect months, not days.
+- **Best angle — and the one real fit risk.** CLEAN warns that "general websites addressing
+  many aspects of climate or energy science are not as useful as specific ones geared
+  toward a focused topic." A nine-layer globe pitched as "explore the Earth" is precisely
+  the general-website shape they down-rank. **Submit it against one focused climate-literacy
+  concept** — seasonal vegetation phenology, or seasonal snow-cover advance and retreat —
+  and let the rest of the app be the supporting context. Lesson ideas 1 and 5 in the
+  one-pager already are that focused activity; the probe→CSV exercise (idea 3) is what
+  answers their "inquiry-based" and "assessment" criteria.
+  Note also that "presence of a teacher's guide" is a scored line item and we have no
+  teacher's guide — the one-pager's lesson ideas and `docs/research-recipes.md` are the
+  closest thing, so link both.
+- **Status:** drafted → `outbox/clean-collection-submission.md` (send-blocked with
+  everything else; the form asks for the resource URL).
+
+### SERC "Teach the Earth" / NAGT — gated on a real classroom run, not on rules
+
+- **URL / channel:** https://serc.carleton.edu/teachearth/ — contribution form:
+  https://serc.carleton.edu/teachearth/contribute_activity.html
+- **Audience & size:** the largest geoscience-education portal in the US — thousands of
+  activities, run by SERC (Carleton College) with NAGT, the National Association of
+  Geoscience Teachers. Squarely the "≥3 university courses" roadmap audience.
+- **Why RoamingEye fits:** it doesn't — _not directly_. This is the important finding.
+- **Posting rules / compliant path:** **TTE takes teaching activities, never tools.** The
+  submitted object is a classroom-tested activity — problem set, lab, field activity, or
+  writing assignment — described with course context, content/higher-order-thinking/skills
+  goals, teaching materials, and assessment, and the guidance asks for "notes and tips for
+  instructors… common areas of confusion, things that need reinforcement." So the compliant
+  path is not "list RoamingEye"; it is "an instructor who has actually run a RoamingEye lab
+  contributes that lab." Activities are reviewed annually.
+  **Two things to know before anyone starts writing one:** (1) contributions are licensed
+  **CC BY-NC-SA 4.0** ("a license for non-commercial distribution… provided that they
+  attribute the material to you") — that covers the activity write-up, not RoamingEye
+  itself, which stays MIT, but it is a licence choice worth making deliberately; (2) the
+  form asks you to search the collection first to avoid duplicating an existing activity.
+- **Best angle:** this is a _second-order_ venue. It becomes reachable once RoamingEye has
+  been used in a real course — which is what the one-pager and CLEAN are for. Writing a
+  speculative activity that has never been run with students would be dishonest against a
+  form that asks how students met the goals.
+- **Status:** **researched — parked behind classroom adoption, not behind rules.** Revisit
+  after the first instructor actually teaches with it; then help _them_ contribute it.
+
+### Earth Exploration Toolbook (EET) — perfect shape, uncertain pulse; ask before writing
+
+- **URL / channel:** https://serc.carleton.edu/eet/ — scope statement:
+  https://serc.carleton.edu/eet/policy.html
+- **Audience & size:** an SERC/TERC collection of step-by-step "chapters" that walk students
+  through using a real Earth-science dataset and analysis tool. NSF-funded, DLESE-catalogued.
+- **Why RoamingEye fits:** on paper, better than anything else in the pipeline. A chapter is
+  "step-by-step instructions to walk users through an example of using data and tools in a
+  meaningful context," covering "remotely sensed data… visualization tools" — which is a
+  literal description of `docs/research-recipes.md` in EET's own format. The chapter
+  template explicitly "permits development of new EET chapters by people outside the
+  project."
+- **Posting rules / compliant path:** unclear, and that is the finding. The site's initial
+  publication date is **2006** and the most recent dated item on it is a 2011 award; there
+  is no "last updated" stamp, no open call for chapter authors, and the scope statement only
+  promises the collection "will be maintained as long as the Earth Exploration Toolbook is
+  supported." A chapter is many hours of work.
+- **Best angle:** **do not write a chapter on spec.** One short email to the EET/SERC contact
+  asking whether new community chapters are still being accepted costs nothing and settles
+  it. If yes, this is the highest-value educator artifact available; if no, we lose nothing.
+- **Status:** **parked pending a one-line question.** Do not invest chapter-writing effort
+  until someone confirms the project is still taking contributions.
 
 ---
 
@@ -428,12 +547,13 @@ address the project.
   > (Left for zkWizard rather than auto-applied — editing public repo metadata is a
   > maintainer call, not something the comms agent pushes unattended.)
   > **Safe to apply today.** The description is plain text and touches no link, so it is
-  > independent of the HTTPS gate — it is the one awareness win available while all seven
-  > drafts are send-blocked. Do _not_ bundle it with the homepage change below.
+  > independent of the HTTPS gate — it is the one awareness win available while every
+  > draft in the outbox is send-blocked. Do _not_ bundle it with the homepage change below.
 - **Repo homepage — DO NOT change it yet (corrected 2026-07-27, second measurement).** An
   earlier revision of this note told zkWizard to point `homepage` at
   `https://roamingeye.org/` and to "apply together with the description above". **Running
   that command today would break the repo's About link.** Re-measured:
+
   - `https://zkwizard.github.io/RoamingEye/` (the current, "stale" value) → `301` →
     `http://roamingeye.org/` → `200`. It reaches the app, over plain HTTP.
   - `https://roamingeye.org/` (previously recommended) → **connection failure.** No
@@ -443,6 +563,7 @@ address the project.
   thing anyone arriving from an awesome-list entry or a GitHub search clicks. The stale
   value is, for now, the _safer_ of the two.
   **Correct sequence — the homepage flip is the last step, not a companion step:**
+
   1. Wait for GitHub to issue the certificate (`https_certificate.state` → `approved`).
   2. Turn on **Enforce HTTPS** in _Settings → Pages_.
   3. Confirm `curl -sS -o /dev/null -w '%{http_code}\n' https://roamingeye.org/` returns
@@ -456,8 +577,12 @@ address the project.
   gap** — the complementary-open-tool track was researched on 2026-07-27 and now has its
   own section above: leafmap **drafted**, stackstac **declined** (dormant since 2024-08-10),
   TiTiler **not a contributor target** (server-side; possible future dependency). The
-  remaining untouched contributor source is RoamingEye's own stargazers/forkers — currently
-  1 star and 0 forks, so there is nobody to invite until something has actually been sent.
+  last remaining contributor source — RoamingEye's own stargazers/forkers — was **checked
+  and closed on 2026-07-28**: the sole star is `statuette` (`cryptostatuette.eth`, 1 public
+  repo, no earth-science/GIS signal), a drive-by, not an evaluator. So true external
+  interest is **0, not 1**, there is nobody to invite, and no personalized invitation
+  should be drafted for that account. See `SIGNALS.md` (trap 2); re-open only when a star
+  arrives from an account with relevant public work.
   r/dataisbeautiful is parked with the other Reddit entries until the Reddit rules blocker
   above is cleared by zkWizard.
   _Researched most recently:_ **leafmap** (drafted), **stackstac** (declined — dormant),
@@ -477,6 +602,14 @@ address the project.
   the one-pager into that venue's format, rather than posting the generic sheet cold.
 - Always re-skim `README.md` and recent `git log` before drafting so claims match the
   current app (feature set, layer count, resolution).
+- **Never quote a traction number without checking `SIGNALS.md` first.** It holds the
+  measured baseline (2026-07-28: 43 views / 10 uniques / 14 d, 0 forks, 0 outside-authored
+  issues or PRs) and two traps that would otherwise produce false claims in a draft —
+  **clone counts are not adoption** here (11,941 clones vs 10 unique viewers; 98% of them
+  in a four-day burst) and **"1 star" is not one interested user**. As of that measurement
+  **no project metric is quotable**, so drafts should keep making the case on the software
+  itself, not on usage. GitHub retains only **14 days** of traffic — re-measure on the run
+  after zkWizard reports a send, or the response is lost for good.
 - **Contributor funnel:** the README links newcomers to the `good first issue` label, so
   keep that queue non-empty. As of 2026-07-15 it was refilled with #373/#374/#375 (see
   LOG). When those close, verify the code afresh and open 1–3 new well-scoped ones —

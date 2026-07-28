@@ -62,6 +62,9 @@ describe("summarizeNdviSeasonalAmplitude", () => {
         suppliedYearCount: 3,
         usableYearCount: 3,
         unusableYearCount: 0,
+        invalidYearCount: 0,
+        duplicateYearCount: 0,
+        incompatibleContextCount: 0,
       },
       unit: NDVI_UNIT,
       reason: null,
@@ -161,6 +164,80 @@ describe("summarizeNdviSeasonalAmplitude", () => {
     expect(summary.smallestAmplitudeYear?.year).toBe(2021);
     expect(summary.largestAmplitudeYear?.year).toBe(2021);
     expect(summary.statistics?.spread).toBeCloseTo(0, 12);
+  });
+
+  it("rejects duplicate calendar years instead of weighting one year twice", () => {
+    const annuals = summarizeAnnualNdviPhenology(
+      [...cycle(2021, 0.8, 0.2), ...cycle(2022, 0.7, 0.3)],
+      LAT
+    );
+    const summary = summarizeNdviSeasonalAmplitude([
+      annuals[0],
+      annuals[0],
+      annuals[1],
+    ]);
+
+    expect(summary.coverage).toMatchObject({
+      suppliedYearCount: 3,
+      usableYearCount: 2,
+      duplicateYearCount: 1,
+    });
+    expect(summary.years.map(({ year }) => year)).toEqual([2021, 2022]);
+    expect(summary.statistics?.mean).toBeCloseTo(0.5, 12);
+  });
+
+  it("does not combine annual summaries with different geography or provenance", () => {
+    const annuals = summarizeAnnualNdviPhenology(
+      [
+        ...cycle(2021, 0.8, 0.2),
+        ...cycle(2022, 0.7, 0.3),
+        ...cycle(2023, 0.9, 0.4),
+      ],
+      LAT
+    );
+    const otherSource = {
+      ...annuals[2],
+      source: { ...annuals[2].source, version: "different-version" },
+    };
+    const otherHemisphere = {
+      ...annuals[1],
+      year: 2024,
+      hemisphere: "southern" as const,
+    };
+
+    const summary = summarizeNdviSeasonalAmplitude([
+      annuals[0],
+      annuals[1],
+      otherSource,
+      otherHemisphere,
+    ]);
+
+    expect(summary.coverage).toMatchObject({
+      suppliedYearCount: 4,
+      usableYearCount: 2,
+      incompatibleContextCount: 2,
+    });
+    expect(summary.years.map(({ year }) => year)).toEqual([2021, 2022]);
+    expect(summary.source).toBe(NDVI_SOURCE);
+    expect(summary.hemisphere).toBe("northern");
+  });
+
+  it("rejects non-calendar years without widening the usable record", () => {
+    const annuals = summarizeAnnualNdviPhenology(
+      [...cycle(2021, 0.8, 0.2), ...cycle(2022, 0.7, 0.3)],
+      LAT
+    );
+    const summary = summarizeNdviSeasonalAmplitude([
+      ...annuals,
+      { ...annuals[0], year: 2021.5 },
+    ]);
+
+    expect(summary.coverage).toMatchObject({
+      suppliedYearCount: 3,
+      usableYearCount: 2,
+      invalidYearCount: 1,
+    });
+    expect(summary.years.map(({ year }) => year)).toEqual([2021, 2022]);
   });
 
   it("returns an honest empty summary for no supplied years", () => {

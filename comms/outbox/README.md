@@ -141,3 +141,16 @@ this was last done:
 - `awesome-earthobservation-code-pr.md` — Awesome Earth Observation Code, ready-to-submit PR entry + body. **DRAFT.**
 - `classroom-lab-one-pager.md` — reusable classroom/lab one-pager (handout, course page, or educator email). **DRAFT.**
 - `leafmap-interop-invitation.md` — leafmap (`opengeos`) GitHub _Discussions → Ideas_, contributor/interop outreach. **DRAFT.**
+- `clean-collection-submission.md` — CLEAN (`cleanet.org`) _Suggest a Teaching Resource_ form, filled field-by-field; sanctioned developer self-submission to a peer-reviewed educator collection. **DRAFT.**
+
+## Also sendable — four drafts that live outside this directory
+
+`docs/launch/` predates this workspace and holds four outreach drafts that were never
+indexed anywhere. They are real, current, and subject to the same send gate above; their
+claims were audited and repaired on 2026-07-27. Full index and the drift table:
+[`docs/launch/README.md`](../../docs/launch/README.md).
+
+- `../../docs/launch/post-reddit-r-gis.md` — r/gis + r/remotesensing. **DRAFT — also blocked on reading each sub's self-promotion rules** (see `../TARGETS.md`).
+- `../../docs/launch/post-eo-slack.md` — short post for EO Slacks/Discords. **DRAFT.** (For Pangeo, use `pangeo-showcase-roamingeye.md` here instead.)
+- `../../docs/launch/post-geology-lists.md` — email to geology/Earth-systems teaching contacts. **DRAFT.** (Pairs with `classroom-lab-one-pager.md` as the follow-up.)
+- `../../docs/launch/maintainer-comment-template.md` — reusable 3-sentence "what is this?" reply for live threads. **Response asset, not a post.**

@@ -116,6 +116,32 @@ describe("place observation environmental brief", () => {
       "soil-moisture": "accepted",
       "air-temperature": "accepted",
     });
+    expect(result.observationSelection).toEqual({
+      vegetation: {
+        recordedObservationCount: 2,
+        earliestDataMonth: { year: 2025, month: 12 },
+        latestDataMonth: { year: 2026, month: 1 },
+        selectedDataMonth: { year: 2026, month: 1 },
+      },
+      rainfall: {
+        recordedObservationCount: 2,
+        earliestDataMonth: { year: 2025, month: 12 },
+        latestDataMonth: { year: 2026, month: 1 },
+        selectedDataMonth: { year: 2026, month: 1 },
+      },
+      "soil-moisture": {
+        recordedObservationCount: 1,
+        earliestDataMonth: { year: 2026, month: 1 },
+        latestDataMonth: { year: 2026, month: 1 },
+        selectedDataMonth: { year: 2026, month: 1 },
+      },
+      "air-temperature": {
+        recordedObservationCount: 1,
+        earliestDataMonth: { year: 2026, month: 3 },
+        latestDataMonth: { year: 2026, month: 3 },
+        selectedDataMonth: { year: 2026, month: 3 },
+      },
+    });
     expect(result.brief.signals[0]).toMatchObject({
       id: "vegetation",
       observedValue: 0.58,
@@ -211,6 +237,12 @@ describe("place observation environmental brief", () => {
     const result = composePlaceObservationBrief(record);
 
     expect(result.productStatus.vegetation).toBe("rejected-observation-months");
+    expect(result.observationSelection.vegetation).toEqual({
+      recordedObservationCount: 2,
+      earliestDataMonth: null,
+      latestDataMonth: null,
+      selectedDataMonth: null,
+    });
     expect(result.brief.signals[0]).toMatchObject({
       status: "unavailable",
       dataMonth: null,
@@ -230,5 +262,25 @@ describe("place observation environmental brief", () => {
 
     expect(result.productStatus.vegetation).toBe("rejected-observation-months");
     expect(result.brief.signals[0].status).toBe("unavailable");
+  });
+
+  it("records an accepted empty product without inventing a selected month", () => {
+    const record = exportRecord();
+    record.products.find((p) => p.layerId === "ndvi")!.observations = [];
+
+    const result = composePlaceObservationBrief(record);
+
+    expect(result.productStatus.vegetation).toBe("accepted");
+    expect(result.observationSelection.vegetation).toEqual({
+      recordedObservationCount: 0,
+      earliestDataMonth: null,
+      latestDataMonth: null,
+      selectedDataMonth: null,
+    });
+    expect(result.brief.signals[0]).toMatchObject({
+      status: "unavailable",
+      dataMonth: null,
+      observedValue: null,
+    });
   });
 });
