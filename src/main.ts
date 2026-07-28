@@ -21,6 +21,7 @@ import {
   serializePlaceObservationExport,
   type PlaceObservationExportSample,
 } from "./lib/placeObservationExport";
+import { environmentUnavailableSample } from "./lib/environmentUnavailableSample";
 import {
   PLACE_METRICS,
   latestComparisonMonths,
@@ -463,14 +464,10 @@ function runPlaceInsights(result: GeoResult): void {
     // unavailable authoritative colormap must not be replaced with a
     // display-converted value labelled as a native-unit measurement. NDVI is
     // the exception: its 0..1 physical range is already its native unit.
-    exportSamples.set(metric.layerId, {
-      layerId: metric.layerId,
-      observations: months.map((dataMonth) => ({
-        dataMonth,
-        value: null,
-        unavailableReason: "sampling-failed" as const,
-      })),
-    });
+    exportSamples.set(
+      metric.layerId,
+      environmentUnavailableSample(metric.layerId, months)
+    );
     samplingTasks.push(
       (async () => {
         const colormap = await loadPlaceColormap(metric.layerId);
@@ -574,10 +571,7 @@ function runPlaceInsights(result: GeoResult): void {
   // NASA GIBS's published physical colormap so the value remains in °C.
   const sstMonths = monthRangeForLayer(LAYERS.sst);
   const sstMonth = sstMonths[sstMonths.length - 1];
-  exportSamples.set("sst", {
-    layerId: "sst",
-    observations: [{ dataMonth: sstMonth, value: null }],
-  });
+  exportSamples.set("sst", environmentUnavailableSample("sst", [sstMonth]));
   samplingTasks.push(
     (async () => {
       const colormap = await loadPlaceColormap("sst");
