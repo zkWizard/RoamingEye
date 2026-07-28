@@ -47,7 +47,8 @@ export type PlaceObservationProductStatus =
   | "rejected-source"
   | "rejected-native-unit"
   | "rejected-sampling-support"
-  | "rejected-observation-months";
+  | "rejected-observation-months"
+  | "rejected-observation-state";
 
 export interface PlaceObservationSelectionProvenance {
   /** Number of source observations recorded for this product. */
@@ -317,7 +318,9 @@ function productStatusFor(
     return "rejected-sampling-support";
   }
   return hasCanonicalObservationMonths(product.observations)
-    ? "accepted"
+    ? hasConsistentObservationStates(product.observations)
+      ? "accepted"
+      : "rejected-observation-state"
     : "rejected-observation-months";
 }
 
@@ -373,6 +376,30 @@ function hasCanonicalObservationMonths(
     months.add(observation.dataMonth);
   }
   return true;
+}
+
+function hasConsistentObservationStates(
+  observations: PlaceObservationExport["products"][number]["observations"]
+): boolean {
+  const unavailableReasons = new Set([
+    "source-no-data",
+    "insufficient-valid-coverage",
+    "sampling-failed",
+  ]);
+  return observations.every((observation) => {
+    const hasValue =
+      typeof observation.value === "number" &&
+      Number.isFinite(observation.value);
+    const hasUnavailableReason =
+      typeof observation.unavailableReason === "string" &&
+      unavailableReasons.has(observation.unavailableReason);
+    return (
+      (hasValue &&
+        (observation.unavailableReason === null ||
+          observation.unavailableReason === undefined)) ||
+      (observation.value === null && hasUnavailableReason)
+    );
+  });
 }
 
 function nativeUnitFor(signalId: EnvironmentSignalId): string {
