@@ -164,6 +164,39 @@ describe("land-cover persistence summaries", () => {
     expect(summary.persistence).toBeNull();
   });
 
+  it("rejects years outside the published MCD12Q1 layer range", () => {
+    const summary = summarizeLandCoverPersistence([
+      { year: 2000, classCode: 12 },
+      { year: 2001, classCode: 12 },
+      { year: 2024, classCode: 10 },
+      { year: 2025, classCode: 12 },
+    ]);
+
+    expect(summary.coverage).toMatchObject({
+      yearSpan: { firstYear: 2001, lastYear: 2024 },
+      observedYearCount: 2,
+      knownLandCoverYearCount: 2,
+      invalidRecordCount: 2,
+      isSparse: false,
+    });
+    expect(summary.classTenure).toEqual([
+      {
+        classCode: 10,
+        label: "Grassland",
+        yearCount: 1,
+        fractionOfKnownYears: 0.5,
+        years: [2024],
+      },
+      {
+        classCode: 12,
+        label: "Cropland",
+        yearCount: 1,
+        fractionOfKnownYears: 0.5,
+        years: [2001],
+      },
+    ]);
+  });
+
   it("reports no-years for an empty series", () => {
     const summary = summarizeLandCoverPersistence([]);
 

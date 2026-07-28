@@ -1,6 +1,7 @@
 import {
   IGBP_LAND_COVER_CLASSES,
   LAND_COVER_SOURCE,
+  publicationStatusForYear,
   type IgbpLandCoverClass,
   type IgbpLandCoverClassCode,
 } from "./landCover";
@@ -50,7 +51,10 @@ export interface LandCoverPersistenceCoverage {
   unclassifiedYearCount: number;
   /** Retained years where the map supplied no usable code (null). */
   noDataYearCount: number;
-  /** Records rejected: non-integer year, duplicate year, or off-scheme code. */
+  /**
+   * Records rejected: unpublished/non-integer year, duplicate year, or
+   * off-scheme code.
+   */
   invalidRecordCount: number;
   /** Whether known-class years fall below the persistence threshold. */
   isSparse: boolean;
@@ -99,6 +103,7 @@ const IGBP_BY_CODE = new Map<IgbpLandCoverClassCode, IgbpLandCoverClass>(
 
 /**
  * Summarize a location's land-cover class across several annual MCD12Q1 maps.
+ * Only years published by RoamingEye's cited MCD12Q1 layer are retained.
  * Duplicate years are rejected rather than merged, so a repeated year cannot
  * silently shift the modal class. Source-unclassified (255) and no-data years
  * are counted as coverage but never contribute to any land-cover class tenure.
@@ -118,7 +123,7 @@ export function summarizeLandCoverPersistence(
 
   for (const observation of observations) {
     const year = observation.year;
-    if (!Number.isInteger(year) || seenYears.has(year)) {
+    if (publicationStatusForYear(year) !== "published" || seenYears.has(year)) {
       invalidRecordCount += 1;
       continue;
     }
