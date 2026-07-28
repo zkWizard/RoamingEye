@@ -9,7 +9,7 @@ Hi all 👋 — sharing an open-source side project that some of you might find
 useful for quick-look work: **RoamingEye**, a browser-based 3D Earth over
 NASA GIBS.
 
-https://zkwizard.github.io/RoamingEye/
+https://roamingeye.org/
 
 The two features that make it more than a globe:
 

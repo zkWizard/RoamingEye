@@ -189,6 +189,15 @@ describe("nearbyEarthquakeContext", () => {
         magnitude: 4.6,
         time: 1_750_000_000_000,
         place: "San Francisco Bay Area",
+        // Native USGS record provenance travels with the event; a minimal
+        // feed carries it with every field explicitly null.
+        sourceRecord: {
+          id: null,
+          magnitudeType: null,
+          reviewStatus: null,
+          updatedTime: null,
+          url: null,
+        },
         distanceKm: 0,
         depthClass: "shallow",
       },

@@ -4,12 +4,64 @@ import type { DatasetRef } from "./timeline";
 /**
  * Machine-readable citations (ESIP data & software citation guidelines):
  * export the tool and its source datasets in the formats reference managers
- * ingest — BibTeX (LaTeX) and RIS (EndNote/Zotero/Mendeley) — each carrying a
- * resolvable DOI, not a bare URL. A researcher should be able to copy a
- * citation and drop it straight into a manuscript.
+ * ingest — BibTeX (LaTeX), RIS (EndNote/Zotero/Mendeley), and CSL-JSON (the
+ * Citation Style Language item format that pandoc, Quarto, and Zotero's
+ * "Better BibTeX" round-trip) — each carrying a resolvable DOI, not a bare URL.
+ * A researcher should be able to copy a citation and drop it straight into a
+ * manuscript or a `references.json`.
  *
  * Pure and tested; the in-app "Copy citation" affordance calls these.
  */
+
+/** The DOI proxy every resolvable citation link is built on. */
+export const DOI_RESOLVER = "https://doi.org/";
+
+/**
+ * Characters that must be percent-encoded when a DOI name is placed in a URL,
+ * per Crossref's DOI display guidance. A DOI name is an opaque string that may
+ * legally contain characters a URL parser would otherwise swallow — a bare "#"
+ * starts a fragment, "?" a query, an unescaped "%" an invalid escape — so a
+ * copied resolver link built by naive interpolation could silently point
+ * somewhere other than the dataset. The DOI's own "/" separators are structural
+ * and are deliberately left intact; only these unsafe characters are escaped.
+ *
+ * "%" maps first in the table (and is listed first in the character class) so an
+ * existing percent sign becomes "%25" rather than being read as the prefix of an
+ * escape we just introduced.
+ */
+const DOI_URL_ESCAPES: Record<string, string> = {
+  "%": "%25",
+  '"': "%22",
+  "#": "%23",
+  "?": "%3F",
+  " ": "%20",
+  "<": "%3C",
+  ">": "%3E",
+  "{": "%7B",
+  "}": "%7D",
+  "^": "%5E",
+  "`": "%60",
+  "|": "%7C",
+  "\\": "%5C",
+};
+
+/**
+ * Build the resolvable `https://doi.org/<doi>` link for a DOI name, percent-
+ * encoding the URL-unsafe characters the DOI suffix may carry while preserving
+ * its structural "/" separators. This is the single place a resolver link is
+ * constructed, so BibTeX, RIS, plain-text, and the environment brief's source
+ * credit all emit a link that resolves rather than one that breaks on a "#" or a
+ * stray space. It performs no network dereference and asserts nothing about the
+ * DOI's resolvability — only that the string is safe to embed in a URL. The DOI
+ * is trimmed first; a caller holding a possibly-absent DOI should guard emptiness
+ * before calling (an empty input yields the bare resolver base).
+ */
+export function doiResolverUrl(doi: string): string {
+  const encoded = doi
+    .trim()
+    .replace(/[%"#?<>{}^`|\\ ]/g, (char) => DOI_URL_ESCAPES[char]);
+  return `${DOI_RESOLVER}${encoded}`;
+}
 
 /** Tool metadata, kept in step with CITATION.cff (the human-facing source). */
 export const TOOL_CITATION = {
@@ -70,7 +122,7 @@ export function bibtexDataset(ref: DatasetRef): string {
     `  title = {${bibtexEscape(ref.title)} (${ref.shortName} v${ref.version})},`,
     `  howpublished = {NASA Global Imagery Browse Services (GIBS)},`,
     `  doi = {${ref.doi}},`,
-    `  url = {https://doi.org/${ref.doi}}`,
+    `  url = {${doiResolverUrl(ref.doi)}}`,
     `}`,
   ].join("\n");
 }
@@ -96,7 +148,7 @@ export function risDataset(ref: DatasetRef): string {
     `TI  - ${ref.title} (${ref.shortName} v${ref.version})`,
     `PB  - NASA Global Imagery Browse Services (GIBS)`,
     `DO  - ${ref.doi}`,
-    `UR  - https://doi.org/${ref.doi}`,
+    `UR  - ${doiResolverUrl(ref.doi)}`,
     `ER  - `,
   ].join("\n");
 }
@@ -120,10 +172,83 @@ export function textTool(): string {
  * as a resolvable link, per the ESIP data-citation guidelines.
  */
 export function textDataset(ref: DatasetRef): string {
-  return `${ref.title} (${ref.shortName} v${ref.version}) [Data set]. NASA Global Imagery Browse Services (GIBS). https://doi.org/${ref.doi}`;
+  return `${ref.title} (${ref.shortName} v${ref.version}) [Data set]. NASA Global Imagery Browse Services (GIBS). ${doiResolverUrl(ref.doi)}`;
 }
 
-export type CitationFormat = "bibtex" | "ris" | "text";
+/**
+ * A CSL-JSON item (Citation Style Language, the item shape pandoc/Quarto/Zotero
+ * ingest). Only the subset of standard CSL variables we can populate from the
+ * provenance we actually hold is typed here — nothing is invented. Optional
+ * fields are omitted entirely (not emitted as null) when the source lacks them,
+ * so the item never over-claims metadata: the tool carries no DOI, and a
+ * DatasetRef carries no author or publication date.
+ */
+export interface CslName {
+  /** Organizational/collective name as a single literal (no family/given split). */
+  literal: string;
+}
+
+export interface CslDate {
+  /** CSL date encoding; a year-only date is `[[year]]`. */
+  "date-parts": number[][];
+}
+
+export interface CslItem {
+  /** Stable citation key (matches the BibTeX key for the same work). */
+  id: string;
+  /** CSL item type: the tool is "software", each source is a "dataset". */
+  type: "software" | "dataset";
+  title: string;
+  author?: CslName[];
+  issued?: CslDate;
+  version?: string;
+  publisher?: string;
+  /** Bare DOI (no resolver prefix), per CSL's `DOI` variable. */
+  DOI?: string;
+  URL?: string;
+}
+
+/** CSL-JSON item for the tool (type "software"). */
+export function cslTool(): CslItem {
+  const t = TOOL_CITATION;
+  return {
+    id: "roamingeye",
+    type: "software",
+    title: t.title,
+    author: [{ literal: t.author }],
+    issued: { "date-parts": [[t.year]] },
+    version: t.version,
+    URL: t.url,
+  };
+}
+
+/**
+ * CSL-JSON item for a source dataset (type "dataset"), carrying its DOI as both
+ * the `DOI` variable and a resolvable `URL`. Built only from the provenance
+ * fields the DatasetRef holds and the known publisher — no author or release
+ * date is invented.
+ */
+export function cslDataset(ref: DatasetRef): CslItem {
+  return {
+    id: datasetKey(ref),
+    type: "dataset",
+    title: `${ref.title} (${ref.shortName} v${ref.version})`,
+    publisher: "NASA Global Imagery Browse Services (GIBS)",
+    version: ref.version,
+    DOI: ref.doi,
+    URL: `https://doi.org/${ref.doi}`,
+  };
+}
+
+/**
+ * Serialize CSL items as a pretty-printed JSON array with a trailing newline —
+ * the on-disk shape of a `references.json` a manuscript pipeline reads.
+ */
+export function cslJson(items: readonly CslItem[]): string {
+  return JSON.stringify(items, null, 2) + "\n";
+}
+
+export type CitationFormat = "bibtex" | "ris" | "text" | "csljson";
 
 /**
  * The full citation bundle a researcher needs: the tool plus every source
@@ -137,6 +262,9 @@ export function citationBundle(format: CitationFormat): string {
   }
   if (format === "text") {
     return [textTool(), ...datasets.map(textDataset)].join("\n\n") + "\n";
+  }
+  if (format === "csljson") {
+    return cslJson([cslTool(), ...datasets.map(cslDataset)]);
   }
   return [bibtexTool(), ...datasets.map(bibtexDataset)].join("\n\n") + "\n";
 }
