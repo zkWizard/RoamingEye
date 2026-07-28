@@ -142,6 +142,7 @@ this was last done:
 - `classroom-lab-one-pager.md` — reusable classroom/lab one-pager (handout, course page, or educator email). **DRAFT.**
 - `leafmap-interop-invitation.md` — leafmap (`opengeos`) GitHub _Discussions → Ideas_, contributor/interop outreach. **DRAFT.**
 - `clean-collection-submission.md` — CLEAN (`cleanet.org`) _Suggest a Teaching Resource_ form, filled field-by-field; sanctioned developer self-submission to a peer-reviewed educator collection. **DRAFT.**
+- `github-discussions-welcome-post.md` — **our own** GitHub Discussions (_Announcements_), welcome + orientation post. **DRAFT — post this first, before Slot 1.** It is the only venue here that we own, and it is currently empty; the question traffic every other draft generates lands in it.
 
 ## Also sendable — four drafts that live outside this directory
 
