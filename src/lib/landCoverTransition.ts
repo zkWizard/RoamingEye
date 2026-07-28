@@ -46,7 +46,7 @@ export interface LandCoverTransitionObservation {
   sampleCount?: number;
 }
 
-export type LandCoverTransitionStatus = "available" | "no-data";
+export type LandCoverTransitionStatus = "available" | "no-data" | "unavailable";
 
 export interface LandCoverTransitionCoverage {
   status: LandCoverTransitionStatus;
@@ -64,7 +64,12 @@ export interface LandCoverTransitionCoverage {
   invalidRecordCount: number;
   /** Share of all counted pairs eligible for a from->to comparison. */
   bothClassifiedFraction: number | null;
-  reason: "no-samples" | "no-both-classified" | null;
+  reason:
+    | "no-samples"
+    | "no-both-classified"
+    | "invalid-year-order"
+    | "unpublished-year"
+    | null;
 }
 
 export interface LandCoverClassTransition {
@@ -143,6 +148,57 @@ export function summarizeLandCoverTransitions(
   fromYear: number,
   toYear: number
 ): LandCoverTransitionSummary {
+  const fromPublicationStatus = publicationStatusForYear(fromYear);
+  const toPublicationStatus = publicationStatusForYear(toYear);
+  const provenance: LandCoverTransitionProvenance = {
+    layerId: "landcover",
+    wmsLayer: layer.wmsLayer,
+    fromYear,
+    toYear,
+    cadence: "annual",
+    classScheme: "IGBP",
+    sourceResolution: "500 m",
+    source: LAND_COVER_TRANSITION_SOURCE,
+    fromPublicationStatus,
+    toPublicationStatus,
+    bothYearsPublished:
+      fromPublicationStatus === "published" &&
+      toPublicationStatus === "published",
+  };
+  const unavailableReason =
+    !Number.isInteger(fromYear) ||
+    !Number.isInteger(toYear) ||
+    fromYear >= toYear
+      ? "invalid-year-order"
+      : !provenance.bothYearsPublished
+        ? "unpublished-year"
+        : null;
+
+  if (unavailableReason) {
+    return {
+      kind: "observed-class-coded-land-cover-transition",
+      isChangeDetection: false,
+      isForecast: false,
+      provenance,
+      coverage: {
+        status: "unavailable",
+        totalSampleCount: 0,
+        bothClassifiedSampleCount: 0,
+        partiallyClassifiedSampleCount: 0,
+        noDataSampleCount: 0,
+        invalidClassSampleCount: 0,
+        invalidRecordCount: 0,
+        bothClassifiedFraction: null,
+        reason: unavailableReason,
+      },
+      transitions: [],
+      stableSampleCount: 0,
+      changedSampleCount: 0,
+      dominantChange: null,
+      limitations: LAND_COVER_TRANSITION_LIMITATIONS,
+    };
+  }
+
   const pairCounts = new Map<string, number>();
   let totalSampleCount = 0;
   let bothClassifiedSampleCount = 0;
@@ -238,28 +294,11 @@ export function summarizeLandCoverTransitions(
           : null,
   };
 
-  const fromPublicationStatus = publicationStatusForYear(fromYear);
-  const toPublicationStatus = publicationStatusForYear(toYear);
-
   return {
     kind: "observed-class-coded-land-cover-transition",
     isChangeDetection: false,
     isForecast: false,
-    provenance: {
-      layerId: "landcover",
-      wmsLayer: layer.wmsLayer,
-      fromYear,
-      toYear,
-      cadence: "annual",
-      classScheme: "IGBP",
-      sourceResolution: "500 m",
-      source: LAND_COVER_TRANSITION_SOURCE,
-      fromPublicationStatus,
-      toPublicationStatus,
-      bothYearsPublished:
-        fromPublicationStatus === "published" &&
-        toPublicationStatus === "published",
-    },
+    provenance,
     coverage,
     transitions,
     stableSampleCount,
