@@ -86,6 +86,14 @@ already done and reviewed; what is missing is a call site and a way to show the
 result. If you want to try one, open an issue naming the module first so we can
 agree where it belongs in the interface before you build it.
 
+One practical thing to know before you start: wiring a module in is also the
+moment its code begins counting against the app's 60 kB gzip bundle budget —
+staged code is tree-shaken away, wired code is not — and the app chunk is
+currently sitting on that cap, so the **Build** check will very likely flag it.
+That is not a reason to skip the work; it is a reason to expect the red check
+and raise it in the PR instead of quietly changing the budget. See
+[The bundle budget](.github/CONTRIBUTING.md#the-bundle-budget--read-this-before-adding-code-to-the-app).
+
 ### `src/textures/`
 
 - `GlobeTextureManager.ts` — loads NASA monthly composites at two resolutions

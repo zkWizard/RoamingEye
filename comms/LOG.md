@@ -584,3 +584,35 @@ verified` — still provisioning, still do not touch DNS. Revisit date stands at
   **Signals** not re-measured this run (the claims-audit run measured them hours earlier;
   nothing has been sent, so nothing can have moved). HTTPS gate not re-measured — revisit
   date stands at **2026-07-29**.
+- 2026-07-28 (later run) — **Onboarding: documented the one red check a newcomer cannot fix,
+  and that our own guide walks them straight into.** Both `.github/CONTRIBUTING.md` and
+  `ARCHITECTURE.md` tell a first-time contributor that connecting a staged `src/lib/` module
+  is the best-scoped task available here. Measured this run: that is precisely the change
+  that currently fails the **required** Build check. `scripts/check-bundle-size.mjs` caps the
+  app chunk at 60 kB gzip, and CI on `main` at `156822f` prints
+  `ok index-CDzPGmQE.js: 60.0 kB gzip (budget 60 kB)` — under a tenth of a kB of headroom, so
+  effectively any wired code tips it over. Neither doc mentioned the budget at all.
+  **Two traps written down because they are genuinely confusing, not because they are
+  interesting.** (1) At this margin the printed size is the same for a pass and a fail — an
+  over-budget chunk still rounds to `60.0 kB`; only the leading `ok`/`FAIL` word differs, so
+  the guidance is to read the word, not the number. (2) Staged modules are tree-shaken and
+  cost **zero** bytes, which is exactly why `src/lib/` has grown so far without the budget
+  noticing — the bytes all arrive at the moment someone adds the call site. That second point
+  is the missing half of the wired-vs-staged story #570 landed yesterday, so it went into that
+  section too, as a pointer rather than a second copy.
+  **Deliberately did not fix it.** The right move for a contributor who hits the cap is to say
+  so in the PR and stop; raising the number is a maintainer decision, and the script's own
+  docstring already says a bump must be justified by the PR that makes it. Comms does not get
+  to spend the budget.
+  **Also opened one `good first issue`** against the same script: its header comment still
+  claims "app ~34 kB" when the real figure is 60.0, and it prints no headroom — a small,
+  self-contained fix in a 45-line file that a newcomer reads at their worst moment.
+  **Checked first, per the standing by-file rule:** all 109 open PRs are fleet `codex/*`
+  science branches; **zero** touch `CONTRIBUTING.md`, `ARCHITECTURE.md`, or `comms/`, so
+  LOG.md is conflict-free this run for the first time in six runs.
+  **Signals re-measured, unmoved as expected:** 1 star, 0 forks, 0 external watchers, 43
+  views / 10 uniques — identical to the 2026-07-27 baseline, which is the correct reading
+  when nothing has been sent. **HTTPS gate re-measured and still closed:** `https_certificate`
+  is still `null`, `https://roamingeye.org/` still fails TLS, and `zkwizard.github.io` still
+  301s to plain `http://`. Revisit date stands at **2026-07-29**; nothing in `outbox/` may go
+  out before it clears.
