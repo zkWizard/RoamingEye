@@ -44,6 +44,7 @@ Each maps to a real feature. Pick by level; all run in a browser tab.
 
 **1. Watch the seasons turn — vegetation phenology _(secondary → intro undergrad)_**
 Load the monthly NDVI (vegetation) layer and drag the temporal scrubber month-by-month. Have students describe the green-up and senescence cycle over a region they know, then contrast a temperate forest with a tropical or desert site. _Concept:_ seasonality, the growing season, why a single snapshot misleads.
+👉 **This one is already written up in full.** [**"When does the Earth turn green?"**](https://github.com/zkWizard/RoamingEye/blob/main/docs/teaching/ndvi-phenology-lab.md) is a ready-to-run 60–75 minute lab combining ideas 1 and 3 — learning objectives, student worksheet, assessment rubric, instructor answer notes, common student misconceptions, and 45-minute / two-session / lecture-demo variants. Free to adapt (MIT); no attribution paperwork.
 
 **2. Wet year vs. dry year — drought & agriculture _(undergrad)_**
 Compare vegetation vigour over the same farming region between a known wet year and a dry year. Bring in the precipitation and soil-moisture layers to build the causal story. _Concept:_ multi-variable reasoning, interannual variability.

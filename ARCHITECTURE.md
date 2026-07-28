@@ -31,11 +31,12 @@ browser streams it directly into WebGL textures.
 Everything here is framework-free: no Three.js, no DOM, no network side effects
 beyond `net.ts`. That makes it fast to test and easy to read in isolation.
 
-**It is also much bigger than the table below.** `src/lib/` holds **159 modules**
-(plus 166 test files) as of `eabc5ea`, 2026-07-27. Listing them all here would
+**It is also much bigger than the table below.** `src/lib/` holds **199 modules**
+(plus 206 test files) as of `9622783`, 2026-07-28. Listing them all here would
 go stale quickly — the directory grows frequently. So this guide documents
-the **core modules on the app's critical path**, and the section below explains
-how to orient yourself among the rest.
+the **44 modules the running app actually reaches**: the nine core ones first,
+then the rest grouped by responsibility. The section after that explains how to
+orient yourself among the other 155.
 
 #### Start here — the core modules
 
@@ -51,6 +52,79 @@ how to orient yourself among the rest.
 | `geocoding.ts`      | OpenStreetMap Nominatim client.                                                                                                           |
 | `net.ts`            | Resilient fetch (timeout + backoff retries + abort) used by all data calls.                                                               |
 
+#### The rest of the wired surface — the other 35
+
+Those nine are the spine. Another 35 modules are also reachable from
+`src/main.ts`, and between them they cover most of what you would actually want
+to change. They are grouped by responsibility below; each description comes from
+the module's own doc comment, so the module is the authority if the two ever
+drift.
+
+**Time, catalog & session** — what the timeline shows and what survives a reload.
+
+| File              | Responsibility                                                                                                     |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `freshness.ts`    | Keeps the timeline current without a code change as NASA publishes each new month.                                 |
+| `compare.ts`      | The A/B swipe-divider model — two months of one layer side by side (the core change-detection workflow).           |
+| `sessionState.ts` | Cross-visit persistence of the working context (layer, month, overlays). `main.ts` owns the `localStorage` wiring. |
+| `viewState.ts`    | Shareable view state encoded in the URL hash, so a specific view can be cited in a paper or message.               |
+| `theme.ts`        | Light/dark resolution and toggling. DOM-free; `ui/ThemeToggle.ts` does the wiring.                                 |
+| `shortcuts.ts`    | Keyboard and mouse controls as pure data, for the `?` help overlay. Must be kept matching the real bindings.       |
+
+**Probe, colormaps & statistics** — turning rendered pixels back into numbers.
+
+| File                          | Responsibility                                                                                                                 |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `probe.ts`                    | The point time-series probe: inverts a GIBS colormap to recover an approximate data value from a pixel.                        |
+| `colormap.ts`                 | Parses the GIBS colormap XML that `PROBE_SCALES`' physical ranges were derived from; the weekly contract test re-derives them. |
+| `legend.ts`                   | What the colors on the globe mean, per layer — gradients that approximate the GIBS colormaps without fetching them.            |
+| `landCoverPalette.ts`         | Decodes a rendered MCD12Q1 pixel back to an IGBP land-cover class (or reports it unavailable).                                 |
+| `trend.ts`                    | Nonparametric trend detection: seasonal Mann-Kendall for significance, Sen's slope for magnitude.                              |
+| `numerics.ts`                 | Neumaier compensated summation, used for every scientific accumulation so arithmetic error stays out of published CSVs.        |
+| `climate.ts`                  | Source-aware descriptions of supplied monthly climate observations, kept in the product's native units.                        |
+| `climateConventionalUnits.ts` | Exact dimensional conversions to the units convention prefers (mm/day, °C) — no estimate or interpretation added.              |
+| `meteorology.ts`              | Bridges sampled rendered imagery into the climate contracts, reversing display multipliers first.                              |
+
+**Domain datasets & place context** — the science models behind the overlays and the search readout.
+
+| File                    | Responsibility                                                                                                   |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `cities.ts`             | Natural Earth populated places; parsing only — `overlays/CitiesOverlay.ts` renders it.                           |
+| `earthquakes.ts`        | USGS GeoJSON summary-feed model; `overlays/EarthquakesOverlay.ts` renders it.                                    |
+| `volcanoes.ts`          | Smithsonian GVP Holocene volcanoes; `overlays/VolcanoesOverlay.ts` renders it.                                   |
+| `plates.ts`             | Bird (2003) tectonic plate boundaries; `overlays/PlateBoundariesOverlay.ts` renders it.                          |
+| `volcanoContext.ts`     | Source-limited context for a selected GVP marker — no hazard, risk, or forecast claims.                          |
+| `volcanoExtent.ts`      | GVP volcanoes falling inside a searched extent: a spatial inventory, not a hazard assessment.                    |
+| `landCover.ts`          | Boundary-level context for class-coded MCD12Q1 samples; counts classes rather than averaging them.               |
+| `terrainContext.ts`     | Provenance and interpretation limits for the terrain view (shaded relief, not a calibrated elevation raster).    |
+| `marineCoverage.ts`     | Coverage descriptions for the MODIS/Aqua SST layer — sampling context only.                                      |
+| `marinePlaceInsight.ts` | A single source-aware SST reading for a searched boundary, deliberately kept apart from the terrestrial metrics. |
+| `placeInsights.ts`      | The boundary-level vegetation / rainfall / soil / air metrics, carrying their sampling provenance.               |
+
+**Provenance & export** — the parts that make a result citable.
+
+| File                        | Responsibility                                                                                                     |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `citation.ts`               | BibTeX, RIS and CSL-JSON for the tool and its source datasets, each with a resolvable DOI (ESIP guidelines).       |
+| `providers.ts`              | The catalogue of the open EO data ecosystem, kept as data so the in-app Providers page stays accurate.             |
+| `placeObservationExport.ts` | The provenance-first JSON contract for sampled place observations — records boundary and products, never the user. |
+| `softwareCatalog.ts`        | Validates the static open-software catalog before it reaches the public finder (`ui/SoftwareFinder.ts`).           |
+
+**Geometry & rendering support**
+
+| File                        | Responsibility                                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `plateBoundaryRendering.ts` | Subdivides boundary polylines into great-circle segments. Render-only — it adds no source observations. |
+
+**Platform & delivery** — how bytes reach the GPU, and how the app copes.
+
+| File            | Responsibility                                                                                                        |
+| --------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `tiles.ts`      | WMTS tile math for RFC-001 tiled streaming: the GIBS EPSG:4326 pyramid, matrix sizes, and edge-tile overhang.         |
+| `textures.ts`   | Cancellable texture loading, so scrubbing across months stops paying for superseded downloads against a free service. |
+| `perf.ts`       | Adaptive render resolution — trades pixel ratio for frame rate to stay interactive on weak GPUs and lab machines.     |
+| `agentFleet.ts` | Parses the emitted fleet run status for the operator view (`ui/FleetDashboard.ts`).                                   |
+
 #### Wired vs. staged modules — read this before picking a task
 
 `src/lib/` contains two kinds of module, and telling them apart will save you a
@@ -62,10 +136,26 @@ lot of confusion:
   the app imports yet. It is real, reviewed, passing code; it simply has no call
   site on the critical path.
 
-Measured at `eabc5ea` (2026-07-27) by walking the import graph from
-`src/main.ts`: **42 of 159 `src/lib` modules are wired, and 117 are staged.**
+Measured at `9622783` (2026-07-28) by walking the import graph from
+`src/main.ts`: **44 of 199 `src/lib` modules are wired, and 155 are staged.**
 Every other source directory (`ui/`, `overlays/`, `scene/`, `textures/`,
 `probe/`) is fully wired.
+
+The staged set divides in two, and the halves are worth different things to you:
+
+- **124 modules are imported by nothing but their own unit test.** Each is a
+  self-contained function waiting for a call site.
+- **31 more are imported only by other staged modules** — small clusters that
+  already fit together but that the app does not enter. Wiring one of these
+  generally means finding the cluster's entry point rather than a single function.
+
+Nothing in `scripts/`, `contract/`, or the e2e suite reaches into the staged set
+either, so a unit test really is the only thing exercising most of it.
+
+For scale: between 2026-07-27 and 2026-07-28 `src/lib/` grew from 159 modules to
+199 while the wired count went from 42 to 44. The staged set is where almost all
+of the growth lands, which is exactly why this guide documents the wired surface
+module by module and the staged one only by shape.
 
 To check any single module, grep for imports of it:
 

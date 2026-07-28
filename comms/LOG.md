@@ -616,3 +616,102 @@ verified` — still provisioning, still do not touch DNS. Revisit date stands at
   is still `null`, `https://roamingeye.org/` still fails TLS, and `zkwizard.github.io` still
   301s to plain `http://`. Revisit date stands at **2026-07-29**; nothing in `outbox/` may go
   out before it clears.
+- 2026-07-28 (later run) — **Finished the orientation map #570 started: every module the
+  running app actually reaches is now documented.** Picked Duty 4 because #570 merged this
+  morning (10:32Z) and the previous run had left this as an explicitly scoped follow-up —
+  #570 landed the wired-vs-staged framing but preserved the original **9-row** core table,
+  so **33 of the then-42 wired modules stayed undocumented**, including `probe.ts`,
+  `colormap.ts`, `trend.ts`, `numerics.ts` and `citation.ts` — the ones a contributor is most
+  likely to need.
+  **Re-measured rather than trusting the inherited numbers, and they had already gone stale.**
+  Walking the import graph from `src/main.ts` at `9622783`: `src/lib/` now holds **199
+  modules** (206 test files), of which **44 are wired and 155 staged** — against the **159 /
+  42 / 117** the doc still claimed from `eabc5ea` **one day earlier**. Roughly 40 modules
+  arrived in a day and two of them reached the app. Every other source directory is still
+  100% wired (`ui/` 20, `overlays/` 10, `scene/` 6, `textures/` 1, `probe/` 1); the one
+  apparent gap outside `src/lib/` is `vite-env.d.ts`, an ambient declaration, not a module.
+  **Wrote the other 35 up in six responsibility groups** (time/catalog/session;
+  probe/colormaps/statistics; domain datasets & place context; provenance & export; geometry
+  support; platform & delivery), taking each description **from the module's own doc comment**
+  so the code stays the authority. Five modules carry no leading docblock — `agentFleet.ts`,
+  `softwareCatalog.ts`, `landCoverPalette.ts`, `placeInsights.ts`, `placeObservationExport.ts`
+  — so those were described from their actual call sites instead of guessed.
+  **Also folded in the staged-set breakdown** #570 does not carry: of the 155 staged, **124
+  are imported by nothing but their own unit test** and **31 only by each other**, and nothing
+  in `scripts/`, `contract/`, or e2e reaches any of them. The two halves imply different work
+  — a lone function needs a call site, a cluster needs an entry point — which is worth knowing
+  before choosing one.
+  **Checked the doc against the measurement programmatically** rather than by eye: the tables
+  list exactly the 44 measured wired modules, no omissions and no strays.
+  **Standing by-file check run first:** the only open PR touching `ARCHITECTURE.md`,
+  `CONTRIBUTING.md` or `comms/` is the merge-train batch #573, not a competing docs edit —
+  so no repeat of the #570 collision.
+  **HTTPS gate re-measured, still closed:** `https_certificate: null`, `https_enforced: false`,
+  Pages' own `html_url` still `http://roamingeye.org/`. Revisit date stands at **2026-07-29**;
+  the outbox stays send-blocked. Signals not re-pulled — measured hours ago this same day and
+  nothing has been sent, so nothing can have moved.
+- 2026-07-28 (later run) — **Wrote the teacher's guide the pipeline has been missing, and
+  found a public doc walking researchers into a known-broken feature.** Picked Duty 4 because
+  it is the only duty not send-blocked, and because prior research had already named this
+  exact gap twice without filling it: the CLEAN entry records that "presence of a teacher's
+  guide" is a **scored line item** and that we had none (the one-pager's one-line lesson ideas
+  and `docs/research-recipes.md` were "the closest thing"), and the SERC/NAGT entry is parked
+  until an instructor has actually run a lab — which requires a lab to run.
+  **First, the audit that was cheap and could have gone the other way.** Verified all four
+  open `good first issue`s against current `main` before writing anything, since ~300 PRs have
+  merged since they were filed on 07-15. All four still real, all file references still exact:
+  #373 (`TimeSlider.ts:53` still hardcodes `aria-label = "Month"`, and a `stepUnit` param sits
+  right there at line 36), #374 (`SearchBox.ts` still has `role="listbox"`/`role="option"` and
+  no arrow-key handling), #375 (`.github/CONTRIBUTING.md` still says "Node.js 20+" against
+  `package.json`'s `^20.19.0 || >=22.12.0`), #638. **Nothing stale, nothing to close** — a
+  no-op finding, but a stale starter issue is worse than none, so it is worth re-running.
+  **The new artifact:** `docs/teaching/ndvi-phenology-lab.md` — "When does the Earth turn
+  green?", a 60–75 minute lab on seasonal vegetation phenology with five measurable learning
+  objectives, prerequisites, instructor prep, five lab parts, a copy-paste student worksheet,
+  a four-criterion assessment rubric, answer notes, seven pre-empted student misconceptions,
+  and 45-minute / two-session / lecture-demo variants. It is **in-repo and public**, so unlike
+  everything in `outbox/` it is **not send-blocked** — it works the moment anyone arrives.
+  **Every UI and data claim was verified against source, not README** (the standing rule from
+  the 07-28 claims audit): layer label `Vegetation (NDVI)` and record start `2000-03` →
+  `DATA_LATEST 2026-05` (`timeline.ts:132`, `:97`); probe panel's **Sampling** (Point /
+  Area ~1°) and **View** (Values / Anomaly) segments and the `Download CSV` / `Copy CSV`
+  buttons (`ProbePanel.ts:85–145`); the CSV's exact provenance header block and
+  `year_month,value,anomaly` columns (`probe.ts:576`); NDVI's `±0.002` uncertainty, derived
+  not guessed — `quantizationStep = span / (PROBE_LUT_SIZE − 1) = 1/255`, halved and printed
+  to one significant digit; keyboard steps ←/→ month, PageUp/PageDown year, Home/End
+  (`TimeSlider.ts:155–178`), which match the app's own hint text at `index.html:62`.
+  **The defect found on the way, and it is a live one.** `METHODS.md §3` measures LST's
+  end-to-end inversion at **0 of 250 values recovered — no-data for effectively everything**
+  (issue #170). `docs/research-recipes.md` recipe 2 nevertheless told researchers to "probe
+  twice… download both CSVs, and difference them month-by-month," which returns two empty
+  files. Its stated rationale was **also** stale: it claimed LST values are reported as
+  "fraction of color scale", but `PROBE_SCALES.lst` is `calibrated: true` in Kelvin — the
+  `calibrated: false` fraction-of-scale fallback now applies only to `landcover` and
+  `terrain`. Rewrote the recipe around what does work (the imagery is fine — scrub it, Save
+  PNG, then pull `MOD11C3 v061` for numbers), with the bug stated up front and #170 linked,
+  plus a pointer to Air temperature (2 m) as the probe-based alternative and METHODS §3's
+  instruction to work in anomalies there. **Did not touch the code** — #170 is the fix.
+  **This also settled the lab's design rather than merely constraining it.** NDVI has **no**
+  row in the §3 accuracy table (that table covers the six layers with GIBS colormap documents;
+  NDVI's 0–1 range comes from the index's own definition), so absolute NDVI is unvalidated
+  here. The lab is therefore built entirely on **timing, shape, and relative comparison** —
+  which is what the method is good at, and is also the better pedagogy. The guide says this
+  in plain words rather than implying NDVI is benchmarked.
+  **Two honesty guards written into the artifact itself:** it states up front that we have
+  **not** classroom-tested it and asks the instructor to run it once first, and the CLEAN
+  entry now carries the matching warning not to imply otherwise to reviewers (an educator and
+  a scientist read those submissions). Expected site behaviours are labelled qualitative
+  phenology, not values we measured.
+  **Wiring:** linked from `README.md` (Built for research), from `research-recipes.md`
+  ("workflows, not lesson plans"), and from the one-pager draft, whose lesson idea 1 now
+  points at the full write-up. `TARGETS.md`: CLEAN's teacher's-guide gap marked closed with
+  submission guidance (submit against the focused lab, not the globe), SERC/NAGT's blocker
+  noted as cheaper but **not** cleared, one-pager entry updated.
+  **Standing by-file check run first:** of 101 open PRs, the only one touching `README.md`,
+  `docs/`, or `comms/` is the stale merge-train batch #573 — not a competing edit. Worked in a
+  detached `git worktree` rather than the shared clone, so no specialist's checkout and none
+  of zkWizard's uncommitted changes were disturbed.
+  **HTTPS gate re-measured once:** `https_certificate: null`, `https_enforced: false`, Pages
+  `html_url` still `http://roamingeye.org/`. Still provisioning, still do not touch DNS.
+  Revisit date stands at **2026-07-29**; `outbox/` stays send-blocked. Signals not re-pulled —
+  measured earlier today and nothing has been sent.
