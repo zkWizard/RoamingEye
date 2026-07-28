@@ -28,6 +28,14 @@ const input = {
       wmsLayer: LAYERS.ndvi.wmsLayer,
       source: LAYERS.ndvi.dataset!,
       nativeUnit: "NDVI",
+      samplingSupport: {
+        gridSize: 28,
+        candidatePointCount: 784,
+        interiorPointCount: 620,
+        retainedPointCount: 512,
+        sourcePixelCount: 488,
+        pointLimitApplied: true,
+      },
       sampleToNative: {
         sampledUnit: "NDVI",
         operation: "divide" as const,
@@ -120,6 +128,14 @@ describe("place observation export", () => {
           wmsLayer: LAYERS.ndvi.wmsLayer,
           source: LAYERS.ndvi.dataset,
           nativeUnit: "NDVI",
+          samplingSupport: {
+            gridSize: 28,
+            candidatePointCount: 784,
+            interiorPointCount: 620,
+            retainedPointCount: 512,
+            sourcePixelCount: 488,
+            pointLimitApplied: true,
+          },
           sampleToNative: {
             sampledUnit: "NDVI",
             operation: "divide",
@@ -145,6 +161,7 @@ describe("place observation export", () => {
           layerId: "precip",
           source: LAYERS.precip.dataset,
           nativeUnit: "kg m^-2 s^-1",
+          samplingSupport: null,
           sampleToNative: {
             sampledUnit: "mm/day",
             operation: "divide",
@@ -447,6 +464,14 @@ describe("place observation export", () => {
       layerId: "precip",
       sampledUnit: "mm/day",
       sourceValueFactor: 86_400,
+      samplingSupport: {
+        gridSize: 16,
+        candidatePointCount: 256,
+        interiorPointCount: 180,
+        retainedPointCount: 180,
+        sourcePixelCount: 170,
+        pointLimitApplied: false,
+      },
       samplingStrategy: "boundary-point",
       observations: [
         {
@@ -468,6 +493,14 @@ describe("place observation export", () => {
       wmsLayer: LAYERS.precip.wmsLayer,
       source: LAYERS.precip.dataset,
       nativeUnit: "kg/m²/s",
+      samplingSupport: {
+        gridSize: 16,
+        candidatePointCount: 256,
+        interiorPointCount: 180,
+        retainedPointCount: 180,
+        sourcePixelCount: 170,
+        pointLimitApplied: false,
+      },
       sampleToNative: {
         sampledUnit: "mm/day",
         operation: "divide",
@@ -490,6 +523,27 @@ describe("place observation export", () => {
         sourceValueFactor: 0,
       })
     ).toThrow("sourceValueFactor must be a positive finite number.");
+  });
+
+  it("rejects impossible geometry sampling-support budgets", () => {
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            samplingSupport: {
+              gridSize: 28,
+              candidatePointCount: 784,
+              interiorPointCount: 620,
+              retainedPointCount: 700,
+              sourcePixelCount: 488,
+              pointLimitApplied: true,
+            },
+          },
+        ],
+      })
+    ).toThrow("Product ndvi has inconsistent sampling-support counts.");
   });
 
   it("rejects non-reproducible sample-to-native transforms", () => {

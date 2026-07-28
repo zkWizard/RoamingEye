@@ -498,6 +498,7 @@ function runPlaceInsights(result: GeoResult): void {
           values,
           validFractions,
           sourceImageDimensions,
+          geometrySampling,
           geometrySamplingStrategy,
         } = await sample;
         if (abort.signal.aborted) return;
@@ -543,6 +544,7 @@ function runPlaceInsights(result: GeoResult): void {
                 metric.layerId as keyof typeof SCALE_CONVERSIONS
               ]?.unit ?? PLACE_OBSERVATION_NATIVE_UNITS[metric.layerId],
             sourceValueFactor: colormap?.factor ?? 1,
+            samplingSupport: geometrySampling,
             samplingStrategy: geometrySamplingStrategy,
             observations: months.map((dataMonth, index) => {
               const value = values[index] ?? null;
