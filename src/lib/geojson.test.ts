@@ -102,6 +102,39 @@ describe("geometryToRings", () => {
     expect(geometryGridPoints(geometry, 5)).toHaveLength(24);
   });
 
+  it("contains every polygon boundary edge but excludes hole interiors", () => {
+    const geometry = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [0, 0],
+          [10, 0],
+          [10, 10],
+          [0, 10],
+          [0, 0],
+        ],
+        [
+          [4, 4],
+          [6, 4],
+          [6, 6],
+          [4, 6],
+          [4, 4],
+        ],
+      ],
+    };
+
+    for (const [lat, lon] of [
+      [0, 5],
+      [5, 10],
+      [10, 5],
+      [5, 0],
+    ]) {
+      expect(geometryContains(geometry, lat, lon)).toBe(true);
+    }
+    expect(geometryContains(geometry, 5, 4)).toBe(true);
+    expect(geometryContains(geometry, 5, 5)).toBe(false);
+  });
+
   it("recognizes multipolygons as sampleable areas", () => {
     const geometry = {
       type: "MultiPolygon",
@@ -486,6 +519,44 @@ describe("geometryToRings", () => {
     expect(
       geometrySamplingPlan(sparseMultipolygon, 4, { lat: 1, lon: 2 })
     ).toBeNull();
+  });
+
+  it("admits a fallback on any thin-boundary edge consistently", () => {
+    const thinGeometry = {
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [0, 0],
+            [0.1, 0],
+            [0.1, 0.1],
+            [0, 0.1],
+            [0, 0],
+          ],
+        ],
+        [
+          [
+            [3.9, 3.9],
+            [4, 3.9],
+            [4, 4],
+            [3.9, 4],
+            [3.9, 3.9],
+          ],
+        ],
+      ],
+    };
+
+    for (const fallback of [
+      { lat: 0, lon: 0.05 },
+      { lat: 0.05, lon: 0.1 },
+      { lat: 0.1, lon: 0.05 },
+      { lat: 0.05, lon: 0 },
+    ]) {
+      expect(geometrySamplingPlan(thinGeometry, 4, fallback)).toEqual({
+        points: [fallback],
+        strategy: "boundary-point",
+      });
+    }
   });
 
   it("properties: seam-crossing boxes use the short arc, not the long complement", () => {
