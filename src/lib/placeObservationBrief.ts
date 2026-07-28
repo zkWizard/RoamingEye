@@ -37,6 +37,7 @@ const SIGNAL_BINDINGS: readonly SignalBinding[] = [
 export type PlaceObservationProductStatus =
   | "accepted"
   | "not-recorded"
+  | "rejected-duplicate-products"
   | "rejected-wms-layer"
   | "rejected-source"
   | "rejected-native-unit";
@@ -77,10 +78,15 @@ export function composePlaceObservationBrief(
   >;
 
   for (const binding of SIGNAL_BINDINGS) {
-    const product = exportRecord.products.find(
+    const matchingProducts = exportRecord.products.filter(
       (candidate) => candidate.layerId === binding.layerId
     );
-    const status = productStatusFor(product, binding);
+    const product =
+      matchingProducts.length === 1 ? matchingProducts[0] : undefined;
+    const status =
+      matchingProducts.length > 1
+        ? "rejected-duplicate-products"
+        : productStatusFor(product, binding);
     productStatus[binding.signalId] = status;
     observations[binding.signalId] =
       status === "accepted" && product

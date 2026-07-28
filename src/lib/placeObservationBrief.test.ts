@@ -152,6 +152,30 @@ describe("place observation environmental brief", () => {
     });
   });
 
+  it("rejects duplicate layer products instead of depending on array order", () => {
+    const record = exportRecord();
+    const vegetation = record.products.find((p) => p.layerId === "ndvi")!;
+    record.products.push({
+      ...vegetation,
+      observations: [
+        {
+          dataMonth: "2026-02",
+          value: 0.99,
+          validFraction: 1,
+        },
+      ],
+    });
+
+    const result = composePlaceObservationBrief(record);
+
+    expect(result.productStatus.vegetation).toBe("rejected-duplicate-products");
+    expect(result.brief.signals[0]).toMatchObject({
+      status: "unavailable",
+      observedValue: null,
+      coverage: { reason: "not-supplied" },
+    });
+  });
+
   it("keeps an invalid serialized month explicit rather than treating it as absent", () => {
     const record = exportRecord();
     record.products.find((p) => p.layerId === "ndvi")!.observations = [
