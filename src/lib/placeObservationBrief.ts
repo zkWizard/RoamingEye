@@ -45,6 +45,7 @@ export type PlaceObservationProductStatus =
   | "rejected-wms-layer"
   | "rejected-source"
   | "rejected-native-unit"
+  | "rejected-sampling-support"
   | "rejected-observation-months";
 
 export interface PlaceObservationSelectionProvenance {
@@ -283,9 +284,54 @@ function productStatusFor(
   if (product.nativeUnit !== nativeUnitFor(binding.signalId)) {
     return "rejected-native-unit";
   }
+  if (!hasConsistentSamplingSupport(product.samplingSupport)) {
+    return "rejected-sampling-support";
+  }
   return hasCanonicalObservationMonths(product.observations)
     ? "accepted"
     : "rejected-observation-months";
+}
+
+/**
+ * Recheck bounded sampler evidence at the brief ingestion boundary. Export
+ * records can arrive from JSON or other structurally typed callers without
+ * passing through createPlaceObservationExport, so impossible counts must not
+ * be repeated as accepted provenance.
+ */
+function hasConsistentSamplingSupport(
+  support: PlaceObservationExportProduct["samplingSupport"]
+): boolean {
+  if (support === null) return true;
+  if (typeof support !== "object") return false;
+
+  const counts = [
+    support.gridSize,
+    support.candidatePointCount,
+    support.interiorPointCount,
+    support.retainedPointCount,
+    support.sourcePixelCount,
+  ];
+  if (counts.some((value) => !Number.isInteger(value) || value < 0)) {
+    return false;
+  }
+  if (
+    support.gridSize === 0 ||
+    support.candidatePointCount !== support.gridSize * support.gridSize
+  ) {
+    return false;
+  }
+  if (
+    support.interiorPointCount > support.candidatePointCount ||
+    support.retainedPointCount > support.interiorPointCount ||
+    support.sourcePixelCount > support.retainedPointCount
+  ) {
+    return false;
+  }
+  return (
+    typeof support.pointLimitApplied === "boolean" &&
+    support.pointLimitApplied ===
+      support.retainedPointCount < support.interiorPointCount
+  );
 }
 
 function hasCanonicalObservationMonths(
