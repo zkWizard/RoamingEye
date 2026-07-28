@@ -119,7 +119,7 @@ describe("place observation export", () => {
     const exported = createPlaceObservationExport(input);
 
     expect(exported).toMatchObject({
-      schema: "roamingeye-place-observation-export/v3",
+      schema: "roamingeye-place-observation-export/v4",
       kind: "place-observation-export",
       boundary,
       products: [
@@ -194,6 +194,18 @@ describe("place observation export", () => {
           products: "layer-id-ascending",
           observations: "data-month-ascending",
         },
+        geography: {
+          geometryType: "Polygon",
+          coordinateReferenceSystem: "OGC:CRS84",
+          axisOrder: ["longitude", "latitude"],
+          bounds: {
+            west: -77.1,
+            south: 38.8,
+            east: -76.9,
+            north: 39,
+          },
+          crossesAntimeridian: false,
+        },
         dataMonthMatrix: [
           {
             dataMonth: "2026-04",
@@ -218,6 +230,32 @@ describe("place observation export", () => {
     expect(exported.limitations.join(" ")).toMatch(
       /do not make values across products interchangeable/i
     );
+  });
+
+  it("preserves a dateline-crossing footprint as a short-arc envelope", () => {
+    const exported = createPlaceObservationExport({
+      ...input,
+      boundary: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [179, -10],
+            [-179, -10],
+            [-179, 10],
+            [179, 10],
+            [179, -10],
+          ],
+        ],
+      },
+    });
+
+    expect(exported.reproducibility.geography).toEqual({
+      geometryType: "Polygon",
+      coordinateReferenceSystem: "OGC:CRS84",
+      axisOrder: ["longitude", "latitude"],
+      bounds: { west: 179, south: -10, east: -179, north: 10 },
+      crossesAntimeridian: true,
+    });
   });
 
   it("uses a whitelist-only contract with no personal-data or hidden-telemetry fields", () => {

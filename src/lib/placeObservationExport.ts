@@ -20,7 +20,7 @@ import {
  */
 
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
-  "roamingeye-place-observation-export/v3" as const;
+  "roamingeye-place-observation-export/v4" as const;
 
 export const GIBS_IMAGERY_SOURCE = {
   name: "NASA Global Imagery Browse Services (GIBS)",
@@ -117,6 +117,7 @@ export interface PlaceObservationExport {
       products: "layer-id-ascending";
       observations: "data-month-ascending";
     };
+    geography: PlaceObservationGeography;
     /**
      * Per-month record states across all exported products. This describes
      * only what the export contains; `not-recorded` makes no claim about
@@ -157,6 +158,26 @@ export interface PlaceObservationDataMonth {
     layerId: LayerId;
     recordStatus: PlaceObservationRecordStatus;
   }[];
+}
+
+/**
+ * Machine-readable interpretation of the preserved GeoJSON boundary.
+ *
+ * CRS84 makes the longitude/latitude axis order explicit. A west bound greater
+ * than the east bound is an intentional short-arc antimeridian envelope, not
+ * an invalid or global footprint.
+ */
+export interface PlaceObservationGeography {
+  geometryType: "Polygon" | "MultiPolygon";
+  coordinateReferenceSystem: "OGC:CRS84";
+  axisOrder: readonly ["longitude", "latitude"];
+  bounds: {
+    west: number;
+    south: number;
+    east: number;
+    north: number;
+  };
+  crossesAntimeridian: boolean;
 }
 
 /** Native product units for the independently sampled place-insight signals. */
@@ -207,6 +228,7 @@ export function createPlaceObservationExport(
 ): PlaceObservationExport {
   validateInput(input);
   const products = exportProducts(input.products);
+  const geography = exportGeography(input.boundary);
 
   return {
     schema: PLACE_OBSERVATION_EXPORT_SCHEMA,
@@ -237,10 +259,41 @@ export function createPlaceObservationExport(
         products: "layer-id-ascending",
         observations: "data-month-ascending",
       },
+      geography,
       dataMonthMatrix: dataMonthMatrix(products),
     },
     limitations: LIMITATIONS,
   };
+}
+
+function exportGeography(boundary: GeoGeometry): PlaceObservationGeography {
+  const bounds = geometryBounds(boundary);
+  // validateInput establishes this invariant before export construction.
+  if (!bounds) throw new Error("Boundary must have geographic bounds.");
+  const west = canonicalCoordinate(normalizeLongitude(bounds.west));
+  const east = canonicalCoordinate(normalizeLongitude(bounds.east));
+
+  return {
+    geometryType: boundary.type as "Polygon" | "MultiPolygon",
+    coordinateReferenceSystem: "OGC:CRS84",
+    axisOrder: ["longitude", "latitude"],
+    bounds: {
+      west,
+      south: canonicalCoordinate(bounds.south),
+      east,
+      north: canonicalCoordinate(bounds.north),
+    },
+    crossesAntimeridian: west > east,
+  };
+}
+
+function normalizeLongitude(longitude: number): number {
+  if (longitude === 180) return 180;
+  return ((((longitude + 180) % 360) + 360) % 360) - 180;
+}
+
+function canonicalCoordinate(coordinate: number): number {
+  return Number(coordinate.toFixed(12));
 }
 
 /** Serialize the whitelist-only contract without adding hidden export fields. */
