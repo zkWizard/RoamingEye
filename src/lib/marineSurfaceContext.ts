@@ -56,6 +56,11 @@ export interface MarineSurfaceContextSummary {
   timing: SurfaceContextTiming;
   sourcePublicationStatus: LandCoverContextSummary["provenance"]["publicationStatus"];
   coverage: {
+    /**
+     * True only when the annual source year is published and at least one
+     * informative IGBP surface sample is present.
+     */
+    available: boolean;
     status: MarineSurfaceContextStatus;
     totalSampleCount: number;
     classifiedSurfaceSampleCount: number;
@@ -67,7 +72,7 @@ export interface MarineSurfaceContextSummary {
     invalidRecordCount: number;
     /** Share of all sampled records carrying IGBP class 1..17. */
     classifiedSurfaceFraction: number | null;
-    reason: "no-classified-surface-samples" | null;
+    reason: "source-year-unavailable" | "no-classified-surface-samples" | null;
   };
 }
 
@@ -88,6 +93,9 @@ export function summarizeMarineSurfaceContext(
   const classifiedSurfaceSampleCount =
     input.landCover.coverage.knownLandCoverSampleCount;
   const otherIgbpClassSampleCount = classifiedSurfaceSampleCount - water;
+  const sourceYearPublished =
+    input.landCover.provenance.publicationStatus === "published";
+  const available = sourceYearPublished && classifiedSurfaceSampleCount > 0;
 
   return {
     kind: "observed-igbp-surface-context",
@@ -100,7 +108,10 @@ export function summarizeMarineSurfaceContext(
     timing: timingFor(input.sstDataMonth, input.landCover.provenance.dataYear),
     sourcePublicationStatus: input.landCover.provenance.publicationStatus,
     coverage: {
-      status: statusFor(water, otherIgbpClassSampleCount),
+      available,
+      status: sourceYearPublished
+        ? statusFor(water, otherIgbpClassSampleCount)
+        : "unknown",
       totalSampleCount: input.landCover.coverage.totalSampleCount,
       classifiedSurfaceSampleCount,
       igbpWaterSampleCount: water,
@@ -114,8 +125,9 @@ export function summarizeMarineSurfaceContext(
           ? null
           : classifiedSurfaceSampleCount /
             input.landCover.coverage.totalSampleCount,
-      reason:
-        classifiedSurfaceSampleCount === 0
+      reason: !sourceYearPublished
+        ? "source-year-unavailable"
+        : classifiedSurfaceSampleCount === 0
           ? "no-classified-surface-samples"
           : null,
     },
