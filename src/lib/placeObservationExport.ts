@@ -552,6 +552,16 @@ function validateSamplingSupport(product: PlaceObservationProductInput): void {
       `Product ${product.layerId} has inconsistent sampling-support counts.`
     );
   }
+  if (
+    support.candidatePointCount !== support.gridSize * support.gridSize ||
+    typeof support.pointLimitApplied !== "boolean" ||
+    support.pointLimitApplied !==
+      support.retainedPointCount < support.interiorPointCount
+  ) {
+    throw new Error(
+      `Product ${product.layerId} has inconsistent sampling-support plan metadata.`
+    );
+  }
 }
 
 function dataMonthMatrix(

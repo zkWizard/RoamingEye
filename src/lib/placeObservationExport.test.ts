@@ -592,6 +592,38 @@ describe("place observation export", () => {
     ).toThrow("Product ndvi has inconsistent sampling-support counts.");
   });
 
+  it("rejects contradictory geometry sampling-support plan metadata", () => {
+    for (const samplingSupport of [
+      {
+        ...input.products[0].samplingSupport,
+        candidatePointCount: 783,
+      },
+      {
+        ...input.products[0].samplingSupport,
+        pointLimitApplied: false,
+      },
+      {
+        ...input.products[0].samplingSupport,
+        pointLimitApplied: "yes",
+      },
+    ]) {
+      expect(() =>
+        createPlaceObservationExport({
+          ...input,
+          products: [
+            {
+              ...input.products[0],
+              samplingSupport:
+                samplingSupport as (typeof input.products)[0]["samplingSupport"],
+            },
+          ],
+        })
+      ).toThrow(
+        "Product ndvi has inconsistent sampling-support plan metadata."
+      );
+    }
+  });
+
   it("rejects non-reproducible sample-to-native transforms", () => {
     expect(() =>
       createPlaceObservationExport({
