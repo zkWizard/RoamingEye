@@ -291,6 +291,69 @@ describe("place observation environmental brief", () => {
     );
   });
 
+  it("rejects impossible external sampling support instead of restating it", () => {
+    const record = exportRecord();
+    const vegetation = record.products.find((p) => p.layerId === "ndvi")!;
+    vegetation.samplingSupport = {
+      gridSize: 24,
+      candidatePointCount: 575,
+      interiorPointCount: 430,
+      retainedPointCount: 400,
+      sourcePixelCount: 388,
+      pointLimitApplied: true,
+    };
+
+    const result = composePlaceObservationBrief(record);
+
+    expect(result.productStatus.vegetation).toBe("rejected-sampling-support");
+    expect(result.samplingProvenance.vegetation).toBeNull();
+    expect(result.observationSelection.vegetation).toEqual({
+      recordedObservationCount: 2,
+      earliestDataMonth: null,
+      latestDataMonth: null,
+      selectedDataMonth: null,
+    });
+    expect(result.brief.signals[0]).toMatchObject({
+      status: "unavailable",
+      dataMonth: null,
+      observedValue: null,
+      coverage: { reason: "not-supplied" },
+    });
+  });
+
+  it.each([
+    {
+      label: "non-integer counts",
+      patch: { sourcePixelCount: 387.5 },
+    },
+    {
+      label: "source pixels beyond retained points",
+      patch: { sourcePixelCount: 401 },
+    },
+    {
+      label: "a contradictory point-limit flag",
+      patch: { pointLimitApplied: false },
+    },
+  ])("rejects $label in external sampling support", ({ patch }) => {
+    const record = exportRecord();
+    const vegetation = record.products.find((p) => p.layerId === "ndvi")!;
+    vegetation.samplingSupport = {
+      gridSize: 24,
+      candidatePointCount: 576,
+      interiorPointCount: 430,
+      retainedPointCount: 400,
+      sourcePixelCount: 388,
+      pointLimitApplied: true,
+      ...patch,
+    };
+
+    const result = composePlaceObservationBrief(record);
+
+    expect(result.productStatus.vegetation).toBe("rejected-sampling-support");
+    expect(result.samplingProvenance.vegetation).toBeNull();
+    expect(result.brief.signals[0].status).toBe("unavailable");
+  });
+
   it("rejects source or unit mismatches instead of relabelling them", () => {
     const record = exportRecord();
     // Products are canonically ordered by layer id in the export, so address
