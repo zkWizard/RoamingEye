@@ -635,6 +635,7 @@ function runPlaceInsights(result: GeoResult): void {
       if (abort.signal.aborted) return;
       placeInsights.setReading(
         marineBoundarySstReading({
+          geographyLabel: result.name,
           dataMonth: sstMonth,
           observedValue: sample.values[0],
           validFraction: sample.validFractions[0],
@@ -655,7 +656,9 @@ function runPlaceInsights(result: GeoResult): void {
     })().catch((error: unknown) => {
       if (isAbortError(error) || abort.signal.aborted) return;
       console.warn("RoamingEye: marine place insight sampling failed", error);
-      placeInsights.setReading(unavailableMarineBoundarySstReading(sstMonth));
+      placeInsights.setReading(
+        unavailableMarineBoundarySstReading(sstMonth, result.name)
+      );
     })
   );
 
