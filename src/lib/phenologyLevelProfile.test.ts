@@ -108,6 +108,34 @@ describe("summarizeNdviLevelProfile", () => {
     expect(result.coverage.requiredMonthCount).toBe(6);
   });
 
+  it("preserves unavailable spatial coverage instead of assuming 100 percent", () => {
+    const monthly = [
+      0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65,
+    ];
+    const result = onlyYear(yearObservations(2021, monthly), 45);
+
+    expect(result.status).toBe("available");
+    expect(result.coverage.validFractionReportedCount).toBe(0);
+    expect(result.coverage.validFractionUnavailableCount).toBe(12);
+    expect(result.coverage.minimumValidFraction).toBeNull();
+  });
+
+  it("summarizes only reported spatial coverage while tallying unavailable values", () => {
+    const observations = yearObservations(
+      2021,
+      [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65]
+    );
+    observations[0] = { ...observations[0], validFraction: 0.82 };
+    observations[5] = { ...observations[5], validFraction: 0.64 };
+
+    const result = onlyYear(observations, 45);
+
+    expect(result.status).toBe("available");
+    expect(result.coverage.validFractionReportedCount).toBe(2);
+    expect(result.coverage.validFractionUnavailableCount).toBe(10);
+    expect(result.coverage.minimumValidFraction).toBe(0.64);
+  });
+
   it("honours a custom minimumMonths option", () => {
     const monthly = [
       0.3,
