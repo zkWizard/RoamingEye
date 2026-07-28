@@ -19,6 +19,7 @@ import { isAreaGeometry } from "./lib/geojson";
 import {
   placeObservationProductFromSample,
   serializePlaceObservationExport,
+  sstPlaceObservationFromSample,
   type PlaceObservationExportSample,
 } from "./lib/placeObservationExport";
 import {
@@ -575,7 +576,13 @@ function runPlaceInsights(result: GeoResult): void {
   const sstMonth = sstMonths[sstMonths.length - 1];
   exportSamples.set("sst", {
     layerId: "sst",
-    observations: [{ dataMonth: sstMonth, value: null }],
+    observations: [
+      {
+        dataMonth: sstMonth,
+        value: null,
+        unavailableReason: "sampling-failed",
+      },
+    ],
   });
   samplingTasks.push(
     (async () => {
@@ -605,11 +612,11 @@ function runPlaceInsights(result: GeoResult): void {
         layerId: "sst",
         sourceValueFactor: colormap.factor,
         observations: [
-          {
-            dataMonth: sstMonth,
-            value: sample.values[0],
-            validFraction: sample.validFractions[0],
-          },
+          sstPlaceObservationFromSample(
+            sstMonth,
+            sample.values[0],
+            sample.validFractions[0]
+          ),
         ],
       });
     })().catch((error: unknown) => {

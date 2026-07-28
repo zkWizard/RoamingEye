@@ -5,6 +5,7 @@ import {
   createPlaceObservationExport,
   placeObservationProductFromSample,
   serializePlaceObservationExport,
+  sstPlaceObservationFromSample,
 } from "./placeObservationExport";
 
 const boundary = {
@@ -67,6 +68,56 @@ const input = {
 };
 
 describe("place observation export", () => {
+  it("preserves distinct unavailable states for completed SST sampling", () => {
+    const dataMonth = { year: 2026, month: 5 };
+
+    expect(sstPlaceObservationFromSample(dataMonth, null, 0)).toEqual({
+      dataMonth,
+      value: null,
+      validFraction: 0,
+      unavailableReason: "source-no-data",
+    });
+    expect(sstPlaceObservationFromSample(dataMonth, null, 0.18)).toEqual({
+      dataMonth,
+      value: null,
+      validFraction: 0.18,
+      unavailableReason: "insufficient-valid-coverage",
+    });
+    expect(sstPlaceObservationFromSample(dataMonth, 18.375, 0.37)).toEqual({
+      dataMonth,
+      value: 18.375,
+      validFraction: 0.37,
+    });
+  });
+
+  it("serializes unavailable SST without dropping the place export", () => {
+    const sst = placeObservationProductFromSample({
+      layerId: "sst",
+      observations: [
+        sstPlaceObservationFromSample({ year: 2026, month: 5 }, null, 0.18),
+      ],
+    });
+
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [sst],
+    });
+
+    expect(exported.products[0].observations).toEqual([
+      {
+        dataMonth: "2026-05",
+        value: null,
+        validFraction: 0.18,
+        unavailableReason: "insufficient-valid-coverage",
+      },
+    ]);
+    expect(exported.reproducibility.dataMonthMatrix).toEqual([
+      {
+        dataMonth: "2026-05",
+        layers: [{ layerId: "sst", recordStatus: "no-data-recorded" }],
+      },
+    ]);
+  });
   it("exports boundary SST in native °C with MODIS provenance and coverage", () => {
     const product = placeObservationProductFromSample({
       layerId: "sst",
