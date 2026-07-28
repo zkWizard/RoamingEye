@@ -32,6 +32,8 @@ describe("annual NDVI phenology summaries", () => {
       trough: { month: { year: 2025, month: 3 }, ndvi: 0.24 },
       seasonalRange: 0.58,
       coverage: {
+        suppliedCalendarMonths: [3, 4, 5, 6, 7, 8],
+        omittedCalendarMonths: [1, 2, 9, 10, 11, 12],
         validMonthCount: 6,
         missingMonthCount: 0,
         invalidRecordCount: 0,
@@ -77,12 +79,35 @@ describe("annual NDVI phenology summaries", () => {
       trough: null,
       seasonalRange: null,
       coverage: {
+        suppliedCalendarMonths: [1, 2, 3, 4, 5],
+        omittedCalendarMonths: [6, 7, 8, 9, 10, 11, 12],
         validMonthCount: 3,
         missingMonthCount: 1,
         invalidRecordCount: 2,
         minimumValidFraction: 0.7,
         isSparse: true,
       },
+    });
+  });
+
+  it("distinguishes omitted months from supplied unusable and duplicate records", () => {
+    const [summary] = summarizeAnnualNdviPhenology(
+      [
+        { month: { year: 2025, month: 12 }, ndvi: null },
+        { month: { year: 2025, month: 2 }, ndvi: 1.5 },
+        { month: { year: 2025, month: 7 }, ndvi: 0.4 },
+        { month: { year: 2025, month: 7 }, ndvi: 0.5 },
+        { month: { year: 2025, month: 0 }, ndvi: 0.2 },
+      ],
+      45
+    );
+
+    expect(summary.coverage).toMatchObject({
+      suppliedCalendarMonths: [2, 7, 12],
+      omittedCalendarMonths: [1, 3, 4, 5, 6, 8, 9, 10, 11],
+      validMonthCount: 1,
+      missingMonthCount: 1,
+      invalidRecordCount: 3,
     });
   });
 });
