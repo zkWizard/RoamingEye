@@ -73,6 +73,30 @@ describe("latLonToRegionPixel", () => {
       y: 100,
     });
   });
+
+  it("keeps exact region-edge samples on the edge source pixels", () => {
+    const bounds = { south: -1, north: 1, west: -4, east: -2 };
+    expect(latLonToRegionPixel(1, -4, bounds, 400, 200)).toEqual({
+      x: 0,
+      y: 0,
+    });
+    expect(latLonToRegionPixel(-1, -2, bounds, 400, 200)).toEqual({
+      x: 399,
+      y: 199,
+    });
+  });
+
+  it("preserves both antimeridian edge pixels in the continuous frame", () => {
+    const bounds = { south: -1, north: 1, west: 179, east: 181 };
+    expect(latLonToRegionPixel(0, 179, bounds, 400, 200)).toEqual({
+      x: 0,
+      y: 100,
+    });
+    expect(latLonToRegionPixel(0, -179, bounds, 400, 200)).toEqual({
+      x: 399,
+      y: 100,
+    });
+  });
 });
 
 describe("boundary probe sampling", () => {

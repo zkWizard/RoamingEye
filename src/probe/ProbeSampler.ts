@@ -549,7 +549,12 @@ export function latLonToRegionPixel(
   const x = ((framedLon - bounds.west) / (bounds.east - bounds.west)) * width;
   const y = ((bounds.north - lat) / (bounds.north - bounds.south)) * height;
   return {
-    x: Math.min(width - 2, Math.max(1, Math.floor(x))),
-    y: Math.min(height - 2, Math.max(1, Math.floor(y))),
+    // Regional probing reads one pixel per geographic sample. Unlike the
+    // global point probe's 3x3 block, it does not need a one-pixel safety
+    // border: retaining that inset moves exact boundary-point fallbacks into
+    // a neighbouring source pixel. Coordinates on the east/south bounds map
+    // to width/height mathematically, so clamp them to the last raster pixel.
+    x: Math.min(width - 1, Math.max(0, Math.floor(x))),
+    y: Math.min(height - 1, Math.max(0, Math.floor(y))),
   };
 }
