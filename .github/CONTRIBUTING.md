@@ -104,6 +104,32 @@ elsewhere, split the chunk, or deliberately spend more budget is a maintainer
 call, and the script's own rule is that a budget bump must be justified by the
 PR that makes it.
 
+### Work that costs no budget
+
+The budget check only ever reads the **`.js` chunks** in `dist/assets`. Four
+kinds of change are therefore unaffected by it entirely, and all four are real
+contributions rather than consolation prizes:
+
+- **Docs** — anything in `docs/`, `README.md`, or this file.
+- **Build and tooling** — `scripts/`, CI workflows, config. Not part of the app
+  bundle at all.
+- **End-to-end tests** — `e2e/`. Playwright specs are never imported by `src/`,
+  so they add nothing to the bundle. This is also where behaviour in a real
+  browser gets covered, which is the kind of test this project leans on most.
+- **CSS** — `src/style.css` is emitted as its own `.css` asset (a separate file
+  from the `.js` the check measures), so styling, layout, and theming work is
+  unbudgeted. Plenty of visible polish lives here.
+
+**One thing that is _not_ a way around the cap: adding unit tests to the files
+that don't have them.** That looks like free, useful work, and it isn't — the
+gap is deliberate. `src/lib/` and `src/probe/` are already covered (every module
+there is imported by at least one test). What's left uncovered is `src/ui/`,
+`src/overlays/`, `src/scene/`, `src/textures/`, and `src/main.ts` — all DOM and
+rendering code, which Vitest here runs `environment: "node"` for and so cannot
+touch without a DOM. Covering them means changing the test environment, which is
+an architectural decision rather than a starter task; see _Testing_ below for
+what is and isn't worth unit-testing in a WebGL app. Reach for `e2e/` instead.
+
 ---
 
 ## The contribution workflow
