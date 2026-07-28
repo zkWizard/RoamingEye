@@ -465,7 +465,11 @@ function runPlaceInsights(result: GeoResult): void {
     // the exception: its 0..1 physical range is already its native unit.
     exportSamples.set(metric.layerId, {
       layerId: metric.layerId,
-      observations: months.map((dataMonth) => ({ dataMonth, value: null })),
+      observations: months.map((dataMonth) => ({
+        dataMonth,
+        value: null,
+        unavailableReason: "sampling-failed" as const,
+      })),
     });
     samplingTasks.push(
       (async () => {
@@ -531,11 +535,23 @@ function runPlaceInsights(result: GeoResult): void {
           exportSamples.set(metric.layerId, {
             layerId: metric.layerId,
             sourceValueFactor: colormap?.factor ?? 1,
-            observations: months.map((dataMonth, index) => ({
-              dataMonth,
-              value: values[index] ?? null,
-              validFraction: validFractions[index],
-            })),
+            observations: months.map((dataMonth, index) => {
+              const value = values[index] ?? null;
+              if (value === null) {
+                return {
+                  dataMonth,
+                  value,
+                  // No native-unit mean for the month: partial coverage means
+                  // too few usable pixels; none at all is source no-data.
+                  unavailableReason:
+                    (validFractions[index] ?? 0) > 0
+                      ? ("insufficient-valid-coverage" as const)
+                      : ("source-no-data" as const),
+                  validFraction: validFractions[index],
+                };
+              }
+              return { dataMonth, value, validFraction: validFractions[index] };
+            }),
           });
         }
       })().catch((error: unknown) => {

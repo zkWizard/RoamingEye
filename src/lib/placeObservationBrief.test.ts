@@ -62,6 +62,7 @@ function exportRecord() {
           {
             dataMonth: { year: 2026, month: 1 },
             value: null,
+            unavailableReason: "source-no-data",
             validFraction: 0,
           },
         ],

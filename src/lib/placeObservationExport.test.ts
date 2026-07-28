@@ -34,7 +34,11 @@ const input = {
           value: 0.62,
           validFraction: 0.82,
         },
-        { dataMonth: { year: 2026, month: 5 }, value: null },
+        {
+          dataMonth: { year: 2026, month: 5 },
+          value: null,
+          unavailableReason: "source-no-data" as const,
+        },
       ],
     },
     {
@@ -95,7 +99,7 @@ describe("place observation export", () => {
     const exported = createPlaceObservationExport(input);
 
     expect(exported).toMatchObject({
-      schema: "roamingeye-place-observation-export/v2",
+      schema: "roamingeye-place-observation-export/v3",
       kind: "place-observation-export",
       boundary,
       products: [
@@ -105,8 +109,18 @@ describe("place observation export", () => {
           source: LAYERS.ndvi.dataset,
           nativeUnit: "NDVI",
           observations: [
-            { dataMonth: "2026-04", value: 0.62, validFraction: 0.82 },
-            { dataMonth: "2026-05", value: null, validFraction: null },
+            {
+              dataMonth: "2026-04",
+              value: 0.62,
+              validFraction: 0.82,
+              unavailableReason: null,
+            },
+            {
+              dataMonth: "2026-05",
+              value: null,
+              validFraction: null,
+              unavailableReason: "source-no-data",
+            },
           ],
         },
         {
@@ -114,7 +128,12 @@ describe("place observation export", () => {
           source: LAYERS.precip.dataset,
           nativeUnit: "kg m^-2 s^-1",
           observations: [
-            { dataMonth: "2026-04", value: 0.00014, validFraction: 0.61 },
+            {
+              dataMonth: "2026-04",
+              value: 0.00014,
+              validFraction: 0.61,
+              unavailableReason: null,
+            },
           ],
         },
       ],
@@ -215,6 +234,36 @@ describe("place observation export", () => {
       createPlaceObservationExport({
         ...input,
         products: [
+          {
+            ...input.products[0],
+            observations: [
+              { dataMonth: { year: 2026, month: 4 }, value: null },
+            ],
+          },
+        ],
+      })
+    ).toThrow("Product ndvi must explain an unavailable value.");
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            observations: [
+              {
+                dataMonth: { year: 2026, month: 4 },
+                value: 0.1,
+                unavailableReason: "sampling-failed" as const,
+              },
+            ],
+          },
+        ],
+      })
+    ).toThrow("Product ndvi cannot mark a recorded value unavailable.");
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
           ...input.products,
           {
             ...input.products[0],
@@ -273,7 +322,11 @@ describe("place observation export", () => {
           value: 8.64,
           validFraction: 0.75,
         },
-        { dataMonth: { year: 2026, month: 5 }, value: null },
+        {
+          dataMonth: { year: 2026, month: 5 },
+          value: null,
+          unavailableReason: "insufficient-valid-coverage",
+        },
       ],
     });
 

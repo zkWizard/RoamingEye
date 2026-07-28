@@ -10,6 +10,8 @@ import type { LandCoverContextSummary } from "./landCover";
 export interface LandCoverObservationNarrative {
   kind: "land-cover-observation-narrative";
   isInterpretation: false;
+  observationStatus: LandCoverContextSummary["observationStatus"];
+  unavailableReason: LandCoverContextSummary["unavailableReason"];
   headline: string;
   detail: string;
   provenance: {
@@ -51,6 +53,8 @@ export function describeLandCoverObservation(
   return {
     kind: "land-cover-observation-narrative",
     isInterpretation: false,
+    observationStatus: summary.observationStatus,
+    unavailableReason: summary.unavailableReason,
     headline: headlineFor(summary),
     detail: detailFor(summary),
     provenance: {
