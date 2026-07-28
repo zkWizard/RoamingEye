@@ -616,3 +616,37 @@ verified` — still provisioning, still do not touch DNS. Revisit date stands at
   is still `null`, `https://roamingeye.org/` still fails TLS, and `zkwizard.github.io` still
   301s to plain `http://`. Revisit date stands at **2026-07-29**; nothing in `outbox/` may go
   out before it clears.
+- 2026-07-28 (later run) — **Finished the orientation map #570 started: every module the
+  running app actually reaches is now documented.** Picked Duty 4 because #570 merged this
+  morning (10:32Z) and the previous run had left this as an explicitly scoped follow-up —
+  #570 landed the wired-vs-staged framing but preserved the original **9-row** core table,
+  so **33 of the then-42 wired modules stayed undocumented**, including `probe.ts`,
+  `colormap.ts`, `trend.ts`, `numerics.ts` and `citation.ts` — the ones a contributor is most
+  likely to need.
+  **Re-measured rather than trusting the inherited numbers, and they had already gone stale.**
+  Walking the import graph from `src/main.ts` at `9622783`: `src/lib/` now holds **199
+  modules** (206 test files), of which **44 are wired and 155 staged** — against the **159 /
+  42 / 117** the doc still claimed from `eabc5ea` **one day earlier**. Roughly 40 modules
+  arrived in a day and two of them reached the app. Every other source directory is still
+  100% wired (`ui/` 20, `overlays/` 10, `scene/` 6, `textures/` 1, `probe/` 1); the one
+  apparent gap outside `src/lib/` is `vite-env.d.ts`, an ambient declaration, not a module.
+  **Wrote the other 35 up in six responsibility groups** (time/catalog/session;
+  probe/colormaps/statistics; domain datasets & place context; provenance & export; geometry
+  support; platform & delivery), taking each description **from the module's own doc comment**
+  so the code stays the authority. Five modules carry no leading docblock — `agentFleet.ts`,
+  `softwareCatalog.ts`, `landCoverPalette.ts`, `placeInsights.ts`, `placeObservationExport.ts`
+  — so those were described from their actual call sites instead of guessed.
+  **Also folded in the staged-set breakdown** #570 does not carry: of the 155 staged, **124
+  are imported by nothing but their own unit test** and **31 only by each other**, and nothing
+  in `scripts/`, `contract/`, or e2e reaches any of them. The two halves imply different work
+  — a lone function needs a call site, a cluster needs an entry point — which is worth knowing
+  before choosing one.
+  **Checked the doc against the measurement programmatically** rather than by eye: the tables
+  list exactly the 44 measured wired modules, no omissions and no strays.
+  **Standing by-file check run first:** the only open PR touching `ARCHITECTURE.md`,
+  `CONTRIBUTING.md` or `comms/` is the merge-train batch #573, not a competing docs edit —
+  so no repeat of the #570 collision.
+  **HTTPS gate re-measured, still closed:** `https_certificate: null`, `https_enforced: false`,
+  Pages' own `html_url` still `http://roamingeye.org/`. Revisit date stands at **2026-07-29**;
+  the outbox stays send-blocked. Signals not re-pulled — measured hours ago this same day and
+  nothing has been sent, so nothing can have moved.
