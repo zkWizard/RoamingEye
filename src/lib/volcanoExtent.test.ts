@@ -120,7 +120,7 @@ describe("volcanoesInSearchExtent", () => {
       }),
     ]);
     expect(context.units.lastEruptionYear).toBe(
-      "calendar year; negative values are BCE"
+      "source calendar year; negative values are BCE and zero is preserved without era conversion"
     );
   });
 
