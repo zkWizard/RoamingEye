@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { awaitAppInteractive } from "./boot";
+import { globePoint } from "./globe";
 
 /**
  * Enforced accessibility: axe-core (WCAG 2.x A/AA rule tags) scans the app
@@ -98,9 +99,8 @@ test("layer picker open is axe-clean", async ({ page }) => {
 });
 
 test("probe panel with a chart is axe-clean", async ({ page }) => {
-  const viewport = page.viewportSize();
-  if (!viewport) throw new Error("no viewport");
-  await page.mouse.click(viewport.width / 2, viewport.height / 2);
+  const pt = await globePoint(page);
+  await page.mouse.click(pt.x, pt.y);
   await expect(page.locator("#probe-panel")).toHaveClass(/is-open/);
   await scan(page, "probe-panel");
 });
