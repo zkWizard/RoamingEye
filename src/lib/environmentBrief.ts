@@ -176,6 +176,12 @@ export interface EnvironmentSignalCurrency {
 export interface EnvironmentDataCurrency {
   /** Usable signals whose currency was assessed, in signal order. */
   comparedSignalIds: EnvironmentSignalId[];
+  /**
+   * Usable signals omitted because no product-specific availability checkpoint
+   * was supplied. Currently this can only contain vegetation: the shared
+   * checkpoint is explicitly climate-scoped.
+   */
+  unassessedSignalIds: EnvironmentSignalId[];
   /** Per-signal lag detail, in signal order. */
   perSignal: EnvironmentSignalCurrency[];
   /** Smallest lag among usable signals (freshest); null when none usable. */
@@ -534,11 +540,12 @@ function temporalAlignmentStatement(
 /**
  * Report how stale the usable (`available`) observations are relative to the
  * availability checkpoint each was measured against, so a lagged source month
- * is never silently read as current. Every signal uses its product-specific
- * checkpoint when supplied, falling back to the shared checkpoint. Non-usable
- * signals contribute no lag. This is a data-recency descriptor over
- * publication lag, not a claim that the values themselves rose, fell, or
- * agree.
+ * is never silently read as current. Climate signals use their product-specific
+ * checkpoint when supplied and otherwise use the shared climate checkpoint.
+ * Vegetation contributes only when it has a product-specific checkpoint; using
+ * a climate frontier for MODIS vegetation would invent cross-product currency.
+ * Non-usable signals contribute no lag. This is a data-recency descriptor over
+ * publication lag, not a claim that the values themselves rose, fell, or agree.
  */
 export function summarizeDataCurrency(
   signals: readonly EnvironmentSignalBrief[],
@@ -546,8 +553,16 @@ export function summarizeDataCurrency(
   availableThroughBySignal?: EnvironmentBriefInput["availableThroughBySignal"]
 ): EnvironmentDataCurrency {
   const perSignal: EnvironmentSignalCurrency[] = [];
+  const unassessedSignalIds: EnvironmentSignalId[] = [];
   for (const signal of signals) {
     if (signal.status !== "available" || signal.dataMonth === null) continue;
+    if (
+      signal.id === "vegetation" &&
+      availableThroughBySignal?.vegetation === undefined
+    ) {
+      unassessedSignalIds.push(signal.id);
+      continue;
+    }
     const checkpoint =
       availableThroughBySignal?.[signal.id] ?? availableThrough;
     // Whole months behind the availability frontier, floored at 0: a data
@@ -564,12 +579,16 @@ export function summarizeDataCurrency(
   if (perSignal.length === 0) {
     return {
       comparedSignalIds: [],
+      unassessedSignalIds,
       perSignal: [],
       freshestLagMonths: null,
       stalestLagMonths: null,
       freshestSignalId: null,
       stalestSignalId: null,
-      statement: "No usable observations to assess for data currency.",
+      statement:
+        unassessedSignalIds.length === 0
+          ? "No usable observations to assess for data currency."
+          : unassessedCurrencyStatement(unassessedSignalIds),
     };
   }
 
@@ -583,13 +602,20 @@ export function summarizeDataCurrency(
 
   return {
     comparedSignalIds: perSignal.map((entry) => entry.id),
+    unassessedSignalIds,
     perSignal,
     freshestLagMonths: freshest.lagMonths,
     stalestLagMonths: stalest.lagMonths,
     freshestSignalId: freshest.id,
     stalestSignalId: stalest.id,
-    statement: dataCurrencyStatement(perSignal, freshest, stalest),
+    statement: `${dataCurrencyStatement(perSignal, freshest, stalest)}${unassessedSignalIds.length ? ` ${unassessedCurrencyStatement(unassessedSignalIds)}` : ""}`,
   };
+}
+
+function unassessedCurrencyStatement(
+  signalIds: readonly EnvironmentSignalId[]
+): string {
+  return `Currency was not assessed for ${signalIds.join(", ")} because no product-specific availability checkpoint was supplied.`;
 }
 
 function dataCurrencyStatement(

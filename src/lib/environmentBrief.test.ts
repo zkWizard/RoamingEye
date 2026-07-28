@@ -24,6 +24,7 @@ describe("environment provenance brief", () => {
       value: 0.00012,
     };
     const availableThrough = { year: 2026, month: 2 };
+    const vegetationAvailableThrough = { year: 2026, month: 2 };
     const rainfallAvailableThrough = { year: 2026, month: 2 };
     const input = {
       vegetation,
@@ -32,6 +33,7 @@ describe("environment provenance brief", () => {
       airTemperature: null,
       availableThrough,
       availableThroughBySignal: {
+        vegetation: vegetationAvailableThrough,
         rainfall: rainfallAvailableThrough,
       },
     };
@@ -41,6 +43,7 @@ describe("environment provenance brief", () => {
     vegetation.dataMonth.month = 7;
     rainfall.dataMonth.month = 8;
     availableThrough.month = 9;
+    vegetationAvailableThrough.month = 9;
     rainfallAvailableThrough.month = 10;
 
     expect(brief.signals[0].dataMonth).toEqual({ year: 2026, month: 1 });
@@ -888,6 +891,9 @@ describe("environment brief data currency", () => {
       soilMoisture: { dataMonth: { year: 2026, month: 3 }, value: 6.4 },
       airTemperature: { dataMonth: { year: 2026, month: 3 }, value: 289.4 },
       availableThrough: { year: 2026, month: 3 },
+      availableThroughBySignal: {
+        vegetation: { year: 2026, month: 3 },
+      },
     });
 
     expect(brief.dataCurrency).toMatchObject({
@@ -927,7 +933,10 @@ describe("environment brief data currency", () => {
       availableThrough: { year: 2026, month: 5 },
       // Rainfall publishes on a later frontier, so its two-month gap is a lag,
       // not an unpublished (future) month.
-      availableThroughBySignal: { rainfall: { year: 2026, month: 6 } },
+      availableThroughBySignal: {
+        vegetation: { year: 2026, month: 5 },
+        rainfall: { year: 2026, month: 6 },
+      },
     });
 
     const rainfall = brief.dataCurrency.perSignal.find(
@@ -978,7 +987,7 @@ describe("environment brief data currency", () => {
     });
   });
 
-  it("falls back to the shared checkpoint when vegetation has no override", () => {
+  it("does not infer vegetation currency from the shared climate checkpoint", () => {
     const brief = composeEnvironmentBrief({
       vegetation: { dataMonth: { year: 2026, month: 3 }, value: 0.5 },
       rainfall: null,
@@ -990,12 +999,36 @@ describe("environment brief data currency", () => {
       },
     });
 
-    expect(brief.dataCurrency.perSignal[0]).toEqual({
-      id: "vegetation",
-      dataMonth: { year: 2026, month: 3 },
-      availableThrough: { year: 2026, month: 5 },
-      lagMonths: 2,
+    expect(brief.dataCurrency).toMatchObject({
+      comparedSignalIds: [],
+      unassessedSignalIds: ["vegetation"],
+      perSignal: [],
+      freshestLagMonths: null,
+      stalestLagMonths: null,
     });
+    expect(brief.dataCurrency.statement).toBe(
+      "Currency was not assessed for vegetation because no product-specific availability checkpoint was supplied."
+    );
+  });
+
+  it("keeps unassessed vegetation explicit beside assessed climate currency", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: { dataMonth: { year: 2026, month: 2 }, value: 0.5 },
+      rainfall: { dataMonth: { year: 2026, month: 2 }, value: 0.0001 },
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 3 },
+    });
+
+    expect(brief.dataCurrency).toMatchObject({
+      comparedSignalIds: ["rainfall"],
+      unassessedSignalIds: ["vegetation"],
+      freshestLagMonths: 1,
+      stalestLagMonths: 1,
+    });
+    expect(brief.dataCurrency.statement).toBe(
+      "1 usable observation (rainfall, dated 2026-02) lags its availability checkpoint by 1 month. Currency was not assessed for vegetation because no product-specific availability checkpoint was supplied."
+    );
   });
 
   it("floors a data month at or ahead of its checkpoint to zero lag", () => {
@@ -1007,6 +1040,9 @@ describe("environment brief data currency", () => {
       soilMoisture: null,
       airTemperature: null,
       availableThrough: { year: 2026, month: 4 },
+      availableThroughBySignal: {
+        vegetation: { year: 2026, month: 4 },
+      },
     });
 
     expect(brief.dataCurrency.perSignal[0].lagMonths).toBe(0);
@@ -1022,6 +1058,9 @@ describe("environment brief data currency", () => {
       soilMoisture: { dataMonth: { year: 2026, month: 2 }, value: 6 },
       airTemperature: { dataMonth: { year: 2026, month: 2 }, value: 289 },
       availableThrough: { year: 2026, month: 3 },
+      availableThroughBySignal: {
+        vegetation: { year: 2026, month: 3 },
+      },
     });
 
     expect(brief.dataCurrency.freshestLagMonths).toBe(1);
@@ -1057,6 +1096,7 @@ describe("environment brief data currency", () => {
       stalestLagMonths: null,
       freshestSignalId: null,
       stalestSignalId: null,
+      unassessedSignalIds: [],
     });
     expect(summary.statement).toBe(
       "No usable observations to assess for data currency."
