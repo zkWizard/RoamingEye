@@ -670,6 +670,49 @@ from?" Lead with that, never with the globe.
 
 ---
 
+## The venue we own
+
+Every other entry in this file is somebody else's room, with somebody else's rules. This
+one is ours, and until 2026-07-28 no run had looked at it.
+
+### RoamingEye's own GitHub Discussions — **empty, and it is the landing zone for every other venue**
+
+- **URL:** https://github.com/zkWizard/RoamingEye/discussions
+- **Audience & size:** whoever arrives from the other venues in this file. That is the
+  point — it is not a venue that supplies an audience, it is the room the supplied audience
+  walks into.
+- **Measured state (2026-07-28, GraphQL API):** Discussions is **enabled**, has GitHub's
+  **six stock categories** (Announcements, General, Ideas, Polls, Q&A, Show and tell), and
+  contains **0 discussions**.
+- **Why it matters, and why it is urgent:** it is the destination
+  [`.github/ISSUE_TEMPLATE/config.yml`](../.github/ISSUE_TEMPLATE/config.yml) routes every
+  "Question or discussion" to — and that same file sets `blank_issues_enabled: false`, so a
+  visitor who wants to _ask_ rather than _report_ has **no other route into the project**.
+  Meanwhile every draft in [`SEND-PLAN.md`](SEND-PLAN.md) promises an author present and
+  answering, and Slots 1–4 (three.js, Pangeo, leafmap, Show HN) generate questions by
+  design. The overflow lands here, in an empty room.
+- **It was also invisible.** Until 2026-07-28 the _only_ pointer to Discussions anywhere in
+  the repo was that one line of issue-template YAML — which a person sees only after
+  clicking "New issue". The README's Contributing section had seven bullets and none of them
+  said where to ask a question. Fixed in the same PR as this entry: a "Just want to ask
+  something?" bullet now links Q&A and Ideas directly.
+- **Posting rules:** ours. The Contributor Covenant applies as everywhere else in the repo.
+- **Best angle:** orientation, not announcement — what the tool is, where to put a question
+  versus an idea versus a bug, and the three caveats a newcomer should hear from us before
+  they discover them (the probe is approximate by design, the project is young, the PR queue
+  is automated). Warm, short, and explicitly permission-giving about basic questions.
+- **Sequencing — this is the one ordering claim worth acting on:** post it **before Slot 1**,
+  not after. It is send-gated like everything else (it links to the live site), but it is the
+  cheapest send in the pipeline — our own repo, editable after the fact, no one-shot risk and
+  no permanence.
+- **Housekeeping for zkWizard (optional, both cheap):** prune the stock categories — _Polls_
+  has nothing to poll a community of zero about, and empty categories read as dead ends — and
+  **pin** the welcome post once it is up.
+- **Status:** drafted → `outbox/github-discussions-welcome-post.md` (awaiting zkWizard review
+  & post; **first in the send order**)
+
+---
+
 ## Complementary open-tool maintainers (contributor outreach)
 
 The people most likely to contribute usefully to RoamingEye are maintainers and users of
