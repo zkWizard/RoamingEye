@@ -237,6 +237,40 @@ against. Read it before sending anything.
 
 ---
 
+## Institutional / ecosystem engagement
+
+### NASA GIBS / ESDIS / Worldview
+
+- **URL / channel:** email **earthdata-support@nasa.gov** (the GIBS "Contact Us" page's
+  recommended path for suggestions/questions, https://nasa-gibs.github.io/gibs-api-docs/contact-us/);
+  technical alternative: the **Earthdata Forum** (https://forum.earthdata.nasa.gov/, GIBS
+  subforum), where questions are answered by NASA data experts.
+- **Audience & size:** the team behind Global Imagery Browse Services — the NASA EOSDIS
+  service RoamingEye streams **all** its imagery from — plus the Worldview and ESDIS
+  communities around it. Not a "size" target; a strategic, high-credibility one, and a
+  stated 2026 roadmap goal ("NASA engagement — contact the GIBS / ESDIS / Worldview teams;
+  validate our inversion approach and pursue an ecosystem listing").
+- **Why RoamingEye fits:** it is a direct, honest downstream user of GIBS WMTS that cites
+  GIBS in-app and in the README. The outreach is value-first — it thanks the team and asks
+  a genuine technical question whose answer improves accuracy for everyone reading a GIBS
+  colormap, not a promo pitch.
+- **Posting rules / compliant path:** **email the support address, or ask on the Earthdata
+  Forum** — those are the documented channels. Do **not** file it as an issue/PR on the
+  `nasa-gibs` GitHub repos (that would be posting on another project's repo; also not the
+  team's stated contact path for this kind of inquiry). This is drafted for zkWizard to send
+  personally; the comms agent never emails or posts it. The mailing list
+  (`eosdis-gibs-announce-join@lists.nasa.gov`) is info-only (subscribe for updates), not a
+  support channel.
+- **Best angle:** lead with the thank-you and the concrete colormap-inversion question tied
+  to flagship issue [#170](https://github.com/zkWizard/RoamingEye/issues/170) — ask for the
+  canonical machine-readable GIBS colormap source per layer, how to detect colormap/range
+  changes, and which products should not be pixel-inverted at all. Keep the "ecosystem
+  listing" ask soft and secondary. Honest that the project is small/early.
+- **Status:** drafted → `outbox/nasa-gibs-ecosystem-engagement.md` (awaiting zkWizard review
+  & send). Follow-up: if they answer the colormap question, it directly unblocks #170.
+
+---
+
 ## Educators & classrooms (reusable asset, then targeted venues)
 
 ### Classroom / lab one-pager (source asset)
@@ -440,6 +474,7 @@ address the project.
   earlier revision of this note told zkWizard to point `homepage` at
   `https://roamingeye.org/` and to "apply together with the description above". **Running
   that command today would break the repo's About link.** Re-measured:
+
   - `https://zkwizard.github.io/RoamingEye/` (the current, "stale" value) → `301` →
     `http://roamingeye.org/` → `200`. It reaches the app, over plain HTTP.
   - `https://roamingeye.org/` (previously recommended) → **connection failure.** No
@@ -449,6 +484,7 @@ address the project.
   thing anyone arriving from an awesome-list entry or a GitHub search clicks. The stale
   value is, for now, the _safer_ of the two.
   **Correct sequence — the homepage flip is the last step, not a companion step:**
+
   1. Wait for GitHub to issue the certificate (`https_certificate.state` → `approved`).
   2. Turn on **Enforce HTTPS** in _Settings → Pages_.
   3. Confirm `curl -sS -o /dev/null -w '%{http_code}\n' https://roamingeye.org/` returns
