@@ -17,7 +17,7 @@ const feature = (
   id?: string
 ) => ({
   id,
-  geometry: { coordinates: [lon, lat, depth] },
+  geometry: { type: "Point", coordinates: [lon, lat, depth] },
   properties: { mag, time: 1_750_000_000_000, place: "somewhere", ...extra },
 });
 
@@ -105,6 +105,35 @@ describe("parseEarthquakeFeed", () => {
     });
     expect(quakes).toHaveLength(2);
     expect(quakes[1].lat).toBe(-33.4);
+  });
+
+  it("accepts only GeoJSON Point geometries as earthquake epicentres", () => {
+    const point = feature(10, 20, 30, 5);
+    const quakes = parseEarthquakeFeed({
+      features: [
+        point,
+        {
+          ...point,
+          geometry: {
+            type: "LineString",
+            coordinates: [10, 20, 30],
+          },
+        },
+        {
+          ...point,
+          geometry: {
+            coordinates: [10, 20, 30],
+          },
+        },
+      ],
+    });
+
+    expect(quakes).toHaveLength(1);
+    expect(quakes[0]).toMatchObject({
+      lon: 10,
+      lat: 20,
+      depthKm: 30,
+    });
   });
 
   it("tolerates a missing place", () => {

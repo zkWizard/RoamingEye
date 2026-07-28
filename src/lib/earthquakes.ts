@@ -277,9 +277,17 @@ export function parseEarthquakeFeed(json: unknown): Earthquake[] {
 
   const out: Earthquake[] = [];
   for (const feature of features) {
-    const coords = feature?.geometry?.coordinates;
+    const geometry = feature?.geometry;
+    const coords = geometry?.coordinates;
     const props = feature?.properties;
-    if (!Array.isArray(coords) || coords.length < 3 || !props) continue;
+    if (
+      geometry?.type !== "Point" ||
+      !Array.isArray(coords) ||
+      coords.length < 3 ||
+      !props
+    ) {
+      continue;
+    }
 
     const [lon, lat, depthKm] = coords.map(toNumber);
     const magnitude = toNumber(props.mag);
