@@ -118,6 +118,22 @@ export type ObservationMonthAlignment =
   | "invalid-data-month"
   | "not-applicable";
 
+export type SstFootprintAlignmentStatus =
+  "consistent" | "conflicting" | "unknown" | "invalid";
+
+export interface SstFootprintAlignment {
+  /** Compares only caller-supplied surface classifications; SST is not used to infer either one. */
+  status: SstFootprintAlignmentStatus;
+  sstFootprint: SeaSurfaceTemperatureObservation["footprint"];
+  coverageFootprint: MarineCoverageInput["footprint"];
+  reason:
+    | "matching-surface-class"
+    | "conflicting-surface-class"
+    | "unknown-surface-class"
+    | "invalid-sst-metadata"
+    | "invalid-coverage-metadata";
+}
+
 export interface CoastalOceanObservation {
   schema: typeof COASTAL_OCEAN_OBSERVATION_SCHEMA;
   kind: "coastal-ocean-observation";
@@ -132,6 +148,8 @@ export interface CoastalOceanObservation {
     /** A matching month is temporal metadata, not evidence of a relationship. */
     sstAndBiology: ObservationMonthAlignment;
   };
+  /** Makes contradictory coastal/land/water metadata explicit to downstream consumers. */
+  sstFootprintAlignment: SstFootprintAlignment;
   limitations: typeof COASTAL_OCEAN_OBSERVATION_LIMITATIONS;
 }
 
@@ -173,8 +191,41 @@ export function createCoastalOceanObservation(
           ? "not-applicable"
           : alignMonths(input.sst.dataMonth, biology.dataMonth),
     },
+    sstFootprintAlignment: alignSstFootprints(input, sst, sstCoverage),
     limitations: COASTAL_OCEAN_OBSERVATION_LIMITATIONS,
   };
+}
+
+function alignSstFootprints(
+  input: CoastalOceanObservationInput,
+  sst: OceanConditionSummary,
+  coverage: MarineCoverageSummary
+): SstFootprintAlignment {
+  const base = {
+    sstFootprint: input.sst.footprint,
+    coverageFootprint: input.sstCoverage.footprint,
+  };
+
+  if (sst.coverage.status === "invalid") {
+    return { ...base, status: "invalid", reason: "invalid-sst-metadata" };
+  }
+  if (coverage.coverage.status === "invalid") {
+    return { ...base, status: "invalid", reason: "invalid-coverage-metadata" };
+  }
+  if (
+    input.sst.footprint === "unknown" ||
+    input.sstCoverage.footprint === "unknown"
+  ) {
+    return { ...base, status: "unknown", reason: "unknown-surface-class" };
+  }
+
+  const normalizedSst =
+    input.sst.footprint === "land-mixed-coastal"
+      ? "coastal-or-land-mixed"
+      : input.sst.footprint;
+  return normalizedSst === input.sstCoverage.footprint
+    ? { ...base, status: "consistent", reason: "matching-surface-class" }
+    : { ...base, status: "conflicting", reason: "conflicting-surface-class" };
 }
 
 export function summarizeDirectMarineBiologicalObservation(

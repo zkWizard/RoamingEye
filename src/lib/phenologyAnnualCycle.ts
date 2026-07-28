@@ -45,6 +45,9 @@ import type { DatasetRef } from "./timeline";
  *  - The amplitude is the difference between two climatological monthly *means*
  *    (greenest-month mean minus least-green-month mean) in unitless NDVI, NOT an
  *    extreme index range, a within-year seasonal range, or a record.
+ *  - Monthly interannual spread is a sample standard deviation across the
+ *    distinct supplied years for that calendar month. It is descriptive
+ *    variability, not measurement uncertainty, a trend, or an anomaly.
  *  - An amplitude is reported only when all twelve calendar months are covered.
  *    A partial cycle exposes the monthly means it does have but no amplitude.
  *  - NDVI is a unitless vegetation-index observation. Nothing here is a
@@ -68,6 +71,7 @@ export const CALENDAR_MONTHS_IN_YEAR = 12;
 export const NDVI_ANNUAL_CYCLE_LIMITATIONS = [
   "The monthly means are a mean annual NDVI cycle over the supplied years only, not a multi-decade climate normal.",
   "The amplitude is the difference between two climatological monthly means (greenest-month mean minus least-green-month mean) in unitless NDVI, not an extreme index range, a within-year seasonal range, or a record.",
+  "Each monthly interannual spread is the sample standard deviation across distinct supplied years for that calendar month; it is descriptive variability, not measurement uncertainty, a trend, or an anomaly.",
   "An amplitude is reported only when all twelve calendar months are covered; a partial cycle exposes its monthly means but no amplitude, so a missing greenest or least-green month is never guessed.",
   "NDVI is a unitless vegetation index; nothing here is a growing-season length or onset date, phenophase, productivity, biomass, land-cover, or ecosystem-condition claim, an external-baseline anomaly, a trend, a cause, or a forecast.",
 ] as const;
@@ -99,6 +103,12 @@ export interface NdviMonthlyClimatology {
   minNdvi: number;
   /** Highest contributing yearly value for this calendar month, unitless. */
   maxNdvi: number;
+  /**
+   * Sample standard deviation across distinct contributing years, in unitless
+   * NDVI. Null when fewer than two years contribute, where sample spread is
+   * undefined.
+   */
+  interannualStandardDeviation: number | null;
 }
 
 /** One extreme of the mean annual cycle: a calendar month and its mean NDVI. */
@@ -121,6 +131,15 @@ export interface NdviAnnualCycleExclusions {
   insufficientCoverage: number;
 }
 
+export interface NdviAnnualCycleDataPeriod {
+  /** Earliest monthly observation that contributed to a reported monthly mean. */
+  firstMonth: NdviMonthlyObservation["month"];
+  /** Latest monthly observation that contributed to a reported monthly mean. */
+  lastMonth: NdviMonthlyObservation["month"];
+  /** Distinct calendar years represented by the reported monthly means. */
+  yearsRepresented: number;
+}
+
 export interface NdviAnnualCycle {
   kind: "ndvi-mean-annual-cycle";
   /** Explicitly prevents consumers from treating this as a forecast. */
@@ -137,6 +156,8 @@ export interface NdviAnnualCycle {
   observationsSupplied: number;
   /** Count of observations that contributed to a monthly mean. */
   observationsUsed: number;
+  /** Contributing data period only; excluded records never widen this range. */
+  dataPeriod: NdviAnnualCycleDataPeriod | null;
   /** How many of the twelve calendar months met the years-per-month floor. */
   calendarMonthsCovered: number;
   /** Per-calendar-month climatology, sorted January→December; covered months only. */
@@ -201,6 +222,7 @@ export function describeNdviAnnualCycle(
       ...base,
       status: "invalid",
       observationsUsed: 0,
+      dataPeriod: null,
       calendarMonthsCovered: 0,
       monthlyClimatology: [],
       greenestMonth: null,
@@ -254,6 +276,7 @@ export function describeNdviAnnualCycle(
   }
 
   const monthlyClimatology: NdviMonthlyClimatology[] = [];
+  const contributingMonths: NdviMonthlyObservation["month"][] = [];
   let observationsUsed = 0;
   for (
     let calendarMonth = 1;
@@ -264,6 +287,9 @@ export function describeNdviAnnualCycle(
     if (yearValues && yearValues.size >= requiredYearsPerMonth) {
       const values = [...yearValues.values()];
       observationsUsed += values.length;
+      for (const year of yearValues.keys()) {
+        contributingMonths.push({ year, month: calendarMonth });
+      }
       monthlyClimatology.push({
         calendarMonth,
         meteorologicalSeason: meteorologicalSeasonForMonth(
@@ -274,16 +300,19 @@ export function describeNdviAnnualCycle(
         meanNdvi: neumaierSum(values) / values.length,
         minNdvi: Math.min(...values),
         maxNdvi: Math.max(...values),
+        interannualStandardDeviation: sampleStandardDeviation(values),
       });
     }
   }
 
   const calendarMonthsCovered = monthlyClimatology.length;
+  const dataPeriod = summarizeDataPeriod(contributingMonths);
   if (calendarMonthsCovered === 0) {
     return {
       ...base,
       status: "no-usable-observations",
       observationsUsed,
+      dataPeriod,
       calendarMonthsCovered,
       monthlyClimatology,
       greenestMonth: null,
@@ -299,6 +328,7 @@ export function describeNdviAnnualCycle(
       ...base,
       status: "insufficient-monthly-coverage",
       observationsUsed,
+      dataPeriod,
       calendarMonthsCovered,
       monthlyClimatology,
       greenestMonth: null,
@@ -323,6 +353,7 @@ export function describeNdviAnnualCycle(
     ...base,
     status: "available",
     observationsUsed,
+    dataPeriod,
     calendarMonthsCovered,
     monthlyClimatology,
     greenestMonth: {
@@ -348,18 +379,19 @@ export function describeNdviAnnualCycle(
  */
 export function formatNdviAnnualCycle(cycle: NdviAnnualCycle): string {
   const source = `${cycle.source.shortName} v${cycle.source.version}`;
+  const period = formatDataPeriod(cycle.dataPeriod);
   if (
     cycle.status !== "available" ||
     cycle.amplitude === null ||
     cycle.greenestMonth === null ||
     cycle.leastGreenMonth === null
   ) {
-    return `No mean annual NDVI cycle (${cycle.reason ?? "unavailable"}; ${cycle.calendarMonthsCovered}/${CALENDAR_MONTHS_IN_YEAR} calendar months covered); source ${source}`;
+    return `No mean annual NDVI cycle (${cycle.reason ?? "unavailable"}; ${cycle.calendarMonthsCovered}/${CALENDAR_MONTHS_IN_YEAR} calendar months covered; ${period}); source ${source}`;
   }
   const amplitude = formatNumber(cycle.amplitude);
   const green = MONTH_ABBREVIATIONS[cycle.greenestMonth.calendarMonth - 1];
   const lean = MONTH_ABBREVIATIONS[cycle.leastGreenMonth.calendarMonth - 1];
-  return `Mean annual NDVI cycle amplitude ${amplitude} (${green} greenest ${formatNumber(cycle.greenestMonth.meanNdvi)} − ${lean} least green ${formatNumber(cycle.leastGreenMonth.meanNdvi)}); climatological monthly means over ${cycle.observationsUsed} usable observations, not a climate normal, within-year extreme range, or a productivity measure; source ${source}`;
+  return `Mean annual NDVI cycle amplitude ${amplitude} (${green} greenest ${formatNumber(cycle.greenestMonth.meanNdvi)} − ${lean} least green ${formatNumber(cycle.leastGreenMonth.meanNdvi)}); climatological monthly means over ${cycle.observationsUsed} usable observations from ${period}, not a climate normal, within-year extreme range, or a productivity measure; source ${source}`;
 }
 
 const MONTH_ABBREVIATIONS = [
@@ -396,6 +428,40 @@ function isCalendarMonth(month: NdviMonthlyObservation["month"]): boolean {
   );
 }
 
+function summarizeDataPeriod(
+  months: readonly NdviMonthlyObservation["month"][]
+): NdviAnnualCycleDataPeriod | null {
+  if (months.length === 0) return null;
+  const ordered = [...months].sort(
+    (a, b) => a.year - b.year || a.month - b.month
+  );
+  return {
+    firstMonth: ordered[0],
+    lastMonth: ordered[ordered.length - 1],
+    yearsRepresented: new Set(ordered.map(({ year }) => year)).size,
+  };
+}
+
+function formatDataPeriod(period: NdviAnnualCycleDataPeriod | null): string {
+  if (period === null) return "no contributing data period";
+  return `${formatYearMonth(period.firstMonth)} to ${formatYearMonth(period.lastMonth)} across ${period.yearsRepresented} distinct years`;
+}
+
+function formatYearMonth(month: NdviMonthlyObservation["month"]): string {
+  return `${month.year}-${month.month.toString().padStart(2, "0")}`;
+}
+
 function formatNumber(value: number): string {
   return Number(value.toPrecision(5)).toString();
+}
+
+/** Sample standard deviation, retaining an unavailable state for n < 2. */
+function sampleStandardDeviation(values: readonly number[]): number | null {
+  if (values.length < 2) return null;
+  const mean = neumaierSum(values) / values.length;
+  const squaredDeviations = values.map((value) => {
+    const deviation = value - mean;
+    return deviation * deviation;
+  });
+  return Math.sqrt(neumaierSum(squaredDeviations) / (values.length - 1));
 }
