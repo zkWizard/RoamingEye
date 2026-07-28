@@ -4,6 +4,7 @@ import {
   type EnvironmentBrief,
   type EnvironmentObservation,
   type EnvironmentSignalId,
+  type EnvironmentUnavailableReason,
 } from "./environmentBrief";
 import { NDVI_UNIT } from "./phenology";
 import type {
@@ -42,11 +43,13 @@ const SIGNAL_BINDINGS: readonly SignalBinding[] = [
 export type PlaceObservationProductStatus =
   | "accepted"
   | "not-recorded"
+  | "rejected-duplicate-products"
   | "rejected-wms-layer"
   | "rejected-source"
   | "rejected-native-unit"
   | "rejected-sampling-support"
-  | "rejected-observation-months";
+  | "rejected-observation-months"
+  | "rejected-observation-state";
 
 export interface PlaceObservationSelectionProvenance {
   /** Number of source observations recorded for this product. */
@@ -155,10 +158,15 @@ export function composePlaceObservationBrief(
   >;
 
   for (const binding of SIGNAL_BINDINGS) {
-    const product = exportRecord.products.find(
+    const matchingProducts = exportRecord.products.filter(
       (candidate) => candidate.layerId === binding.layerId
     );
-    const status = productStatusFor(product, binding);
+    const product =
+      matchingProducts.length === 1 ? matchingProducts[0] : undefined;
+    const status =
+      matchingProducts.length > 1
+        ? "rejected-duplicate-products"
+        : productStatusFor(product, binding);
     productStatus[binding.signalId] = status;
     observations[binding.signalId] =
       status === "accepted" && product
@@ -198,6 +206,10 @@ export function composePlaceObservationBrief(
         "soil-moisture": latestForLayer("soil"),
         "air-temperature": latestForLayer("airtemp"),
       },
+      unavailableReasonBySignal: unavailableReasons(
+        productStatus,
+        observations
+      ),
     }),
     productStatus,
     observationSelection,
@@ -273,6 +285,30 @@ function selectionProvenance(
   };
 }
 
+function unavailableReasons(
+  productStatus: Record<EnvironmentSignalId, PlaceObservationProductStatus>,
+  observations: Record<EnvironmentSignalId, EnvironmentObservation | null>
+): Record<EnvironmentSignalId, EnvironmentUnavailableReason> {
+  return Object.fromEntries(
+    SIGNAL_BINDINGS.map((binding) => [
+      binding.signalId,
+      unavailableReasonFor(
+        productStatus[binding.signalId],
+        observations[binding.signalId]
+      ),
+    ])
+  ) as Record<EnvironmentSignalId, EnvironmentUnavailableReason>;
+}
+
+function unavailableReasonFor(
+  status: PlaceObservationProductStatus,
+  observation: EnvironmentObservation | null
+): EnvironmentUnavailableReason {
+  if (status === "not-recorded") return "product-not-recorded";
+  if (status !== "accepted") return status;
+  return observation === null ? "no-observations-recorded" : "not-supplied";
+}
+
 function productStatusFor(
   product: PlaceObservationExport["products"][number] | undefined,
   binding: SignalBinding
@@ -288,7 +324,9 @@ function productStatusFor(
     return "rejected-sampling-support";
   }
   return hasCanonicalObservationMonths(product.observations)
-    ? "accepted"
+    ? hasConsistentObservationStates(product.observations)
+      ? "accepted"
+      : "rejected-observation-state"
     : "rejected-observation-months";
 }
 
@@ -346,6 +384,30 @@ function hasCanonicalObservationMonths(
   return true;
 }
 
+function hasConsistentObservationStates(
+  observations: PlaceObservationExport["products"][number]["observations"]
+): boolean {
+  const unavailableReasons = new Set([
+    "source-no-data",
+    "insufficient-valid-coverage",
+    "sampling-failed",
+  ]);
+  return observations.every((observation) => {
+    const hasValue =
+      typeof observation.value === "number" &&
+      Number.isFinite(observation.value);
+    const hasUnavailableReason =
+      typeof observation.unavailableReason === "string" &&
+      unavailableReasons.has(observation.unavailableReason);
+    return (
+      (hasValue &&
+        (observation.unavailableReason === null ||
+          observation.unavailableReason === undefined)) ||
+      (observation.value === null && hasUnavailableReason)
+    );
+  });
+}
+
 function nativeUnitFor(signalId: EnvironmentSignalId): string {
   switch (signalId) {
     case "vegetation":
@@ -381,6 +443,7 @@ function latestObservation(
     dataMonth: latest.month,
     value: latest.observation.value,
     validFraction: latest.observation.validFraction ?? undefined,
+    unavailableReason: latest.observation.unavailableReason ?? undefined,
   };
 }
 
@@ -391,6 +454,7 @@ function invalidObservation(
     dataMonth: { year: 0, month: 0 },
     value: observation.value,
     validFraction: observation.validFraction ?? undefined,
+    unavailableReason: observation.unavailableReason ?? undefined,
   };
 }
 

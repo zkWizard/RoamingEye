@@ -39,6 +39,9 @@ export interface EnvironmentObservation {
   value: number | null;
   /** Usable share of the sampled area, when spatial sampling provides it. */
   validFraction?: number;
+  /** Bounded source/sampling state retained when no usable value was produced. */
+  unavailableReason?:
+    "source-no-data" | "insufficient-valid-coverage" | "sampling-failed";
 }
 
 export interface EnvironmentBriefInput {
@@ -56,7 +59,23 @@ export interface EnvironmentBriefInput {
    * climate-scoped.
    */
   availableThroughBySignal?: Partial<Record<EnvironmentSignalId, YearMonth>>;
+  /** Provenance reason when a signal has no observation to compose. */
+  unavailableReasonBySignal?: Partial<
+    Record<EnvironmentSignalId, EnvironmentUnavailableReason>
+  >;
 }
+
+export type EnvironmentUnavailableReason =
+  | "not-supplied"
+  | "product-not-recorded"
+  | "no-observations-recorded"
+  | "rejected-wms-layer"
+  | "rejected-source"
+  | "rejected-native-unit"
+  | "rejected-sampling-support"
+  | "rejected-observation-months"
+  | "rejected-observation-state"
+  | "rejected-duplicate-products";
 
 export interface EnvironmentSignalCoverage {
   status: EnvironmentSignalStatus;
@@ -265,25 +284,30 @@ const UNSUPPORTED_CLAIM_PATTERNS: readonly {
 export function composeEnvironmentBrief(
   input: EnvironmentBriefInput
 ): EnvironmentBrief {
+  const snapshot = snapshotBriefInput(input);
   const signals = [
     vegetationSignal(
-      input.vegetation,
-      input.availableThroughBySignal?.vegetation
+      snapshot.vegetation,
+      snapshot.availableThroughBySignal?.vegetation,
+      unavailableReasonFor(snapshot, "vegetation")
     ),
     climateSignal(
       CLIMATE_SIGNAL_META.rainfall,
-      input.rainfall,
-      availableThroughFor(input, "rainfall")
+      snapshot.rainfall,
+      availableThroughFor(snapshot, "rainfall"),
+      unavailableReasonFor(snapshot, "rainfall")
     ),
     climateSignal(
       CLIMATE_SIGNAL_META["soil-moisture"],
-      input.soilMoisture,
-      availableThroughFor(input, "soil-moisture")
+      snapshot.soilMoisture,
+      availableThroughFor(snapshot, "soil-moisture"),
+      unavailableReasonFor(snapshot, "soil-moisture")
     ),
     climateSignal(
       CLIMATE_SIGNAL_META["air-temperature"],
-      input.airTemperature,
-      availableThroughFor(input, "air-temperature")
+      snapshot.airTemperature,
+      availableThroughFor(snapshot, "air-temperature"),
+      unavailableReasonFor(snapshot, "air-temperature")
     ),
   ];
   const statements = signals.map((signal) => signal.statement);
@@ -299,9 +323,48 @@ export function composeEnvironmentBrief(
     coverageContext: summarizeCoverageContext(signals),
     dataCurrency: summarizeDataCurrency(
       signals,
-      input.availableThrough,
-      input.availableThroughBySignal
+      snapshot.availableThrough,
+      snapshot.availableThroughBySignal
     ),
+  };
+}
+
+/**
+ * Detach the brief's temporal provenance from mutable sampler state. Callers
+ * commonly reuse observation objects while stepping through months; retaining
+ * those references would let an already-composed brief change after its
+ * statements were written, making the structured month disagree with the
+ * narrative. Values and coverage are primitives, so only month records need
+ * copying.
+ */
+function snapshotBriefInput(
+  input: EnvironmentBriefInput
+): EnvironmentBriefInput {
+  const snapshotObservation = (
+    observation: EnvironmentObservation | null
+  ): EnvironmentObservation | null =>
+    observation
+      ? { ...observation, dataMonth: { ...observation.dataMonth } }
+      : null;
+  const availableThroughBySignal = input.availableThroughBySignal
+    ? Object.fromEntries(
+        Object.entries(input.availableThroughBySignal).map(([id, month]) => [
+          id,
+          { ...month },
+        ])
+      )
+    : undefined;
+
+  return {
+    vegetation: snapshotObservation(input.vegetation),
+    rainfall: snapshotObservation(input.rainfall),
+    soilMoisture: snapshotObservation(input.soilMoisture),
+    airTemperature: snapshotObservation(input.airTemperature),
+    availableThrough: { ...input.availableThrough },
+    availableThroughBySignal,
+    unavailableReasonBySignal: input.unavailableReasonBySignal
+      ? { ...input.unavailableReasonBySignal }
+      : undefined,
   };
 }
 
@@ -706,6 +769,13 @@ function availableThroughFor(
   return input.availableThroughBySignal?.[signal] ?? input.availableThrough;
 }
 
+function unavailableReasonFor(
+  input: EnvironmentBriefInput,
+  signal: EnvironmentSignalId
+): EnvironmentUnavailableReason {
+  return input.unavailableReasonBySignal?.[signal] ?? "not-supplied";
+}
+
 export function unsupportedBriefLanguageHits(text: string): string[] {
   return UNSUPPORTED_CLAIM_PATTERNS.filter(({ pattern }) =>
     pattern.test(text)
@@ -714,9 +784,11 @@ export function unsupportedBriefLanguageHits(text: string): string[] {
 
 function vegetationSignal(
   observation: EnvironmentObservation | null,
-  availableThrough?: YearMonth
+  availableThrough: YearMonth | undefined,
+  unavailableReason: EnvironmentUnavailableReason
 ): EnvironmentSignalBrief {
-  if (!observation) return unavailableSignal(VEGETATION_META);
+  if (!observation)
+    return unavailableSignal(VEGETATION_META, unavailableReason);
 
   const observedCoverage = vegetationCoverage(observation);
   const publicationUnavailable =
@@ -753,9 +825,10 @@ function vegetationSignal(
 function climateSignal(
   meta: SignalMeta & { metricId: ClimateMetricId },
   observation: EnvironmentObservation | null,
-  availableThrough: YearMonth
+  availableThrough: YearMonth,
+  unavailableReason: EnvironmentUnavailableReason
 ): EnvironmentSignalBrief {
-  if (!observation) return unavailableSignal(meta);
+  if (!observation) return unavailableSignal(meta, unavailableReason);
 
   const climateSummary = summarizeMonthlyClimate(
     {
@@ -769,6 +842,13 @@ function climateSignal(
   const publicationUnavailable =
     climateSummary.publicationStatus !== "published";
   const coverage = signalCoverageFromClimate(climateSummary.coverage);
+  if (
+    observation.value === null &&
+    observation.unavailableReason &&
+    coverage.status === "no-data"
+  ) {
+    coverage.reason = observation.unavailableReason;
+  }
   const status = publicationUnavailable ? "unavailable" : coverage.status;
   const observedValue =
     status === "available" ? climateSummary.observedValue : null;
@@ -798,11 +878,14 @@ function climateSignal(
   };
 }
 
-function unavailableSignal(meta: SignalMeta): EnvironmentSignalBrief {
+function unavailableSignal(
+  meta: SignalMeta,
+  reason: EnvironmentUnavailableReason
+): EnvironmentSignalBrief {
   const coverage: EnvironmentSignalCoverage = {
     status: "unavailable",
     validFraction: null,
-    reason: "not-supplied",
+    reason,
   };
   return {
     ...meta,
@@ -811,7 +894,7 @@ function unavailableSignal(meta: SignalMeta): EnvironmentSignalBrief {
     coverage,
     status: "unavailable",
     observedValue: null,
-    statement: `${meta.label}: no supplied observation; data month unavailable; coverage not supplied; source ${sourceLabel(meta.source)}.`,
+    statement: `${meta.label}: unavailable observation (${reason}); data month unavailable; coverage not supplied; source ${sourceLabel(meta.source)}.`,
   };
 }
 
@@ -836,7 +919,10 @@ function vegetationCoverage(
     return {
       status: "no-data",
       validFraction: fraction ?? null,
-      reason: observation.value === null ? "missing-value" : "zero-coverage",
+      reason:
+        observation.value === null
+          ? (observation.unavailableReason ?? "missing-value")
+          : "zero-coverage",
     };
   }
   if (
