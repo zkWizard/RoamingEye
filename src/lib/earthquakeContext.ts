@@ -168,8 +168,17 @@ function compareObservations(
     first.distanceKm - second.distanceKm ||
     second.time - first.time ||
     second.magnitude - first.magnitude ||
-    first.place.localeCompare(second.place)
+    compareNullablePlace(first.place, second.place)
   );
+}
+
+function compareNullablePlace(
+  first: string | null,
+  second: string | null
+): number {
+  if (first === null) return second === null ? 0 : 1;
+  if (second === null) return -1;
+  return first.localeCompare(second);
 }
 
 function isValidEarthquake(earthquake: Earthquake): boolean {
