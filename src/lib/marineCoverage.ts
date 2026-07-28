@@ -166,6 +166,16 @@ function coverageFor(
       reason: "inconsistent-sample-coverage",
     };
   }
+  // Every branch below reads the footprint as a known label, so an
+  // unrecognized one is rejected here rather than falling through to a
+  // status that would misreport it.
+  if (!isMarineFootprint(input.footprint)) {
+    return {
+      ...base,
+      status: "invalid",
+      reason: "invalid-footprint",
+    };
+  }
   if (input.footprint === "land") {
     return { ...base, status: "land", reason: "land-footprint" };
   }
@@ -250,4 +260,8 @@ function isYearMonth(value: YearMonth): boolean {
     value.month >= 1 &&
     value.month <= 12
   );
+}
+
+function isMarineFootprint(value: MarineFootprint): boolean {
+  return ["water", "coastal-or-land-mixed", "land", "unknown"].includes(value);
 }

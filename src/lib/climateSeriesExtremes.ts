@@ -47,7 +47,11 @@ export interface ClimateSeriesExtreme {
 }
 
 export type ClimateSeriesExclusionReason =
-  "not-yet-published" | "invalid-reference-month" | "no-data" | "invalid";
+  | "before-source-record"
+  | "not-yet-published"
+  | "invalid-reference-month"
+  | "no-data"
+  | "invalid";
 
 export interface ClimateSeriesExcludedMonth {
   /** Source month retained so gaps remain auditable in exported summaries. */
