@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseVolcanoList,
+  parseVolcanoDataset,
   eruptionClass,
   elevationRegime,
   elevationRegimeLabel,
@@ -31,6 +32,30 @@ describe("parseVolcanoList", () => {
       elevation: 3357,
       lastEruptionYear: 2025,
       country: "Italy",
+      sourceRecord: {
+        volcanoNumber: null,
+        region: null,
+        subregion: null,
+        tectonicSetting: null,
+      },
+    });
+  });
+
+  it("retains GVP source identity and tectonic labels verbatim", () => {
+    const [parsed] = parseVolcanoList([
+      volcano({
+        volcanoNumber: 211060,
+        region: "Mediterranean and Western Asia Volcanic Regions",
+        subregion: "Italy",
+        tectonicSetting: "Subduction zone / Continental crust (> 25 km)",
+      }),
+    ]);
+
+    expect(parsed.sourceRecord).toEqual({
+      volcanoNumber: 211060,
+      region: "Mediterranean and Western Asia Volcanic Regions",
+      subregion: "Italy",
+      tectonicSetting: "Subduction zone / Continental crust (> 25 km)",
     });
   });
 
@@ -68,6 +93,42 @@ describe("parseVolcanoList", () => {
       lastEruptionYear: null,
       country: null,
     });
+  });
+});
+
+describe("parseVolcanoDataset", () => {
+  it("preserves snapshot provenance and derives its UTC data month", () => {
+    const dataset = parseVolcanoDataset({
+      provenance: {
+        source: "Smithsonian GVP",
+        sourceUrl: "https://volcano.si.edu/",
+        service: "GVP-VOTW WFS",
+        retrievedAt: "2026-07-16T18:42:00.000Z",
+      },
+      records: [volcano()],
+    });
+
+    expect(dataset.volcanoes).toHaveLength(1);
+    expect(dataset.provenance?.service).toBe("GVP-VOTW WFS");
+    expect(dataset.dataMonth).toBe("2026-07");
+  });
+
+  it("keeps records but marks malformed snapshot metadata unavailable", () => {
+    const dataset = parseVolcanoDataset({
+      provenance: { retrievedAt: "sometime" },
+      records: [volcano()],
+    });
+
+    expect(dataset.volcanoes).toHaveLength(1);
+    expect(dataset.provenance).toBeNull();
+    expect(dataset.dataMonth).toBeNull();
+  });
+
+  it("continues to read legacy arrays with unavailable provenance", () => {
+    const dataset = parseVolcanoDataset([volcano()]);
+    expect(dataset.volcanoes).toHaveLength(1);
+    expect(dataset.provenance).toBeNull();
+    expect(dataset.dataMonth).toBeNull();
   });
 });
 

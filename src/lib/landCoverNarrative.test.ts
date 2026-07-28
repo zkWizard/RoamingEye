@@ -20,6 +20,8 @@ describe("land-cover observation narratives", () => {
     expect(narrative).toMatchObject({
       kind: "land-cover-observation-narrative",
       isInterpretation: false,
+      observationStatus: "available",
+      unavailableReason: null,
       headline: "Most frequent observed class: Cropland",
       provenance: {
         dataYear: 2024,
@@ -44,6 +46,18 @@ describe("land-cover observation narratives", () => {
     );
     expect(narrative.limitations.join(" ")).toMatch(
       /does not infer biodiversity, biomass, habitat quality, ecosystem health, causes, or forecasts/i
+    );
+  });
+
+  it("passes core categorical-unit and geography provenance through unchanged", () => {
+    const summary = summarizeLandCoverContext([{ classCode: 10 }], 2024);
+    const narrative = describeLandCoverObservation(summary);
+
+    expect(narrative.provenance.geographicCoverage).toBe(
+      summary.provenance.geographicCoverage
+    );
+    expect(narrative.provenance.nativeValue).toBe(
+      `${summary.provenance.nativeValue} (${summary.provenance.nativeUnit}; no physical unit)`
     );
   });
 
@@ -75,10 +89,14 @@ describe("land-cover observation narratives", () => {
     expect(outsideRange.headline).toBe(
       "Land-cover record not published for 2025"
     );
+    expect(outsideRange.observationStatus).toBe("unavailable");
+    expect(outsideRange.unavailableReason).toBe("outside-layer-range");
     expect(outsideRange.detail).toContain("outside the published layer range");
     expect(invalidYear.headline).toBe(
       "Land-cover record not published for 2024.5"
     );
     expect(invalidYear.detail).toContain("not a whole calendar year");
+    expect(invalidYear.observationStatus).toBe("unavailable");
+    expect(invalidYear.unavailableReason).toBe("invalid-year");
   });
 });
