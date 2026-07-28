@@ -533,6 +533,49 @@ describe("place observation environmental brief", () => {
     });
   });
 
+  it.each([
+    "2026-07-13T07:00:00",
+    "2026-02-30T07:00:00Z",
+    "2026-07-13T24:00:00Z",
+    "2026-07-13T07:00:00+24:00",
+  ])(
+    "rejects recorded products when external generation provenance is invalid: %s",
+    (generatedIso) => {
+      const record = exportRecord();
+      record.generated.iso = generatedIso;
+
+      const result = composePlaceObservationBrief(record);
+
+      expect(result.productStatus).toEqual({
+        vegetation: "rejected-generation-timestamp",
+        rainfall: "rejected-generation-timestamp",
+        "soil-moisture": "rejected-generation-timestamp",
+        "air-temperature": "rejected-generation-timestamp",
+      });
+      expect(
+        result.brief.signals.map((signal) => ({
+          status: signal.status,
+          reason: signal.coverage.reason,
+          dataMonth: signal.dataMonth,
+          observedValue: signal.observedValue,
+        }))
+      ).toEqual(
+        Array.from({ length: 4 }, () => ({
+          status: "unavailable",
+          reason: "rejected-generation-timestamp",
+          dataMonth: null,
+          observedValue: null,
+        }))
+      );
+      expect(result.samplingProvenance).toEqual({
+        vegetation: null,
+        rainfall: null,
+        "soil-moisture": null,
+        "air-temperature": null,
+      });
+    }
+  );
+
   it("uses the generated timestamp's stated calendar month at timezone boundaries", () => {
     const record = exportRecord();
     record.generated.iso = "2026-01-31T23:30:00-08:00";
