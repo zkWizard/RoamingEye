@@ -560,6 +560,65 @@ describe("place observation environmental brief", () => {
 
   it.each([
     {
+      label: "negative coverage",
+      observation: {
+        dataMonth: "2026-01",
+        value: 0.45,
+        validFraction: -0.1,
+      },
+    },
+    {
+      label: "coverage above the sampled area",
+      observation: {
+        dataMonth: "2026-01",
+        value: 0.45,
+        validFraction: 1.1,
+      },
+    },
+    {
+      label: "non-finite coverage",
+      observation: {
+        dataMonth: "2026-01",
+        value: 0.45,
+        validFraction: Number.NaN,
+      },
+    },
+    {
+      label: "a recorded value with zero coverage",
+      observation: {
+        dataMonth: "2026-01",
+        value: 0.45,
+        validFraction: 0,
+      },
+    },
+  ])("rejects $label from an external export record", ({ observation }) => {
+    const record = exportRecord();
+    record.products.find((p) => p.layerId === "ndvi")!.observations = [
+      observation,
+    ] as (typeof record.products)[number]["observations"];
+
+    const result = composePlaceObservationBrief(record);
+
+    expect(result.productStatus.vegetation).toBe(
+      "rejected-observation-coverage"
+    );
+    expect(result.observationSelection.vegetation).toEqual({
+      recordedObservationCount: 1,
+      earliestDataMonth: null,
+      latestDataMonth: null,
+      selectedDataMonth: null,
+    });
+    expect(result.samplingProvenance.vegetation).toBeNull();
+    expect(result.brief.signals[0]).toMatchObject({
+      status: "unavailable",
+      dataMonth: null,
+      observedValue: null,
+      coverage: { reason: "rejected-observation-coverage" },
+    });
+  });
+
+  it.each([
+    {
       name: "an unexplained null",
       observation: {
         dataMonth: "2026-01",
