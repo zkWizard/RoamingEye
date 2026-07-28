@@ -7,6 +7,8 @@ import {
   textTool,
   textDataset,
   citationBundle,
+  doiResolverUrl,
+  DOI_RESOLVER,
   TOOL_CITATION,
 } from "./citation";
 import { citedDatasets } from "./providers";
@@ -17,6 +19,45 @@ const ndvi = {
   doi: "10.5067/MODIS/MOD13A3.061",
   title: "MODIS/Terra Vegetation Indices Monthly L3 Global 1km",
 };
+
+describe("doiResolverUrl", () => {
+  it("builds a resolvable link for a normal NASA DOI unchanged", () => {
+    expect(doiResolverUrl(ndvi.doi)).toBe(
+      "https://doi.org/10.5067/MODIS/MOD13A3.061"
+    );
+  });
+
+  it("preserves the DOI's structural slash separators", () => {
+    // The "/" between registrant and suffix (and within the suffix) is part of
+    // the DOI, not a character to encode.
+    expect(doiResolverUrl("10.5067/a/b/c")).toBe(
+      `${DOI_RESOLVER}10.5067/a/b/c`
+    );
+  });
+
+  it("percent-encodes URL-unsafe characters a DOI suffix may carry", () => {
+    // "#", "?", and a space would otherwise be read as a fragment, a query, and
+    // a break in the URL; each must be escaped so the link resolves.
+    expect(doiResolverUrl("10.1234/a#b?c d")).toBe(
+      `${DOI_RESOLVER}10.1234/a%23b%3Fc%20d`
+    );
+  });
+
+  it("encodes an existing percent sign without double-encoding it", () => {
+    // "%" maps to "%25" first, so a later escape is never re-read as a prefix.
+    expect(doiResolverUrl("10.1234/50%off")).toBe(
+      `${DOI_RESOLVER}10.1234/50%25off`
+    );
+  });
+
+  it("trims surrounding whitespace before building the link", () => {
+    expect(doiResolverUrl("  10.5067/x  ")).toBe(`${DOI_RESOLVER}10.5067/x`);
+  });
+
+  it("yields the bare resolver base for an empty DOI", () => {
+    expect(doiResolverUrl("")).toBe(DOI_RESOLVER);
+  });
+});
 
 describe("BibTeX", () => {
   it("emits a well-formed @software entry for the tool with a version", () => {
