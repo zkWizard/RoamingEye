@@ -35,6 +35,13 @@ export interface VolcanoExtentContext {
   suppliedRecordCount: number;
   /** Records whose coordinates lie inside the search bounding box. */
   matchedRecordCount: number;
+  /** Coverage of the native GVP summit-elevation field within matched records. */
+  elevationCoverage: {
+    presentCount: number;
+    missingCount: number;
+    /** Null when there are no matched records, rather than an invented 0%. */
+    fraction: number | null;
+  };
   records: readonly VolcanoExtentRecord[];
   bounds: SearchBoundingBox | null;
   crossesAntimeridian: boolean;
@@ -98,11 +105,21 @@ function contextFor(
   crossesAntimeridian: boolean,
   status: VolcanoExtentContext["status"]
 ): VolcanoExtentContext {
+  const presentElevationCount = records.filter(
+    (record) =>
+      record.elevationMeters !== null && Number.isFinite(record.elevationMeters)
+  ).length;
   return {
     kind: "gvp-search-extent-context",
     status,
     suppliedRecordCount,
     matchedRecordCount: records.length,
+    elevationCoverage: {
+      presentCount: presentElevationCount,
+      missingCount: records.length - presentElevationCount,
+      fraction:
+        records.length === 0 ? null : presentElevationCount / records.length,
+    },
     records,
     bounds,
     crossesAntimeridian,
