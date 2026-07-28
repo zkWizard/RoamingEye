@@ -408,6 +408,32 @@ describe("place observation export", () => {
     expect(() =>
       createPlaceObservationExport({
         ...input,
+        generatedIso: "2026-04-30T23:30:00-07:00",
+        products: [
+          {
+            ...input.products[0],
+            observations: [{ dataMonth: { year: 2026, month: 5 }, value: 0.1 }],
+          },
+        ],
+      })
+    ).toThrow(
+      "Product ndvi has data month 2026-05 after export generation month 2026-04."
+    );
+    expect(
+      createPlaceObservationExport({
+        ...input,
+        generatedIso: "2026-05-01T00:30:00+14:00",
+        products: [
+          {
+            ...input.products[0],
+            observations: [{ dataMonth: { year: 2026, month: 5 }, value: 0.1 }],
+          },
+        ],
+      }).products[0].observations[0].dataMonth
+    ).toBe("2026-05");
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
         products: [
           {
             ...input.products[0],

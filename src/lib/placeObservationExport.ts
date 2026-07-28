@@ -347,6 +347,7 @@ function validateInput(input: PlaceObservationExportInput): void {
       "generatedIso must be a calendar-valid ISO 8601 timestamp with a timezone."
     );
   }
+  const generatedMonth = yearMonthFromIsoCalendar(input.generatedIso);
   if (!input.toolVersion.trim()) throw new Error("toolVersion is required.");
   if (input.products.length === 0)
     throw new Error("At least one product is required.");
@@ -419,6 +420,11 @@ function validateInput(input: PlaceObservationExportInput): void {
         );
       }
       const month = formatYearMonth(observation.dataMonth);
+      if (month > generatedMonth) {
+        throw new Error(
+          `Product ${product.layerId} has data month ${month} after export generation month ${generatedMonth}.`
+        );
+      }
       if (months.has(month)) {
         throw new Error(
           `Product ${product.layerId} has duplicate month ${month}.`
@@ -737,6 +743,15 @@ function isYearMonth(value: YearMonth): boolean {
     value.month >= 1 &&
     value.month <= 12
   );
+}
+
+/**
+ * Preserve the calendar month explicitly written by the producer. Converting
+ * to UTC first can move an export across a month boundary and falsely accept
+ * or reject a source month depending on the producer's timezone.
+ */
+function yearMonthFromIsoCalendar(value: string): string {
+  return value.slice(0, 7);
 }
 
 function formatYearMonth(value: YearMonth): string {
