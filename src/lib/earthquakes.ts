@@ -39,6 +39,16 @@ export interface EarthquakeSourceRecord {
   magnitudeType: string | null;
   /** USGS review status, commonly "automatic" or "reviewed". */
   reviewStatus: string | null;
+  /**
+   * USGS-reported horizontal location uncertainty in km. Null when the feed
+   * omits it; zero remains a reported value rather than an unavailable state.
+   */
+  horizontalErrorKm: number | null;
+  /**
+   * USGS-reported hypocentral-depth uncertainty in km. This is uncertainty on
+   * `depthKm`, not depth itself, and is null when unavailable.
+   */
+  depthErrorKm: number | null;
 }
 
 /**
@@ -309,6 +319,8 @@ export function parseEarthquakeFeed(json: unknown): Earthquake[] {
         updatedTime: finiteNumberOrNull(props.updated),
         magnitudeType: typeof props.magType === "string" ? props.magType : null,
         reviewStatus: typeof props.status === "string" ? props.status : null,
+        horizontalErrorKm: nonNegativeFiniteNumberOrNull(props.horizontalError),
+        depthErrorKm: nonNegativeFiniteNumberOrNull(props.depthError),
       },
     });
   }
@@ -318,4 +330,9 @@ export function parseEarthquakeFeed(json: unknown): Earthquake[] {
 function finiteNumberOrNull(value: unknown): number | null {
   const number = toNumber(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function nonNegativeFiniteNumberOrNull(value: unknown): number | null {
+  const number = finiteNumberOrNull(value);
+  return number !== null && number >= 0 ? number : null;
 }

@@ -36,7 +36,7 @@ describe("parseEarthquakeFeed", () => {
     });
   });
 
-  it("retains USGS event identity, update time, magnitude type, and review status", () => {
+  it("retains USGS event identity, review metadata, and location uncertainty", () => {
     const quakes = parseEarthquakeFeed({
       features: [
         feature(
@@ -49,6 +49,8 @@ describe("parseEarthquakeFeed", () => {
             updated: 1_750_000_123_456,
             magType: "mw",
             status: "reviewed",
+            horizontalError: 4.2,
+            depthError: 1.7,
           },
           "us7000test"
         ),
@@ -61,6 +63,8 @@ describe("parseEarthquakeFeed", () => {
       updatedTime: 1_750_000_123_456,
       magnitudeType: "mw",
       reviewStatus: "reviewed",
+      horizontalErrorKm: 4.2,
+      depthErrorKm: 1.7,
     });
   });
 
@@ -72,6 +76,8 @@ describe("parseEarthquakeFeed", () => {
           updated: "not-a-time",
           magType: undefined,
           status: 2,
+          horizontalError: undefined,
+          depthError: "not-a-number",
         }),
       ],
     });
@@ -82,6 +88,24 @@ describe("parseEarthquakeFeed", () => {
       updatedTime: null,
       magnitudeType: null,
       reviewStatus: null,
+      horizontalErrorKm: null,
+      depthErrorKm: null,
+    });
+  });
+
+  it("preserves zero uncertainty and rejects negative uncertainty", () => {
+    const quakes = parseEarthquakeFeed({
+      features: [
+        feature(10, 20, 30, 5, {
+          horizontalError: 0,
+          depthError: -1,
+        }),
+      ],
+    });
+
+    expect(quakes[0].sourceRecord).toMatchObject({
+      horizontalErrorKm: 0,
+      depthErrorKm: null,
     });
   });
 

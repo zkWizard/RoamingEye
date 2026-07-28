@@ -204,6 +204,8 @@ describe("nearbyEarthquakeContext", () => {
           reviewStatus: null,
           updatedTime: null,
           url: null,
+          horizontalErrorKm: null,
+          depthErrorKm: null,
         },
         distanceKm: 0,
         depthClass: "shallow",
