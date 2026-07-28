@@ -28,6 +28,19 @@ const input = {
       wmsLayer: LAYERS.ndvi.wmsLayer,
       source: LAYERS.ndvi.dataset!,
       nativeUnit: "NDVI",
+      samplingSupport: {
+        gridSize: 28,
+        candidatePointCount: 784,
+        interiorPointCount: 620,
+        retainedPointCount: 512,
+        sourcePixelCount: 488,
+        pointLimitApplied: true,
+      },
+      sampleToNative: {
+        sampledUnit: "NDVI",
+        operation: "divide" as const,
+        factor: 1,
+      },
       samplingStrategy: "boundary-grid" as const,
       observations: [
         {
@@ -47,6 +60,11 @@ const input = {
       wmsLayer: LAYERS.precip.wmsLayer,
       source: LAYERS.precip.dataset!,
       nativeUnit: "kg m^-2 s^-1",
+      sampleToNative: {
+        sampledUnit: "mm/day",
+        operation: "divide" as const,
+        factor: 86_400,
+      },
       samplingStrategy: "boundary-point" as const,
       observations: [
         {
@@ -110,6 +128,19 @@ describe("place observation export", () => {
           wmsLayer: LAYERS.ndvi.wmsLayer,
           source: LAYERS.ndvi.dataset,
           nativeUnit: "NDVI",
+          samplingSupport: {
+            gridSize: 28,
+            candidatePointCount: 784,
+            interiorPointCount: 620,
+            retainedPointCount: 512,
+            sourcePixelCount: 488,
+            pointLimitApplied: true,
+          },
+          sampleToNative: {
+            sampledUnit: "NDVI",
+            operation: "divide",
+            factor: 1,
+          },
           samplingStrategy: "boundary-grid",
           observations: [
             {
@@ -130,6 +161,12 @@ describe("place observation export", () => {
           layerId: "precip",
           source: LAYERS.precip.dataset,
           nativeUnit: "kg m^-2 s^-1",
+          samplingSupport: null,
+          sampleToNative: {
+            sampledUnit: "mm/day",
+            operation: "divide",
+            factor: 86_400,
+          },
           samplingStrategy: "boundary-point",
           observations: [
             {
@@ -231,6 +268,23 @@ describe("place observation export", () => {
     };
 
     expect(serializePlaceObservationExport(reordered)).toBe(json);
+
+    const citationWithDifferentInsertionOrder = {
+      ...input,
+      products: input.products.map((product) => ({
+        ...product,
+        source: {
+          title: product.source.title,
+          doi: product.source.doi,
+          version: product.source.version,
+          shortName: product.source.shortName,
+        },
+      })),
+    };
+
+    expect(
+      serializePlaceObservationExport(citationWithDifferentInsertionOrder)
+    ).toBe(json);
   });
 
   it("rejects ambiguous or invalid reproducibility metadata", () => {
@@ -282,6 +336,24 @@ describe("place observation export", () => {
         method: { ...input.method, imageWidth: 0 },
       })
     ).toThrow("Source image dimensions must be positive integers.");
+    for (const generatedIso of [
+      "2026-07-13T06:00:00",
+      "2026-02-30T06:00:00Z",
+      "2026-07-13T24:00:00Z",
+      "2026-07-13T06:00:00+24:00",
+    ]) {
+      expect(() =>
+        createPlaceObservationExport({ ...input, generatedIso })
+      ).toThrow(
+        "generatedIso must be a calendar-valid ISO 8601 timestamp with a timezone."
+      );
+    }
+    expect(
+      createPlaceObservationExport({
+        ...input,
+        generatedIso: "2026-07-13T06:00:00.125-07:00",
+      }).generated.iso
+    ).toBe("2026-07-13T06:00:00.125-07:00");
     expect(() =>
       createPlaceObservationExport({
         ...input,
@@ -313,6 +385,17 @@ describe("place observation export", () => {
         ],
       })
     ).toThrow("Product ndvi has a value with zero sampled coverage.");
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            observations: [{ dataMonth: { year: 26, month: 4 }, value: 0.1 }],
+          },
+        ],
+      })
+    ).toThrow("Product ndvi has an invalid data month.");
   });
 
   it.each([
@@ -425,7 +508,16 @@ describe("place observation export", () => {
   it("reverses display conversions before exporting cited native units", () => {
     const precipitation = placeObservationProductFromSample({
       layerId: "precip",
+      sampledUnit: "mm/day",
       sourceValueFactor: 86_400,
+      samplingSupport: {
+        gridSize: 16,
+        candidatePointCount: 256,
+        interiorPointCount: 180,
+        retainedPointCount: 180,
+        sourcePixelCount: 170,
+        pointLimitApplied: false,
+      },
       samplingStrategy: "boundary-point",
       observations: [
         {
@@ -447,6 +539,19 @@ describe("place observation export", () => {
       wmsLayer: LAYERS.precip.wmsLayer,
       source: LAYERS.precip.dataset,
       nativeUnit: "kg/m²/s",
+      samplingSupport: {
+        gridSize: 16,
+        candidatePointCount: 256,
+        interiorPointCount: 180,
+        retainedPointCount: 180,
+        sourcePixelCount: 170,
+        pointLimitApplied: false,
+      },
+      sampleToNative: {
+        sampledUnit: "mm/day",
+        operation: "divide",
+        factor: 86_400,
+      },
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -464,6 +569,45 @@ describe("place observation export", () => {
         sourceValueFactor: 0,
       })
     ).toThrow("sourceValueFactor must be a positive finite number.");
+  });
+
+  it("rejects impossible geometry sampling-support budgets", () => {
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            samplingSupport: {
+              gridSize: 28,
+              candidatePointCount: 784,
+              interiorPointCount: 620,
+              retainedPointCount: 700,
+              sourcePixelCount: 488,
+              pointLimitApplied: true,
+            },
+          },
+        ],
+      })
+    ).toThrow("Product ndvi has inconsistent sampling-support counts.");
+  });
+
+  it("rejects non-reproducible sample-to-native transforms", () => {
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            sampleToNative: {
+              sampledUnit: "NDVI",
+              operation: "divide",
+              factor: 0,
+            },
+          },
+        ],
+      })
+    ).toThrow("Product ndvi has an invalid sample-to-native transform.");
   });
 
   it("does not invent a sampling strategy for unavailable samples", () => {

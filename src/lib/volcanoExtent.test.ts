@@ -37,6 +37,7 @@ describe("volcanoesInSearchExtent", () => {
     expect(context.records).toEqual([
       expect.objectContaining({
         name: "Etna",
+        lastEruptionYear: 2025,
         lastEruptionText: "last erupted 2025",
         volcanoNumber: null,
         sourceUrl: null,
@@ -69,6 +70,38 @@ describe("volcanoesInSearchExtent", () => {
     });
     expect(context.limitations.join(" ")).toContain(
       "retained GVP catalog labels"
+    );
+  });
+
+  it("preserves the raw GVP eruption year beside its display label", () => {
+    const context = volcanoesInSearchExtent(
+      [
+        volcano({
+          name: "Dated BCE",
+          lastEruptionYear: -1250,
+        }),
+        volcano({
+          name: "Undated Holocene",
+          lastEruptionYear: null,
+        }),
+      ],
+      [37, 38, 14, 16]
+    );
+
+    expect(context.records).toEqual([
+      expect.objectContaining({
+        name: "Dated BCE",
+        lastEruptionYear: -1250,
+        lastEruptionText: "last erupted 1250 BCE",
+      }),
+      expect.objectContaining({
+        name: "Undated Holocene",
+        lastEruptionYear: null,
+        lastEruptionText: "Holocene evidence only",
+      }),
+    ]);
+    expect(context.units.lastEruptionYear).toBe(
+      "calendar year; negative values are BCE"
     );
   });
 

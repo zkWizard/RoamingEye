@@ -7,7 +7,10 @@ import {
   MARINE_PLACE_METRIC,
   type MarinePlaceInsightReading,
 } from "../lib/marinePlaceInsight";
-import { GVP_VOLCANO_SOURCE } from "../lib/volcanoContext";
+import {
+  GVP_VOLCANO_SOURCE,
+  gvpVolcanoSourceLabel,
+} from "../lib/volcanoContext";
 import type { VolcanoExtentContext } from "../lib/volcanoExtent";
 import { ICONS } from "./icons";
 
@@ -95,8 +98,7 @@ export class PlaceInsights {
     this.volcanoSource.href = GVP_VOLCANO_SOURCE.url;
     this.volcanoSource.target = "_blank";
     this.volcanoSource.rel = "noopener";
-    this.volcanoSource.textContent =
-      "Source: Smithsonian Global Volcanism Program — Volcanoes of the World";
+    this.volcanoSource.textContent = `Source: ${gvpVolcanoSourceLabel()}`;
     volcanoes.append(
       volcanoTitle,
       this.volcanoValue,
@@ -180,7 +182,10 @@ export class PlaceInsights {
     this.volcanoRecords.replaceChildren();
   }
 
-  setVolcanoContext(context: VolcanoExtentContext): void {
+  setVolcanoContext(
+    context: VolcanoExtentContext,
+    dataMonth: string | null = null
+  ): void {
     this.volcanoRecords.replaceChildren();
     if (context.status === "invalid-bounds") {
       this.volcanoValue.textContent = "Search extent unavailable";
@@ -199,10 +204,13 @@ export class PlaceInsights {
       count === 0
         ? "No records"
         : `${count} ${count === 1 ? "record" : "records"}`;
+    const snapshot = dataMonth
+      ? ` Bundled GVP snapshot retrieved ${dataMonth} (UTC).`
+      : " Bundled snapshot retrieval month unavailable.";
     this.volcanoDetail.textContent =
       count === 0
-        ? "No bundled GVP volcano records have coordinates inside this search bounding box."
-        : context.geographicCoverage;
+        ? `No bundled GVP volcano records have coordinates inside this search bounding box.${snapshot}`
+        : `${context.geographicCoverage}${snapshot}`;
     for (const record of context.records.slice(0, 5)) {
       const item = document.createElement("li");
       const details = [

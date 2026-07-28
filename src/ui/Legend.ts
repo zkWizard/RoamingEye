@@ -5,7 +5,11 @@ import {
   legendTicks,
   overlayKeyFor,
 } from "../lib/legend";
-import { terrainLayerContext } from "../lib/terrainContext";
+import {
+  terrainLayerContext,
+  terrainTileAvailability,
+  terrainTileAvailabilityNotice,
+} from "../lib/terrainContext";
 
 /**
  * A compact key for the active data layer: a color-scale bar with end labels
@@ -29,6 +33,9 @@ export class Legend {
   private readonly keyRows = new Map<string, HTMLElement>();
   private readonly classes: HTMLDivElement;
   private scaleRow!: HTMLElement;
+  private terrainCoverageNotice = terrainTileAvailabilityNotice(
+    terrainTileAvailability(0, 0, 0)
+  );
 
   constructor(container: HTMLElement, initial: LayerId) {
     container.classList.add("legend");
@@ -181,6 +188,17 @@ export class Legend {
     );
   }
 
+  setTerrainTileCoverage(
+    requested: number,
+    loaded: number,
+    failed: number
+  ): void {
+    this.terrainCoverageNotice = terrainTileAvailabilityNotice(
+      terrainTileAvailability(requested, loaded, failed)
+    );
+    if (!this.sourceNote.hidden) this.renderTerrainSourceNote();
+  }
+
   private renderTerrainSourceNote(): void {
     const context = terrainLayerContext();
     const source = document.createElement("a");
@@ -189,10 +207,11 @@ export class Legend {
     source.rel = "noreferrer";
     source.textContent = `${context.provenance.dataset.shortName} v${context.provenance.dataset.version}`;
     source.setAttribute("aria-label", "ASTER GDEM V003 dataset DOI");
+    this.sourceNote.replaceChildren();
     this.sourceNote.append(
       "Source: NASA GIBS rendering ",
       source,
-      `. ${context.accessibleNotice}`
+      `. ${context.accessibleNotice} ${this.terrainCoverageNotice}`
     );
   }
 }

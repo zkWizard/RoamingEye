@@ -72,15 +72,45 @@ interface PreparedPolygon {
   holes: Position[][];
 }
 
+function isValidPosition(position: unknown): position is Position {
+  if (!Array.isArray(position) || position.length < 2) return false;
+  const [lon, lat] = position;
+  return (
+    typeof lon === "number" &&
+    Number.isFinite(lon) &&
+    lon >= -180 &&
+    lon <= 180 &&
+    typeof lat === "number" &&
+    Number.isFinite(lat) &&
+    lat >= -90 &&
+    lat <= 90
+  );
+}
+
+function isValidRing(ring: unknown): ring is Position[] {
+  if (!Array.isArray(ring) || ring.length < 4) return false;
+  if (!ring.every(isValidPosition)) return false;
+  const first = ring[0];
+  const last = ring[ring.length - 1];
+  return first[0] === last[0] && first[1] === last[1];
+}
+
+function isValidPolygon(polygon: unknown): polygon is Polygon {
+  return (
+    Array.isArray(polygon) && polygon.length > 0 && polygon.every(isValidRing)
+  );
+}
+
 function areaPolygons(geometry: GeoGeometry): Polygon[] {
   if (geometry.type === "Polygon") {
-    const polygon = geometry.coordinates as Polygon;
-    return polygon.length > 0 ? [polygon] : [];
+    return isValidPolygon(geometry.coordinates) ? [geometry.coordinates] : [];
   }
   if (geometry.type === "MultiPolygon") {
-    return (geometry.coordinates as Polygon[]).filter(
-      (polygon) => polygon.length > 0
-    );
+    if (!Array.isArray(geometry.coordinates)) return [];
+    const polygons = geometry.coordinates.filter(isValidPolygon);
+    // A partially malformed MultiPolygon is not the same geography. Withhold
+    // the whole boundary instead of silently sampling only its valid pieces.
+    return polygons.length === geometry.coordinates.length ? polygons : [];
   }
   return [];
 }
@@ -415,18 +445,37 @@ export function geometryToRings(geom: GeoGeometry): Position[][] {
   const rings: Position[][] = [];
   switch (geom.type) {
     case "Polygon":
-      for (const ring of geom.coordinates as Position[][]) rings.push(ring);
+      if (!isValidPolygon(geom.coordinates)) return rings;
+      for (const ring of geom.coordinates) rings.push(ring);
       break;
     case "MultiPolygon":
-      for (const poly of geom.coordinates as Position[][][]) {
+      if (
+        !Array.isArray(geom.coordinates) ||
+        !geom.coordinates.every(isValidPolygon)
+      ) {
+        return rings;
+      }
+      for (const poly of geom.coordinates) {
         for (const ring of poly) rings.push(ring);
       }
       break;
+    // Linework stays permissive by design: line consumers (plate boundaries)
+    // split raw coordinates into contiguous valid runs so a malformed vertex
+    // becomes a gap — dropping the whole line here would discard the valid
+    // segments, and per-position filtering would invent segments that join
+    // across the bad data. Area strictness above is unaffected.
     case "LineString":
-      rings.push(geom.coordinates as Position[]);
+      if (Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
+        rings.push(geom.coordinates as Position[]);
+      }
       break;
     case "MultiLineString":
-      for (const line of geom.coordinates as Position[][]) rings.push(line);
+      if (!Array.isArray(geom.coordinates)) return rings;
+      for (const line of geom.coordinates) {
+        if (Array.isArray(line) && line.length >= 2) {
+          rings.push(line as Position[]);
+        }
+      }
       break;
   }
   return rings;

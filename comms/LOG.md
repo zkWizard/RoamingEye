@@ -275,6 +275,224 @@ null`, `https_enforced: false`, `https://roamingeye.org/` still fails TLS, and
   no open PR touches any of those four paths.
   Skipped Duty 1 (14 venues researched, 0 sent), Duty 4 (#373/#374/#375 still open and
   unclaimed) and Duty 3 — all still blocked behind the same gate.
+- 2026-07-27 (fourth run) — **Wrote the missing send plan (`comms/SEND-PLAN.md`).** Seven
+  drafts are written and claim-checked, and nothing anywhere recorded **what to send first,
+  when, or what each one costs to run** — `TARGETS.md` holds per-venue research and `outbox/`
+  holds content, but the sequencing lived nowhere. When the gate clears, zkWizard would have
+  faced seven ready drafts and no plan; the failure mode is firing them all in one day, which
+  wastes the only Show HN shot this project gets and leaves every thread unanswered.
+  The plan orders the five sendable items — **three.js Showcase → Pangeo → leafmap → Show HN
+  → the two awesome-list PRs** — from five principles taken from rules already read and
+  recorded here, not invented: reversible before permanent (an awesome-list row is scraped
+  and mirrored; a forum post can be edited); rehearse before the one-shot (slots 1–3 generate
+  the FAQ that sharpens the HN top comment); one live thread at a time (HN and three.js both
+  expect the author present — two at once means both answered badly); moderator latency is
+  free (three.js Showcase queues, so posting early costs nothing); and traction helps
+  gatekeepers. Each slot carries its **presence cost** — slot 4 is flagged as a real
+  2–4 hour calendar commitment, not a submit-and-leave.
+  Also folded in three project-specific **"verify it healed"** checks that no generic launch
+  checklist would contain, because they are consequences of the gate this workspace measured:
+  the geolocation pin is dead over plain HTTP (`isSecureContext: false`), `health-check.yml`
+  is red on the public Actions tab, and HTTPS must actually return `200`. All three self-heal
+  when the cert lands — the plan says confirm they did, before sending traffic.
+  Recorded a **pre-launch baseline** so "did this work?" has an answer later: 1 star, 0 forks,
+  0 external watchers, 0 outside-authored issues/PRs, **43 views / 10 unique visitors** in the
+  rolling 14-day window, and — the sharpest number — the **only referrer is `github.com`, 2
+  uniques**, i.e. no external traffic source exists at all. (11,941 clones from 503 uniques is
+  our own CI; the plan says to ignore it.) Explicitly listed the six items that are _not_ in
+  the sequence with the reason each is excluded, so no future run mistakes an unscheduled item
+  for an overlooked one.
+  **Verified, so nobody redoes it:** all three `good first issue` entries still hold exactly
+  against current `main` — #373 (`TimeSlider.ts:53` still hardcodes `aria-label` "Month" while
+  `stepUnit` sits at line 36), #374 (`SearchBox.ts` still has only the `Escape` handler at
+  lines 35–36), #375 (`.github/CONTRIBUTING.md:30` still says "Node.js 20+" vs `package.json`
+  `^20.19.0 || >=22.12.0`). All three are unclaimed with zero comments, so the queue is healthy
+  and refilling it would be wrong. Ran the standing by-file check first: only this PR and #410
+  touch `comms/`. Gate re-measured and unchanged (`https_certificate: null`,
+  `https_enforced: false`) — though the TLS failure has changed shape, now
+  `SEC_E_WRONG_PRINCIPAL` rather than a dead connection: the host completes the handshake and
+  presents the default `*.github.io` certificate, which is the same "no cert for our domain"
+  conclusion, not progress. Signals otherwise flat and unchanged.
+- 2026-07-27 (fifth run) — **Routed the classroom one-pager: vetted three educator venues and
+  drafted the one submission that takes a tool.** `SEND-PLAN.md` had just named this as the
+  pipeline's one explicitly-unfinished item — the one-pager sits in §4 as "not scheduled…
+  needs a specific educator venue vetted first" — so an asset written on 2026-07-15 had spent
+  twelve days with nowhere to go, against a roadmap goal ("teaching adoption, ≥3 courses") and
+  a core stated audience. Duty 1 was skipped by the last two runs on the correct reasoning that
+  14 researched venues with 0 sent means supply is not the constraint; that objection does not
+  apply here, because this adds no new draft looking for a venue — it gives an existing
+  stranded asset a route.
+  **Three verdicts, each read from the venue's own published rules:**
+  **(1) CLEAN (cleanet.org) — the route; drafted.** The peer-reviewed climate/energy education
+  collection at CU Boulder, mirrored by NOAA Climate.gov's teaching portal. Its submission form
+  accepts resources that "are educational activities **or are interactive tools,
+  visualizations, maps, or datasets that can be used to create classroom, lab, or field
+  activities**" — the only educator venue found that takes a _tool_ rather than a finished
+  lesson plan. Decisively, **developer self-submission is sanctioned**: the form carries a
+  checkbox to receive the reviewers' comments if you built the thing, so this is an invited
+  submission, not self-promotion. Drafted `outbox/clean-collection-submission.md` field-by-field
+  against the real form. **Pitched deliberately narrow** — CLEAN warns that "general websites
+  addressing many aspects of climate or energy science are not as useful as specific ones
+  geared toward a focused topic", and a nine-layer globe sold as "explore the Earth" is exactly
+  that shape, so the description leads with seasonal vegetation phenology + snow cover and lets
+  the rest be context. Also recorded their scored criteria, including the one we fail:
+  "presence of a teacher's guide" — we have none, so the draft says so plainly and links
+  `docs/research-recipes.md` instead of hoping a reviewer misses it. Added as **slot 2b** in
+  `SEND-PLAN.md`, marked a parallel track with no presence cost (a form is not a live thread,
+  so principle 3 does not bind it) and worth starting early because the four-stage review runs
+  for months.
+  **(2) SERC "Teach the Earth" / NAGT — parked, and _not_ on rules.** The largest US
+  geoscience-education portal, and it does not list tools at all: it takes classroom-**tested**
+  activities described with course context, goals, materials and assessment, plus "notes and
+  tips for instructors… common areas of confusion". So the compliant path is not "list
+  RoamingEye" — it is an instructor who has actually run a RoamingEye lab contributing that
+  lab. Writing one on spec would be dishonest against a form that asks how students met the
+  goals. Recorded as second-order: reachable _after_ adoption, which is what CLEAN and the
+  one-pager are for. Also logged the licence detail nobody would expect — TTE contributions go
+  out **CC BY-NC-SA 4.0** (the write-up only; RoamingEye stays MIT), a deliberate choice, not a
+  footnote.
+  **(3) Earth Exploration Toolbook — parked pending a one-line question.** Conceptually the best
+  fit in the whole pipeline (chapters are "step-by-step instructions to walk users through an
+  example of using data and tools", i.e. `docs/research-recipes.md` in their format, and the
+  template explicitly permits outside authors) — but the site's initial publication date is
+  2006, the newest dated item on it is a 2011 award, and there is no open call for authors. A
+  chapter is hours of work, so the entry says: **ask whether they still accept community
+  chapters before writing one**, and do not invest on spec.
+  Ran the standing by-file check first: the only open PRs touching `comms/` are #571 (this
+  branch's base) and #573, the merge train carrying it — no duplication. Branched off #571
+  rather than `main` so the LOG/TARGETS/SEND-PLAN appends do not collide with it in the train,
+  and worked in a detached `git worktree` because the shared clone had the active merge train
+  checked out. Gate re-measured, unchanged: `https_certificate: null`, `https_enforced: false`.
+  Signals unchanged: 1 star, 0 forks, 0 external watchers. Repo `description` is **still
+  `null`** — eleven days after it was first flagged, still the one awareness win available
+  while every draft is send-blocked, and still left for zkWizard because editing public repo
+  metadata unattended is a maintainer call.
+- 2026-07-28 — **Measured the traction baseline for the first time and found two metric traps
+  that would have put false claims into drafts.** Duty 6, chosen because every other duty is
+  either done or blocked: the outbox holds eight drafts and all are send-blocked; educator
+  venues were just routed (#580); onboarding docs are owned by open #570; and venue supply is
+  not the constraint. Signals had been "checked" on three prior runs, but only ever as
+  `stars/forks/watchers` — **nobody had looked at the traffic API**, and it turns out to be the
+  one place the project's real state is visible. New file `comms/SIGNALS.md` records it.
+  **The honest picture: pre-traction, zero external audience.** 43 views / 10 uniques over the
+  14-day window, with **zero views on seven of the last eight days**; referrers are
+  `github.com` only; 0 forks; **0 issues or PRs authored by anyone but the maintainer.** That
+  is the expected result — nothing has been sent — and it is now a _recorded zero point_ so the
+  post-outreach lift is measurable instead of guessed.
+  **Trap 1 — clone counts are not adoption, do not cite them.** The API reports **11,941 clones
+  from 503 unique cloners** against **10 unique viewers** and 1 star. Humans view before they
+  clone, so a 50× clone-to-view ratio is not an audience; the shape confirms it — 98% of the
+  clones fall in a four-day burst (07-13→07-16, peaking at 4,357/day) that then collapses to
+  ~15/day. Deliberately did **not** guess a cause (candidates: mirror/scraper automation, or
+  our own fleet — 1,213 workflow runs in the same window); the decision does not depend on it.
+  This matters because that number is exactly the kind of thing that ends up in a Show HN
+  comment or a JOSS submission, where JOSS specifically weighs real external usage — quoting it
+  would be unsupportable.
+  **Trap 2 — "1 star" is not one interested user, and it closes Duty 3.** Identified the
+  stargazer for the first time: `statuette`, bio `cryptostatuette.eth`, 1 public repo, 1
+  follower, no earth-science/GIS signal — a drive-by. So true external interest is **0, not
+  1**, and the pipeline's last open contributor source is now **closed rather than pending**:
+  there is nobody on the stargazer list to invite, and no invitation should be drafted for that
+  account. TARGETS updated accordingly, plus a standing rule that no traction number goes into
+  a draft without checking SIGNALS.md — **currently none of them are quotable.**
+  Also killed a recurring time sink: **Reddit programmatic verification failed a third time**,
+  so the entry now lists the exact routes already exhausted (`about/rules.json` on `www` and
+  `old`, via fetch layer = domain-blocked, via `curl` = `403`/`302`) and says plainly: do not
+  retry, it needs a human with a browser. Gate re-measured once and unchanged
+  (`https_certificate: null`, `https_enforced: false`; `https://roamingeye.org/` still fails
+  TLS, `github.io` still `301`s to plain `http://`) — no link churn, the 2026-07-29 revisit
+  stands. Ran the standing by-file check first: open PRs touching `comms/` are #571 and #580
+  (this branch's base, which already carries #571) and #573 the merge train — branched off
+  #580 so the LOG/TARGETS appends chain instead of colliding, and worked in a detached
+  `git worktree` to stay clear of the shared clone. Repo `description` is **still `null`** —
+  twelve days flagged, still the only awareness win available while everything is send-blocked.
+- 2026-07-27 — Found a second, untracked comms surface and folded it in. `docs/launch/`
+  predates this workspace and holds **four sendable outreach drafts** — r/gis, EO
+  Slack/Discord, geology teaching contacts, and the maintainer comment template — that
+  are mentioned nowhere in LOG.md, TARGETS.md, or the outbox. The cost was concrete: the
+  Reddit entry in TARGETS.md has said "**no draft will be written for Reddit until the
+  real rules are read**" for twelve days while a complete r/gis post sat finished in the
+  repo. Audited all five send-facing files against `main` before touching them. Verified
+  accurate and left alone: the 9-layer list, ~1,200 GVP Holocene volcanoes, Bird (2003)
+  boundaries, USGS M4.5+ **rolling 30 days** (`earthquakeContext.ts:26–27`), 30 m HLS
+  patches, drawn study regions (#26 closed COMPLETED — I nearly deleted this claim as
+  unshipped, then checked), MIT, no backend, and the colormap-inversion caveat.
+  **Four stale claims repaired, every one of them _understating_ the project:** (1) both
+  the Reddit and EO-Slack drafts pitch quadtree tiled streaming as an unbuilt "flagship
+  roadmap item / the RFC is the fun one" — it **shipped and is on by default**
+  (README:45), so the drafts were recruiting for finished work and omitting the app's
+  headline feature; (2) "~100 unit tests" is now **2,144 cases across 204 test modules**
+  (written as "over 2,000" so it does not re-rot); (3) "26 years" of record → **26–46
+  years**; (4) the maintainer template's good-first-issue link pointed at `/issues`
+  rather than the label URL, i.e. at 175 open items instead of the 3 groomed ones.
+  Also swapped the dead contributor ask for the **current** flagship, #170 (invert
+  against GIBS's real colormaps) — which happens to be exactly the approximate-values
+  caveat the Reddit draft already raises, so the ask now lands where the honest
+  limitation is. Added the outbox header block + `Claims re-verified:` line to each,
+  wired in the HTTPS send gate, and cross-linked the pairs that were duplicating each
+  other (EO-Slack vs. the tailored Pangeo draft; geology email vs. the classroom
+  one-pager). Marked `docs/launch/LAUNCH_CHECKLIST.md` **historical** (it still says to
+  merge #41/#42 and tag v0.2.0) while preserving its one live residual, the unminted
+  Zenodo DOI. New `docs/launch/README.md` indexes the directory and carries the drift
+  table; TARGETS.md and `outbox/README.md` now point at it so no future run re-drafts
+  what already exists. No new venue research and no new draft this run — the pipeline
+  had a correctness problem, not a volume problem. Ran the standing by-file check first:
+  no open PR touches `docs/launch/`. Send gate unchanged and deliberately not
+  re-measured (three measurements already; revisit 2026-07-29). Branched off `main`
+  first and had to re-chain onto #593 mid-run — the three-way append collision on
+  `LOG.md` / `TARGETS.md` / `outbox/README.md` landed exactly as the chaining rule
+  predicts. Re-chain with `git rebase --onto <tip> origin/main <branch>`; a bare
+  `git rebase <tip>` replays all of `main` onto the tip instead.
+- 2026-07-28 — **Audited the product claims against the code, not the README — and found the
+  flagship feature undersold by up to 41 years.** Picked a claims audit over a new draft
+  because every duty is covered by an open PR right now (#571 send plan, #572 README
+  open-PR orientation, #580 educator venues, #593 traction baseline, #606 `docs/launch/`,
+  #619 v1.1.0 release notes) and the outbox holds eight unsent drafts behind the ⛔ HTTPS
+  gate — supply is not the constraint, accuracy is. Every prior `Claims re-verified:` pass
+  checked drafts **against README.md**, so a stale README claim propagated instead of being
+  caught. This run checked the source instead.
+  **The defect.** `README.md` said the temporal scrubber "sweeps month-by-month through the
+  **last 5 years** of monthly satellite composites". It does not, and has not for a long time:
+  `src/main.ts:316` sets the timeline from `monthRangeForLayer(LAYERS[currentLayer])`, whose
+  own doc comment says "the layer's **full scientific record** (MERRA-2 layers reach back to
+  1980), not a fixed window" (`src/lib/timeline.ts:424`). Measured per-layer starts against
+  `DATA_LATEST = 2026-05`: NDVI/EVI/LST/snow 2000-03 (~26 y), precipitation/soil moisture
+  2000-01 (~26 y), SST 2002-07 (~24 y), and **2 m air temperature + aerosols 1980-01 (~46 y)**
+  — both MERRA-2 (`M2TMNXSLV`, `M2TMNXAER`). The only surviving "5 years" was the README
+  sentence and `timeline.test.ts` fixtures using a 60-month range. A reader deciding whether
+  this tool can show them a climate signal was being told 5 years when the answer is 26–46.
+  **Where it had spread.** Into two ready-to-send drafts, as a _limitation_ — the worst
+  possible form. `classroom-lab-one-pager.md` listed under "Honest limits": "the scrubber
+  sweeps the last few years… while the point time series reaches back across the full
+  multi-decadal archive" — a distinction that no longer exists; both use the full record.
+  `pangeo-showcase-roamingeye.md` made the same split in its workflow paragraph. Replaced the
+  false limit with a true and better one (records **start in different years**, so comparing
+  two layers fairly means using the window they share — METHODS §8, temporal
+  commensurability). The remaining outbox drafts and `docs/launch/` say "decades" or
+  "26–46 years" and were already correct.
+  **Second drift, same cause:** the Providers-page count. README and the Pangeo draft said
+  "~33 agencies"; `PROVIDERS` in `src/lib/providers.ts` now holds **37**. Corrected both to
+  the exact figure.
+  **Re-verified and found accurate, so nobody re-checks:** ~1,200 Holocene volcanoes
+  (`public/data/volcanoes.json` = **1,196** records), USGS seismicity **M4.5+**
+  (`USGS_M45_MONTH_SOURCE`), terrain native resolution ~31 m (WMTS tile set **31.25m**),
+  "9 scientific layers" (9 seasonal layers of 11 `LayerId`s — land cover and terrain are the
+  other two, correctly excluded from the scientific count), probe record "26–46 years".
+  **Standing rule added to the two drafts' headers: verify claims against the code that
+  implements them, not against README.** README is a claim, not a source.
+  Ran the standing by-file check first: `README.md` is touched only by #572 (a different
+  section — newcomer open-PR orientation) and by merge-train batch #573. Chained off #606,
+  the tip of the comms chain (#571 → #580 → #593 → #606, each containing the previous), so
+  this appends cleanly rather than colliding on `LOG.md` a fourth time.
+  **Signals** (unchanged, as expected while nothing has been sent): 1 star, 0 forks, 0
+  external watchers, 0 outside-authored issues or PRs. **New public artifact today:** the
+  health check escalated from a red workflow to an open issue — **#623 "Health check
+  failing"**, filed 07:47Z by `github-actions`, body `Live site: no response from
+https://roamingeye.org/`. It sits at the top of the public issue tracker, which is where an
+  awesome-list curator or a Show HN reader looks second. It self-heals when the certificate
+  lands and must not be edited to mask it. Gate re-measured once (it is the thing that makes
+  #623 real): `https_certificate: null`, `https_enforced: false`, `protected_domain_state:
+verified` — still provisioning, still do not touch DNS. Revisit date stands at 2026-07-29.
 - 2026-07-27 (fourth run) — **Found and filled a gap no prior run had looked for: the shipped
   v1.1.0 release is publicly invisible.** The tag `v1.1.0` exists (`610ef2a`, 2026-07-10) and
   went live the same day, but `gh release list` shows **only `v1.0.0` and `v1.0.1`** — so the

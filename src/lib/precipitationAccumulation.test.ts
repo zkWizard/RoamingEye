@@ -8,9 +8,16 @@ import {
 import type { YearMonth } from "./timeline";
 
 /** Build a published, usable precipitation-rate summary at a chosen month. */
-function precipSummary(rate: number | null, dataMonth: YearMonth) {
+function precipSummary(
+  rate: number | null,
+  dataMonth: YearMonth,
+  sampling?: {
+    validFraction?: number;
+    sourceImageDimensions?: { width: number; height: number };
+  }
+) {
   return summarizeMonthlyClimate(
-    { metricId: "precipitation-rate", dataMonth, value: rate },
+    { metricId: "precipitation-rate", dataMonth, value: rate, ...sampling },
     { year: dataMonth.year + 1, month: dataMonth.month }
   );
 }
@@ -39,6 +46,35 @@ describe("precipitation monthly accumulation", () => {
     );
 
     expect(result?.source).toBe(CLIMATE_METRICS["precipitation-rate"].source);
+  });
+
+  it("preserves sampled coverage and source-image provenance", () => {
+    const summary = precipSummary(
+      0.00005,
+      { year: 2026, month: 6 },
+      {
+        validFraction: 0.72,
+        sourceImageDimensions: { width: 512, height: 256 },
+      }
+    );
+    const result = precipitationAccumulation(summary);
+
+    expect(result).toMatchObject({
+      validFraction: 0.72,
+      sourceImageDimensions: { width: 512, height: 256 },
+    });
+    expect(result?.sourceImageDimensions).not.toBe(
+      summary.sourceImageDimensions
+    );
+  });
+
+  it("retains unknown coverage and image provenance as unavailable", () => {
+    const result = precipitationAccumulation(
+      precipSummary(0.00005, { year: 2026, month: 6 })
+    );
+
+    expect(result?.validFraction).toBeNull();
+    expect(result?.sourceImageDimensions).toBeNull();
   });
 
   it("honours leap Februaries when integrating (29 vs 28 days)", () => {

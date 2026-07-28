@@ -104,7 +104,7 @@ export interface AirTemperatureAnnualCycleExclusions {
   missing: number;
   /** Coverage or value was invalid. */
   invalid: number;
-  /** A (year, calendar-month) pair already seen; the first is kept. */
+  /** Candidate belongs to a duplicated (year, calendar-month) slot. */
   duplicateYearMonth: number;
   /** Coverage was below the required valid fraction. */
   insufficientCoverage: number;
@@ -199,7 +199,22 @@ export function describeAirTemperatureAnnualCycle(
     };
   }
 
-  // Bucket usable values by calendar month, keeping one value per distinct year.
+  // Count source slots before filtering values. If a year/month appears more
+  // than once, every candidate in that slot is ambiguous: choosing the first
+  // usable value would make the climatology depend on input order and could
+  // silently replace an unavailable source sample with a conflicting value.
+  const sourceSlotCounts = new Map<string, number>();
+  for (const observation of observations) {
+    if (
+      observation.metricId === "air-temperature-2m" &&
+      isCalendarMonth(observation.dataMonth)
+    ) {
+      const slot = yearMonthKey(observation.dataMonth);
+      sourceSlotCounts.set(slot, (sourceSlotCounts.get(slot) ?? 0) + 1);
+    }
+  }
+
+  // Bucket usable values by calendar month, with one unambiguous value per year.
   const buckets = new Map<number, Map<number, number>>();
   for (const observation of observations) {
     if (observation.metricId !== "air-temperature-2m") {
@@ -208,6 +223,10 @@ export function describeAirTemperatureAnnualCycle(
     }
     if (!isCalendarMonth(observation.dataMonth)) {
       exclusions.notCalendarMonth += 1;
+      continue;
+    }
+    if ((sourceSlotCounts.get(yearMonthKey(observation.dataMonth)) ?? 0) > 1) {
+      exclusions.duplicateYearMonth += 1;
       continue;
     }
     const summary = summarizeMonthlyClimate(observation, availableThrough);
@@ -237,10 +256,6 @@ export function describeAirTemperatureAnnualCycle(
 
     const { year, month } = observation.dataMonth;
     const yearValues = buckets.get(month) ?? new Map<number, number>();
-    if (yearValues.has(year)) {
-      exclusions.duplicateYearMonth += 1;
-      continue;
-    }
     yearValues.set(year, summary.observedValue);
     buckets.set(month, yearValues);
   }
@@ -382,6 +397,10 @@ function isCalendarMonth(month: YearMonth): boolean {
     month.month >= 1 &&
     month.month <= 12
   );
+}
+
+function yearMonthKey(month: YearMonth): string {
+  return `${month.year}-${month.month}`;
 }
 
 function formatNumber(value: number): string {

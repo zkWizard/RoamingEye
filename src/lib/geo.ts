@@ -82,14 +82,28 @@ export function vector3ToLatLng(v: Vector3): LatLng {
   const r = v.length();
   if (r === 0) return { lat: 0, lon: 0 };
 
-  const phi = Math.acos(Math.min(1, Math.max(-1, v.y / r)));
-  const lat = 90 - phi * RAD2DEG;
+  const horizontalRadius = Math.hypot(v.x, v.z);
+  // atan2 retains latitude precision close to the poles. Computing latitude
+  // through acos(y / r) rounds the ratio to 1 before a genuine near-pole
+  // offset has vanished from the Cartesian vector.
+  const lat = Math.atan2(v.y, horizontalRadius) * RAD2DEG;
 
-  let lon = Math.atan2(v.z, -v.x) * RAD2DEG - 180;
-  if (lon < -180) lon += 360;
-  if (lon > 180) lon -= 360;
+  // Longitude is undefined at the poles. Sphere conversion leaves tiny
+  // floating-point X/Z components there, and atan2 would otherwise turn those
+  // numerical remnants into an apparently exact, input-dependent longitude.
+  // Canonicalising only within round-off of the axis preserves real near-pole
+  // locations while keeping exact poles reproducible and honest.
+  if (horizontalRadius <= r * Number.EPSILON * 16) {
+    return { lat, lon: 0 };
+  }
 
-  return { lat, lon };
+  const rawLon = Math.atan2(v.z, -v.x) * RAD2DEG - 180;
+  // Use one spelling for the antimeridian. +180 and -180 identify the same
+  // meridian, but allowing both makes serialized coordinates depend on
+  // floating-point path history.
+  const lon = ((((rawLon + 180) % 360) + 360) % 360) - 180;
+
+  return { lat, lon: Object.is(lon, -0) ? 0 : lon };
 }
 
 /** Human-readable coordinate, e.g. "40.24°N, 3.69°W". */

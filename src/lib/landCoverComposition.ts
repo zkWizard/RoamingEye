@@ -21,7 +21,8 @@ import {
  */
 
 /** Compositional metrics are only defined once informative land cover exists. */
-export type LandCoverCompositionStatus = "available" | "no-data";
+export type LandCoverCompositionStatus =
+  "available" | "no-data" | "unavailable";
 
 export interface LandCoverClassShare {
   classCode: IgbpLandCoverClassCode;
@@ -68,7 +69,7 @@ export interface LandCoverCompositionSummary {
   /** Per-class shares, most common first, retained for auditability. */
   classShares: LandCoverClassShare[];
   /** Short machine-readable reason when metrics are withheld. */
-  reason: "no-known-land-cover" | null;
+  reason: LandCoverContextSummary["unavailableReason"];
 }
 
 /**
@@ -99,6 +100,18 @@ export function summarizeLandCoverComposition(
           : entry.sampleCount / knownLandCoverSampleCount,
     }))
     .sort((a, b) => b.sampleCount - a.sampleCount || a.classCode - b.classCode);
+
+  if (context.provenance.publicationStatus !== "published") {
+    return {
+      kind: "observed-land-cover-class-composition",
+      isForecast: false,
+      status: "unavailable",
+      provenance: context.provenance,
+      metrics: null,
+      classShares: [],
+      reason: context.unavailableReason,
+    };
+  }
 
   if (knownLandCoverSampleCount === 0 || classShares.length === 0) {
     return {

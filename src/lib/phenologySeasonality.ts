@@ -95,6 +95,10 @@ export interface NdviSeasonalConcentrationCoverage {
   invalidRecordCount: number;
   /** Minimum valid months required before a concentration is stated. */
   requiredMonthCount: number;
+  /** Retained observations that reported a regional valid fraction. */
+  validFractionReportedCount: number;
+  /** Retained observations whose regional valid fraction is unavailable. */
+  validFractionUnavailableCount: number;
   /** Lowest reported regional valid fraction among the retained observations. */
   minimumValidFraction: number | null;
 }
@@ -131,7 +135,7 @@ export interface NdviSeasonalConcentration {
 
 interface YearGroup {
   seenMonths: Set<number>;
-  valid: { month: number; ndvi: number; validFraction: number }[];
+  valid: { month: number; ndvi: number; validFraction: number | null }[];
   missingMonthCount: number;
   invalidRecordCount: number;
 }
@@ -196,7 +200,7 @@ export function summarizeNdviSeasonalConcentration(
     group.valid.push({
       month,
       ndvi: observation.ndvi as number,
-      validFraction: observation.validFraction ?? 1,
+      validFraction: observation.validFraction ?? null,
     });
   }
 
@@ -231,15 +235,21 @@ function concentrationForYear(
   hemisphere: Hemisphere,
   requiredMonthCount: number
 ): NdviSeasonalConcentration {
+  const reportedValidFractions = group.valid.flatMap(({ validFraction }) =>
+    validFraction === null ? [] : [validFraction]
+  );
   const coverage: NdviSeasonalConcentrationCoverage = {
     validMonthCount: group.valid.length,
     missingMonthCount: group.missingMonthCount,
     invalidRecordCount: group.invalidRecordCount,
     requiredMonthCount,
+    validFractionReportedCount: reportedValidFractions.length,
+    validFractionUnavailableCount:
+      group.valid.length - reportedValidFractions.length,
     minimumValidFraction:
-      group.valid.length === 0
+      reportedValidFractions.length === 0
         ? null
-        : Math.min(...group.valid.map(({ validFraction }) => validFraction)),
+        : Math.min(...reportedValidFractions),
   };
   const base = {
     kind: "ndvi-seasonal-concentration" as const,

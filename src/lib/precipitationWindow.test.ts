@@ -10,9 +10,14 @@ import {
 import type { DatasetRef, YearMonth } from "./timeline";
 
 /** Build a usable monthly accumulation for a given rate and month. */
-function accum(rate: number, dataMonth: YearMonth) {
+function accum(rate: number, dataMonth: YearMonth, validFraction?: number) {
   const summary = summarizeMonthlyClimate(
-    { metricId: "precipitation-rate", dataMonth, value: rate },
+    {
+      metricId: "precipitation-rate",
+      dataMonth,
+      value: rate,
+      validFraction,
+    },
     { year: dataMonth.year + 2, month: dataMonth.month }
   );
   const result = precipitationAccumulation(summary);
@@ -120,6 +125,25 @@ describe("precipitation window accumulation", () => {
     ]);
 
     expect(window?.source).toBe(CLIMATE_METRICS["precipitation-rate"].source);
+  });
+
+  it("reports the weakest supplied coverage across the window", () => {
+    const window = precipitationWindow([
+      accum(0.0001, { year: 2026, month: 1 }, 0.82),
+      accum(0.0002, { year: 2026, month: 2 }, 0.63),
+      accum(0.0003, { year: 2026, month: 3 }, 0.91),
+    ]);
+
+    expect(window?.minValidFraction).toBe(0.63);
+  });
+
+  it("keeps window coverage unavailable when any month omitted it", () => {
+    const window = precipitationWindow([
+      accum(0.0001, { year: 2026, month: 1 }, 0.82),
+      accum(0.0002, { year: 2026, month: 2 }),
+    ]);
+
+    expect(window?.minValidFraction).toBeNull();
   });
 
   it("rejects a corrupt (non-finite or negative) monthly total", () => {
