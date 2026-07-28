@@ -248,3 +248,30 @@ null`, `https_enforced: false`, `https://roamingeye.org/` still fails TLS, and
   get mangled by MSYS path conversion (`origin/main:.github/x` → `origin\main;.github\x`),
   which produced two false "MISSING on main" readings before `git ls-tree` settled it. Verify
   with `git ls-tree -r --name-only` or `cat -A`, not `cat-file -e`.
+- 2026-07-27 (third run) — **Diagnosed the HTTPS gate to root cause and recorded two
+  previously-unlogged consequences; no new draft, no link churn.** The gate had already been
+  measured twice, so re-measuring it again would have been churn; instead answered the
+  question both earlier entries left open — _is something misconfigured, or is the cert just
+  slow?_ It is just slow. Checked every record GitHub Pages needs: apex `A` = all four
+  `185.199.108–111.153`, apex `AAAA` = `2606:50c0:8000–8003::153`, `www` `CNAME` →
+  `zkwizard.github.io`, **no `CAA`** blocking issuance, `protected_domain_state: verified`.
+  Configuration is correct and issuance is simply pending, so the gate note now says
+  explicitly: **do not touch DNS/`CNAME`/custom domain to force it** — that restarts
+  verification and lengthens the wait.
+  **Two new consequences found, neither previously recorded:** (1) the v1.1.0 "You are here"
+  geolocation pin is **dead on the live site** — verified in a real browser on
+  `http://roamingeye.org/`, `window.isSecureContext` is `false` and `getCurrentPosition`
+  fails with code `1`, _"Only secure origins are allowed"_; it degrades politely (toggle
+  reverts + toast) so it reads as a denied permission, not a broken site — worth knowing
+  before demoing to anyone. (2) `.github/workflows/health-check.yml` monitors the `https://`
+  URL and so **went red on 2026-07-27 after seven consecutive daily successes** — a
+  credibility signal on the public Actions tab; it self-heals when the cert lands, and should
+  not be edited to mask it.
+  **Considered and rejected:** rewriting the dead `https://roamingeye.org/` link in
+  `README.md`, `docs/research-recipes.md`, `index.html` (`og:url`/`og:image`) and the health
+  check to `http://`. Since the cert is provisioning normally that churn would need reverting
+  within a day and risks stranding a plain-HTTP link in the README. Recorded as a dated
+  revisit-if-still-null-after-48h (2026-07-29) instead. Ran the standing by-file check first:
+  no open PR touches any of those four paths.
+  Skipped Duty 1 (14 venues researched, 0 sent), Duty 4 (#373/#374/#375 still open and
+  unclaimed) and Duty 3 — all still blocked behind the same gate.

@@ -61,6 +61,50 @@ _Settings → Pages_ (that is also what flips the `github.io` redirect from `htt
 non-zero, i.e. **the connection never completes**. `zkwizard.github.io/RoamingEye/` still
 `301`s to plain `http://`. The gate stands.
 
+### Third measurement, 2026-07-27 — DNS is correct; this is a waiting game, not a misconfiguration
+
+Earlier notes left it open whether something was set up wrong. It is not. Every record
+GitHub Pages needs is in place, so **do not change DNS, the `CNAME` file, or the custom
+domain to try to force the certificate** — that would restart verification and make the
+wait longer.
+
+| Check                    | Value                                      | Verdict |
+| ------------------------ | ------------------------------------------ | ------- |
+| apex `A`                 | `185.199.108–111.153` (all four)           | correct |
+| apex `AAAA`              | `2606:50c0:8000–8003::153`                 | correct |
+| `www.roamingeye.org`     | `CNAME` → `zkwizard.github.io`             | correct |
+| `CAA`                    | none published (nothing blocking issuance) | correct |
+| `protected_domain_state` | `verified`                                 | correct |
+| `https_certificate`      | `null`                                     | pending |
+
+The domain moved to `roamingeye.org` today, and GitHub issues the certificate
+automatically after verification — usually well within ~24h. The single remaining action
+is to wait, then flip **Enforce HTTPS**.
+
+**Two consequences of the plain-HTTP window that were not previously recorded:**
+
+1. **A shipped feature is silently broken on the live site.** The v1.1.0 "You are here"
+   geolocation pin needs a secure context. Measured in a real browser on
+   `http://roamingeye.org/`: `window.isSecureContext` is `false`, and
+   `navigator.geolocation.getCurrentPosition` fails immediately with error code `1` and
+   the browser's own message — _"Only secure origins are allowed."_ The app degrades
+   politely (the toggle reverts and toasts), so it looks like a denied permission rather
+   than a broken site, but the feature cannot work for anyone until HTTPS is on. Worth
+   knowing before demoing the app to anybody this week.
+2. **The public health check is red.** `.github/workflows/health-check.yml` monitors
+   `https://roamingeye.org/`, so it failed on 2026-07-27 after seven consecutive daily
+   successes. A red workflow on the Actions tab is a credibility signal for exactly the
+   contributors we are trying to attract. It should go green on its own once the
+   certificate lands — no workflow change needed, and none should be made to mask it.
+
+**Deliberately NOT done, so nobody redoes it:** the dead `https://roamingeye.org/` link
+also appears in `README.md` (the front-door "Live" link), `docs/research-recipes.md`,
+`index.html` (`og:url` / `og:image`) and the health-check workflow. Rewriting those to
+`http://` was considered and rejected — the certificate is provisioning normally, so the
+churn would need reverting within a day and risks leaving a plain-HTTP link in the README
+permanently. Revisit **only** if the certificate is still `null` after ~48h
+(i.e. from 2026-07-29), which would suggest issuance genuinely stalled.
+
 ### While you are blocked: one thing that _is_ safe to do now
 
 The repo's one-line **description is empty** (`"description": null`). That is plain text,
