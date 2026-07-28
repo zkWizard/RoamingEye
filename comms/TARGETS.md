@@ -220,6 +220,45 @@ before sending anything.
   Revisit only if a forum user asks a question RoamingEye genuinely answers. Requires
   zkWizard posting personally as himself — never an automated or agent-written post.
 
+### US-RSE — US Research Software Engineer Association
+
+- **URL:** https://us-rse.org/ (join: https://us-rse.org/join/ · get involved:
+  https://us-rse.org/get-involved/ · newsletter archive: https://us-rse.org/newsletters/)
+- **Audience & size:** **900+ members** and growing by roughly 25–30 a month (figure stated
+  in the association's own 2025–26 newsletters) — people whose job is writing software _for_
+  research, across national labs, universities, and independent practice. Most interaction
+  happens in one Slack workspace (`usrse.slack.com`), plus monthly community calls and a
+  monthly newsletter.
+- **Why RoamingEye fits:** this is the one venue in the pipeline that cares about
+  RoamingEye **as research software**, not as an Earth-science result. The things that are
+  hard to make interesting to a domain audience — provenance stamped through to the CSV
+  export, uncertainty labelled rather than hidden, a no-backend static site that will still
+  load in ten years, TypeScript with a real test suite — are exactly this community's
+  subject matter. It is also the best-matched **contributor** pool we have found: RSEs are
+  by definition people who can pick up a typed browser codebase.
+- **Posting rules / compliant path:** membership is free and self-service, and the Slack
+  invite arrives on joining. The get-involved page's own framing is participatory —
+  "you are encouraged to post your ideas and questions on Slack" — and it lists introducing
+  yourself as the recommended first step. **The sanctioned promotion route is the
+  newsletter: submissions go through the `#newsletters` Slack channel** (per the
+  association's published guidance), with `contact@us-rse.org` as the fallback. So the
+  compliant order is: join → introduce yourself → post the tool in the relevant topical
+  channel → offer it to `#newsletters`. Do **not** open with the newsletter.
+- **⚠️ Unverified, and zkWizard should check on joining:** whether membership is restricted
+  to people in the US, and whether there is a fee. The public pages describe individual
+  membership and a forthcoming organizational tier but state neither eligibility nor price
+  plainly. One look at the join form settles both — do not assume.
+- **Best angle:** _"A provenance-first browser instrument, and what it cost to keep it
+  backend-free."_ Lead with the engineering decisions an RSE audience can argue with — a
+  static site over NASA GIBS WMTS with no server to maintain, citation metadata carried
+  all the way into the exported CSV, uncertainty labelled at the point of export — and
+  treat the globe as the demo, not the pitch. This is also the right venue to say plainly
+  that the project wants contributors.
+- **Status:** researched — **not drafted.** Blocked on a human step that is not the HTTPS
+  gate: joining requires creating an account as zkWizard, which only zkWizard can do. Draft
+  once they are in and have read the room. Prefer the introduction post first; a newsletter
+  blurb is a second, later artifact.
+
 ---
 
 ## Curated "awesome" lists (contribute via pull request)
@@ -422,6 +461,90 @@ before sending anything.
   and the citable export, not the rendering.
 - **Status:** **declined for now (dated).** Re-evaluate on or after **2026-12-29** against
   both gates. Do not submit early — a desk rejection is a public record and burns the shot.
+
+---
+
+## Journalism & data-reporting
+
+**Why this section exists.** README's one-line statement of who the tool is for names a
+**journalist** in the same breath as a researcher and an educator (`README.md:26`) — and yet,
+measured on 2026-07-28, the word "journalist" appears in **no draft** in `outbox/` or
+`docs/launch/`, and this pipeline had **no journalism venue in it at all**. Researchers,
+educators, and developers each had entries; the audience we advertise on the front page did
+not. These two close that gap. They are deliberately different shapes: one is a community you
+earn standing in, the other is a single high-leverage email.
+
+Note what a newsroom actually needs, because it is not what a lab needs: a **deadline-proof
+link**, a number they can attribute, and a licence that lets them republish a screenshot.
+RoamingEye is strong on all three (no account, no install, MIT, every layer cited) — and the
+provenance-stamped CSV is the part that survives an editor asking "where did this figure come
+from?" Lead with that, never with the globe.
+
+### NICAR-L — the data-journalism listserv (IRE / NICAR)
+
+- **URL:** https://www.ire.org/resources/listservs/ · archive:
+  https://po.missouri.edu/cgi-bin/wa?A0=NICAR-L
+- **Audience & size:** run by Investigative Reporters and Editors and its National Institute
+  for Computer-Assisted Reporting; described by practitioners as possibly the most active
+  journalism listserv, running 20+ years. This is where data reporters ask each other how to
+  get at a dataset. IRE's page lists it as **open to all** — unlike IREPLUS-L, which is
+  members-only.
+- **Why RoamingEye fits:** climate and environment stories constantly need a quick,
+  defensible "has this actually changed here, and by how much?" — and the honest answer today
+  usually costs an Earthdata login and an afternoon. RoamingEye answers it in a browser, and
+  hands back a CSV with the provenance attached, which is precisely the artifact that
+  survives a fact-check.
+- **Posting rules / compliant path:** ⚠️ **read this before drafting — the rules are not
+  public.** IRE's listserv page states the subject matter and that the **IRE Code of Conduct**
+  applies, but publishes **no rule on self-promotion, tool announcements, or commercial
+  posts**, and the linked code-of-conduct URL 404s from outside. On a list of this age the
+  operative norms almost certainly arrive in the **subscription welcome message** and in the
+  list's own culture rather than on a web page. Treat the compliant path as **unknown until
+  subscribed**. Subscribe by mailing `listproc@lists.missouri.edu` with
+  `subscribe NICAR-L <your name>` in the body, then **lurk first** and read the welcome text.
+  The safe default on journalism lists is participation-first: answer someone's real question
+  and let the tool come up because it is the answer.
+- **Best angle:** never an announcement. Wait for the recurring question — "how do I show
+  change over time at a specific place from satellite data?" — and answer it properly, with
+  the caveats included. The caveats are what earn a reporter's trust.
+- **Also worth knowing:** the NICAR **conference** is the sanctioned showcase for tools
+  (lightning talks / demos), which is a legitimate, rules-respecting route that does not
+  depend on list etiquette at all. Worth checking the call-for-speakers window separately.
+- **Status:** researched → **do not draft yet.** Two blockers, and the second is the real
+  one: the HTTPS gate, and the unread posting rules. Re-open once zkWizard has subscribed
+  and can say what the welcome message actually permits.
+
+### Data Is Plural — Jeremy Singer-Vine's dataset newsletter
+
+- **URL:** https://www.data-is-plural.com/ (archive: https://www.data-is-plural.com/archive/)
+- **Audience & size:** a weekly newsletter of "useful/curious datasets," published since
+  October 2015 and past its 400th edition, with a readership concentrated among data
+  journalists, researchers, and civic technologists. Widely treated as a discovery channel
+  for data sources — a mention reliably puts a resource in front of exactly the people who
+  go looking for data.
+- **Why RoamingEye fits — and the honest risk:** the archive's scope is demonstrably broader
+  than raw files; it features **data portals, APIs, and interactive tools** alongside
+  datasets. But the featured thing is always a **data source**, and RoamingEye is an access
+  route to NASA data that already exists. A curator could fairly answer "MODIS is already
+  known." **So do not submit the globe.** The submittable claim is narrower and true: it
+  turns GIBS-served MODIS and Harmonized Landsat-Sentinel into **per-point, multi-decadal CSV
+  time series with the provenance and uncertainty stamped in — with no Earthdata account, no
+  install, and no fee.** That is a genuine lowering of the access barrier, which is the kind
+  of thing the newsletter exists to surface.
+- **Posting rules / compliant path:** there is no gatekeeping category or forum to respect —
+  it is one editor's inbox, so the whole discipline is in being brief and not wasting it.
+  Recent issues carry a "have a suggestion?" submission link in the footer; **use the link in
+  a current issue if present**, and otherwise the editor's published contact address,
+  `jsvine@gmail.com`. ⚠️ The suggestion form's URL could not be confirmed from the public
+  pages — check a live issue rather than trusting a stale link.
+- **Best angle:** three or four sentences, in the newsletter's own compressed voice —
+  what the data is, what the tool removes (the account, the install, the granule ordering),
+  what you get back (a citable CSV), and the link. No pitch, no adjectives. Anything longer
+  reads as a press release.
+- **Status:** researched → **not drafted.** Highest-leverage single message in the pipeline
+  relative to its cost, and a good candidate to draft the moment the HTTPS gate clears — but
+  it is a **one-shot**: a weak submission spends the only chance, so it should go out after
+  the first venues have surfaced the real questions, not before.
 
 ---
 

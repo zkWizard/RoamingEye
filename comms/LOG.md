@@ -535,3 +535,52 @@ verified` — still provisioning, still do not touch DNS. Revisit date stands at
   **Also measured, not acted on:** there is **no Zenodo integration in the repo** (no
   `.zenodo.json`, no mention anywhere), so a GitHub release does not currently mint a DOI —
   worth knowing before anyone counts on the release for the citation track.
+- 2026-07-28 — Target research: closed the **journalism gap**. README line 26 offers the tool
+  to "any researcher, educator, journalist, or curious person", but the word "journalist"
+  appears in no draft in `outbox/` or `docs/launch/`, and TARGETS.md had no journalism venue
+  at all — the one advertised audience with zero pipeline. Added a **Journalism &
+  data-reporting** section with two deliberately different shapes: **NICAR-L** (IRE/NICAR
+  data-journalism listserv, open subscription, 20+ years, the most active journalism list)
+  and **Data Is Plural** (Singer-Vine's weekly dataset newsletter, 400+ editions since 2015).
+  Also added **US-RSE** (900+ research software engineers, growing ~25–30/month) under
+  Forums — the only venue that cares about RoamingEye _as research software_ and the
+  best-matched contributor pool found so far.
+  **Rules actually read, including where they do not exist.** IRE publishes NICAR-L's subject
+  matter and says its Code of Conduct applies, but publishes **no** self-promotion or
+  tool-announcement rule, and the linked code-of-conduct URL 404s externally — so the
+  compliant path is recorded as **unknown until subscribed** (norms almost certainly ship in
+  the welcome message), with participation-first as the safe default and the NICAR conference
+  lightning talks noted as the sanctioned showcase route. US-RSE's sanctioned promotion route
+  is the `#newsletters` Slack channel, _after_ joining and introducing yourself — not as the
+  opening move. Flagged two things I could **not** verify rather than guessing: whether
+  US-RSE membership is US-only or paid (the join form settles it), and Data Is Plural's
+  current suggestion-form URL (use the link in a live issue; `jsvine@gmail.com` is the
+  published fallback).
+  **Angle discipline, since a newsroom needs something a lab does not** — a deadline-proof
+  link, an attributable number, and a licence that permits republishing a screenshot. All
+  three are true here, so both entries lead with the provenance-stamped CSV (the artifact
+  that survives a fact-check) and never with the globe. For Data Is Plural the honest risk is
+  written down: it features _data sources_, and MODIS is already known, so submitting the
+  globe invites a fair "already covered" — the submittable claim is the narrower true one,
+  that it yields per-point multi-decadal CSV with provenance and uncertainty stamped in, with
+  no Earthdata account, install, or fee.
+  **All three land as `researched`, none drafted.** Two are blocked on something that is not
+  the HTTPS gate: joining US-RSE and subscribing to NICAR-L both require accounts only
+  zkWizard can create. Data Is Plural is a genuine one-shot and should be drafted _after_ the
+  first venues surface the real questions, not before.
+  **Checked first, per the standing by-file rule — and it earned its keep.**
+  `comms/TARGETS.md` is untouched by any open PR, but `comms/LOG.md` **is**: open PR **#619**
+  (v1.1.0 release notes) appends to it too. Both changes are appends to the same end of the
+  same file, i.e. a guaranteed conflict. So this run **chained off #619's head** (`8f5a95a`,
+  which already contains `main` at `227c24e`) instead of branching off `main` — the fifth
+  LOG.md collision, avoided the same way as the fourth. Also confirmed open PR **#570** edits
+  `.github/CONTRIBUTING.md` but **not** the Node version line, so good-first-issue #375 is
+  not quietly being fixed underneath us.
+  **Verified before deciding they needed no work:** the three open good-first-issues (#373,
+  #374, #375) are all still real and unclaimed against current source — the hardcoded
+  `aria-label` is still at `TimeSlider.ts:53`, `SearchBox.ts` still handles only `Escape`,
+  and `.github/CONTRIBUTING.md` still says "Node.js 20+" against an `engines` field of
+  `^20.19.0 || >=22.12.0`. No open PR claims any of them.
+  **Signals** not re-measured this run (the claims-audit run measured them hours earlier;
+  nothing has been sent, so nothing can have moved). HTTPS gate not re-measured — revisit
+  date stands at **2026-07-29**.
