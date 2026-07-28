@@ -106,7 +106,10 @@ export interface MonthlyClimateSummary {
   sourceImageDimensions: { width: number; height: number } | null;
   /** Retained so a point sample cannot be presented as a regional mean. */
   geometrySamplingStrategy: GeometrySamplingStrategy | null;
-  /** Retained unchanged in `metric.nativeUnit`, or null when not usable. */
+  /**
+   * Retained unchanged in `metric.nativeUnit` only for a published, usable
+   * observation; null for unavailable, missing, or invalid records.
+   */
   observedValue: number | null;
 }
 
@@ -150,7 +153,10 @@ export function summarizeMonthlyClimate(
       observation.geometrySamplingStrategy === "boundary-point"
         ? observation.geometrySamplingStrategy
         : null,
-    observedValue: coverage.status === "available" ? observation.value : null,
+    observedValue:
+      publicationStatus === "published" && coverage.status === "available"
+        ? observation.value
+        : null,
   };
 }
 

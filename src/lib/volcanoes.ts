@@ -18,6 +18,17 @@ export interface Volcano {
   /** Calendar year of the most recent known eruption (negative = BCE). */
   lastEruptionYear: number | null;
   country: string | null;
+  /** Verbatim source identity/context retained when parsed from the GVP file. */
+  sourceRecord?: VolcanoSourceRecord;
+}
+
+export interface VolcanoSourceRecord {
+  /** Stable Smithsonian GVP Volcano Number. */
+  volcanoNumber: number | null;
+  region: string | null;
+  subregion: string | null;
+  /** GVP tectonic-setting label, retained verbatim rather than inferred. */
+  tectonicSetting: string | null;
 }
 
 /**
@@ -149,6 +160,17 @@ export function parseVolcanoList(json: unknown): Volcano[] {
         ? (entry.lastEruptionYear as number)
         : null,
       country: typeof entry.country === "string" ? entry.country : null,
+      sourceRecord: {
+        volcanoNumber: Number.isInteger(entry.volcanoNumber)
+          ? (entry.volcanoNumber as number)
+          : null,
+        region: typeof entry.region === "string" ? entry.region : null,
+        subregion: typeof entry.subregion === "string" ? entry.subregion : null,
+        tectonicSetting:
+          typeof entry.tectonicSetting === "string"
+            ? entry.tectonicSetting
+            : null,
+      },
     });
   }
   return out;
