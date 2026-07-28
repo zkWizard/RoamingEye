@@ -91,6 +91,36 @@ describe("air-temperature mean annual cycle", () => {
     ]);
   });
 
+  it("withholds every candidate from a duplicated year-month regardless of order", () => {
+    const duplicateMissing = air(null, 7, 2025);
+    const duplicateValue = air(310, 7, 2025);
+    const base = fullCycleObservations().filter(
+      (observation) =>
+        !(
+          observation.dataMonth.year === 2025 &&
+          observation.dataMonth.month === 7
+        )
+    );
+
+    for (const duplicates of [
+      [duplicateMissing, duplicateValue],
+      [duplicateValue, duplicateMissing],
+    ]) {
+      const cycle = describeAirTemperatureAnnualCycle(
+        [...base, ...duplicates],
+        AVAILABLE_THROUGH
+      );
+
+      expect(cycle.status).toBe("insufficient-monthly-coverage");
+      expect(cycle.calendarMonthsCovered).toBe(11);
+      expect(cycle.monthlyClimatology).not.toContainEqual(
+        expect.objectContaining({ calendarMonth: 7 })
+      );
+      expect(cycle.exclusions.duplicateYearMonth).toBe(2);
+      expect(cycle.exclusions.missing).toBe(0);
+    }
+  });
+
   it("preserves the cited MERRA-2 metric and dataset provenance", () => {
     const cycle = describeAirTemperatureAnnualCycle(
       fullCycleObservations(),
@@ -103,18 +133,21 @@ describe("air-temperature mean annual cycle", () => {
     expect(cycle.limitations.length).toBeGreaterThan(0);
   });
 
-  it("keeps only one value per distinct year and calendar month", () => {
+  it("excludes a conflicting year-month from the annual cycle", () => {
     const observations = fullCycleObservations();
-    // A duplicate 2024 July that must not change the mean or inflate the count.
+    // A conflicting 2024 July makes both values in that source slot ambiguous.
     observations.push(air(400, 7, 2024));
     const cycle = describeAirTemperatureAnnualCycle(
       observations,
       AVAILABLE_THROUGH
     );
 
-    expect(cycle.exclusions.duplicateYearMonth).toBe(1);
-    expect(cycle.observationsUsed).toBe(36);
-    expect(cycle.warmestMonth).toEqual({ calendarMonth: 7, meanKelvin: 298 });
+    expect(cycle.exclusions.duplicateYearMonth).toBe(2);
+    expect(cycle.observationsUsed).toBe(33);
+    expect(cycle.status).toBe("insufficient-monthly-coverage");
+    expect(cycle.monthlyClimatology).not.toContainEqual(
+      expect.objectContaining({ calendarMonth: 7 })
+    );
   });
 
   it("reports insufficient coverage without an amplitude when a month is missing", () => {
