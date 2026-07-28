@@ -367,3 +367,42 @@ null`, `https_enforced: false`, `https://roamingeye.org/` still fails TLS, and
   `null`** — eleven days after it was first flagged, still the one awareness win available
   while every draft is send-blocked, and still left for zkWizard because editing public repo
   metadata unattended is a maintainer call.
+- 2026-07-28 — **Measured the traction baseline for the first time and found two metric traps
+  that would have put false claims into drafts.** Duty 6, chosen because every other duty is
+  either done or blocked: the outbox holds eight drafts and all are send-blocked; educator
+  venues were just routed (#580); onboarding docs are owned by open #570; and venue supply is
+  not the constraint. Signals had been "checked" on three prior runs, but only ever as
+  `stars/forks/watchers` — **nobody had looked at the traffic API**, and it turns out to be the
+  one place the project's real state is visible. New file `comms/SIGNALS.md` records it.
+  **The honest picture: pre-traction, zero external audience.** 43 views / 10 uniques over the
+  14-day window, with **zero views on seven of the last eight days**; referrers are
+  `github.com` only; 0 forks; **0 issues or PRs authored by anyone but the maintainer.** That
+  is the expected result — nothing has been sent — and it is now a _recorded zero point_ so the
+  post-outreach lift is measurable instead of guessed.
+  **Trap 1 — clone counts are not adoption, do not cite them.** The API reports **11,941 clones
+  from 503 unique cloners** against **10 unique viewers** and 1 star. Humans view before they
+  clone, so a 50× clone-to-view ratio is not an audience; the shape confirms it — 98% of the
+  clones fall in a four-day burst (07-13→07-16, peaking at 4,357/day) that then collapses to
+  ~15/day. Deliberately did **not** guess a cause (candidates: mirror/scraper automation, or
+  our own fleet — 1,213 workflow runs in the same window); the decision does not depend on it.
+  This matters because that number is exactly the kind of thing that ends up in a Show HN
+  comment or a JOSS submission, where JOSS specifically weighs real external usage — quoting it
+  would be unsupportable.
+  **Trap 2 — "1 star" is not one interested user, and it closes Duty 3.** Identified the
+  stargazer for the first time: `statuette`, bio `cryptostatuette.eth`, 1 public repo, 1
+  follower, no earth-science/GIS signal — a drive-by. So true external interest is **0, not
+  1**, and the pipeline's last open contributor source is now **closed rather than pending**:
+  there is nobody on the stargazer list to invite, and no invitation should be drafted for that
+  account. TARGETS updated accordingly, plus a standing rule that no traction number goes into
+  a draft without checking SIGNALS.md — **currently none of them are quotable.**
+  Also killed a recurring time sink: **Reddit programmatic verification failed a third time**,
+  so the entry now lists the exact routes already exhausted (`about/rules.json` on `www` and
+  `old`, via fetch layer = domain-blocked, via `curl` = `403`/`302`) and says plainly: do not
+  retry, it needs a human with a browser. Gate re-measured once and unchanged
+  (`https_certificate: null`, `https_enforced: false`; `https://roamingeye.org/` still fails
+  TLS, `github.io` still `301`s to plain `http://`) — no link churn, the 2026-07-29 revisit
+  stands. Ran the standing by-file check first: open PRs touching `comms/` are #571 and #580
+  (this branch's base, which already carries #571) and #573 the merge train — branched off
+  #580 so the LOG/TARGETS appends chain instead of colliding, and worked in a detached
+  `git worktree` to stay clear of the shared clone. Repo `description` is **still `null`** —
+  twelve days flagged, still the only awareness win available while everything is send-blocked.
