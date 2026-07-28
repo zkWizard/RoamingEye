@@ -41,6 +41,39 @@ export interface EarthquakeSourceRecord {
   reviewStatus: string | null;
 }
 
+/** Metadata published with one USGS GeoJSON summary-feed response. */
+export interface EarthquakeFeedMetadata {
+  /** Time the feed was generated, epoch milliseconds UTC. */
+  generatedTime: number | null;
+  /** Event count declared by metadata.count. */
+  declaredEventCount: number | null;
+  title: string | null;
+  url: string | null;
+  /** HTTP-style status value embedded in the feed metadata. */
+  statusCode: number | null;
+  apiVersion: string | null;
+}
+
+export interface EarthquakeFeedCoverage {
+  status: "available" | "invalid-feed";
+  suppliedFeatureCount: number;
+  parsedEventCount: number;
+  droppedFeatureCount: number;
+  /** Null when the source did not publish a usable metadata.count value. */
+  declaredEventCountMatchesFeatures: boolean | null;
+}
+
+/**
+ * A parsed feed response with source publication metadata and explicit parser
+ * coverage. This describes the supplied response only; it is not a statement
+ * about seismic completeness, hazard, or future activity.
+ */
+export interface EarthquakeFeedSnapshot {
+  events: Earthquake[];
+  metadata: EarthquakeFeedMetadata;
+  coverage: EarthquakeFeedCoverage;
+}
+
 /**
  * Provenance retained by seismic filters and summaries. The USGS feed reports
  * earthquake magnitude values, hypocentre depth in kilometres, and UTC epoch
@@ -271,9 +304,54 @@ const toNumber = (v: unknown): number =>
   typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
 
 export function parseEarthquakeFeed(json: unknown): Earthquake[] {
-  if (typeof json !== "object" || json === null) return [];
-  const features = (json as { features?: unknown }).features;
-  if (!Array.isArray(features)) return [];
+  return parseEarthquakeFeedSnapshot(json).events;
+}
+
+/**
+ * Parse a USGS GeoJSON summary response while retaining its publication
+ * metadata and reporting how many supplied features were usable.
+ */
+export function parseEarthquakeFeedSnapshot(
+  json: unknown
+): EarthquakeFeedSnapshot {
+  const emptyMetadata: EarthquakeFeedMetadata = {
+    generatedTime: null,
+    declaredEventCount: null,
+    title: null,
+    url: null,
+    statusCode: null,
+    apiVersion: null,
+  };
+  if (typeof json !== "object" || json === null) {
+    return {
+      events: [],
+      metadata: emptyMetadata,
+      coverage: {
+        status: "invalid-feed",
+        suppliedFeatureCount: 0,
+        parsedEventCount: 0,
+        droppedFeatureCount: 0,
+        declaredEventCountMatchesFeatures: null,
+      },
+    };
+  }
+
+  const feed = json as { features?: unknown; metadata?: unknown };
+  const features = feed.features;
+  const metadata = parseFeedMetadata(feed.metadata);
+  if (!Array.isArray(features)) {
+    return {
+      events: [],
+      metadata,
+      coverage: {
+        status: "invalid-feed",
+        suppliedFeatureCount: 0,
+        parsedEventCount: 0,
+        droppedFeatureCount: 0,
+        declaredEventCountMatchesFeatures: null,
+      },
+    };
+  }
 
   const out: Earthquake[] = [];
   for (const feature of features) {
@@ -312,10 +390,48 @@ export function parseEarthquakeFeed(json: unknown): Earthquake[] {
       },
     });
   }
-  return out;
+  return {
+    events: out,
+    metadata,
+    coverage: {
+      status: "available",
+      suppliedFeatureCount: features.length,
+      parsedEventCount: out.length,
+      droppedFeatureCount: features.length - out.length,
+      declaredEventCountMatchesFeatures:
+        metadata.declaredEventCount === null
+          ? null
+          : metadata.declaredEventCount === features.length,
+    },
+  };
 }
 
 function finiteNumberOrNull(value: unknown): number | null {
   const number = toNumber(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function parseFeedMetadata(value: unknown): EarthquakeFeedMetadata {
+  const metadata =
+    typeof value === "object" && value !== null
+      ? (value as Record<string, unknown>)
+      : {};
+  const declaredEventCount = nonNegativeIntegerOrNull(metadata.count);
+  return {
+    generatedTime: finiteNumberOrNull(metadata.generated),
+    declaredEventCount,
+    title: stringOrNull(metadata.title),
+    url: stringOrNull(metadata.url),
+    statusCode: finiteNumberOrNull(metadata.status),
+    apiVersion: stringOrNull(metadata.api),
+  };
+}
+
+function nonNegativeIntegerOrNull(value: unknown): number | null {
+  const number = toNumber(value);
+  return Number.isSafeInteger(number) && number >= 0 ? number : null;
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
 }

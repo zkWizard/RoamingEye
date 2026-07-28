@@ -4,12 +4,13 @@ import { ICONS } from "../ui/icons";
 import { latLngToVector3 } from "../lib/geo";
 import { fetchJson } from "../lib/net";
 import {
-  parseEarthquakeFeed,
+  parseEarthquakeFeedSnapshot,
   depthClass,
   DEPTH_CLASS_COLORS,
   USGS_FEED_URL,
   type DepthClass,
   type Earthquake,
+  type EarthquakeFeedSnapshot,
 } from "../lib/earthquakes";
 
 /**
@@ -47,6 +48,7 @@ export class EarthquakesOverlay implements MapOverlay {
   readonly object = new THREE.Group();
 
   private loadPromise: Promise<void> | undefined;
+  private feedSnapshot: EarthquakeFeedSnapshot | null = null;
 
   constructor(
     private readonly url = USGS_FEED_URL,
@@ -59,8 +61,16 @@ export class EarthquakesOverlay implements MapOverlay {
     return (this.loadPromise ??= this.load());
   }
 
+  /** The source-aware snapshot retained after a successful fetch and parse. */
+  get snapshot(): EarthquakeFeedSnapshot | null {
+    return this.feedSnapshot;
+  }
+
   private async load(): Promise<void> {
-    const quakes = parseEarthquakeFeed(await fetchJson<unknown>(this.url));
+    this.feedSnapshot = parseEarthquakeFeedSnapshot(
+      await fetchJson<unknown>(this.url)
+    );
+    const quakes = this.feedSnapshot.events;
 
     for (const bucket of SIZE_BUCKETS) {
       const inBucket = quakes.filter((q) => bucketFor(q.magnitude) === bucket);
