@@ -149,7 +149,13 @@ export function compareMonthlyClimateToSeasonalBaseline(
     );
   }
 
-  const seenYears = new Set<number>();
+  // A seasonal baseline has at most one source observation per calendar year.
+  // Reject the whole year when the supplied data contains duplicates instead of
+  // silently letting input order choose which value and coverage become the
+  // published sample. This keeps the resulting anomaly deterministic and makes
+  // ambiguous source records unavailable rather than arbitrarily preferred.
+  const candidatesByYear = new Map<number, MonthlyClimateObservation>();
+  const duplicateYears = new Set<number>();
   const samples: SeasonalBaselineSample[] = [];
   let coverageEligibleCount = 0;
 
@@ -174,12 +180,20 @@ export function compareMonthlyClimateToSeasonalBaseline(
       exclusions.outOfBounds += 1;
       continue;
     }
-    if (seenYears.has(candidate.dataMonth.year)) {
+    if (duplicateYears.has(candidate.dataMonth.year)) {
       exclusions.duplicateYear += 1;
       continue;
     }
-    seenYears.add(candidate.dataMonth.year);
+    if (candidatesByYear.has(candidate.dataMonth.year)) {
+      exclusions.duplicateYear += 1;
+      candidatesByYear.delete(candidate.dataMonth.year);
+      duplicateYears.add(candidate.dataMonth.year);
+      continue;
+    }
+    candidatesByYear.set(candidate.dataMonth.year, candidate);
+  }
 
+  for (const candidate of candidatesByYear.values()) {
     const summary = summarizeMonthlyClimate(candidate, availableThrough);
     if (summary.publicationStatus !== "published") {
       exclusions.notYetPublished += 1;
