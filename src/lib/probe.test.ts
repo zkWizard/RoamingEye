@@ -13,6 +13,7 @@ import {
   boundsUsable,
   crossesAntimeridian,
   normalizeLon,
+  regionGridDimensions,
   regionGridSize,
   monthlyClimatology,
   anomalySeries,
@@ -333,6 +334,15 @@ describe("gridPoints", () => {
     expect(lons).toEqual([-179.5, -178.5, 178.5, 179.5]);
     const greenwich = gridPoints({ ...seam, west: -2, east: 2 }, 4);
     expect(greenwich.map((p) => p.lat)).toEqual(points.map((p) => p.lat));
+  });
+
+  it("supports independent latitude and longitude coverage", () => {
+    const points = gridPoints(bounds, 2, 4);
+    expect(points).toHaveLength(8);
+    expect([...new Set(points.map((p) => p.lat))]).toEqual([1, 3]);
+    expect([...new Set(points.map((p) => p.lon))]).toEqual([
+      10.5, 11.5, 12.5, 13.5,
+    ]);
   });
 });
 
@@ -690,5 +700,27 @@ describe("regionGridSize", () => {
 
   it("uses the larger of the two spans", () => {
     expect(regionGridSize({ south: 0, north: 0.5, west: 0, east: 5 })).toBe(20);
+  });
+});
+
+describe("regionGridDimensions", () => {
+  it("sizes each axis independently for narrow regions", () => {
+    const bounds = { south: 0, north: 0.5, west: 0, east: 5 };
+    expect(regionGridDimensions(bounds)).toEqual({
+      latitude: 8,
+      longitude: 20,
+    });
+    expect(gridPoints(bounds, 8, 20)).toHaveLength(160);
+  });
+
+  it("preserves the per-axis sampling caps", () => {
+    expect(
+      regionGridDimensions({
+        south: -20,
+        north: 20,
+        west: -30,
+        east: 30,
+      })
+    ).toEqual({ latitude: 28, longitude: 28 });
   });
 });
