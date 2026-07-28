@@ -140,6 +140,22 @@ export interface EarthquakeSummary {
   units: typeof SEISMICITY_UNITS;
 }
 
+/**
+ * Whether an event has the finite measurements and valid GeoJSON geography
+ * required by seismic filters, summaries, and rendering consumers.
+ */
+export function isValidEarthquakeObservation(earthquake: Earthquake): boolean {
+  return (
+    Number.isFinite(earthquake.lat) &&
+    Math.abs(earthquake.lat) <= 90 &&
+    Number.isFinite(earthquake.lon) &&
+    Math.abs(earthquake.lon) <= 180 &&
+    Number.isFinite(earthquake.depthKm) &&
+    Number.isFinite(earthquake.magnitude) &&
+    Number.isFinite(earthquake.time)
+  );
+}
+
 /** Magnitude 4.5+, last 30 days in the USGS global summary feed. */
 export const USGS_FEED_URL =
   "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_month.geojson";
@@ -232,11 +248,10 @@ export function filterEarthquakes(
   filters: EarthquakeFilters = {}
 ): Earthquake[] {
   if (!validFilters(filters)) return [];
-  return earthquakes.filter(
-    ({ magnitude, depthKm, time }) =>
-      Number.isFinite(magnitude) &&
-      Number.isFinite(depthKm) &&
-      Number.isFinite(time) &&
+  return earthquakes.filter((earthquake) => {
+    const { magnitude, depthKm, time } = earthquake;
+    return (
+      isValidEarthquakeObservation(earthquake) &&
       (filters.minMagnitude === undefined ||
         magnitude >= filters.minMagnitude) &&
       (filters.maxMagnitude === undefined ||
@@ -245,19 +260,15 @@ export function filterEarthquakes(
       (filters.maxDepthKm === undefined || depthKm <= filters.maxDepthKm) &&
       (filters.startTime === undefined || time >= filters.startTime) &&
       (filters.endTime === undefined || time <= filters.endTime)
-  );
+    );
+  });
 }
 
 /** Aggregate supplied events while retaining source and native unit labels. */
 export function summarizeEarthquakes(
   earthquakes: readonly Earthquake[]
 ): EarthquakeSummary {
-  const valid = earthquakes.filter(
-    ({ magnitude, depthKm, time }) =>
-      Number.isFinite(magnitude) &&
-      Number.isFinite(depthKm) &&
-      Number.isFinite(time)
-  );
+  const valid = earthquakes.filter(isValidEarthquakeObservation);
   const depthClassCounts: Record<DepthClass, number> = {
     shallow: 0,
     intermediate: 0,
@@ -401,6 +412,8 @@ export function parseEarthquakeFeedWithCoverage(
     const [lon, lat, depthKm] = coords.map(toNumber);
     const magnitude = toNumber(props.mag);
     const time = toNumber(props.time);
+    // Kept as two checks rather than one predicate so each rejection is
+    // counted under the reason that actually disqualified the feature.
     if (
       !Number.isFinite(lat) ||
       !Number.isFinite(lon) ||
