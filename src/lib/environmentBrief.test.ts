@@ -91,6 +91,52 @@ describe("environment provenance brief", () => {
     expect(brief.unsupportedLanguageHits).toEqual([]);
   });
 
+  it("snapshots source citations so returned briefs cannot rewrite provenance", () => {
+    const first = composeEnvironmentBrief({
+      vegetation: {
+        dataMonth: { year: 2026, month: 1 },
+        value: 0.61,
+      },
+      rainfall: {
+        dataMonth: { year: 2026, month: 1 },
+        value: 0.00012,
+      },
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 1 },
+    });
+    const attribution = attributeBrief(first.signals);
+    const expectedNdviTitle = NDVI_SOURCE.title;
+    const expectedRainfallTitle =
+      CLIMATE_METRICS["precipitation-rate"].source.title;
+
+    first.signals[0].source.title = "consumer-mutated NDVI citation";
+    attribution.sources[1].source.title =
+      "consumer-mutated rainfall attribution";
+
+    const second = composeEnvironmentBrief({
+      vegetation: {
+        dataMonth: { year: 2026, month: 1 },
+        value: 0.61,
+      },
+      rainfall: {
+        dataMonth: { year: 2026, month: 1 },
+        value: 0.00012,
+      },
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 1 },
+    });
+
+    expect(second.signals[0].source.title).toBe(expectedNdviTitle);
+    expect(second.signals[1].source.title).toBe(expectedRainfallTitle);
+    expect(NDVI_SOURCE.title).toBe(expectedNdviTitle);
+    expect(CLIMATE_METRICS["precipitation-rate"].source.title).toBe(
+      expectedRainfallTitle
+    );
+    expect(attribution.sources[0].source).not.toBe(first.signals[0].source);
+  });
+
   it("keeps missing, invalid, not-yet-published, and not-supplied states explicit", () => {
     const brief = composeEnvironmentBrief({
       vegetation: {
