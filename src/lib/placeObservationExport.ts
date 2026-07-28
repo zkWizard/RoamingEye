@@ -1,6 +1,5 @@
 import {
   geometryBounds,
-  isAreaGeometry,
   type GeoGeometry,
   type GeometrySamplingStrategy,
 } from "./geojson";
@@ -295,7 +294,13 @@ export function placeObservationProductFromSample(
 }
 
 function validateInput(input: PlaceObservationExportInput): void {
-  if (!isAreaGeometry(input.boundary)) {
+  // Type check first, then detailed ring validation: isAreaGeometry also
+  // rejects malformed rings, which would mask the specific footprint
+  // diagnostics below behind the generic wrong-type message.
+  if (
+    input.boundary.type !== "Polygon" &&
+    input.boundary.type !== "MultiPolygon"
+  ) {
     throw new Error(
       "A Polygon or MultiPolygon boundary is required for export."
     );

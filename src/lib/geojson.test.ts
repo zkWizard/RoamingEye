@@ -339,10 +339,11 @@ describe("geometryToRings", () => {
       },
     };
 
-    // Bounds + ring preparation may each read the geometry, but the per-cell
+    // Bounds, malformed-geometry validation, and ring preparation may each
+    // read the geometry a constant number of times, but the per-cell
     // containment loop (up to 4,096 cells) must not re-read it.
     expect(geometryGridPoints(geometry, 64)).toHaveLength(3_952);
-    expect(coordinateReads).toBeLessThanOrEqual(2);
+    expect(coordinateReads).toBeLessThanOrEqual(4);
   });
 
   it("retains represented multipolygon components when applying the point cap", () => {

@@ -459,28 +459,23 @@ export function geometryToRings(geom: GeoGeometry): Position[][] {
         for (const ring of poly) rings.push(ring);
       }
       break;
+    // Linework stays permissive by design: line consumers (plate boundaries)
+    // split raw coordinates into contiguous valid runs so a malformed vertex
+    // becomes a gap — dropping the whole line here would discard the valid
+    // segments, and per-position filtering would invent segments that join
+    // across the bad data. Area strictness above is unaffected.
     case "LineString":
-      if (
-        Array.isArray(geom.coordinates) &&
-        geom.coordinates.length >= 2 &&
-        geom.coordinates.every(isValidPosition)
-      ) {
-        rings.push(geom.coordinates);
+      if (Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
+        rings.push(geom.coordinates as Position[]);
       }
       break;
     case "MultiLineString":
-      if (
-        !Array.isArray(geom.coordinates) ||
-        !geom.coordinates.every(
-          (line) =>
-            Array.isArray(line) &&
-            line.length >= 2 &&
-            line.every(isValidPosition)
-        )
-      ) {
-        return rings;
+      if (!Array.isArray(geom.coordinates)) return rings;
+      for (const line of geom.coordinates) {
+        if (Array.isArray(line) && line.length >= 2) {
+          rings.push(line as Position[]);
+        }
       }
-      for (const line of geom.coordinates) rings.push(line);
       break;
   }
   return rings;
