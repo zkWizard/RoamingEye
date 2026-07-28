@@ -17,12 +17,14 @@ import type { YearMonth } from "./timeline";
 function sstSummary(
   value: number | null,
   dataMonth: YearMonth,
-  footprint: SstFootprint = "water"
+  footprint: SstFootprint = "water",
+  validFraction?: number
 ): OceanConditionSummary {
   const observation: SeaSurfaceTemperatureObservation = {
     dataMonth,
     value,
     footprint,
+    validFraction,
   };
   return summarizeOceanConditions(observation);
 }
@@ -123,6 +125,52 @@ describe("month-over-month sea-surface-temperature change", () => {
     expect(change.limitations).toBe(SEA_SURFACE_TEMPERATURE_CHANGE_LIMITATIONS);
   });
 
+  it("retains each endpoint's supplied footprint and coverage fraction", () => {
+    const earlier = sstSummary(17, { year: 2026, month: 2 }, "water", 0.82);
+    const later = sstSummary(19, { year: 2026, month: 3 }, "water", 0.71);
+
+    const change = describeSeaSurfaceTemperatureChange(earlier, later);
+
+    expect(change.status).toBe("available");
+    expect(change.spatialSupport).toEqual({
+      earlier: {
+        status: "water",
+        footprint: "water",
+        validFraction: 0.82,
+        reason: null,
+      },
+      later: {
+        status: "water",
+        footprint: "water",
+        validFraction: 0.71,
+        reason: null,
+      },
+      compatibility: "same-footprint-context",
+    });
+  });
+
+  it("withholds a change across different supplied footprint contexts", () => {
+    const earlier = sstSummary(18, { year: 2026, month: 5 }, "water", 1);
+    const later = sstSummary(
+      20,
+      { year: 2026, month: 6 },
+      "land-mixed-coastal",
+      0.64
+    );
+
+    const change = describeSeaSurfaceTemperatureChange(earlier, later);
+
+    expect(change.status).toBe("incompatible-spatial-support");
+    expect(change.reason).toBe("footprint-context-mismatch");
+    expect(change.changeValue).toBeNull();
+    expect(change.trend).toBeNull();
+    expect(change.spatialSupport.compatibility).toBe(
+      "different-footprint-context"
+    );
+    expect(change.spatialSupport.earlier.validFraction).toBe(1);
+    expect(change.spatialSupport.later.validFraction).toBe(0.64);
+  });
+
   it("refuses non-consecutive months rather than spanning the gap", () => {
     const earlier = sstSummary(18, { year: 2026, month: 1 });
     const later = sstSummary(24, { year: 2026, month: 3 });
@@ -166,6 +214,7 @@ describe("month-over-month sea-surface-temperature change", () => {
     expect(change.status).toBe("unavailable");
     expect(change.reason).toBe("endpoint-not-available");
     expect(change.changeValue).toBeNull();
+    expect(change.spatialSupport.compatibility).toBe("unavailable");
   });
 
   it("withholds a change over a land footprint endpoint", () => {
