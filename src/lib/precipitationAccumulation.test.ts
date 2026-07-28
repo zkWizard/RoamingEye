@@ -16,6 +16,24 @@ function precipSummary(rate: number | null, dataMonth: YearMonth) {
 }
 
 describe("precipitation monthly accumulation", () => {
+  it("retains spatial coverage and rendered-image provenance", () => {
+    const summary = summarizeMonthlyClimate(
+      {
+        metricId: "precipitation-rate",
+        dataMonth: { year: 2026, month: 3 },
+        value: 0.0001,
+        validFraction: 0.875,
+        sourceImageDimensions: { width: 640, height: 320 },
+      },
+      { year: 2026, month: 4 }
+    );
+
+    expect(precipitationAccumulation(summary)).toMatchObject({
+      validFraction: 0.875,
+      sourceImageDimensions: { width: 640, height: 320 },
+    });
+  });
+
   it("integrates the monthly-mean rate over the month's actual length", () => {
     // 0.0001 kg/m²/s over a 31-day January.
     const result = precipitationAccumulation(

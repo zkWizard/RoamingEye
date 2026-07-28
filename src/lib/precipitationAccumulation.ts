@@ -44,6 +44,10 @@ export interface PrecipitationAccumulation {
   monthDays: number;
   /** Seconds in the data month used to integrate the mean rate. */
   monthSeconds: number;
+  /** Usable share of the sampled area, or null when the sampler omitted it. */
+  validFraction: number | null;
+  /** Rendered-image provenance; not a ground-resolution claim. */
+  sourceImageDimensions: { width: number; height: number } | null;
   /** Same cited product as the source observation; provenance is preserved. */
   source: DatasetRef;
 }
@@ -78,6 +82,10 @@ export function precipitationAccumulation(
     dataMonth: summary.dataMonth,
     monthDays,
     monthSeconds,
+    validFraction: summary.coverage.validFraction,
+    sourceImageDimensions: summary.sourceImageDimensions
+      ? { ...summary.sourceImageDimensions }
+      : null,
     source: summary.metric.source,
   };
 }
