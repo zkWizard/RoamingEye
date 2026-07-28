@@ -42,7 +42,7 @@ export interface OceanConditionSeriesSummary {
   monthCount: number;
   /** Months carrying a usable SST value (water or coastal/land-mixed footprint). */
   usableMonthCount: number;
-  /** Supplied months without a usable SST value (land, missing, or invalid). */
+  /** Supplied months without a usable SST value (land, unknown, missing, or invalid). */
   unusableMonthCount: number;
   /** Count of supplied months by their per-month coverage status. */
   coverageTally: OceanCoverageTally;
@@ -76,6 +76,7 @@ const EMPTY_COVERAGE_TALLY: OceanCoverageTally = {
   water: 0,
   "land-mixed-coastal": 0,
   land: 0,
+  unknown: 0,
   missing: 0,
   invalid: 0,
 };

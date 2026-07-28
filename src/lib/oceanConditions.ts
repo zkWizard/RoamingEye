@@ -45,13 +45,14 @@ export interface SeaSurfaceTemperatureObservation {
 }
 
 export type OceanCoverageStatus =
-  "water" | "land-mixed-coastal" | "land" | "missing" | "invalid";
+  "water" | "land-mixed-coastal" | "land" | "unknown" | "missing" | "invalid";
 
 export type OceanCoverageReason =
   | "invalid-month"
   | "invalid-coverage"
   | "invalid-value"
   | "land-footprint"
+  | "unknown-footprint"
   | "missing-sst-value"
   | "zero-sst-coverage"
   | null;
@@ -123,6 +124,9 @@ function coverageFor(
   }
   if (observation.footprint === "land") {
     return { ...base, status: "land", reason: "land-footprint" };
+  }
+  if (observation.footprint === "unknown") {
+    return { ...base, status: "unknown", reason: "unknown-footprint" };
   }
   if (observation.value === null) {
     return { ...base, status: "missing", reason: "missing-sst-value" };
@@ -198,10 +202,15 @@ export function describeOceanCondition(summary: OceanConditionSummary): string {
   if (coverage.status === "land") {
     body =
       "the sampled footprint is land, so no sea-surface temperature is reported.";
+  } else if (coverage.status === "unknown") {
+    body =
+      "the sampled footprint type is unknown, so no sea-surface temperature is reported.";
   } else if (coverage.status === "missing") {
     body = "no usable sea-surface-temperature value was supplied.";
   } else if (coverage.status === "invalid" || summary.observedValue === null) {
-    body = `sea-surface-temperature metadata is invalid (${coverage.reason ?? "unspecified"}), so no value is reported.`;
+    body = `sea-surface-temperature metadata is invalid (${
+      coverage.reason ?? "unspecified"
+    }), so no value is reported.`;
   } else {
     const band = summary.temperatureBand
       ? TEMPERATURE_BAND_PHRASES[summary.temperatureBand]
@@ -221,5 +230,7 @@ function coverageNote(validFraction: number | null): string {
   if (validFraction === null) {
     return " Spatial SST coverage was not supplied.";
   }
-  return ` ${Math.round(validFraction * 100)}% of the sampled footprint had usable SST samples.`;
+  return ` ${Math.round(
+    validFraction * 100
+  )}% of the sampled footprint had usable SST samples.`;
 }

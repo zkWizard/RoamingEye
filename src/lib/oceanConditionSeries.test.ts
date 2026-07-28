@@ -28,6 +28,11 @@ describe("ocean condition series summaries", () => {
       { dataMonth: { year: 2026, month: 3 }, value: null, footprint: "land" },
       {
         dataMonth: { year: 2026, month: 4 },
+        value: 14,
+        footprint: "unknown",
+      },
+      {
+        dataMonth: { year: 2026, month: 5 },
         value: 5,
         footprint: "water",
         validFraction: 2,
@@ -40,17 +45,18 @@ describe("ocean condition series summaries", () => {
       "descriptive-sea-surface-temperature-extent-only"
     );
     expect(summary.metric).toBe(SEA_SURFACE_TEMPERATURE_METRIC);
-    expect(summary.monthCount).toBe(4);
+    expect(summary.monthCount).toBe(5);
     expect(summary.usableMonthCount).toBe(1);
-    expect(summary.unusableMonthCount).toBe(3);
+    expect(summary.unusableMonthCount).toBe(4);
     expect(summary.coverageTally).toEqual({
       water: 1,
       "land-mixed-coastal": 0,
       land: 1,
+      unknown: 1,
       missing: 1,
       invalid: 1,
     });
-    expect(summary.months).toHaveLength(4);
+    expect(summary.months).toHaveLength(5);
     expect(summary.months[0].metric.source.shortName).toBe(
       SEA_SURFACE_TEMPERATURE_METRIC.source.shortName
     );
@@ -142,6 +148,7 @@ describe("ocean condition series summaries", () => {
       water: 0,
       "land-mixed-coastal": 0,
       land: 0,
+      unknown: 0,
       missing: 0,
       invalid: 0,
     });

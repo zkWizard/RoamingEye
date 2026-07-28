@@ -61,7 +61,7 @@ describe("ocean condition summaries", () => {
     const missing = summarizeOceanConditions({
       dataMonth: { year: 2026, month: 3 },
       value: null,
-      footprint: "unknown",
+      footprint: "water",
     });
 
     expect(land).toMatchObject({
@@ -79,9 +79,29 @@ describe("ocean condition summaries", () => {
       temperatureBand: null,
       coverage: {
         status: "missing",
-        footprint: "unknown",
+        footprint: "water",
         validFraction: null,
         reason: "missing-sst-value",
+      },
+    });
+  });
+
+  it("preserves an unknown footprint instead of relabeling it as water", () => {
+    const summary = summarizeOceanConditions({
+      dataMonth: { year: 2026, month: 3 },
+      value: 14.5,
+      validFraction: 0.82,
+      footprint: "unknown",
+    });
+
+    expect(summary).toMatchObject({
+      observedValue: null,
+      temperatureBand: null,
+      coverage: {
+        status: "unknown",
+        footprint: "unknown",
+        validFraction: 0.82,
+        reason: "unknown-footprint",
       },
     });
   });
@@ -176,7 +196,7 @@ describe("ocean condition narratives", () => {
       summarizeOceanConditions({
         dataMonth: { year: 2026, month: 3 },
         value: null,
-        footprint: "unknown",
+        footprint: "water",
       })
     );
 
@@ -188,6 +208,23 @@ describe("ocean condition narratives", () => {
       "no usable sea-surface-temperature value was supplied."
     );
     expect(missing).not.toContain("°C");
+  });
+
+  it("states unknown footprint context without exposing the supplied value", () => {
+    const text = describeOceanCondition(
+      summarizeOceanConditions({
+        dataMonth: { year: 2026, month: 3 },
+        value: 14.5,
+        validFraction: 0.82,
+        footprint: "unknown",
+      })
+    );
+
+    expect(text).toContain(
+      "the sampled footprint type is unknown, so no sea-surface temperature is reported."
+    );
+    expect(text).not.toContain("14.5");
+    expect(text).toContain("not a marine-biology");
   });
 
   it("reports invalid metadata with its reason rather than a value", () => {
