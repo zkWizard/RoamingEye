@@ -138,6 +138,19 @@ moisture are both GLDAS, so not independent evidence), differing data months
 (the temporal-spread descriptor of §6), and differing spatial coverage
 (`src/lib/coverageAdequacy.ts`).
 
+`coverageAdequacy` reports each signal's **marginal** sampled coverage — the
+share of the sampled area one product returned. That alone does not say whether
+the signals describe the same ground: two signals each covering 60% of the area
+might overlap fully or barely at all. `src/lib/coObservedCoverage.ts` bounds the
+**co-observed** share — the area every usable signal returned data for
+simultaneously — with the Fréchet inequalities (upper bound = the smallest
+single-signal coverage; lower bound = `max(0, Σpᵢ − (K − 1))`). The exact
+overlap is unknowable because per-signal pixel masks are not carried, so only the
+bound is reported, never an invented figure. When the lower bound is 0 the
+signals **may share no common area at all**, so a multi-signal brief must not be
+read as one co-registered snapshot. This is a spatial-sampling bound, not a
+measure of value agreement, accuracy, or condition.
+
 The remaining reason is **dimensional**: the four signals are reported in
 incommensurable native units — NDVI (unitless), precipitation rate (kg/m²/s),
 soil moisture (kg/m²), and air temperature (K). No two share a unit, so none are
@@ -161,6 +174,21 @@ groups the usable observations by the registrant parsed from each cited DOI and
 reports whether the whole brief traces to one authority. It composes with — and
 never replaces — `sourceIndependence`; a DOI with no parseable registrant is
 listed as unknown, never assigned an invented authority.
+
+A further axis is **how far each product sits from the raw instrument**. NASA
+classifies Earth-science products on a standard processing ladder (EOSDIS Data
+Processing Levels, L0–L4): higher levels carry more algorithmic processing,
+gridding, or modeling between the sensor and the reported value. The brief's
+products span two tiers — NDVI (MOD13A3) is a **Level-3** gridded index, while
+the GLDAS land-surface fields and the MERRA-2 reanalysis are **Level-4** model
+output. `src/lib/processingLevel.ts` makes that L3/L4 split (already noted in §9
+below) checkable per signal and reports whether the usable signals share one
+tier or span several. It is a companion to observation modality
+(`src/lib/observationModality.ts`), not a duplicate: modality asks _how_ a value
+is produced, processing level asks _how far_ from the raw sensor it sits — and
+the two partition the products differently. A higher level is **not** worse
+data; it is a position on a processing ladder, never a quality judgement, and a
+product absent from the table is reported as unclassified rather than guessed.
 
 ## 8. Temporal commensurability
 
