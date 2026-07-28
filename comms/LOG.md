@@ -862,3 +862,26 @@ false`) even though a usable image already exists in-repo — a Settings-UI uplo
   **Signals re-pulled:** 1 star (`statuette`, the known drive-by), **0** forks, **0**
   outside-authored issues or PRs, 26 views / 8 uniques (down from 43/10 — the 14-day window
   shedding older days, not a decline in interest, since nothing has been sent).
+- 2026-07-28 (later run) — **Duty 4.** Named the contribution surface that the full bundle
+  budget leaves open, in `CONTRIBUTING.md`. #654 (open) documents the cap and audits the
+  starter issues; the gap it leaves is that nobody says what a newcomer _can_ pick up. The
+  check reads only `dist/assets/*.js`, so docs, `scripts/`, `e2e/`, and CSS cost zero bytes —
+  CSS verified as a separately emitted asset in CI's own build output
+  (`index-k9zqfPlJ.css`, 34.39 kB), not inlined into the JS.
+  **The negative result is the load-bearing half:** "add unit tests to the untested files" is
+  the obvious next idea and it is wrong. An import scan over `origin/main` shows `src/lib/`
+  and `src/probe/` fully covered; what lacks tests is exactly `src/ui/`, `src/overlays/`,
+  `src/scene/`, `src/textures/`, `main.ts` — DOM/rendering, uncovered _by design_ because
+  `vite.config.ts` sets `environment: "node"`. Recorded so a future run doesn't file starter
+  issues that can't be done. **No issues opened:** the queue (#373 +12 B and fits, #375, #638)
+  is non-empty and verified by #654 hours ago; filing more would be churn.
+  **Not the GIBS pattern — checked before assuming.** CI went red repo-wide from ~14:04Z,
+  docs-only comms PRs included, while GIBS WMS answered 200 in 0.9 s. A real regression, and
+  it merged as **#658** (`fix/boot-curtain-timeout-hang`) mid-run; `main` is green again at
+  `2cb0b6d`. Matters to comms because the README CI badge is public and `SEND-PLAN.md` gates
+  sending on health.
+  **HTTPS gate re-measured:** `https_certificate: null`, `https_enforced: false`, Pages
+  `html_url` still `http://roamingeye.org/`. Revisit **2026-07-29**; `outbox/` stays
+  send-blocked. Signals: 26 views / 8 uniques / 14 d, 1 star (`statuette`, the known
+  drive-by), 0 forks, 0 watchers, **0 outside-authored issues or PRs** — nobody to welcome,
+  so no reply drafted. Repo `description` still `null` (a maintainer call; left as flagged).
