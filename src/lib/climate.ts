@@ -103,11 +103,16 @@ export interface MonthlyClimateSummary {
   isForecast: false;
   metric: ClimateMetric;
   dataMonth: YearMonth;
+  /** Earliest monthly observation published by the metric's cited layer. */
+  firstAvailableMonth: YearMonth;
   /** Month through which the caller had confirmed source availability. */
   availableThrough: YearMonth;
-  /** Whether this data month is within the caller's confirmed availability. */
+  /** Whether this data month is within the cited source's known record. */
   publicationStatus:
-    "published" | "not-yet-published" | "invalid-reference-month";
+    | "published"
+    | "before-source-record"
+    | "not-yet-published"
+    | "invalid-reference-month";
   /** Calendar-month difference, or null when data month is not yet published. */
   publicationLagMonths: number | null;
   coverage: ClimateCoverage;
@@ -132,25 +137,32 @@ export function summarizeMonthlyClimate(
   availableThrough: YearMonth
 ): MonthlyClimateSummary {
   const metric = CLIMATE_METRICS[observation.metricId];
+  const firstAvailableMonth = LAYERS[metric.layerId].start;
   const dataMonth = observation.dataMonth;
-  const validMonths = isYearMonth(dataMonth) && isYearMonth(availableThrough);
+  const validMonths =
+    isYearMonth(dataMonth) &&
+    isYearMonth(firstAvailableMonth) &&
+    isYearMonth(availableThrough);
   const lag = validMonths ? monthDistance(dataMonth, availableThrough) : null;
   const publicationStatus =
     lag === null
       ? "invalid-reference-month"
-      : lag < 0
-        ? "not-yet-published"
-        : "published";
+      : monthDistance(firstAvailableMonth, dataMonth) < 0
+        ? "before-source-record"
+        : lag < 0
+          ? "not-yet-published"
+          : "published";
   const coverage = coverageFor(observation, validMonths);
 
   return {
     kind: "observed-monthly-climate",
     isForecast: false,
     metric,
-    // Snapshot both month values at the contract boundary. Timeline month
+    // Snapshot every month value at the contract boundary. Timeline month
     // objects are reused by callers, and later mutation must not re-date an
     // observation that has already been paired with a source value.
     dataMonth: { ...dataMonth },
+    firstAvailableMonth: { ...firstAvailableMonth },
     availableThrough: { ...availableThrough },
     publicationStatus,
     publicationLagMonths: lag === null || lag < 0 ? null : lag,
