@@ -167,6 +167,35 @@ describe("geometryToRings", () => {
     expect(geometryGridPoints(geometry, 5)).toHaveLength(24);
   });
 
+  it("classifies exterior edges consistently and excludes hole edges", () => {
+    const geometry = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [0, 0],
+          [10, 0],
+          [10, 10],
+          [0, 10],
+          [0, 0],
+        ],
+        [
+          [4, 4],
+          [6, 4],
+          [6, 6],
+          [4, 6],
+          [4, 4],
+        ],
+      ],
+    };
+    expect(geometryContains(geometry, 0, 5)).toBe(true);
+    expect(geometryContains(geometry, 5, 10)).toBe(true);
+    expect(geometryContains(geometry, 10, 5)).toBe(true);
+    expect(geometryContains(geometry, 5, 0)).toBe(true);
+    expect(geometryContains(geometry, 0, 0)).toBe(true);
+    expect(geometryContains(geometry, 4, 5)).toBe(false);
+    expect(geometryContains(geometry, 5, 6)).toBe(false);
+  });
+
   it("recognizes multipolygons as sampleable areas", () => {
     const geometry = {
       type: "MultiPolygon",
@@ -216,6 +245,25 @@ describe("geometryToRings", () => {
     expect(geometryContains(geometry, 0, 179.5)).toBe(true);
     expect(geometryContains(geometry, 0, -179.5)).toBe(true);
     expect(geometryContains(geometry, 0, 0)).toBe(false);
+  });
+
+  it("contains antimeridian exterior edges in either longitude frame", () => {
+    const geometry = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [179, -1],
+          [-179, -1],
+          [-179, 1],
+          [179, 1],
+          [179, -1],
+        ],
+      ],
+    };
+    expect(geometryContains(geometry, 0, 179)).toBe(true);
+    expect(geometryContains(geometry, 0, -179)).toBe(true);
+    expect(geometryContains(geometry, -1, 180)).toBe(true);
+    expect(geometryContains(geometry, 1, -180)).toBe(true);
   });
 
   it("keeps antimeridian grid points in the continuous short-arc frame", () => {
