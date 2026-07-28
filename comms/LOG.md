@@ -443,3 +443,53 @@ null`, `https_enforced: false`, `https://roamingeye.org/` still fails TLS, and
   `LOG.md` / `TARGETS.md` / `outbox/README.md` landed exactly as the chaining rule
   predicts. Re-chain with `git rebase --onto <tip> origin/main <branch>`; a bare
   `git rebase <tip>` replays all of `main` onto the tip instead.
+- 2026-07-28 — **Audited the product claims against the code, not the README — and found the
+  flagship feature undersold by up to 41 years.** Picked a claims audit over a new draft
+  because every duty is covered by an open PR right now (#571 send plan, #572 README
+  open-PR orientation, #580 educator venues, #593 traction baseline, #606 `docs/launch/`,
+  #619 v1.1.0 release notes) and the outbox holds eight unsent drafts behind the ⛔ HTTPS
+  gate — supply is not the constraint, accuracy is. Every prior `Claims re-verified:` pass
+  checked drafts **against README.md**, so a stale README claim propagated instead of being
+  caught. This run checked the source instead.
+  **The defect.** `README.md` said the temporal scrubber "sweeps month-by-month through the
+  **last 5 years** of monthly satellite composites". It does not, and has not for a long time:
+  `src/main.ts:316` sets the timeline from `monthRangeForLayer(LAYERS[currentLayer])`, whose
+  own doc comment says "the layer's **full scientific record** (MERRA-2 layers reach back to
+  1980), not a fixed window" (`src/lib/timeline.ts:424`). Measured per-layer starts against
+  `DATA_LATEST = 2026-05`: NDVI/EVI/LST/snow 2000-03 (~26 y), precipitation/soil moisture
+  2000-01 (~26 y), SST 2002-07 (~24 y), and **2 m air temperature + aerosols 1980-01 (~46 y)**
+  — both MERRA-2 (`M2TMNXSLV`, `M2TMNXAER`). The only surviving "5 years" was the README
+  sentence and `timeline.test.ts` fixtures using a 60-month range. A reader deciding whether
+  this tool can show them a climate signal was being told 5 years when the answer is 26–46.
+  **Where it had spread.** Into two ready-to-send drafts, as a _limitation_ — the worst
+  possible form. `classroom-lab-one-pager.md` listed under "Honest limits": "the scrubber
+  sweeps the last few years… while the point time series reaches back across the full
+  multi-decadal archive" — a distinction that no longer exists; both use the full record.
+  `pangeo-showcase-roamingeye.md` made the same split in its workflow paragraph. Replaced the
+  false limit with a true and better one (records **start in different years**, so comparing
+  two layers fairly means using the window they share — METHODS §8, temporal
+  commensurability). The remaining outbox drafts and `docs/launch/` say "decades" or
+  "26–46 years" and were already correct.
+  **Second drift, same cause:** the Providers-page count. README and the Pangeo draft said
+  "~33 agencies"; `PROVIDERS` in `src/lib/providers.ts` now holds **37**. Corrected both to
+  the exact figure.
+  **Re-verified and found accurate, so nobody re-checks:** ~1,200 Holocene volcanoes
+  (`public/data/volcanoes.json` = **1,196** records), USGS seismicity **M4.5+**
+  (`USGS_M45_MONTH_SOURCE`), terrain native resolution ~31 m (WMTS tile set **31.25m**),
+  "9 scientific layers" (9 seasonal layers of 11 `LayerId`s — land cover and terrain are the
+  other two, correctly excluded from the scientific count), probe record "26–46 years".
+  **Standing rule added to the two drafts' headers: verify claims against the code that
+  implements them, not against README.** README is a claim, not a source.
+  Ran the standing by-file check first: `README.md` is touched only by #572 (a different
+  section — newcomer open-PR orientation) and by merge-train batch #573. Chained off #606,
+  the tip of the comms chain (#571 → #580 → #593 → #606, each containing the previous), so
+  this appends cleanly rather than colliding on `LOG.md` a fourth time.
+  **Signals** (unchanged, as expected while nothing has been sent): 1 star, 0 forks, 0
+  external watchers, 0 outside-authored issues or PRs. **New public artifact today:** the
+  health check escalated from a red workflow to an open issue — **#623 "Health check
+  failing"**, filed 07:47Z by `github-actions`, body `Live site: no response from
+https://roamingeye.org/`. It sits at the top of the public issue tracker, which is where an
+  awesome-list curator or a Show HN reader looks second. It self-heals when the certificate
+  lands and must not be edited to mask it. Gate re-measured once (it is the thing that makes
+  #623 real): `https_certificate: null`, `https_enforced: false`, `protected_domain_state:
+verified` — still provisioning, still do not touch DNS. Revisit date stands at 2026-07-29.

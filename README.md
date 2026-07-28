@@ -43,9 +43,9 @@ It is built for, and by, the research community: every data source is open and c
 
 - 🌍 **A real 3D Earth** rendered with WebGL — grab to rotate, scroll to zoom from orbit down to the surface.
 - 🔬 **Native-resolution tile streaming, on by default** — zoom in and the visible globe re-drapes itself with WMTS tiles chosen by screen-space error, up to each layer's native resolution (terrain reaches ~31 m), with parent-tile fallback so detail refines instead of popping.
-- ⏳ **A temporal scrubber** — a ruler-style timeline that sweeps month-by-month through the last 5 years of monthly satellite composites, so you can _watch the seasons turn_ and trends emerge.
+- ⏳ **A temporal scrubber** — a ruler-style timeline that sweeps month-by-month across each layer's **full published record**, so you can _watch the seasons turn_ and trends emerge: 2000 → present for the MODIS layers, and back to **1980** for the MERRA-2 reanalysis layers (2 m air temperature, aerosols).
 - 🌱❄️🌡️ **A rich set of scientific layers** — 9 open NASA products across **vegetation** (NDVI, EVI), **temperature** (land surface, 2 m air, sea surface), **water** (precipitation, soil moisture), **cryosphere** (snow cover), and **atmosphere** (aerosols) — grouped in a clean picker and growing.
-- 📚 **An open-data Providers page** — a built-in catalogue of the ~33 agencies, archives, and platforms whose open data powers the project.
+- 📚 **An open-data Providers page** — a built-in catalogue of the 37 agencies, archives, and platforms whose open data powers the project.
 - 🧰 **A reviewed open-software finder** — browse Earth-science tools by domain, platform, and access path; every public recommendation links to its repository, documentation, SPDX evidence, and verification date.
 - 🔎 **Search any place** — geocoded via OpenStreetMap; the globe traces the returned postcode, city, state, or country boundary and surfaces its latest month-over-month vegetation, rainfall, soil-moisture, and air-temperature signals.
 - 📈 **A point time-series probe** — click anywhere on the globe and chart that layer's value at that point across its full record (26–46 years), with a provenance-stamped CSV download. Approximate by design (colormap inversion), honest about it everywhere.
