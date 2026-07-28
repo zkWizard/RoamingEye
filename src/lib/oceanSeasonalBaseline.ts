@@ -327,6 +327,8 @@ function targetReadiness(
       return { status: "invalid", reason: target.coverage.reason ?? "invalid" };
     case "land":
       return { status: "land", reason: "target-land-footprint" };
+    case "unknown":
+      return { status: "no-data", reason: "target-unknown-footprint" };
     case "missing":
       return { status: "no-data", reason: "target-missing-sst" };
     case "water":

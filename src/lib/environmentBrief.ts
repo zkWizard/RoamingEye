@@ -72,9 +72,11 @@ export type EnvironmentUnavailableReason =
   | "rejected-wms-layer"
   | "rejected-source"
   | "rejected-native-unit"
+  | "rejected-generation-timestamp"
   | "rejected-sampling-support"
   | "rejected-observation-months"
   | "rejected-observation-after-generation"
+  | "rejected-observation-coverage"
   | "rejected-observation-state"
   | "rejected-duplicate-products";
 
@@ -112,6 +114,12 @@ export interface EnvironmentSignalBrief {
 export interface EnvironmentTemporalAlignment {
   /** Available signals whose data months were compared, in signal order. */
   comparedSignalIds: EnvironmentSignalId[];
+  /**
+   * Signals excluded from the month comparison, with the source month and
+   * reason preserved so the comparison can be reproduced without treating
+   * no-data, invalid, or unavailable observations as usable.
+   */
+  excludedSignals: EnvironmentTemporalExclusion[];
   /** Oldest data month among available signals; null when none are usable. */
   earliestMonth: YearMonth | null;
   /** Newest data month among available signals; null when none are usable. */
@@ -125,6 +133,15 @@ export interface EnvironmentTemporalAlignment {
   aligned: boolean;
   /** Honest caveat sentence; carries no value comparison or condition claim. */
   statement: string;
+}
+
+export interface EnvironmentTemporalExclusion {
+  id: EnvironmentSignalId;
+  status: Exclude<EnvironmentSignalStatus, "available">;
+  /** Source month when one was supplied; null for a not-supplied signal. */
+  dataMonth: YearMonth | null;
+  /** Source/validation reason carried by the signal coverage contract. */
+  reason: string | null;
 }
 
 /**
@@ -160,6 +177,12 @@ export interface EnvironmentSignalCurrency {
 export interface EnvironmentDataCurrency {
   /** Usable signals whose currency was assessed, in signal order. */
   comparedSignalIds: EnvironmentSignalId[];
+  /**
+   * Usable signals omitted because no product-specific availability checkpoint
+   * was supplied. Currently this can only contain vegetation: the shared
+   * checkpoint is explicitly climate-scoped.
+   */
+  unassessedSignalIds: EnvironmentSignalId[];
   /** Per-signal lag detail, in signal order. */
   perSignal: EnvironmentSignalCurrency[];
   /** Smallest lag among usable signals (freshest); null when none usable. */
@@ -444,10 +467,25 @@ export function summarizeTemporalAlignment(
     (signal): signal is EnvironmentSignalBrief & { dataMonth: YearMonth } =>
       signal.status === "available" && signal.dataMonth !== null
   );
+  const excludedSignals = signals
+    .filter(
+      (
+        signal
+      ): signal is EnvironmentSignalBrief & {
+        status: Exclude<EnvironmentSignalStatus, "available">;
+      } => signal.status !== "available"
+    )
+    .map(({ id, status, dataMonth, coverage }) => ({
+      id,
+      status,
+      dataMonth,
+      reason: coverage.reason,
+    }));
 
   if (usable.length === 0) {
     return {
       comparedSignalIds: [],
+      excludedSignals,
       earliestMonth: null,
       latestMonth: null,
       spanMonths: null,
@@ -467,6 +505,7 @@ export function summarizeTemporalAlignment(
 
   return {
     comparedSignalIds,
+    excludedSignals,
     earliestMonth: earliest,
     latestMonth: latest,
     spanMonths,
@@ -502,11 +541,12 @@ function temporalAlignmentStatement(
 /**
  * Report how stale the usable (`available`) observations are relative to the
  * availability checkpoint each was measured against, so a lagged source month
- * is never silently read as current. Every signal uses its product-specific
- * checkpoint when supplied, falling back to the shared checkpoint. Non-usable
- * signals contribute no lag. This is a data-recency descriptor over
- * publication lag, not a claim that the values themselves rose, fell, or
- * agree.
+ * is never silently read as current. Climate signals use their product-specific
+ * checkpoint when supplied and otherwise use the shared climate checkpoint.
+ * Vegetation contributes only when it has a product-specific checkpoint; using
+ * a climate frontier for MODIS vegetation would invent cross-product currency.
+ * Non-usable signals contribute no lag. This is a data-recency descriptor over
+ * publication lag, not a claim that the values themselves rose, fell, or agree.
  */
 export function summarizeDataCurrency(
   signals: readonly EnvironmentSignalBrief[],
@@ -514,8 +554,16 @@ export function summarizeDataCurrency(
   availableThroughBySignal?: EnvironmentBriefInput["availableThroughBySignal"]
 ): EnvironmentDataCurrency {
   const perSignal: EnvironmentSignalCurrency[] = [];
+  const unassessedSignalIds: EnvironmentSignalId[] = [];
   for (const signal of signals) {
     if (signal.status !== "available" || signal.dataMonth === null) continue;
+    if (
+      signal.id === "vegetation" &&
+      availableThroughBySignal?.vegetation === undefined
+    ) {
+      unassessedSignalIds.push(signal.id);
+      continue;
+    }
     const checkpoint =
       availableThroughBySignal?.[signal.id] ?? availableThrough;
     // Whole months behind the availability frontier, floored at 0: a data
@@ -532,12 +580,16 @@ export function summarizeDataCurrency(
   if (perSignal.length === 0) {
     return {
       comparedSignalIds: [],
+      unassessedSignalIds,
       perSignal: [],
       freshestLagMonths: null,
       stalestLagMonths: null,
       freshestSignalId: null,
       stalestSignalId: null,
-      statement: "No usable observations to assess for data currency.",
+      statement:
+        unassessedSignalIds.length === 0
+          ? "No usable observations to assess for data currency."
+          : unassessedCurrencyStatement(unassessedSignalIds),
     };
   }
 
@@ -551,13 +603,20 @@ export function summarizeDataCurrency(
 
   return {
     comparedSignalIds: perSignal.map((entry) => entry.id),
+    unassessedSignalIds,
     perSignal,
     freshestLagMonths: freshest.lagMonths,
     stalestLagMonths: stalest.lagMonths,
     freshestSignalId: freshest.id,
     stalestSignalId: stalest.id,
-    statement: dataCurrencyStatement(perSignal, freshest, stalest),
+    statement: `${dataCurrencyStatement(perSignal, freshest, stalest)}${unassessedSignalIds.length ? ` ${unassessedCurrencyStatement(unassessedSignalIds)}` : ""}`,
   };
+}
+
+function unassessedCurrencyStatement(
+  signalIds: readonly EnvironmentSignalId[]
+): string {
+  return `Currency was not assessed for ${signalIds.join(", ")} because no product-specific availability checkpoint was supplied.`;
 }
 
 function dataCurrencyStatement(
@@ -583,7 +642,7 @@ function lagPhrase(lag: number): string {
 
 /** One credited source dataset, with the brief signals it backed. */
 export interface SourceAttribution {
-  /** The distinct source dataset (deduplicated by DOI). */
+  /** The distinct source dataset version (deduplicated by DOI + version). */
   source: DatasetRef;
   /** Ids of the signals this source backed, in signal order. */
   signalIds: EnvironmentSignalId[];
@@ -601,11 +660,11 @@ export interface SourceAttribution {
 
 /**
  * Brief-scoped source credit: exactly the datasets that fed one environment
- * brief, deduplicated by DOI, plus GIBS's requested acknowledgment and a
+ * brief, deduplicated by DOI + version, plus GIBS's requested acknowledgment and a
  * ready-to-paste one-line credit for a figure caption or observation export.
  */
 export interface BriefAttribution {
-  /** Distinct credited sources, deduplicated by DOI, in first-seen order. */
+  /** Distinct credited source versions, in first-seen order. */
   sources: SourceAttribution[];
   /** GIBS's requested acknowledgment, verbatim. */
   acknowledgment: string;
@@ -615,21 +674,23 @@ export interface BriefAttribution {
 
 /**
  * Credit exactly the sources a brief drew on. Rainfall and soil moisture are
- * both GLDAS (one DOI), so a naive per-signal credit would list that product
- * twice and over-count it; this deduplicates by DOI and records every signal
- * each source backed. It credits every consulted source — including ones that
+ * both GLDAS (one DOI and version), so a naive per-signal credit would list
+ * that product version twice and over-count it; this deduplicates by DOI plus
+ * version and records every signal each source backed. It credits every
+ * consulted source — including ones that
  * only returned a no-data or unpublished state — so the credit never implies a
  * usable value where there was none (see `contributedValue`). This is a
  * provenance descriptor, not a value, comparison, or condition claim.
  *
  * DOI identity is compared case- and whitespace-insensitively (the handle
  * system resolves ASCII DOIs case-insensitively), matching the DOI convention
- * in `sourceIndependence.ts`, so the same product cited with incidental casing
- * or spacing differences is credited once rather than double-counted. A source
- * that carries no resolvable DOI is keyed by its own product identity
- * (short name + version) instead, so two distinct DOI-less products stay
- * separate credits rather than collapsing into one. The displayed resolver link
- * preserves the DOI's original casing, since a DOI suffix can be case-sensitive.
+ * in `sourceIndependence.ts`. Version remains part of the identity so citations
+ * to different releases under one DOI cannot silently inherit the first-seen
+ * version label. A source that carries no resolvable DOI is keyed by its own
+ * product identity (short name + version) instead, so two distinct DOI-less
+ * products stay separate credits rather than collapsing into one. The
+ * displayed resolver link preserves the DOI's original casing, since a DOI
+ * suffix can be case-sensitive.
  */
 export function attributeBrief(
   signals: readonly EnvironmentSignalBrief[]
@@ -670,16 +731,16 @@ function normalizedDoiText(doi: DatasetRef["doi"]): string {
 }
 
 /**
- * Stable dedup key identifying the *product* behind a source. Two references to
- * one product must credit it once, so a present DOI keys the entry
- * case-insensitively (whitespace stripped) — the same identity comparison
- * `sourceIndependence.ts` uses. Without a resolvable DOI we cannot assert two
- * references are the same product, so DOI-less sources fall back to their own
- * short-name + version identity rather than all collapsing under one empty key.
+ * Stable dedup key identifying the product version behind a source. Two
+ * references to one DOI and version must credit it once, so a present DOI is
+ * compared case-insensitively (whitespace stripped) while the native version
+ * remains explicit. Without a resolvable DOI we cannot assert two references
+ * are the same product, so DOI-less sources fall back to their own short-name
+ * and version identity rather than all collapsing under one empty key.
  */
 function sourceDedupKey(source: DatasetRef): string {
   const doi = normalizedDoiText(source.doi).toLowerCase();
-  if (doi) return `doi:${doi}`;
+  if (doi) return `doi:${doi}\0${source.version}`;
   return `nodoi:${source.shortName} ${source.version}`;
 }
 

@@ -21,7 +21,10 @@ You don't have to write code to help:
 - **Write code** — fix a bug or build a feature.
 
 Look for issues labelled [`good first issue`](https://github.com/zkWizard/RoamingEye/labels/good%20first%20issue)
-to get started.
+to get started. Some of them add code the app imports, and the app's size budget
+is currently full — see [**The bundle budget**](#the-bundle-budget--read-this-before-adding-code-to-the-app)
+below before you start one. Where an issue is affected, it says so on the issue
+itself; docs-only and tooling-only issues are unaffected.
 
 Before picking something in `src/lib/`, read
 [**Wired vs. staged modules**](../ARCHITECTURE.md#wired-vs-staged-modules--read-this-before-picking-a-task)
@@ -83,10 +86,18 @@ ok  three-eDZqjHhA.js: 133.3 kB gzip (budget 170 kB)
 ```
 
 **The app chunk is currently sitting on its cap.** That is real output from CI on
-`main` at `156822f` (2026-07-28) — 60.0 kB against a budget of 60, i.e. well
-under a tenth of a kB of headroom. If your PR adds code the app actually
-imports, expect Build to go red on the budget, and please read that as a
-repo-wide condition rather than a mistake in your patch.
+`main` at `156822f` (2026-07-28) — 60.0 kB against a budget of 60. Measured
+exactly, on `main` at `d48c5d4` (2026-07-28), the app chunk is **61,414 bytes
+gzipped against a 61,440-byte cap: 26 bytes of headroom.** If your PR adds code
+the app actually imports, expect Build to go red on the budget, and please read
+that as a repo-wide condition rather than a mistake in your patch.
+
+For a sense of scale, both measured on that commit: adding a ternary to one
+`setAttribute` call costs **+12 bytes** and still fits; adding arrow-key
+navigation to the search box (issue #374 — one keydown handler, an active-option
+index, and `aria-selected` bookkeeping) costs **+225 bytes**, which lands 199
+bytes over the cap. A single small feature is enough to exceed the remaining
+room, so the budget is worth checking before you start, not after.
 
 Two things make the result easy to misread:
 

@@ -715,6 +715,153 @@ verified` — still provisioning, still do not touch DNS. Revisit date stands at
   `html_url` still `http://roamingeye.org/`. Still provisioning, still do not touch DNS.
   Revisit date stands at **2026-07-29**; `outbox/` stays send-blocked. Signals not re-pulled —
   measured earlier today and nothing has been sent.
+- 2026-07-28 (later run) — **Closed the pipeline's last named unresearched category:
+  university remote-sensing course networks (Duty 1).** `TARGETS.md`'s own "notes for future
+  runs" had queued exactly one category and nothing else; the educator track had two ready
+  assets (`outbox/classroom-lab-one-pager.md`, and as of #647 `docs/teaching/ndvi-phenology-lab.md`)
+  but no vetted venue to route them to. Read each venue's actual rules before writing a word, and
+  the three answers came out genuinely different — which is the point of reading them.
+  **UCGIS Instructional Resources — the find, and the recommended next draft.** The
+  University Consortium for GIScience (65+ member/affiliate institutions) curates an Open
+  Educational Resources list for teaching with GIS, and the page invites suggestions outright:
+  _"If you have something that you'd like to see included here, please let us know!"_ **No
+  membership requirement is stated** — suggesting a resource is separate from UCGIS institutional
+  membership and separate again from authoring a GIS&T Body of Knowledge chapter. The list already
+  mixes MIT/NASA/Esri/university material, so a free MIT-licensed tool is in-scope. Only published
+  contact is the UCGIS office (`arock@ucgis.org`). Angle recorded: **lead with the lab, not the
+  globe** — instructors have plenty of globes, and this page lists things to teach _with_.
+  Left **researched, not drafted**, deliberately: a syllabus-scraped listing link is
+  semi-permanent, so it sits behind the ⛔ HTTPS gate alongside the awesome-lists.
+  **GeoForAll (ICA–OSGeo) — two doors, and only one is open to us.** The criteria admit
+  **institutions and organizations, not individual software projects**, and require an
+  institutional lead, a lab website within a year, and annual activity reports. So lab membership
+  is a **decline on their own rules** and the note says explicitly: do not email a regional chair
+  asking to join — applying would be a public misread of their rules. The open door is the
+  `geoforall@lists.osgeo.org` list (free subscribe, any subscriber may post, roster hidden but
+  **archive public**), which feeds a monthly newsletter that already carries "free software and
+  data, courses, training programs, websites". Recorded honestly that **no code of conduct or
+  anti-promotion policy is published** on the list-info page — an absence, not a green light — so
+  the evident norm (educators sharing material, not vendors announcing) is the rule to follow.
+  **AmericaView — best audience fit of the three, no published way in.** A USGS-linked consortium
+  of **39 state university members** with a 255-dataset CKAN grouped into Tutorials / Courses /
+  K-12 — literally "university remote-sensing course networks". But the education page, the contact
+  page and the CKAN front page were each read and **none states whether outsiders may submit, under
+  what licence, or who curates.** Contributions appear to come from member-state programmes, but
+  that is an inference we cannot cite. **Parked pending a one-line question** to the Education &
+  Outreach Committee chairs, mirroring the EET precedent rather than inventing a submission path.
+  **Also corrected a near-miss in my own research:** I first read `og:image` as pointing at a
+  missing `social-card.jpg` and nearly logged a broken-social-card finding — the file _is_ in the
+  repo (`public/social-card.jpg`, 2400×1260) and serves `200`. No such claim was written. Related:
+  zkWizard has **uncommitted local work in flight** on `index.html` + an untracked `public/og.png`
+  swapping that card; left entirely untouched.
+  **Not repeated as findings** (already logged by prior runs, still unfixed, still zkWizard's call):
+  the empty repo `description`, the `homepage` HOLD, and the Releases tab sitting at **v1.0.1**
+  while `package.json` reads **1.1.0**. One genuinely new housekeeping item worth a future line:
+  the repo's **social preview is still GitHub's auto-generated card** (`usesCustomOpenGraphImage:
+false`) even though a usable image already exists in-repo — a Settings-UI upload, not scriptable.
+  **HTTPS gate re-measured (3×):** `https_certificate: null`, `https_enforced: false`, Pages
+  `html_url` still `http://roamingeye.org/`; `https://roamingeye.org/` fails to connect and
+  github.io still `301`s to plain `http://`. Gate holds, revisit **2026-07-29**, outbox stays
+  send-blocked. Worked in a detached `git worktree`; the shared clone and zkWizard's uncommitted
+  changes were not touched.
+- 2026-07-28 (later run) — **Audited the four issues we advertise to newcomers by building
+  them, and found one that cannot be landed by the person we are inviting.** Duty 4. The
+  README and `CONTRIBUTING.md` both point first-timers at the
+  [`good first issue`](https://github.com/zkWizard/RoamingEye/labels/good%20first%20issue)
+  label; with traction at zero those four issues **are** the contributor funnel, and no run
+  had verified them since #373/#374/#375 were opened on 2026-07-15.
+  **All four are still real, and every cited line number still resolves** — checked against
+  `origin/main` at `d48c5d4`, not against the issue text: `.github/CONTRIBUTING.md` still says
+  "Node.js 20+" against `engines: ^20.19.0 || >=22.12.0` (#375); `TimeSlider.ts:53` is still
+  the hardcoded `aria-label", "Month"` (#373); `SearchBox.ts:34–37` is still input + Escape
+  only, and the `LayerSelector.ts:75–101` reference implementation the issue tells a newcomer
+  to copy is intact (#374); `check-bundle-size.mjs` still carries the stale "app ~34 kB"
+  header (#638).
+  **The finding: #374 fails the required Build check, and a newcomer cannot fix that.** Built
+  it to measure rather than estimating — implemented the issue's own acceptance criteria
+  (ArrowDown/ArrowUp with wrap, Enter to select, `aria-selected`, `aria-activedescendant`),
+  type-checked clean, then built. Baseline `main` is **61,414 bytes gzip against the
+  61,440-byte cap — 26 bytes**. The patch costs **+225 bytes → 61,639, i.e. 199 over**, and
+  `npm run build` exits 1 with `FAIL index-….js: 60.2 kB`. So the newcomer we are courting
+  does the work correctly, opens their first PR, and hits a red **required** check whose
+  remedy — raise the cap — is explicitly a maintainer decision they have no standing to make.
+  **#373 fits, but only just: +12 bytes → 61,426, leaving 14.** Which also means #373 and #374
+  cannot both land, and #373 is effectively the last app-surface change that fits. #375 (docs)
+  and #638 (`scripts/`, not bundled) cost zero bytes and are unaffected — those two are the
+  safe recommendations today.
+  **Acted on it in the two places a newcomer actually looks.** Commented the measurement on
+  #374 and #373, and **removed `good first issue` from #374** — it is a good issue and a bad
+  first issue while the cap is full — noting on the thread that the label should go straight
+  back when the budget question is settled. Left the issue open; the work is still wanted.
+  **Did not spend the budget.** Raising the cap would have made #374 landable in one line and
+  is precisely the call comms does not get to make (`check-bundle-size.mjs`'s own rule: a bump
+  must be justified by the PR that makes it). Flagged for the maintainer instead.
+  **In `CONTRIBUTING.md`:** the budget section already existed from an earlier run today, but
+  it sat 50 lines below the "look for `good first issue`" line with nothing connecting them.
+  Added the pointer at the label mention, and replaced "well under a tenth of a kB" with the
+  measured 26 bytes plus both worked examples (+12 fits, +225 does not) — a contributor can
+  now tell before starting whether their task fits.
+  **Standing by-file check run first:** of the open PRs, only #650 (comms) and the #652 merge
+  train touch `comms/`, and **none** touches `.github/CONTRIBUTING.md`. Worked in a detached
+  `git worktree`, so no specialist's checkout and none of zkWizard's uncommitted changes were
+  disturbed. (Local build needed `@rolldown/binding-win32-x64-msvc` installed by hand — the
+  optional platform binary is missing from a plain `npm ci` here, and this box runs Node
+  20.18.0, below the floor `engines` declares. That is #375's premise showing up for real,
+  though `npm ci` warns rather than fails.)
+  **HTTPS gate re-measured:** `https_certificate: null`, `https_enforced: false`, Pages
+  `html_url` still `http://roamingeye.org/`, and `https://roamingeye.org/` still fails TLS
+  outright while `zkwizard.github.io` 301s to plain `http://`. Still provisioning, still do
+  not touch DNS. Revisit date stands at **2026-07-29**; `outbox/` stays send-blocked. Signals
+  not re-pulled — measured earlier today and nothing has been sent.
+- 2026-07-28 (later run) — **Found the one venue in the pipeline we own, and it was empty
+  and invisible.** Duty 4/6. Every other entry in `TARGETS.md` is somebody else's room;
+  nobody had ever looked at **our own GitHub Discussions**. Measured it (GraphQL): enabled,
+  GitHub's **six stock categories**, **0 discussions**.
+  **Why that is a launch-critical hole, not a cosmetic one.**
+  [`.github/ISSUE_TEMPLATE/config.yml`](../.github/ISSUE_TEMPLATE/config.yml) routes every
+  "Question or discussion" there **and** sets `blank_issues_enabled: false` — so a visitor
+  who wants to _ask_ rather than _report_ has no other route into the project. And it was
+  unreachable in practice: the only pointer to Discussions anywhere in the repo was that one
+  line of issue-template YAML, which a person sees only after clicking "New issue". The
+  README's Contributing section had **seven bullets and not one said where to ask a
+  question**. Meanwhile Slots 1–4 of `SEND-PLAN.md` (three.js, Pangeo, leafmap, Show HN) all
+  promise an author present and answering, and all four generate questions by design. That
+  traffic was aimed at an empty room with no sign on the door.
+  **Fixed the signposting** (`README.md`): a "Just want to ask something?" bullet linking
+  **Q&A** and **Ideas** directly, stating that no bug report is required and that you need
+  not have contributed anything first. Zero bundle cost — `README.md` is not bundled, which
+  matters under the exhausted 61,440-byte cap.
+  **Drafted the post** (`outbox/github-discussions-welcome-post.md`, _Announcements_):
+  orientation rather than announcement — what the tool is, where a question versus an idea
+  versus a bug goes, and the three caveats a newcomer should hear from us before they find
+  them alone (the probe is approximate **by design**, the project is 30 days old, the PR
+  queue is automated and not in your way). Claims held to what is checkable: `~31 m` terrain
+  tiles and the 37-provider catalogue against `README.md:45,48`, first commit `2026-06-28`
+  from `git log --reverse`. It explicitly does **not** quote a traction number — per
+  `SIGNALS.md` none is quotable.
+  **One sequencing claim worth acting on: this goes out BEFORE Slot 1.** It is send-gated
+  like everything else (it links to the live site), but it is the cheapest send in the
+  pipeline — our own repo, editable after posting, no one-shot risk and no permanence — and
+  posting it after the first outreach lands defeats its purpose. Recorded in `TARGETS.md`
+  under a new **"The venue we own"** section and in the `outbox/README.md` index.
+  **Two optional housekeeping steps left to zkWizard rather than applied:** prune the stock
+  categories (_Polls_ has nothing to poll a community of zero about) and pin the post. Both
+  are public-repo-metadata calls, which this agent does not make unattended.
+  **Checked for duplication first, and it paid.** PR #654 had opened 30 minutes earlier and
+  had already audited all four `good first issue` issues by building them — so the GFI pass
+  this run started on would have been entirely duplicative. Re-verified #375 independently
+  anyway (still true; its cited line has drifted `30 → 36`). Standing by-file check run
+  before editing: of 109 open PRs, `README.md` is touched only by the stale merge-train batch
+  #573, and `.github/CONTRIBUTING.md` is held by the live #654 — **so CONTRIBUTING was left
+  alone deliberately** to avoid conflicting with it. Worked in a detached `git worktree`, not
+  the shared clone.
+  **HTTPS gate re-measured (4th time):** `https_certificate: null`, `https_enforced: false`,
+  Pages `html_url` still `http://roamingeye.org/`, apex still fails TLS
+  (`SEC_E_WRONG_PRINCIPAL`), `github.io` still `301`s to plain `http://`. Still provisioning;
+  do not touch DNS. Revisit date stands at **2026-07-29**; `outbox/` stays send-blocked.
+  **Signals re-pulled:** 1 star (`statuette`, the known drive-by), **0** forks, **0**
+  outside-authored issues or PRs, 26 views / 8 uniques (down from 43/10 — the 14-day window
+  shedding older days, not a decline in interest, since nothing has been sent).
 - 2026-07-28 (later run) — **Duty 4.** Named the contribution surface that the full bundle
   budget leaves open, in `CONTRIBUTING.md`. #654 (open) documents the cap and audits the
   starter issues; the gap it leaves is that nobody says what a newcomer _can_ pick up. The

@@ -12,12 +12,12 @@ import { fetchJson } from "./net";
 interface Polygon {
   outer: Position[];
   holes: Position[][];
+  bbox: [number, number, number, number]; // [minLon, minLat, maxLon, maxLat]
 }
 
 interface IndexedFeature<T> {
   value: T;
   polygons: Polygon[];
-  bbox: [number, number, number, number]; // [minLon, minLat, maxLon, maxLat]
 }
 
 export interface RegionIndex<T> {
@@ -69,29 +69,62 @@ function polygonsFromGeometry(geometry: RawGeometry): Polygon[] {
   const polygons: Polygon[] = [];
   if (geometry.type === "Polygon") {
     const rings = geometry.coordinates as Position[][];
-    polygons.push({ outer: rings[0], holes: rings.slice(1) });
+    polygons.push(indexPolygon(rings));
   } else if (geometry.type === "MultiPolygon") {
     for (const poly of geometry.coordinates as Position[][][]) {
-      polygons.push({ outer: poly[0], holes: poly.slice(1) });
+      polygons.push(indexPolygon(poly));
     }
   }
   return polygons;
 }
 
-function bboxOf(polygons: Polygon[]): [number, number, number, number] {
+function unwrapRing(ring: Position[], reference?: number): Position[] {
+  if (ring.length === 0) return [];
+  const unwrapped: Position[] = [[ring[0][0], ring[0][1]]];
+  for (let i = 1; i < ring.length; i++) {
+    let lon = ring[i][0];
+    const previous = unwrapped[i - 1][0];
+    while (lon - previous > 180) lon -= 360;
+    while (lon - previous < -180) lon += 360;
+    unwrapped.push([lon, ring[i][1]]);
+  }
+
+  if (reference !== undefined) {
+    const centre =
+      unwrapped.reduce((sum, [lon]) => sum + lon, 0) / unwrapped.length;
+    const turns = Math.round((reference - centre) / 360);
+    return unwrapped.map(([lon, lat]) => [lon + turns * 360, lat]);
+  }
+  return unwrapped;
+}
+
+function bboxOfRing(ring: Position[]): [number, number, number, number] {
   let minLon = Infinity;
   let minLat = Infinity;
   let maxLon = -Infinity;
   let maxLat = -Infinity;
-  for (const poly of polygons) {
-    for (const [lon, lat] of poly.outer) {
-      if (lon < minLon) minLon = lon;
-      if (lon > maxLon) maxLon = lon;
-      if (lat < minLat) minLat = lat;
-      if (lat > maxLat) maxLat = lat;
-    }
+  for (const [lon, lat] of ring) {
+    if (lon < minLon) minLon = lon;
+    if (lon > maxLon) maxLon = lon;
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
   }
   return [minLon, minLat, maxLon, maxLat];
+}
+
+function indexPolygon(rings: Position[][]): Polygon {
+  const outer = unwrapRing(rings[0]);
+  const bbox = bboxOfRing(outer);
+  const reference = (bbox[0] + bbox[2]) / 2;
+  return {
+    outer,
+    holes: rings.slice(1).map((ring) => unwrapRing(ring, reference)),
+    bbox,
+  };
+}
+
+function longitudeInFrame(longitude: number, reference: number): number {
+  return longitude + Math.round((reference - longitude) / 360) * 360;
 }
 
 /**
@@ -110,20 +143,26 @@ export function buildRegionIndex<T>(
     if (value === null) continue;
     const polygons = polygonsFromGeometry(f.geometry);
     if (polygons.length === 0) continue;
-    features.push({ value, polygons, bbox: bboxOf(polygons) });
+    features.push({ value, polygons });
   }
 
   return {
     lookup(lat, lon) {
       for (const feature of features) {
-        const [minLon, minLat, maxLon, maxLat] = feature.bbox;
-        if (lon < minLon || lon > maxLon || lat < minLat || lat > maxLat) {
-          continue;
-        }
         for (const poly of feature.polygons) {
+          const [minLon, minLat, maxLon, maxLat] = poly.bbox;
+          const framedLon = longitudeInFrame(lon, (minLon + maxLon) / 2);
           if (
-            pointInRing(lon, lat, poly.outer) &&
-            !poly.holes.some((hole) => pointInRing(lon, lat, hole))
+            framedLon < minLon ||
+            framedLon > maxLon ||
+            lat < minLat ||
+            lat > maxLat
+          ) {
+            continue;
+          }
+          if (
+            pointInRing(framedLon, lat, poly.outer) &&
+            !poly.holes.some((hole) => pointInRing(framedLon, lat, hole))
           ) {
             return feature.value;
           }

@@ -98,7 +98,7 @@ describe("place observation environmental brief", () => {
 
     expect(result.kind).toBe("place-observation-environment-brief");
     expect(result.provenance).toEqual({
-      exportSchema: "roamingeye-place-observation-export/v3",
+      exportSchema: "roamingeye-place-observation-export/v4",
       boundary: record.boundary,
       sampling: "area-weighted-grid-mean",
       imagery: record.method.imagery,
@@ -533,6 +533,49 @@ describe("place observation environmental brief", () => {
     });
   });
 
+  it.each([
+    "2026-07-13T07:00:00",
+    "2026-02-30T07:00:00Z",
+    "2026-07-13T24:00:00Z",
+    "2026-07-13T07:00:00+24:00",
+  ])(
+    "rejects recorded products when external generation provenance is invalid: %s",
+    (generatedIso) => {
+      const record = exportRecord();
+      record.generated.iso = generatedIso;
+
+      const result = composePlaceObservationBrief(record);
+
+      expect(result.productStatus).toEqual({
+        vegetation: "rejected-generation-timestamp",
+        rainfall: "rejected-generation-timestamp",
+        "soil-moisture": "rejected-generation-timestamp",
+        "air-temperature": "rejected-generation-timestamp",
+      });
+      expect(
+        result.brief.signals.map((signal) => ({
+          status: signal.status,
+          reason: signal.coverage.reason,
+          dataMonth: signal.dataMonth,
+          observedValue: signal.observedValue,
+        }))
+      ).toEqual(
+        Array.from({ length: 4 }, () => ({
+          status: "unavailable",
+          reason: "rejected-generation-timestamp",
+          dataMonth: null,
+          observedValue: null,
+        }))
+      );
+      expect(result.samplingProvenance).toEqual({
+        vegetation: null,
+        rainfall: null,
+        "soil-moisture": null,
+        "air-temperature": null,
+      });
+    }
+  );
+
   it("uses the generated timestamp's stated calendar month at timezone boundaries", () => {
     const record = exportRecord();
     record.generated.iso = "2026-01-31T23:30:00-08:00";
@@ -555,6 +598,65 @@ describe("place observation environmental brief", () => {
     expect(result.observationSelection.vegetation.selectedDataMonth).toEqual({
       year: 2026,
       month: 1,
+    });
+  });
+
+  it.each([
+    {
+      label: "negative coverage",
+      observation: {
+        dataMonth: "2026-01",
+        value: 0.45,
+        validFraction: -0.1,
+      },
+    },
+    {
+      label: "coverage above the sampled area",
+      observation: {
+        dataMonth: "2026-01",
+        value: 0.45,
+        validFraction: 1.1,
+      },
+    },
+    {
+      label: "non-finite coverage",
+      observation: {
+        dataMonth: "2026-01",
+        value: 0.45,
+        validFraction: Number.NaN,
+      },
+    },
+    {
+      label: "a recorded value with zero coverage",
+      observation: {
+        dataMonth: "2026-01",
+        value: 0.45,
+        validFraction: 0,
+      },
+    },
+  ])("rejects $label from an external export record", ({ observation }) => {
+    const record = exportRecord();
+    record.products.find((p) => p.layerId === "ndvi")!.observations = [
+      observation,
+    ] as (typeof record.products)[number]["observations"];
+
+    const result = composePlaceObservationBrief(record);
+
+    expect(result.productStatus.vegetation).toBe(
+      "rejected-observation-coverage"
+    );
+    expect(result.observationSelection.vegetation).toEqual({
+      recordedObservationCount: 1,
+      earliestDataMonth: null,
+      latestDataMonth: null,
+      selectedDataMonth: null,
+    });
+    expect(result.samplingProvenance.vegetation).toBeNull();
+    expect(result.brief.signals[0]).toMatchObject({
+      status: "unavailable",
+      dataMonth: null,
+      observedValue: null,
+      coverage: { reason: "rejected-observation-coverage" },
     });
   });
 

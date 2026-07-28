@@ -43,6 +43,10 @@ export interface RefinedGeometrySamplingPlan extends GeometrySamplingPlan {
   candidatePointCount: number;
   /** Interior cells before the stable point-limit guard was applied. */
   interiorPointCount: number;
+  /** Polygon components present in the input MultiPolygon (1 for Polygon). */
+  polygonComponentCount: number;
+  /** Polygon components represented by at least one retained sample cell. */
+  sampledComponentCount: number;
   /** True when the plan retained a representative subset for bounded work. */
   pointLimitApplied: boolean;
 }
@@ -218,11 +222,39 @@ export function geometryBounds(geometry: GeoGeometry): GeometryBounds | null {
     : null;
 }
 
+function pointOnSegment(
+  lon: number,
+  lat: number,
+  [startLon, startLat]: Position,
+  [endLon, endLat]: Position
+): boolean {
+  const deltaLon = endLon - startLon;
+  const deltaLat = endLat - startLat;
+  const pointLon = lon - startLon;
+  const pointLat = lat - startLat;
+  const squaredLength = deltaLon * deltaLon + deltaLat * deltaLat;
+  if (squaredLength === 0) return pointLon === 0 && pointLat === 0;
+  const cross = pointLon * deltaLat - pointLat * deltaLon;
+  const scale = Math.max(
+    1,
+    Math.abs(pointLon * deltaLat),
+    Math.abs(pointLat * deltaLon)
+  );
+  if (Math.abs(cross) > Number.EPSILON * 8 * scale) return false;
+  const dot = pointLon * deltaLon + pointLat * deltaLat;
+  return dot >= 0 && dot <= squaredLength;
+}
+
 function pointInRing(lon: number, lat: number, ring: Position[]): boolean {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
     const [xi, yi] = ring[i];
     const [xj, yj] = ring[j];
+    // Ray casting alone assigns shared vertices and horizontal edges
+    // inconsistently. Treat the ring edge as part of the ring so an exact
+    // searched-boundary coordinate has deterministic semantics. Callers still
+    // subtract hole rings below, including their edges.
+    if (pointOnSegment(lon, lat, ring[j], ring[i])) return true;
     const crosses =
       yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
     if (crosses) inside = !inside;
@@ -421,8 +453,15 @@ export function geometrySamplingPlan(
   );
   let gridSize = Math.min(maxGridSize, positiveInteger(initialGridSize, 1));
   let candidates = geometryGridCandidates(geometry, gridSize);
+  const polygonComponentCount = preparedPolygons(geometry).length;
+  const representedComponentCount = (): number =>
+    new Set(candidates.map(({ polygonIndex }) => polygonIndex)).size;
 
-  while (candidates.length < minPoints && gridSize < maxGridSize) {
+  while (
+    (candidates.length < minPoints ||
+      representedComponentCount() < polygonComponentCount) &&
+    gridSize < maxGridSize
+  ) {
     gridSize = Math.min(maxGridSize, gridSize * 2);
     candidates = geometryGridCandidates(geometry, gridSize);
   }
@@ -433,6 +472,8 @@ export function geometrySamplingPlan(
     gridSize,
     candidatePointCount: gridSize * gridSize,
     interiorPointCount: candidates.length,
+    polygonComponentCount,
+    sampledComponentCount: representedComponentCount(),
     pointLimitApplied: candidates.length > maxPoints,
   };
 }

@@ -20,7 +20,7 @@ import {
  */
 
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
-  "roamingeye-place-observation-export/v3" as const;
+  "roamingeye-place-observation-export/v4" as const;
 
 export const GIBS_IMAGERY_SOURCE = {
   name: "NASA Global Imagery Browse Services (GIBS)",
@@ -83,6 +83,12 @@ export interface PlaceObservationInput {
 export type PlaceObservationUnavailableReason =
   "source-no-data" | "insufficient-valid-coverage" | "sampling-failed";
 
+const PLACE_OBSERVATION_UNAVAILABLE_REASONS = [
+  "source-no-data",
+  "insufficient-valid-coverage",
+  "sampling-failed",
+] as const satisfies readonly PlaceObservationUnavailableReason[];
+
 export interface PlaceObservationMethodInput {
   sampling: PlaceObservationSampling;
   imageWidth: number;
@@ -117,6 +123,7 @@ export interface PlaceObservationExport {
       products: "layer-id-ascending";
       observations: "data-month-ascending";
     };
+    geography: PlaceObservationGeography;
     /**
      * Per-month record states across all exported products. This describes
      * only what the export contains; `not-recorded` makes no claim about
@@ -159,6 +166,26 @@ export interface PlaceObservationDataMonth {
   }[];
 }
 
+/**
+ * Machine-readable interpretation of the preserved GeoJSON boundary.
+ *
+ * CRS84 makes the longitude/latitude axis order explicit. A west bound greater
+ * than the east bound is an intentional short-arc antimeridian envelope, not
+ * an invalid or global footprint.
+ */
+export interface PlaceObservationGeography {
+  geometryType: "Polygon" | "MultiPolygon";
+  coordinateReferenceSystem: "OGC:CRS84";
+  axisOrder: readonly ["longitude", "latitude"];
+  bounds: {
+    west: number;
+    south: number;
+    east: number;
+    north: number;
+  };
+  crossesAntimeridian: boolean;
+}
+
 /** Native product units for the independently sampled place-insight signals. */
 export const PLACE_OBSERVATION_NATIVE_UNITS = {
   ndvi: "NDVI",
@@ -186,6 +213,32 @@ export interface PlaceObservationExportSample {
   samplingSupport?: PlaceObservationSamplingSupport;
 }
 
+/**
+ * Preserve a completed SST sampler result as an export observation. A null
+ * value is still a result: retain whether the rendered boundary had no usable
+ * SST pixels or only partial coverage that could not support a value.
+ *
+ * This is physical ocean-temperature sampling metadata, never biological
+ * evidence or an ecological interpretation.
+ */
+export function sstPlaceObservationFromSample(
+  dataMonth: YearMonth,
+  value: number | null,
+  validFraction: number
+): PlaceObservationInput {
+  if (value !== null) {
+    return { dataMonth, value, validFraction };
+  }
+
+  return {
+    dataMonth,
+    value: null,
+    validFraction,
+    unavailableReason:
+      validFraction > 0 ? "insufficient-valid-coverage" : "source-no-data",
+  };
+}
+
 const EXCLUDED_FIELDS = [
   "place-name",
   "search-query",
@@ -207,6 +260,7 @@ export function createPlaceObservationExport(
 ): PlaceObservationExport {
   validateInput(input);
   const products = exportProducts(input.products);
+  const geography = exportGeography(input.boundary);
 
   return {
     schema: PLACE_OBSERVATION_EXPORT_SCHEMA,
@@ -215,7 +269,7 @@ export function createPlaceObservationExport(
     products,
     method: {
       sampling: input.method.sampling,
-      imagery: GIBS_IMAGERY_SOURCE,
+      imagery: { ...GIBS_IMAGERY_SOURCE },
       sourceImage: {
         width: input.method.imageWidth,
         height: input.method.imageHeight,
@@ -230,17 +284,48 @@ export function createPlaceObservationExport(
     privacy: {
       includesPersonalData: false,
       includesHiddenTelemetry: false,
-      excludedFields: EXCLUDED_FIELDS,
+      excludedFields: [...EXCLUDED_FIELDS],
     },
     reproducibility: {
       canonicalOrder: {
         products: "layer-id-ascending",
         observations: "data-month-ascending",
       },
+      geography,
       dataMonthMatrix: dataMonthMatrix(products),
     },
-    limitations: LIMITATIONS,
+    limitations: [...LIMITATIONS],
   };
+}
+
+function exportGeography(boundary: GeoGeometry): PlaceObservationGeography {
+  const bounds = geometryBounds(boundary);
+  // validateInput establishes this invariant before export construction.
+  if (!bounds) throw new Error("Boundary must have geographic bounds.");
+  const west = canonicalCoordinate(normalizeLongitude(bounds.west));
+  const east = canonicalCoordinate(normalizeLongitude(bounds.east));
+
+  return {
+    geometryType: boundary.type as "Polygon" | "MultiPolygon",
+    coordinateReferenceSystem: "OGC:CRS84",
+    axisOrder: ["longitude", "latitude"],
+    bounds: {
+      west,
+      south: canonicalCoordinate(bounds.south),
+      east,
+      north: canonicalCoordinate(bounds.north),
+    },
+    crossesAntimeridian: west > east,
+  };
+}
+
+function normalizeLongitude(longitude: number): number {
+  if (longitude === 180) return 180;
+  return ((((longitude + 180) % 360) + 360) % 360) - 180;
+}
+
+function canonicalCoordinate(coordinate: number): number {
+  return Number(coordinate.toFixed(12));
 }
 
 /** Serialize the whitelist-only contract without adding hidden export fields. */
@@ -315,6 +400,7 @@ function validateInput(input: PlaceObservationExportInput): void {
       "generatedIso must be a calendar-valid ISO 8601 timestamp with a timezone."
     );
   }
+  const generatedMonth = yearMonthFromIsoCalendar(input.generatedIso);
   if (!input.toolVersion.trim()) throw new Error("toolVersion is required.");
   if (input.products.length === 0)
     throw new Error("At least one product is required.");
@@ -364,6 +450,20 @@ function validateInput(input: PlaceObservationExportInput): void {
         `Product ${product.layerId} needs a complete source citation.`
       );
     }
+    const configuredLayer = LAYERS[product.layerId];
+    if (product.wmsLayer !== configuredLayer.wmsLayer) {
+      throw new Error(
+        `Product ${product.layerId} WMS layer does not match the configured RoamingEye data product.`
+      );
+    }
+    if (
+      !configuredLayer.dataset ||
+      !sameDatasetRef(product.source, configuredLayer.dataset)
+    ) {
+      throw new Error(
+        `Product ${product.layerId} citation does not match the configured RoamingEye data product.`
+      );
+    }
     if (product.samplingSupport) validateSamplingSupport(product);
     const months = new Set<string>();
     for (const observation of product.observations) {
@@ -373,6 +473,11 @@ function validateInput(input: PlaceObservationExportInput): void {
         );
       }
       const month = formatYearMonth(observation.dataMonth);
+      if (month > generatedMonth) {
+        throw new Error(
+          `Product ${product.layerId} has data month ${month} after export generation month ${generatedMonth}.`
+        );
+      }
       if (months.has(month)) {
         throw new Error(
           `Product ${product.layerId} has duplicate month ${month}.`
@@ -385,6 +490,14 @@ function validateInput(input: PlaceObservationExportInput): void {
       if (observation.value === null && !observation.unavailableReason) {
         throw new Error(
           `Product ${product.layerId} must explain an unavailable value.`
+        );
+      }
+      if (
+        observation.unavailableReason !== undefined &&
+        !isPlaceObservationUnavailableReason(observation.unavailableReason)
+      ) {
+        throw new Error(
+          `Product ${product.layerId} has an unsupported unavailable reason.`
         );
       }
       if (observation.value !== null && observation.unavailableReason) {
@@ -552,6 +665,16 @@ function validateSamplingSupport(product: PlaceObservationProductInput): void {
       `Product ${product.layerId} has inconsistent sampling-support counts.`
     );
   }
+  if (
+    support.candidatePointCount !== support.gridSize * support.gridSize ||
+    typeof support.pointLimitApplied !== "boolean" ||
+    support.pointLimitApplied !==
+      support.retainedPointCount < support.interiorPointCount
+  ) {
+    throw new Error(
+      `Product ${product.layerId} has inconsistent sampling-support plan metadata.`
+    );
+  }
 }
 
 function dataMonthMatrix(
@@ -596,6 +719,15 @@ function hasCitation(source: DatasetRef): boolean {
   );
 }
 
+function sameDatasetRef(left: DatasetRef, right: DatasetRef): boolean {
+  return (
+    left.shortName === right.shortName &&
+    left.version === right.version &&
+    left.doi === right.doi &&
+    left.title === right.title
+  );
+}
+
 function canonicalDatasetRef(source: DatasetRef): DatasetRef {
   return {
     shortName: source.shortName,
@@ -607,6 +739,15 @@ function canonicalDatasetRef(source: DatasetRef): DatasetRef {
 
 function isPositiveInteger(value: number): boolean {
   return Number.isInteger(value) && value > 0;
+}
+
+function isPlaceObservationUnavailableReason(
+  value: unknown
+): value is PlaceObservationUnavailableReason {
+  return (
+    typeof value === "string" &&
+    PLACE_OBSERVATION_UNAVAILABLE_REASONS.some((reason) => reason === value)
+  );
 }
 
 function isIsoTimestamp(value: string): boolean {
@@ -655,6 +796,15 @@ function isYearMonth(value: YearMonth): boolean {
     value.month >= 1 &&
     value.month <= 12
   );
+}
+
+/**
+ * Preserve the calendar month explicitly written by the producer. Converting
+ * to UTC first can move an export across a month boundary and falsely accept
+ * or reject a source month depending on the producer's timezone.
+ */
+function yearMonthFromIsoCalendar(value: string): string {
+  return value.slice(0, 7);
 }
 
 function formatYearMonth(value: YearMonth): string {
