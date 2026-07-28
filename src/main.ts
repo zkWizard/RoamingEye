@@ -87,9 +87,6 @@ import {
 import type { Bounds } from "./lib/imagery";
 import { StudyRegion } from "./scene/StudyRegion";
 import { StudyChip } from "./ui/StudyChip";
-import { ProvidersPage } from "./ui/ProvidersPage";
-import { SoftwareFinder } from "./ui/SoftwareFinder";
-import { FleetDashboard } from "./ui/FleetDashboard";
 import { PlaceInsights } from "./ui/PlaceInsights";
 import { ShortcutsOverlay } from "./ui/ShortcutsOverlay";
 import { loadAdmin1Index, loadCountryIndex } from "./lib/countryIndex";
@@ -1221,22 +1218,48 @@ if (probeEl) {
   });
 }
 
-// --- Providers page ---------------------------------------------------------
+// --- Secondary panels -------------------------------------------------------
+// The providers, software and fleet panels are reference material: none of it is
+// needed to render the globe, and each drags in its own catalog and formatting
+// code. They are loaded on first open instead of at boot, which keeps that code
+// out of the entry chunk (see scripts/check-bundle-size.mjs). A failed chunk
+// load clears the cache so the next click retries, and rejects so the global
+// error surface reports it.
+function lazyPanel(
+  container: HTMLElement,
+  link: HTMLElement,
+  load: () => Promise<new (el: HTMLElement) => { open(): void }>
+): void {
+  let panel: Promise<{ open(): void }> | null = null;
+  link.addEventListener("click", () => {
+    if (!panel) {
+      panel = load().then((Panel) => new Panel(container));
+      panel.catch(() => {
+        panel = null;
+      });
+    }
+    void panel.then((p) => p.open());
+  });
+}
+
 if (providersPageEl && providersLinkEl) {
-  const providers = new ProvidersPage(providersPageEl);
-  providersLinkEl.addEventListener("click", () => providers.open());
+  lazyPanel(providersPageEl, providersLinkEl, () =>
+    import("./ui/ProvidersPage").then((m) => m.ProvidersPage)
+  );
 }
 
 // Software discovery is static and review-gated: the finder reads only the
 // approved catalog artifact produced by the catalog agent fleet.
 if (softwarePageEl && softwareLinkEl) {
-  const softwareFinder = new SoftwareFinder(softwarePageEl);
-  softwareLinkEl.addEventListener("click", () => softwareFinder.open());
+  lazyPanel(softwarePageEl, softwareLinkEl, () =>
+    import("./ui/SoftwareFinder").then((m) => m.SoftwareFinder)
+  );
 }
 
 if (fleetPageEl && fleetLinkEl) {
-  const fleetDashboard = new FleetDashboard(fleetPageEl);
-  fleetLinkEl.addEventListener("click", () => fleetDashboard.open());
+  lazyPanel(fleetPageEl, fleetLinkEl, () =>
+    import("./ui/FleetDashboard").then((m) => m.FleetDashboard)
+  );
 }
 
 // --- Keyboard shortcuts overlay -----------------------------------------------
