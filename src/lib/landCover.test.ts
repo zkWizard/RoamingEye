@@ -268,6 +268,8 @@ describe("land-cover formation groups", () => {
 
     expect(formations.kind).toBe("observed-land-cover-formation-groups");
     expect(formations.isForecast).toBe(false);
+    expect(formations.observationStatus).toBe("available");
+    expect(formations.unavailableReason).toBeNull();
     expect(formations.provenance).toBe(context.provenance);
     expect(formations.provenance.source).toBe(LAND_COVER_SOURCE);
     expect(formations.ungroupedKnownSampleCount).toBe(0);
@@ -313,5 +315,34 @@ describe("land-cover formation groups", () => {
     expect(formations.formationCoverage).toEqual([]);
     expect(formations.dominantFormation).toBeNull();
     expect(formations.ungroupedKnownSampleCount).toBe(0);
+  });
+
+  it("withholds formation claims when the annual source year is unavailable", () => {
+    const context = summarizeLandCoverContext(
+      [
+        { classCode: 1, sampleCount: 3 },
+        { classCode: 12, sampleCount: 2 },
+      ],
+      2025
+    );
+
+    const formations = summarizeLandCoverFormations(context);
+
+    expect(context.coverage.status).toBe("available");
+    expect(formations).toMatchObject({
+      observationStatus: "unavailable",
+      unavailableReason: "outside-layer-range",
+      provenance: {
+        dataYear: 2025,
+        nativeUnit: "categorical",
+        geographicCoverage: "selected-boundary samples",
+        publicationStatus: "outside-layer-range",
+        source: LAND_COVER_SOURCE,
+      },
+      formationCoverage: [],
+      dominantFormation: null,
+      ungroupedKnownSampleCount: 0,
+    });
+    expect(formations.provenance).toBe(context.provenance);
   });
 });
