@@ -11,7 +11,10 @@ import {
   GVP_VOLCANO_SOURCE,
   gvpVolcanoSourceLabel,
 } from "../lib/volcanoContext";
-import type { VolcanoExtentContext } from "../lib/volcanoExtent";
+import {
+  volcanoCoordinateLabel,
+  type VolcanoExtentContext,
+} from "../lib/volcanoExtent";
 import { ICONS } from "./icons";
 
 interface MetricElements {
@@ -216,6 +219,7 @@ export class PlaceInsights {
       const details = [
         record.country,
         record.subregion ?? record.region,
+        volcanoCoordinateLabel(record),
         record.primaryType ?? "primary type not supplied",
         record.elevationMeters === null
           ? "elevation not supplied"

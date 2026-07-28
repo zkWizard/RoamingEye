@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Volcano } from "./volcanoes";
-import { gvpVolcanoUrl, volcanoesInSearchExtent } from "./volcanoExtent";
+import {
+  gvpVolcanoUrl,
+  volcanoCoordinateLabel,
+  volcanoesInSearchExtent,
+} from "./volcanoExtent";
 
 const volcano = (overrides: Partial<Volcano> = {}): Volcano => ({
   name: "Etna",
@@ -132,6 +136,24 @@ describe("volcanoesInSearchExtent", () => {
   it("does not invent a source URL without a valid GVP number", () => {
     expect(gvpVolcanoUrl(null)).toBeNull();
     expect(gvpVolcanoUrl(211060.5)).toBeNull();
+  });
+
+  it("retains native record coordinates and labels their hemispheres", () => {
+    const context = volcanoesInSearchExtent(
+      [volcano({ lat: -0.25, lon: -78.5 })],
+      [-1, 1, -79, -78]
+    );
+
+    expect(context.records[0]).toMatchObject({
+      latitudeDegrees: -0.25,
+      longitudeDegrees: -78.5,
+    });
+    expect(volcanoCoordinateLabel(context.records[0]!)).toBe(
+      "0.25° S, 78.50° W"
+    );
+    expect(
+      volcanoCoordinateLabel({ latitudeDegrees: 0, longitudeDegrees: 0 })
+    ).toBe("0.00° N, 0.00° E");
   });
 
   it("includes both sides of an antimeridian-crossing search box", () => {
