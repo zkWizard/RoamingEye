@@ -567,6 +567,27 @@ export class ProbeSampler {
  * removed. This keeps every drawImage source coordinate in bounds instead of
  * turning edge samples into transparent no-data pixels.
  */
+/**
+ * The 3 x 3 source-pixel block around a centre pixel. Longitude wraps, so a
+ * probe on the antimeridian keeps a complete neighbourhood instead of a
+ * clipped one; latitude clamps and the block dedupes at the poles.
+ */
+export function globalPointBlockPixels(
+  center: { x: number; y: number },
+  width: number,
+  height: number
+): { x: number; y: number }[] {
+  const pixels = new Map<string, { x: number; y: number }>();
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const x = (((center.x + dx) % width) + width) % width;
+      const y = Math.min(height - 1, Math.max(0, center.y + dy));
+      pixels.set(`${x}:${y}`, { x, y });
+    }
+  }
+  return [...pixels.values()];
+}
+
 export function pointProbePixels(
   lat: number,
   lon: number,
@@ -583,16 +604,10 @@ export function pointProbePixels(
       Math.max(0, Math.floor(((90 - lat) / 180) * height))
     ),
   };
-  const byPixel = new Map<string, WeightedPixel>();
-  for (let dy = -1; dy <= 1; dy++) {
-    for (let dx = -1; dx <= 1; dx++) {
-      const x = (((center.x + dx) % width) + width) % width;
-      const y = Math.min(height - 1, Math.max(0, center.y + dy));
-      const key = `${x}:${y}`;
-      if (!byPixel.has(key)) byPixel.set(key, { x, y, weight: 1 });
-    }
-  }
-  return [...byPixel.values()];
+  return globalPointBlockPixels(center, width, height).map((pixel) => ({
+    ...pixel,
+    weight: 1,
+  }));
 }
 
 function lonInBoundsFrame(lon: number, bounds: Bounds): number {
