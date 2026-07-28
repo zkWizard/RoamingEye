@@ -28,6 +28,7 @@ const input = {
       wmsLayer: LAYERS.ndvi.wmsLayer,
       source: LAYERS.ndvi.dataset!,
       nativeUnit: "NDVI",
+      samplingStrategy: "boundary-grid" as const,
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -46,6 +47,7 @@ const input = {
       wmsLayer: LAYERS.precip.wmsLayer,
       source: LAYERS.precip.dataset!,
       nativeUnit: "kg m^-2 s^-1",
+      samplingStrategy: "boundary-point" as const,
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -65,6 +67,36 @@ const input = {
 };
 
 describe("place observation export", () => {
+  it("exports boundary SST in native °C with MODIS provenance and coverage", () => {
+    const product = placeObservationProductFromSample({
+      layerId: "sst",
+      sourceValueFactor: 1,
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 5 },
+          value: 18.375,
+          validFraction: 0.37,
+        },
+      ],
+    });
+
+    expect(product).toMatchObject({
+      layerId: "sst",
+      wmsLayer: "MODIS_Aqua_L3_SST_Thermal_9km_Day_Monthly",
+      nativeUnit: "°C",
+      source: {
+        shortName: "MODIS_AQUA_L3_SST_THERMAL_MONTHLY_9KM_DAYTIME_V2019.0",
+        version: "2019.0",
+      },
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 5 },
+          value: 18.375,
+          validFraction: 0.37,
+        },
+      ],
+    });
+  });
   it("retains boundary, cited products, native units, months, coverage, and method", () => {
     const exported = createPlaceObservationExport(input);
 
@@ -78,6 +110,7 @@ describe("place observation export", () => {
           wmsLayer: LAYERS.ndvi.wmsLayer,
           source: LAYERS.ndvi.dataset,
           nativeUnit: "NDVI",
+          samplingStrategy: "boundary-grid",
           observations: [
             {
               dataMonth: "2026-04",
@@ -97,6 +130,7 @@ describe("place observation export", () => {
           layerId: "precip",
           source: LAYERS.precip.dataset,
           nativeUnit: "kg m^-2 s^-1",
+          samplingStrategy: "boundary-point",
           observations: [
             {
               dataMonth: "2026-04",
@@ -285,6 +319,7 @@ describe("place observation export", () => {
     const precipitation = placeObservationProductFromSample({
       layerId: "precip",
       sourceValueFactor: 86_400,
+      samplingStrategy: "boundary-point",
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -322,5 +357,16 @@ describe("place observation export", () => {
         sourceValueFactor: 0,
       })
     ).toThrow("sourceValueFactor must be a positive finite number.");
+  });
+
+  it("does not invent a sampling strategy for unavailable samples", () => {
+    const product = placeObservationProductFromSample({
+      layerId: "ndvi",
+      observations: [
+        { dataMonth: { year: 2026, month: 4 }, value: null, validFraction: 0 },
+      ],
+    });
+
+    expect(product.samplingStrategy).toBe("unavailable");
   });
 });
