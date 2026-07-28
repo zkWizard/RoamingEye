@@ -320,6 +320,12 @@ before sending anything.
   review before adapting to specific educator venues). **Now routed** — the three venues
   below were vetted on 2026-07-27 to answer "where does this asset actually go?"; CLEAN is
   the route that takes it as-is.
+  **Now backed by a real lab** (2026-07-28): the one-pager pitches five lesson _ideas_ one
+  line each; `docs/teaching/ndvi-phenology-lab.md` builds idea 1 (plus idea 3's probe→CSV
+  work) into a full activity with an instructor guide. The one-pager is the door; the lab is
+  the room. Two consequences for outreach: the one-pager should link the lab, and the lab is
+  **in-repo and public**, so unlike everything in `outbox/` it is not send-blocked — it works
+  as a landing page the moment anyone arrives.
 
 ### CLEAN — Climate Literacy & Energy Awareness Network (**the educator route — recommended**)
 
@@ -356,9 +362,18 @@ before sending anything.
   and let the rest of the app be the supporting context. Lesson ideas 1 and 5 in the
   one-pager already are that focused activity; the probe→CSV exercise (idea 3) is what
   answers their "inquiry-based" and "assessment" criteria.
-  Note also that "presence of a teacher's guide" is a scored line item and we have no
-  teacher's guide — the one-pager's lesson ideas and `docs/research-recipes.md` are the
-  closest thing, so link both.
+  ✅ **The teacher's-guide gap is now closed** (2026-07-28). "Presence of a teacher's guide"
+  is a scored line item and we had none — the one-pager's lesson ideas and
+  `docs/research-recipes.md` were only the closest thing. `docs/teaching/ndvi-phenology-lab.md`
+  is now a full instructor guide for exactly the focused activity this venue wants: learning
+  objectives, prerequisites, a student worksheet, an assessment rubric, answer notes, common
+  confusions, and timing variants. **Submit against that lab, not against the globe** — it is
+  the "specific topic geared toward a focused concept" CLEAN asks for, and it answers their
+  pedagogic-effectiveness and inquiry/assessment criteria directly. Link it as the primary
+  resource, with `research-recipes.md` as supporting material.
+  ⚠️ **One caveat to carry into the submission, honestly:** the lab has not been
+  classroom-tested (it says so itself). CLEAN's reviewers are an educator and a scientist;
+  do not imply otherwise.
 - **Status:** drafted → `outbox/clean-collection-submission.md` (send-blocked with
   everything else; the form asks for the resource URL).
 
@@ -388,6 +403,11 @@ before sending anything.
   form that asks how students met the goals.
 - **Status:** **researched — parked behind classroom adoption, not behind rules.** Revisit
   after the first instructor actually teaches with it; then help _them_ contribute it.
+  **The blocking step is now cheaper** (2026-07-28): `docs/teaching/ndvi-phenology-lab.md`
+  gives an instructor a complete lab to run rather than one they must design first, and it
+  closes by asking anyone who teaches it to report back. That report is the trigger for this
+  venue. It does **not** unblock a speculative submission — TTE's form asks how students met
+  the goals, and until someone has students, we cannot answer it.
 
 ### Earth Exploration Toolbook (EET) — perfect shape, uncertain pulse; ask before writing
 
