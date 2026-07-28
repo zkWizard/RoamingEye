@@ -61,7 +61,7 @@ describe("ocean condition summaries", () => {
     const missing = summarizeOceanConditions({
       dataMonth: { year: 2026, month: 3 },
       value: null,
-      footprint: "unknown",
+      footprint: "water",
     });
 
     expect(land).toMatchObject({
@@ -79,14 +79,14 @@ describe("ocean condition summaries", () => {
       temperatureBand: null,
       coverage: {
         status: "missing",
-        footprint: "unknown",
+        footprint: "water",
         validFraction: null,
         reason: "missing-sst-value",
       },
     });
   });
 
-  it("does not promote an SST value with unknown surface context to water", () => {
+  it("preserves an unknown footprint instead of relabeling it as water", () => {
     const summary = summarizeOceanConditions({
       dataMonth: { year: 2026, month: 3 },
       value: 18.4,
@@ -99,7 +99,7 @@ describe("ocean condition summaries", () => {
       observedValue: null,
       temperatureBand: null,
       coverage: {
-        status: "missing",
+        status: "unknown",
         footprint: "unknown",
         validFraction: 0.72,
         reason: "unknown-footprint",
@@ -217,7 +217,7 @@ describe("ocean condition narratives", () => {
       summarizeOceanConditions({
         dataMonth: { year: 2026, month: 3 },
         value: null,
-        footprint: "unknown",
+        footprint: "water",
       })
     );
 
@@ -231,7 +231,7 @@ describe("ocean condition narratives", () => {
     expect(missing).not.toContain("°C");
   });
 
-  it("explains unavailable surface context without presenting the SST value", () => {
+  it("states unknown footprint context without exposing the supplied value", () => {
     const text = describeOceanCondition(
       summarizeOceanConditions({
         dataMonth: { year: 2026, month: 3 },
@@ -242,11 +242,13 @@ describe("ocean condition narratives", () => {
     );
 
     expect(text).toContain("Sea surface temperature for Mar 2026:");
-    expect(text).toContain("surface context is unavailable");
-    expect(text).toContain("not presented as a water or coastal observation");
+    expect(text).toContain(
+      "the sampled footprint type is unknown, so no sea-surface temperature is reported."
+    );
     expect(text).toContain(
       `Source: ${SEA_SURFACE_TEMPERATURE_METRIC.source.shortName} v${SEA_SURFACE_TEMPERATURE_METRIC.source.version}.`
     );
+    expect(text).toContain("not a marine-biology");
     expect(text).not.toContain("18.4");
     expect(text).not.toContain(SEA_SURFACE_TEMPERATURE_METRIC.sourceUnit);
   });
