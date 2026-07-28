@@ -494,6 +494,26 @@ describe("environment brief temporal alignment", () => {
     // (not-yet-published) are excluded, so only vegetation remains.
     expect(brief.temporalAlignment).toMatchObject({
       comparedSignalIds: ["vegetation"],
+      excludedSignals: [
+        {
+          id: "rainfall",
+          status: "no-data",
+          dataMonth: { year: 2025, month: 1 },
+          reason: "missing-value",
+        },
+        {
+          id: "soil-moisture",
+          status: "invalid",
+          dataMonth: { year: 2020, month: 1 },
+          reason: "invalid-value",
+        },
+        {
+          id: "air-temperature",
+          status: "unavailable",
+          dataMonth: { year: 2030, month: 6 },
+          reason: "not-yet-published",
+        },
+      ],
       earliestMonth: { year: 2026, month: 1 },
       latestMonth: { year: 2026, month: 1 },
       spanMonths: 0,
@@ -544,12 +564,61 @@ describe("environment brief temporal alignment", () => {
     const summary = summarizeTemporalAlignment([]);
     expect(summary).toMatchObject({
       comparedSignalIds: [],
+      excludedSignals: [],
       earliestMonth: null,
       latestMonth: null,
       spanMonths: null,
       aligned: false,
     });
     expect(summary.statement).toBe(
+      "No usable observations to compare across time."
+    );
+  });
+
+  it("preserves exclusion provenance when no observation is usable", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: null,
+      rainfall: {
+        dataMonth: { year: 2026, month: 2 },
+        value: 0.0001,
+        validFraction: 0.75,
+      },
+      soilMoisture: {
+        dataMonth: { year: 2026, month: 1 },
+        value: null,
+        validFraction: 0,
+      },
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 1 },
+    });
+
+    expect(brief.temporalAlignment.excludedSignals).toEqual([
+      {
+        id: "vegetation",
+        status: "unavailable",
+        dataMonth: null,
+        reason: "not-supplied",
+      },
+      {
+        id: "rainfall",
+        status: "unavailable",
+        dataMonth: { year: 2026, month: 2 },
+        reason: "not-yet-published",
+      },
+      {
+        id: "soil-moisture",
+        status: "no-data",
+        dataMonth: { year: 2026, month: 1 },
+        reason: "missing-value",
+      },
+      {
+        id: "air-temperature",
+        status: "unavailable",
+        dataMonth: null,
+        reason: "not-supplied",
+      },
+    ]);
+    expect(brief.temporalAlignment.statement).toBe(
       "No usable observations to compare across time."
     );
   });

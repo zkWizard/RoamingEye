@@ -50,6 +50,7 @@ export type PlaceObservationProductStatus =
   | "rejected-sampling-support"
   | "rejected-observation-months"
   | "rejected-observation-after-generation"
+  | "rejected-observation-coverage"
   | "rejected-observation-state";
 
 export interface PlaceObservationSelectionProvenance {
@@ -331,6 +332,9 @@ function productStatusFor(
   if (hasObservationAfterGeneration(product.observations, generatedIso)) {
     return "rejected-observation-after-generation";
   }
+  if (!hasConsistentObservationCoverage(product.observations)) {
+    return "rejected-observation-coverage";
+  }
   return hasConsistentObservationStates(product.observations)
     ? "accepted"
     : "rejected-observation-state";
@@ -439,6 +443,27 @@ function hasConsistentObservationStates(
         (observation.unavailableReason === null ||
           observation.unavailableReason === undefined)) ||
       (observation.value === null && hasUnavailableReason)
+    );
+  });
+}
+
+/**
+ * Recheck serialized coverage before it is used or repeated as provenance.
+ * Null means coverage was not reported; a numeric fraction is bounded to the
+ * sampled area, and zero usable coverage cannot support a recorded value.
+ */
+function hasConsistentObservationCoverage(
+  observations: PlaceObservationExport["products"][number]["observations"]
+): boolean {
+  return observations.every((observation) => {
+    const fraction = observation.validFraction;
+    if (fraction === null || fraction === undefined) return true;
+    return (
+      typeof fraction === "number" &&
+      Number.isFinite(fraction) &&
+      fraction >= 0 &&
+      fraction <= 1 &&
+      (observation.value === null || fraction > 0)
     );
   });
 }

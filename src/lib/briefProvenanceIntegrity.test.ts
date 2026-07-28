@@ -158,6 +158,7 @@ describe("auditBriefIntegrity", () => {
       },
       temporalAlignment: {
         comparedSignalIds: [],
+        excludedSignals: [],
         earliestMonth: null,
         latestMonth: null,
         spanMonths: null,
