@@ -6,7 +6,11 @@ import {
   type EnvironmentSignalId,
 } from "./environmentBrief";
 import { NDVI_UNIT } from "./phenology";
-import type { PlaceObservationExport } from "./placeObservationExport";
+import type {
+  PlaceObservationExport,
+  PlaceObservationSampling,
+} from "./placeObservationExport";
+import type { GeoGeometry } from "./geojson";
 import {
   DATA_LATEST,
   LAYERS,
@@ -45,10 +49,21 @@ export type PlaceObservationProductStatus =
 export interface PlaceObservationBrief {
   kind: "place-observation-environment-brief";
   brief: EnvironmentBrief;
+  /** Exact export context retained so the brief remains tied to its sample. */
+  provenance: {
+    exportSchema: PlaceObservationExport["schema"];
+    boundary: GeoGeometry;
+    sampling: PlaceObservationSampling;
+    imagery: PlaceObservationExport["method"]["imagery"];
+    sourceImage: PlaceObservationExport["method"]["sourceImage"];
+    valueMethod: PlaceObservationExport["method"]["valueMethod"];
+    generated: PlaceObservationExport["generated"];
+  };
   /** Source acceptance is independent for every signal; it is not a score. */
   productStatus: Record<EnvironmentSignalId, PlaceObservationProductStatus>;
   limitations: readonly [
     "Only products matching the expected layer, WMS layer, citation, and native unit are used.",
+    "The sampled boundary and export method are retained as provenance, not interpreted as environmental condition.",
     "Each signal uses its own product availability checkpoint and remains independent.",
     "The brief retains supplied approximate rendered-imagery observations; it does not infer conditions, causes, risks, or future values.",
   ];
@@ -56,6 +71,7 @@ export interface PlaceObservationBrief {
 
 const LIMITATIONS = [
   "Only products matching the expected layer, WMS layer, citation, and native unit are used.",
+  "The sampled boundary and export method are retained as provenance, not interpreted as environmental condition.",
   "Each signal uses its own product availability checkpoint and remains independent.",
   "The brief retains supplied approximate rendered-imagery observations; it does not infer conditions, causes, risks, or future values.",
 ] as const;
@@ -66,7 +82,10 @@ const LIMITATIONS = [
  * explicit rather than being substituted or estimated.
  */
 export function composePlaceObservationBrief(
-  exportRecord: Pick<PlaceObservationExport, "products">
+  exportRecord: Pick<
+    PlaceObservationExport,
+    "schema" | "boundary" | "products" | "method" | "generated"
+  >
 ): PlaceObservationBrief {
   const productStatus = {} as Record<
     EnvironmentSignalId,
@@ -91,6 +110,15 @@ export function composePlaceObservationBrief(
 
   return {
     kind: "place-observation-environment-brief",
+    provenance: {
+      exportSchema: exportRecord.schema,
+      boundary: structuredClone(exportRecord.boundary),
+      sampling: exportRecord.method.sampling,
+      imagery: { ...exportRecord.method.imagery },
+      sourceImage: { ...exportRecord.method.sourceImage },
+      valueMethod: exportRecord.method.valueMethod,
+      generated: { ...exportRecord.generated },
+    },
     brief: composeEnvironmentBrief({
       vegetation: observations.vegetation,
       rainfall: observations.rainfall,
