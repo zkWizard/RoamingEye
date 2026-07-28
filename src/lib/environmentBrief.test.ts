@@ -773,6 +773,48 @@ describe("environment brief attribution", () => {
     expect(only.doiUrl).toBe("https://doi.org/10.5067/ABC");
   });
 
+  it("keeps different source versions separate when they share one DOI", () => {
+    const signal = (
+      id: EnvironmentSignalBrief["id"],
+      version: string,
+      label: string
+    ): EnvironmentSignalBrief => ({
+      id,
+      label,
+      layerId: "ndvi",
+      source: {
+        shortName: "PROD",
+        version,
+        doi: "10.5067/SHARED",
+        title: "Versioned product",
+      },
+      nativeUnit: NDVI_UNIT,
+      dataMonth: { year: 2026, month: 1 },
+      coverage: { status: "available", validFraction: null, reason: null },
+      status: "available",
+      observedValue: 0.4,
+      statement: "",
+    });
+
+    const attribution = attributeBrief([
+      signal("vegetation", "1", "First release"),
+      signal("rainfall", "2", "Second release"),
+    ]);
+
+    expect(attribution.sources).toHaveLength(2);
+    expect(
+      attribution.sources.map(({ source, signalIds }) => ({
+        version: source.version,
+        signalIds,
+      }))
+    ).toEqual([
+      { version: "1", signalIds: ["vegetation"] },
+      { version: "2", signalIds: ["rainfall"] },
+    ]);
+    expect(attribution.line).toContain("PROD v1 — First release");
+    expect(attribution.line).toContain("PROD v2 — Second release");
+  });
+
   it("keeps two distinct DOI-less products as separate credits", () => {
     // Without a resolvable DOI, two references cannot be asserted to be the same
     // product, so each keeps its own credit rather than collapsing into one.
