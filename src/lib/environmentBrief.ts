@@ -577,7 +577,7 @@ export function attributeBrief(
     if (!entry) {
       const doi = normalizedDoiText(signal.source.doi);
       entry = {
-        source: signal.source,
+        source: { ...signal.source },
         signalIds: [],
         signalLabels: [],
         contributedValue: false,
@@ -720,6 +720,7 @@ function vegetationSignal(
 
   return {
     ...VEGETATION_META,
+    source: { ...VEGETATION_META.source },
     dataMonth: observation.dataMonth,
     coverage,
     status,
@@ -765,7 +766,7 @@ function climateSignal(
     id: meta.id,
     label: meta.label,
     layerId: meta.layerId,
-    source: meta.source,
+    source: { ...meta.source },
     nativeUnit: meta.nativeUnit,
     dataMonth: climateSummary.dataMonth,
     coverage: signalCoverage,
@@ -790,6 +791,7 @@ function unavailableSignal(meta: SignalMeta): EnvironmentSignalBrief {
   };
   return {
     ...meta,
+    source: { ...meta.source },
     dataMonth: null,
     coverage,
     status: "unavailable",
