@@ -53,6 +53,25 @@ export interface PlateBoundaryLengthEntry {
   lengthKm: number;
 }
 
+export type PlateBoundaryLengthStatus =
+  "available" | "partial" | "no-measurable-boundaries" | "no-boundaries";
+
+/**
+ * Measurement coverage for the supplied linework. Span counts refer to
+ * adjacent vertex pairs, including pairs rejected because either endpoint was
+ * invalid.
+ */
+export interface PlateBoundaryLengthCoverage {
+  status: PlateBoundaryLengthStatus;
+  suppliedBoundaryCount: number;
+  usableBoundaryCount: number;
+  suppliedVertexCount: number;
+  invalidVertexCount: number;
+  suppliedSpanCount: number;
+  measuredSpanCount: number;
+  skippedSpanCount: number;
+}
+
 /**
  * A descriptive length inventory of the supplied boundaries, not a rate, a
  * boundary-type split, or a hazard statement.
@@ -63,6 +82,7 @@ export interface PlateBoundaryLengthSummary {
   suppliedBoundaryCount: number;
   /** Features with at least two consecutive valid vertices (a measurable span). */
   usableBoundaryCount: number;
+  coverage: PlateBoundaryLengthCoverage;
   totalLengthKm: number;
   /** Per plate-pair totals, ordered by length descending then label ascending. */
   entries: readonly PlateBoundaryLengthEntry[];
@@ -113,8 +133,19 @@ export function summarizePlateBoundaryLengths(
 ): PlateBoundaryLengthSummary {
   const groups = new Map<string, MutableEntry>();
   let usableBoundaryCount = 0;
+  let suppliedVertexCount = 0;
+  let invalidVertexCount = 0;
+  let suppliedSpanCount = 0;
+  let measuredSpanCount = 0;
 
   for (const boundary of boundaries) {
+    suppliedVertexCount += boundary.points.length;
+    invalidVertexCount += boundary.points.filter(
+      (point) => !isValidPosition(point)
+    ).length;
+    suppliedSpanCount += Math.max(0, boundary.points.length - 1);
+    const boundaryMeasuredSpanCount = countMeasuredSpans(boundary.points);
+    measuredSpanCount += boundaryMeasuredSpanCount;
     const lengthKm = polylineLengthKm(boundary.points);
     // A feature with no measurable span contributes no length and is not counted
     // as usable; it also cannot shift a group's total, so we skip it entirely.
@@ -150,18 +181,47 @@ export function summarizePlateBoundaryLengths(
     .map((entry) => ({ ...entry }))
     .sort(compareEntries);
   const totalLengthKm = entries.reduce((sum, entry) => sum + entry.lengthKm, 0);
+  const skippedSpanCount = suppliedSpanCount - measuredSpanCount;
+  const status: PlateBoundaryLengthStatus =
+    boundaries.length === 0
+      ? "no-boundaries"
+      : measuredSpanCount === 0
+        ? "no-measurable-boundaries"
+        : skippedSpanCount > 0 || usableBoundaryCount < boundaries.length
+          ? "partial"
+          : "available";
 
   return {
     kind: "bird-2003-plate-boundary-length",
     isForecast: false,
     suppliedBoundaryCount: boundaries.length,
     usableBoundaryCount,
+    coverage: {
+      status,
+      suppliedBoundaryCount: boundaries.length,
+      usableBoundaryCount,
+      suppliedVertexCount,
+      invalidVertexCount,
+      suppliedSpanCount,
+      measuredSpanCount,
+      skippedSpanCount,
+    },
     totalLengthKm,
     entries,
     provenance: BIRD_2003_PLATE_BOUNDARY_SOURCE,
     units: PLATE_BOUNDARY_LENGTH_UNITS,
     limitations: LIMITATIONS,
   };
+}
+
+function countMeasuredSpans(points: readonly Position[]): number {
+  let count = 0;
+  for (let index = 0; index + 1 < points.length; index++) {
+    if (isValidPosition(points[index]) && isValidPosition(points[index + 1])) {
+      count += 1;
+    }
+  }
+  return count;
 }
 
 interface MutableEntry {

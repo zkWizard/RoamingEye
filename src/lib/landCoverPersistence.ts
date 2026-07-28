@@ -1,6 +1,7 @@
 import {
   IGBP_LAND_COVER_CLASSES,
   LAND_COVER_SOURCE,
+  publicationStatusForYear,
   type IgbpLandCoverClass,
   type IgbpLandCoverClassCode,
 } from "./landCover";
@@ -50,11 +51,13 @@ export interface LandCoverPersistenceCoverage {
   unclassifiedYearCount: number;
   /** Retained years where the map supplied no usable code (null). */
   noDataYearCount: number;
-  /** Records rejected: non-integer year, duplicate year, or off-scheme code. */
+  /** Valid calendar years outside the currently published layer range. */
+  outsideLayerRangeYearCount: number;
+  /** Records rejected: invalid year, duplicate year, or off-scheme code. */
   invalidRecordCount: number;
   /** Whether known-class years fall below the persistence threshold. */
   isSparse: boolean;
-  reason: "no-years" | "no-known-land-cover" | null;
+  reason: "no-years" | "no-published-years" | "no-known-land-cover" | null;
 }
 
 export interface LandCoverClassTenure {
@@ -102,24 +105,35 @@ const IGBP_BY_CODE = new Map<IgbpLandCoverClassCode, IgbpLandCoverClass>(
  * Duplicate years are rejected rather than merged, so a repeated year cannot
  * silently shift the modal class. Source-unclassified (255) and no-data years
  * are counted as coverage but never contribute to any land-cover class tenure.
+ * Years outside the published MCD12Q1 layer range are retained as an explicit
+ * unavailable count and cannot contribute a class, even if a caller supplies
+ * one.
  */
 export function summarizeLandCoverPersistence(
   observations: readonly LandCoverYearObservation[]
 ): LandCoverPersistenceSummary {
   const classYears = new Map<IgbpLandCoverClassCode, number[]>();
+  const requestedYears = new Set<number>();
   const seenYears = new Set<number>();
   let observedYearCount = 0;
   let knownLandCoverYearCount = 0;
   let unclassifiedYearCount = 0;
   let noDataYearCount = 0;
+  let outsideLayerRangeYearCount = 0;
   let invalidRecordCount = 0;
   let firstYear: number | null = null;
   let lastYear: number | null = null;
 
   for (const observation of observations) {
     const year = observation.year;
-    if (!Number.isInteger(year) || seenYears.has(year)) {
+    if (!Number.isSafeInteger(year) || requestedYears.has(year)) {
       invalidRecordCount += 1;
+      continue;
+    }
+
+    requestedYears.add(year);
+    if (publicationStatusForYear(year) !== "published") {
+      outsideLayerRangeYearCount += 1;
       continue;
     }
 
@@ -187,11 +201,15 @@ export function summarizeLandCoverPersistence(
     knownLandCoverYearCount,
     unclassifiedYearCount,
     noDataYearCount,
+    outsideLayerRangeYearCount,
     invalidRecordCount,
     isSparse,
     reason:
       seenYears.size === 0
-        ? "no-years"
+        ? requestedYears.size > 0 &&
+          outsideLayerRangeYearCount === requestedYears.size
+          ? "no-published-years"
+          : "no-years"
         : knownLandCoverYearCount === 0
           ? "no-known-land-cover"
           : null,

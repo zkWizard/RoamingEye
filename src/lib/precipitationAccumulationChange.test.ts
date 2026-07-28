@@ -82,6 +82,35 @@ describe("month-over-month precipitation accumulation change", () => {
     expect(change.source).toBe(CLIMATE_METRICS["precipitation-rate"].source);
   });
 
+  it("does not present either endpoint source as shared provenance", () => {
+    const earlier = precipSummary(0.0001, { year: 2026, month: 5 });
+    const later = precipSummary(0.0002, { year: 2026, month: 6 });
+    const otherSource = {
+      ...later.metric.source,
+      version: `${later.metric.source.version}-reprocessed`,
+    };
+    const reprocessedLater = {
+      ...later,
+      metric: { ...later.metric, source: otherSource },
+    };
+
+    const change = describePrecipitationAccumulationChange(
+      earlier,
+      reprocessedLater
+    );
+
+    expect(change).toMatchObject({
+      status: "mixed-provenance",
+      source: null,
+      reason: "sources-differ",
+    });
+    expect(change.earlier?.source).toBe(earlier.metric.source);
+    expect(change.later?.source).toBe(otherSource);
+    expect(formatPrecipitationAccumulationChange(change)).toContain(
+      "source unknown source"
+    );
+  });
+
   it("refuses non-consecutive months rather than spanning the gap", () => {
     const earlier = precipSummary(0.0001, { year: 2026, month: 1 });
     const later = precipSummary(0.0002, { year: 2026, month: 3 });

@@ -41,6 +41,11 @@ export interface DirectMarineBiologicalObservationInput {
   nativeUnit: string;
   /** Citation for the direct biological source, distinct from the SST source. */
   source: DatasetRef;
+  /**
+   * Stable identifier supplied by the biological source for this exact record.
+   * Null explicitly means the source did not provide a record identifier.
+   */
+  sourceRecordId?: string | null;
   /** Usable share of the supplied biological survey or sampling footprint. */
   validFraction?: number;
   /** Geographic scope from the biological source, when it was supplied. */
@@ -66,10 +71,12 @@ export type DirectMarineBiologicalObservationReason =
   | "missing-taxon-name"
   | "missing-native-unit"
   | "incomplete-source-citation"
+  | "invalid-source-record-id"
   | "invalid-geography"
   | "missing-value"
   | "zero-biological-coverage"
   | "invalid-value"
+  | "non-integer-count"
   | null;
 
 export interface DirectMarineBiologicalObservationSummary {
@@ -81,6 +88,8 @@ export interface DirectMarineBiologicalObservationSummary {
   taxonName: string;
   dataMonth: YearMonth;
   source: DatasetRef;
+  /** Exact source-supplied record identifier, or null when unavailable. */
+  sourceRecordId: string | null;
   nativeUnit: string;
   /** Retained direct-source geography; never substituted from SST. */
   geography: DirectMarineBiologicalObservationGeography | null;
@@ -102,6 +111,7 @@ export interface NoDirectMarineBiologicalObservationSummary {
   taxonName: null;
   dataMonth: null;
   source: null;
+  sourceRecordId: null;
   nativeUnit: null;
   geography: null;
   coverage: { validFraction: null; reason: "not-supplied" };
@@ -118,6 +128,22 @@ export type ObservationMonthAlignment =
   | "invalid-data-month"
   | "not-applicable";
 
+export type SstFootprintAlignmentStatus =
+  "consistent" | "conflicting" | "unknown" | "invalid";
+
+export interface SstFootprintAlignment {
+  /** Compares only caller-supplied surface classifications; SST is not used to infer either one. */
+  status: SstFootprintAlignmentStatus;
+  sstFootprint: SeaSurfaceTemperatureObservation["footprint"];
+  coverageFootprint: MarineCoverageInput["footprint"];
+  reason:
+    | "matching-surface-class"
+    | "conflicting-surface-class"
+    | "unknown-surface-class"
+    | "invalid-sst-metadata"
+    | "invalid-coverage-metadata";
+}
+
 export interface CoastalOceanObservation {
   schema: typeof COASTAL_OCEAN_OBSERVATION_SCHEMA;
   kind: "coastal-ocean-observation";
@@ -132,12 +158,15 @@ export interface CoastalOceanObservation {
     /** A matching month is temporal metadata, not evidence of a relationship. */
     sstAndBiology: ObservationMonthAlignment;
   };
+  /** Makes contradictory coastal/land/water metadata explicit to downstream consumers. */
+  sstFootprintAlignment: SstFootprintAlignment;
   limitations: typeof COASTAL_OCEAN_OBSERVATION_LIMITATIONS;
 }
 
 export const COASTAL_OCEAN_OBSERVATION_LIMITATIONS = [
   "Sea surface temperature is a physical SST observation, not a marine-biological observation.",
   "Biological values appear only in supplied direct records with their own source, native unit, month, and sampling coverage.",
+  "Organism counts and occurrence-record counts must be non-negative integers; continuous biomass measurements retain their supplied native-unit precision.",
   "SST image coverage and biological sampling coverage use separate methods and are not interchangeable.",
   "Matching data months describes timing only; it does not establish association, causation, ecological condition, or a forecast.",
 ] as const;
@@ -173,8 +202,41 @@ export function createCoastalOceanObservation(
           ? "not-applicable"
           : alignMonths(input.sst.dataMonth, biology.dataMonth),
     },
+    sstFootprintAlignment: alignSstFootprints(input, sst, sstCoverage),
     limitations: COASTAL_OCEAN_OBSERVATION_LIMITATIONS,
   };
+}
+
+function alignSstFootprints(
+  input: CoastalOceanObservationInput,
+  sst: OceanConditionSummary,
+  coverage: MarineCoverageSummary
+): SstFootprintAlignment {
+  const base = {
+    sstFootprint: input.sst.footprint,
+    coverageFootprint: input.sstCoverage.footprint,
+  };
+
+  if (sst.coverage.status === "invalid") {
+    return { ...base, status: "invalid", reason: "invalid-sst-metadata" };
+  }
+  if (coverage.coverage.status === "invalid") {
+    return { ...base, status: "invalid", reason: "invalid-coverage-metadata" };
+  }
+  if (
+    input.sst.footprint === "unknown" ||
+    input.sstCoverage.footprint === "unknown"
+  ) {
+    return { ...base, status: "unknown", reason: "unknown-surface-class" };
+  }
+
+  const normalizedSst =
+    input.sst.footprint === "land-mixed-coastal"
+      ? "coastal-or-land-mixed"
+      : input.sst.footprint;
+  return normalizedSst === input.sstCoverage.footprint
+    ? { ...base, status: "consistent", reason: "matching-surface-class" }
+    : { ...base, status: "conflicting", reason: "conflicting-surface-class" };
 }
 
 export function summarizeDirectMarineBiologicalObservation(
@@ -191,6 +253,7 @@ export function summarizeDirectMarineBiologicalObservation(
     taxonName: input.taxonName,
     dataMonth: input.dataMonth,
     source: input.source,
+    sourceRecordId: input.sourceRecordId ?? null,
     nativeUnit: input.nativeUnit,
     geography: input.geography ?? null,
   };
@@ -232,12 +295,26 @@ export function summarizeDirectMarineBiologicalObservation(
       "incomplete-source-citation"
     );
   }
+  if (
+    input.sourceRecordId !== undefined &&
+    input.sourceRecordId !== null &&
+    !input.sourceRecordId.trim()
+  ) {
+    return invalidBiologicalObservation(
+      base,
+      validFraction ?? null,
+      "invalid-source-record-id"
+    );
+  }
   if (input.geography !== undefined && !isGeography(input.geography)) {
     return invalidBiologicalObservation(
       base,
       validFraction ?? null,
       "invalid-geography"
     );
+  }
+  if (validFraction === 0) {
+    return noDataBiologicalObservation(base, 0, "zero-biological-coverage");
   }
   if (input.value === null) {
     return noDataBiologicalObservation(
@@ -246,14 +323,21 @@ export function summarizeDirectMarineBiologicalObservation(
       "missing-value"
     );
   }
-  if (validFraction === 0) {
-    return noDataBiologicalObservation(base, 0, "zero-biological-coverage");
-  }
   if (!Number.isFinite(input.value) || input.value < 0) {
     return invalidBiologicalObservation(
       base,
       validFraction ?? null,
       "invalid-value"
+    );
+  }
+  if (
+    input.observationKind !== "biomass-measurement" &&
+    !Number.isInteger(input.value)
+  ) {
+    return invalidBiologicalObservation(
+      base,
+      validFraction ?? null,
+      "non-integer-count"
     );
   }
 
@@ -275,6 +359,7 @@ function noDirectMarineBiologicalObservation(): NoDirectMarineBiologicalObservat
     taxonName: null,
     dataMonth: null,
     source: null,
+    sourceRecordId: null,
     nativeUnit: null,
     geography: null,
     coverage: { validFraction: null, reason: "not-supplied" },

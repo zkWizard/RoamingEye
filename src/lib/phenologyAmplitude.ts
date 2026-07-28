@@ -47,6 +47,12 @@ export interface NdviAmplitudeCoverage {
   usableYearCount: number;
   /** Supplied years with no observed range (sparse or no-data). */
   unusableYearCount: number;
+  /** Records rejected because the annual summary did not name a whole year. */
+  invalidYearCount: number;
+  /** Repeated calendar years rejected so one year cannot be weighted twice. */
+  duplicateYearCount: number;
+  /** Records rejected for different hemisphere, unit, or dataset provenance. */
+  incompatibleContextCount: number;
 }
 
 export interface NdviAmplitudeStatistics {
@@ -101,12 +107,35 @@ export function summarizeNdviSeasonalAmplitude(
   const source = annuals[0]?.source ?? NDVI_SOURCE;
 
   const usable: NdviAmplitudeYear[] = [];
+  const seenYears = new Set<number>();
+  let unusableYearCount = 0;
+  let invalidYearCount = 0;
+  let duplicateYearCount = 0;
+  let incompatibleContextCount = 0;
   for (const annual of annuals) {
+    if (!Number.isInteger(annual.year)) {
+      invalidYearCount += 1;
+      continue;
+    }
+    if (
+      annual.hemisphere !== hemisphere ||
+      annual.unit !== NDVI_UNIT ||
+      !sameDataset(annual.source, source)
+    ) {
+      incompatibleContextCount += 1;
+      continue;
+    }
+    if (seenYears.has(annual.year)) {
+      duplicateYearCount += 1;
+      continue;
+    }
+    seenYears.add(annual.year);
     if (
       annual.seasonalRange === null ||
       annual.peak === null ||
       annual.trough === null
     ) {
+      unusableYearCount += 1;
       continue;
     }
     usable.push({
@@ -121,7 +150,10 @@ export function summarizeNdviSeasonalAmplitude(
   const coverage: NdviAmplitudeCoverage = {
     suppliedYearCount: annuals.length,
     usableYearCount: usable.length,
-    unusableYearCount: annuals.length - usable.length,
+    unusableYearCount,
+    invalidYearCount,
+    duplicateYearCount,
+    incompatibleContextCount,
   };
 
   const base = {
@@ -168,6 +200,15 @@ export function summarizeNdviSeasonalAmplitude(
     largestAmplitudeYear: extremeAmplitudeYear(usable, "largest"),
     reason: null,
   };
+}
+
+function sameDataset(a: DatasetRef, b: DatasetRef): boolean {
+  return (
+    a.shortName === b.shortName &&
+    a.version === b.version &&
+    a.doi === b.doi &&
+    a.title === b.title
+  );
 }
 
 /**

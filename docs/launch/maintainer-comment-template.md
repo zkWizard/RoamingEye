@@ -12,10 +12,11 @@ point or drawn region across the full record, with provenance-stamped CSV
 export. Open data honestly tops out around 30 m/pixel (Harmonized
 Landsat-Sentinel powers the high-res study patches; the global monthly layers
 are 1–2 km), and the app states that ceiling rather than hiding it. We're
-looking for contributors — the graphics side has meaty tile-streaming
-follow-ons (skirts, polar handling, 3D terrain) and there are groomed
-good-first-issues at
-https://github.com/zkWizard/RoamingEye/issues — happy to answer anything here.
+looking for contributors — the graphics side has meaty follow-ons to the
+tile-streaming engine (skirts, polar handling, 3D terrain) and there are
+groomed good-first-issues at
+https://github.com/zkWizard/RoamingEye/labels/good%20first%20issue — happy to
+answer anything here.
 
 ---
 

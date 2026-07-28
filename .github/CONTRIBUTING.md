@@ -59,12 +59,14 @@ npm run dev        # start the local dev server (http://localhost:5173)
 | `npm run verify:full` | `verify` plus the Playwright e2e suite — the full CI mirror     |
 
 Before opening a PR, please run **`npm run verify`** locally — these are the
-same checks CI runs.
+same checks CI runs. Every PR then runs the full suite on GitHub Actions
+(`.github/workflows/ci.yml` — type-check, lint/format, unit, build, plus CodeQL,
+OpenSSF Scorecard, and the WebGL e2e smoke tests); a maintainer merges once it's
+approved and the required checks are green.
 
-Hosted CI runs on every pull request (`.github/workflows/ci.yml`, plus CodeQL and
-OpenSSF Scorecard). A red **E2E smoke (WebGL)** check is sometimes flaky rather
-than a real failure — if it fails and your change doesn't touch rendering, say so
-in the PR and a maintainer will re-run it.
+A red **E2E smoke (WebGL)** check is sometimes flaky rather than a real failure —
+if it fails and your change doesn't touch rendering, say so in the PR and a
+maintainer will re-run it.
 
 ---
 

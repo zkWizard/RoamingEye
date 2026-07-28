@@ -130,7 +130,7 @@ describe("land-cover transition summaries", () => {
     expect(summary.transitions).toHaveLength(1);
   });
 
-  it("flags years outside the published MCD12Q1 layer range", () => {
+  it("withholds pairs when either year is outside the published MCD12Q1 range", () => {
     const summary = summarizeLandCoverTransitions(
       [{ fromClassCode: 12, toClassCode: 10, sampleCount: 1 }],
       2000, // before layer start (2001)
@@ -142,7 +142,43 @@ describe("land-cover transition summaries", () => {
       toPublicationStatus: "published",
       bothYearsPublished: false,
     });
+    expect(summary.coverage).toMatchObject({
+      status: "unavailable",
+      totalSampleCount: 0,
+      bothClassifiedSampleCount: 0,
+      reason: "unpublished-year",
+    });
+    expect(summary.transitions).toEqual([]);
+    expect(summary.changedSampleCount).toBe(0);
+    expect(summary.dominantChange).toBeNull();
   });
+
+  it.each([
+    [2024, 2024],
+    [2024, 2020],
+    [2020.5, 2024],
+  ])(
+    "withholds earlier-to-later claims for invalid year order %s -> %s",
+    (fromYear, toYear) => {
+      const summary = summarizeLandCoverTransitions(
+        [{ fromClassCode: 12, toClassCode: 10, sampleCount: 3 }],
+        fromYear,
+        toYear
+      );
+
+      expect(summary.provenance).toMatchObject({ fromYear, toYear });
+      expect(summary.coverage).toMatchObject({
+        status: "unavailable",
+        totalSampleCount: 0,
+        bothClassifiedSampleCount: 0,
+        bothClassifiedFraction: null,
+        reason: "invalid-year-order",
+      });
+      expect(summary.transitions).toEqual([]);
+      expect(summary.stableSampleCount).toBe(0);
+      expect(summary.changedSampleCount).toBe(0);
+    }
+  );
 
   it("reports no samples honestly for an empty input", () => {
     const summary = summarizeLandCoverTransitions([], 2019, 2020);

@@ -19,7 +19,16 @@ export interface VolcanoExtentRecord {
   country: string | null;
   primaryType: string | null;
   elevationMeters: number | null;
+  /** Source calendar year; negative values are BCE and null is unavailable. */
+  lastEruptionYear: number | null;
+  /** Human-readable companion; consumers should retain the raw year above. */
   lastEruptionText: string;
+  volcanoNumber: number | null;
+  sourceUrl: string | null;
+  region: string | null;
+  subregion: string | null;
+  /** Verbatim GVP label; not a causal interpretation. */
+  tectonicSetting: string | null;
 }
 
 export interface VolcanoExtentContext {
@@ -42,7 +51,14 @@ const LIMITATIONS = [
   "Uses the search result bounding box, not the exact selected boundary.",
   "Includes only volcano records supplied by the bundled GVP-derived file.",
   "Does not forecast eruptions, rank hazards, score risk, or infer causes.",
+  "Region, subregion, and tectonic setting are retained GVP catalog labels, not classifications inferred by RoamingEye.",
 ] as const;
+
+export function gvpVolcanoUrl(volcanoNumber: number | null): string | null {
+  return volcanoNumber === null || !Number.isInteger(volcanoNumber)
+    ? null
+    : `https://volcano.si.edu/volcano.cfm?vn=${volcanoNumber}`;
+}
 
 /**
  * Filter GVP-derived records to a Nominatim search bounding box. Longitude
@@ -125,11 +141,19 @@ function longitudeInBounds(lon: number, west: number, east: number): boolean {
 }
 
 function toExtentRecord(volcano: Volcano): VolcanoExtentRecord {
+  const sourceRecord = volcano.sourceRecord;
+  const volcanoNumber = sourceRecord?.volcanoNumber ?? null;
   return {
     name: volcano.name,
     country: volcano.country,
     primaryType: volcano.type,
     elevationMeters: volcano.elevation,
+    lastEruptionYear: volcano.lastEruptionYear,
     lastEruptionText: lastEruptionLabel(volcano.lastEruptionYear),
+    volcanoNumber,
+    sourceUrl: gvpVolcanoUrl(volcanoNumber),
+    region: sourceRecord?.region ?? null,
+    subregion: sourceRecord?.subregion ?? null,
+    tectonicSetting: sourceRecord?.tectonicSetting ?? null,
   };
 }

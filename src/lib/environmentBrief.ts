@@ -6,6 +6,7 @@ import {
   type MonthlyClimateObservation,
   type MonthlyClimateSummary,
 } from "./climate";
+import { doiResolverUrl } from "./citation";
 import { NDVI_SOURCE, NDVI_UNIT } from "./phenology";
 import { GIBS_ACKNOWLEDGMENT } from "./providers";
 import {
@@ -49,12 +50,12 @@ export interface EnvironmentBriefInput {
   availableThrough: YearMonth;
   /**
    * Optional product-specific availability checkpoints. Use this when cited
-   * climate products publish on different monthly schedules; omitted entries
-   * retain the shared `availableThrough` fallback.
+   * products publish on different monthly schedules. Omitted climate entries
+   * retain the shared `availableThrough` fallback; an omitted vegetation entry
+   * leaves vegetation availability unchecked because the shared checkpoint is
+   * climate-scoped.
    */
-  availableThroughBySignal?: Partial<
-    Record<Exclude<EnvironmentSignalId, "vegetation">, YearMonth>
-  >;
+  availableThroughBySignal?: Partial<Record<EnvironmentSignalId, YearMonth>>;
 }
 
 export interface EnvironmentSignalCoverage {
@@ -168,6 +169,19 @@ export interface EnvironmentBriefCompleteness {
   statement: string;
 }
 
+export interface EnvironmentCoverageContext {
+  /** Available signals whose samplers supplied a valid-fraction value. */
+  suppliedSignalIds: EnvironmentSignalId[];
+  /** Available signals without sampler-reported spatial coverage. */
+  unsuppliedSignalIds: EnvironmentSignalId[];
+  /** Smallest supplied valid fraction; null when no available signal supplies it. */
+  minimumValidFraction: number | null;
+  /** Largest supplied valid fraction; null when no available signal supplies it. */
+  maximumValidFraction: number | null;
+  /** Provenance caveat: independent fractions do not establish shared footprint. */
+  statement: string;
+}
+
 export interface EnvironmentBrief {
   kind: "provenance-first-environment-brief";
   signals: EnvironmentSignalBrief[];
@@ -176,6 +190,7 @@ export interface EnvironmentBrief {
   unsupportedLanguageHits: string[];
   methodLimits: string[];
   temporalAlignment: EnvironmentTemporalAlignment;
+  coverageContext: EnvironmentCoverageContext;
   dataCurrency: EnvironmentDataCurrency;
 }
 
@@ -251,7 +266,10 @@ export function composeEnvironmentBrief(
   input: EnvironmentBriefInput
 ): EnvironmentBrief {
   const signals = [
-    vegetationSignal(input.vegetation),
+    vegetationSignal(
+      input.vegetation,
+      input.availableThroughBySignal?.vegetation
+    ),
     climateSignal(
       CLIMATE_SIGNAL_META.rainfall,
       input.rainfall,
@@ -278,12 +296,74 @@ export function composeEnvironmentBrief(
     unsupportedLanguageHits: unsupportedBriefLanguageHits(statements.join(" ")),
     methodLimits: METHOD_LIMITS,
     temporalAlignment: summarizeTemporalAlignment(signals),
+    coverageContext: summarizeCoverageContext(signals),
     dataCurrency: summarizeDataCurrency(
       signals,
       input.availableThrough,
       input.availableThroughBySignal
     ),
   };
+}
+
+/**
+ * Summarize sampler-reported coverage without treating independent source
+ * footprints as spatially overlapping. Only usable observations participate;
+ * unavailable and invalid records retain their own per-signal coverage state.
+ */
+export function summarizeCoverageContext(
+  signals: readonly EnvironmentSignalBrief[]
+): EnvironmentCoverageContext {
+  const available = signals.filter((signal) => signal.status === "available");
+  const supplied = available.filter(
+    (signal) => signal.coverage.validFraction !== null
+  );
+  const suppliedSignalIds = supplied.map((signal) => signal.id);
+  const unsuppliedSignalIds = available
+    .filter((signal) => signal.coverage.validFraction === null)
+    .map((signal) => signal.id);
+  const fractions = supplied.map((signal) => signal.coverage.validFraction!);
+  const minimumValidFraction = fractions.length ? Math.min(...fractions) : null;
+  const maximumValidFraction = fractions.length ? Math.max(...fractions) : null;
+
+  return {
+    suppliedSignalIds,
+    unsuppliedSignalIds,
+    minimumValidFraction,
+    maximumValidFraction,
+    statement: coverageContextStatement(
+      available.length,
+      suppliedSignalIds,
+      unsuppliedSignalIds,
+      minimumValidFraction,
+      maximumValidFraction
+    ),
+  };
+}
+
+function coverageContextStatement(
+  availableCount: number,
+  suppliedIds: EnvironmentSignalId[],
+  unsuppliedIds: EnvironmentSignalId[],
+  minimum: number | null,
+  maximum: number | null
+): string {
+  if (availableCount === 0)
+    return "No usable observations with spatial coverage to summarize.";
+  if (suppliedIds.length === 0) {
+    return `Spatial coverage was not supplied for the usable signals: ${unsuppliedIds.join(", ")}.`;
+  }
+  const range =
+    minimum === maximum
+      ? `${formatPercent(minimum!)} sampled coverage`
+      : `${formatPercent(minimum!)} to ${formatPercent(maximum!)} sampled coverage`;
+  const missing = unsuppliedIds.length
+    ? ` Coverage was not supplied for: ${unsuppliedIds.join(", ")}.`
+    : "";
+  return `${suppliedIds.length} usable signal${plural(suppliedIds.length)} reported ${range}.${missing} Fractions describe independent source samples and do not establish a shared spatial footprint.`;
+}
+
+function formatPercent(fraction: number): string {
+  return `${Number((fraction * 100).toFixed(2))}%`;
 }
 
 /**
@@ -439,9 +519,6 @@ function lagPhrase(lag: number): string {
   return `${lag} ${lag === 1 ? "month" : "months"}`;
 }
 
-/** DOI resolver prefix, so every credited source carries a resolvable link. */
-const DOI_RESOLVER = "https://doi.org/";
-
 /** One credited source dataset, with the brief signals it backed. */
 export interface SourceAttribution {
   /** The distinct source dataset (deduplicated by DOI). */
@@ -482,25 +559,34 @@ export interface BriefAttribution {
  * only returned a no-data or unpublished state — so the credit never implies a
  * usable value where there was none (see `contributedValue`). This is a
  * provenance descriptor, not a value, comparison, or condition claim.
+ *
+ * DOI identity is compared case- and whitespace-insensitively (the handle
+ * system resolves ASCII DOIs case-insensitively), matching the DOI convention
+ * in `sourceIndependence.ts`, so the same product cited with incidental casing
+ * or spacing differences is credited once rather than double-counted. A source
+ * that carries no resolvable DOI is keyed by its own product identity
+ * (short name + version) instead, so two distinct DOI-less products stay
+ * separate credits rather than collapsing into one. The displayed resolver link
+ * preserves the DOI's original casing, since a DOI suffix can be case-sensitive.
  */
 export function attributeBrief(
   signals: readonly EnvironmentSignalBrief[]
 ): BriefAttribution {
-  const byDoi = new Map<string, SourceAttribution>();
+  const bySource = new Map<string, SourceAttribution>();
   const order: string[] = [];
   for (const signal of signals) {
-    const key = signal.source.doi;
-    let entry = byDoi.get(key);
+    const key = sourceDedupKey(signal.source);
+    let entry = bySource.get(key);
     if (!entry) {
-      const doi = signal.source.doi.trim();
+      const doi = normalizedDoiText(signal.source.doi);
       entry = {
-        source: signal.source,
+        source: { ...signal.source },
         signalIds: [],
         signalLabels: [],
         contributedValue: false,
-        doiUrl: doi ? `${DOI_RESOLVER}${doi}` : null,
+        doiUrl: doi ? doiResolverUrl(doi) : null,
       };
-      byDoi.set(key, entry);
+      bySource.set(key, entry);
       order.push(key);
     }
     entry.signalIds.push(signal.id);
@@ -508,12 +594,31 @@ export function attributeBrief(
     if (signal.status === "available") entry.contributedValue = true;
   }
 
-  const sources = order.map((key) => byDoi.get(key)!);
+  const sources = order.map((key) => bySource.get(key)!);
   return {
     sources,
     acknowledgment: GIBS_ACKNOWLEDGMENT,
     line: attributionLine(sources),
   };
+}
+
+/** Trimmed DOI text (original casing preserved), or "" when none is present. */
+function normalizedDoiText(doi: DatasetRef["doi"]): string {
+  return typeof doi === "string" ? doi.trim() : "";
+}
+
+/**
+ * Stable dedup key identifying the *product* behind a source. Two references to
+ * one product must credit it once, so a present DOI keys the entry
+ * case-insensitively (whitespace stripped) — the same identity comparison
+ * `sourceIndependence.ts` uses. Without a resolvable DOI we cannot assert two
+ * references are the same product, so DOI-less sources fall back to their own
+ * short-name + version identity rather than all collapsing under one empty key.
+ */
+function sourceDedupKey(source: DatasetRef): string {
+  const doi = normalizedDoiText(source.doi).toLowerCase();
+  if (doi) return `doi:${doi}`;
+  return `nodoi:${source.shortName} ${source.version}`;
 }
 
 function attributionLine(sources: readonly SourceAttribution[]): string {
@@ -608,16 +713,29 @@ export function unsupportedBriefLanguageHits(text: string): string[] {
 }
 
 function vegetationSignal(
-  observation: EnvironmentObservation | null
+  observation: EnvironmentObservation | null,
+  availableThrough?: YearMonth
 ): EnvironmentSignalBrief {
   if (!observation) return unavailableSignal(VEGETATION_META);
 
-  const coverage = vegetationCoverage(observation);
+  const observedCoverage = vegetationCoverage(observation);
+  const publicationUnavailable =
+    observedCoverage.status !== "invalid" &&
+    availableThrough !== undefined &&
+    compareYm(observation.dataMonth, availableThrough) > 0;
+  const coverage = publicationUnavailable
+    ? {
+        ...observedCoverage,
+        status: "unavailable" as const,
+        reason: "not-yet-published",
+      }
+    : observedCoverage;
   const status = coverage.status;
   const observedValue = status === "available" ? observation.value : null;
 
   return {
     ...VEGETATION_META,
+    source: { ...VEGETATION_META.source },
     dataMonth: observation.dataMonth,
     coverage,
     status,
@@ -663,7 +781,7 @@ function climateSignal(
     id: meta.id,
     label: meta.label,
     layerId: meta.layerId,
-    source: meta.source,
+    source: { ...meta.source },
     nativeUnit: meta.nativeUnit,
     dataMonth: climateSummary.dataMonth,
     coverage: signalCoverage,
@@ -688,6 +806,7 @@ function unavailableSignal(meta: SignalMeta): EnvironmentSignalBrief {
   };
   return {
     ...meta,
+    source: { ...meta.source },
     dataMonth: null,
     coverage,
     status: "unavailable",
