@@ -49,6 +49,7 @@ export type PlaceObservationProductStatus =
   | "rejected-native-unit"
   | "rejected-sampling-support"
   | "rejected-observation-months"
+  | "rejected-observation-after-generation"
   | "rejected-observation-state";
 
 export interface PlaceObservationSelectionProvenance {
@@ -166,7 +167,7 @@ export function composePlaceObservationBrief(
     const status =
       matchingProducts.length > 1
         ? "rejected-duplicate-products"
-        : productStatusFor(product, binding);
+        : productStatusFor(product, binding, exportRecord.generated.iso);
     productStatus[binding.signalId] = status;
     observations[binding.signalId] =
       status === "accepted" && product
@@ -311,7 +312,8 @@ function unavailableReasonFor(
 
 function productStatusFor(
   product: PlaceObservationExport["products"][number] | undefined,
-  binding: SignalBinding
+  binding: SignalBinding,
+  generatedIso: string
 ): PlaceObservationProductStatus {
   if (!product) return "not-recorded";
   const expected = LAYERS[binding.layerId];
@@ -323,11 +325,15 @@ function productStatusFor(
   if (!hasConsistentSamplingSupport(product.samplingSupport)) {
     return "rejected-sampling-support";
   }
-  return hasCanonicalObservationMonths(product.observations)
-    ? hasConsistentObservationStates(product.observations)
-      ? "accepted"
-      : "rejected-observation-state"
-    : "rejected-observation-months";
+  if (!hasCanonicalObservationMonths(product.observations)) {
+    return "rejected-observation-months";
+  }
+  if (hasObservationAfterGeneration(product.observations, generatedIso)) {
+    return "rejected-observation-after-generation";
+  }
+  return hasConsistentObservationStates(product.observations)
+    ? "accepted"
+    : "rejected-observation-state";
 }
 
 /**
@@ -382,6 +388,35 @@ function hasCanonicalObservationMonths(
     months.add(observation.dataMonth);
   }
   return true;
+}
+
+/**
+ * An export cannot contain a source month later than the calendar month in
+ * which it says it was generated. Compare the explicit ISO calendar month,
+ * rather than converting to UTC and potentially shifting a timestamp near a
+ * timezone boundary into an adjacent month.
+ */
+function hasObservationAfterGeneration(
+  observations: PlaceObservationExport["products"][number]["observations"],
+  generatedIso: string
+): boolean {
+  const generatedMonthMatch = /^(\d{4})-(\d{2})-\d{2}T/.exec(generatedIso);
+  if (!generatedMonthMatch) return false;
+  const generatedMonth = {
+    year: Number(generatedMonthMatch[1]),
+    month: Number(generatedMonthMatch[2]),
+  };
+  if (
+    !Number.isInteger(generatedMonth.year) ||
+    generatedMonth.month < 1 ||
+    generatedMonth.month > 12
+  ) {
+    return false;
+  }
+  return observations.some((observation) => {
+    const dataMonth = parseYearMonth(observation.dataMonth);
+    return dataMonth !== null && compareYm(dataMonth, generatedMonth) > 0;
+  });
 }
 
 function hasConsistentObservationStates(

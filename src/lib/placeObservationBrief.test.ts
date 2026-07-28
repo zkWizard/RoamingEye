@@ -502,6 +502,62 @@ describe("place observation environmental brief", () => {
     expect(result.brief.signals[0].status).toBe("unavailable");
   });
 
+  it("rejects a product containing an observation dated after export generation", () => {
+    const record = exportRecord();
+    const vegetation = record.products.find(
+      (product) => product.layerId === "ndvi"
+    );
+    if (!vegetation) throw new Error("Missing vegetation fixture");
+    vegetation.observations.push({
+      dataMonth: "2026-08",
+      value: 0.62,
+      validFraction: 0.85,
+      unavailableReason: null,
+    });
+
+    const result = composePlaceObservationBrief(record);
+
+    expect(result.productStatus.vegetation).toBe(
+      "rejected-observation-after-generation"
+    );
+    expect(result.observationSelection.vegetation).toEqual({
+      recordedObservationCount: 3,
+      earliestDataMonth: null,
+      latestDataMonth: null,
+      selectedDataMonth: null,
+    });
+    expect(result.brief.signals[0]).toMatchObject({
+      status: "unavailable",
+      dataMonth: null,
+      coverage: { reason: "rejected-observation-after-generation" },
+    });
+  });
+
+  it("uses the generated timestamp's stated calendar month at timezone boundaries", () => {
+    const record = exportRecord();
+    record.generated.iso = "2026-01-31T23:30:00-08:00";
+    const vegetation = record.products.find(
+      (product) => product.layerId === "ndvi"
+    );
+    if (!vegetation) throw new Error("Missing vegetation fixture");
+    vegetation.observations = [
+      {
+        dataMonth: "2026-01",
+        value: 0.58,
+        validFraction: 0.8,
+        unavailableReason: null,
+      },
+    ];
+
+    const result = composePlaceObservationBrief(record);
+
+    expect(result.productStatus.vegetation).toBe("accepted");
+    expect(result.observationSelection.vegetation.selectedDataMonth).toEqual({
+      year: 2026,
+      month: 1,
+    });
+  });
+
   it.each([
     {
       name: "an unexplained null",

@@ -74,6 +74,7 @@ export type EnvironmentUnavailableReason =
   | "rejected-native-unit"
   | "rejected-sampling-support"
   | "rejected-observation-months"
+  | "rejected-observation-after-generation"
   | "rejected-observation-state"
   | "rejected-duplicate-products";
 
