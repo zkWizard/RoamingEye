@@ -98,6 +98,8 @@ export interface SignalSpatialSupport {
    * and vary with latitude — a coarse comparison figure, not a precision claim.
    */
   nominalMetres: number | null;
+  /** Product-aware identity; equal nominal sizes alone are not co-registration. */
+  gridKey: string | null;
   /** Honest, source-carrying sentence; no fitness, quality, or value claim. */
   statement: string;
 }
@@ -219,7 +221,9 @@ export function summarizeSpatialSupport(
   const knownMetres = perSignal
     .map((entry) => entry.nominalMetres)
     .filter((metres): metres is number => metres !== null);
-  const distinctStatedGrids = new Set(knownMetres).size;
+  const distinctStatedGrids = new Set(
+    perSignal.flatMap((entry) => (entry.gridKey ? [entry.gridKey] : []))
+  ).size;
   const finestMetres = knownMetres.length ? Math.min(...knownMetres) : null;
   const coarsestMetres = knownMetres.length ? Math.max(...knownMetres) : null;
   const scaleRatio =
@@ -266,6 +270,7 @@ function describeSignal(signal: EnvironmentSignalBrief): SignalSpatialSupport {
       source: signal.source,
       statedGrid: null,
       nominalMetres: null,
+      gridKey: null,
       statement: `${signal.label}: native grid not stated in the cited title; source ${source}.`,
     };
   }
@@ -275,6 +280,7 @@ function describeSignal(signal: EnvironmentSignalBrief): SignalSpatialSupport {
     source: signal.source,
     statedGrid: grid.statedGrid,
     nominalMetres: grid.nominalMetres,
+    gridKey: `${signal.source.shortName}@${signal.source.version}:${canonicalGridToken(grid.statedGrid)}`,
     statement: `${signal.label}: ${grid.statedGrid} native grid (~${formatMetres(grid.nominalMetres)} nominal); source ${source}.`,
   };
 }
@@ -344,6 +350,10 @@ function formatRatio(ratio: number): string {
 
 function sourceLabel(source: DatasetRef): string {
   return `${source.shortName} v${source.version}`;
+}
+
+function canonicalGridToken(statedGrid: string): string {
+  return statedGrid.toLowerCase().replace(/\s+/g, "");
 }
 
 function plural(count: number): string {
