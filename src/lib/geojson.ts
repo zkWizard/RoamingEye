@@ -43,6 +43,10 @@ export interface RefinedGeometrySamplingPlan extends GeometrySamplingPlan {
   candidatePointCount: number;
   /** Interior cells before the stable point-limit guard was applied. */
   interiorPointCount: number;
+  /** Polygon components present in the input MultiPolygon (1 for Polygon). */
+  polygonComponentCount: number;
+  /** Polygon components represented by at least one retained sample cell. */
+  sampledComponentCount: number;
   /** True when the plan retained a representative subset for bounded work. */
   pointLimitApplied: boolean;
 }
@@ -391,8 +395,15 @@ export function geometrySamplingPlan(
   );
   let gridSize = Math.min(maxGridSize, positiveInteger(initialGridSize, 1));
   let candidates = geometryGridCandidates(geometry, gridSize);
+  const polygonComponentCount = preparedPolygons(geometry).length;
+  const representedComponentCount = (): number =>
+    new Set(candidates.map(({ polygonIndex }) => polygonIndex)).size;
 
-  while (candidates.length < minPoints && gridSize < maxGridSize) {
+  while (
+    (candidates.length < minPoints ||
+      representedComponentCount() < polygonComponentCount) &&
+    gridSize < maxGridSize
+  ) {
     gridSize = Math.min(maxGridSize, gridSize * 2);
     candidates = geometryGridCandidates(geometry, gridSize);
   }
@@ -403,6 +414,8 @@ export function geometrySamplingPlan(
     gridSize,
     candidatePointCount: gridSize * gridSize,
     interiorPointCount: candidates.length,
+    polygonComponentCount,
+    sampledComponentCount: representedComponentCount(),
     pointLimitApplied: candidates.length > maxPoints,
   };
 }

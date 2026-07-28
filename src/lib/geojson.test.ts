@@ -321,6 +321,41 @@ describe("geometryToRings", () => {
     );
   });
 
+  it("refines until a small disconnected component is represented", () => {
+    const geometry = {
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [0, 0],
+            [8, 0],
+            [8, 8],
+            [0, 8],
+            [0, 0],
+          ],
+        ],
+        [
+          [
+            [9.8, 9.8],
+            [10, 9.8],
+            [10, 10],
+            [9.8, 10],
+            [9.8, 9.8],
+          ],
+        ],
+      ],
+    };
+
+    const plan = geometrySamplingPlan(geometry, 8, { minPoints: 1 });
+
+    expect(plan).toMatchObject({
+      gridSize: 32,
+      polygonComponentCount: 2,
+      sampledComponentCount: 2,
+    });
+    expect(plan!.points.some((point) => point.lon > 9.8)).toBe(true);
+  });
+
   it("does not let tuning options relax the hard sampling ceilings", () => {
     const geometry = {
       type: "Polygon",

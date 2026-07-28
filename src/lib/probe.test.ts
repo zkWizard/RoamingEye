@@ -100,6 +100,8 @@ describe("boundary probe sampling", () => {
       gridSize: 28,
       candidatePointCount: 784,
       interiorPointCount: 784,
+      polygonComponentCount: 1,
+      sampledComponentCount: 1,
       retainedPointCount: 784,
       sourcePixelCount: 784,
       pointLimitApplied: false,

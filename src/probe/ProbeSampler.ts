@@ -77,6 +77,8 @@ export interface SampleResult {
     gridSize: number;
     candidatePointCount: number;
     interiorPointCount: number;
+    polygonComponentCount: number;
+    sampledComponentCount: number;
     retainedPointCount: number;
     sourcePixelCount: number;
     pointLimitApplied: boolean;
@@ -264,6 +266,8 @@ export class ProbeSampler {
           gridSize: plan.gridSize,
           candidatePointCount: plan.candidatePointCount,
           interiorPointCount: plan.interiorPointCount,
+          polygonComponentCount: plan.polygonComponentCount,
+          sampledComponentCount: plan.sampledComponentCount,
           retainedPointCount: plan.points.length,
           sourcePixelCount: pixels.length,
           pointLimitApplied: plan.pointLimitApplied,
@@ -288,6 +292,8 @@ export class ProbeSampler {
         gridSize: plan.gridSize,
         candidatePointCount: plan.candidatePointCount,
         interiorPointCount: plan.interiorPointCount,
+        polygonComponentCount: plan.polygonComponentCount,
+        sampledComponentCount: plan.sampledComponentCount,
         retainedPointCount: pointPlan.points.length,
         sourcePixelCount: pixels.length,
         pointLimitApplied: plan.pointLimitApplied,
