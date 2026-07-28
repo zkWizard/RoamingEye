@@ -21,6 +21,7 @@ describe("monthly climate summaries", () => {
         source: CLIMATE_METRICS["precipitation-rate"].source,
       },
       dataMonth: { year: 2026, month: 1 },
+      firstAvailableMonth: { year: 2000, month: 1 },
       availableThrough: { year: 2026, month: 5 },
       publicationStatus: "published",
       publicationLagMonths: 4,
@@ -131,4 +132,47 @@ describe("monthly climate summaries", () => {
       },
     });
   });
+
+  it.each([
+    ["precipitation-rate", 0.0002, 2000, 317],
+    ["air-temperature-2m", 289.4, 1980, 557],
+    ["soil-moisture", 7.2, 2000, 317],
+  ] as const)(
+    "withholds %s observations before the cited source record",
+    (metricId, value, firstAvailableYear, publicationLagMonths) => {
+      const summary = summarizeMonthlyClimate(
+        {
+          metricId,
+          dataMonth: { year: firstAvailableYear - 1, month: 12 },
+          value,
+          validFraction: 0.88,
+          sourceImageDimensions: { width: 512, height: 256 },
+          geometrySamplingStrategy: "boundary-grid",
+        },
+        { year: 2026, month: 5 }
+      );
+
+      expect(summary).toMatchObject({
+        isForecast: false,
+        metric: {
+          id: metricId,
+          source: CLIMATE_METRICS[metricId].source,
+          nativeUnit: CLIMATE_METRICS[metricId].nativeUnit,
+        },
+        dataMonth: { year: firstAvailableYear - 1, month: 12 },
+        firstAvailableMonth: { year: firstAvailableYear, month: 1 },
+        availableThrough: { year: 2026, month: 5 },
+        publicationStatus: "before-source-record",
+        publicationLagMonths,
+        coverage: {
+          status: "available",
+          validFraction: 0.88,
+          reason: null,
+        },
+        sourceImageDimensions: { width: 512, height: 256 },
+        geometrySamplingStrategy: "boundary-grid",
+        observedValue: null,
+      });
+    }
+  );
 });
