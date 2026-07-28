@@ -246,8 +246,19 @@ test("hovering a volcano marker shows its details", async ({ page }) => {
 
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport");
-  // Darwin volcano, Galápagos (-0.18, -91.28) — near the default view centre.
-  const pt = screenPointFor(-0.18, -91.28, viewport.width, viewport.height);
+  // Acatenango, Guatemala (14.501, -90.876) — facing the default camera and
+  // clear of the bottom-centre HUD stack (layer selector + legend), whose
+  // height varies with the active layer's legend content.
+  const pt = screenPointFor(14.501, -90.876, viewport.width, viewport.height);
+
+  // A HUD panel over this point would swallow the pointermove and make the
+  // hover assertion below fail for a reason that has nothing to do with
+  // markers, so state the precondition explicitly.
+  const hitId = await page.evaluate(
+    ([x, y]) => document.elementFromPoint(x, y)?.id ?? "",
+    [pt.x, pt.y] as const
+  );
+  expect(hitId).toBe("globe");
 
   const tooltip = page.locator("#hover-tooltip");
   let jitter = 0;

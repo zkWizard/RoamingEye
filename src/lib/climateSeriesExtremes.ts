@@ -46,6 +46,16 @@ export interface ClimateSeriesExtreme {
   value: number;
 }
 
+export type ClimateSeriesExclusionReason =
+  "not-yet-published" | "invalid-reference-month" | "no-data" | "invalid";
+
+export interface ClimateSeriesExcludedMonth {
+  /** Source month retained so gaps remain auditable in exported summaries. */
+  dataMonth: YearMonth;
+  /** Source-derived reason this month did not enter the reduction. */
+  reason: ClimateSeriesExclusionReason;
+}
+
 export interface ClimateSeriesExtremesSummary {
   kind: "observed-climate-series-extremes";
   /** Explicitly prevents consumers from treating this as a forecast. */
@@ -60,6 +70,12 @@ export interface ClimateSeriesExtremesSummary {
   monthsSupplied: number;
   /** Count of published, usable observations that entered the extremes. */
   monthsUsable: number;
+  /**
+   * Every supplied month excluded from the reduction, in input order.
+   * Publication state takes precedence over coverage state so a value outside
+   * the confirmed source window is never mislabeled as an in-record data gap.
+   */
+  excludedMonths: ClimateSeriesExcludedMonth[];
   /** Lowest usable observed value and its month, or null when none usable. */
   minimum: ClimateSeriesExtreme | null;
   /** Highest usable observed value and its month, or null when none usable. */
@@ -97,9 +113,11 @@ export function climateSeriesExtremes(
     );
   }
   const metric = summaries[0].metric;
-  if (summaries.some((summary) => summary.metric.id !== metric.id)) {
+  if (
+    summaries.some((summary) => !sameMetricProvenance(summary.metric, metric))
+  ) {
     throw new Error(
-      "RoamingEye: climate series extremes require a single, consistent metric"
+      "RoamingEye: climate series extremes require consistent metric provenance"
     );
   }
 
@@ -108,9 +126,16 @@ export function climateSeriesExtremes(
   let earliest: YearMonth | null = null;
   let latest: YearMonth | null = null;
   let monthsUsable = 0;
+  const excludedMonths: ClimateSeriesExcludedMonth[] = [];
 
   for (const summary of summaries) {
-    if (!isUsable(summary)) continue;
+    if (!isUsable(summary)) {
+      excludedMonths.push({
+        dataMonth: { ...summary.dataMonth },
+        reason: exclusionReason(summary),
+      });
+      continue;
+    }
     const value = summary.observedValue as number;
     const dataMonth = summary.dataMonth;
     monthsUsable += 1;
@@ -139,6 +164,7 @@ export function climateSeriesExtremes(
     nativeUnit: metric.nativeUnit,
     monthsSupplied: summaries.length,
     monthsUsable,
+    excludedMonths,
     minimum,
     maximum,
     rangeNative:
@@ -148,6 +174,36 @@ export function climateSeriesExtremes(
     usableMonthSpan:
       earliest === null || latest === null ? null : { earliest, latest },
   };
+}
+
+function exclusionReason(
+  summary: MonthlyClimateSummary
+): ClimateSeriesExclusionReason {
+  if (summary.publicationStatus !== "published") {
+    return summary.publicationStatus;
+  }
+  return summary.coverage.status === "no-data" ? "no-data" : "invalid";
+}
+
+/**
+ * Compare every field that determines what a climate value represents and how
+ * it must be cited. Matching IDs alone are insufficient because a deserialized
+ * or independently assembled summary could otherwise attach another unit,
+ * layer, or source citation to values entering the same reduction.
+ */
+function sameMetricProvenance(
+  candidate: ClimateMetric,
+  expected: ClimateMetric
+): boolean {
+  return (
+    candidate.id === expected.id &&
+    candidate.layerId === expected.layerId &&
+    candidate.nativeUnit === expected.nativeUnit &&
+    candidate.source.shortName === expected.source.shortName &&
+    candidate.source.version === expected.source.version &&
+    candidate.source.doi === expected.source.doi &&
+    candidate.source.title === expected.source.title
+  );
 }
 
 /**

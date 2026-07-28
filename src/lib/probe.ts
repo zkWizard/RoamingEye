@@ -185,6 +185,27 @@ export function weightedMeanValid(
   return sum.sum() / valid;
 }
 
+/**
+ * Area-weighted share of samples that contain data. Compensated accumulation
+ * keeps coverage reproducible when the same geographic cells are enumerated
+ * in a different order; downstream availability thresholds must not depend on
+ * row order or antimeridian stitching order.
+ */
+export function weightedValidFraction(
+  values: (number | null)[],
+  weights: number[]
+): number {
+  const totalWeight = makeNeumaierAcc();
+  const validWeight = makeNeumaierAcc();
+  for (let i = 0; i < values.length; i++) {
+    const weight = weights[i];
+    totalWeight.add(weight);
+    if (values[i] !== null) validWeight.add(weight);
+  }
+  const total = totalWeight.sum();
+  return total > 0 ? validWeight.sum() / total : 0;
+}
+
 /** The cos(latitude) area weight of a sample on an equal-angle grid. */
 export function areaWeight(lat: number): number {
   return Math.cos((lat * Math.PI) / 180);
@@ -257,6 +278,25 @@ export function regionGridSize(
   return Math.min(max, Math.max(min, Math.ceil(span / degPerCell)));
 }
 
+/**
+ * Independently size each axis of a drawn-region sampling grid. This avoids
+ * oversampling a narrow axis while retaining the same per-axis density,
+ * minimum coverage, and maximum cost.
+ */
+export function regionGridDimensions(
+  bounds: Bounds,
+  degPerCell = 0.25,
+  min = 8,
+  max = 28
+): { latitude: number; longitude: number } {
+  const size = (span: number): number =>
+    Math.min(max, Math.max(min, Math.ceil(span / degPerCell)));
+  return {
+    latitude: size(bounds.north - bounds.south),
+    longitude: size(bounds.east - bounds.west),
+  };
+}
+
 // --- Area sampling grid ---------------------------------------------------------
 
 /**
@@ -268,13 +308,18 @@ export function regionGridSize(
  */
 export function gridPoints(
   bounds: Bounds,
-  n: number
+  latitudeCount: number,
+  longitudeCount = latitudeCount
 ): { lat: number; lon: number }[] {
   const points: { lat: number; lon: number }[] = [];
-  for (let i = 0; i < n; i++) {
-    const lat = bounds.south + ((i + 0.5) / n) * (bounds.north - bounds.south);
-    for (let j = 0; j < n; j++) {
-      const lon = bounds.west + ((j + 0.5) / n) * (bounds.east - bounds.west);
+  for (let i = 0; i < latitudeCount; i++) {
+    const lat =
+      bounds.south +
+      ((i + 0.5) / latitudeCount) * (bounds.north - bounds.south);
+    for (let j = 0; j < longitudeCount; j++) {
+      const lon =
+        bounds.west +
+        ((j + 0.5) / longitudeCount) * (bounds.east - bounds.west);
       points.push({ lat, lon: normalizeLon(lon) });
     }
   }
@@ -552,7 +597,16 @@ export function buildProbeCsv(
   // printed 0.6338 from a ±0.002 measurement).
   const decimals = csvDecimals(meta.scale);
   const cell = (v: number | null | undefined, offset: number): string =>
-    v === null || v === undefined ? "" : (offset + v * span).toFixed(decimals);
+    v === null || v === undefined || !Number.isFinite(v)
+      ? ""
+      : (offset + v * span).toFixed(decimals);
+  const coverageCell = (fraction: number | undefined): string =>
+    fraction !== undefined &&
+    Number.isFinite(fraction) &&
+    fraction >= 0 &&
+    fraction <= 1
+      ? fraction.toFixed(2)
+      : "";
   // Coverage column for averaged modes: how much of the box's *area* held
   // data each month — a 25%-coverage mean and a 100% one should never look
   // alike downstream.
@@ -618,7 +672,7 @@ export function buildProbeCsv(
   for (let i = 0; i < months.length; i++) {
     lines.push(
       `${ymStr(months[i])},${cell(values[i], meta.scale.min)},${cell(anomalies[i], 0)}` +
-        (fractions ? `,${(validFractions[i] ?? 0).toFixed(2)}` : "")
+        (fractions ? `,${coverageCell(validFractions[i])}` : "")
     );
   }
   return lines.join("\n") + "\n";

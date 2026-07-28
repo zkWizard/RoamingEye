@@ -4,20 +4,22 @@ import {
   SOIL_MOISTURE_CHANGE_LIMITATIONS,
   SOIL_MOISTURE_CHANGE_METRIC,
   summarizeSoilMoistureChange,
-  type SoilMoistureObservation,
+  type SoilMoistureChangeObservation,
 } from "./soilMoistureChange";
 
 const AVAILABLE_THROUGH = { year: 2026, month: 1 };
+const TEST_GEOGRAPHY = { id: "point:-121.5000,38.5000", label: "Test point" };
 
 const soilMonth = (
   year: number,
   month: number,
   value: number | null,
   validFraction?: number
-): SoilMoistureObservation => ({
+): SoilMoistureChangeObservation => ({
   dataMonth: { year, month },
   value,
   validFraction,
+  geography: TEST_GEOGRAPHY,
 });
 
 describe("soil moisture change", () => {
@@ -201,5 +203,66 @@ describe("soil moisture change", () => {
     expect(summary.later.observedValue).toBe(130);
     expect(summary.earlier.metric.id).toBe("soil-moisture");
     expect(summary.metric.source.doi).toBe("10.5067/SXAVCZFAQLNO");
+    expect(summary.earlierGeography).toEqual(TEST_GEOGRAPHY);
+    expect(summary.laterGeography).toEqual(TEST_GEOGRAPHY);
+  });
+
+  it("withholds a change across different sampling geographies", () => {
+    const earlier = soilMonth(2025, 6, 120, 0.9);
+    const later = {
+      ...soilMonth(2025, 7, 130, 0.9),
+      geography: { id: "point:-120.0000,39.0000", label: "Other point" },
+    };
+
+    const summary = summarizeSoilMoistureChange({
+      earlier,
+      later,
+      availableThrough: AVAILABLE_THROUGH,
+    });
+
+    expect(summary).toMatchObject({
+      status: "different-geography",
+      monthSpan: 1,
+      change: null,
+      direction: null,
+      minValidFraction: null,
+      reason: "different-geography",
+      earlierGeography: TEST_GEOGRAPHY,
+      laterGeography: later.geography,
+    });
+  });
+
+  it("rejects missing geography identities and blank labels", () => {
+    const blankId = {
+      ...soilMonth(2025, 6, 120, 0.9),
+      geography: { id: " " },
+    };
+    const blankLabel = {
+      ...soilMonth(2025, 7, 130, 0.9),
+      geography: { id: TEST_GEOGRAPHY.id, label: "" },
+    };
+
+    expect(
+      summarizeSoilMoistureChange({
+        earlier: blankId,
+        later: soilMonth(2025, 7, 130, 0.9),
+        availableThrough: AVAILABLE_THROUGH,
+      })
+    ).toMatchObject({
+      status: "invalid",
+      change: null,
+      reason: "invalid-geography",
+    });
+    expect(
+      summarizeSoilMoistureChange({
+        earlier: soilMonth(2025, 6, 120, 0.9),
+        later: blankLabel,
+        availableThrough: AVAILABLE_THROUGH,
+      })
+    ).toMatchObject({
+      status: "invalid",
+      change: null,
+      reason: "invalid-geography",
+    });
   });
 });

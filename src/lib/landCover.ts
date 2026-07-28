@@ -91,7 +91,10 @@ export const IGBP_LAND_COVER_CLASSES: readonly IgbpLandCoverClass[] = [
 export interface LandCoverClassObservation {
   /** MCD12Q1 IGBP class code; null means the sampler observed no usable code. */
   classCode: number | null;
-  /** Count of samples/pixels represented by this record. Defaults to one. */
+  /**
+   * Count of samples/pixels represented by this record. Defaults to one and
+   * must be a positive safe integer so native counts remain exact.
+   */
   sampleCount?: number;
 }
 
@@ -109,7 +112,10 @@ export interface LandCoverCoverage {
   noDataSampleCount: number;
   /** Samples whose code was outside the IGBP contract. */
   invalidClassSampleCount: number;
-  /** Records rejected because their sample count was not a positive integer. */
+  /**
+   * Records rejected because their sample count was not a positive safe
+   * integer or would make the cumulative sample count unsafe.
+   */
   invalidRecordCount: number;
   /** Share of all counted samples that carried an IGBP land-cover class 1..17. */
   knownLandCoverFraction: number | null;
@@ -161,7 +167,11 @@ export interface LandCoverContextSummary {
     | null;
   coverage: LandCoverCoverage;
   classCoverage: LandCoverClassCoverage[];
-  /** Most common informative class by sample count; null for no known class. */
+  /** Whether the largest informative-class count is unique, tied, or absent. */
+  mostFrequentClassStatus: "unique" | "tied" | "no-data";
+  /** Every informative class sharing the largest sample count. */
+  mostFrequentClasses: LandCoverClassCoverage[];
+  /** Unique most frequent informative class; null for a tie or no known class. */
   dominantClass: LandCoverClassCoverage | null;
 }
 
@@ -183,7 +193,11 @@ export function summarizeLandCoverContext(
 
   for (const observation of observations) {
     const sampleCount = observation.sampleCount ?? 1;
-    if (!Number.isInteger(sampleCount) || sampleCount <= 0) {
+    if (
+      !Number.isSafeInteger(sampleCount) ||
+      sampleCount <= 0 ||
+      !Number.isSafeInteger(totalSampleCount + sampleCount)
+    ) {
       invalidRecordCount += 1;
       continue;
     }
@@ -233,8 +247,25 @@ export function summarizeLandCoverContext(
     })
     .sort((a, b) => b.sampleCount - a.sampleCount || a.classCode - b.classCode);
 
+  const informativeClassCoverage = classCoverage.filter(
+    (entry) => entry.isInformativeLandCover
+  );
+  const largestInformativeClassCount =
+    informativeClassCoverage[0]?.sampleCount ?? null;
+  const mostFrequentClasses =
+    largestInformativeClassCount === null
+      ? []
+      : informativeClassCoverage.filter(
+          (entry) => entry.sampleCount === largestInformativeClassCount
+        );
+  const mostFrequentClassStatus =
+    mostFrequentClasses.length === 0
+      ? "no-data"
+      : mostFrequentClasses.length === 1
+        ? "unique"
+        : "tied";
   const dominantClass =
-    classCoverage.find((entry) => entry.isInformativeLandCover) ?? null;
+    mostFrequentClassStatus === "unique" ? mostFrequentClasses[0] : null;
   const coverage: LandCoverCoverage = {
     status: knownLandCoverSampleCount > 0 ? "available" : "no-data",
     totalSampleCount,
@@ -279,6 +310,8 @@ export function summarizeLandCoverContext(
     unavailableReason,
     coverage,
     classCoverage,
+    mostFrequentClassStatus,
+    mostFrequentClasses,
     dominantClass,
   };
 }
@@ -355,6 +388,10 @@ export interface LandCoverFormationSummary {
   /** Explicitly prevents consumers from treating this as a temporal forecast. */
   isForecast: false;
   provenance: LandCoverProvenance;
+  /** Mirrors whether the upstream annual observation can be presented. */
+  observationStatus: LandCoverContextSummary["observationStatus"];
+  /** Retains the upstream publication or sampling limitation unchanged. */
+  unavailableReason: LandCoverContextSummary["unavailableReason"];
   formationCoverage: LandCoverFormationCoverage[];
   /** Most common formation by sample count; null when no known class present. */
   dominantFormation: LandCoverFormationCoverage | null;
@@ -385,17 +422,19 @@ export function summarizeLandCoverFormations(
   const groupCounts = new Map<LandCoverFormationId, number>();
   let ungroupedKnownSampleCount = 0;
 
-  for (const entry of context.classCoverage) {
-    if (!entry.isInformativeLandCover) continue;
-    const formation = FORMATION_BY_CLASS.get(entry.classCode);
-    if (!formation) {
-      ungroupedKnownSampleCount += entry.sampleCount;
-      continue;
+  if (context.observationStatus === "available") {
+    for (const entry of context.classCoverage) {
+      if (!entry.isInformativeLandCover) continue;
+      const formation = FORMATION_BY_CLASS.get(entry.classCode);
+      if (!formation) {
+        ungroupedKnownSampleCount += entry.sampleCount;
+        continue;
+      }
+      groupCounts.set(
+        formation.id,
+        (groupCounts.get(formation.id) ?? 0) + entry.sampleCount
+      );
     }
-    groupCounts.set(
-      formation.id,
-      (groupCounts.get(formation.id) ?? 0) + entry.sampleCount
-    );
   }
 
   const { totalSampleCount, knownLandCoverSampleCount } = context.coverage;
@@ -426,6 +465,8 @@ export function summarizeLandCoverFormations(
     kind: "observed-land-cover-formation-groups",
     isForecast: false,
     provenance: context.provenance,
+    observationStatus: context.observationStatus,
+    unavailableReason: context.unavailableReason,
     formationCoverage,
     dominantFormation: formationCoverage[0] ?? null,
     ungroupedKnownSampleCount,

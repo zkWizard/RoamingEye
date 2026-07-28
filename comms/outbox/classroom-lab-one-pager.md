@@ -3,7 +3,7 @@ Venue: reusable asset (not a single-venue post) — hand out as a course-page li
 Channel: classroom handout / course website / workshop packet / instructor email
 Status: DRAFT
 Date: 2026-07-15
-Claims re-verified: 2026-07-27 — live URL now https://roamingeye.org/ (custom domain); feature/layer claims re-checked against README.md
+Claims re-verified: 2026-07-28 — the "timeline shows only recent months" limit was wrong and is removed; the scrubber spans each layer's full record, checked against `src/lib/timeline.ts` and `src/main.ts`, not against README. Prior pass 2026-07-27: live URL now https://roamingeye.org/ (custom domain).
 
 <!--
   This is a SOURCE ASSET, not a one-off message. It is a single-page,
@@ -11,7 +11,9 @@ Claims re-verified: 2026-07-27 — live URL now https://roamingeye.org/ (custom 
   When zkWizard tailors it for a specific course network (e.g. an intro-GIS
   syllabus, an Earth-science methods lab, a data-literacy unit), copy the
   relevant sections into that venue's format and flip Status. Every feature
-  claim below is verified against README.md / METHODS.md as of 2026-07-15.
+  claim below is verified against METHODS.md and the source that implements
+  it (2026-07-28) — verify against code, not README: README itself carried a
+  stale scrubber claim for weeks.
 -->
 
 ---
@@ -42,6 +44,7 @@ Each maps to a real feature. Pick by level; all run in a browser tab.
 
 **1. Watch the seasons turn — vegetation phenology _(secondary → intro undergrad)_**
 Load the monthly NDVI (vegetation) layer and drag the temporal scrubber month-by-month. Have students describe the green-up and senescence cycle over a region they know, then contrast a temperate forest with a tropical or desert site. _Concept:_ seasonality, the growing season, why a single snapshot misleads.
+👉 **This one is already written up in full.** [**"When does the Earth turn green?"**](https://github.com/zkWizard/RoamingEye/blob/main/docs/teaching/ndvi-phenology-lab.md) is a ready-to-run 60–75 minute lab combining ideas 1 and 3 — learning objectives, student worksheet, assessment rubric, instructor answer notes, common student misconceptions, and 45-minute / two-session / lecture-demo variants. Free to adapt (MIT); no attribution paperwork.
 
 **2. Wet year vs. dry year — drought & agriculture _(undergrad)_**
 Compare vegetation vigour over the same farming region between a known wet year and a dry year. Bring in the precipitation and soil-moisture layers to build the causal story. _Concept:_ multi-variable reasoning, interannual variability.
@@ -76,7 +79,7 @@ Scrub the monthly snow-cover layer across a winter and into spring over a mounta
 
 - **Open imagery is medium-resolution.** Recent, frequently-revisited open data tops out around 10 m (Sentinel-2) to 30 m (Landsat/HLS). Sub-metre "street-level" imagery lives only in commercial archives; RoamingEye stays fully open on purpose. Great prompt: _why is the freely available picture coarser, and who pays for the sharp one?_
 - **The point probe is approximate by design.** Values are recovered from the displayed colour (colormap inversion), so it's reliable for **trends and comparisons**, not exact absolute measurements — and the app says so wherever it shows a number. That honesty is itself the lesson.
-- **The timeline shows recent monthly composites; the probe charts the longer record.** The scrubber sweeps the last few years month-by-month, while the point time series reaches back across the full multi-decadal archive.
+- **Different layers start in different years.** The scrubber spans each layer's own published record — 2000 → present for the MODIS layers, mid-2002 for sea-surface temperature, and back to 1980 for the MERRA-2 reanalysis layers (2 m air temperature, aerosols) — so comparing two layers fairly means using the window they actually share. Great prompt: _why is there no single "the satellite record"?_
 
 ---
 

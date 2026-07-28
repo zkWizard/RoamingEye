@@ -13,6 +13,14 @@ Everything below runs in the browser at
 > _whether a site is worth a real data pull_ — but for measurement-grade work,
 > follow up with the underlying L3 product (each CSV header names the exact
 > GIBS layer to look up). The CSV states all of this in its provenance headers.
+> Accuracy is **layer-dependent and measured** — check the per-layer table in
+> [METHODS.md §3](../METHODS.md) before trusting an absolute value.
+
+> **Teaching rather than researching?** These recipes are workflows, not lesson
+> plans. [`teaching/ndvi-phenology-lab.md`](teaching/ndvi-phenology-lab.md) is a
+> ready-to-run 60–75 minute classroom lab on the seasonal vegetation cycle, with
+> learning objectives, a student worksheet, an assessment rubric, and instructor
+> answer notes.
 
 ---
 
@@ -43,14 +51,29 @@ anomaly.rolling(6).mean().plot()  # the drought signal, de-seasonalised
 
 _Urban climate / land-use change — "is my city measurably hotter than 2000?"_
 
+> ⚠️ **Read this before you start: the LST _probe_ is currently broken.** Its
+> legend gradient misses GIBS's cold-end hues, so colormap inversion returns
+> **no data for effectively all values** (0 of 250 recovered — see the accuracy
+> table in [METHODS.md §3](../METHODS.md)). Fixing it by inverting against
+> GIBS's real colormaps is tracked as
+> [#170](https://github.com/zkWizard/RoamingEye/issues/170). Until then, use
+> this recipe **visually** — the imagery itself is fine — and pull MOD11C3 for
+> numbers.
+
 1. Pick **Land surface temp**, search the city, click the urban core.
-2. The chart shows 26 years of monthly daytime LST. Summer peaks creeping
-   upward — or the urban pixel diverging from a rural click a few km away —
-   is the urban-heat-island signal.
-3. Probe twice (urban core, then nearby farmland), download both CSVs, and
-   difference them month-by-month. LST values are reported as
-   _fraction of color scale_, which cancels in the difference — ideal for
-   a first-pass UHI screening before pulling MOD11 for the real analysis.
+2. Scrub the record. The city reading hotter than the farmland around it is the
+   urban-heat-island signal, and it is legible directly in the imagery: hold a
+   summer month and step year-by-year with PageUp/PageDown to compare like with
+   like.
+3. **Save PNG** at each end of your study window for a before/after pair, then
+   pull **MOD11C3 v061** (`10.5067/MODIS/MOD11C3.061`) for the actual values.
+   Use this recipe to decide _whether_ a site is worth that pull — which is what
+   it is genuinely good for — not to produce the numbers themselves.
+
+Want a probe-based temperature series today? **Air temperature (2 m)** does
+invert, though with large absolute uncertainty (19.0 K RMSE); METHODS §3 is
+explicit that those layers are for **relative and temporal** analysis, so work
+in anomalies rather than absolute degrees.
 
 ## 3. The plate-tectonics lecture view
 

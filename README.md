@@ -43,9 +43,9 @@ It is built for, and by, the research community: every data source is open and c
 
 - 🌍 **A real 3D Earth** rendered with WebGL — grab to rotate, scroll to zoom from orbit down to the surface.
 - 🔬 **Native-resolution tile streaming, on by default** — zoom in and the visible globe re-drapes itself with WMTS tiles chosen by screen-space error, up to each layer's native resolution (terrain reaches ~31 m), with parent-tile fallback so detail refines instead of popping.
-- ⏳ **A temporal scrubber** — a ruler-style timeline that sweeps month-by-month through the last 5 years of monthly satellite composites, so you can _watch the seasons turn_ and trends emerge.
+- ⏳ **A temporal scrubber** — a ruler-style timeline that sweeps month-by-month across each layer's **full published record**, so you can _watch the seasons turn_ and trends emerge: 2000 → present for the MODIS layers, and back to **1980** for the MERRA-2 reanalysis layers (2 m air temperature, aerosols).
 - 🌱❄️🌡️ **A rich set of scientific layers** — 9 open NASA products across **vegetation** (NDVI, EVI), **temperature** (land surface, 2 m air, sea surface), **water** (precipitation, soil moisture), **cryosphere** (snow cover), and **atmosphere** (aerosols) — grouped in a clean picker and growing.
-- 📚 **An open-data Providers page** — a built-in catalogue of the ~33 agencies, archives, and platforms whose open data powers the project.
+- 📚 **An open-data Providers page** — a built-in catalogue of the 37 agencies, archives, and platforms whose open data powers the project.
 - 🧰 **A reviewed open-software finder** — browse Earth-science tools by domain, platform, and access path; every public recommendation links to its repository, documentation, SPDX evidence, and verification date.
 - 🔎 **Search any place** — geocoded via OpenStreetMap; the globe traces the returned postcode, city, state, or country boundary and surfaces its latest month-over-month vegetation, rainfall, soil-moisture, and air-temperature signals.
 - 📈 **A point time-series probe** — click anywhere on the globe and chart that layer's value at that point across its full record (26–46 years), with a provenance-stamped CSV download. Approximate by design (colormap inversion), honest about it everywhere.
@@ -64,6 +64,14 @@ snowpack tracking, deforestation figures). For **how the tool computes what it
 shows and where it stops being trustworthy** — the probe pipeline, area
 weighting, uncertainty, the seasonal Mann-Kendall / Sen's slope trend test, and
 the measured per-layer inversion accuracy — read [**METHODS.md**](METHODS.md).
+
+**Teaching with it?**
+[**docs/teaching/ndvi-phenology-lab.md**](docs/teaching/ndvi-phenology-lab.md)
+is a ready-to-run 60–75 minute classroom lab — "when does the Earth turn
+green?" — with learning objectives, a student worksheet, an assessment rubric,
+instructor answer notes, and the honest limits written up as teachable
+material. No accounts, no install, works on a Chromebook. Free to adapt (MIT).
+
 A few examples it already supports:
 
 | Field                               | What you can observe                                                       |
@@ -146,6 +154,18 @@ For a contributor's tour of the codebase, see [`ARCHITECTURE.md`](ARCHITECTURE.m
 - 🚩 **The flagship engine:** [**RFC-001 — Tiled imagery streaming**](docs/rfcs/RFC-001-tiled-imagery-streaming.md) shipped — and its follow-ons (tile-edge skirts, polar handling, Sentinel-2 at 10 m) are great graphics projects. See the [roadmap](ROADMAP.md).
 
 Every change lands through a reviewed, CI-gated pull request. Be kind — see the [Code of Conduct](.github/CODE_OF_CONDUCT.md).
+
+### 👀 Why are there so many open pull requests?
+
+Because most of them are opened automatically — and none of them are in your way.
+
+Alongside the catalog agents above, RoamingEye runs a fleet of scheduled Earth-science specialists — **Geologist, Biologist, Meteorologist, Marine Biologist, Environmental Scientist, and Geospatial & Remote-Sensing Engineer**. Each one opens small, self-contained pull requests from a `codex/<lane>-<task>` branch, and Dependabot opens the rest. [`docs/fleet-expansion-program.md`](docs/fleet-expansion-program.md) documents that program — what each lane owns, what a specialist must produce to complete a cycle, and how its work is validated and integrated.
+
+If you're here to contribute, the queue length is not something you need to read or work around:
+
+- 🎯 **The work we want help with lives in issues, not in that queue** — start with [good first issues](https://github.com/zkWizard/RoamingEye/labels/good%20first%20issue), the [roadmap](ROADMAP.md), or the RFC-001 graphics follow-ons above.
+- 👤 **Your pull request is reviewed by a person**, under the rules in [`GOVERNANCE.md`](GOVERNANCE.md) — human contributions are not triaged by the fleet.
+- 🔍 To read the pull-request queue without the automated ones, filter it with [`is:pr is:open -head:codex -author:app/dependabot`](https://github.com/zkWizard/RoamingEye/pulls?q=is%3Apr+is%3Aopen+-head%3Acodex+-author%3Aapp%2Fdependabot).
 
 ---
 

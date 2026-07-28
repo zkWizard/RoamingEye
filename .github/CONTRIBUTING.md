@@ -23,6 +23,12 @@ You don't have to write code to help:
 Look for issues labelled [`good first issue`](https://github.com/zkWizard/RoamingEye/labels/good%20first%20issue)
 to get started.
 
+Before picking something in `src/lib/`, read
+[**Wired vs. staged modules**](../ARCHITECTURE.md#wired-vs-staged-modules--read-this-before-picking-a-task)
+in the architecture guide — most modules there are tested but not yet connected
+to the app, so editing one won't change what a user sees. Connecting one is a
+great first project.
+
 ---
 
 ## Development setup
@@ -54,8 +60,49 @@ npm run dev        # start the local dev server (http://localhost:5173)
 
 Before opening a PR, please run **`npm run verify`** locally — these are the
 same checks CI runs. Every PR then runs the full suite on GitHub Actions
-(type-check, lint/format, unit, build, CodeQL, and the WebGL e2e smoke tests);
-a maintainer merges once it's approved and the required checks are green.
+(`.github/workflows/ci.yml` — type-check, lint/format, unit, build, plus CodeQL,
+OpenSSF Scorecard, and the WebGL e2e smoke tests); a maintainer merges once it's
+approved and the required checks are green.
+
+A red **E2E smoke (WebGL)** check is sometimes flaky rather than a real failure —
+if it fails and your change doesn't touch rendering, say so in the PR and a
+maintainer will re-run it.
+
+### The bundle budget — read this before adding code to the app
+
+The **Build** check does more than compile. It also runs
+[`scripts/check-bundle-size.mjs`](../scripts/check-bundle-size.mjs), which fails
+the build if the app's JavaScript chunk exceeds **60 kB gzipped** (the separate
+`three-*` vendor chunk has its own, roomier 170 kB budget). `npm run build` runs
+that same check locally, so you can see the verdict before you push:
+
+```text
+ok  index-CDzPGmQE.js: 60.0 kB gzip (budget 60 kB)
+ok  three-eDZqjHhA.js: 133.3 kB gzip (budget 170 kB)
+     total JS: 193.3 kB gzip
+```
+
+**The app chunk is currently sitting on its cap.** That is real output from CI on
+`main` at `156822f` (2026-07-28) — 60.0 kB against a budget of 60, i.e. well
+under a tenth of a kB of headroom. If your PR adds code the app actually
+imports, expect Build to go red on the budget, and please read that as a
+repo-wide condition rather than a mistake in your patch.
+
+Two things make the result easy to misread:
+
+- **The size looks the same either way.** At this margin a chunk that is _over_
+  budget still prints `60.0 kB`; only the leading word changes. Read the `ok` /
+  `FAIL` at the start of the line, not the number after it.
+- **Only wired code counts.** A module nothing imports is tree-shaken out of the
+  bundle and costs zero bytes — which is how `src/lib/` keeps growing while the
+  budget barely moves. The bytes land at the moment the module gets a call site
+  (see [Wired vs. staged modules](../ARCHITECTURE.md#wired-vs-staged-modules--read-this-before-picking-a-task)).
+
+If you do hit the cap, **say so in the PR and leave it there** — please don't
+raise the number in `check-bundle-size.mjs` to get to green. Whether to trim
+elsewhere, split the chunk, or deliberately spend more budget is a maintainer
+call, and the script's own rule is that a budget bump must be justified by the
+PR that makes it.
 
 ---
 

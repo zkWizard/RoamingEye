@@ -17,10 +17,12 @@ import { latLngToVector3, vector3ToLatLng, formatLatLng } from "./lib/geo";
 import { buildProbeCsv, normalizeLon, PROBE_SCALES } from "./lib/probe";
 import { isAreaGeometry } from "./lib/geojson";
 import {
+  PLACE_OBSERVATION_NATIVE_UNITS,
   placeObservationProductFromSample,
   serializePlaceObservationExport,
   type PlaceObservationExportSample,
 } from "./lib/placeObservationExport";
+import { SCALE_CONVERSIONS } from "./lib/colormap";
 import {
   PLACE_METRICS,
   latestComparisonMonths,
@@ -38,7 +40,7 @@ import {
   summarizeRenderedClimateSample,
 } from "./lib/meteorology";
 import { volcanoesInSearchExtent } from "./lib/volcanoExtent";
-import { parseVolcanoList } from "./lib/volcanoes";
+import { parseVolcanoDataset } from "./lib/volcanoes";
 import type { GeoResult } from "./lib/geocoding";
 import { refreshDataLatest } from "./lib/freshness";
 import { fetchJson, isAbortError, isOnline, OfflineError } from "./lib/net";
@@ -63,7 +65,10 @@ import { GraticuleOverlay } from "./overlays/GraticuleOverlay";
 import { BordersOverlay } from "./overlays/BordersOverlay";
 import { CitiesOverlay } from "./overlays/CitiesOverlay";
 import { AtmosphereOverlay } from "./overlays/AtmosphereOverlay";
-import { EarthquakesOverlay } from "./overlays/EarthquakesOverlay";
+import {
+  EARTHQUAKE_HOVER_SOURCE_COUNT,
+  EarthquakesOverlay,
+} from "./overlays/EarthquakesOverlay";
 import { PlateBoundariesOverlay } from "./overlays/PlateBoundariesOverlay";
 import { VolcanoesOverlay } from "./overlays/VolcanoesOverlay";
 import { TiledImageryOverlay } from "./overlays/TiledImageryOverlay";
@@ -232,6 +237,7 @@ const errorToast = new ErrorToast();
 
 const citiesOverlay = new CitiesOverlay();
 const volcanoesOverlay = new VolcanoesOverlay();
+const earthquakesOverlay = new EarthquakesOverlay();
 // "You are here" — opt-in geolocation pin; denial reverts its toggle + toasts.
 const userLocationOverlay = new UserLocationOverlay((message) =>
   errorToast.show(message)
@@ -246,7 +252,7 @@ const overlays: MapOverlay[] = [
   // up on the globe to tell the plate-tectonics story.
   new PlateBoundariesOverlay(),
   volcanoesOverlay,
-  new EarthquakesOverlay(),
+  earthquakesOverlay,
   userLocationOverlay,
 ];
 for (const overlay of overlays) scene.add(overlay.object);
@@ -274,6 +280,9 @@ if (tooltipEl) {
   const inspector = new HoverInspector(canvas, camera, earth, tooltipEl);
   inspector.addPointSource(() => citiesOverlay.hoverSource);
   inspector.addPointSource(() => volcanoesOverlay.hoverSource);
+  for (let index = 0; index < EARTHQUAKE_HOVER_SOURCE_COUNT; index += 1) {
+    inspector.addPointSource(() => earthquakesOverlay.hoverSources[index]);
+  }
   inspector.addPointSource(() => userLocationOverlay.hoverSource);
   loadCountryIndex()
     .then((index) => {
@@ -412,6 +421,9 @@ function buildTimeline(): void {
 buildTimeline();
 
 const legend = legendEl ? new Legend(legendEl, currentLayer) : undefined;
+hdTiles.onVisibleCoverageChange(({ requested, loaded, failed }) => {
+  legend?.setTerrainTileCoverage(requested, loaded, failed);
+});
 
 // Assigned by the probe/compare sections below; the layer selector closes
 // both because their contents belong to the previous layer.
@@ -440,11 +452,12 @@ function runPlaceInsights(result: GeoResult): void {
     void fetchJson<unknown>(`${import.meta.env.BASE_URL}data/volcanoes.json`, {
       signal: abort.signal,
     })
-      .then(parseVolcanoList)
-      .then((volcanoes) => {
+      .then(parseVolcanoDataset)
+      .then((dataset) => {
         if (abort.signal.aborted) return;
         placeInsights.setVolcanoContext(
-          volcanoesInSearchExtent(volcanoes, result.boundingBox)
+          volcanoesInSearchExtent(dataset.volcanoes, result.boundingBox),
+          dataset.dataMonth
         );
       })
       .catch((error: unknown) => {
@@ -461,8 +474,7 @@ function runPlaceInsights(result: GeoResult): void {
     if (!months) continue;
     // Start with explicit no-data observations. A failed request or an
     // unavailable authoritative colormap must not be replaced with a
-    // display-converted value labelled as a native-unit measurement. NDVI is
-    // the exception: its 0..1 physical range is already its native unit.
+    // display-converted value labelled as a native-unit measurement.
     exportSamples.set(metric.layerId, {
       layerId: metric.layerId,
       observations: months.map((dataMonth) => ({
@@ -495,6 +507,7 @@ function runPlaceInsights(result: GeoResult): void {
           values,
           validFractions,
           sourceImageDimensions,
+          geometrySampling,
           geometrySamplingStrategy,
         } = await sample;
         if (abort.signal.aborted) return;
@@ -532,10 +545,15 @@ function runPlaceInsights(result: GeoResult): void {
                   geometrySamplingStrategy,
                 })
         );
-        if (colormap || metric.layerId === "ndvi") {
+        if (colormap) {
           exportSamples.set(metric.layerId, {
             layerId: metric.layerId,
+            sampledUnit:
+              SCALE_CONVERSIONS[
+                metric.layerId as keyof typeof SCALE_CONVERSIONS
+              ]?.unit ?? PLACE_OBSERVATION_NATIVE_UNITS[metric.layerId],
             sourceValueFactor: colormap?.factor ?? 1,
+            samplingSupport: geometrySampling,
             samplingStrategy: geometrySamplingStrategy,
             observations: months.map((dataMonth, index) => {
               const value = values[index] ?? null;
@@ -620,26 +638,34 @@ function runPlaceInsights(result: GeoResult): void {
     })
   );
 
-  void Promise.all(samplingTasks).then(() => {
-    if (abort.signal.aborted) return;
-    const products = [...exportSamples.values()].map(
-      placeObservationProductFromSample
-    );
-    if (products.length === 0) return;
-    placeInsights.setObservationExport(
-      serializePlaceObservationExport({
-        boundary: geometry,
-        products,
-        method: {
-          sampling: "area-weighted-grid-mean",
-          imageWidth: 512,
-          imageHeight: 512,
-        },
-        generatedIso: new Date().toISOString(),
-        toolVersion: __APP_VERSION__,
-      })
-    );
-  });
+  void Promise.all(samplingTasks)
+    .then(() => {
+      if (abort.signal.aborted) return;
+      const products = [...exportSamples.values()].map(
+        placeObservationProductFromSample
+      );
+      if (products.length === 0) return;
+      placeInsights.setObservationExport(
+        serializePlaceObservationExport({
+          boundary: geometry,
+          products,
+          method: {
+            sampling: "area-weighted-grid-mean",
+            imageWidth: 512,
+            imageHeight: 512,
+          },
+          generatedIso: new Date().toISOString(),
+          toolVersion: __APP_VERSION__,
+        })
+      );
+    })
+    .catch((error: unknown) => {
+      // Export validation throws on contract violations (unexplained nulls,
+      // invalid footprints). Losing the export beats an unhandled rejection
+      // that would silently strand the whole insights panel.
+      if (isAbortError(error) || abort.signal.aborted) return;
+      console.warn("RoamingEye: place observation export failed", error);
+    });
 }
 
 if (layerEl) {

@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { latLngToVector3 } from "../lib/geo";
 import { fetchJson } from "../lib/net";
+import { plateBoundaryRenderPositions } from "../lib/plateBoundaryRendering";
 import { parsePlateBoundaries } from "../lib/plates";
 import { ICONS } from "../ui/icons";
 import { GLOBE_RADIUS, type MapOverlay } from "./types";
@@ -36,22 +36,7 @@ export class PlateBoundariesOverlay implements MapOverlay {
   private async load(): Promise<void> {
     const boundaries = parsePlateBoundaries(await fetchJson<unknown>(this.url));
 
-    const positions: number[] = [];
-    for (const boundary of boundaries) {
-      for (let i = 0; i + 1 < boundary.points.length; i++) {
-        const a = latLngToVector3(
-          boundary.points[i][1],
-          boundary.points[i][0],
-          this.radius
-        );
-        const b = latLngToVector3(
-          boundary.points[i + 1][1],
-          boundary.points[i + 1][0],
-          this.radius
-        );
-        positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
-      }
-    }
+    const positions = plateBoundaryRenderPositions(boundaries, this.radius);
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute(

@@ -61,6 +61,9 @@ describe("marine boundary SST insights", () => {
       footprint: "unknown",
       validFraction: 0,
       reason: "zero-sst-coverage",
+      // Native sample counts travel with coverage; zero-coverage boundaries
+      // carry none rather than an invented zero tally.
+      sampleCounts: null,
     });
     expect(reading.detail).toContain("0% sampled boundary coverage");
   });
@@ -106,5 +109,21 @@ describe("marine boundary SST insights", () => {
       marineBiologyObservation: false,
       dataMonth: { year: 2026, month: 3 },
     });
+  });
+
+  it("withholds SST when rendered image dimensions are malformed", () => {
+    const reading = marineBoundarySstReading({
+      dataMonth: { year: 2026, month: 3 },
+      observedValue: 18.4,
+      validFraction: 0.75,
+      sourceImageDimensions: { width: 0, height: 512 },
+    });
+
+    expect(reading.value).toBe("No usable SST observation");
+    expect(reading.observedValue).toBeNull();
+    expect(reading.detail).toContain(
+      "rendered source image dimensions invalid"
+    );
+    expect(reading.detail).toContain("not a marine-biology observation");
   });
 });
