@@ -47,6 +47,7 @@ export type PlaceObservationProductStatus =
   | "rejected-wms-layer"
   | "rejected-source"
   | "rejected-native-unit"
+  | "rejected-generation-timestamp"
   | "rejected-sampling-support"
   | "rejected-observation-months"
   | "rejected-observation-after-generation"
@@ -317,6 +318,9 @@ function productStatusFor(
   generatedIso: string
 ): PlaceObservationProductStatus {
   if (!product) return "not-recorded";
+  if (!isCanonicalIsoTimestamp(generatedIso)) {
+    return "rejected-generation-timestamp";
+  }
   const expected = LAYERS[binding.layerId];
   if (product.wmsLayer !== expected.wmsLayer) return "rejected-wms-layer";
   if (!sameSource(product.source, expected.dataset)) return "rejected-source";
@@ -338,6 +342,45 @@ function productStatusFor(
   return hasConsistentObservationStates(product.observations)
     ? "accepted"
     : "rejected-observation-state";
+}
+
+/**
+ * External JSON can reach the brief adapter without passing through the export
+ * constructor. Reject malformed generation provenance here so later source
+ * months are never accepted against an unknown or normalized calendar date.
+ */
+function isCanonicalIsoTimestamp(value: string): boolean {
+  const match =
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/.exec(
+      value
+    );
+  if (!match) return false;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const offsetHour = match[7] === undefined ? null : Number(match[7]);
+  const offsetMinute = match[8] === undefined ? null : Number(match[8]);
+  if (
+    hour > 23 ||
+    minute > 59 ||
+    second > 59 ||
+    (offsetHour !== null &&
+      (offsetHour > 23 || offsetMinute === null || offsetMinute > 59))
+  ) {
+    return false;
+  }
+
+  const calendarDate = new Date(Date.UTC(year, month - 1, day));
+  return (
+    calendarDate.getUTCFullYear() === year &&
+    calendarDate.getUTCMonth() === month - 1 &&
+    calendarDate.getUTCDate() === day &&
+    !Number.isNaN(Date.parse(value))
+  );
 }
 
 /**
