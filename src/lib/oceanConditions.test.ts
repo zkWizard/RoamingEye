@@ -107,6 +107,26 @@ describe("ocean condition summaries", () => {
     });
   });
 
+  it("preserves explicit zero SST coverage", () => {
+    const zeroCoverage = summarizeOceanConditions({
+      dataMonth: { year: 2026, month: 3 },
+      value: null,
+      validFraction: 0,
+      footprint: "water",
+    });
+
+    expect(zeroCoverage).toMatchObject({
+      observedValue: null,
+      temperatureBand: null,
+      coverage: {
+        status: "missing",
+        footprint: "water",
+        validFraction: 0,
+        reason: "zero-sst-coverage",
+      },
+    });
+  });
+
   it("rejects invalid months, coverage, and source-scale values", () => {
     expect(
       summarizeOceanConditions({
@@ -229,6 +249,23 @@ describe("ocean condition narratives", () => {
     );
     expect(text).not.toContain("18.4");
     expect(text).not.toContain(SEA_SURFACE_TEMPERATURE_METRIC.sourceUnit);
+  });
+
+  it("reports explicit zero coverage without a value", () => {
+    const zeroCoverage = describeOceanCondition(
+      summarizeOceanConditions({
+        dataMonth: { year: 2026, month: 3 },
+        value: null,
+        validFraction: 0,
+        footprint: "water",
+      })
+    );
+
+    expect(zeroCoverage).toContain(
+      "0% of the sampled footprint had usable SST samples"
+    );
+    expect(zeroCoverage).toContain("no sea-surface temperature is reported");
+    expect(zeroCoverage).toContain("not a marine-biology");
   });
 
   it("reports invalid metadata with its reason rather than a value", () => {
