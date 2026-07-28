@@ -72,6 +72,37 @@ describe("rendered monthly meteorology", () => {
     });
   });
 
+  it("keeps rendered image provenance aligned to each data month", () => {
+    const summaries = summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [
+          { year: 2026, month: 1 },
+          { year: 2026, month: 2 },
+          { year: 2026, month: 3 },
+        ],
+        sampledValues: [281, 282, 283],
+        nativeToSampledValueFactor: 1,
+        sourceImageDimensions: { width: 256, height: 256 },
+        sourceImageDimensionsByMonth: [
+          { width: 512, height: 256 },
+          null,
+          { width: 1024, height: 512 },
+        ],
+      },
+      { year: 2026, month: 3 }
+    );
+
+    expect(summaries.map((summary) => summary.sourceImageDimensions)).toEqual([
+      { width: 512, height: 256 },
+      null,
+      { width: 1024, height: 512 },
+    ]);
+    expect(climateInsightText(summaries[0], summaries[1]).detail).toContain(
+      "rendered source image dimensions not supplied"
+    );
+  });
+
   it("uses native-unit comparisons and refuses misaligned positional series", () => {
     const summaries = summarizeRenderedClimateSample(
       {
@@ -102,6 +133,18 @@ describe("rendered monthly meteorology", () => {
         nativeToSampledValueFactor: 1,
       })
     ).toThrow("matching lengths");
+    expect(() =>
+      observationsFromRenderedClimateSample({
+        metricId: "soil-moisture",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [1],
+        nativeToSampledValueFactor: 1,
+        sourceImageDimensionsByMonth: [
+          { width: 256, height: 256 },
+          { width: 512, height: 512 },
+        ],
+      })
+    ).toThrow("image provenance must have matching lengths");
   });
 
   it("shows conventional atmospheric units while retaining native conversion provenance", () => {

@@ -72,7 +72,7 @@ export interface MonthlyClimateObservation {
    * Dimensions of a rendered source image when the observation was sampled
    * from imagery. This is provenance, not a ground-resolution claim.
    */
-  sourceImageDimensions?: { width: number; height: number };
+  sourceImageDimensions?: { width: number; height: number } | null;
 }
 
 export type ClimateCoverageStatus = "available" | "no-data" | "invalid";
@@ -201,7 +201,7 @@ function validImageDimensions(
   dimensions: MonthlyClimateObservation["sourceImageDimensions"]
 ): dimensions is { width: number; height: number } {
   return (
-    dimensions !== undefined &&
+    dimensions != null &&
     Number.isInteger(dimensions.width) &&
     Number.isInteger(dimensions.height) &&
     dimensions.width > 0 &&

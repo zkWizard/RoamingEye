@@ -38,6 +38,15 @@ export interface RenderedClimateSampleInput {
   validFractions?: readonly number[];
   /** Rendered source-image dimensions; provenance only, never resolution. */
   sourceImageDimensions?: { width: number; height: number };
+  /**
+   * Month-aligned rendered source-image dimensions. Null explicitly records
+   * that dimensions were unavailable for that month. When supplied, this
+   * takes precedence over the series-level fallback above.
+   */
+  sourceImageDimensionsByMonth?: readonly ({
+    width: number;
+    height: number;
+  } | null)[];
 }
 
 export interface RenderedClimateSeries {
@@ -64,8 +73,13 @@ export function climateMetricForLayer(
 export function observationsFromRenderedClimateSample(
   input: RenderedClimateSampleInput
 ): RenderedClimateSeries {
-  const { months, sampledValues, validFractions, nativeToSampledValueFactor } =
-    input;
+  const {
+    months,
+    sampledValues,
+    validFractions,
+    sourceImageDimensionsByMonth,
+    nativeToSampledValueFactor,
+  } = input;
   if (months.length !== sampledValues.length) {
     throw new Error(
       "RoamingEye: rendered climate months and sampled values must have matching lengths"
@@ -74,6 +88,14 @@ export function observationsFromRenderedClimateSample(
   if (validFractions && validFractions.length !== months.length) {
     throw new Error(
       "RoamingEye: rendered climate months and coverage must have matching lengths"
+    );
+  }
+  if (
+    sourceImageDimensionsByMonth &&
+    sourceImageDimensionsByMonth.length !== months.length
+  ) {
+    throw new Error(
+      "RoamingEye: rendered climate months and image provenance must have matching lengths"
     );
   }
   if (
@@ -90,18 +112,27 @@ export function observationsFromRenderedClimateSample(
     isForecast: false,
     metric: CLIMATE_METRICS[input.metricId],
     nativeToSampledValueFactor,
-    observations: months.map((dataMonth, index) => ({
-      metricId: input.metricId,
-      dataMonth,
-      value:
-        sampledValues[index] === null
-          ? null
-          : sampledValues[index] / nativeToSampledValueFactor,
-      ...(validFractions ? { validFraction: validFractions[index] } : {}),
-      ...(input.sourceImageDimensions
-        ? { sourceImageDimensions: { ...input.sourceImageDimensions } }
-        : {}),
-    })),
+    observations: months.map((dataMonth, index) => {
+      const monthDimensions = sourceImageDimensionsByMonth
+        ? sourceImageDimensionsByMonth[index]
+        : input.sourceImageDimensions;
+      return {
+        metricId: input.metricId,
+        dataMonth,
+        value:
+          sampledValues[index] === null
+            ? null
+            : sampledValues[index] / nativeToSampledValueFactor,
+        ...(validFractions ? { validFraction: validFractions[index] } : {}),
+        ...(monthDimensions === undefined
+          ? {}
+          : {
+              sourceImageDimensions: monthDimensions
+                ? { ...monthDimensions }
+                : null,
+            }),
+      };
+    }),
   };
 }
 
