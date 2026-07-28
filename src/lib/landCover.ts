@@ -150,6 +150,15 @@ export interface LandCoverContextSummary {
   /** Explicitly prevents consumers from treating this as a temporal forecast. */
   isForecast: false;
   provenance: LandCoverProvenance;
+  /** Whether this requested year can support an observed land-cover result. */
+  observationStatus: "available" | "unavailable";
+  /** Explicit reason when no observation can be presented. */
+  unavailableReason:
+    | "invalid-year"
+    | "outside-layer-range"
+    | "no-samples"
+    | "no-known-land-cover"
+    | null;
   coverage: LandCoverCoverage;
   classCoverage: LandCoverClassCoverage[];
   /** Most common informative class by sample count; null for no known class. */
@@ -246,6 +255,10 @@ export function summarizeLandCoverContext(
           : null,
   };
 
+  const publicationStatus = publicationStatusForYear(dataYear);
+  const unavailableReason =
+    publicationStatus !== "published" ? publicationStatus : coverage.reason;
+
   return {
     kind: "observed-class-coded-land-cover",
     isForecast: false,
@@ -260,8 +273,10 @@ export function summarizeLandCoverContext(
       sourceResolution: "500 m",
       geographicCoverage: "selected-boundary samples",
       source: LAND_COVER_SOURCE,
-      publicationStatus: publicationStatusForYear(dataYear),
+      publicationStatus,
     },
+    observationStatus: unavailableReason === null ? "available" : "unavailable",
+    unavailableReason,
     coverage,
     classCoverage,
     dominantClass,
