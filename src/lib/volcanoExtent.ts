@@ -19,6 +19,9 @@ export interface VolcanoExtentRecord {
   country: string | null;
   primaryType: string | null;
   elevationMeters: number | null;
+  /** Source calendar year; negative values are BCE and null is unavailable. */
+  lastEruptionYear: number | null;
+  /** Human-readable companion; consumers should retain the raw year above. */
   lastEruptionText: string;
   volcanoNumber: number | null;
   sourceUrl: string | null;
@@ -145,6 +148,7 @@ function toExtentRecord(volcano: Volcano): VolcanoExtentRecord {
     country: volcano.country,
     primaryType: volcano.type,
     elevationMeters: volcano.elevation,
+    lastEruptionYear: volcano.lastEruptionYear,
     lastEruptionText: lastEruptionLabel(volcano.lastEruptionYear),
     volcanoNumber,
     sourceUrl: gvpVolcanoUrl(volcanoNumber),
