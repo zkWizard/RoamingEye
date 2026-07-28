@@ -874,6 +874,61 @@ describe("environment brief data currency", () => {
     expect(brief.dataCurrency.stalestSignalId).toBe("rainfall");
   });
 
+  it("measures vegetation currency against its product checkpoint", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: { dataMonth: { year: 2026, month: 3 }, value: 0.5 },
+      rainfall: { dataMonth: { year: 2026, month: 4 }, value: 0.0001 },
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 6 },
+      availableThroughBySignal: {
+        vegetation: { year: 2026, month: 4 },
+        rainfall: { year: 2026, month: 6 },
+      },
+    });
+
+    expect(brief.dataCurrency.perSignal).toEqual([
+      {
+        id: "vegetation",
+        dataMonth: { year: 2026, month: 3 },
+        availableThrough: { year: 2026, month: 4 },
+        lagMonths: 1,
+      },
+      {
+        id: "rainfall",
+        dataMonth: { year: 2026, month: 4 },
+        availableThrough: { year: 2026, month: 6 },
+        lagMonths: 2,
+      },
+    ]);
+    expect(brief.dataCurrency).toMatchObject({
+      freshestSignalId: "vegetation",
+      freshestLagMonths: 1,
+      stalestSignalId: "rainfall",
+      stalestLagMonths: 2,
+    });
+  });
+
+  it("falls back to the shared checkpoint when vegetation has no override", () => {
+    const brief = composeEnvironmentBrief({
+      vegetation: { dataMonth: { year: 2026, month: 3 }, value: 0.5 },
+      rainfall: null,
+      soilMoisture: null,
+      airTemperature: null,
+      availableThrough: { year: 2026, month: 5 },
+      availableThroughBySignal: {
+        rainfall: { year: 2026, month: 6 },
+      },
+    });
+
+    expect(brief.dataCurrency.perSignal[0]).toEqual({
+      id: "vegetation",
+      dataMonth: { year: 2026, month: 3 },
+      availableThrough: { year: 2026, month: 5 },
+      lagMonths: 2,
+    });
+  });
+
   it("floors a data month at or ahead of its checkpoint to zero lag", () => {
     // A vegetation composite has no upstream publication gate, so a month that
     // sits at the checkpoint is fully current — never negative lag.
