@@ -239,6 +239,14 @@ export function placeObservationProductFromSample(
   const layer = LAYERS[sample.layerId];
   const nativeUnit = PLACE_OBSERVATION_NATIVE_UNITS[sample.layerId];
   const sourceValueFactor = sample.sourceValueFactor ?? 1;
+  if (
+    sample.samplingStrategy === undefined &&
+    sample.observations.some((observation) => observation.value !== null)
+  ) {
+    throw new Error(
+      `Product ${sample.layerId} needs a sampling strategy for recorded values.`
+    );
+  }
   if (!Number.isFinite(sourceValueFactor) || sourceValueFactor <= 0) {
     throw new Error("sourceValueFactor must be a positive finite number.");
   }
@@ -305,6 +313,14 @@ function validateInput(input: PlaceObservationExportInput): void {
     ) {
       throw new Error(
         `Product ${product.layerId} has an invalid sampling strategy.`
+      );
+    }
+    if (
+      (product.samplingStrategy ?? "unavailable") === "unavailable" &&
+      product.observations.some((observation) => observation.value !== null)
+    ) {
+      throw new Error(
+        `Product ${product.layerId} needs a sampling strategy for recorded values.`
       );
     }
     if (!hasCitation(product.source)) {

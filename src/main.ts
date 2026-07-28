@@ -605,6 +605,7 @@ function runPlaceInsights(result: GeoResult): void {
       exportSamples.set("sst", {
         layerId: "sst",
         sourceValueFactor: colormap.factor,
+        samplingStrategy: sample.geometrySamplingStrategy,
         observations: [
           {
             dataMonth: sstMonth,

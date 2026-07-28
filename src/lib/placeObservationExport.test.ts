@@ -71,6 +71,7 @@ describe("place observation export", () => {
     const product = placeObservationProductFromSample({
       layerId: "sst",
       sourceValueFactor: 1,
+      samplingStrategy: "boundary-grid",
       observations: [
         {
           dataMonth: { year: 2026, month: 5 },
@@ -475,5 +476,39 @@ describe("place observation export", () => {
     });
 
     expect(product.samplingStrategy).toBe("unavailable");
+  });
+
+  it("requires exact sampling provenance for recorded values", () => {
+    expect(() =>
+      placeObservationProductFromSample({
+        layerId: "sst",
+        observations: [
+          {
+            dataMonth: { year: 2026, month: 5 },
+            value: 18.375,
+            validFraction: 0.37,
+          },
+        ],
+      })
+    ).toThrow("Product sst needs a sampling strategy for recorded values.");
+
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            samplingStrategy: "unavailable",
+            observations: [
+              {
+                dataMonth: { year: 2026, month: 4 },
+                value: 0.62,
+                validFraction: 0.82,
+              },
+            ],
+          },
+        ],
+      })
+    ).toThrow("Product ndvi needs a sampling strategy for recorded values.");
   });
 });
