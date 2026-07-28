@@ -188,6 +188,9 @@ async function main() {
         const p = f.properties ?? {};
         const [lon, lat] = f.geometry?.coordinates ?? [p.Longitude, p.Latitude];
         return {
+          volcanoNumber: Number.isInteger(p.Volcano_Number)
+            ? p.Volcano_Number
+            : null,
           name: p.Volcano_Name ?? null,
           lat: Number(Number(lat).toFixed(3)),
           lon: Number(Number(lon).toFixed(3)),
@@ -197,6 +200,9 @@ async function main() {
             ? p.Last_Eruption_Year
             : null,
           country: p.Country ?? null,
+          region: p.Region ?? null,
+          subregion: p.Subregion ?? null,
+          tectonicSetting: p.Tectonic_Setting ?? null,
         };
       })
       .filter((v) => v.name && Number.isFinite(v.lat) && Number.isFinite(v.lon))
