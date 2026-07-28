@@ -1,4 +1,9 @@
-import { geometryBounds, isAreaGeometry, type GeoGeometry } from "./geojson";
+import {
+  geometryBounds,
+  isAreaGeometry,
+  type GeoGeometry,
+  type GeometrySamplingStrategy,
+} from "./geojson";
 import {
   LAYERS,
   type DatasetRef,
@@ -16,7 +21,7 @@ import {
  */
 
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
-  "roamingeye-place-observation-export/v2" as const;
+  "roamingeye-place-observation-export/v3" as const;
 
 export const GIBS_IMAGERY_SOURCE = {
   name: "NASA Global Imagery Browse Services (GIBS)",
@@ -42,16 +47,23 @@ export interface PlaceObservationProductInput {
   /** Underlying data product citation; this is not replaced by imagery metadata. */
   source: DatasetRef;
   nativeUnit: string;
+  /** Exact searched-boundary strategy used for this product's observations. */
+  samplingStrategy?: GeometrySamplingStrategy | "unavailable";
   observations: readonly PlaceObservationInput[];
 }
 
 export interface PlaceObservationInput {
   dataMonth: YearMonth;
-  /** Supplied value in `nativeUnit`; null retains a source no-data result. */
+  /** Supplied value in `nativeUnit`; null retains an explained unavailable result. */
   value: number | null;
+  /** Required for null values so an unavailable result is never ambiguous. */
+  unavailableReason?: PlaceObservationUnavailableReason;
   /** Supplied share of sampled area with a usable value. */
   validFraction?: number;
 }
+
+export type PlaceObservationUnavailableReason =
+  "source-no-data" | "insufficient-valid-coverage" | "sampling-failed";
 
 export interface PlaceObservationMethodInput {
   sampling: PlaceObservationSampling;
@@ -107,10 +119,12 @@ export interface PlaceObservationExportProduct {
   wmsLayer: string;
   source: DatasetRef;
   nativeUnit: string;
+  samplingStrategy: GeometrySamplingStrategy | "unavailable";
   observations: {
     dataMonth: string;
     value: number | null;
     validFraction: number | null;
+    unavailableReason?: PlaceObservationUnavailableReason | null;
   }[];
 }
 
@@ -131,6 +145,7 @@ export const PLACE_OBSERVATION_NATIVE_UNITS = {
   precip: "kg/m²/s",
   soil: "kg/m²",
   airtemp: "K",
+  sst: "°C",
 } as const satisfies Partial<Record<LayerId, string>>;
 
 export type PlaceObservationExportLayerId =
@@ -144,6 +159,7 @@ export type PlaceObservationExportLayerId =
 export interface PlaceObservationExportSample {
   layerId: PlaceObservationExportLayerId;
   observations: readonly PlaceObservationInput[];
+  samplingStrategy?: GeometrySamplingStrategy;
   sourceValueFactor?: number;
 }
 
@@ -213,8 +229,9 @@ export function serializePlaceObservationExport(
 
 /**
  * Build a cited, native-unit product record from a completed place sample.
- * This intentionally supports only the four independent place-insight
- * signals; no composite condition or derived score is introduced here.
+ * This intentionally supports only the independent place-insight signals;
+ * no composite condition or derived score is introduced here. SST remains a
+ * physical ocean observation and is never biological evidence.
  */
 export function placeObservationProductFromSample(
   sample: PlaceObservationExportSample
@@ -236,6 +253,7 @@ export function placeObservationProductFromSample(
     wmsLayer: layer.wmsLayer,
     source: layer.dataset,
     nativeUnit,
+    samplingStrategy: sample.samplingStrategy ?? "unavailable",
     observations: sample.observations.map((observation) => ({
       ...observation,
       value:
@@ -279,6 +297,16 @@ function validateInput(input: PlaceObservationExportInput): void {
     if (!product.wmsLayer.trim() || !product.nativeUnit.trim()) {
       throw new Error("Each product needs a WMS layer and native unit.");
     }
+    if (
+      product.samplingStrategy !== undefined &&
+      !["boundary-grid", "boundary-point", "unavailable"].includes(
+        product.samplingStrategy
+      )
+    ) {
+      throw new Error(
+        `Product ${product.layerId} has an invalid sampling strategy.`
+      );
+    }
     if (!hasCitation(product.source)) {
       throw new Error(
         `Product ${product.layerId} needs a complete source citation.`
@@ -300,6 +328,16 @@ function validateInput(input: PlaceObservationExportInput): void {
       months.add(month);
       if (observation.value !== null && !Number.isFinite(observation.value)) {
         throw new Error(`Product ${product.layerId} has a non-finite value.`);
+      }
+      if (observation.value === null && !observation.unavailableReason) {
+        throw new Error(
+          `Product ${product.layerId} must explain an unavailable value.`
+        );
+      }
+      if (observation.value !== null && observation.unavailableReason) {
+        throw new Error(
+          `Product ${product.layerId} cannot mark a recorded value unavailable.`
+        );
       }
       if (observation.value !== null && observation.validFraction === 0) {
         throw new Error(
@@ -407,11 +445,13 @@ function exportProducts(
       wmsLayer: product.wmsLayer,
       source: { ...product.source },
       nativeUnit: product.nativeUnit,
+      samplingStrategy: product.samplingStrategy ?? "unavailable",
       observations: product.observations
         .map((observation) => ({
           dataMonth: formatYearMonth(observation.dataMonth),
           value: observation.value,
           validFraction: observation.validFraction ?? null,
+          unavailableReason: observation.unavailableReason ?? null,
         }))
         .sort((left, right) => compareText(left.dataMonth, right.dataMonth)),
     }))
