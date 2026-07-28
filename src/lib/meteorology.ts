@@ -8,6 +8,10 @@ import {
 import type { LayerId, YearMonth } from "./timeline";
 import { toConventionalClimateValue } from "./climateConventionalUnits";
 import type { GeometrySamplingStrategy } from "./geojson";
+import type {
+  PlaceObservationInput,
+  PlaceObservationUnavailableReason,
+} from "./placeObservationExport";
 
 /**
  * Bridges sampled GIBS rendered imagery into the climate contracts.
@@ -123,6 +127,47 @@ export function summarizeRenderedClimateSample(
   );
 }
 
+/**
+ * Prepare rendered climate months for the place-observation export contract.
+ *
+ * Values remain in sampled/display units here because
+ * `placeObservationProductFromSample` performs the cited native-unit
+ * conversion exactly once. Unusable observations are withheld instead of
+ * allowing a non-finite or physically impossible value to invalidate the
+ * entire download.
+ */
+export function exportObservationsFromRenderedClimateSample(
+  input: RenderedClimateSampleInput,
+  availableThrough: YearMonth
+): PlaceObservationInput[] {
+  const summaries = summarizeRenderedClimateSample(input, availableThrough);
+
+  return summaries.map((summary, index) => {
+    if (
+      summary.publicationStatus === "published" &&
+      summary.coverage.status === "available" &&
+      summary.observedValue !== null
+    ) {
+      return {
+        dataMonth: summary.dataMonth,
+        value: input.sampledValues[index],
+        ...(summary.coverage.validFraction !== null
+          ? { validFraction: summary.coverage.validFraction }
+          : {}),
+      };
+    }
+
+    return {
+      dataMonth: summary.dataMonth,
+      value: null,
+      unavailableReason: exportUnavailableReason(summary),
+      ...(summary.coverage.validFraction !== null
+        ? { validFraction: summary.coverage.validFraction }
+        : {}),
+    };
+  });
+}
+
 export interface ClimateInsightText {
   value: string;
   detail: string;
@@ -202,6 +247,20 @@ function unavailableReason(summary: MonthlyClimateSummary): string {
     return summary.publicationStatus;
   }
   return summary.coverage.reason ?? "unspecified";
+}
+
+function exportUnavailableReason(
+  summary: MonthlyClimateSummary
+): PlaceObservationUnavailableReason {
+  if (
+    summary.publicationStatus !== "published" ||
+    summary.coverage.status === "invalid"
+  ) {
+    return "sampling-failed";
+  }
+  return (summary.coverage.validFraction ?? 0) > 0
+    ? "insufficient-valid-coverage"
+    : "source-no-data";
 }
 
 function coverageText(validFraction: number | null): string {
