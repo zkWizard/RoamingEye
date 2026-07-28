@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { awaitAppInteractive } from "./boot";
+import { globePoint } from "./globe";
 
 /**
  * Behavioural e2e for the interactive surfaces that don't depend on external
@@ -79,12 +80,11 @@ test("HD tile streaming is on by default (RFC-001 milestone 6)", async ({
 });
 
 test("hovering the globe shows a coordinate readout", async ({ page }) => {
-  const canvas = page.locator("#globe");
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error("globe canvas has no bounding box");
-
-  // Centre of the canvas is over the globe — a hover there must resolve coords.
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  // A point over the globe and clear of the HUD — a hover there must resolve
+  // coords. The canvas centre no longer qualifies: the bottom HUD stack now
+  // reaches it.
+  const pt = await globePoint(page);
+  await page.mouse.move(pt.x, pt.y);
 
   const tooltip = page.locator("#hover-tooltip");
   await expect(tooltip).toHaveClass(/is-visible/);
@@ -282,9 +282,9 @@ test("city labels appear at close zoom and not from orbit", async ({
 
   // Wheel-zoom toward the surface; OrbitControls needs a few frames of
   // damping, so poll until the label layer fades in.
-  const viewport = page.viewportSize();
-  if (!viewport) throw new Error("no viewport");
-  await page.mouse.move(viewport.width / 2, viewport.height / 2);
+  // Wheel events must land on the globe, not the bottom HUD stack.
+  const pt = await globePoint(page);
+  await page.mouse.move(pt.x, pt.y);
   await expect(async () => {
     await page.mouse.wheel(0, -400);
     await expect(layer).toBeVisible({ timeout: 400 });
