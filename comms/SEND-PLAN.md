@@ -1,6 +1,6 @@
 # Send Plan — the order to send the outbox in
 
-Seven drafts in `outbox/` are written, claim-checked, and waiting. Until now nothing
+Eight drafts in `outbox/` are written, claim-checked, and waiting. Until now nothing
 recorded **what to send first, when, or what each one costs to run** — `TARGETS.md`
 holds per-venue research and `outbox/` holds the content, but the sequencing lived
 nowhere. This file is that missing piece.
@@ -87,6 +87,27 @@ Five principles, each drawn from rules already read and recorded in `TARGETS.md`
 - **Also consider:** the monthly Pangeo Showcase accepts short talk proposals. A live
   walkthrough beats a text post and is worth offering in the same message.
 
+### Slot 2b — CLEAN collection submission → [`clean-collection-submission.md`](outbox/clean-collection-submission.md)
+
+**A parallel track, not a queue position.** This one is a web form, not a thread, so it
+costs no presence and competes with nothing — principle 3 ("one live thread at a time")
+does not apply to it.
+
+- **When:** any time from the day the gate clears. Earlier is better, because the review is
+  the slowest thing in this plan.
+- **Why it sits here:** CLEAN runs a four-stage peer review (triage → two general reviews by
+  an educator and a scientist → a four-person panel → expert science review). That takes
+  months, so starting the clock early costs nothing and delays nothing. It is also the only
+  educator venue in `TARGETS.md` that accepts a _tool_ rather than requiring a
+  classroom-tested lesson plan, and the only place the classroom one-pager can go today.
+- **Presence cost:** none after submitting. Do not follow up.
+- **Rules already settled:** the developer may submit their own resource — tick the box that
+  asks for the reviewers' comments. Pitch it against **one focused concept** (seasonal
+  phenology / snow cover), because CLEAN explicitly down-ranks general multi-topic sites.
+- **Watch for:** the returned reviewer comments, whether or not it is accepted. One educator
+  and one scientist reading the project closely is the best teaching-side critique available
+  anywhere in this pipeline, and CLEAN releases reviews to developers on request.
+
 ### Slot 3 — leafmap Discussions → Ideas → [`leafmap-interop-invitation.md`](outbox/leafmap-interop-invitation.md)
 
 - **When:** ~5–10 days after slot 1.
@@ -125,14 +146,16 @@ Five principles, each drawn from rules already read and recorded in `TARGETS.md`
 
 ## 4. Deliberately not in the sequence
 
-| Item                            | Why it is not scheduled                                                                           |
-| ------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `classroom-lab-one-pager.md`    | A source asset, not a post. It needs a specific educator venue vetted first, then adaptation.     |
-| OSGeo Discourse                 | Participation-first; the ToS bans solicitations. Never a standalone announcement.                 |
-| NASA Earthdata Forum            | Q&A support forum — participation-only. No draft exists and none should be written.               |
-| Reddit (r/gis, r/remotesensing) | Blocked on the four-question rules check in `TARGETS.md`. No draft until the real rules are read. |
-| Mastodon / fediverse            | Ready to draft, but needs zkWizard to hold an account and build a little presence first.          |
-| JOSS                            | Hard six-month age gate. Earliest eligible **2026-12-29**. Sending slots 1–5 is its runway.       |
+| Item                            | Why it is not scheduled                                                                                                                                                                                         |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `classroom-lab-one-pager.md`    | Still a source asset rather than a post — but it is no longer unrouted. Its first venue was vetted on 2026-07-27 and became **slot 2b** above; it remains the thing you hand an individual instructor directly. |
+| SERC "Teach the Earth" / NAGT   | Takes classroom-**tested** teaching activities, never tools. Reachable only after someone has actually taught with RoamingEye — then help that instructor contribute their lab.                                 |
+| Earth Exploration Toolbook      | Ideal shape, uncertain pulse (newest dated item on the site is 2011). Ask whether new chapters are still accepted before writing one; a chapter is hours of work.                                               |
+| OSGeo Discourse                 | Participation-first; the ToS bans solicitations. Never a standalone announcement.                                                                                                                               |
+| NASA Earthdata Forum            | Q&A support forum — participation-only. No draft exists and none should be written.                                                                                                                             |
+| Reddit (r/gis, r/remotesensing) | Blocked on the four-question rules check in `TARGETS.md`. No draft until the real rules are read.                                                                                                               |
+| Mastodon / fediverse            | Ready to draft, but needs zkWizard to hold an account and build a little presence first.                                                                                                                        |
+| JOSS                            | Hard six-month age gate. Earliest eligible **2026-12-29**. Sending slots 1–5 is its runway.                                                                                                                     |
 
 ---
 
@@ -159,7 +182,8 @@ Five principles, each drawn from rules already read and recorded in `TARGETS.md`
 
 ## 7. One honest caveat
 
-This is one maintainer, sending in their own time. Five slots over roughly three weeks is
-already a real commitment, and slot 4 alone wants a cleared afternoon. **Four sent well
-beats seven sent badly** — every venue here rewards an author who shows up in the thread,
-and none of them reward volume.
+This is one maintainer, sending in their own time. Five posting slots over roughly three
+weeks is already a real commitment, and slot 4 alone wants a cleared afternoon. (Slot 2b is
+the exception that proves it — a form, submitted once, with nobody to answer afterwards.)
+**Four sent well beats eight sent badly** — every venue here rewards an author who shows up
+in the thread, and none of them reward volume.
