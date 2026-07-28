@@ -25,7 +25,7 @@ import type { DatasetRef } from "./timeline";
  *    model output.
  *  - Air temperature (M2TMNXSLV) is a **Level-4** atmospheric reanalysis field.
  *
- * METHODS.md §8 already notes the tool does not replace "the underlying L3/L4
+ * METHODS.md §9 already notes the tool does not replace "the underlying L3/L4
  * granules" — this module makes that L3/L4 split checkable per signal instead of
  * leaving it to prose, so a reader placing an L3 gridded index next to L4 model
  * output can see the two sit at different processing tiers.
