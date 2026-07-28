@@ -2,19 +2,40 @@ import { describe, it, expect } from "vitest";
 import {
   filterEarthquakes,
   parseEarthquakeFeed,
+  parseEarthquakeFeedWithCoverage,
   depthClass,
+  earthquakeHoverLabel,
   magnitudeClass,
   MAGNITUDE_CLASS_ORDER,
   summarizeEarthquakes,
 } from "./earthquakes";
+
+describe("earthquakeHoverLabel", () => {
+  it("preserves the reported place, magnitude, depth, and UTC event time", () => {
+    expect(
+      earthquakeHoverLabel({
+        lat: 35.2,
+        lon: -117.4,
+        depthKm: 8.4,
+        magnitude: 4.6,
+        place: "12 km NE of Example",
+        time: Date.UTC(2026, 6, 16, 12, 34, 56),
+      })
+    ).toBe(
+      "12 km NE of Example · M 4.6 · 8.4 km depth · 2026-07-16T12:34:56.000Z"
+    );
+  });
+});
 
 const feature = (
   lon: number,
   lat: number,
   depth: number,
   mag: number,
-  extra: object = {}
+  extra: object = {},
+  id?: string
 ) => ({
+  id,
   geometry: { coordinates: [lon, lat, depth] },
   properties: { mag, time: 1_750_000_000_000, place: "somewhere", ...extra },
 });
@@ -31,6 +52,55 @@ describe("parseEarthquakeFeed", () => {
       depthKm: 45,
       magnitude: 6.1,
       place: "somewhere",
+    });
+  });
+
+  it("retains USGS event identity, update time, magnitude type, and review status", () => {
+    const quakes = parseEarthquakeFeed({
+      features: [
+        feature(
+          -122.1,
+          38.2,
+          8.4,
+          4.8,
+          {
+            url: "https://earthquake.usgs.gov/earthquakes/eventpage/us7000test",
+            updated: 1_750_000_123_456,
+            magType: "mw",
+            status: "reviewed",
+          },
+          "us7000test"
+        ),
+      ],
+    });
+
+    expect(quakes[0].sourceRecord).toEqual({
+      id: "us7000test",
+      url: "https://earthquake.usgs.gov/earthquakes/eventpage/us7000test",
+      updatedTime: 1_750_000_123_456,
+      magnitudeType: "mw",
+      reviewStatus: "reviewed",
+    });
+  });
+
+  it("makes unavailable source-record metadata explicit without dropping the event", () => {
+    const quakes = parseEarthquakeFeed({
+      features: [
+        feature(10, 20, 30, 5, {
+          url: null,
+          updated: "not-a-time",
+          magType: undefined,
+          status: 2,
+        }),
+      ],
+    });
+
+    expect(quakes[0].sourceRecord).toEqual({
+      id: null,
+      url: null,
+      updatedTime: null,
+      magnitudeType: null,
+      reviewStatus: null,
     });
   });
 
@@ -61,6 +131,68 @@ describe("parseEarthquakeFeed", () => {
       features: [feature(0, 0, 10, 5, { place: undefined })],
     });
     expect(quakes[0].place).toBe("");
+  });
+});
+
+describe("parseEarthquakeFeedWithCoverage", () => {
+  it("reports usable and rejected feature coverage with one reason per rejection", () => {
+    const result = parseEarthquakeFeedWithCoverage({
+      features: [
+        feature(152.3, -4.2, 45, 6.1),
+        { geometry: null, properties: {} },
+        feature(181, 0, 10, 5),
+        { geometry: { coordinates: [1, 2, 3] }, properties: null },
+        feature(1, 2, Number.NaN, 5),
+      ],
+    });
+
+    expect(result.earthquakes).toHaveLength(1);
+    expect(result.coverage).toEqual({
+      status: "available",
+      suppliedFeatureCount: 5,
+      usableEventCount: 1,
+      rejectedFeatureCount: 4,
+      rejectedByReason: {
+        "invalid-geometry": 1,
+        "invalid-coordinates": 1,
+        "invalid-properties": 1,
+        "invalid-measurements": 1,
+      },
+    });
+    expect(result.source.name).toContain("USGS");
+    expect(result.units).toEqual({
+      magnitude: "M",
+      depth: "km",
+      time: "epoch milliseconds (UTC)",
+    });
+  });
+
+  it("distinguishes an invalid payload from a valid feed with no usable events", () => {
+    const invalid = parseEarthquakeFeedWithCoverage({ features: null });
+    const unusable = parseEarthquakeFeedWithCoverage({
+      features: [feature(0, 91, 10, 5)],
+    });
+    const empty = parseEarthquakeFeedWithCoverage({ features: [] });
+
+    expect(invalid.coverage).toMatchObject({
+      status: "invalid-feed",
+      suppliedFeatureCount: 0,
+      usableEventCount: 0,
+      rejectedFeatureCount: 0,
+    });
+    expect(unusable.coverage).toMatchObject({
+      status: "no-usable-events",
+      suppliedFeatureCount: 1,
+      usableEventCount: 0,
+      rejectedFeatureCount: 1,
+      rejectedByReason: { "invalid-coordinates": 1 },
+    });
+    expect(empty.coverage).toMatchObject({
+      status: "no-usable-events",
+      suppliedFeatureCount: 0,
+      usableEventCount: 0,
+      rejectedFeatureCount: 0,
+    });
   });
 });
 

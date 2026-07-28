@@ -100,6 +100,21 @@ export interface IntervalStatistics {
   regularity: IntervalRegularity;
 }
 
+export type SeismicTimeCoverageStatus =
+  "available" | "single-event" | "unavailable";
+
+/**
+ * Observed temporal support of the supplied event subset. Bounds retain USGS
+ * epoch milliseconds; span is a descriptive conversion to seconds.
+ */
+export interface SeismicTimeCoverage {
+  status: SeismicTimeCoverageStatus;
+  earliestTime: number | null;
+  latestTime: number | null;
+  spanSeconds: number | null;
+  rejectedEventCount: number;
+}
+
 /**
  * A descriptive aggregation of the supplied events' temporal spacing, not a risk
  * score, triggering/causal statement, recurrence estimate, or prediction.
@@ -111,6 +126,7 @@ export interface SeismicIntereventTimeDistribution {
   isForecast: false;
   suppliedEventCount: number;
   usableEventCount: number;
+  timeCoverage: SeismicTimeCoverage;
   intervals: IntervalStatistics | null;
   source: typeof SEISMICITY_SOURCE;
   units: typeof SEISMIC_INTEREVENT_UNITS;
@@ -215,6 +231,21 @@ export function seismicIntereventTimeDistribution(
     isForecast: false,
     suppliedEventCount: earthquakes.length,
     usableEventCount: times.length,
+    timeCoverage: {
+      status:
+        times.length >= 2
+          ? "available"
+          : times.length === 1
+            ? "single-event"
+            : "unavailable",
+      earliestTime: times[0] ?? null,
+      latestTime: times[times.length - 1] ?? null,
+      spanSeconds:
+        times.length >= 2
+          ? (times[times.length - 1] - times[0]) / MILLISECONDS_PER_SECOND
+          : null,
+      rejectedEventCount: earthquakes.length - times.length,
+    },
     intervals,
     source: SEISMICITY_SOURCE,
     units: SEISMIC_INTEREVENT_UNITS,

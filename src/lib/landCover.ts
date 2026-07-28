@@ -135,7 +135,12 @@ export interface LandCoverProvenance {
   dataYear: number;
   cadence: "annual";
   classScheme: "IGBP";
+  /** Native source values are categorical codes, not a physical quantity. */
+  nativeValue: "IGBP LC_Type1 class code";
+  nativeUnit: "categorical";
   sourceResolution: "500 m";
+  /** Counts represent samples within the selected boundary, not area shares. */
+  geographicCoverage: "selected-boundary samples";
   source: DatasetRef;
   publicationStatus: LandCoverPublicationStatus;
 }
@@ -145,9 +150,22 @@ export interface LandCoverContextSummary {
   /** Explicitly prevents consumers from treating this as a temporal forecast. */
   isForecast: false;
   provenance: LandCoverProvenance;
+  /** Whether this requested year can support an observed land-cover result. */
+  observationStatus: "available" | "unavailable";
+  /** Explicit reason when no observation can be presented. */
+  unavailableReason:
+    | "invalid-year"
+    | "outside-layer-range"
+    | "no-samples"
+    | "no-known-land-cover"
+    | null;
   coverage: LandCoverCoverage;
   classCoverage: LandCoverClassCoverage[];
-  /** Most common informative class by sample count; null for no known class. */
+  /** Whether the largest informative-class count is unique, tied, or absent. */
+  mostFrequentClassStatus: "unique" | "tied" | "no-data";
+  /** Every informative class sharing the largest sample count. */
+  mostFrequentClasses: LandCoverClassCoverage[];
+  /** Unique most frequent informative class; null for a tie or no known class. */
   dominantClass: LandCoverClassCoverage | null;
 }
 
@@ -219,8 +237,25 @@ export function summarizeLandCoverContext(
     })
     .sort((a, b) => b.sampleCount - a.sampleCount || a.classCode - b.classCode);
 
+  const informativeClassCoverage = classCoverage.filter(
+    (entry) => entry.isInformativeLandCover
+  );
+  const largestInformativeClassCount =
+    informativeClassCoverage[0]?.sampleCount ?? null;
+  const mostFrequentClasses =
+    largestInformativeClassCount === null
+      ? []
+      : informativeClassCoverage.filter(
+          (entry) => entry.sampleCount === largestInformativeClassCount
+        );
+  const mostFrequentClassStatus =
+    mostFrequentClasses.length === 0
+      ? "no-data"
+      : mostFrequentClasses.length === 1
+        ? "unique"
+        : "tied";
   const dominantClass =
-    classCoverage.find((entry) => entry.isInformativeLandCover) ?? null;
+    mostFrequentClassStatus === "unique" ? mostFrequentClasses[0] : null;
   const coverage: LandCoverCoverage = {
     status: knownLandCoverSampleCount > 0 ? "available" : "no-data",
     totalSampleCount,
@@ -241,6 +276,10 @@ export function summarizeLandCoverContext(
           : null,
   };
 
+  const publicationStatus = publicationStatusForYear(dataYear);
+  const unavailableReason =
+    publicationStatus !== "published" ? publicationStatus : coverage.reason;
+
   return {
     kind: "observed-class-coded-land-cover",
     isForecast: false,
@@ -250,12 +289,19 @@ export function summarizeLandCoverContext(
       dataYear,
       cadence: "annual",
       classScheme: "IGBP",
+      nativeValue: "IGBP LC_Type1 class code",
+      nativeUnit: "categorical",
       sourceResolution: "500 m",
+      geographicCoverage: "selected-boundary samples",
       source: LAND_COVER_SOURCE,
-      publicationStatus: publicationStatusForYear(dataYear),
+      publicationStatus,
     },
+    observationStatus: unavailableReason === null ? "available" : "unavailable",
+    unavailableReason,
     coverage,
     classCoverage,
+    mostFrequentClassStatus,
+    mostFrequentClasses,
     dominantClass,
   };
 }

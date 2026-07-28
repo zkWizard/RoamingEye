@@ -30,6 +30,7 @@ describe("marine surface context summaries", () => {
       timing: "same-calendar-year",
       sourcePublicationStatus: "published",
       coverage: {
+        available: true,
         status: "mixed-igbp-water-and-other-classes",
         totalSampleCount: 10,
         classifiedSurfaceSampleCount: 8,
@@ -99,5 +100,50 @@ describe("marine surface context summaries", () => {
 
     expect(summary.timing).toBe("invalid-sst-month");
     expect(summary.coverage.status).toBe("igbp-water-only");
+  });
+
+  it("withholds surface classification when the annual source year is unavailable", () => {
+    const summary = summarizeMarineSurfaceContext({
+      sstDataMonth: { year: 2024, month: 8 },
+      landCover: summarizeLandCoverContext(
+        [
+          { classCode: 17, sampleCount: 6 },
+          { classCode: 12, sampleCount: 2 },
+        ],
+        1900
+      ),
+    });
+
+    expect(summary).toMatchObject({
+      contextDataYear: 1900,
+      timing: "different-calendar-year",
+      sourcePublicationStatus: "outside-layer-range",
+      coverage: {
+        available: false,
+        status: "unknown",
+        reason: "source-year-unavailable",
+        totalSampleCount: 8,
+        classifiedSurfaceSampleCount: 8,
+        igbpWaterSampleCount: 6,
+        otherIgbpClassSampleCount: 2,
+        classifiedSurfaceFraction: 1,
+      },
+    });
+  });
+
+  it("distinguishes a published no-data boundary from an unavailable source year", () => {
+    const summary = summarizeMarineSurfaceContext({
+      sstDataMonth: { year: 2024, month: 8 },
+      landCover: summarizeLandCoverContext([], 2024),
+    });
+
+    expect(summary.sourcePublicationStatus).toBe("published");
+    expect(summary.coverage).toMatchObject({
+      available: false,
+      status: "unknown",
+      reason: "no-classified-surface-samples",
+      totalSampleCount: 0,
+      classifiedSurfaceFraction: null,
+    });
   });
 });

@@ -18,6 +18,32 @@ export interface Volcano {
   /** Calendar year of the most recent known eruption (negative = BCE). */
   lastEruptionYear: number | null;
   country: string | null;
+  /** Verbatim source identity/context retained when parsed from the GVP file. */
+  sourceRecord?: VolcanoSourceRecord;
+}
+
+export interface VolcanoSourceRecord {
+  /** Stable Smithsonian GVP Volcano Number. */
+  volcanoNumber: number | null;
+  region: string | null;
+  subregion: string | null;
+  /** GVP tectonic-setting label, retained verbatim rather than inferred. */
+  tectonicSetting: string | null;
+}
+
+export interface VolcanoDatasetProvenance {
+  source: string;
+  sourceUrl: string;
+  service: string;
+  /** ISO 8601 instant when the bundled snapshot was retrieved from GVP. */
+  retrievedAt: string;
+}
+
+export interface VolcanoDataset {
+  volcanoes: Volcano[];
+  provenance: VolcanoDatasetProvenance | null;
+  /** UTC calendar month derived from retrievedAt, or null when unavailable. */
+  dataMonth: string | null;
 }
 
 /**
@@ -101,11 +127,21 @@ export function elevationRegimeLabel(elevationMeters: number | null): string {
   }
 }
 
-/** Tooltip text for a hovered marker, e.g. "Etna · Stratovolcano · last erupted 2025". */
+/**
+ * Source-faithful tooltip text for a hovered marker. Country and summit
+ * elevation come directly from the bundled GVP snapshot; missing values stay
+ * explicit instead of being mistaken for zero or silently disappearing.
+ */
 export function volcanoHoverLabel(volcano: Volcano): string {
-  const parts = [volcano.name];
-  if (volcano.type) parts.push(volcano.type);
-  parts.push(lastEruptionLabel(volcano.lastEruptionYear));
+  const parts = [
+    volcano.name,
+    volcano.type ?? "volcano type not recorded",
+    volcano.country ?? "country/territory not recorded",
+    volcano.elevation === null
+      ? "summit elevation not recorded"
+      : `summit elevation ${volcano.elevation} m`,
+    lastEruptionLabel(volcano.lastEruptionYear),
+  ];
   return parts.join(" · ");
 }
 
@@ -118,11 +154,17 @@ export function volcanoHoverLabel(volcano: Volcano): string {
 const toNumber = (v: unknown): number =>
   typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
 
-export function parseVolcanoList(json: unknown): Volcano[] {
-  if (!Array.isArray(json)) return [];
+export function parseVolcanoDataset(json: unknown): VolcanoDataset {
+  const envelope = isRecord(json) ? json : null;
+  const records = Array.isArray(json)
+    ? json
+    : envelope && Array.isArray(envelope.records)
+      ? envelope.records
+      : [];
+  const provenance = parseDatasetProvenance(envelope?.provenance);
 
   const out: Volcano[] = [];
-  for (const entry of json as Record<string, unknown>[]) {
+  for (const entry of records as Record<string, unknown>[]) {
     if (typeof entry !== "object" || entry === null) continue;
     const name = entry.name;
     const lat = toNumber(entry.lat);
@@ -149,7 +191,49 @@ export function parseVolcanoList(json: unknown): Volcano[] {
         ? (entry.lastEruptionYear as number)
         : null,
       country: typeof entry.country === "string" ? entry.country : null,
+      sourceRecord: {
+        volcanoNumber: Number.isInteger(entry.volcanoNumber)
+          ? (entry.volcanoNumber as number)
+          : null,
+        region: typeof entry.region === "string" ? entry.region : null,
+        subregion: typeof entry.subregion === "string" ? entry.subregion : null,
+        tectonicSetting:
+          typeof entry.tectonicSetting === "string"
+            ? entry.tectonicSetting
+            : null,
+      },
     });
   }
-  return out;
+  return {
+    volcanoes: out,
+    provenance,
+    dataMonth: provenance ? provenance.retrievedAt.slice(0, 7) : null,
+  };
+}
+
+/** Parse records for renderers that do not need snapshot metadata. */
+export function parseVolcanoList(json: unknown): Volcano[] {
+  return parseVolcanoDataset(json).volcanoes;
+}
+
+function parseDatasetProvenance(
+  value: unknown
+): VolcanoDatasetProvenance | null {
+  if (!isRecord(value)) return null;
+  const { source, sourceUrl, service, retrievedAt } = value;
+  if (
+    typeof source !== "string" ||
+    typeof sourceUrl !== "string" ||
+    typeof service !== "string" ||
+    typeof retrievedAt !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}T/.test(retrievedAt) ||
+    !Number.isFinite(Date.parse(retrievedAt))
+  ) {
+    return null;
+  }
+  return { source, sourceUrl, service, retrievedAt };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

@@ -23,13 +23,18 @@ describe("land-cover context summaries", () => {
     expect(summary).toMatchObject({
       kind: "observed-class-coded-land-cover",
       isForecast: false,
+      observationStatus: "available",
+      unavailableReason: null,
       provenance: {
         layerId: "landcover",
         wmsLayer: "MODIS_Combined_L3_IGBP_Land_Cover_Type_Annual",
         dataYear: 2024,
         cadence: "annual",
         classScheme: "IGBP",
+        nativeValue: "IGBP LC_Type1 class code",
+        nativeUnit: "categorical",
         sourceResolution: "500 m",
+        geographicCoverage: "selected-boundary samples",
         source: LAND_COVER_SOURCE,
         publicationStatus: "published",
       },
@@ -43,6 +48,14 @@ describe("land-cover context summaries", () => {
         knownLandCoverFraction: 0.7,
         reason: null,
       },
+      mostFrequentClassStatus: "unique",
+      mostFrequentClasses: [
+        {
+          classCode: 12,
+          label: "Cropland",
+          sampleCount: 4,
+        },
+      ],
       dominantClass: {
         classCode: 12,
         label: "Cropland",
@@ -56,6 +69,17 @@ describe("land-cover context summaries", () => {
     ]);
     expect(summary).not.toHaveProperty("meanClassCode");
     expect(JSON.stringify(summary)).not.toContain("mean");
+  });
+
+  it("keeps categorical units and sampled geography in the reusable source contract", () => {
+    const summary = summarizeLandCoverContext([{ classCode: 10 }], 2024);
+
+    expect(summary.provenance).toMatchObject({
+      nativeValue: "IGBP LC_Type1 class code",
+      nativeUnit: "categorical",
+      geographicCoverage: "selected-boundary samples",
+    });
+    expect(summary.provenance.nativeUnit).not.toBe("percent");
   });
 
   it("keeps source unclassified pixels separate from no-data and informative classes", () => {
@@ -87,6 +111,8 @@ describe("land-cover context summaries", () => {
       },
     ]);
     expect(summary.dominantClass).toBeNull();
+    expect(summary.mostFrequentClassStatus).toBe("no-data");
+    expect(summary.mostFrequentClasses).toEqual([]);
   });
 
   it("reports no-data and invalid-year outcomes explicitly", () => {
@@ -96,6 +122,8 @@ describe("land-cover context summaries", () => {
     );
 
     expect(summary.provenance.publicationStatus).toBe("invalid-year");
+    expect(summary.observationStatus).toBe("unavailable");
+    expect(summary.unavailableReason).toBe("invalid-year");
     expect(summary.coverage).toEqual({
       status: "no-data",
       totalSampleCount: 0,
@@ -109,6 +137,20 @@ describe("land-cover context summaries", () => {
     });
     expect(summary.classCoverage).toEqual([]);
     expect(summary.dominantClass).toBeNull();
+    expect(summary.mostFrequentClassStatus).toBe("no-data");
+    expect(summary.mostFrequentClasses).toEqual([]);
+  });
+
+  it("distinguishes unpublished years from sampled no-data", () => {
+    const unpublished = summarizeLandCoverContext([{ classCode: 12 }], 2025);
+    const noData = summarizeLandCoverContext([{ classCode: 255 }], 2024);
+
+    expect(unpublished.observationStatus).toBe("unavailable");
+    expect(unpublished.unavailableReason).toBe("outside-layer-range");
+    expect(unpublished.coverage.status).toBe("available");
+    expect(noData.observationStatus).toBe("unavailable");
+    expect(noData.unavailableReason).toBe("no-known-land-cover");
+    expect(noData.provenance.publicationStatus).toBe("published");
   });
 
   it("exposes the complete IGBP contract including unclassified source pixels", () => {
@@ -116,6 +158,29 @@ describe("land-cover context summaries", () => {
     expect(IGBP_LAND_COVER_CLASSES.map((entry) => entry.code)).toEqual([
       1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 255,
     ]);
+  });
+
+  it("preserves tied most-frequent classes instead of inventing a dominant class", () => {
+    const summary = summarizeLandCoverContext(
+      [
+        { classCode: 12, sampleCount: 3 },
+        { classCode: 4, sampleCount: 3 },
+        { classCode: 10, sampleCount: 1 },
+      ],
+      2024
+    );
+
+    expect(summary.mostFrequentClassStatus).toBe("tied");
+    expect(
+      summary.mostFrequentClasses.map((entry) => ({
+        classCode: entry.classCode,
+        sampleCount: entry.sampleCount,
+      }))
+    ).toEqual([
+      { classCode: 4, sampleCount: 3 },
+      { classCode: 12, sampleCount: 3 },
+    ]);
+    expect(summary.dominantClass).toBeNull();
   });
 });
 

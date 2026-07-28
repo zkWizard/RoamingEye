@@ -14,14 +14,18 @@ import {
   medianValid,
   normalizeLon,
   weightedMeanValid,
+  weightedValidFraction,
   gridPoints,
+  regionGridDimensions,
   regionGridSize,
   type Rgb,
 } from "../lib/probe";
 import type { ColormapEntry } from "../lib/colormap";
 import {
   regionAround,
+  allocateBoundsPartWidths,
   gibsRegionUrl,
+  imageryTime,
   splitBoundsAtAntimeridian,
   type Bounds,
 } from "../lib/imagery";
@@ -163,10 +167,11 @@ export class ProbeSampler {
     bounds: Bounds,
     options: Omit<SampleOptions, "mode"> = {}
   ): Promise<SampleResult> {
+    const grid = regionGridDimensions(bounds);
     return this.run(
       layer,
       months,
-      this.dedupedPixels(gridPoints(bounds, regionGridSize(bounds))),
+      this.dedupedPixels(gridPoints(bounds, grid.latitude, grid.longitude)),
       (inversions, weights) => weightedMeanValid(inversions, weights),
       this.legendInverter(layer),
       options
@@ -378,13 +383,7 @@ export class ProbeSampler {
   ): WeightedPixel[] {
     const { width, height } = this.imageSize;
     if (mode === "point") {
-      const { x, y } = latLonToPixel(lat, lon, width, height);
-      const block: WeightedPixel[] = [];
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++)
-          block.push({ x: x + dx, y: y + dy, weight: 1 });
-      }
-      return block;
+      return pointProbePixels(lat, lon, width, height);
     }
     return this.dedupedPixels(gridPoints(this.areaBounds(lat, lon), AREA_GRID));
   }
@@ -453,18 +452,15 @@ export class ProbeSampler {
     // Coverage alongside the statistic: the (area-weighted) share of the
     // sampled grid that held data — combine-independent, so point mode's
     // unit weights reduce it to a plain count share.
-    let totalWeight = 0;
-    let validWeight = 0;
-    for (let i = 0; i < pixels.length; i++) {
-      totalWeight += pixels[i].weight;
-      if (inversions[i] !== null) validWeight += pixels[i].weight;
-    }
     return {
       value: combine(
         inversions,
         pixels.map((p) => p.weight)
       ),
-      validFraction: totalWeight > 0 ? validWeight / totalWeight : 0,
+      validFraction: weightedValidFraction(
+        inversions,
+        pixels.map((p) => p.weight)
+      ),
     };
   }
 
@@ -487,7 +483,7 @@ export class ProbeSampler {
     bounds: Bounds,
     signal?: AbortSignal
   ): Promise<ImageSource> {
-    const time = `${ym.year}-${String(ym.month).padStart(2, "0")}-01`;
+    const time = imageryTime(ym, layer.static);
     const parts = splitBoundsAtAntimeridian(bounds);
     if (parts.length === 1) {
       const blob = await fetchBlob(
@@ -498,12 +494,7 @@ export class ProbeSampler {
       return { image, close: () => image.close() };
     }
 
-    const widths = parts.map((part) =>
-      Math.max(1, Math.round(this.imageSize.width * part.fraction))
-    );
-    widths[widths.length - 1] =
-      this.imageSize.width -
-      widths.slice(0, -1).reduce((sum, width) => sum + width, 0);
+    const widths = allocateBoundsPartWidths(parts, this.imageSize.width);
     const bitmaps = await Promise.all(
       parts.map(async (part, index) => {
         const blob = await fetchBlob(
@@ -534,6 +525,41 @@ export class ProbeSampler {
   }
 }
 
+/**
+ * Source pixels for the point probe's 3×3 neighbourhood. Equirectangular
+ * imagery is periodic in longitude, so columns wrap across the antimeridian.
+ * Latitude is not periodic: rows clamp at the poles and duplicate pixels are
+ * removed. This keeps every drawImage source coordinate in bounds instead of
+ * turning edge samples into transparent no-data pixels.
+ */
+export function pointProbePixels(
+  lat: number,
+  lon: number,
+  width: number,
+  height: number
+): WeightedPixel[] {
+  const center = {
+    x: Math.min(
+      width - 1,
+      Math.floor(((normalizeLon(lon) + 180) / 360) * width)
+    ),
+    y: Math.min(
+      height - 1,
+      Math.max(0, Math.floor(((90 - lat) / 180) * height))
+    ),
+  };
+  const byPixel = new Map<string, WeightedPixel>();
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const x = (((center.x + dx) % width) + width) % width;
+      const y = Math.min(height - 1, Math.max(0, center.y + dy));
+      const key = `${x}:${y}`;
+      if (!byPixel.has(key)) byPixel.set(key, { x, y, weight: 1 });
+    }
+  }
+  return [...byPixel.values()];
+}
+
 function lonInBoundsFrame(lon: number, bounds: Bounds): number {
   const center = (bounds.west + bounds.east) / 2;
   let framed = normalizeLon(lon);
@@ -553,7 +579,11 @@ export function latLonToRegionPixel(
   const x = ((framedLon - bounds.west) / (bounds.east - bounds.west)) * width;
   const y = ((bounds.north - lat) / (bounds.north - bounds.south)) * height;
   return {
-    x: Math.min(width - 2, Math.max(1, Math.floor(x))),
-    y: Math.min(height - 2, Math.max(1, Math.floor(y))),
+    // Regional probes read one pixel at a time, so unlike the global point
+    // probe they do not need a one-pixel inset for a 3x3 neighbourhood.
+    // Keeping the full raster domain preserves samples that legitimately map
+    // to a requested region's outermost row or column.
+    x: Math.min(width - 1, Math.max(0, Math.floor(x))),
+    y: Math.min(height - 1, Math.max(0, Math.floor(y))),
   };
 }

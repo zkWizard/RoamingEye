@@ -84,6 +84,12 @@ describe("coastal ocean observation contract", () => {
         sstAndCoverage: "same-data-month",
         sstAndBiology: "same-data-month",
       },
+      sstFootprintAlignment: {
+        status: "consistent",
+        sstFootprint: "land-mixed-coastal",
+        coverageFootprint: "coastal-or-land-mixed",
+        reason: "matching-surface-class",
+      },
     });
     expect(summary.limitations).toEqual(COASTAL_OCEAN_OBSERVATION_LIMITATIONS);
     expect(summary.limitations.join(" ")).toContain(
@@ -156,6 +162,67 @@ describe("coastal ocean observation contract", () => {
     expect(summary.dataMonthAlignment.sstAndBiology).toBe("not-applicable");
   });
 
+  it("exposes conflicting SST footprint metadata without inventing a surface classification", () => {
+    const summary = createCoastalOceanObservation({
+      sst: {
+        dataMonth: { year: 2026, month: 3 },
+        value: 14.5,
+        footprint: "water",
+      },
+      sstCoverage: {
+        dataMonth: { year: 2026, month: 3 },
+        footprint: "land",
+      },
+    });
+
+    expect(summary.sstFootprintAlignment).toEqual({
+      status: "conflicting",
+      sstFootprint: "water",
+      coverageFootprint: "land",
+      reason: "conflicting-surface-class",
+    });
+    expect(summary.sst.observedValue).toBe(14.5);
+    expect(summary.sstCoverage.coverage).toMatchObject({
+      status: "land",
+      reason: "land-footprint",
+    });
+    expect(summary.biology.biologicalObservation).toBe(false);
+  });
+
+  it("keeps unknown and invalid footprint alignment unavailable", () => {
+    const unknown = createCoastalOceanObservation({
+      sst: {
+        dataMonth: { year: 2026, month: 3 },
+        value: 14.5,
+        footprint: "unknown",
+      },
+      sstCoverage: {
+        dataMonth: { year: 2026, month: 3 },
+        footprint: "water",
+      },
+    });
+    const invalid = createCoastalOceanObservation({
+      sst: {
+        dataMonth: { year: 2026, month: 13 },
+        value: 14.5,
+        footprint: "water",
+      },
+      sstCoverage: {
+        dataMonth: { year: 2026, month: 3 },
+        footprint: "water",
+      },
+    });
+
+    expect(unknown.sstFootprintAlignment).toMatchObject({
+      status: "unknown",
+      reason: "unknown-surface-class",
+    });
+    expect(invalid.sstFootprintAlignment).toMatchObject({
+      status: "invalid",
+      reason: "invalid-sst-metadata",
+    });
+  });
+
   it("preserves missing and invalid biological data as explicit non-observations", () => {
     expect(
       summarizeDirectMarineBiologicalObservation({
@@ -188,6 +255,63 @@ describe("coastal ocean observation contract", () => {
       status: "invalid",
       coverage: { validFraction: null, reason: "invalid-coverage" },
       observedValue: null,
+    });
+  });
+
+  it("preserves zero coverage ahead of a missing value", () => {
+    const summary = summarizeDirectMarineBiologicalObservation({
+      observationKind: "organism-count",
+      taxonName: "Example coastal taxon",
+      dataMonth: { year: 2026, month: 3 },
+      value: null,
+      nativeUnit: "individuals",
+      source: BIOLOGICAL_SOURCE,
+      validFraction: 0,
+    });
+
+    expect(summary).toMatchObject({
+      status: "no-data",
+      coverage: { validFraction: 0, reason: "zero-biological-coverage" },
+      observedValue: null,
+    });
+  });
+
+  it("rejects fractional counts while retaining biomass precision", () => {
+    const shared = {
+      taxonName: "Example coastal taxon",
+      dataMonth: { year: 2026, month: 3 },
+      nativeUnit: "individuals",
+      source: BIOLOGICAL_SOURCE,
+    };
+
+    for (const observationKind of [
+      "organism-count",
+      "occurrence-record",
+    ] as const) {
+      expect(
+        summarizeDirectMarineBiologicalObservation({
+          ...shared,
+          observationKind,
+          value: 1.5,
+        })
+      ).toMatchObject({
+        status: "invalid",
+        coverage: { reason: "non-integer-count" },
+        observedValue: null,
+      });
+    }
+
+    expect(
+      summarizeDirectMarineBiologicalObservation({
+        ...shared,
+        observationKind: "biomass-measurement",
+        value: 1.5,
+        nativeUnit: "g",
+      })
+    ).toMatchObject({
+      status: "observed",
+      nativeUnit: "g",
+      observedValue: 1.5,
     });
   });
 

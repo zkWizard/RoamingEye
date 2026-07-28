@@ -53,6 +53,62 @@ describe("parsePlateBoundaries", () => {
     expect(boundaries[0].name).toBe("OK-PA");
   });
 
+  it("preserves gaps around invalid coordinates instead of inventing segments", () => {
+    const boundaries = parsePlateBoundaries({
+      features: [
+        feature("AF-AN", [
+          [0, 0],
+          [1, 1],
+          [200, 2],
+          [3, 3],
+          [4, 4],
+        ]),
+      ],
+    });
+
+    expect(boundaries).toEqual([
+      {
+        name: "AF-AN",
+        points: [
+          [0, 0],
+          [1, 1],
+        ],
+      },
+      {
+        name: "AF-AN",
+        points: [
+          [3, 3],
+          [4, 4],
+        ],
+      },
+    ]);
+  });
+
+  it("does not emit isolated valid vertices beside malformed coordinates", () => {
+    const boundaries = parsePlateBoundaries({
+      features: [
+        feature("PA-NA", [
+          [0, 0],
+          [999, 1],
+          [2, 2],
+          [999, 3],
+          [4, 4],
+          [5, 5],
+        ]),
+      ],
+    });
+
+    expect(boundaries).toEqual([
+      {
+        name: "PA-NA",
+        points: [
+          [4, 4],
+          [5, 5],
+        ],
+      },
+    ]);
+  });
+
   it("splits MultiLineString geometries into separate boundaries", () => {
     const boundaries = parsePlateBoundaries({
       features: [

@@ -32,6 +32,13 @@ describe("seismicIntereventTimeDistribution", () => {
       quakesFromSeconds([0, 10, 30, 60])
     );
     expect(result.usableEventCount).toBe(4);
+    expect(result.timeCoverage).toEqual({
+      status: "available",
+      earliestTime: 1_750_000_000_000,
+      latestTime: 1_750_000_060_000,
+      spanSeconds: 60,
+      rejectedEventCount: 0,
+    });
     expect(result.intervals).toMatchObject({
       count: 3,
       minSeconds: 10,
@@ -117,6 +124,13 @@ describe("seismicIntereventTimeDistribution", () => {
     ]);
     expect(result.suppliedEventCount).toBe(4);
     expect(result.usableEventCount).toBe(2);
+    expect(result.timeCoverage).toEqual({
+      status: "available",
+      earliestTime: 1_750_000_000_000,
+      latestTime: 1_750_000_010_000,
+      spanSeconds: 10,
+      rejectedEventCount: 2,
+    });
     expect(result.intervals?.count).toBe(1);
     expect(result.intervals?.minSeconds).toBe(10);
   });
@@ -141,11 +155,28 @@ describe("seismicIntereventTimeDistribution", () => {
     expect(oneEvent.intervals).toBeNull();
     expect(oneEvent.usableEventCount).toBe(1);
     expect(oneEvent.suppliedEventCount).toBe(1);
+    expect(oneEvent.timeCoverage).toEqual({
+      status: "single-event",
+      earliestTime: 1_750_000_000_000,
+      latestTime: 1_750_000_000_000,
+      spanSeconds: null,
+      rejectedEventCount: 0,
+    });
 
-    const none = seismicIntereventTimeDistribution([]);
+    const none = seismicIntereventTimeDistribution([
+      quakeAt(Number.NaN),
+      quakeAt(Number.POSITIVE_INFINITY),
+    ]);
     expect(none.intervals).toBeNull();
     expect(none.usableEventCount).toBe(0);
-    expect(none.suppliedEventCount).toBe(0);
+    expect(none.suppliedEventCount).toBe(2);
+    expect(none.timeCoverage).toEqual({
+      status: "unavailable",
+      earliestTime: null,
+      latestTime: null,
+      spanSeconds: null,
+      rejectedEventCount: 2,
+    });
   });
 
   it("carries provenance, the burstiness reference, and is not a forecast", () => {
