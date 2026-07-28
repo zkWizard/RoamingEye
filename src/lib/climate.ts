@@ -4,6 +4,7 @@ import {
   type LayerId,
   type YearMonth,
 } from "./timeline";
+import type { GeometrySamplingStrategy } from "./geojson";
 
 /**
  * Source-aware descriptions of supplied monthly climate observations.
@@ -73,6 +74,8 @@ export interface MonthlyClimateObservation {
    * from imagery. This is provenance, not a ground-resolution claim.
    */
   sourceImageDimensions?: { width: number; height: number };
+  /** Spatial method used to derive this rendered observation. */
+  geometrySamplingStrategy?: GeometrySamplingStrategy;
 }
 
 export type ClimateCoverageStatus = "available" | "no-data" | "invalid";
@@ -101,7 +104,12 @@ export interface MonthlyClimateSummary {
   coverage: ClimateCoverage;
   /** Rendered-image provenance, or null when it was not supplied or invalid. */
   sourceImageDimensions: { width: number; height: number } | null;
-  /** Retained unchanged in `metric.nativeUnit`, or null when not usable. */
+  /** Retained so a point sample cannot be presented as a regional mean. */
+  geometrySamplingStrategy: GeometrySamplingStrategy | null;
+  /**
+   * Retained unchanged in `metric.nativeUnit` only for a published, usable
+   * observation; null for unavailable, missing, or invalid records.
+   */
   observedValue: number | null;
 }
 
@@ -130,8 +138,11 @@ export function summarizeMonthlyClimate(
     kind: "observed-monthly-climate",
     isForecast: false,
     metric,
-    dataMonth,
-    availableThrough,
+    // Snapshot both month values at the contract boundary. Timeline month
+    // objects are reused by callers, and later mutation must not re-date an
+    // observation that has already been paired with a source value.
+    dataMonth: { ...dataMonth },
+    availableThrough: { ...availableThrough },
     publicationStatus,
     publicationLagMonths: lag === null || lag < 0 ? null : lag,
     coverage,
@@ -140,7 +151,15 @@ export function summarizeMonthlyClimate(
     )
       ? { ...observation.sourceImageDimensions }
       : null,
-    observedValue: coverage.status === "available" ? observation.value : null,
+    geometrySamplingStrategy:
+      observation.geometrySamplingStrategy === "boundary-grid" ||
+      observation.geometrySamplingStrategy === "boundary-point"
+        ? observation.geometrySamplingStrategy
+        : null,
+    observedValue:
+      publicationStatus === "published" && coverage.status === "available"
+        ? observation.value
+        : null,
   };
 }
 

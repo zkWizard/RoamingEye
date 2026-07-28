@@ -118,7 +118,12 @@ export function describePrecipitationAccumulationChange(
     };
   }
   if (!sameSource(earlier.source, later.source)) {
-    return { ...base, status: "mixed-provenance", reason: "sources-differ" };
+    return {
+      ...base,
+      source: null,
+      status: "mixed-provenance",
+      reason: "sources-differ",
+    };
   }
 
   const change = later.totalMm - earlier.totalMm;

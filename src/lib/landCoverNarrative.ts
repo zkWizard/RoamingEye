@@ -10,13 +10,15 @@ import type { LandCoverContextSummary } from "./landCover";
 export interface LandCoverObservationNarrative {
   kind: "land-cover-observation-narrative";
   isInterpretation: false;
+  observationStatus: LandCoverContextSummary["observationStatus"];
+  unavailableReason: LandCoverContextSummary["unavailableReason"];
   headline: string;
   detail: string;
   provenance: {
     dataYear: number;
     publicationStatus: LandCoverContextSummary["provenance"]["publicationStatus"];
-    geographicCoverage: "selected-boundary samples";
-    nativeValue: "IGBP LC_Type1 class code (categorical; no physical unit)";
+    geographicCoverage: LandCoverContextSummary["provenance"]["geographicCoverage"];
+    nativeValue: string;
     sourceLabel: string;
     sourceUrl: string;
     wmsLayer: string;
@@ -51,13 +53,15 @@ export function describeLandCoverObservation(
   return {
     kind: "land-cover-observation-narrative",
     isInterpretation: false,
+    observationStatus: summary.observationStatus,
+    unavailableReason: summary.unavailableReason,
     headline: headlineFor(summary),
     detail: detailFor(summary),
     provenance: {
       dataYear: provenance.dataYear,
       publicationStatus: provenance.publicationStatus,
-      geographicCoverage: "selected-boundary samples",
-      nativeValue: "IGBP LC_Type1 class code (categorical; no physical unit)",
+      geographicCoverage: provenance.geographicCoverage,
+      nativeValue: `${provenance.nativeValue} (${provenance.nativeUnit}; no physical unit)`,
       sourceLabel,
       sourceUrl,
       wmsLayer: provenance.wmsLayer,
@@ -69,26 +73,65 @@ export function describeLandCoverObservation(
 }
 
 function headlineFor(summary: LandCoverContextSummary): string {
-  const { provenance, coverage, dominantClass } = summary;
+  const {
+    provenance,
+    coverage,
+    dominantClass,
+    mostFrequentClassStatus,
+    mostFrequentClasses,
+  } = summary;
   if (provenance.publicationStatus !== "published") {
     return `Land-cover record not published for ${provenance.dataYear}`;
   }
   if (coverage.status === "no-data" || !dominantClass) {
+    if (mostFrequentClassStatus === "tied") {
+      return `Tied most frequent observed classes: ${classLabels(
+        mostFrequentClasses
+      )}`;
+    }
     return `No known IGBP class observed for ${provenance.dataYear}`;
   }
   return `Most frequent observed class: ${dominantClass.label}`;
 }
 
 function detailFor(summary: LandCoverContextSummary): string {
-  const { provenance, coverage, dominantClass } = summary;
+  const {
+    provenance,
+    coverage,
+    dominantClass,
+    mostFrequentClassStatus,
+    mostFrequentClasses,
+  } = summary;
   const coverageDetail = coverageText(coverage);
 
   if (provenance.publicationStatus !== "published") {
-    return `The requested annual record is ${publicationText(provenance.publicationStatus)}. ${coverageDetail}`;
+    return `The requested annual record is ${publicationText(
+      provenance.publicationStatus
+    )}. ${coverageDetail}`;
+  }
+  if (mostFrequentClassStatus === "tied") {
+    const tiedCount = mostFrequentClasses[0].sampleCount;
+    return `${classLabels(
+      mostFrequentClasses
+    )} each occurred in ${tiedCount} of ${
+      coverage.totalSampleCount
+    } counted selected-boundary samples (${percent(
+      mostFrequentClasses[0].fractionOfAllSamples
+    )} each). ${coverageDetail}`;
   }
   if (!dominantClass) return coverageDetail;
 
-  return `${dominantClass.label} occurred in ${dominantClass.sampleCount} of ${coverage.totalSampleCount} counted selected-boundary samples (${percent(dominantClass.fractionOfAllSamples)}). ${coverageDetail}`;
+  return `${dominantClass.label} occurred in ${dominantClass.sampleCount} of ${
+    coverage.totalSampleCount
+  } counted selected-boundary samples (${percent(
+    dominantClass.fractionOfAllSamples
+  )}). ${coverageDetail}`;
+}
+
+function classLabels(
+  classes: LandCoverContextSummary["mostFrequentClasses"]
+): string {
+  return classes.map((entry) => entry.label).join(", ");
 }
 
 function coverageText(coverage: LandCoverContextSummary["coverage"]): string {
@@ -97,11 +140,15 @@ function coverageText(coverage: LandCoverContextSummary["coverage"]): string {
   }
 
   const parts = [
-    `Known IGBP classes occurred in ${coverage.knownLandCoverSampleCount} of ${coverage.totalSampleCount} counted samples (${percent(coverage.knownLandCoverFraction)}).`,
+    `Known IGBP classes occurred in ${coverage.knownLandCoverSampleCount} of ${
+      coverage.totalSampleCount
+    } counted samples (${percent(coverage.knownLandCoverFraction)}).`,
   ];
   if (coverage.unclassifiedSampleCount > 0) {
     parts.push(
-      `${countedSamples(coverage.unclassifiedSampleCount)} ${wasWere(coverage.unclassifiedSampleCount)} source-unclassified.`
+      `${countedSamples(coverage.unclassifiedSampleCount)} ${wasWere(
+        coverage.unclassifiedSampleCount
+      )} source-unclassified.`
     );
   }
   if (coverage.noDataSampleCount > 0) {
@@ -111,7 +158,9 @@ function coverageText(coverage: LandCoverContextSummary["coverage"]): string {
   }
   if (coverage.invalidClassSampleCount > 0) {
     parts.push(
-      `${countedSamples(coverage.invalidClassSampleCount)} ${wasWere(coverage.invalidClassSampleCount)} outside the IGBP source-class contract.`
+      `${countedSamples(coverage.invalidClassSampleCount)} ${wasWere(
+        coverage.invalidClassSampleCount
+      )} outside the IGBP source-class contract.`
     );
   }
   if (coverage.invalidRecordCount > 0) {

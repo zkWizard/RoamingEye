@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Volcano } from "./volcanoes";
-import { volcanoesInSearchExtent } from "./volcanoExtent";
+import { gvpVolcanoUrl, volcanoesInSearchExtent } from "./volcanoExtent";
 
 const volcano = (overrides: Partial<Volcano> = {}): Volcano => ({
   name: "Etna",
@@ -37,10 +37,77 @@ describe("volcanoesInSearchExtent", () => {
     expect(context.records).toEqual([
       expect.objectContaining({
         name: "Etna",
+        lastEruptionYear: 2025,
         lastEruptionText: "last erupted 2025",
+        volcanoNumber: null,
+        sourceUrl: null,
       }),
       expect.objectContaining({ name: "Vesuvius" }),
     ]);
+  });
+
+  it("retains source catalog context and links records by stable GVP number", () => {
+    const context = volcanoesInSearchExtent(
+      [
+        volcano({
+          sourceRecord: {
+            volcanoNumber: 211060,
+            region: "Mediterranean and Western Asia Volcanic Regions",
+            subregion: "Italy",
+            tectonicSetting: "Subduction zone / Continental crust (> 25 km)",
+          },
+        }),
+      ],
+      [37, 38, 14, 16]
+    );
+
+    expect(context.records[0]).toMatchObject({
+      volcanoNumber: 211060,
+      sourceUrl: "https://volcano.si.edu/volcano.cfm?vn=211060",
+      region: "Mediterranean and Western Asia Volcanic Regions",
+      subregion: "Italy",
+      tectonicSetting: "Subduction zone / Continental crust (> 25 km)",
+    });
+    expect(context.limitations.join(" ")).toContain(
+      "retained GVP catalog labels"
+    );
+  });
+
+  it("preserves the raw GVP eruption year beside its display label", () => {
+    const context = volcanoesInSearchExtent(
+      [
+        volcano({
+          name: "Dated BCE",
+          lastEruptionYear: -1250,
+        }),
+        volcano({
+          name: "Undated Holocene",
+          lastEruptionYear: null,
+        }),
+      ],
+      [37, 38, 14, 16]
+    );
+
+    expect(context.records).toEqual([
+      expect.objectContaining({
+        name: "Dated BCE",
+        lastEruptionYear: -1250,
+        lastEruptionText: "last erupted 1250 BCE",
+      }),
+      expect.objectContaining({
+        name: "Undated Holocene",
+        lastEruptionYear: null,
+        lastEruptionText: "Holocene evidence only",
+      }),
+    ]);
+    expect(context.units.lastEruptionYear).toBe(
+      "calendar year; negative values are BCE"
+    );
+  });
+
+  it("does not invent a source URL without a valid GVP number", () => {
+    expect(gvpVolcanoUrl(null)).toBeNull();
+    expect(gvpVolcanoUrl(211060.5)).toBeNull();
   });
 
   it("includes both sides of an antimeridian-crossing search box", () => {
