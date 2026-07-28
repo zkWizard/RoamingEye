@@ -3,6 +3,7 @@ Venue: GitHub — Awesome Open Geoscience (Software Underground)
 Channel: Pull request → `Visualization` section
 Status: DRAFT
 Date: 2026-07-15
+Claims re-verified: 2026-07-27 — live URL now https://roamingeye.org/ (custom domain); feature/layer claims re-checked against README.md
 
 ---
 
@@ -60,7 +61,7 @@ probe with provenance-stamped CSV export, and a plate-tectonics / volcano / seis
 context pack. TypeScript + Three.js, no account or install.
 
 - Repo:  https://github.com/zkWizard/RoamingEye
-- Live:  https://zkwizard.github.io/RoamingEye/
+- Live:  https://roamingeye.org/
 - License: MIT
 - Data: 100% open, every dataset cited and every export uncertainty-labelled
 

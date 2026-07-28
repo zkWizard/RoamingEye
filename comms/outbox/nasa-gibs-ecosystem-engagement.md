@@ -12,7 +12,7 @@ Hello GIBS / ESDIS team,
 
 I maintain **RoamingEye**, a free, open-source (MIT) browser-based 3D globe for exploring the open satellite record. It streams its imagery directly from **GIBS WMTS**, and I wanted to do two things: say thank you, and ask one technical question where your guidance would make the tool measurably more accurate.
 
-- **Live (no account, no install, no fee):** https://zkwizard.github.io/RoamingEye/
+- **Live (no account, no install, no fee):** https://roamingeye.org/
 - **Code:** https://github.com/zkWizard/RoamingEye
 
 **How we use GIBS.** RoamingEye renders GIBS tiles for nine open products across vegetation, temperature, water, cryosphere, and atmosphere, with a temporal scrubber over the multi-decadal record. GIBS is cited in-app and in our README, and imagery is attributed to NASA EOSDIS GIBS throughout. It's aimed at researchers, educators, students, and journalists who want to eyeball a place and a time window before pulling the actual granules — a friendlier front porch onto data your teams already publish.

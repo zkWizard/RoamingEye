@@ -3,6 +3,7 @@ Venue: three.js forum (https://discourse.threejs.org/)
 Channel: "Showcase" category (https://discourse.threejs.org/c/showcase/7) — text post; posts require moderator approval before they appear
 Status: DRAFT
 Date: 2026-07-16
+Claims re-verified: 2026-07-27 — live URL now https://roamingeye.org/ (custom domain); feature/layer claims re-checked against README.md
 
 ---
 
@@ -12,7 +13,7 @@ Hi everyone,
 
 I've been building **RoamingEye**, an open-source (MIT) three.js globe for exploring the public satellite archives — NASA MODIS and Harmonized Landsat-Sentinel — and I'd love this forum's eyes on the rendering side, because the interesting problems here are graphics problems.
 
-**Live, no account/install/fee:** https://zkwizard.github.io/RoamingEye/
+**Live, no account/install/fee:** https://roamingeye.org/
 **Code:** https://github.com/zkWizard/RoamingEye
 
 **The rendering, since that's what this crowd cares about.** It's a single textured sphere in three.js — no heavy GIS framework. The globe re-drapes itself with WMTS imagery tiles chosen by **screen-space error**: as you zoom, only the visible tiles refine, up to each layer's native resolution (terrain reaches ~31 m), with **parent-tile fallback** so detail sharpens progressively instead of popping to blank while a child tile loads. NASA's GIBS WMS is CORS-open, so tiles stream straight into GPU textures with **no backend at all** — the whole thing is a static site. The geodesy, timeline, tile selection, and geocoding are pure, unit-tested functions kept deliberately separate from the rendering and DOM.

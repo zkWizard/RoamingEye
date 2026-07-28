@@ -3,6 +3,7 @@ Venue: Pangeo Discourse (https://discourse.pangeo.io/)
 Channel: "Pangeo Showcase" category — text post (optionally follow up with a monthly Showcase talk proposal)
 Status: DRAFT
 Date: 2026-07-15
+Claims re-verified: 2026-07-27 — live URL now https://roamingeye.org/ (custom domain); feature/layer claims re-checked against README.md
 
 ---
 
@@ -12,7 +13,7 @@ Hi Pangeo folks,
 
 I've been building **RoamingEye**, an open-source (MIT) browser globe for looking at the public satellite archives — NASA MODIS and Harmonized Landsat-Sentinel — and I wanted to share it here because it's meant to sit _next to_ the cloud-native stack most of you already use, not compete with it.
 
-**Live, no account/install/fee:** https://zkwizard.github.io/RoamingEye/
+**Live, no account/install/fee:** https://roamingeye.org/
 **Code:** https://github.com/zkWizard/RoamingEye
 
 **Where it fits in a Pangeo workflow.** It's a fast visual reconnaissance step _before_ you pull L3 granules into an Xarray/Zarr/Dask pipeline. Grab the globe, scrub the temporal slider month-by-month through the last few years of monthly composites, click a point to see that layer's full-record time series, decide whether a site is worth the compute — then go do the real analysis in your notebook. It answers "is there a signal here, and over what window?" in a few seconds without spinning anything up.

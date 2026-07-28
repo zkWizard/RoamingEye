@@ -98,7 +98,21 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
   in-app first.
 - **Best angle:** classroom/fieldwork utility and open data — lead with a question or a
   workflow, not the link.
-- **Status:** researched (rules pending sidebar confirmation)
+- **Status:** **blocked on zkWizard — needs a 2-minute in-app rules check.** Programmatic
+  verification has now failed **twice** (2026-07-15 and 2026-07-27): Reddit is unreachable
+  from this agent's fetch layer, and web search returns only third-party SEO articles about
+  "Reddit self-promotion rules" in general — not the actual sidebar text of these two subs.
+  Third-hand rule summaries are not a sound basis for a compliance decision, so **no draft
+  will be written for Reddit until the real rules are read.** This entry is deliberately
+  parked rather than left ambiguous. What zkWizard needs to check in the sidebar / wiki of
+  each sub (r/gis, r/remotesensing) — takes about two minutes:
+  1. Is there a **self-promotion rule**, and does it confine promo to a designated
+     weekly/monthly showcase or "what are you working on" thread?
+  2. Is **post flair** required, and which flair covers a project/tool share?
+  3. Is there a **karma / account-age minimum** for link posts?
+  4. Does the sub require **affiliation disclosure** ("I built this") in the post body?
+     Paste the answers into this entry and the draft can be written in the next run. Until
+     then: no post, no link drop.
 
 ### OSGeo Discourse / OSGeo community
 
@@ -148,6 +162,37 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
   approximation. Optionally reply into relevant #geoscience / #OpenScience threads.
 - **Status:** researched (rules clear; ready to draft a short post once zkWizard has a
   fediverse account — low effort, high fit)
+
+### NASA Earthdata Forum — participation-only (no announcement post)
+
+- **URL:** https://forum.earthdata.nasa.gov/ (boards include _Projects → MODIS_,
+  _Services/Usage → Visualization_, and a Worldview/GIBS board)
+- **Audience & size:** the NASA Earth-science data user community talking directly with
+  subject-matter experts from NASA's Distributed Active Archive Centers (DAACs). This is
+  the most precisely on-target audience in the whole pipeline — these are literally the
+  people using the MODIS, HLS, and GIBS products RoamingEye renders.
+- **Why RoamingEye fits:** it is built entirely on the data these boards support (GIBS
+  WMTS tiles, MODIS, Harmonized Landsat-Sentinel), and its provenance-first stance —
+  every layer cited, every probe export uncertainty-labelled — matches how this community
+  expects data to be handled and cited.
+- **Posting rules / compliant path:** **this is a question-and-answer support forum, not a
+  showcase.** Its stated purpose is for the scientific user community and DAAC experts to
+  "discuss research needs, data, and data applications," moderators explicitly work to
+  "prevent users from going off-question," and each board administrator sets additional
+  rules with warnings for breaches. The published FAQ and Usage Terms do **not** grant any
+  self-promotion allowance — so a "check out my tool" thread would be off-question by
+  default and is **not** a compliant path. The only compliant path is
+  **participation-first**: answer real GIBS/MODIS/HLS questions as a knowledgeable
+  community member, and mention RoamingEye _only_ where it directly answers the specific
+  question someone asked (e.g. someone asking how to eyeball a GIBS layer over time before
+  ordering granules).
+- **Best angle:** none as an announcement. Treat this as a long-game credibility venue:
+  genuine help earns standing, and standing is what later makes a Worldview/GIBS-board
+  mention welcome rather than spam. Also a strong listening post for real user problems
+  worth putting on the roadmap.
+- **Status:** researched → **participation-only; no draft, and none should be written.**
+  Revisit only if a forum user asks a question RoamingEye genuinely answers. Requires
+  zkWizard posting personally as himself — never an automated or agent-written post.
 
 ---
 
@@ -245,6 +290,129 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
 
 ---
 
+## Academic & citation venues
+
+### Journal of Open Source Software (JOSS) — declined **for now**; earliest eligible 2026-12-29
+
+- **URL:** https://joss.theoj.org/ (submission guide:
+  https://joss.readthedocs.io/en/latest/submitting.html)
+- **Audience & size:** JOSS is a peer-reviewed, open-access academic journal
+  (ISSN 2475-9066) for research software. A JOSS paper is indexed and citable and comes
+  with a DOI — it converts "a cool website" into something a researcher can _cite in a
+  methods section_, which is the single highest-leverage credibility artifact available to
+  this project and directly serves the roadmap's teaching- and research-adoption goals.
+- **Why RoamingEye would fit (eventually):** it is MIT-licensed (JOSS requires an
+  OSI-approved license ✅), has public development history, comprehensive tests, real
+  documentation, `CITATION.cff`, a published methodology (`METHODS.md`), and clear
+  contribution pathways — several of JOSS's "open development practices" indicators are
+  already satisfied.
+- **Why it is declined right now — two gates, one of them hard:**
+  1. **Hard gate — age.** JOSS rejects software with **fewer than six months of public
+     development history**. This repository's first commit is **2026-06-28** and it was
+     created **2026-06-29**, making it **29 days old** as of this entry. A submission now
+     would be desk-rejected on a rule with no judgment component. **Earliest eligible date:
+     2026-12-29.** Do not submit before then.
+  2. **Soft gate — "substantial scholarly effort."** JOSS wants evidence of research
+     impact: publications _using_ the software, external adopters, integrations, or
+     benchmarks showing credible near-term significance. Current signals are 1 star,
+     0 forks, 0 outside contributors and zero outside-authored issues — no external
+     adoption story exists yet. JOSS also rejects "minor utility" packages and single-
+     function tools, so the submission must argue **research enablement**, not a nice
+     globe.
+- **What to accumulate before 2026-12-29 (this is the actual work):**
+  - **External adopters** — even 2–3 named classrooms or researchers using it. This is
+    exactly what the drafted outreach in `outbox/` is for; sending those drafts _is_ the
+    JOSS runway.
+  - **A defensible scholarly core.** The strongest claim is not the visualization but the
+    combination of (a) the screen-space-error WMTS tile-streaming engine (RFC-001), (b) the
+    provenance- and uncertainty-stamped time-series export, and (c) the documented
+    colormap-inversion methodology. Note that flagship issue
+    [#170](https://github.com/zkWizard/RoamingEye/issues/170) (invert against GIBS's real
+    colormaps for accurate absolute probe values) is squarely on the critical path — until
+    the probe returns defensible absolute values, a reviewer can fairly call the science
+    surface approximate.
+  - **Feature completeness**, since JOSS rejects "half-baked solutions."
+- **Best angle when the time comes:** a paper framed as _"a zero-install, provenance-first
+  reconnaissance instrument for multi-decadal open EO archives"_ — emphasize reproducibility
+  and the citable export, not the rendering.
+- **Status:** **declined for now (dated).** Re-evaluate on or after **2026-12-29** against
+  both gates. Do not submit early — a desk rejection is a public record and burns the shot.
+
+---
+
+## Complementary open-tool maintainers (contributor outreach)
+
+The people most likely to contribute usefully to RoamingEye are maintainers and users of
+tools that sit **next to** it in a workflow — Python/notebook analysis stacks that start
+where a browser globe stops. This is outreach to _people_, not a venue post, so the bar is
+different: lead with something genuinely useful to them, keep the ask small enough for a
+volunteer, and never cold-email an individual — post to the project's own public board and
+address the project.
+
+### leafmap (opengeos/leafmap) — drafted
+
+- **URL:** https://github.com/opengeos/leafmap (docs: https://leafmap.org)
+- **Audience & size:** ~3.7k stars, MIT, **actively developed** (last push 2026-07-27,
+  verified via GitHub API). A Python package for interactive mapping and geospatial
+  analysis in Jupyter with minimal coding; JOSS-published, maintained under the
+  Open Geospatial Solutions (`opengeos`) org alongside geemap and segment-geospatial.
+- **Why RoamingEye fits:** the strongest complementarity in the pipeline, and it is
+  genuine rather than rhetorical. RoamingEye's own statement of need positions it as the
+  reconnaissance step **before** you pull L3 granules; leafmap is where that pull happens.
+  Same audience (researchers, educators, students), same licence (MIT), same
+  no-friction-for-newcomers value. Crucially they do **not** compete — leafmap is
+  Python/Jupyter, RoamingEye is browser/no-install, and RoamingEye sends traffic _toward_
+  notebook work rather than away from it.
+- **The concrete seam:** the probe's CSV header already carries `lat`, `lon`,
+  `data_product` (short name + version), `data_doi`, the date range, and an explicit
+  uncertainty line (`src/lib/probe.ts`). That is very nearly the argument list for a
+  leafmap starter snippet — so a "copy as Python" action at the export is a small, real
+  feature, not a pretext.
+- **Posting rules / compliant path:** `docs/contributing.md` routes bug reports and
+  feature requests to the **issue tracker** and asks proposals to "explain in detail how
+  it would work" and "keep the scope as narrow as possible," noting it is volunteer-driven.
+  Code of Conduct is the Contributor Covenant. No explicit self-promotion ban. Discussions
+  are enabled with categories General / Ideas / Polls / Q&A / **Show and tell**.
+  **Compliant path chosen: Discussions → "Ideas."** Not an issue, because the work being
+  proposed lives in _our_ repo and an unsolicited external proposal shouldn't consume a
+  volunteer's triage queue; if a maintainer wants it tracked, a discussion converts to a
+  narrow issue on request. **Not "Show and tell"** — that category is for things built
+  _with_ leafmap, which RoamingEye is not; posting there would be drive-by promotion.
+- **Best angle:** ask, don't pitch. The post asks which leafmap entry points are stable
+  enough to generate code against, so the snippet we ship is idiomatic and doesn't age
+  badly — an implicit compliment, zero maintenance burden for them, and all the work on
+  our side. The contributor invitation rides along at the end (flagship #170, real GIBS
+  colormap inversion) rather than leading.
+- **Status:** drafted → `outbox/leafmap-interop-invitation.md` (awaiting zkWizard review &
+  post; ⛔ also gated on the HTTPS block)
+
+### stackstac (gjoseph92/stackstac) — declined, dormant
+
+- **URL:** https://github.com/gjoseph92/stackstac
+- **Why it was considered:** "turn a STAC catalog into a dask-based xarray" is squarely the
+  next step after visual reconnaissance, and it was listed as a candidate in earlier rounds.
+- **Why declined:** **the project has not been pushed to since 2024-08-10** — nearly two
+  years dormant as of 2026-07-27 (verified via GitHub API; 269 stars, MIT, not archived).
+  Approaching a single-maintainer project that has gone quiet asks for time its maintainer
+  has evidently not had. There is no version of this outreach that is useful to them.
+- **Re-open only if:** the repo shows renewed commit activity, or maintenance moves to a
+  new owner. Re-check the `pushed_at` date before reconsidering — that one API call is the
+  whole test.
+
+### TiTiler (developmentseed/titiler) — researched, not a contributor target
+
+- **URL:** https://github.com/developmentseed/titiler
+- **State:** active (last push 2026-07-27), ~1.1k stars, MIT, maintained by Development Seed.
+- **Why not outreach:** it is a **server-side** dynamic raster tile service, and RoamingEye
+  is deliberately a static, no-backend site — so there is no shared user journey to offer,
+  and a company-maintained project is not a plausible source of volunteer contributors to a
+  29-day-old globe. Logged so a future run doesn't re-research it.
+- **Where it _is_ relevant:** as a possible future **dependency**, not a comms target — if
+  RoamingEye ever needs to serve derived or user-supplied rasters, this is the reference
+  implementation. That would be an engineering decision, not a comms one.
+
+---
+
 ## Vetted & set aside (do not re-pursue without a new angle)
 
 ### Project Pythia Resource Gallery — declined (off-scope)
@@ -267,6 +435,21 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
 
 - Prefer **quality over quantity** — one excellent, rules-respecting artifact per venue
   beats a spray list. Do not add venues you have not actually vetted.
+- **⛔ EVERYTHING IN THE PIPELINE IS SEND-BLOCKED until HTTPS works on the custom domain**
+  (verified 2026-07-27). `https://roamingeye.org/` fails TLS — GitHub Pages has verified
+  the domain but not yet issued a certificate (`https_certificate: null`,
+  `https_enforced: false`), so the host serves the default `*.github.io` cert and browsers
+  reject it. `https://zkwizard.github.io/RoamingEye/` now `301`s to **`http://`**
+  roamingeye.org, an HTTPS→HTTP downgrade — so there is currently no working HTTPS route to
+  the app. Do not send, and do not open awesome-list PRs (those links are permanent). The
+  full gate, measurements, and the two commands that clear it are at the top of
+  `outbox/README.md`. Nothing else in the pipeline needs to change — the drafts already
+  carry the right URL.
+- **Canonical live URL is `https://roamingeye.org/`** (custom domain, landed 2026-07-27 in
+  `7bafef4`; `scripts/deploy.mjs` writes the `CNAME` on every deploy). The old
+  `https://zkwizard.github.io/RoamingEye/` only redirects — never put it in a draft, and
+  **never** in an awesome-list entry, where the link is permanent and gets scraped. All
+  outbox drafts were corrected on 2026-07-27; check this before adding any new one.
 - **Repo discoverability (housekeeping — for zkWizard to apply):** the GitHub repo's
   one-line **description is currently empty** (`gh api repos/zkWizard/RoamingEye`
   → `"description": null`), even though topics and homepage are set. That one line is what
@@ -278,12 +461,52 @@ Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `
   > `gh repo edit zkWizard/RoamingEye --description "<text above>"`
   > (Left for zkWizard rather than auto-applied — editing public repo metadata is a
   > maintainer call, not something the comms agent pushes unattended.)
-- Candidate venues still to research (do NOT add until rules are read): r/dataisbeautiful
-  (OC rules), university remote-sensing course networks, and complementary open-tool
-  maintainers (STAC / stackstac / leafmap / TiTiler) as potential contributors.
-  _Researched this round:_ **three.js forum Showcase** (added — reaches the graphics-engineer
-  contributor persona; on-topic by definition, moderator-approved). Prior rounds: OSGeo
-  Discourse (participation-first), Mastodon/fediverse (value-first); Project Pythia (declined).
+  > **Safe to apply today.** The description is plain text and touches no link, so it is
+  > independent of the HTTPS gate — it is the one awareness win available while all seven
+  > drafts are send-blocked. Do _not_ bundle it with the homepage change below.
+- **Repo homepage — DO NOT change it yet (corrected 2026-07-27, second measurement).** An
+  earlier revision of this note told zkWizard to point `homepage` at
+  `https://roamingeye.org/` and to "apply together with the description above". **Running
+  that command today would break the repo's About link.** Re-measured:
+
+  - `https://zkwizard.github.io/RoamingEye/` (the current, "stale" value) → `301` →
+    `http://roamingeye.org/` → `200`. It reaches the app, over plain HTTP.
+  - `https://roamingeye.org/` (previously recommended) → **connection failure.** No
+    certificate exists for the host, so the browser cannot open it at all.
+
+  A downgraded link is bad; an unopenable one is worse, and the About sidebar is the first
+  thing anyone arriving from an awesome-list entry or a GitHub search clicks. The stale
+  value is, for now, the _safer_ of the two.
+  **Correct sequence — the homepage flip is the last step, not a companion step:**
+
+  1. Wait for GitHub to issue the certificate (`https_certificate.state` → `approved`).
+  2. Turn on **Enforce HTTPS** in _Settings → Pages_.
+  3. Confirm `curl -sS -o /dev/null -w '%{http_code}\n' https://roamingeye.org/` returns
+     `200` with no TLS error.
+  4. _Then_ apply: `gh repo edit zkWizard/RoamingEye --homepage "https://roamingeye.org/"`
+  5. The drafts unblock at the same moment — steps 1–3 are exactly the send gate in
+     `outbox/README.md`.
+
+- Candidate venues still to research (do NOT add until rules are read): university
+  remote-sensing course networks. **Duty 3 (contributor outreach) is no longer the open
+  gap** — the complementary-open-tool track was researched on 2026-07-27 and now has its
+  own section above: leafmap **drafted**, stackstac **declined** (dormant since 2024-08-10),
+  TiTiler **not a contributor target** (server-side; possible future dependency). The
+  remaining untouched contributor source is RoamingEye's own stargazers/forkers — currently
+  1 star and 0 forks, so there is nobody to invite until something has actually been sent.
+  r/dataisbeautiful is parked with the other Reddit entries until the Reddit rules blocker
+  above is cleared by zkWizard.
+  _Researched most recently:_ **leafmap** (drafted), **stackstac** (declined — dormant),
+  **TiTiler** (not a contributor target). Before that: **JOSS** (declined-for-now with a
+  dated 2026-12-29 revisit) and the **NASA Earthdata Forum** (participation-only, no
+  announcement). Prior rounds: three.js Showcase (drafted), OSGeo Discourse
+  (participation-first), Mastodon/fediverse (value-first), Project Pythia (declined).
+- **Venue maturity gate — worth knowing across the pipeline:** this repository is only
+  **29 days old** (first commit 2026-06-28). Venues that gate on project maturity — JOSS
+  (6 months), some awesome-lists' quality bars, and OSGeo Community Projects — will judge
+  it as very young. Nothing in the pipeline is blocked by this _except_ JOSS, but it is a
+  reason to prefer venues that reward usefulness now (three.js Showcase, HN, Pangeo,
+  classrooms) and to let the citation-track venues mature.
 - **Educator reach:** `outbox/classroom-lab-one-pager.md` is now a ready source asset —
   the next educator-facing step is to vet a _specific_ venue's rules (Project Pythia /
   educational-geoscience networks, a university remote-sensing course network) and adapt
