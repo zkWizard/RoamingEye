@@ -59,6 +59,34 @@ describe("parseNativeGrid", () => {
     ).toBeNull();
     expect(parseNativeGrid("No resolution here")).toBeNull();
   });
+
+  it("reads a bare-metre grid from a MODIS title", () => {
+    expect(
+      parseNativeGrid("MODIS Land Cover Type Yearly L3 Global 500m")
+    ).toEqual({ statedGrid: "500m", nominalMetres: 500 });
+    expect(parseNativeGrid("MOD13Q1 Vegetation Indices 250 m")).toEqual({
+      statedGrid: "250 m",
+      nominalMetres: 250,
+    });
+  });
+
+  it("does not mint a native grid from a near-surface measurement height", () => {
+    // "2 m" / "10 m" here name the height the variable is reported at, not a
+    // grid cell — reading them as a metre-scale grid would invent a resolution
+    // hundreds of times finer than the actual ~50 km reanalysis field.
+    expect(parseNativeGrid("MERRA-2 2 m air temperature, monthly")).toBeNull();
+    expect(parseNativeGrid("GEOS-5 10 m wind speed")).toBeNull();
+    expect(parseNativeGrid("2 m specific humidity, monthly mean")).toBeNull();
+  });
+
+  it("still reads a genuine metre grid stated after a measurement height", () => {
+    // The height token ("10 m wind") is skipped, but the scan continues and the
+    // real grid ("250m") is recovered — provenance is preserved, not lost.
+    expect(parseNativeGrid("10 m wind diagnostics on a 250m grid")).toEqual({
+      statedGrid: "250m",
+      nominalMetres: 250,
+    });
+  });
 });
 
 describe("summarizeSpatialSupport", () => {
@@ -80,11 +108,15 @@ describe("summarizeSpatialSupport", () => {
     expect(summary.unknownGridSignalIds).toEqual([]);
     expect(summary.finestMetres).toBe(1000);
     expect(summary.coarsestMetres).toBe(0.25 * 111_320);
-    expect(summary.scaleRatio).toBeCloseTo((0.25 * 111_320) / 1000, 5);
+    const linear = (0.25 * 111_320) / 1000;
+    expect(summary.scaleRatio).toBeCloseTo(linear, 5);
+    // Areal grain contrast is the square of the linear ratio: ~28× → ~775×.
+    expect(summary.areaScaleRatio).toBeCloseTo(linear * linear, 5);
     expect(summary.commonGrid).toBe(false);
     expect(summary.statement).toContain("distinct native grids");
     expect(summary.statement).toContain("not co-registered");
     expect(summary.statement).toContain("28×");
+    expect(summary.statement).toContain("averages over about 775× the area");
   });
 
   it("asserts a common grid only when every considered signal shares one", () => {
@@ -99,6 +131,7 @@ describe("summarizeSpatialSupport", () => {
     expect(summary.distinctStatedGrids).toBe(1);
     expect(summary.commonGrid).toBe(true);
     expect(summary.scaleRatio).toBe(1);
+    expect(summary.areaScaleRatio).toBe(1);
     expect(summary.statement).toContain("share one");
     expect(summary.statement).not.toContain("not co-registered");
   });
@@ -129,6 +162,7 @@ describe("summarizeSpatialSupport", () => {
     expect(summary.consideredSignalIds).toEqual(["vegetation"]);
     expect(summary.commonGrid).toBe(false);
     expect(summary.scaleRatio).toBeNull();
+    expect(summary.areaScaleRatio).toBeNull();
     expect(summary.finestMetres).toBe(1000);
     expect(summary.statement).toContain("needs two or more");
   });
@@ -164,6 +198,7 @@ describe("summarizeSpatialSupport", () => {
     expect(summary.finestMetres).toBeNull();
     expect(summary.coarsestMetres).toBeNull();
     expect(summary.scaleRatio).toBeNull();
+    expect(summary.areaScaleRatio).toBeNull();
     expect(summary.commonGrid).toBe(false);
     expect(summary.statement).toContain("No usable observations");
   });

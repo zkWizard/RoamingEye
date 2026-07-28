@@ -53,11 +53,16 @@ export interface PlaceObservationProductInput {
 
 export interface PlaceObservationInput {
   dataMonth: YearMonth;
-  /** Supplied value in `nativeUnit`; null retains a source no-data result. */
+  /** Supplied value in `nativeUnit`; null retains an explained unavailable result. */
   value: number | null;
+  /** Required for null values so an unavailable result is never ambiguous. */
+  unavailableReason?: PlaceObservationUnavailableReason;
   /** Supplied share of sampled area with a usable value. */
   validFraction?: number;
 }
+
+export type PlaceObservationUnavailableReason =
+  "source-no-data" | "insufficient-valid-coverage" | "sampling-failed";
 
 export interface PlaceObservationMethodInput {
   sampling: PlaceObservationSampling;
@@ -118,6 +123,7 @@ export interface PlaceObservationExportProduct {
     dataMonth: string;
     value: number | null;
     validFraction: number | null;
+    unavailableReason?: PlaceObservationUnavailableReason | null;
   }[];
 }
 
@@ -315,6 +321,16 @@ function validateInput(input: PlaceObservationExportInput): void {
       if (observation.value !== null && !Number.isFinite(observation.value)) {
         throw new Error(`Product ${product.layerId} has a non-finite value.`);
       }
+      if (observation.value === null && !observation.unavailableReason) {
+        throw new Error(
+          `Product ${product.layerId} must explain an unavailable value.`
+        );
+      }
+      if (observation.value !== null && observation.unavailableReason) {
+        throw new Error(
+          `Product ${product.layerId} cannot mark a recorded value unavailable.`
+        );
+      }
       if (observation.value !== null && observation.validFraction === 0) {
         throw new Error(
           `Product ${product.layerId} has a value with zero sampled coverage.`
@@ -349,6 +365,7 @@ function exportProducts(
           dataMonth: formatYearMonth(observation.dataMonth),
           value: observation.value,
           validFraction: observation.validFraction ?? null,
+          unavailableReason: observation.unavailableReason ?? null,
         }))
         .sort((left, right) => compareText(left.dataMonth, right.dataMonth)),
     }))
