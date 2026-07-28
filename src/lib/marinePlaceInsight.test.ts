@@ -12,6 +12,7 @@ describe("marine boundary SST insights", () => {
       observedValue: 18.375,
       validFraction: 0.37,
       sourceImageDimensions: { width: 512, height: 512 },
+      geography: { kind: "boundary", label: "Monterey County" },
     });
 
     expect(reading).toMatchObject({
@@ -22,6 +23,7 @@ describe("marine boundary SST insights", () => {
       isForecast: false,
       dataMonth: { year: 2026, month: 3 },
       observedValue: 18.375,
+      geography: { kind: "boundary", label: "Monterey County" },
       observationStatus: "observed",
     });
     expect(reading.coverage).toMatchObject({
@@ -36,6 +38,7 @@ describe("marine boundary SST insights", () => {
         reason: "unknown-footprint",
       },
       sourceImageDimensions: { width: 512, height: 512 },
+      geography: { kind: "boundary", label: "Monterey County" },
     });
     expect(reading.detail).toContain("37% sampled boundary coverage");
     expect(reading.detail).toContain("rendered source image 512 x 512 px");
@@ -51,6 +54,7 @@ describe("marine boundary SST insights", () => {
       observedValue: null,
       validFraction: 0,
       sourceImageDimensions: { width: 512, height: 512 },
+      geography: { kind: "boundary", label: "Monterey County" },
     });
 
     expect(reading.value).toBe("No usable SST observation");
@@ -71,6 +75,7 @@ describe("marine boundary SST insights", () => {
       observedValue: 21.2,
       validFraction: 1.1,
       sourceImageDimensions: { width: 512, height: 512 },
+      geography: { kind: "boundary", label: "Monterey County" },
     });
 
     expect(reading.value).toBe("No usable SST observation");
@@ -86,6 +91,7 @@ describe("marine boundary SST insights", () => {
       observedValue: 40,
       validFraction: 1,
       sourceImageDimensions: { width: 512, height: 512 },
+      geography: { kind: "boundary", label: "Monterey County" },
     });
 
     expect(reading.value).toBe("No usable SST observation");
@@ -94,10 +100,10 @@ describe("marine boundary SST insights", () => {
   });
 
   it("keeps source mapping failures distinct from sampled no-coverage", () => {
-    const reading = unavailableMarineBoundarySstReading({
-      year: 2026,
-      month: 3,
-    });
+    const reading = unavailableMarineBoundarySstReading(
+      { year: 2026, month: 3 },
+      { kind: "boundary", label: "Monterey County" }
+    );
 
     expect(reading).toMatchObject({
       value: "Unavailable",
@@ -105,6 +111,8 @@ describe("marine boundary SST insights", () => {
       coverage: null,
       marineBiologyObservation: false,
       dataMonth: { year: 2026, month: 3 },
+      geography: { kind: "boundary", label: "Monterey County" },
     });
+    expect(reading.detail).toContain("boundary “Monterey County”");
   });
 });

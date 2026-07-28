@@ -2,6 +2,7 @@ import {
   SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE,
   summarizeMarineCoverage,
   type MarineCoverageSummary,
+  type MarineCoverageGeography,
   type SourceImageDimensions,
 } from "./marineCoverage";
 import { PROBE_SCALES } from "./probe";
@@ -26,6 +27,8 @@ export interface MarineBoundarySstInput {
   validFraction: number;
   /** Dimensions of the rendered source image sampled for that boundary. */
   sourceImageDimensions: SourceImageDimensions;
+  /** Searched boundary identity supplied by the place-search workflow. */
+  geography: MarineCoverageGeography;
 }
 
 export interface MarinePlaceInsightReading {
@@ -38,6 +41,8 @@ export interface MarinePlaceInsightReading {
   dataMonth: YearMonth;
   observedValue: number | null;
   source: typeof SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE;
+  /** Searched geography retained even when SST sampling is unavailable. */
+  geography: MarineCoverageGeography;
   /** Structured sampler state for UI/export consumers; null when sampling failed. */
   coverage: MarineCoverageSummary | null;
   observationStatus:
@@ -59,6 +64,7 @@ export function marineBoundarySstReading(
     footprint: "unknown",
     validFraction: input.validFraction,
     sourceImageDimensions: input.sourceImageDimensions,
+    geography: input.geography,
   });
   const usable =
     coverage.coverage.status !== "invalid" &&
@@ -87,6 +93,7 @@ export function marineBoundarySstReading(
     dataMonth: input.dataMonth,
     observedValue: usable ? input.observedValue : null,
     source: coverage.source,
+    geography: input.geography,
     coverage,
     observationStatus: usable
       ? "observed"
@@ -98,18 +105,24 @@ export function marineBoundarySstReading(
 
 /** Surface a source-mapping failure without relabeling it as absent SST. */
 export function unavailableMarineBoundarySstReading(
-  dataMonth: YearMonth
+  dataMonth: YearMonth,
+  geography: MarineCoverageGeography
 ): MarinePlaceInsightReading {
+  const place =
+    geography.label === null
+      ? geography.kind
+      : `${geography.kind} “${geography.label}”`;
   return {
     id: MARINE_PLACE_METRIC.id,
     value: "Unavailable",
-    detail: `${formatYm(dataMonth)} SST observation could not be sampled from the published source colormap; source ${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.shortName} v${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.version}; not a marine-biology observation`,
+    detail: `${formatYm(dataMonth)} SST observation for ${place} could not be sampled from the published source colormap; source ${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.shortName} v${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.version}; not a marine-biology observation`,
     kind: "observed-boundary-sea-surface-temperature",
     marineBiologyObservation: false,
     isForecast: false,
     dataMonth,
     observedValue: null,
     source: SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE,
+    geography,
     coverage: null,
     observationStatus: "source-unavailable",
   };

@@ -36,6 +36,12 @@ export interface SourceImageDimensions {
   height: number;
 }
 
+export interface MarineCoverageGeography {
+  kind: "point" | "boundary" | "area" | "unknown";
+  /** Source or workflow label for the sampled geography; null is explicit. */
+  label: string | null;
+}
+
 export interface MarineCoverageInput {
   /** Calendar month represented by the sampled SST image. */
   dataMonth: YearMonth;
@@ -45,6 +51,8 @@ export interface MarineCoverageInput {
   validFraction?: number;
   /** Dimensions of the rendered source image, when sampling provides them. */
   sourceImageDimensions?: SourceImageDimensions;
+  /** Geography actually sampled; never inferred from the SST value. */
+  geography?: MarineCoverageGeography | null;
 }
 
 export type MarineCoverageStatus =
@@ -70,6 +78,8 @@ export interface MarineCoverageSummary {
     validFraction: number | null;
     reason: string | null;
   };
+  /** Supplied sampling geography; null means the caller did not provide it. */
+  geography: MarineCoverageGeography | null;
   sourceImageDimensions: SourceImageDimensions | null;
   /** Ready for an aria-label or other screen-reader-visible presentation. */
   accessibleText: string;
@@ -82,7 +92,8 @@ export interface MarineCoverageSummary {
 export function summarizeMarineCoverage(
   input: MarineCoverageInput
 ): MarineCoverageSummary {
-  const coverage = coverageFor(input);
+  const geography = geographyFor(input.geography);
+  const coverage = coverageFor(input, geography.valid);
   const sourceImageDimensions = dimensionsFor(input.sourceImageDimensions);
 
   return {
@@ -92,17 +103,20 @@ export function summarizeMarineCoverage(
     source: SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE,
     dataMonth: input.dataMonth,
     coverage,
+    geography: geography.value,
     sourceImageDimensions,
     accessibleText: accessibleTextFor(
       input.dataMonth,
       coverage,
+      geography.value,
       sourceImageDimensions
     ),
   };
 }
 
 function coverageFor(
-  input: MarineCoverageInput
+  input: MarineCoverageInput,
+  validGeography: boolean
 ): MarineCoverageSummary["coverage"] {
   const validFraction = input.validFraction;
   const base = {
@@ -111,6 +125,9 @@ function coverageFor(
   };
   if (!isYearMonth(input.dataMonth)) {
     return { ...base, status: "invalid", reason: "invalid-month" };
+  }
+  if (!validGeography) {
+    return { ...base, status: "invalid", reason: "invalid-geography" };
   }
   if (
     validFraction !== undefined &&
@@ -135,6 +152,19 @@ function coverageFor(
   return { ...base, status: input.footprint, reason: null };
 }
 
+function geographyFor(geography: MarineCoverageGeography | null | undefined): {
+  value: MarineCoverageGeography | null;
+  valid: boolean;
+} {
+  if (geography === undefined || geography === null) {
+    return { value: geography ?? null, valid: true };
+  }
+  const valid =
+    ["point", "boundary", "area", "unknown"].includes(geography.kind) &&
+    (geography.label === null || geography.label.trim().length > 0);
+  return { value: valid ? geography : null, valid };
+}
+
 function dimensionsFor(
   dimensions: SourceImageDimensions | undefined
 ): SourceImageDimensions | null {
@@ -150,6 +180,7 @@ function dimensionsFor(
 function accessibleTextFor(
   dataMonth: YearMonth,
   coverage: MarineCoverageSummary["coverage"],
+  geography: MarineCoverageGeography | null,
   dimensions: SourceImageDimensions | null
 ): string {
   const month = isYearMonth(dataMonth)
@@ -172,8 +203,12 @@ function accessibleTextFor(
   const image = dimensions
     ? ` Source image dimensions: ${dimensions.width} by ${dimensions.height} pixels.`
     : " Source image dimensions were not supplied.";
+  const place =
+    geography === null
+      ? " Sampling geography was not supplied."
+      : ` Sampling geography: ${geography.kind}${geography.label === null ? " (unlabeled)" : ` “${geography.label}”`}.`;
 
-  return `Sea surface temperature coverage for ${month}: ${footprint} Source: ${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.shortName} v${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.version}. This is an SST observation, not a marine-biology observation.${image}`;
+  return `Sea surface temperature coverage for ${month}: ${footprint} Source: ${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.shortName} v${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.version}. This is an SST observation, not a marine-biology observation.${place}${image}`;
 }
 
 function isYearMonth(value: YearMonth): boolean {
