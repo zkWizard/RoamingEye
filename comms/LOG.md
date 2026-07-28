@@ -406,3 +406,40 @@ null`, `https_enforced: false`, `https://roamingeye.org/` still fails TLS, and
   #580 so the LOG/TARGETS appends chain instead of colliding, and worked in a detached
   `git worktree` to stay clear of the shared clone. Repo `description` is **still `null`** —
   twelve days flagged, still the only awareness win available while everything is send-blocked.
+- 2026-07-27 — Found a second, untracked comms surface and folded it in. `docs/launch/`
+  predates this workspace and holds **four sendable outreach drafts** — r/gis, EO
+  Slack/Discord, geology teaching contacts, and the maintainer comment template — that
+  are mentioned nowhere in LOG.md, TARGETS.md, or the outbox. The cost was concrete: the
+  Reddit entry in TARGETS.md has said "**no draft will be written for Reddit until the
+  real rules are read**" for twelve days while a complete r/gis post sat finished in the
+  repo. Audited all five send-facing files against `main` before touching them. Verified
+  accurate and left alone: the 9-layer list, ~1,200 GVP Holocene volcanoes, Bird (2003)
+  boundaries, USGS M4.5+ **rolling 30 days** (`earthquakeContext.ts:26–27`), 30 m HLS
+  patches, drawn study regions (#26 closed COMPLETED — I nearly deleted this claim as
+  unshipped, then checked), MIT, no backend, and the colormap-inversion caveat.
+  **Four stale claims repaired, every one of them _understating_ the project:** (1) both
+  the Reddit and EO-Slack drafts pitch quadtree tiled streaming as an unbuilt "flagship
+  roadmap item / the RFC is the fun one" — it **shipped and is on by default**
+  (README:45), so the drafts were recruiting for finished work and omitting the app's
+  headline feature; (2) "~100 unit tests" is now **2,144 cases across 204 test modules**
+  (written as "over 2,000" so it does not re-rot); (3) "26 years" of record → **26–46
+  years**; (4) the maintainer template's good-first-issue link pointed at `/issues`
+  rather than the label URL, i.e. at 175 open items instead of the 3 groomed ones.
+  Also swapped the dead contributor ask for the **current** flagship, #170 (invert
+  against GIBS's real colormaps) — which happens to be exactly the approximate-values
+  caveat the Reddit draft already raises, so the ask now lands where the honest
+  limitation is. Added the outbox header block + `Claims re-verified:` line to each,
+  wired in the HTTPS send gate, and cross-linked the pairs that were duplicating each
+  other (EO-Slack vs. the tailored Pangeo draft; geology email vs. the classroom
+  one-pager). Marked `docs/launch/LAUNCH_CHECKLIST.md` **historical** (it still says to
+  merge #41/#42 and tag v0.2.0) while preserving its one live residual, the unminted
+  Zenodo DOI. New `docs/launch/README.md` indexes the directory and carries the drift
+  table; TARGETS.md and `outbox/README.md` now point at it so no future run re-drafts
+  what already exists. No new venue research and no new draft this run — the pipeline
+  had a correctness problem, not a volume problem. Ran the standing by-file check first:
+  no open PR touches `docs/launch/`. Send gate unchanged and deliberately not
+  re-measured (three measurements already; revisit 2026-07-29). Branched off `main`
+  first and had to re-chain onto #593 mid-run — the three-way append collision on
+  `LOG.md` / `TARGETS.md` / `outbox/README.md` landed exactly as the chaining rule
+  predicts. Re-chain with `git rebase --onto <tip> origin/main <branch>`; a bare
+  `git rebase <tip>` replays all of `main` onto the tip instead.

@@ -15,6 +15,13 @@ form submission running as a no-presence parallel track), the reasoning behind t
 the presence cost of each slot, and the pre-launch baseline to measure against. Read it
 before sending anything.
 
+> **Drafts live in two places.** `outbox/` is the canonical home, but four sendable
+> drafts predate this workspace and live in
+> [`docs/launch/`](../docs/launch/README.md) — Reddit, EO chat venues, geology teaching
+> contacts, and the maintainer comment template. They are indexed there and their claims
+> were re-verified on 2026-07-27. **Check both before drafting anything new**, or you
+> will rewrite work that already exists (this happened once already, to Reddit).
+
 ---
 
 ## Forums & communities
@@ -105,6 +112,13 @@ before sending anything.
   in-app first.
 - **Best angle:** classroom/fieldwork utility and open data — lead with a question or a
   workflow, not the link.
+- **A draft already exists — do not write another.**
+  [`docs/launch/post-reddit-r-gis.md`](../docs/launch/post-reddit-r-gis.md) has held a
+  complete r/gis post since the v0.2.0 era; this entry said "no draft will be written"
+  for twelve days without noticing it. Its claims were re-verified and repaired on
+  2026-07-27 (tiled streaming had shipped, the test count was 20× low, the record length
+  understated). It is written as a link-led post, so **if the sidebar check below turns
+  up a showcase-thread-only rule, the draft needs reframing, not rewriting.**
 - **Status:** **blocked on zkWizard — needs a 2-minute in-app rules check.** Programmatic
   verification has now failed **three times** (2026-07-15, 2026-07-27, 2026-07-28): Reddit is
   unreachable from this agent's fetch layer, and web search returns only third-party SEO
@@ -123,8 +137,8 @@ before sending anything.
   2. Is **post flair** required, and which flair covers a project/tool share?
   3. Is there a **karma / account-age minimum** for link posts?
   4. Does the sub require **affiliation disclosure** ("I built this") in the post body?
-     Paste the answers into this entry and the draft can be written in the next run. Until
-     then: no post, no link drop.
+     Paste the answers into this entry and the existing draft can be adapted to the
+     compliant path in the next run. Until then: no post, no link drop.
 
 ### OSGeo Discourse / OSGeo community
 
