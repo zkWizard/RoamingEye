@@ -147,6 +147,18 @@ For a contributor's tour of the codebase, see [`ARCHITECTURE.md`](ARCHITECTURE.m
 
 Every change lands through a reviewed, CI-gated pull request. Be kind — see the [Code of Conduct](.github/CODE_OF_CONDUCT.md).
 
+### 👀 Why are there so many open pull requests?
+
+Because most of them are opened automatically — and none of them are in your way.
+
+Alongside the catalog agents above, RoamingEye runs a fleet of scheduled Earth-science specialists — **Geologist, Biologist, Meteorologist, Marine Biologist, Environmental Scientist, and Geospatial & Remote-Sensing Engineer**. Each one opens small, self-contained pull requests from a `codex/<lane>-<task>` branch, and Dependabot opens the rest. [`docs/fleet-expansion-program.md`](docs/fleet-expansion-program.md) documents that program — what each lane owns, what a specialist must produce to complete a cycle, and how its work is validated and integrated.
+
+If you're here to contribute, the queue length is not something you need to read or work around:
+
+- 🎯 **The work we want help with lives in issues, not in that queue** — start with [good first issues](https://github.com/zkWizard/RoamingEye/labels/good%20first%20issue), the [roadmap](ROADMAP.md), or the RFC-001 graphics follow-ons above.
+- 👤 **Your pull request is reviewed by a person**, under the rules in [`GOVERNANCE.md`](GOVERNANCE.md) — human contributions are not triaged by the fleet.
+- 🔍 To read the pull-request queue without the automated ones, filter it with [`is:pr is:open -head:codex -author:app/dependabot`](https://github.com/zkWizard/RoamingEye/pulls?q=is%3Apr+is%3Aopen+-head%3Acodex+-author%3Aapp%2Fdependabot).
+
 ---
 
 ## 🗺️ Roadmap
