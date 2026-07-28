@@ -8,6 +8,12 @@ zkWizard to review and personally send — this file never triggers a send.
 
 Status legend: `researched` → `drafted` → `sent-by-user` → `follow-up` / `declined`.
 
+**This file is the research; [`SEND-PLAN.md`](SEND-PLAN.md) is the order.** Seven drafts
+are ready and they should not all go out at once — the send plan holds the recommended
+sequence (three.js → Pangeo → leafmap → Show HN → the awesome-list PRs), the reasoning
+behind that order, the presence cost of each slot, and the pre-launch baseline to measure
+against. Read it before sending anything.
+
 ---
 
 ## Forums & communities
