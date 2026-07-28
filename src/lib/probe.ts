@@ -257,6 +257,25 @@ export function regionGridSize(
   return Math.min(max, Math.max(min, Math.ceil(span / degPerCell)));
 }
 
+/**
+ * Independently size each axis of a drawn-region sampling grid. This avoids
+ * oversampling a narrow axis while retaining the same per-axis density,
+ * minimum coverage, and maximum cost.
+ */
+export function regionGridDimensions(
+  bounds: Bounds,
+  degPerCell = 0.25,
+  min = 8,
+  max = 28
+): { latitude: number; longitude: number } {
+  const size = (span: number): number =>
+    Math.min(max, Math.max(min, Math.ceil(span / degPerCell)));
+  return {
+    latitude: size(bounds.north - bounds.south),
+    longitude: size(bounds.east - bounds.west),
+  };
+}
+
 // --- Area sampling grid ---------------------------------------------------------
 
 /**
@@ -268,13 +287,18 @@ export function regionGridSize(
  */
 export function gridPoints(
   bounds: Bounds,
-  n: number
+  latitudeCount: number,
+  longitudeCount = latitudeCount
 ): { lat: number; lon: number }[] {
   const points: { lat: number; lon: number }[] = [];
-  for (let i = 0; i < n; i++) {
-    const lat = bounds.south + ((i + 0.5) / n) * (bounds.north - bounds.south);
-    for (let j = 0; j < n; j++) {
-      const lon = bounds.west + ((j + 0.5) / n) * (bounds.east - bounds.west);
+  for (let i = 0; i < latitudeCount; i++) {
+    const lat =
+      bounds.south +
+      ((i + 0.5) / latitudeCount) * (bounds.north - bounds.south);
+    for (let j = 0; j < longitudeCount; j++) {
+      const lon =
+        bounds.west +
+        ((j + 0.5) / longitudeCount) * (bounds.east - bounds.west);
       points.push({ lat, lon: normalizeLon(lon) });
     }
   }
