@@ -31,6 +31,30 @@ describe("parseVolcanoList", () => {
       elevation: 3357,
       lastEruptionYear: 2025,
       country: "Italy",
+      sourceRecord: {
+        volcanoNumber: null,
+        region: null,
+        subregion: null,
+        tectonicSetting: null,
+      },
+    });
+  });
+
+  it("retains GVP source identity and tectonic labels verbatim", () => {
+    const [parsed] = parseVolcanoList([
+      volcano({
+        volcanoNumber: 211060,
+        region: "Mediterranean and Western Asia Volcanic Regions",
+        subregion: "Italy",
+        tectonicSetting: "Subduction zone / Continental crust (> 25 km)",
+      }),
+    ]);
+
+    expect(parsed.sourceRecord).toEqual({
+      volcanoNumber: 211060,
+      region: "Mediterranean and Western Asia Volcanic Regions",
+      subregion: "Italy",
+      tectonicSetting: "Subduction zone / Continental crust (> 25 km)",
     });
   });
 
