@@ -364,6 +364,20 @@ function validateInput(input: PlaceObservationExportInput): void {
         `Product ${product.layerId} needs a complete source citation.`
       );
     }
+    const configuredLayer = LAYERS[product.layerId];
+    if (product.wmsLayer !== configuredLayer.wmsLayer) {
+      throw new Error(
+        `Product ${product.layerId} WMS layer does not match the configured RoamingEye data product.`
+      );
+    }
+    if (
+      !configuredLayer.dataset ||
+      !sameDatasetRef(product.source, configuredLayer.dataset)
+    ) {
+      throw new Error(
+        `Product ${product.layerId} citation does not match the configured RoamingEye data product.`
+      );
+    }
     if (product.samplingSupport) validateSamplingSupport(product);
     const months = new Set<string>();
     for (const observation of product.observations) {
@@ -593,6 +607,15 @@ function cloneGeometry(geometry: GeoGeometry): GeoGeometry {
 function hasCitation(source: DatasetRef): boolean {
   return [source.shortName, source.version, source.doi, source.title].every(
     (field) => field.trim().length > 0
+  );
+}
+
+function sameDatasetRef(left: DatasetRef, right: DatasetRef): boolean {
+  return (
+    left.shortName === right.shortName &&
+    left.version === right.version &&
+    left.doi === right.doi &&
+    left.title === right.title
   );
 }
 

@@ -398,6 +398,36 @@ describe("place observation export", () => {
     ).toThrow("Product ndvi has an invalid data month.");
   });
 
+  it("rejects product identifiers paired with different source provenance", () => {
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            wmsLayer: LAYERS.precip.wmsLayer,
+          },
+        ],
+      })
+    ).toThrow(
+      "Product ndvi WMS layer does not match the configured RoamingEye data product."
+    );
+
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            source: LAYERS.precip.dataset!,
+          },
+        ],
+      })
+    ).toThrow(
+      "Product ndvi citation does not match the configured RoamingEye data product."
+    );
+  });
+
   it.each([
     {
       label: "an open ring",
