@@ -501,12 +501,12 @@ function temporalAlignmentStatement(
 
 /**
  * Report how stale the usable (`available`) observations are relative to the
- * availability checkpoint each was measured against, so a lagged reanalysis
- * month is never silently read as current. Vegetation is checked against the
- * shared `availableThrough`; each climate signal against its own checkpoint
- * (falling back to the shared one). Non-usable signals contribute no lag. This
- * is a data-recency descriptor over publication lag, not a claim that the
- * values themselves rose, fell, or agree.
+ * availability checkpoint each was measured against, so a lagged source month
+ * is never silently read as current. Every signal uses its product-specific
+ * checkpoint when supplied, falling back to the shared checkpoint. Non-usable
+ * signals contribute no lag. This is a data-recency descriptor over
+ * publication lag, not a claim that the values themselves rose, fell, or
+ * agree.
  */
 export function summarizeDataCurrency(
   signals: readonly EnvironmentSignalBrief[],
@@ -517,9 +517,7 @@ export function summarizeDataCurrency(
   for (const signal of signals) {
     if (signal.status !== "available" || signal.dataMonth === null) continue;
     const checkpoint =
-      signal.id === "vegetation"
-        ? availableThrough
-        : (availableThroughBySignal?.[signal.id] ?? availableThrough);
+      availableThroughBySignal?.[signal.id] ?? availableThrough;
     // Whole months behind the availability frontier, floored at 0: a data
     // month at or ahead of the checkpoint is fully current, not "ahead".
     const lagMonths = Math.max(0, compareYm(checkpoint, signal.dataMonth));
