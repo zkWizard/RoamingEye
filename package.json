@@ -15,7 +15,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "vitest run",
+    "test": "vitest run --pool=threads --maxWorkers=4",
     "test:watch": "vitest",
     "test:e2e": "playwright test --project=chromium",
     "test:e2e:engines": "playwright test --project=webkit --project=firefox",
