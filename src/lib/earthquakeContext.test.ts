@@ -207,4 +207,21 @@ describe("nearbyEarthquakeContext", () => {
       minimumMagnitude: 4.5,
     });
   });
+
+  it("orders unavailable source places after named events when other sort keys tie", () => {
+    const context = nearbyEarthquakeContext(
+      [
+        earthquake({ place: null }),
+        earthquake({ place: "Named event" }),
+        earthquake({ place: "" }),
+      ],
+      { latitude: 0, longitude: 0, radiusKm: 0 }
+    );
+
+    expect(context.observations.map(({ place }) => place)).toEqual([
+      "",
+      "Named event",
+      null,
+    ]);
+  });
 });

@@ -107,9 +107,16 @@ describe("parseEarthquakeFeed", () => {
     expect(quakes[1].lat).toBe(-33.4);
   });
 
-  it("tolerates a missing place", () => {
+  it("preserves an unavailable place without inventing an empty label", () => {
     const quakes = parseEarthquakeFeed({
       features: [feature(0, 0, 10, 5, { place: undefined })],
+    });
+    expect(quakes[0].place).toBeNull();
+  });
+
+  it("retains a source-supplied empty place distinctly from unavailable", () => {
+    const quakes = parseEarthquakeFeed({
+      features: [feature(0, 0, 10, 5, { place: "" })],
     });
     expect(quakes[0].place).toBe("");
   });
