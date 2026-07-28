@@ -63,6 +63,13 @@ export interface PrecipitationWindowAccumulation {
    * omitted coverage, so unknown coverage is never presented as complete.
    */
   minValidFraction: number | null;
+  /** Source sampling coverage retained for every included month. */
+  monthlyCoverage: readonly {
+    dataMonth: YearMonth;
+    validFraction: number | null;
+    /** Rendered-image provenance; not a ground-resolution claim. */
+    sourceImageDimensions: { width: number; height: number } | null;
+  }[];
   /** Single cited product shared by every summed month; provenance preserved. */
   source: DatasetRef;
 }
@@ -132,6 +139,13 @@ export function precipitationWindow(
     windowDays,
     windowSeconds,
     minValidFraction,
+    monthlyCoverage: ordered.map((entry) => ({
+      dataMonth: { ...entry.dataMonth },
+      validFraction: entry.validFraction,
+      sourceImageDimensions: entry.sourceImageDimensions
+        ? { ...entry.sourceImageDimensions }
+        : null,
+    })),
     source,
   };
 }
