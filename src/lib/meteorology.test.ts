@@ -18,6 +18,7 @@ describe("rendered monthly meteorology", () => {
       nativeToSampledValueFactor: 86_400,
       validFractions: [0.81, 0.76],
       sourceImageDimensions: { width: 512, height: 512 },
+      geometrySamplingStrategy: "boundary-grid",
     });
 
     expect(series).toMatchObject({
@@ -42,6 +43,9 @@ describe("rendered monthly meteorology", () => {
       width: 512,
       height: 512,
     });
+    expect(series.observations[1].geometrySamplingStrategy).toBe(
+      "boundary-grid"
+    );
   });
 
   it("keeps native source values, missing samples, image provenance, and publication state explicit", () => {
@@ -83,6 +87,7 @@ describe("rendered monthly meteorology", () => {
         sampledValues: [7.2, 7.8],
         nativeToSampledValueFactor: 1,
         validFractions: [0.8, 0.9],
+        geometrySamplingStrategy: "boundary-grid",
       },
       { year: 2026, month: 2 }
     );
@@ -102,5 +107,29 @@ describe("rendered monthly meteorology", () => {
         nativeToSampledValueFactor: 1,
       })
     ).toThrow("matching lengths");
+  });
+
+  it("labels a boundary-point climate sample as a point estimate, not a regional mean", () => {
+    const summaries = summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [
+          { year: 2026, month: 1 },
+          { year: 2026, month: 2 },
+        ],
+        sampledValues: [281.2, 282.5],
+        nativeToSampledValueFactor: 1,
+        validFractions: [1, 1],
+        geometrySamplingStrategy: "boundary-point",
+      },
+      { year: 2026, month: 2 }
+    );
+
+    expect(summaries[1].geometrySamplingStrategy).toBe("boundary-point");
+    expect(climateInsightText(summaries[0], summaries[1])).toEqual({
+      value: "282.5 K",
+      detail:
+        "2026-02 observed; +1.3 K vs 2026-01; single in-boundary image sample has data; rendered source image dimensions not supplied; single boundary point estimate, not a regional mean; source M2TMNXSLV v5.12.4",
+    });
   });
 });

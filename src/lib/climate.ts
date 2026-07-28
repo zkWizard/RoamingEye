@@ -4,6 +4,7 @@ import {
   type LayerId,
   type YearMonth,
 } from "./timeline";
+import type { GeometrySamplingStrategy } from "./geojson";
 
 /**
  * Source-aware descriptions of supplied monthly climate observations.
@@ -73,6 +74,8 @@ export interface MonthlyClimateObservation {
    * from imagery. This is provenance, not a ground-resolution claim.
    */
   sourceImageDimensions?: { width: number; height: number };
+  /** Spatial representation used to obtain the rendered-image sample. */
+  geometrySamplingStrategy?: GeometrySamplingStrategy;
 }
 
 export type ClimateCoverageStatus = "available" | "no-data" | "invalid";
@@ -101,6 +104,8 @@ export interface MonthlyClimateSummary {
   coverage: ClimateCoverage;
   /** Rendered-image provenance, or null when it was not supplied or invalid. */
   sourceImageDimensions: { width: number; height: number } | null;
+  /** Retained sampling geography; null when the caller did not supply it. */
+  geometrySamplingStrategy: GeometrySamplingStrategy | null;
   /**
    * Retained unchanged in `metric.nativeUnit` only for a published, usable
    * observation; null for unavailable, missing, or invalid records.
@@ -143,6 +148,7 @@ export function summarizeMonthlyClimate(
     )
       ? { ...observation.sourceImageDimensions }
       : null,
+    geometrySamplingStrategy: observation.geometrySamplingStrategy ?? null,
     observedValue:
       publicationStatus === "published" && coverage.status === "available"
         ? observation.value

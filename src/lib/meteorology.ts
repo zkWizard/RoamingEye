@@ -6,6 +6,7 @@ import {
   type MonthlyClimateSummary,
 } from "./climate";
 import type { LayerId, YearMonth } from "./timeline";
+import type { GeometrySamplingStrategy } from "./geojson";
 
 /**
  * Bridges sampled GIBS rendered imagery into the climate contracts.
@@ -37,6 +38,8 @@ export interface RenderedClimateSampleInput {
   validFractions?: readonly number[];
   /** Rendered source-image dimensions; provenance only, never resolution. */
   sourceImageDimensions?: { width: number; height: number };
+  /** Whether the place was represented by a boundary grid or one boundary point. */
+  geometrySamplingStrategy?: GeometrySamplingStrategy;
 }
 
 export interface RenderedClimateSeries {
@@ -100,6 +103,9 @@ export function observationsFromRenderedClimateSample(
       ...(input.sourceImageDimensions
         ? { sourceImageDimensions: { ...input.sourceImageDimensions } }
         : {}),
+      ...(input.geometrySamplingStrategy
+        ? { geometrySamplingStrategy: input.geometrySamplingStrategy }
+        : {}),
     })),
   };
 }
@@ -131,7 +137,10 @@ export function climateInsightText(
   const source = `${current.metric.source.shortName} v${current.metric.source.version}`;
   const month = formatMonth(current.dataMonth);
   const provenance = imageProvenance(current.sourceImageDimensions);
-  const coverage = coverageText(current.coverage.validFraction);
+  const coverage = coverageText(
+    current.coverage.validFraction,
+    current.geometrySamplingStrategy
+  );
   if (
     current.publicationStatus !== "published" ||
     current.coverage.status !== "available" ||
@@ -139,7 +148,9 @@ export function climateInsightText(
   ) {
     return {
       value: "Unavailable",
-      detail: `No usable ${month} observation (${unavailableReason(current)}); ${coverage}; ${provenance}; source ${source}`,
+      detail: `No usable ${month} observation (${unavailableReason(
+        current
+      )}); ${coverage}; ${provenance}; source ${source}`,
     };
   }
 
@@ -158,9 +169,10 @@ export function climateInsightText(
           current.metric.nativeUnit
         )} vs ${formatMonth(previous.dataMonth)}`
       : "";
+  const geography = samplingGeographyText(current.geometrySamplingStrategy);
   return {
     value,
-    detail: `${month} observed${comparison}; ${coverage}; ${provenance}; approximate regional mean; source ${source}`,
+    detail: `${month} observed${comparison}; ${coverage}; ${provenance}; ${geography}; source ${source}`,
   };
 }
 
@@ -171,10 +183,31 @@ function unavailableReason(summary: MonthlyClimateSummary): string {
   return summary.coverage.reason ?? "unspecified";
 }
 
-function coverageText(validFraction: number | null): string {
+function coverageText(
+  validFraction: number | null,
+  strategy: GeometrySamplingStrategy | null
+): string {
+  if (strategy === "boundary-point") {
+    if (validFraction === null) {
+      return "single in-boundary image sample status not supplied";
+    }
+    return `single in-boundary image sample ${
+      validFraction === 1 ? "has data" : "has no data"
+    }`;
+  }
   return validFraction === null
     ? "sampled coverage not supplied"
     : `${Math.round(validFraction * 100)}% sampled coverage`;
+}
+
+function samplingGeographyText(
+  strategy: GeometrySamplingStrategy | null
+): string {
+  if (strategy === "boundary-point") {
+    return "single boundary point estimate, not a regional mean";
+  }
+  if (strategy === "boundary-grid") return "approximate regional mean";
+  return "sampling geography not supplied";
 }
 
 function imageProvenance(
