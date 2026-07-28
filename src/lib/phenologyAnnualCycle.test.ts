@@ -58,6 +58,11 @@ describe("NDVI mean annual cycle", () => {
       unit: "NDVI (unitless)",
       observationsSupplied: 36,
       observationsUsed: 36,
+      dataPeriod: {
+        firstMonth: { year: 2023, month: 1 },
+        lastMonth: { year: 2025, month: 12 },
+        yearsRepresented: 3,
+      },
       calendarMonthsCovered: 12,
       reason: null,
     });
@@ -139,6 +144,26 @@ describe("NDVI mean annual cycle", () => {
     expect(cycle.reason).toBe("not-all-calendar-months-covered");
     // The eleven covered months are still exposed.
     expect(cycle.monthlyClimatology).toHaveLength(11);
+    expect(cycle.dataPeriod).toEqual({
+      firstMonth: { year: 2023, month: 1 },
+      lastMonth: { year: 2025, month: 11 },
+      yearsRepresented: 3,
+    });
+  });
+
+  it("derives the data period only from observations in reported monthly means", () => {
+    const observations = [
+      ...fullCycleObservations(),
+      ndvi(0.5, 6, 1999, { validFraction: 0.2 }),
+      ndvi(0.5, 6, 2030),
+      ndvi(0.5, 13, 2040),
+    ];
+    const cycle = describeNdviAnnualCycle(observations, NORTHERN_LATITUDE);
+    expect(cycle.dataPeriod).toEqual({
+      firstMonth: { year: 2023, month: 1 },
+      lastMonth: { year: 2030, month: 6 },
+      yearsRepresented: 4,
+    });
   });
 
   it("reports no usable observations when nothing meets the year floor", () => {
@@ -151,6 +176,7 @@ describe("NDVI mean annual cycle", () => {
     expect(cycle.status).toBe("no-usable-observations");
     expect(cycle.calendarMonthsCovered).toBe(0);
     expect(cycle.monthlyClimatology).toEqual([]);
+    expect(cycle.dataPeriod).toBeNull();
     expect(cycle.amplitude).toBeNull();
     expect(cycle.reason).toBe("no-calendar-month-met-year-floor");
   });
@@ -272,6 +298,7 @@ describe("NDVI mean annual cycle", () => {
     expect(text).toContain("Jul greenest");
     expect(text).toContain("Jan least green");
     expect(text).toContain("not a climate normal");
+    expect(text).toContain("2023-01 to 2025-12 across 3 distinct years");
   });
 
   it("formats an honest unavailable readout", () => {
@@ -282,5 +309,6 @@ describe("NDVI mean annual cycle", () => {
     const text = formatNdviAnnualCycle(cycle);
     expect(text).toContain("No mean annual NDVI cycle");
     expect(text).toContain(`11/${CALENDAR_MONTHS_IN_YEAR}`);
+    expect(text).toContain("2023-01 to 2025-11 across 3 distinct years");
   });
 });
