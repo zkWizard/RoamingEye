@@ -44,6 +44,16 @@ export interface PrecipitationAccumulation {
   monthDays: number;
   /** Seconds in the data month used to integrate the mean rate. */
   monthSeconds: number;
+  /**
+   * Usable share of the sampled area from the source observation. Null means
+   * the sampler did not supply coverage; it must not be read as full coverage.
+   */
+  validFraction: number | null;
+  /**
+   * Dimensions of the rendered source image that was sampled, when supplied.
+   * This is sampling provenance, not a ground-resolution claim.
+   */
+  sourceImageDimensions: { width: number; height: number } | null;
   /** Same cited product as the source observation; provenance is preserved. */
   source: DatasetRef;
 }
@@ -78,6 +88,10 @@ export function precipitationAccumulation(
     dataMonth: summary.dataMonth,
     monthDays,
     monthSeconds,
+    validFraction: summary.coverage.validFraction,
+    sourceImageDimensions: summary.sourceImageDimensions
+      ? { ...summary.sourceImageDimensions }
+      : null,
     source: summary.metric.source,
   };
 }

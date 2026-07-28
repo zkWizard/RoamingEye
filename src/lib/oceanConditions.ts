@@ -53,6 +53,7 @@ export type OceanCoverageReason =
   | "invalid-value"
   | "land-footprint"
   | "missing-sst-value"
+  | "unknown-footprint"
   | "zero-sst-coverage"
   | null;
 
@@ -124,14 +125,17 @@ function coverageFor(
   if (observation.footprint === "land") {
     return { ...base, status: "land", reason: "land-footprint" };
   }
-  if (observation.value === null) {
-    return { ...base, status: "missing", reason: "missing-sst-value" };
-  }
   if (validFraction === 0) {
     return { ...base, status: "missing", reason: "zero-sst-coverage" };
   }
+  if (observation.value === null) {
+    return { ...base, status: "missing", reason: "missing-sst-value" };
+  }
   if (!isSstSourceValue(observation.value)) {
     return { ...base, status: "invalid", reason: "invalid-value" };
+  }
+  if (observation.footprint === "unknown") {
+    return { ...base, status: "missing", reason: "unknown-footprint" };
   }
   if (observation.footprint === "land-mixed-coastal") {
     return { ...base, status: "land-mixed-coastal", reason: null };
@@ -199,7 +203,12 @@ export function describeOceanCondition(summary: OceanConditionSummary): string {
     body =
       "the sampled footprint is land, so no sea-surface temperature is reported.";
   } else if (coverage.status === "missing") {
-    body = "no usable sea-surface-temperature value was supplied.";
+    body =
+      coverage.reason === "unknown-footprint"
+        ? "surface context is unavailable, so the supplied value is not presented as a water or coastal observation."
+        : coverage.reason === "zero-sst-coverage"
+          ? "0% of the sampled footprint had usable SST samples, so no sea-surface temperature is reported."
+          : "no usable sea-surface-temperature value was supplied.";
   } else if (coverage.status === "invalid" || summary.observedValue === null) {
     body = `sea-surface-temperature metadata is invalid (${coverage.reason ?? "unspecified"}), so no value is reported.`;
   } else {

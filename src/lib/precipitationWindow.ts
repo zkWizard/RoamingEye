@@ -58,6 +58,18 @@ export interface PrecipitationWindowAccumulation {
   windowDays: number;
   /** Seconds across the window, summed from the monthly totals. */
   windowSeconds: number;
+  /**
+   * Weakest sampled-area coverage across the window. Null when any month
+   * omitted coverage, so unknown coverage is never presented as complete.
+   */
+  minValidFraction: number | null;
+  /** Source sampling coverage retained for every included month. */
+  monthlyCoverage: readonly {
+    dataMonth: YearMonth;
+    validFraction: number | null;
+    /** Rendered-image provenance; not a ground-resolution claim. */
+    sourceImageDimensions: { width: number; height: number } | null;
+  }[];
   /** Single cited product shared by every summed month; provenance preserved. */
   source: DatasetRef;
 }
@@ -87,6 +99,7 @@ export function precipitationWindow(
   let totalMm = 0;
   let windowDays = 0;
   let windowSeconds = 0;
+  let minValidFraction: number | null = 1;
 
   for (let i = 0; i < ordered.length; i++) {
     const entry = ordered[i];
@@ -108,6 +121,10 @@ export function precipitationWindow(
     totalMm += entry.totalMm;
     windowDays += entry.monthDays;
     windowSeconds += entry.monthSeconds;
+    minValidFraction =
+      minValidFraction === null || entry.validFraction === null
+        ? null
+        : Math.min(minValidFraction, entry.validFraction);
   }
 
   const last = ordered[ordered.length - 1];
@@ -121,6 +138,14 @@ export function precipitationWindow(
     monthCount: ordered.length,
     windowDays,
     windowSeconds,
+    minValidFraction,
+    monthlyCoverage: ordered.map((entry) => ({
+      dataMonth: { ...entry.dataMonth },
+      validFraction: entry.validFraction,
+      sourceImageDimensions: entry.sourceImageDimensions
+        ? { ...entry.sourceImageDimensions }
+        : null,
+    })),
     source,
   };
 }

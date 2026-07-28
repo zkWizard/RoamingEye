@@ -61,6 +61,8 @@ export interface EarthquakePlaceCoverage {
   suppliedEventCount: number;
   validEventCount: number;
   matchedEventCount: number;
+  /** Observed epicentral-distance range for matched events, in kilometres. */
+  matchedDistanceKm: EarthquakeRange;
   sourceEventTime: EarthquakeRange;
   invalidQueryFields: EarthquakePlaceQueryField[];
 }
@@ -118,6 +120,7 @@ export function nearbyEarthquakeContext(
       suppliedEventCount: earthquakes.length,
       validEventCount: valid.length,
       matchedEventCount: observations.length,
+      matchedDistanceKm: rangeForObservations(observations),
       sourceEventTime: summarizeEarthquakes(valid).time,
       invalidQueryFields,
     },
@@ -125,6 +128,16 @@ export function nearbyEarthquakeContext(
     units: EARTHQUAKE_PLACE_CONTEXT_UNITS,
     limitations: LIMITATIONS,
   };
+}
+
+function rangeForObservations(
+  observations: readonly NearbyEarthquakeObservation[]
+): EarthquakeRange {
+  if (observations.length === 0) return { min: null, max: null };
+  // matchingObservations orders nearest first, but derive both bounds directly
+  // so this coverage contract remains correct if presentation ordering changes.
+  const distances = observations.map(({ distanceKm }) => distanceKm);
+  return { min: Math.min(...distances), max: Math.max(...distances) };
 }
 
 function matchingObservations(
@@ -155,8 +168,17 @@ function compareObservations(
     first.distanceKm - second.distanceKm ||
     second.time - first.time ||
     second.magnitude - first.magnitude ||
-    first.place.localeCompare(second.place)
+    compareNullablePlace(first.place, second.place)
   );
+}
+
+function compareNullablePlace(
+  first: string | null,
+  second: string | null
+): number {
+  if (first === null) return second === null ? 0 : 1;
+  if (second === null) return -1;
+  return first.localeCompare(second);
 }
 
 function isValidEarthquake(earthquake: Earthquake): boolean {

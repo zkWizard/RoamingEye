@@ -49,7 +49,10 @@ describe("coastal surface exposure", () => {
       source: MARINE_SURFACE_CONTEXT_SOURCE,
       sstDataMonth: { year: 2024, month: 8 },
       contextDataYear: 2024,
+      timing: "same-calendar-year",
+      sourcePublicationStatus: "published",
       status: "graded",
+      unavailableReason: null,
       exposureClass: "open-water",
       waterSurfaceFraction: 1,
       classifiedSurfaceSampleCount: 40,
@@ -112,6 +115,9 @@ describe("coastal surface exposure", () => {
 
     expect(MINIMUM_COASTAL_EXPOSURE_CLASSIFIED_SAMPLES).toBe(8);
     expect(summary.status).toBe("insufficient-classified-surface");
+    expect(summary.unavailableReason).toBe(
+      "insufficient-classified-surface-samples"
+    );
     expect(summary.exposureClass).toBeNull();
     expect(summary.waterSurfaceFraction).toBeCloseTo(0.75, 10);
   });
@@ -120,6 +126,7 @@ describe("coastal surface exposure", () => {
     const summary = exposureFrom(0, 0, 12); // only unclassified samples
 
     expect(summary.status).toBe("no-classified-surface");
+    expect(summary.unavailableReason).toBe("no-classified-surface-samples");
     expect(summary.exposureClass).toBeNull();
     expect(summary.waterSurfaceFraction).toBeNull();
     expect(summary.classifiedSurfaceSampleCount).toBe(0);
@@ -145,9 +152,47 @@ describe("coastal surface exposure", () => {
     expect(none).toContain("no classified IGBP surface samples");
   });
 
-  it("names an invalid SST month without inventing one", () => {
+  it("withholds the coastal band when the SST month is invalid", () => {
     const summary = exposureFrom(20, 0, 0, { year: 2024, month: 13 });
-    expect(describeCoastalExposure(summary)).toContain("an invalid month");
+
+    expect(summary).toMatchObject({
+      timing: "invalid-sst-month",
+      status: "invalid-context",
+      unavailableReason: "invalid-sst-month",
+      exposureClass: null,
+      waterSurfaceFraction: null,
+    });
+    expect(describeCoastalExposure(summary)).toContain(
+      "surface-context metadata is invalid (invalid-sst-month)"
+    );
+  });
+
+  it("withholds the coastal band when the annual context year is invalid", () => {
+    const summary = exposureFrom(20, 0, 0, { year: 2024, month: 8 }, 2024.5);
+
+    expect(summary).toMatchObject({
+      contextDataYear: 2024.5,
+      timing: "invalid-context-year",
+      status: "invalid-context",
+      unavailableReason: "invalid-context-year",
+      exposureClass: null,
+      waterSurfaceFraction: null,
+    });
+    expect(describeCoastalExposure(summary)).toContain(
+      "no water share or exposure band is reported"
+    );
+  });
+
+  it("preserves timing and source-publication provenance", () => {
+    const summary = exposureFrom(12, 8, 0, { year: 2025, month: 1 }, 2024);
+
+    expect(summary).toMatchObject({
+      sstDataMonth: { year: 2025, month: 1 },
+      contextDataYear: 2024,
+      timing: "different-calendar-year",
+      sourcePublicationStatus: "published",
+      status: "graded",
+    });
   });
 
   it("documents its limitations for provenance-first consumers", () => {

@@ -12,9 +12,18 @@ export const GVP_VOLCANO_SOURCE = {
   name: "Volcanoes of the World",
   org: "Smithsonian Institution Global Volcanism Program",
   url: "https://volcano.si.edu/",
+  databaseVersion: "5.3.6",
+  dataDate: "2026-05-26",
+  dataMonth: "2026-05",
+  doi: "10.5479/si.GVP.VOTW5-2025.5.3",
   preparedBy: "scripts/prepare-data.mjs",
   localFile: "public/data/volcanoes.json",
 } as const;
+
+/** Reproducible source label for user-facing volcano context and exports. */
+export function gvpVolcanoSourceLabel(): string {
+  return `${GVP_VOLCANO_SOURCE.org} — ${GVP_VOLCANO_SOURCE.name} v${GVP_VOLCANO_SOURCE.databaseVersion} (${GVP_VOLCANO_SOURCE.dataMonth})`;
+}
 
 export const VOLCANO_CONTEXT_UNITS = {
   coordinates: "decimal degrees",
