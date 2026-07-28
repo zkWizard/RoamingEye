@@ -71,6 +71,13 @@ export interface SampleResult {
   /** Dimensions of the rendered GIBS image actually sampled. These describe
    * the source imagery, not a ground-resolution measurement. */
   sourceImageDimensions: { width: number; height: number };
+  /** Present for a drawn rectangular region. Records the adaptive geographic
+   * grid and its mapping onto rendered source pixels for reproducibility. */
+  regionSampling?: {
+    gridSize: number;
+    candidatePointCount: number;
+    sourcePixelCount: number;
+  };
   /** Present for exact Polygon/MultiPolygon samples. It records the geometry
    * mask and image-pixel budget, not a ground-resolution measurement. */
   geometrySampling?: {
@@ -164,14 +171,25 @@ export class ProbeSampler {
     bounds: Bounds,
     options: Omit<SampleOptions, "mode"> = {}
   ): Promise<SampleResult> {
-    return this.run(
+    const gridSize = regionGridSize(bounds);
+    const points = gridPoints(bounds, gridSize);
+    const pixels = this.dedupedPixels(points);
+    const result = await this.run(
       layer,
       months,
-      this.dedupedPixels(gridPoints(bounds, regionGridSize(bounds))),
+      pixels,
       (inversions, weights) => weightedMeanValid(inversions, weights),
       this.legendInverter(layer),
       options
     );
+    return {
+      ...result,
+      regionSampling: {
+        gridSize,
+        candidatePointCount: points.length,
+        sourcePixelCount: pixels.length,
+      },
+    };
   }
 
   /**
