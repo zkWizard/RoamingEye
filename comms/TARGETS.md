@@ -106,9 +106,14 @@ before sending anything.
 - **Best angle:** classroom/fieldwork utility and open data — lead with a question or a
   workflow, not the link.
 - **Status:** **blocked on zkWizard — needs a 2-minute in-app rules check.** Programmatic
-  verification has now failed **twice** (2026-07-15 and 2026-07-27): Reddit is unreachable
-  from this agent's fetch layer, and web search returns only third-party SEO articles about
-  "Reddit self-promotion rules" in general — not the actual sidebar text of these two subs.
+  verification has now failed **three times** (2026-07-15, 2026-07-27, 2026-07-28): Reddit is
+  unreachable from this agent's fetch layer, and web search returns only third-party SEO
+  articles about "Reddit self-promotion rules" in general — not the actual sidebar text of
+  these two subs. **Do not spend another run retrying** — the 2026-07-28 attempt exhausted
+  the machine-readable routes so the next run does not have to: `about/rules.json` on both
+  `www.reddit.com` and `old.reddit.com`, via the fetch layer (domain-blocked outright) and
+  via direct `curl` (`403` from `www`, `302` from `old`). Reddit blocks unauthenticated
+  datacenter requests; this needs a human with a browser, or nothing.
   Third-hand rule summaries are not a sound basis for a compliance decision, so **no draft
   will be written for Reddit until the real rules are read.** This entry is deliberately
   parked rather than left ambiguous. What zkWizard needs to check in the sidebar / wiki of
@@ -558,8 +563,12 @@ address the project.
   gap** — the complementary-open-tool track was researched on 2026-07-27 and now has its
   own section above: leafmap **drafted**, stackstac **declined** (dormant since 2024-08-10),
   TiTiler **not a contributor target** (server-side; possible future dependency). The
-  remaining untouched contributor source is RoamingEye's own stargazers/forkers — currently
-  1 star and 0 forks, so there is nobody to invite until something has actually been sent.
+  last remaining contributor source — RoamingEye's own stargazers/forkers — was **checked
+  and closed on 2026-07-28**: the sole star is `statuette` (`cryptostatuette.eth`, 1 public
+  repo, no earth-science/GIS signal), a drive-by, not an evaluator. So true external
+  interest is **0, not 1**, there is nobody to invite, and no personalized invitation
+  should be drafted for that account. See `SIGNALS.md` (trap 2); re-open only when a star
+  arrives from an account with relevant public work.
   r/dataisbeautiful is parked with the other Reddit entries until the Reddit rules blocker
   above is cleared by zkWizard.
   _Researched most recently:_ **leafmap** (drafted), **stackstac** (declined — dormant),
@@ -579,6 +588,14 @@ address the project.
   the one-pager into that venue's format, rather than posting the generic sheet cold.
 - Always re-skim `README.md` and recent `git log` before drafting so claims match the
   current app (feature set, layer count, resolution).
+- **Never quote a traction number without checking `SIGNALS.md` first.** It holds the
+  measured baseline (2026-07-28: 43 views / 10 uniques / 14 d, 0 forks, 0 outside-authored
+  issues or PRs) and two traps that would otherwise produce false claims in a draft —
+  **clone counts are not adoption** here (11,941 clones vs 10 unique viewers; 98% of them
+  in a four-day burst) and **"1 star" is not one interested user**. As of that measurement
+  **no project metric is quotable**, so drafts should keep making the case on the software
+  itself, not on usage. GitHub retains only **14 days** of traffic — re-measure on the run
+  after zkWizard reports a send, or the response is lost for good.
 - **Contributor funnel:** the README links newcomers to the `good first issue` label, so
   keep that queue non-empty. As of 2026-07-15 it was refilled with #373/#374/#375 (see
   LOG). When those close, verify the code afresh and open 1–3 new well-scoped ones —
