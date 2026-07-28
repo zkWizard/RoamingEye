@@ -35,6 +35,7 @@ import {
 import {
   climateInsightText,
   climateMetricForLayer,
+  exportObservationsFromRenderedClimateSample,
   summarizeRenderedClimateSample,
 } from "./lib/meteorology";
 import { volcanoesInSearchExtent } from "./lib/volcanoExtent";
@@ -537,23 +538,39 @@ function runPlaceInsights(result: GeoResult): void {
             layerId: metric.layerId,
             sourceValueFactor: colormap?.factor ?? 1,
             samplingStrategy: geometrySamplingStrategy,
-            observations: months.map((dataMonth, index) => {
-              const value = values[index] ?? null;
-              if (value === null) {
-                return {
-                  dataMonth,
-                  value,
-                  // No native-unit mean for the month: partial coverage means
-                  // too few usable pixels; none at all is source no-data.
-                  unavailableReason:
-                    (validFractions[index] ?? 0) > 0
-                      ? ("insufficient-valid-coverage" as const)
-                      : ("source-no-data" as const),
-                  validFraction: validFractions[index],
-                };
-              }
-              return { dataMonth, value, validFraction: validFractions[index] };
-            }),
+            observations:
+              colormap && climateMetricId
+                ? exportObservationsFromRenderedClimateSample(
+                    {
+                      metricId: climateMetricId,
+                      months,
+                      sampledValues: values,
+                      nativeToSampledValueFactor: colormap.factor,
+                      validFractions,
+                      sourceImageDimensions,
+                      geometrySamplingStrategy,
+                    },
+                    months[1]
+                  )
+                : months.map((dataMonth, index) => {
+                    const value = values[index] ?? null;
+                    if (value === null) {
+                      return {
+                        dataMonth,
+                        value,
+                        unavailableReason:
+                          (validFractions[index] ?? 0) > 0
+                            ? ("insufficient-valid-coverage" as const)
+                            : ("source-no-data" as const),
+                        validFraction: validFractions[index],
+                      };
+                    }
+                    return {
+                      dataMonth,
+                      value,
+                      validFraction: validFractions[index],
+                    };
+                  }),
           });
         }
       })().catch((error: unknown) => {
