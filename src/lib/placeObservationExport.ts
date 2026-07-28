@@ -456,7 +456,10 @@ function exportProducts(
     .map((product) => ({
       layerId: product.layerId,
       wmsLayer: product.wmsLayer,
-      source: { ...product.source },
+      // Emit citation fields in contract order rather than preserving the
+      // caller's object insertion order. Equivalent citations must produce
+      // byte-identical reproducibility records.
+      source: canonicalDatasetRef(product.source),
       nativeUnit: product.nativeUnit,
       sampleToNative: product.sampleToNative
         ? { ...product.sampleToNative }
@@ -519,6 +522,15 @@ function hasCitation(source: DatasetRef): boolean {
   );
 }
 
+function canonicalDatasetRef(source: DatasetRef): DatasetRef {
+  return {
+    shortName: source.shortName,
+    version: source.version,
+    doi: source.doi,
+    title: source.title,
+  };
+}
+
 function isPositiveInteger(value: number): boolean {
   return Number.isInteger(value) && value > 0;
 }
@@ -563,6 +575,8 @@ function isIsoTimestamp(value: string): boolean {
 function isYearMonth(value: YearMonth): boolean {
   return (
     Number.isInteger(value.year) &&
+    value.year >= 1000 &&
+    value.year <= 9999 &&
     Number.isInteger(value.month) &&
     value.month >= 1 &&
     value.month <= 12
