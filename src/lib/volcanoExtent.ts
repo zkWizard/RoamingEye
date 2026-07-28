@@ -16,6 +16,8 @@ export type SearchBoundingBox = readonly [
 
 export interface VolcanoExtentRecord {
   name: string;
+  latitudeDegrees: number;
+  longitudeDegrees: number;
   country: string | null;
   primaryType: string | null;
   elevationMeters: number | null;
@@ -38,6 +40,13 @@ export interface VolcanoExtentContext {
   suppliedRecordCount: number;
   /** Records whose coordinates lie inside the search bounding box. */
   matchedRecordCount: number;
+  /** Coverage of the native GVP summit-elevation field within matched records. */
+  elevationCoverage: {
+    presentCount: number;
+    missingCount: number;
+    /** Null when there are no matched records, rather than an invented 0%. */
+    fraction: number | null;
+  };
   records: readonly VolcanoExtentRecord[];
   bounds: SearchBoundingBox | null;
   crossesAntimeridian: boolean;
@@ -94,6 +103,21 @@ export function volcanoesInSearchExtent(
   );
 }
 
+/**
+ * Format a record's source coordinates for the place workflow. Coordinates
+ * remain decimal degrees and retain hemisphere explicitly; this is a display
+ * label, not a claim about positional accuracy.
+ */
+export function volcanoCoordinateLabel(
+  record: Pick<VolcanoExtentRecord, "latitudeDegrees" | "longitudeDegrees">
+): string {
+  return `${coordinatePart(record.latitudeDegrees, "N", "S")}, ${coordinatePart(
+    record.longitudeDegrees,
+    "E",
+    "W"
+  )}`;
+}
+
 function contextFor(
   records: VolcanoExtentRecord[],
   suppliedRecordCount: number,
@@ -101,11 +125,21 @@ function contextFor(
   crossesAntimeridian: boolean,
   status: VolcanoExtentContext["status"]
 ): VolcanoExtentContext {
+  const presentElevationCount = records.filter(
+    (record) =>
+      record.elevationMeters !== null && Number.isFinite(record.elevationMeters)
+  ).length;
   return {
     kind: "gvp-search-extent-context",
     status,
     suppliedRecordCount,
     matchedRecordCount: records.length,
+    elevationCoverage: {
+      presentCount: presentElevationCount,
+      missingCount: records.length - presentElevationCount,
+      fraction:
+        records.length === 0 ? null : presentElevationCount / records.length,
+    },
     records,
     bounds,
     crossesAntimeridian,
@@ -145,6 +179,8 @@ function toExtentRecord(volcano: Volcano): VolcanoExtentRecord {
   const volcanoNumber = sourceRecord?.volcanoNumber ?? null;
   return {
     name: volcano.name,
+    latitudeDegrees: volcano.lat,
+    longitudeDegrees: volcano.lon,
     country: volcano.country,
     primaryType: volcano.type,
     elevationMeters: volcano.elevation,
@@ -156,4 +192,13 @@ function toExtentRecord(volcano: Volcano): VolcanoExtentRecord {
     subregion: sourceRecord?.subregion ?? null,
     tectonicSetting: sourceRecord?.tectonicSetting ?? null,
   };
+}
+
+function coordinatePart(
+  value: number,
+  positiveHemisphere: string,
+  negativeHemisphere: string
+): string {
+  const hemisphere = value < 0 ? negativeHemisphere : positiveHemisphere;
+  return `${Math.abs(value).toFixed(2)}° ${hemisphere}`;
 }

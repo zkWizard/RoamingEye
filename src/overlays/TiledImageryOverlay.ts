@@ -8,6 +8,7 @@ import {
   gibsWmtsTileUrl,
   meshSegmentsForSpan,
   selectLodTiles,
+  TileRetryLedger,
   tileBounds,
   textureBudgetBytes,
   TILE_TEXTURE_BYTES,
@@ -82,6 +83,7 @@ export class TiledImageryOverlay implements MapOverlay {
   private readonly textures = new Map<string, THREE.Texture>(); // LRU
   private readonly shown = new Map<string, ShownTile>(); // by address key
   private readonly loading = new Set<string>();
+  private readonly retries = new TileRetryLedger();
   private queue: { key: string; url: string; tile: TileAddress }[] = [];
   private wantedKeys = new Set<string>();
   private readonly budgetBytes = textureBudgetBytes(
@@ -244,7 +246,10 @@ export class TiledImageryOverlay implements MapOverlay {
         this.show(tile, key, cached, null);
         continue;
       }
-      if (!this.loading.has(key)) {
+      if (
+        !this.loading.has(key) &&
+        this.retries.canAttempt(key, performance.now())
+      ) {
         this.queue.push({
           key,
           url: gibsWmtsTileUrl(
@@ -286,6 +291,7 @@ export class TiledImageryOverlay implements MapOverlay {
         if (headroom <= 0) return;
         const key = this.keyFor(tile, time);
         if (this.textures.has(key) || this.loading.has(key)) continue;
+        if (!this.retries.canAttempt(key, performance.now())) continue;
         headroom--;
         this.queue.push({
           key,
@@ -339,6 +345,7 @@ export class TiledImageryOverlay implements MapOverlay {
           if (generation !== this.generation) {
             texture.dispose(); // superseded by a layer/month change
           } else {
+            this.retries.recordSuccess(job.key);
             texture.colorSpace = THREE.SRGBColorSpace;
             texture.anisotropy = this.maxAnisotropy;
             this.touch(job.key, texture);
@@ -359,11 +366,22 @@ export class TiledImageryOverlay implements MapOverlay {
           this.loading.delete(job.key);
           if (
             generation === this.generation &&
-            this.wantedKeys.has(job.key) &&
             !this.generationAbort.signal.aborted
           ) {
-            this.failedWanted.add(job.key);
-            this.emitCoverage();
+            const retryDelayMs = this.retries.recordFailure(
+              job.key,
+              performance.now()
+            );
+            // A visible tile gets another chance after its cooldown even when
+            // the camera remains still. Prefetch-only failures wait for later
+            // activity instead of keeping the network pump alive by timer.
+            if (this.wantedKeys.has(job.key)) {
+              this.failedWanted.add(job.key);
+              this.emitCoverage();
+              window.setTimeout(() => {
+                if (generation === this.generation) this.lastSignature = "";
+              }, retryDelayMs);
+            }
           }
           this.pump();
         });

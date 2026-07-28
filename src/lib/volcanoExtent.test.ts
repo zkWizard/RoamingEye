@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Volcano } from "./volcanoes";
-import { gvpVolcanoUrl, volcanoesInSearchExtent } from "./volcanoExtent";
+import {
+  gvpVolcanoUrl,
+  volcanoCoordinateLabel,
+  volcanoesInSearchExtent,
+} from "./volcanoExtent";
 
 const volcano = (overrides: Partial<Volcano> = {}): Volcano => ({
   name: "Etna",
@@ -48,6 +52,11 @@ describe("volcanoesInSearchExtent", () => {
       status: "available",
       suppliedRecordCount: 3,
       matchedRecordCount: 2,
+      elevationCoverage: {
+        presentCount: 2,
+        missingCount: 0,
+        fraction: 1,
+      },
       geographicCoverage:
         "Coordinates inside the search result bounding box; the exact selected boundary is not tested.",
       provenance: { org: "Smithsonian Institution Global Volcanism Program" },
@@ -129,6 +138,24 @@ describe("volcanoesInSearchExtent", () => {
     expect(gvpVolcanoUrl(211060.5)).toBeNull();
   });
 
+  it("retains native record coordinates and labels their hemispheres", () => {
+    const context = volcanoesInSearchExtent(
+      [volcano({ lat: -0.25, lon: -78.5 })],
+      [-1, 1, -79, -78]
+    );
+
+    expect(context.records[0]).toMatchObject({
+      latitudeDegrees: -0.25,
+      longitudeDegrees: -78.5,
+    });
+    expect(volcanoCoordinateLabel(context.records[0]!)).toBe(
+      "0.25° S, 78.50° W"
+    );
+    expect(
+      volcanoCoordinateLabel({ latitudeDegrees: 0, longitudeDegrees: 0 })
+    ).toBe("0.00° N, 0.00° E");
+  });
+
   it("includes both sides of an antimeridian-crossing search box", () => {
     const context = volcanoesInSearchExtent(
       [
@@ -148,12 +175,41 @@ describe("volcanoesInSearchExtent", () => {
       status: "available",
       suppliedRecordCount: 0,
       matchedRecordCount: 0,
+      elevationCoverage: {
+        presentCount: 0,
+        missingCount: 0,
+        fraction: null,
+      },
     });
     expect(volcanoesInSearchExtent([volcano()], [0, 10, 0, 10])).toMatchObject({
       status: "available",
       suppliedRecordCount: 1,
       matchedRecordCount: 0,
     });
+  });
+
+  it("reports partial summit-elevation coverage without filling missing values", () => {
+    const context = volcanoesInSearchExtent(
+      [
+        volcano({ name: "Known", elevation: -120 }),
+        volcano({ name: "Missing", elevation: null }),
+        volcano({ name: "Outside", lat: 50, elevation: 2400 }),
+      ],
+      [30, 40, 0, 20]
+    );
+
+    expect(context).toMatchObject({
+      matchedRecordCount: 2,
+      elevationCoverage: {
+        presentCount: 1,
+        missingCount: 1,
+        fraction: 0.5,
+      },
+    });
+    expect(context.records).toEqual([
+      expect.objectContaining({ name: "Known", elevationMeters: -120 }),
+      expect.objectContaining({ name: "Missing", elevationMeters: null }),
+    ]);
   });
 
   it("does not silently broaden a missing or invalid bounding box", () => {
