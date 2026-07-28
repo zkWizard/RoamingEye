@@ -3,7 +3,7 @@ Venue: Pangeo Discourse (https://discourse.pangeo.io/)
 Channel: "Pangeo Showcase" category — text post (optionally follow up with a monthly Showcase talk proposal)
 Status: DRAFT
 Date: 2026-07-15
-Claims re-verified: 2026-07-27 — live URL now https://roamingeye.org/ (custom domain); feature/layer claims re-checked against README.md
+Claims re-verified: 2026-07-28 — scrubber range corrected (it sweeps each layer's full record, not "the last few years") and provider count 33 → 37, both checked against `src/lib/timeline.ts` / `src/lib/providers.ts`, not against README. Prior pass 2026-07-27: live URL now https://roamingeye.org/ (custom domain).
 
 ---
 
@@ -16,14 +16,14 @@ I've been building **RoamingEye**, an open-source (MIT) browser globe for lookin
 **Live, no account/install/fee:** https://roamingeye.org/
 **Code:** https://github.com/zkWizard/RoamingEye
 
-**Where it fits in a Pangeo workflow.** It's a fast visual reconnaissance step _before_ you pull L3 granules into an Xarray/Zarr/Dask pipeline. Grab the globe, scrub the temporal slider month-by-month through the last few years of monthly composites, click a point to see that layer's full-record time series, decide whether a site is worth the compute — then go do the real analysis in your notebook. It answers "is there a signal here, and over what window?" in a few seconds without spinning anything up.
+**Where it fits in a Pangeo workflow.** It's a fast visual reconnaissance step _before_ you pull L3 granules into an Xarray/Zarr/Dask pipeline. Grab the globe, scrub the temporal slider month-by-month across the layer's full published record (2000 → present for MODIS, back to 1980 for the MERRA-2 layers), click a point to see that layer's time series, decide whether a site is worth the compute — then go do the real analysis in your notebook. It answers "is there a signal here, and over what window?" in a few seconds without spinning anything up.
 
 **What's in it right now:**
 
 - 9 open NASA products across vegetation (NDVI, EVI), temperature (LST, 2 m air, SST), water (precipitation, soil moisture), cryosphere (snow cover), and atmosphere (aerosols).
 - Native-resolution WMTS tile streaming chosen by screen-space error, refining down to ~31 m terrain, with parent-tile fallback so detail refines instead of popping.
 - A point time-series probe: click anywhere, chart that layer across its full record (26–46 years depending on product), and download a **provenance-stamped, uncertainty-labelled CSV**.
-- A built-in open-data providers catalogue (~33 agencies/archives) — every layer is cited in-app.
+- A built-in open-data providers catalogue (37 agencies/archives) — every layer is cited in-app.
 
 **The honesty part, because this crowd will (rightly) ask.** The probe does _not_ read source granules — it inverts the rendered colormap back to a physical value. That's approximate, and the app says so everywhere it matters. [`METHODS.md`](https://github.com/zkWizard/RoamingEye/blob/main/METHODS.md) documents the probe pipeline, area weighting, the measured per-layer inversion accuracy, and the seasonal Mann-Kendall / Sen's-slope trend test it uses — so you can see exactly where it stops being trustworthy. It's a reconnaissance and teaching instrument, not a replacement for the actual archive.
 
