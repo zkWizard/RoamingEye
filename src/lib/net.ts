@@ -197,7 +197,11 @@ async function fetchWithTimeout(
     if (signal.aborted) controller.abort();
     else signal.addEventListener("abort", abort);
   }
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // Abort with a reason, so the catch below can tell our own timeout apart
+  // from the caller cancelling — whichever aborted first owns `signal.reason`,
+  // which settles the race correctly. The reason is the status the timeout is
+  // reported as (408 Request Timeout), so the two can never drift apart.
+  const timer = setTimeout(() => controller.abort(408), timeoutMs);
   try {
     const res = await fetch(url, { signal: controller.signal });
     if (!res.ok) {
@@ -208,6 +212,16 @@ async function fetchWithTimeout(
       );
     }
     return res;
+  } catch (err) {
+    // A timeout cancels through the same controller as a caller abort, so it
+    // arrives as an indistinguishable AbortError. The two must not be
+    // conflated: a caller abort is a deliberate non-event, but a timeout is a
+    // real failure that has to consume retries and reach the user. Conflated,
+    // a single slow image left the boot curtain up over the whole app for
+    // ever — no error, no retry button, no way through (issue: main red
+    // 2026-07-28, e2e "__APP_READY__ but curtain never lifts").
+    if (controller.signal.reason === 408) throw new HttpError(url, 408);
+    throw err;
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", abort);
