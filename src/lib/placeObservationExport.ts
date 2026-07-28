@@ -186,6 +186,32 @@ export interface PlaceObservationExportSample {
   samplingSupport?: PlaceObservationSamplingSupport;
 }
 
+/**
+ * Preserve a completed SST sampler result as an export observation. A null
+ * value is still a result: retain whether the rendered boundary had no usable
+ * SST pixels or only partial coverage that could not support a value.
+ *
+ * This is physical ocean-temperature sampling metadata, never biological
+ * evidence or an ecological interpretation.
+ */
+export function sstPlaceObservationFromSample(
+  dataMonth: YearMonth,
+  value: number | null,
+  validFraction: number
+): PlaceObservationInput {
+  if (value !== null) {
+    return { dataMonth, value, validFraction };
+  }
+
+  return {
+    dataMonth,
+    value: null,
+    validFraction,
+    unavailableReason:
+      validFraction > 0 ? "insufficient-valid-coverage" : "source-no-data",
+  };
+}
+
 const EXCLUDED_FIELDS = [
   "place-name",
   "search-query",

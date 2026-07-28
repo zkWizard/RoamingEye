@@ -20,6 +20,7 @@ import {
   PLACE_OBSERVATION_NATIVE_UNITS,
   placeObservationProductFromSample,
   serializePlaceObservationExport,
+  sstPlaceObservationFromSample,
   type PlaceObservationExportSample,
 } from "./lib/placeObservationExport";
 import { SCALE_CONVERSIONS } from "./lib/colormap";
@@ -627,11 +628,11 @@ function runPlaceInsights(result: GeoResult): void {
         layerId: "sst",
         sourceValueFactor: colormap.factor,
         observations: [
-          {
-            dataMonth: sstMonth,
-            value: sample.values[0],
-            validFraction: sample.validFractions[0],
-          },
+          sstPlaceObservationFromSample(
+            sstMonth,
+            sample.values[0],
+            sample.validFractions[0]
+          ),
         ],
       });
     })().catch((error: unknown) => {
