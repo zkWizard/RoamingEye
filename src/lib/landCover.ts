@@ -355,6 +355,10 @@ export interface LandCoverFormationSummary {
   /** Explicitly prevents consumers from treating this as a temporal forecast. */
   isForecast: false;
   provenance: LandCoverProvenance;
+  /** Mirrors whether the upstream annual observation can be presented. */
+  observationStatus: LandCoverContextSummary["observationStatus"];
+  /** Retains the upstream publication or sampling limitation unchanged. */
+  unavailableReason: LandCoverContextSummary["unavailableReason"];
   formationCoverage: LandCoverFormationCoverage[];
   /** Most common formation by sample count; null when no known class present. */
   dominantFormation: LandCoverFormationCoverage | null;
@@ -385,17 +389,19 @@ export function summarizeLandCoverFormations(
   const groupCounts = new Map<LandCoverFormationId, number>();
   let ungroupedKnownSampleCount = 0;
 
-  for (const entry of context.classCoverage) {
-    if (!entry.isInformativeLandCover) continue;
-    const formation = FORMATION_BY_CLASS.get(entry.classCode);
-    if (!formation) {
-      ungroupedKnownSampleCount += entry.sampleCount;
-      continue;
+  if (context.observationStatus === "available") {
+    for (const entry of context.classCoverage) {
+      if (!entry.isInformativeLandCover) continue;
+      const formation = FORMATION_BY_CLASS.get(entry.classCode);
+      if (!formation) {
+        ungroupedKnownSampleCount += entry.sampleCount;
+        continue;
+      }
+      groupCounts.set(
+        formation.id,
+        (groupCounts.get(formation.id) ?? 0) + entry.sampleCount
+      );
     }
-    groupCounts.set(
-      formation.id,
-      (groupCounts.get(formation.id) ?? 0) + entry.sampleCount
-    );
   }
 
   const { totalSampleCount, knownLandCoverSampleCount } = context.coverage;
@@ -426,6 +432,8 @@ export function summarizeLandCoverFormations(
     kind: "observed-land-cover-formation-groups",
     isForecast: false,
     provenance: context.provenance,
+    observationStatus: context.observationStatus,
+    unavailableReason: context.unavailableReason,
     formationCoverage,
     dominantFormation: formationCoverage[0] ?? null,
     ungroupedKnownSampleCount,
