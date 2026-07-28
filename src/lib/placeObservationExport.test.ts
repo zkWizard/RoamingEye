@@ -28,13 +28,31 @@ const input = {
       wmsLayer: LAYERS.ndvi.wmsLayer,
       source: LAYERS.ndvi.dataset!,
       nativeUnit: "NDVI",
+      samplingSupport: {
+        gridSize: 28,
+        candidatePointCount: 784,
+        interiorPointCount: 620,
+        retainedPointCount: 512,
+        sourcePixelCount: 488,
+        pointLimitApplied: true,
+      },
+      sampleToNative: {
+        sampledUnit: "NDVI",
+        operation: "divide" as const,
+        factor: 1,
+      },
+      samplingStrategy: "boundary-grid" as const,
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
           value: 0.62,
           validFraction: 0.82,
         },
-        { dataMonth: { year: 2026, month: 5 }, value: null },
+        {
+          dataMonth: { year: 2026, month: 5 },
+          value: null,
+          unavailableReason: "source-no-data" as const,
+        },
       ],
     },
     {
@@ -42,6 +60,12 @@ const input = {
       wmsLayer: LAYERS.precip.wmsLayer,
       source: LAYERS.precip.dataset!,
       nativeUnit: "kg m^-2 s^-1",
+      sampleToNative: {
+        sampledUnit: "mm/day",
+        operation: "divide" as const,
+        factor: 86_400,
+      },
+      samplingStrategy: "boundary-point" as const,
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -61,11 +85,41 @@ const input = {
 };
 
 describe("place observation export", () => {
+  it("exports boundary SST in native °C with MODIS provenance and coverage", () => {
+    const product = placeObservationProductFromSample({
+      layerId: "sst",
+      sourceValueFactor: 1,
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 5 },
+          value: 18.375,
+          validFraction: 0.37,
+        },
+      ],
+    });
+
+    expect(product).toMatchObject({
+      layerId: "sst",
+      wmsLayer: "MODIS_Aqua_L3_SST_Thermal_9km_Day_Monthly",
+      nativeUnit: "°C",
+      source: {
+        shortName: "MODIS_AQUA_L3_SST_THERMAL_MONTHLY_9KM_DAYTIME_V2019.0",
+        version: "2019.0",
+      },
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 5 },
+          value: 18.375,
+          validFraction: 0.37,
+        },
+      ],
+    });
+  });
   it("retains boundary, cited products, native units, months, coverage, and method", () => {
     const exported = createPlaceObservationExport(input);
 
     expect(exported).toMatchObject({
-      schema: "roamingeye-place-observation-export/v2",
+      schema: "roamingeye-place-observation-export/v3",
       kind: "place-observation-export",
       boundary,
       products: [
@@ -74,17 +128,53 @@ describe("place observation export", () => {
           wmsLayer: LAYERS.ndvi.wmsLayer,
           source: LAYERS.ndvi.dataset,
           nativeUnit: "NDVI",
+          samplingSupport: {
+            gridSize: 28,
+            candidatePointCount: 784,
+            interiorPointCount: 620,
+            retainedPointCount: 512,
+            sourcePixelCount: 488,
+            pointLimitApplied: true,
+          },
+          sampleToNative: {
+            sampledUnit: "NDVI",
+            operation: "divide",
+            factor: 1,
+          },
+          samplingStrategy: "boundary-grid",
           observations: [
-            { dataMonth: "2026-04", value: 0.62, validFraction: 0.82 },
-            { dataMonth: "2026-05", value: null, validFraction: null },
+            {
+              dataMonth: "2026-04",
+              value: 0.62,
+              validFraction: 0.82,
+              unavailableReason: null,
+            },
+            {
+              dataMonth: "2026-05",
+              value: null,
+              validFraction: null,
+              unavailableReason: "source-no-data",
+            },
           ],
         },
         {
           layerId: "precip",
           source: LAYERS.precip.dataset,
           nativeUnit: "kg m^-2 s^-1",
+          samplingSupport: null,
+          sampleToNative: {
+            sampledUnit: "mm/day",
+            operation: "divide",
+            factor: 86_400,
+          },
+          samplingStrategy: "boundary-point",
           observations: [
-            { dataMonth: "2026-04", value: 0.00014, validFraction: 0.61 },
+            {
+              dataMonth: "2026-04",
+              value: 0.00014,
+              validFraction: 0.61,
+              unavailableReason: null,
+            },
           ],
         },
       ],
@@ -185,6 +275,36 @@ describe("place observation export", () => {
       createPlaceObservationExport({
         ...input,
         products: [
+          {
+            ...input.products[0],
+            observations: [
+              { dataMonth: { year: 2026, month: 4 }, value: null },
+            ],
+          },
+        ],
+      })
+    ).toThrow("Product ndvi must explain an unavailable value.");
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            observations: [
+              {
+                dataMonth: { year: 2026, month: 4 },
+                value: 0.1,
+                unavailableReason: "sampling-failed" as const,
+              },
+            ],
+          },
+        ],
+      })
+    ).toThrow("Product ndvi cannot mark a recorded value unavailable.");
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
           ...input.products,
           {
             ...input.products[0],
@@ -232,10 +352,127 @@ describe("place observation export", () => {
     ).toThrow("Product ndvi has a value with zero sampled coverage.");
   });
 
+  it.each([
+    {
+      label: "an open ring",
+      coordinates: [
+        [
+          [-77.1, 38.8],
+          [-76.9, 38.8],
+          [-76.9, 39],
+          [-77.1, 39],
+        ],
+      ],
+    },
+    {
+      label: "an out-of-range longitude",
+      coordinates: [
+        [
+          [181, 38.8],
+          [-76.9, 38.8],
+          [-76.9, 39],
+          [181, 38.8],
+        ],
+      ],
+    },
+    {
+      label: "a non-finite latitude",
+      coordinates: [
+        [
+          [-77.1, 38.8],
+          [-76.9, 38.8],
+          [-76.9, Infinity],
+          [-77.1, 38.8],
+        ],
+      ],
+    },
+    {
+      label: "a zero-extent ring",
+      coordinates: [
+        [
+          [-77.1, 38.8],
+          [-77, 38.9],
+          [-76.9, 39],
+          [-77.1, 38.8],
+        ],
+      ],
+    },
+  ])(
+    "rejects $label instead of exporting an irreproducible footprint",
+    ({ coordinates }) => {
+      expect(() =>
+        createPlaceObservationExport({
+          ...input,
+          boundary: { type: "Polygon", coordinates },
+        })
+      ).toThrow(/closed GeoJSON rings.*non-zero area extent/);
+    }
+  );
+
+  it("validates every polygon and hole in a MultiPolygon footprint", () => {
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        boundary: {
+          type: "MultiPolygon",
+          coordinates: [
+            boundary.coordinates,
+            [
+              [
+                [-123, 47],
+                [-122, 47],
+                [-122, 48],
+                [-123, 48],
+              ],
+            ],
+          ],
+        },
+      })
+    ).toThrow(/closed GeoJSON rings/);
+
+    const withClosedHole = createPlaceObservationExport({
+      ...input,
+      boundary: {
+        type: "Polygon",
+        coordinates: [
+          boundary.coordinates[0],
+          [
+            [-77.05, 38.85],
+            [-77, 38.85],
+            [-77, 38.9],
+            [-77.05, 38.85],
+          ],
+        ],
+      },
+    });
+    expect(withClosedHole.boundary).toEqual({
+      type: "Polygon",
+      coordinates: [
+        boundary.coordinates[0],
+        [
+          [-77.05, 38.85],
+          [-77, 38.85],
+          [-77, 38.9],
+          [-77.05, 38.85],
+        ],
+      ],
+    });
+  });
+
   it("reverses display conversions before exporting cited native units", () => {
     const precipitation = placeObservationProductFromSample({
       layerId: "precip",
+      sampledUnit: "mm/day",
       sourceValueFactor: 86_400,
+      samplingSupport: {
+        gridSize: 16,
+        candidatePointCount: 256,
+        interiorPointCount: 180,
+        retainedPointCount: 180,
+        sourcePixelCount: 170,
+        pointLimitApplied: false,
+      },
+      samplingStrategy: "boundary-point",
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -243,7 +480,11 @@ describe("place observation export", () => {
           value: 8.64,
           validFraction: 0.75,
         },
-        { dataMonth: { year: 2026, month: 5 }, value: null },
+        {
+          dataMonth: { year: 2026, month: 5 },
+          value: null,
+          unavailableReason: "insufficient-valid-coverage",
+        },
       ],
     });
 
@@ -252,6 +493,19 @@ describe("place observation export", () => {
       wmsLayer: LAYERS.precip.wmsLayer,
       source: LAYERS.precip.dataset,
       nativeUnit: "kg/m²/s",
+      samplingSupport: {
+        gridSize: 16,
+        candidatePointCount: 256,
+        interiorPointCount: 180,
+        retainedPointCount: 180,
+        sourcePixelCount: 170,
+        pointLimitApplied: false,
+      },
+      sampleToNative: {
+        sampledUnit: "mm/day",
+        operation: "divide",
+        factor: 86_400,
+      },
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -269,5 +523,55 @@ describe("place observation export", () => {
         sourceValueFactor: 0,
       })
     ).toThrow("sourceValueFactor must be a positive finite number.");
+  });
+
+  it("rejects impossible geometry sampling-support budgets", () => {
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            samplingSupport: {
+              gridSize: 28,
+              candidatePointCount: 784,
+              interiorPointCount: 620,
+              retainedPointCount: 700,
+              sourcePixelCount: 488,
+              pointLimitApplied: true,
+            },
+          },
+        ],
+      })
+    ).toThrow("Product ndvi has inconsistent sampling-support counts.");
+  });
+
+  it("rejects non-reproducible sample-to-native transforms", () => {
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            sampleToNative: {
+              sampledUnit: "NDVI",
+              operation: "divide",
+              factor: 0,
+            },
+          },
+        ],
+      })
+    ).toThrow("Product ndvi has an invalid sample-to-native transform.");
+  });
+
+  it("does not invent a sampling strategy for unavailable samples", () => {
+    const product = placeObservationProductFromSample({
+      layerId: "ndvi",
+      observations: [
+        { dataMonth: { year: 2026, month: 4 }, value: null, validFraction: 0 },
+      ],
+    });
+
+    expect(product.samplingStrategy).toBe("unavailable");
   });
 });

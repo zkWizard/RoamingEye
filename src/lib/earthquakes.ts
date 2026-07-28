@@ -19,6 +19,26 @@ export interface Earthquake {
   time: number;
   /** Human-readable location, e.g. "63 km SW of Kokopo, Papua New Guinea". */
   place: string;
+  /**
+   * Source-record identity and review metadata, when this event came from the
+   * parsed USGS GeoJSON feed. Optional for caller-constructed observations;
+   * parsed records always carry the object and use null for unavailable fields.
+   */
+  sourceRecord?: EarthquakeSourceRecord;
+}
+
+/** Metadata retained verbatim from one USGS GeoJSON feature. */
+export interface EarthquakeSourceRecord {
+  /** Stable catalog event identifier from GeoJSON feature.id. */
+  id: string | null;
+  /** USGS event page URL from properties.url. */
+  url: string | null;
+  /** Last source update, epoch milliseconds UTC. */
+  updatedTime: number | null;
+  /** Reported magnitude scale/type, such as "mw" or "mb". */
+  magnitudeType: string | null;
+  /** USGS review status, commonly "automatic" or "reviewed". */
+  reviewStatus: string | null;
 }
 
 export type EarthquakeFeedStatus =
@@ -351,6 +371,13 @@ export function parseEarthquakeFeedWithCoverage(
       magnitude,
       time,
       place: typeof props.place === "string" ? props.place : "",
+      sourceRecord: {
+        id: typeof feature.id === "string" ? feature.id : null,
+        url: typeof props.url === "string" ? props.url : null,
+        updatedTime: finiteNumberOrNull(props.updated),
+        magnitudeType: typeof props.magType === "string" ? props.magType : null,
+        reviewStatus: typeof props.status === "string" ? props.status : null,
+      },
     });
   }
 
@@ -367,4 +394,9 @@ export function parseEarthquakeFeedWithCoverage(
     source: SEISMICITY_SOURCE,
     units: SEISMICITY_UNITS,
   };
+}
+
+function finiteNumberOrNull(value: unknown): number | null {
+  const number = toNumber(value);
+  return Number.isFinite(number) ? number : null;
 }

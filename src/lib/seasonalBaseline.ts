@@ -149,9 +149,25 @@ export function compareMonthlyClimateToSeasonalBaseline(
     );
   }
 
-  const seenYears = new Set<number>();
   const samples: SeasonalBaselineSample[] = [];
   let coverageEligibleCount = 0;
+
+  const candidateYearCounts = new Map<number, number>();
+  for (const candidate of baselineCandidates) {
+    if (
+      candidate.metricId === targetObservation.metricId &&
+      isCalendarMonth(candidate.dataMonth) &&
+      candidate.dataMonth.month === targetMonth &&
+      (options.baselineStartYear === undefined ||
+        candidate.dataMonth.year >= options.baselineStartYear) &&
+      candidate.dataMonth.year <= baselineEndYear
+    ) {
+      candidateYearCounts.set(
+        candidate.dataMonth.year,
+        (candidateYearCounts.get(candidate.dataMonth.year) ?? 0) + 1
+      );
+    }
+  }
 
   for (const candidate of baselineCandidates) {
     if (candidate.metricId !== targetObservation.metricId) {
@@ -174,11 +190,12 @@ export function compareMonthlyClimateToSeasonalBaseline(
       exclusions.outOfBounds += 1;
       continue;
     }
-    if (seenYears.has(candidate.dataMonth.year)) {
+    // Multiple source records for one calendar month are ambiguous. Exclude
+    // the whole year so baseline membership cannot depend on input ordering.
+    if ((candidateYearCounts.get(candidate.dataMonth.year) ?? 0) > 1) {
       exclusions.duplicateYear += 1;
       continue;
     }
-    seenYears.add(candidate.dataMonth.year);
 
     const summary = summarizeMonthlyClimate(candidate, availableThrough);
     if (summary.publicationStatus !== "published") {
