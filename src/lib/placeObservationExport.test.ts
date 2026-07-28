@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { LAYERS } from "./timeline";
 import {
   GIBS_IMAGERY_SOURCE,
+  PLACE_OBSERVATION_NATIVE_UNITS,
   createPlaceObservationExport,
   placeObservationProductFromSample,
   serializePlaceObservationExport,
@@ -45,7 +46,7 @@ const input = {
       layerId: "precip" as const,
       wmsLayer: LAYERS.precip.wmsLayer,
       source: LAYERS.precip.dataset!,
-      nativeUnit: "kg m^-2 s^-1",
+      nativeUnit: PLACE_OBSERVATION_NATIVE_UNITS.precip,
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -126,7 +127,7 @@ describe("place observation export", () => {
         {
           layerId: "precip",
           source: LAYERS.precip.dataset,
-          nativeUnit: "kg m^-2 s^-1",
+          nativeUnit: PLACE_OBSERVATION_NATIVE_UNITS.precip,
           observations: [
             {
               dataMonth: "2026-04",
@@ -309,6 +310,49 @@ describe("place observation export", () => {
         ],
       })
     ).toThrow("Product ndvi has a value with zero sampled coverage.");
+  });
+
+  it("rejects product identifiers, citations, or units that contradict the registry", () => {
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            wmsLayer: LAYERS.evi.wmsLayer,
+          },
+        ],
+      })
+    ).toThrow("Product ndvi WMS layer does not match the registered layer.");
+
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            source: {
+              ...input.products[0].source,
+              doi: "10.0000/not-the-registered-product",
+            },
+          },
+        ],
+      })
+    ).toThrow(
+      "Product ndvi citation does not match the registered data product."
+    );
+
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            nativeUnit: "percent",
+          },
+        ],
+      })
+    ).toThrow("Product ndvi native unit does not match the registered unit.");
   });
 
   it("reverses display conversions before exporting cited native units", () => {

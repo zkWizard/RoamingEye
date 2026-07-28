@@ -287,6 +287,7 @@ function validateInput(input: PlaceObservationExportInput): void {
         `Product ${product.layerId} needs a complete source citation.`
       );
     }
+    validateRegisteredProduct(product);
     const months = new Set<string>();
     for (const observation of product.observations) {
       if (!isYearMonth(observation.dataMonth)) {
@@ -330,6 +331,35 @@ function validateInput(input: PlaceObservationExportInput): void {
         );
       }
     }
+  }
+}
+
+function validateRegisteredProduct(
+  product: PlaceObservationProductInput
+): void {
+  const registeredLayer = LAYERS[product.layerId];
+  if (product.wmsLayer !== registeredLayer.wmsLayer) {
+    throw new Error(
+      `Product ${product.layerId} WMS layer does not match the registered layer.`
+    );
+  }
+  if (
+    !registeredLayer.dataset ||
+    !sameCitation(product.source, registeredLayer.dataset)
+  ) {
+    throw new Error(
+      `Product ${product.layerId} citation does not match the registered data product.`
+    );
+  }
+
+  const registeredUnit =
+    PLACE_OBSERVATION_NATIVE_UNITS[
+      product.layerId as PlaceObservationExportLayerId
+    ];
+  if (registeredUnit && product.nativeUnit !== registeredUnit) {
+    throw new Error(
+      `Product ${product.layerId} native unit does not match the registered unit.`
+    );
   }
 }
 
@@ -393,6 +423,15 @@ function cloneGeometry(geometry: GeoGeometry): GeoGeometry {
 function hasCitation(source: DatasetRef): boolean {
   return [source.shortName, source.version, source.doi, source.title].every(
     (field) => field.trim().length > 0
+  );
+}
+
+function sameCitation(left: DatasetRef, right: DatasetRef): boolean {
+  return (
+    left.shortName === right.shortName &&
+    left.version === right.version &&
+    left.doi === right.doi &&
+    left.title === right.title
   );
 }
 
