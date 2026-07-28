@@ -535,6 +535,7 @@ function runPlaceInsights(result: GeoResult): void {
           exportSamples.set(metric.layerId, {
             layerId: metric.layerId,
             sourceValueFactor: colormap?.factor ?? 1,
+            samplingStrategy: geometrySamplingStrategy,
             observations: months.map((dataMonth, index) => {
               const value = values[index] ?? null;
               if (value === null) {

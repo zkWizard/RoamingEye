@@ -28,6 +28,7 @@ const input = {
       wmsLayer: LAYERS.ndvi.wmsLayer,
       source: LAYERS.ndvi.dataset!,
       nativeUnit: "NDVI",
+      samplingStrategy: "boundary-grid" as const,
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -46,6 +47,7 @@ const input = {
       wmsLayer: LAYERS.precip.wmsLayer,
       source: LAYERS.precip.dataset!,
       nativeUnit: "kg m^-2 s^-1",
+      samplingStrategy: "boundary-point" as const,
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -108,6 +110,7 @@ describe("place observation export", () => {
           wmsLayer: LAYERS.ndvi.wmsLayer,
           source: LAYERS.ndvi.dataset,
           nativeUnit: "NDVI",
+          samplingStrategy: "boundary-grid",
           observations: [
             {
               dataMonth: "2026-04",
@@ -127,6 +130,7 @@ describe("place observation export", () => {
           layerId: "precip",
           source: LAYERS.precip.dataset,
           nativeUnit: "kg m^-2 s^-1",
+          samplingStrategy: "boundary-point",
           observations: [
             {
               dataMonth: "2026-04",
@@ -315,6 +319,7 @@ describe("place observation export", () => {
     const precipitation = placeObservationProductFromSample({
       layerId: "precip",
       sourceValueFactor: 86_400,
+      samplingStrategy: "boundary-point",
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -352,5 +357,16 @@ describe("place observation export", () => {
         sourceValueFactor: 0,
       })
     ).toThrow("sourceValueFactor must be a positive finite number.");
+  });
+
+  it("does not invent a sampling strategy for unavailable samples", () => {
+    const product = placeObservationProductFromSample({
+      layerId: "ndvi",
+      observations: [
+        { dataMonth: { year: 2026, month: 4 }, value: null, validFraction: 0 },
+      ],
+    });
+
+    expect(product.samplingStrategy).toBe("unavailable");
   });
 });
