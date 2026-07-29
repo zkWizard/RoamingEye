@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { LAYERS } from "./timeline";
 import {
   GIBS_IMAGERY_SOURCE,
+  PLACE_OBSERVATION_NATIVE_UNITS,
   createPlaceObservationExport,
   placeObservationProductFromSample,
   serializePlaceObservationExport,

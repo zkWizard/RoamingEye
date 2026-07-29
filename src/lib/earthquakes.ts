@@ -63,9 +63,7 @@ export interface EarthquakeSourceRecord {
 }
 
 export type EarthquakeFeedStatus =
-  | "available"
-  | "no-usable-events"
-  | "invalid-feed";
+  "available" | "no-usable-events" | "invalid-feed";
 
 export type EarthquakeRejectionReason =
   | "invalid-geometry"
@@ -213,13 +211,7 @@ export const DEPTH_CLASS_COLORS: Record<DepthClass, string> = {
  * (https://www.usgs.gov/programs/earthquake-hazards/earthquake-magnitude-energy-release-and-shaking-intensity).
  */
 export type MagnitudeClass =
-  | "micro"
-  | "minor"
-  | "light"
-  | "moderate"
-  | "strong"
-  | "major"
-  | "great";
+  "micro" | "minor" | "light" | "moderate" | "strong" | "major" | "great";
 
 /** Magnitude classes ordered weakest to strongest for deterministic iteration. */
 export const MAGNITUDE_CLASS_ORDER: readonly MagnitudeClass[] = [
@@ -411,16 +403,16 @@ export function parseEarthquakeFeedWithCoverage(
     const geometry = feature?.geometry;
     const coords = geometry?.coordinates;
     const props = feature?.properties;
+    if (!props || typeof props !== "object") {
+      rejectedByReason["invalid-properties"] += 1;
+      continue;
+    }
     if (
       geometry?.type !== "Point" ||
       !Array.isArray(coords) ||
       coords.length < 3
     ) {
       rejectedByReason["invalid-geometry"] += 1;
-      continue;
-    }
-    if (!props || typeof props !== "object") {
-      rejectedByReason["invalid-properties"] += 1;
       continue;
     }
 
