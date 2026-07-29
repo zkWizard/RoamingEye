@@ -51,6 +51,26 @@ describe("ocean condition summaries", () => {
     });
   });
 
+  it("preserves unknown surface geography without relabeling it as water", () => {
+    const summary = summarizeOceanConditions({
+      dataMonth: { year: 2026, month: 3 },
+      value: 18.4,
+      validFraction: 0.37,
+      footprint: "unknown",
+    });
+
+    expect(summary).toMatchObject({
+      observedValue: 18.4,
+      temperatureBand: "temperate",
+      coverage: {
+        status: "unknown",
+        footprint: "unknown",
+        validFraction: 0.37,
+        reason: "unknown-footprint",
+      },
+    });
+  });
+
   it("distinguishes land from missing SST coverage without inventing values", () => {
     const land = summarizeOceanConditions({
       dataMonth: { year: 2026, month: 3 },
@@ -209,6 +229,22 @@ describe("ocean condition narratives", () => {
     expect(text).toContain("a temperate descriptive band");
     expect(text).toContain("coastal or land-mixed");
     expect(text).toContain("37% of the sampled footprint had usable SST");
+  });
+
+  it("reports valid SST with unknown geography without asserting open water", () => {
+    const text = describeOceanCondition(
+      summarizeOceanConditions({
+        dataMonth: { year: 2026, month: 3 },
+        value: 18.4,
+        validFraction: 0.37,
+        footprint: "unknown",
+      })
+    );
+
+    expect(text).toContain(`18.4${SEA_SURFACE_TEMPERATURE_METRIC.sourceUnit}`);
+    expect(text).toContain("surface footprint is unknown");
+    expect(text).toContain("not classified as open-water or coastal SST");
+    expect(text).not.toContain("some samples fall on land");
   });
 
   it("notes when spatial coverage was not supplied", () => {
