@@ -464,6 +464,18 @@ function validateInput(input: PlaceObservationExportInput): void {
         `Product ${product.layerId} citation does not match the configured RoamingEye data product.`
       );
     }
+    const configuredNativeUnit =
+      PLACE_OBSERVATION_NATIVE_UNITS[
+        product.layerId as PlaceObservationExportLayerId
+      ];
+    if (
+      configuredNativeUnit &&
+      product.nativeUnit !== configuredNativeUnit
+    ) {
+      throw new Error(
+        `Product ${product.layerId} native unit does not match the configured RoamingEye data product.`
+      );
+    }
     if (product.samplingSupport) validateSamplingSupport(product);
     const months = new Set<string>();
     for (const observation of product.observations) {

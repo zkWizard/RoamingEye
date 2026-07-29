@@ -60,7 +60,7 @@ const input = {
       layerId: "precip" as const,
       wmsLayer: LAYERS.precip.wmsLayer,
       source: LAYERS.precip.dataset!,
-      nativeUnit: "kg m^-2 s^-1",
+      nativeUnit: PLACE_OBSERVATION_NATIVE_UNITS.precip,
       sampleToNative: {
         sampledUnit: "mm/day",
         operation: "divide" as const,
@@ -211,7 +211,7 @@ describe("place observation export", () => {
         {
           layerId: "precip",
           source: LAYERS.precip.dataset,
-          nativeUnit: "kg m^-2 s^-1",
+          nativeUnit: PLACE_OBSERVATION_NATIVE_UNITS.precip,
           samplingSupport: null,
           sampleToNative: {
             sampledUnit: "mm/day",
@@ -556,6 +556,20 @@ describe("place observation export", () => {
       })
     ).toThrow(
       "Product ndvi citation does not match the configured RoamingEye data product."
+    );
+
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            nativeUnit: "percent",
+          },
+        ],
+      })
+    ).toThrow(
+      "Product ndvi native unit does not match the configured RoamingEye data product."
     );
   });
 
