@@ -331,6 +331,8 @@ function targetReadiness(
       return { status: "no-data", reason: "target-unknown-footprint" };
     case "missing":
       return { status: "no-data", reason: "target-missing-sst" };
+    case "unknown":
+      return { status: "no-data", reason: "target-unknown-footprint" };
     case "water":
     case "land-mixed-coastal":
       if (!meetsCoverage(target, minimumValidFraction)) {
