@@ -562,6 +562,14 @@ export interface ProbeCsvMeta {
   mode: "point" | "area" | "region";
   /** The averaged region, present in area and region modes. */
   sampledBounds?: Bounds;
+  /** Adaptive drawn-region grid and rendered-pixel mapping. Omitted for point
+   * and fixed-size area probes. These are counts, not ground resolution. */
+  regionSampling?: {
+    latitudeGridSize: number;
+    longitudeGridSize: number;
+    candidatePointCount: number;
+    sourcePixelCount: number;
+  };
   /** Source image size the pixel was sampled from. */
   imageWidth: number;
   imageHeight: number;
@@ -649,6 +657,13 @@ export function buildProbeCsv(
     `# lat: ${meta.lat.toFixed(4)}`,
     `# lon: ${meta.lon.toFixed(4)}`,
     ...(region ? [`# region: ${region}`] : []),
+    ...(meta.regionSampling
+      ? [
+          `# sampling_grid: ${meta.regionSampling.latitudeGridSize}x${meta.regionSampling.longitudeGridSize} geographic cell centres (latitude x longitude)`,
+          `# sampling_candidates: ${meta.regionSampling.candidatePointCount}`,
+          `# sampled_source_pixels: ${meta.regionSampling.sourcePixelCount} unique rendered-image pixels`,
+        ]
+      : []),
     `# value: ${csvHeaderText(meta.scale.label)}${meta.scale.unit ? ` [${csvHeaderText(meta.scale.unit)}]` : ""} (${
       meta.scale.calibrated
         ? "approximate physical scale"

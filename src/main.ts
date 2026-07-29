@@ -1158,7 +1158,7 @@ if (probeEl) {
           }
         },
       })
-      .then(({ values, validFractions }) => {
+      .then(({ values, validFractions, regionSampling }) => {
         if (abort.signal.aborted) return;
         panel.finish(
           () =>
@@ -1172,6 +1172,7 @@ if (probeEl) {
                 scale,
                 mode: "region",
                 sampledBounds: bounds,
+                regionSampling,
                 imageWidth: PROBE_IMAGE.width,
                 imageHeight: PROBE_IMAGE.height,
                 generatedIso: new Date().toISOString(),
