@@ -70,6 +70,7 @@ describe("NDVI mean annual cycle", () => {
     expect(cycle.monthlyClimatology[0]).toMatchObject({
       calendarMonth: 1,
       yearsUsed: 3,
+      contributingYears: [2023, 2024, 2025],
       interannualStandardDeviation: expect.closeTo(0.02, 10),
     });
     expect(cycle.greenestMonth).toEqual({
@@ -112,6 +113,7 @@ describe("NDVI mean annual cycle", () => {
     const cycle = describeNdviAnnualCycle(observations, NORTHERN_LATITUDE);
     const july = cycle.monthlyClimatology.find((m) => m.calendarMonth === 7);
     expect(july?.yearsUsed).toBe(4);
+    expect(july?.contributingYears).toEqual([2023, 2024, 2025, 2026]);
     // (0.80 + 0.82 + 0.84 + 1.0) / 4 = 0.865
     expect(july?.meanNdvi).toBeCloseTo(0.865, 10);
     expect(july?.minNdvi).toBeCloseTo(0.8, 10);

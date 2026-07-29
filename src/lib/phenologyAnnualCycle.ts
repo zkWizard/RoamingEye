@@ -97,6 +97,8 @@ export interface NdviMonthlyClimatology {
   meteorologicalSeason: MeteorologicalSeason;
   /** Distinct years that contributed to this month's mean. */
   yearsUsed: number;
+  /** Exact contributing years, sorted oldest to newest. */
+  contributingYears: number[];
   /** Compensated mean NDVI for this calendar month, unitless. */
   meanNdvi: number;
   /** Lowest contributing yearly value for this calendar month, unitless. */
@@ -296,9 +298,10 @@ export function describeNdviAnnualCycle(
   ) {
     const yearValues = buckets.get(calendarMonth);
     if (yearValues && yearValues.size >= requiredYearsPerMonth) {
-      const values = [...yearValues.values()];
+      const contributingYears = [...yearValues.keys()].sort((a, b) => a - b);
+      const values = contributingYears.map((year) => yearValues.get(year)!);
       observationsUsed += values.length;
-      for (const year of yearValues.keys()) {
+      for (const year of contributingYears) {
         contributingMonths.push({ year, month: calendarMonth });
       }
       monthlyClimatology.push({
@@ -308,6 +311,7 @@ export function describeNdviAnnualCycle(
           hemisphere
         ),
         yearsUsed: values.length,
+        contributingYears,
         meanNdvi: neumaierSum(values) / values.length,
         minNdvi: Math.min(...values),
         maxNdvi: Math.max(...values),
