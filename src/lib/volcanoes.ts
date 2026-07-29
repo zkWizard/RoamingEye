@@ -1,3 +1,8 @@
+import {
+  canonicalVolcanoType,
+  canonicalVolcanoTypeLabel,
+} from "./volcanoMorphology";
+
 /**
  * Holocene volcanoes from the Smithsonian Global Volcanism Program's
  * "Volcanoes of the World" database, slimmed into public/data/volcanoes.json
@@ -138,9 +143,12 @@ export function elevationRegimeLabel(elevationMeters: number | null): string {
  * explicit instead of being mistaken for zero or silently disappearing.
  */
 export function volcanoHoverLabel(volcano: Volcano): string {
+  const morphology = canonicalVolcanoType(volcano.type);
   const parts = [
     volcano.name,
-    volcano.type ?? "volcano type not recorded",
+    morphology.base === null
+      ? "volcano type not recorded"
+      : canonicalVolcanoTypeLabel(morphology),
     volcano.country ?? "country/territory not recorded",
     volcano.elevation === null
       ? "summit elevation not recorded"

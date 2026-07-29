@@ -6,6 +6,7 @@ import {
   type MonthlyClimateSummary,
 } from "./climate";
 import { SCALE_CONVERSIONS } from "./colormap";
+import { classifyModality } from "./observationModality";
 import type { LayerId, YearMonth } from "./timeline";
 import { toConventionalClimateValue } from "./climateConventionalUnits";
 import type { GeometrySamplingStrategy } from "./geojson";
@@ -227,6 +228,7 @@ export function climateInsightText(
   const source = `${current.metric.source.shortName} v${current.metric.source.version}`;
   const sourceVariable = `GIBS layer ${current.metric.sourceLayer}`;
   const month = formatMonth(current.dataMonth);
+  const modality = climateModalityText(current);
   const provenance = imageProvenance(current.sourceImageDimensions);
   const coverage = coverageText(current.coverage.validFraction);
   const sampling = samplingText(current.geometrySamplingStrategy);
@@ -237,9 +239,11 @@ export function climateInsightText(
   ) {
     return {
       value: "Unavailable",
-      detail: `No usable ${month} observation (${unavailableReason(
+      detail: `No usable ${month} ${modality.field} (${unavailableReason(
         current
-      )}); ${sampling}; ${coverage}; ${provenance}; ${sourceVariable}; source ${source}`,
+      )}); ${sampling}; ${coverage}; ${provenance}; ${
+        modality.limit
+      }; ${sourceVariable}; source ${source}`,
     };
   }
 
@@ -266,11 +270,14 @@ export function climateInsightText(
           conventional?.conventionalUnit ?? current.metric.nativeUnit
         )} vs ${formatMonth(previous!.dataMonth)}`;
   const nativeProvenance = conventional
-    ? `; native source value ${formatNativeValue(current.observedValue, current.metric.nativeUnit)} (${conventional.conversion.basis})`
+    ? `; native source value ${formatNativeValue(
+        current.observedValue,
+        current.metric.nativeUnit
+      )} (${conventional.conversion.basis})`
     : "";
   return {
     value,
-    detail: `${month} observed${comparison}${nativeProvenance}; ${coverage}; ${provenance}; ${sampling}; ${sourceVariable}; source ${source}`,
+    detail: `${month} ${modality.field}${comparison}${nativeProvenance}; ${coverage}; ${provenance}; ${sampling}; ${modality.limit}; ${sourceVariable}; source ${source}`,
   };
 }
 
@@ -282,6 +289,34 @@ function samplingText(strategy: GeometrySamplingStrategy | null): string {
       return "single in-boundary image sample, not a regional mean";
     default:
       return "sampling strategy not supplied";
+  }
+}
+
+function climateModalityText(summary: MonthlyClimateSummary): {
+  field: string;
+  limit: string;
+} {
+  switch (classifyModality(summary.metric.source)) {
+    case "land-surface-model":
+      return {
+        field: "land-surface-model field",
+        limit: "model-derived, not a direct measurement",
+      };
+    case "atmospheric-reanalysis":
+      return {
+        field: "atmospheric reanalysis field",
+        limit: "reanalysis-derived, not a direct measurement",
+      };
+    case "satellite-derived-index":
+      return {
+        field: "satellite-derived field",
+        limit: "remotely sensed, not a direct in-situ measurement",
+      };
+    case "unclassified":
+      return {
+        field: "source field",
+        limit: "production method not classified",
+      };
   }
 }
 

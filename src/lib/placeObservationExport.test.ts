@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { LAYERS } from "./timeline";
 import {
   GIBS_IMAGERY_SOURCE,
+  PLACE_OBSERVATION_NATIVE_UNITS,
   createPlaceObservationExport,
   placeObservationProductFromSample,
   serializePlaceObservationExport,
@@ -60,7 +61,7 @@ const input = {
       layerId: "precip" as const,
       wmsLayer: LAYERS.precip.wmsLayer,
       source: LAYERS.precip.dataset!,
-      nativeUnit: "kg m^-2 s^-1",
+      nativeUnit: PLACE_OBSERVATION_NATIVE_UNITS.precip,
       sampleToNative: {
         sampledUnit: "mm/day",
         operation: "divide" as const,
@@ -211,7 +212,7 @@ describe("place observation export", () => {
         {
           layerId: "precip",
           source: LAYERS.precip.dataset,
-          nativeUnit: "kg m^-2 s^-1",
+          nativeUnit: PLACE_OBSERVATION_NATIVE_UNITS.precip,
           samplingSupport: null,
           sampleToNative: {
             sampledUnit: "mm/day",

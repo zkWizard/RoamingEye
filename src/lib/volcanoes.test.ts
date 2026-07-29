@@ -208,6 +208,16 @@ describe("volcanoHoverLabel", () => {
     );
   });
 
+  it("explains GVP multiplicity and uncertainty qualifiers", () => {
+    expect(
+      volcanoHoverLabel(
+        parseVolcanoList([volcano({ type: "Stratovolcano(es)?" })])[0]
+      )
+    ).toBe(
+      "Etna · Stratovolcano (multiple landforms; type uncertain) · Italy · summit elevation 3357 m · last erupted 2025"
+    );
+  });
+
   it("states unavailable source fields instead of silently omitting them", () => {
     const v = parseVolcanoList([
       volcano({

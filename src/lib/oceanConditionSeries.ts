@@ -108,7 +108,10 @@ export function summarizeOceanConditionSeries(
 
   const usable = months.filter(
     (month): month is OceanConditionSummary & { observedValue: number } =>
-      month.observedValue !== null && month.temperatureBand !== null
+      (month.coverage.status === "water" ||
+        month.coverage.status === "land-mixed-coastal") &&
+      month.observedValue !== null &&
+      month.temperatureBand !== null
   );
 
   const warmest = hasDuplicateMonths ? null : pickExtreme(usable, "warmest");

@@ -165,7 +165,9 @@ export const USGS_FEED_URL =
  * Values remain in the feed's native magnitude, kilometre, and UTC time units.
  */
 export function earthquakeHoverLabel(earthquake: Earthquake): string {
-  return `${earthquake.place} · M ${earthquake.magnitude} · ${earthquake.depthKm} km depth · ${new Date(earthquake.time).toISOString()}`;
+  return `${earthquake.place} · M ${earthquake.magnitude} · ${
+    earthquake.depthKm
+  } km depth · ${new Date(earthquake.time).toISOString()}`;
 }
 
 /**
@@ -398,14 +400,19 @@ export function parseEarthquakeFeedWithCoverage(
 
   const out: Earthquake[] = [];
   for (const feature of features) {
-    const coords = feature?.geometry?.coordinates;
+    const geometry = feature?.geometry;
+    const coords = geometry?.coordinates;
     const props = feature?.properties;
-    if (!Array.isArray(coords) || coords.length < 3) {
-      rejectedByReason["invalid-geometry"] += 1;
-      continue;
-    }
     if (!props || typeof props !== "object") {
       rejectedByReason["invalid-properties"] += 1;
+      continue;
+    }
+    if (
+      geometry?.type !== "Point" ||
+      !Array.isArray(coords) ||
+      coords.length < 3
+    ) {
+      rejectedByReason["invalid-geometry"] += 1;
       continue;
     }
 

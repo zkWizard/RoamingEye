@@ -53,6 +53,15 @@ export interface MarinePlaceInsightReading {
   coverage: MarineCoverageSummary | null;
   observationStatus:
     "observed" | "no-sst-coverage" | "invalid-sample" | "source-unavailable";
+  /** Exact unavailable state for UI/export consumers; null for usable SST. */
+  unavailableReason:
+    | "zero-sst-coverage"
+    | "invalid-month"
+    | "invalid-coverage"
+    | "invalid-source-image-dimensions"
+    | "invalid-sst-value"
+    | "source-colormap-unavailable"
+    | null;
 }
 
 /**
@@ -72,15 +81,16 @@ export function marineBoundarySstReading(
     validFraction: input.validFraction,
     sourceImageDimensions: input.sourceImageDimensions,
   });
+  const unavailableReason = marineBoundaryUnavailableReason(
+    input.observedValue,
+    coverage
+  );
   const usable =
-    coverage.coverage.status !== "invalid" &&
-    coverage.coverage.status !== "no-sst-coverage" &&
-    coverage.sourceImageDimensionsStatus !== "invalid" &&
-    isSstSourceValue(input.observedValue);
+    unavailableReason === null && isSstSourceValue(input.observedValue);
   const month = formatYm(input.dataMonth);
   const image = coverage.sourceImageDimensions
     ? `rendered source image ${coverage.sourceImageDimensions.width} x ${coverage.sourceImageDimensions.height} px`
-    : coverage.sourceImageDimensionsStatus === "invalid"
+    : unavailableReason === "invalid-source-image-dimensions"
       ? "rendered source image dimensions invalid"
       : "rendered source image dimensions not supplied";
   const source = `${coverage.source.source.shortName} v${coverage.source.source.version}`;
@@ -117,6 +127,7 @@ export function marineBoundarySstReading(
       : coverage.coverage.status === "no-sst-coverage"
         ? "no-sst-coverage"
         : "invalid-sample",
+    unavailableReason,
   };
 }
 
@@ -151,12 +162,35 @@ export function unavailableMarineBoundarySstReading(
     source: SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE,
     coverage: null,
     observationStatus: "source-unavailable",
+    unavailableReason: "source-colormap-unavailable",
   };
 }
 
 function normalizedGeographyLabel(label: string): string {
   const normalized = label.trim();
   return normalized || "unknown searched area";
+}
+
+function marineBoundaryUnavailableReason(
+  observedValue: number | null,
+  coverage: MarineCoverageSummary
+): MarinePlaceInsightReading["unavailableReason"] {
+  if (coverage.coverage.reason === "zero-sst-coverage") {
+    return "zero-sst-coverage";
+  }
+  if (coverage.coverage.reason === "invalid-month") {
+    return "invalid-month";
+  }
+  if (coverage.coverage.status === "invalid") {
+    return "invalid-coverage";
+  }
+  if (coverage.sourceImageDimensions === null) {
+    return "invalid-source-image-dimensions";
+  }
+  if (!isSstSourceValue(observedValue)) {
+    return "invalid-sst-value";
+  }
+  return null;
 }
 
 function isSstSourceValue(value: number | null): value is number {

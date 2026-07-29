@@ -77,11 +77,11 @@ describe("rendered monthly meteorology", () => {
     expect(climateInsightText(summaries[0], summaries[1])).toEqual({
       value: "Unavailable",
       detail:
-        "No usable 2026-03 observation (missing-value); single in-boundary image sample, not a regional mean; 0% sampled coverage; rendered source image 1024 x 512 px; GIBS layer MERRA2_2m_Air_Temperature_Monthly; source M2TMNXSLV v5.12.4",
+        "No usable 2026-03 atmospheric reanalysis field (missing-value); single in-boundary image sample, not a regional mean; 0% sampled coverage; rendered source image 1024 x 512 px; reanalysis-derived, not a direct measurement; GIBS layer MERRA2_2m_Air_Temperature_Monthly; source M2TMNXSLV v5.12.4",
     });
   });
 
-  it("uses native-unit comparisons and refuses misaligned positional series", () => {
+  it("identifies GLDAS values as model fields while retaining native comparisons", () => {
     const summaries = summarizeRenderedClimateSample(
       {
         metricId: "soil-moisture",
@@ -100,8 +100,11 @@ describe("rendered monthly meteorology", () => {
     expect(climateInsightText(summaries[0], summaries[1])).toEqual({
       value: "7.8 kg/m\u00b2",
       detail:
-        "2026-02 observed; +0.6 kg/m\u00b2 vs 2026-01; 90% sampled coverage; rendered source image dimensions not supplied; single in-boundary image sample, not a regional mean; GIBS layer GLDAS_Underground_Soil_Moisture_Monthly; source GLDAS_NOAH025_M v2.1",
+        "2026-02 land-surface-model field; +0.6 kg/m\u00b2 vs 2026-01; 90% sampled coverage; rendered source image dimensions not supplied; single in-boundary image sample, not a regional mean; model-derived, not a direct measurement; GIBS layer GLDAS_Underground_Soil_Moisture_Monthly; source GLDAS_NOAH025_M v2.1",
     });
+  });
+
+  it("refuses misaligned positional series", () => {
     expect(climateMetricForLayer("precip")).toBe("precipitation-rate");
     expect(climateMetricForLayer("ndvi")).toBeNull();
     expect(() =>
@@ -166,7 +169,7 @@ describe("rendered monthly meteorology", () => {
     expect(climateInsightText(precipitation[0], precipitation[1])).toEqual({
       value: "8.64 mm/day",
       detail:
-        "2026-02 observed; +4.32 mm/day vs 2026-01; native source value 0.0001 kg/m²/s (1 kg/m² of liquid water ≡ 1 mm depth; × 86,400 s/day); 90% sampled coverage; rendered source image dimensions not supplied; sampling strategy not supplied; GIBS layer GLDAS_Surface_Total_Precipitation_Rate_Monthly; source GLDAS_NOAH025_M v2.1",
+        "2026-02 land-surface-model field; +4.32 mm/day vs 2026-01; native source value 0.0001 kg/m²/s (1 kg/m² of liquid water ≡ 1 mm depth; × 86,400 s/day); 90% sampled coverage; rendered source image dimensions not supplied; sampling strategy not supplied; model-derived, not a direct measurement; GIBS layer GLDAS_Surface_Total_Precipitation_Rate_Monthly; source GLDAS_NOAH025_M v2.1",
     });
     expect(
       climateInsightText(airTemperature[0], airTemperature[1])
