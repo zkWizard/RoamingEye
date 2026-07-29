@@ -831,7 +831,11 @@ describe("environment brief attribution", () => {
     const attribution = attributeBrief([
       signal("vegetation", "First", "10.5067/ABC"),
       signal("rainfall", "Second", "  10.5067/abc  "),
-      signal("soil-moisture", "Third", "10.5067/AbC"),
+      signal(
+        "soil-moisture",
+        "Third",
+        " https://doi.org/10.5067/AbC "
+      ),
     ]);
 
     expect(attribution.sources).toHaveLength(1);
