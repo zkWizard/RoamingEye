@@ -3,6 +3,7 @@ import {
   filterEarthquakes,
   parseEarthquakeFeed,
   parseEarthquakeFeedWithCoverage,
+  parseEarthquakeFeedSnapshot,
   depthClass,
   earthquakeHoverLabel,
   magnitudeClass,
@@ -271,6 +272,73 @@ describe("parseEarthquakeFeedWithCoverage", () => {
       usableEventCount: 0,
       rejectedFeatureCount: 0,
     });
+  });
+});
+
+describe("parseEarthquakeFeedSnapshot", () => {
+  it("preserves feed generation metadata and reports parser coverage", () => {
+    const snapshot = parseEarthquakeFeedSnapshot({
+      metadata: {
+        generated: 1_750_000_999_000,
+        count: 2,
+        title: "USGS Magnitude 4.5+ Earthquakes, Past Month",
+        url: "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_month.geojson",
+        status: 200,
+        api: "1.14.1",
+      },
+      features: [
+        feature(10, 20, 30, 5),
+        { geometry: { coordinates: [1, 2] }, properties: { mag: 5 } },
+      ],
+    });
+
+    expect(snapshot.metadata).toEqual({
+      generatedTime: 1_750_000_999_000,
+      declaredEventCount: 2,
+      title: "USGS Magnitude 4.5+ Earthquakes, Past Month",
+      url: "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_month.geojson",
+      statusCode: 200,
+      apiVersion: "1.14.1",
+    });
+    expect(snapshot.coverage).toEqual({
+      status: "available",
+      suppliedFeatureCount: 2,
+      parsedEventCount: 1,
+      droppedFeatureCount: 1,
+      declaredEventCountMatchesFeatures: true,
+    });
+  });
+
+  it("keeps unavailable metadata and invalid feed states explicit", () => {
+    expect(
+      parseEarthquakeFeedSnapshot({ metadata: { count: -1, generated: "bad" } })
+    ).toEqual({
+      events: [],
+      metadata: {
+        generatedTime: null,
+        declaredEventCount: null,
+        title: null,
+        url: null,
+        statusCode: null,
+        apiVersion: null,
+      },
+      coverage: {
+        status: "invalid-feed",
+        suppliedFeatureCount: 0,
+        parsedEventCount: 0,
+        droppedFeatureCount: 0,
+        declaredEventCountMatchesFeatures: null,
+      },
+    });
+  });
+
+  it("flags a declared count that differs from supplied feature coverage", () => {
+    const snapshot = parseEarthquakeFeedSnapshot({
+      metadata: { count: 3 },
+      features: [feature(10, 20, 30, 5), feature(11, 21, 31, 5.1)],
+    });
+
+    expect(snapshot.coverage.declaredEventCountMatchesFeatures).toBe(false);
   });
 });
 
