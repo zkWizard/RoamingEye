@@ -104,10 +104,7 @@ export function lastEruptionLabel(lastEruptionYear: number | null): string {
  * not whether an edifice erupts subaerially or under water.
  */
 export type ElevationRegime =
-  | "subaerial"
-  | "sea-level"
-  | "submarine"
-  | "unknown";
+  "subaerial" | "sea-level" | "submarine" | "unknown";
 
 export function elevationRegime(
   elevationMeters: number | null
@@ -175,8 +172,8 @@ export function parseVolcanoDataset(json: unknown): VolcanoDataset {
   const records = Array.isArray(json)
     ? json
     : envelope && Array.isArray(envelope.records)
-    ? envelope.records
-    : [];
+      ? envelope.records
+      : [];
   const provenance = parseDatasetProvenance(envelope?.provenance);
 
   const out: Volcano[] = [];
