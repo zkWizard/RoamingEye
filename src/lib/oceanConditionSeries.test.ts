@@ -130,7 +130,7 @@ describe("ocean condition series summaries", () => {
     });
   });
 
-  it("tallies unknown geography while retaining its physical observation", () => {
+  it("tallies unknown geography without exposing its physical observation", () => {
     const summary = summarizeOceanConditionSeries([
       {
         dataMonth: { year: 2026, month: 6 },
@@ -140,10 +140,11 @@ describe("ocean condition series summaries", () => {
       },
     ]);
 
-    expect(summary.usableMonthCount).toBe(1);
+    expect(summary.usableMonthCount).toBe(0);
     expect(summary.coverageTally.unknown).toBe(1);
     expect(summary.months[0].coverage.reason).toBe("unknown-footprint");
-    expect(summary.extremes.warmest?.observedValue).toBe(18.4);
+    expect(summary.months[0].observedValue).toBeNull();
+    expect(summary.extremes.warmest).toBeNull();
   });
 
   it("returns null extremes and range when nothing is usable", () => {

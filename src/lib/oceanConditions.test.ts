@@ -51,7 +51,7 @@ describe("ocean condition summaries", () => {
     });
   });
 
-  it("preserves unknown geography without discarding a supplied SST value", () => {
+  it("preserves unknown geography while withholding its SST value", () => {
     const summary = summarizeOceanConditions({
       dataMonth: { year: 2026, month: 3 },
       value: 18.4,
@@ -60,8 +60,8 @@ describe("ocean condition summaries", () => {
     });
 
     expect(summary).toMatchObject({
-      observedValue: 18.4,
-      temperatureBand: "temperate",
+      observedValue: null,
+      temperatureBand: null,
       coverage: {
         status: "unknown",
         footprint: "unknown",
@@ -231,7 +231,7 @@ describe("ocean condition narratives", () => {
     expect(text).toContain("37% of the sampled footprint had usable SST");
   });
 
-  it("states that SST does not resolve an unknown footprint", () => {
+  it("does not expose SST as a physical observation for unknown geography", () => {
     const text = describeOceanCondition(
       summarizeOceanConditions({
         dataMonth: { year: 2026, month: 3 },
@@ -241,11 +241,8 @@ describe("ocean condition narratives", () => {
       })
     );
 
-    expect(text).toContain("18.4°C");
-    expect(text).toContain("The supplied footprint type is unknown");
-    expect(text).toContain(
-      "the SST value does not establish water, coastal, or land geography"
-    );
+    expect(text).toContain("the sampled footprint type is unknown");
+    expect(text).not.toContain("18.4");
     expect(text).toContain("not a marine-biology");
   });
 

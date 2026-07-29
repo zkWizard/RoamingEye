@@ -161,8 +161,8 @@ export function unavailableMarineBoundarySstReading(
     typeof geographyInput === "string"
       ? sampledGeographyLabel
       : geography.label === null
-      ? geography.kind
-      : `${geography.kind} “${geography.label}”`;
+        ? geography.kind
+        : `${geography.kind} “${geography.label}”`;
   return {
     id: MARINE_PLACE_METRIC.id,
     value: "Unavailable",

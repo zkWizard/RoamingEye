@@ -440,35 +440,3 @@ function isCalendarMonth(month: YearMonth): boolean {
 function validYearBound(year: number | undefined): boolean {
   return year === undefined || Number.isInteger(year);
 }
-
-/**
- * Count otherwise eligible records by year before selecting samples. This
- * makes duplicate handling independent of input order: no record from an
- * ambiguous year may silently become the baseline value.
- */
-function countCandidateYears(
-  targetObservation: MonthlyClimateObservation,
-  candidates: readonly MonthlyClimateObservation[],
-  targetMonth: number,
-  baselineStartYear: number | undefined,
-  baselineEndYear: number
-): Map<number, number> {
-  const counts = new Map<number, number>();
-  for (const candidate of candidates) {
-    if (
-      candidate.metricId !== targetObservation.metricId ||
-      !isCalendarMonth(candidate.dataMonth) ||
-      candidate.dataMonth.month !== targetMonth ||
-      (baselineStartYear !== undefined &&
-        candidate.dataMonth.year < baselineStartYear) ||
-      candidate.dataMonth.year > baselineEndYear
-    ) {
-      continue;
-    }
-    counts.set(
-      candidate.dataMonth.year,
-      (counts.get(candidate.dataMonth.year) ?? 0) + 1
-    );
-  }
-  return counts;
-}

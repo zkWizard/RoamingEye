@@ -756,6 +756,8 @@ function sourceDedupKey(source: DatasetRef): string {
   const doi = normalizedDoiText(source.doi).toLowerCase();
   if (doi) return `doi:${doi}\0${source.version}`;
   return `nodoi:${source.shortName} ${source.version}`;
+}
+
 function attributionLine(sources: readonly SourceAttribution[]): string {
   if (sources.length === 0) return "No data sources to credit.";
   const credits = sources
