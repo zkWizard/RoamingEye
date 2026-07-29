@@ -52,8 +52,12 @@ export interface NdviCoverage {
   omittedCalendarMonths: number[];
   /** Valid calendar months supplied for this year (not an assumed 12 months). */
   validMonthCount: number;
+  /** Exact months retained as usable observations, sorted chronologically. */
+  validMonths: YearMonth[];
   /** Supplied months without a usable NDVI observation. */
   missingMonthCount: number;
+  /** Exact supplied months reported as unavailable, sorted chronologically. */
+  missingMonths: YearMonth[];
   /** Supplied records rejected for invalid date, value, coverage, or duplicate. */
   invalidRecordCount: number;
   /** Retained observations that supplied a regional valid fraction. */
@@ -170,6 +174,7 @@ export function summarizeAnnualNdviPhenology(
 interface YearAccumulator {
   monthRecords: Map<number, NdviMonthlyObservation[]>;
   valid: NdviMonthlyObservation[];
+  missingMonths: YearMonth[];
   missingMonthCount: number;
   invalidRecordCount: number;
 }
@@ -178,6 +183,7 @@ function emptyYearAccumulator(): YearAccumulator {
   return {
     monthRecords: new Map<number, NdviMonthlyObservation[]>(),
     valid: [],
+    missingMonths: [],
     missingMonthCount: 0,
     invalidRecordCount: 0,
   };
@@ -193,6 +199,7 @@ function classifyMonthRecords(accumulator: YearAccumulator): void {
     const observation = records[0];
     if (observation.ndvi === null || observation.validFraction === 0) {
       accumulator.missingMonthCount += 1;
+      accumulator.missingMonths.push(observation.month);
       continue;
     }
     if (
@@ -237,11 +244,19 @@ function annualSummary(
     { length: 12 },
     (_, index) => index + 1
   ).filter((month) => !accumulator.monthRecords.has(month));
+  const validMonths = valid
+    .map(({ month }) => month)
+    .sort((a, b) => a.month - b.month);
+  const missingMonths = [...accumulator.missingMonths].sort(
+    (a, b) => a.month - b.month
+  );
   const coverage: NdviCoverage = {
     suppliedCalendarMonths,
     omittedCalendarMonths,
     validMonthCount: valid.length,
+    validMonths,
     missingMonthCount: accumulator.missingMonthCount,
+    missingMonths,
     invalidRecordCount: accumulator.invalidRecordCount,
     validFractionReportedCount: reportedValidFractions.length,
     validFractionUnavailableCount: valid.length - reportedValidFractions.length,
