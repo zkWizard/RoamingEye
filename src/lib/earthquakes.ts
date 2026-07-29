@@ -63,7 +63,9 @@ export interface EarthquakeSourceRecord {
 }
 
 export type EarthquakeFeedStatus =
-  "available" | "no-usable-events" | "invalid-feed";
+  | "available"
+  | "no-usable-events"
+  | "invalid-feed";
 
 export type EarthquakeRejectionReason =
   | "invalid-geometry"
@@ -165,7 +167,9 @@ export const USGS_FEED_URL =
  * Values remain in the feed's native magnitude, kilometre, and UTC time units.
  */
 export function earthquakeHoverLabel(earthquake: Earthquake): string {
-  return `${earthquake.place} · M ${earthquake.magnitude} · ${earthquake.depthKm} km depth · ${new Date(earthquake.time).toISOString()}`;
+  return `${earthquake.place} · M ${earthquake.magnitude} · ${
+    earthquake.depthKm
+  } km depth · ${new Date(earthquake.time).toISOString()}`;
 }
 
 /**
@@ -209,7 +213,13 @@ export const DEPTH_CLASS_COLORS: Record<DepthClass, string> = {
  * (https://www.usgs.gov/programs/earthquake-hazards/earthquake-magnitude-energy-release-and-shaking-intensity).
  */
 export type MagnitudeClass =
-  "micro" | "minor" | "light" | "moderate" | "strong" | "major" | "great";
+  | "micro"
+  | "minor"
+  | "light"
+  | "moderate"
+  | "strong"
+  | "major"
+  | "great";
 
 /** Magnitude classes ordered weakest to strongest for deterministic iteration. */
 export const MAGNITUDE_CLASS_ORDER: readonly MagnitudeClass[] = [

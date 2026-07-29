@@ -52,7 +52,10 @@ export interface MarinePlaceInsightReading {
   /** Structured sampler state for UI/export consumers; null when sampling failed. */
   coverage: MarineCoverageSummary | null;
   observationStatus:
-    "observed" | "no-sst-coverage" | "invalid-sample" | "source-unavailable";
+    | "observed"
+    | "no-sst-coverage"
+    | "invalid-sample"
+    | "source-unavailable";
   /** Exact unavailable state for UI/export consumers; null for usable SST. */
   unavailableReason:
     | "zero-sst-coverage"
@@ -91,8 +94,8 @@ export function marineBoundarySstReading(
   const image = coverage.sourceImageDimensions
     ? `rendered source image ${coverage.sourceImageDimensions.width} x ${coverage.sourceImageDimensions.height} px`
     : unavailableReason === "invalid-source-image-dimensions"
-      ? "rendered source image dimensions invalid"
-      : "rendered source image dimensions not supplied";
+    ? "rendered source image dimensions invalid"
+    : "rendered source image dimensions not supplied";
   const source = `${coverage.source.source.shortName} v${coverage.source.source.version}`;
   const coverageText =
     coverage.coverage.validFraction === null
@@ -125,8 +128,8 @@ export function marineBoundarySstReading(
     observationStatus: usable
       ? "observed"
       : coverage.coverage.status === "no-sst-coverage"
-        ? "no-sst-coverage"
-        : "invalid-sample",
+      ? "no-sst-coverage"
+      : "invalid-sample",
     unavailableReason,
   };
 }

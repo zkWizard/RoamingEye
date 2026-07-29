@@ -236,13 +236,15 @@ export function climateInsightText(
     current.publicationStatus !== "published" ||
     current.coverage.status !== "available" ||
     current.observedValue === null
-    ) {
-      return {
-        value: "Unavailable",
+  ) {
+    return {
+      value: "Unavailable",
       detail: `No usable ${month} ${modality.field} (${unavailableReason(
         current
-      )}); ${sampling}; ${coverage}; ${provenance}; ${modality.limit}; ${sourceVariable}; source ${source}`,
-      };
+      )}); ${sampling}; ${coverage}; ${provenance}; ${
+        modality.limit
+      }; ${sourceVariable}; source ${source}`,
+    };
   }
 
   const conventional = toConventionalClimateValue(current);
@@ -268,7 +270,10 @@ export function climateInsightText(
           conventional?.conventionalUnit ?? current.metric.nativeUnit
         )} vs ${formatMonth(previous!.dataMonth)}`;
   const nativeProvenance = conventional
-    ? `; native source value ${formatNativeValue(current.observedValue, current.metric.nativeUnit)} (${conventional.conversion.basis})`
+    ? `; native source value ${formatNativeValue(
+        current.observedValue,
+        current.metric.nativeUnit
+      )} (${conventional.conversion.basis})`
     : "";
   return {
     value,

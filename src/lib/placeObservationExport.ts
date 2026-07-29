@@ -28,7 +28,8 @@ export const GIBS_IMAGERY_SOURCE = {
 } as const;
 
 export type PlaceObservationSampling =
-  "point-median" | "area-weighted-grid-mean";
+  | "point-median"
+  | "area-weighted-grid-mean";
 
 export interface PlaceObservationExportInput {
   /** The requested area boundary, retained as GeoJSON rather than a place name. */
@@ -81,7 +82,9 @@ export interface PlaceObservationInput {
 }
 
 export type PlaceObservationUnavailableReason =
-  "source-no-data" | "insufficient-valid-coverage" | "sampling-failed";
+  | "source-no-data"
+  | "insufficient-valid-coverage"
+  | "sampling-failed";
 
 const PLACE_OBSERVATION_UNAVAILABLE_REASONS = [
   "source-no-data",
@@ -115,7 +118,7 @@ export interface PlaceObservationExport {
       "search-query",
       "account-id",
       "session-id",
-      "device-id",
+      "device-id"
     ];
   };
   reproducibility: {
@@ -135,7 +138,7 @@ export interface PlaceObservationExport {
     "Values are supplied sampling results in native source units.",
     "Rendered-imagery values are approximate; use the cited data product for measurement-grade work.",
     "This export does not infer conditions, causes, risks, or future values.",
-    "Data-month record states do not make values across products interchangeable or describe environmental condition.",
+    "Data-month record states do not make values across products interchangeable or describe environmental condition."
   ];
 }
 
@@ -156,7 +159,9 @@ export interface PlaceObservationExportProduct {
 }
 
 export type PlaceObservationRecordStatus =
-  "value-recorded" | "no-data-recorded" | "not-recorded";
+  | "value-recorded"
+  | "no-data-recorded"
+  | "not-recorded";
 
 export interface PlaceObservationDataMonth {
   dataMonth: string;
@@ -468,10 +473,7 @@ function validateInput(input: PlaceObservationExportInput): void {
       PLACE_OBSERVATION_NATIVE_UNITS[
         product.layerId as PlaceObservationExportLayerId
       ];
-    if (
-      configuredNativeUnit &&
-      product.nativeUnit !== configuredNativeUnit
-    ) {
+    if (configuredNativeUnit && product.nativeUnit !== configuredNativeUnit) {
       throw new Error(
         `Product ${product.layerId} native unit does not match the configured RoamingEye data product.`
       );
@@ -546,8 +548,8 @@ function hasValidBoundaryCoordinates(boundary: GeoGeometry): boolean {
     boundary.type === "Polygon"
       ? [boundary.coordinates]
       : boundary.type === "MultiPolygon"
-        ? boundary.coordinates
-        : null;
+      ? boundary.coordinates
+      : null;
   if (!Array.isArray(polygons) || polygons.length === 0) return false;
 
   for (const polygon of polygons) {
@@ -711,8 +713,8 @@ function dataMonthMatrix(
           observation === undefined
             ? "not-recorded"
             : observation.value === null
-              ? "no-data-recorded"
-              : "value-recorded",
+            ? "no-data-recorded"
+            : "value-recorded",
       };
     }),
   }));
