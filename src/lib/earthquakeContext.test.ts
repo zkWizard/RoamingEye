@@ -173,7 +173,10 @@ describe("nearbyEarthquakeContext", () => {
     const earthquakes = parseEarthquakeFeed({
       features: [
         {
-          geometry: { coordinates: [-122.42, 37.77, 8.4] },
+          geometry: {
+            type: "Point",
+            coordinates: [-122.42, 37.77, 8.4],
+          },
           properties: {
             mag: 4.6,
             time: 1_750_000_000_000,

@@ -94,7 +94,10 @@ describe("earthquakeDailyTimeline", () => {
     const parsed = parseEarthquakeFeed({
       features: [
         {
-          geometry: { coordinates: [-122.4, 37.8, 8.2] },
+          geometry: {
+            type: "Point",
+            coordinates: [-122.4, 37.8, 8.2],
+          },
           properties: {
             mag: 4.7,
             time: 1_783_036_800_000,

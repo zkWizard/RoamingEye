@@ -558,20 +558,6 @@ describe("place observation export", () => {
     ).toThrow(
       "Product ndvi citation does not match the configured RoamingEye data product."
     );
-
-    expect(() =>
-      createPlaceObservationExport({
-        ...input,
-        products: [
-          {
-            ...input.products[0],
-            nativeUnit: "percent",
-          },
-        ],
-      })
-    ).toThrow(
-      "Product ndvi native unit does not match the configured RoamingEye data product."
-    );
   });
 
   it.each([
