@@ -98,10 +98,7 @@ export interface LandCoverClassObservation {
   sampleCount?: number;
 }
 
-export type LandCoverCoverageStatus =
-  | "available"
-  | "no-data"
-  | "unavailable";
+export type LandCoverCoverageStatus = "available" | "no-data" | "unavailable";
 
 export interface LandCoverCoverage {
   status: LandCoverCoverageStatus;
@@ -122,11 +119,7 @@ export interface LandCoverCoverage {
   invalidRecordCount: number;
   /** Share of all counted samples that carried an IGBP land-cover class 1..17. */
   knownLandCoverFraction: number | null;
-  reason:
-    | "no-samples"
-    | "no-known-land-cover"
-    | "record-not-published"
-    | null;
+  reason: "no-samples" | "no-known-land-cover" | "record-not-published" | null;
 }
 
 export interface LandCoverClassCoverage {
@@ -332,7 +325,8 @@ export function summarizeLandCoverContext(
           : null,
   };
 
-  const unavailableReason = coverage.reason;
+  const unavailableReason =
+    coverage.reason === "record-not-published" ? null : coverage.reason;
 
   return {
     kind: "observed-class-coded-land-cover",

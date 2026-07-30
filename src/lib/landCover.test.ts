@@ -350,7 +350,7 @@ describe("land-cover formation groups", () => {
 
     const formations = summarizeLandCoverFormations(context);
 
-    expect(context.coverage.status).toBe("available");
+    expect(context.coverage.status).toBe("unavailable");
     expect(formations).toMatchObject({
       observationStatus: "unavailable",
       unavailableReason: "outside-layer-range",

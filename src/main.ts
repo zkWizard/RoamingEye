@@ -606,8 +606,8 @@ function runPlaceInsights(result: GeoResult): void {
   const sstMonths = monthRangeForLayer(LAYERS.sst);
   const sstMonth = sstMonths[sstMonths.length - 1];
   let sstFailureReason:
-    | "source-colormap-unavailable"
-    | "boundary-sampling-failed" = "source-colormap-unavailable";
+    "source-colormap-unavailable" | "boundary-sampling-failed" =
+    "source-colormap-unavailable";
   exportSamples.set("sst", environmentUnavailableSample("sst", [sstMonth]));
   samplingTasks.push(
     (async () => {
@@ -651,10 +651,14 @@ function runPlaceInsights(result: GeoResult): void {
       if (isAbortError(error) || abort.signal.aborted) return;
       console.warn("RoamingEye: marine place insight sampling failed", error);
       placeInsights.setReading(
-        unavailableMarineBoundarySstReading(sstMonth, {
-          kind: "boundary",
-          label: result.name,
-        }, sstFailureReason)
+        unavailableMarineBoundarySstReading(
+          sstMonth,
+          {
+            kind: "boundary",
+            label: result.name,
+          },
+          sstFailureReason
+        )
       );
     })
   );

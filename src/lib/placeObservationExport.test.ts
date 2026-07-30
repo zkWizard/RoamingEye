@@ -129,6 +129,7 @@ describe("place observation export", () => {
         value: null,
         validFraction: 0.18,
         unavailableReason: "insufficient-valid-coverage",
+        coverageStatus: "fraction-recorded",
       },
     ]);
     expect(exported.reproducibility.dataMonthMatrix).toEqual([

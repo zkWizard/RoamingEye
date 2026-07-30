@@ -19,8 +19,7 @@ export const MARINE_PLACE_METRIC = {
 } as const;
 
 export type MarineBoundarySstUnavailableReason =
-  | "source-colormap-unavailable"
-  | "boundary-sampling-failed";
+  "source-colormap-unavailable" | "boundary-sampling-failed";
 
 export interface MarineBoundarySstInput {
   /** Searched area label supplied by geocoding; never inferred from SST. */
