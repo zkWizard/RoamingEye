@@ -331,4 +331,52 @@ describe("rendered monthly meteorology", () => {
       "99.96% sampled coverage"
     );
   });
+
+  it("withholds deltas across different metrics, sources, and non-earlier months", () => {
+    const [january, february] = summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [
+          { year: 2026, month: 1 },
+          { year: 2026, month: 2 },
+        ],
+        sampledValues: [280, 282],
+        nativeToSampledValueFactor: 1,
+        validFractions: [1, 1],
+      },
+      { year: 2026, month: 2 }
+    );
+    const [soil] = summarizeRenderedClimateSample(
+      {
+        metricId: "soil-moisture",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [280],
+        nativeToSampledValueFactor: 1,
+        validFractions: [1],
+      },
+      { year: 2026, month: 2 }
+    );
+
+    expect(climateInsightText(soil, february).detail).toContain(
+      "comparison unavailable (different climate metric or native unit)"
+    );
+    expect(
+      climateInsightText(
+        {
+          ...january,
+          metric: {
+            ...january.metric,
+            source: { ...january.metric.source, version: "different-version" },
+          },
+        },
+        february
+      ).detail
+    ).toContain("comparison unavailable (different source product)");
+    expect(climateInsightText(february, january).detail).toContain(
+      "comparison unavailable (comparison month is not earlier)"
+    );
+    expect(climateInsightText(soil, february).detail).not.toContain(
+      "kg/m² vs"
+    );
+  });
 });

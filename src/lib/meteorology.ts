@@ -7,7 +7,7 @@ import {
 } from "./climate";
 import { SCALE_CONVERSIONS } from "./colormap";
 import { classifyModality } from "./observationModality";
-import type { LayerId, YearMonth } from "./timeline";
+import { compareYm, type LayerId, type YearMonth } from "./timeline";
 import { toConventionalClimateValue } from "./climateConventionalUnits";
 import type { GeometrySamplingStrategy } from "./geojson";
 import type {
@@ -256,19 +256,26 @@ export function climateInsightText(
     previous?.publicationStatus === "published" &&
     previous.coverage.status === "available" &&
     previous.observedValue !== null;
+  const comparisonIssue = previous
+    ? climateComparisonIssue(previous, current)
+    : null;
   const nativeDelta =
-    previousUsable && previous?.observedValue !== null
+    previousUsable &&
+    previous?.observedValue !== null &&
+    comparisonIssue === null
       ? current.observedValue - previous.observedValue
       : null;
   const comparison =
-    nativeDelta === null
-      ? ""
-      : `; ${formatNativeDelta(
+    nativeDelta !== null
+      ? `; ${formatNativeDelta(
           conventional
             ? nativeDelta * conventional.conversion.scale
             : nativeDelta,
           conventional?.conventionalUnit ?? current.metric.nativeUnit
-        )} vs ${formatMonth(previous!.dataMonth)}`;
+        )} vs ${formatMonth(previous!.dataMonth)}`
+      : comparisonIssue
+        ? `; comparison unavailable (${comparisonIssue})`
+        : "";
   const nativeProvenance = conventional
     ? `; native source value ${formatNativeValue(
         current.observedValue,
@@ -318,6 +325,28 @@ function climateModalityText(summary: MonthlyClimateSummary): {
         limit: "production method not classified",
       };
   }
+}
+
+function climateComparisonIssue(
+  previous: MonthlyClimateSummary,
+  current: MonthlyClimateSummary
+): string | null {
+  if (
+    previous.metric.id !== current.metric.id ||
+    previous.metric.nativeUnit !== current.metric.nativeUnit
+  ) {
+    return "different climate metric or native unit";
+  }
+  if (
+    previous.metric.source.shortName !== current.metric.source.shortName ||
+    previous.metric.source.version !== current.metric.source.version
+  ) {
+    return "different source product";
+  }
+  if (compareYm(previous.dataMonth, current.dataMonth) >= 0) {
+    return "comparison month is not earlier";
+  }
+  return null;
 }
 
 function unavailableReason(summary: MonthlyClimateSummary): string {
