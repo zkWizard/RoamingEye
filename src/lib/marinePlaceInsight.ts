@@ -18,6 +18,10 @@ export const MARINE_PLACE_METRIC = {
   label: "Sea surface temperature",
 } as const;
 
+export type MarineBoundarySstUnavailableReason =
+  | "source-colormap-unavailable"
+  | "boundary-sampling-failed";
+
 export interface MarineBoundarySstInput {
   /** Searched area label supplied by geocoding; never inferred from SST. */
   geographyLabel: string;
@@ -57,7 +61,11 @@ export interface MarinePlaceInsightReading {
   /** Structured sampler state for UI/export consumers; null when sampling failed. */
   coverage: MarineCoverageSummary | null;
   observationStatus:
-    "observed" | "no-sst-coverage" | "invalid-sample" | "source-unavailable";
+    | "observed"
+    | "no-sst-coverage"
+    | "invalid-sample"
+    | "source-unavailable"
+    | "sampling-failed";
   /** Exact unavailable state for UI/export consumers; null for usable SST. */
   unavailableReason:
     | "zero-sst-coverage"
@@ -65,7 +73,7 @@ export interface MarinePlaceInsightReading {
     | "invalid-coverage"
     | "invalid-source-image-dimensions"
     | "invalid-sst-value"
-    | "source-colormap-unavailable"
+    | MarineBoundarySstUnavailableReason
     | null;
 }
 
@@ -142,10 +150,11 @@ export function marineBoundarySstReading(
   };
 }
 
-/** Surface a source-mapping failure without relabeling it as absent SST. */
+/** Surface a workflow failure without relabeling it as absent SST. */
 export function unavailableMarineBoundarySstReading(
   dataMonth: YearMonth,
-  geographyInput: string | MarineCoverageGeography
+  geographyInput: string | MarineCoverageGeography,
+  reason: MarineBoundarySstUnavailableReason = "source-colormap-unavailable"
 ): MarinePlaceInsightReading {
   const geography: MarineCoverageGeography =
     typeof geographyInput === "string"
@@ -163,10 +172,14 @@ export function unavailableMarineBoundarySstReading(
       : geography.label === null
         ? geography.kind
         : `${geography.kind} “${geography.label}”`;
+  const unavailableDetail =
+    reason === "source-colormap-unavailable"
+      ? "could not be sampled from the published source colormap"
+      : "could not be sampled for the searched boundary";
   return {
     id: MARINE_PLACE_METRIC.id,
     value: "Unavailable",
-    detail: `${formatYm(dataMonth)} SST observation for ${place} could not be sampled from the published source colormap; source ${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.shortName} v${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.version}; not a marine-biology observation`,
+    detail: `${formatYm(dataMonth)} SST observation for ${place} ${unavailableDetail}; source ${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.shortName} v${SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.source.version}; not a marine-biology observation`,
     kind: "observed-boundary-sea-surface-temperature",
     availability: "sampling-unavailable",
     marineBiologyObservation: false,
@@ -182,8 +195,11 @@ export function unavailableMarineBoundarySstReading(
     source: SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE,
     geography,
     coverage: null,
-    observationStatus: "source-unavailable",
-    unavailableReason: "source-colormap-unavailable",
+    observationStatus:
+      reason === "source-colormap-unavailable"
+        ? "source-unavailable"
+        : "sampling-failed",
+    unavailableReason: reason,
   };
 }
 

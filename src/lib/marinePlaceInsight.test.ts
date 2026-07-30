@@ -245,4 +245,31 @@ describe("marine boundary SST insights", () => {
       isForecast: false,
     });
   });
+
+  it("keeps source-mapping and boundary-sampling failures distinct", () => {
+    const month = { year: 2026, month: 3 };
+    const geography = { kind: "boundary", label: "Monterey Bay" } as const;
+    const colormap = unavailableMarineBoundarySstReading(
+      month,
+      geography,
+      "source-colormap-unavailable"
+    );
+    const sampling = unavailableMarineBoundarySstReading(
+      month,
+      geography,
+      "boundary-sampling-failed"
+    );
+
+    expect(colormap).toMatchObject({
+      observationStatus: "source-unavailable",
+      unavailableReason: "source-colormap-unavailable",
+    });
+    expect(colormap.detail).toContain("published source colormap");
+    expect(sampling).toMatchObject({
+      observationStatus: "sampling-failed",
+      unavailableReason: "boundary-sampling-failed",
+    });
+    expect(sampling.detail).toContain("searched boundary");
+    expect(sampling.detail).not.toContain("published source colormap");
+  });
 });
