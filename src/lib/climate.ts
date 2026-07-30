@@ -82,7 +82,7 @@ export interface MonthlyClimateObservation {
    * Dimensions of a rendered source image when the observation was sampled
    * from imagery. This is provenance, not a ground-resolution claim.
    */
-  sourceImageDimensions?: { width: number; height: number };
+  sourceImageDimensions?: { width: number; height: number } | null;
   /** Spatial method used to derive this rendered observation. */
   geometrySamplingStrategy?: GeometrySamplingStrategy;
 }
@@ -235,7 +235,7 @@ function validImageDimensions(
   dimensions: MonthlyClimateObservation["sourceImageDimensions"]
 ): dimensions is { width: number; height: number } {
   return (
-    dimensions !== undefined &&
+    dimensions != null &&
     Number.isInteger(dimensions.width) &&
     Number.isInteger(dimensions.height) &&
     dimensions.width > 0 &&
