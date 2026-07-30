@@ -31,6 +31,10 @@ const input = {
       wmsLayer: LAYERS.ndvi.wmsLayer,
       source: LAYERS.ndvi.dataset!,
       nativeUnit: "NDVI",
+      valueMapping: {
+        status: "gibs-colormap" as const,
+        url: "https://gibs.earthdata.nasa.gov/colormaps/v1.3/MODIS_L3_NDVI.xml",
+      },
       samplingSupport: {
         gridSize: 28,
         candidatePointCount: 784,
@@ -63,6 +67,10 @@ const input = {
       wmsLayer: LAYERS.precip.wmsLayer,
       source: LAYERS.precip.dataset!,
       nativeUnit: PLACE_OBSERVATION_NATIVE_UNITS.precip,
+      valueMapping: {
+        status: "gibs-colormap" as const,
+        url: "https://gibs.earthdata.nasa.gov/colormaps/v1.3/GLDAS_Surface_Total_Precipitation_Rate_Monthly.xml",
+      },
       sampleToNative: {
         sampledUnit: "mm/day",
         operation: "divide" as const,
@@ -183,6 +191,10 @@ describe("place observation export", () => {
           wmsLayer: LAYERS.ndvi.wmsLayer,
           source: LAYERS.ndvi.dataset,
           nativeUnit: "NDVI",
+          valueMapping: {
+            status: "gibs-colormap",
+            url: "https://gibs.earthdata.nasa.gov/colormaps/v1.3/MODIS_L3_NDVI.xml",
+          },
           samplingSupport: {
             gridSize: 28,
             candidatePointCount: 784,
@@ -218,6 +230,10 @@ describe("place observation export", () => {
           layerId: "precip",
           source: LAYERS.precip.dataset,
           nativeUnit: PLACE_OBSERVATION_NATIVE_UNITS.precip,
+          valueMapping: {
+            status: "gibs-colormap",
+            url: "https://gibs.earthdata.nasa.gov/colormaps/v1.3/GLDAS_Surface_Total_Precipitation_Rate_Monthly.xml",
+          },
           samplingSupport: null,
           sampleToNative: {
             sampledUnit: "mm/day",
@@ -800,6 +816,8 @@ describe("place observation export", () => {
       layerId: "precip",
       sampledUnit: "mm/day",
       sourceValueFactor: 86_400,
+      colormapUrl:
+        "https://gibs.earthdata.nasa.gov/colormaps/v1.3/GLDAS_Surface_Total_Precipitation_Rate_Monthly.xml",
       samplingSupport: {
         gridSize: 16,
         candidatePointCount: 256,
@@ -828,6 +846,10 @@ describe("place observation export", () => {
       layerId: "precip",
       wmsLayer: LAYERS.precip.wmsLayer,
       source: LAYERS.precip.dataset,
+      valueMapping: {
+        status: "gibs-colormap",
+        url: "https://gibs.earthdata.nasa.gov/colormaps/v1.3/GLDAS_Surface_Total_Precipitation_Rate_Monthly.xml",
+      },
       nativeUnit: "kg/m²/s",
       samplingSupport: {
         gridSize: 16,
@@ -859,6 +881,40 @@ describe("place observation export", () => {
         sourceValueFactor: 0,
       })
     ).toThrow("sourceValueFactor must be a positive finite number.");
+  });
+
+  it("rejects a colormap mapping outside the official GIBS endpoint", () => {
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[1],
+            valueMapping: {
+              status: "gibs-colormap",
+              url: "https://example.com/precip.xml",
+            },
+          },
+        ],
+      })
+    ).toThrow("Product precip has an invalid GIBS colormap URL.");
+  });
+
+  it("records approximate and unavailable rendered-value mappings", () => {
+    expect(
+      placeObservationProductFromSample({
+        layerId: "ndvi",
+        observations: [],
+        usedUiLegendApproximation: true,
+      }).valueMapping
+    ).toEqual({ status: "ui-legend-approximation", url: null });
+    expect(
+      placeObservationProductFromSample({
+        layerId: "soil",
+        observations: [],
+        colormapUrl: null,
+      }).valueMapping
+    ).toEqual({ status: "not-available", url: null });
   });
 
   it("rejects impossible geometry sampling-support budgets", () => {
