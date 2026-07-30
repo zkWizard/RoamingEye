@@ -54,15 +54,17 @@ export interface VolcanoDataset {
 /**
  * Activity recency classes, used to color markers:
  *  - "recent": erupted in the satellite/instrumental era (since 1900).
- *  - "historic": eruption known from the written record (1 CE – 1899).
- *  - "holocene": Holocene evidence only — no dated eruption since 1 CE.
+ *  - "historic": eruption dated by GVP from source year 0 through 1899.
+ *  - "holocene": Holocene evidence only — no dated eruption since source year 0.
  */
 export type EruptionClass = "recent" | "historic" | "holocene";
 
 export function eruptionClass(lastEruptionYear: number | null): EruptionClass {
   if (lastEruptionYear === null) return "holocene";
   if (lastEruptionYear >= 1900) return "recent";
-  if (lastEruptionYear >= 1) return "historic";
+  // GVP reports Arxan-Chaihe with source year zero. Preserve that dated record
+  // in the historic class without converting it to a civil-calendar era.
+  if (lastEruptionYear >= 0) return "historic";
   return "holocene";
 }
 
