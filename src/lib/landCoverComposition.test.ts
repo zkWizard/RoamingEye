@@ -115,7 +115,11 @@ describe("land-cover class-composition summaries", () => {
 
       const composition = summarizeLandCoverComposition(context);
 
-      expect(context.coverage.knownLandCoverSampleCount).toBe(10);
+      expect(context.coverage).toMatchObject({
+        status: "unavailable",
+        knownLandCoverSampleCount: 0,
+        reason: "record-not-published",
+      });
       expect(composition).toMatchObject({
         status: "unavailable",
         reason: unavailableReason,

@@ -122,11 +122,11 @@ describe("marine surface context summaries", () => {
         available: false,
         status: "unknown",
         reason: "source-year-unavailable",
-        totalSampleCount: 8,
-        classifiedSurfaceSampleCount: 8,
-        igbpWaterSampleCount: 6,
-        otherIgbpClassSampleCount: 2,
-        classifiedSurfaceFraction: 1,
+        totalSampleCount: 0,
+        classifiedSurfaceSampleCount: 0,
+        igbpWaterSampleCount: 0,
+        otherIgbpClassSampleCount: 0,
+        classifiedSurfaceFraction: null,
       },
     });
   });

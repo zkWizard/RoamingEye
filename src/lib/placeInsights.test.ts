@@ -3,6 +3,7 @@ import {
   PLACE_COLORMAP_DOCS,
   PLACE_METRICS,
   latestComparisonMonths,
+  nativePlaceSampleValues,
   placeInsightPhysicalReading,
   placeInsightReading,
 } from "./placeInsights";
@@ -10,6 +11,21 @@ import {
 describe("place insights", () => {
   it("binds vegetation sampling to the MOD13A3 rendered colormap", () => {
     expect(PLACE_COLORMAP_DOCS.ndvi).toBe("MODIS_L3_NDVI");
+  });
+
+  it("withholds rendered vegetation positions from native-value exports", () => {
+    expect(nativePlaceSampleValues([0, 0.5, 1, null], "display-ramp")).toEqual([
+      null,
+      null,
+      null,
+      null,
+    ]);
+  });
+
+  it("preserves values decoded through authoritative physical colormaps", () => {
+    expect(
+      nativePlaceSampleValues([0.0001, null], "authoritative-colormap")
+    ).toEqual([0.0001, null]);
   });
 
   it("uses each product's own latest two months", () => {

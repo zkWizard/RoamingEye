@@ -3,6 +3,7 @@ import { LAYERS } from "./timeline";
 import {
   GIBS_IMAGERY_SOURCE,
   PLACE_OBSERVATION_NATIVE_UNITS,
+  PLACE_OBSERVATION_GEOGRAPHY,
   createPlaceObservationExport,
   placeObservationProductFromSample,
   serializePlaceObservationExport,
@@ -128,6 +129,7 @@ describe("place observation export", () => {
         value: null,
         validFraction: 0.18,
         unavailableReason: "insufficient-valid-coverage",
+        coverageStatus: "fraction-recorded",
       },
     ]);
     expect(exported.reproducibility.dataMonthMatrix).toEqual([
@@ -174,6 +176,7 @@ describe("place observation export", () => {
       schema: "roamingeye-place-observation-export/v4",
       kind: "place-observation-export",
       boundary,
+      geography: PLACE_OBSERVATION_GEOGRAPHY,
       products: [
         {
           layerId: "ndvi",
@@ -200,12 +203,14 @@ describe("place observation export", () => {
               value: 0.62,
               validFraction: 0.82,
               unavailableReason: null,
+              coverageStatus: "fraction-recorded",
             },
             {
               dataMonth: "2026-05",
               value: null,
               validFraction: null,
               unavailableReason: "source-no-data",
+              coverageStatus: "not-supplied",
             },
           ],
         },
@@ -226,6 +231,7 @@ describe("place observation export", () => {
               value: 0.00014,
               validFraction: 0.61,
               unavailableReason: null,
+              coverageStatus: "fraction-recorded",
             },
           ],
         },
@@ -282,6 +288,60 @@ describe("place observation export", () => {
     expect(exported.limitations.join(" ")).toMatch(
       /do not make values across products interchangeable/i
     );
+    expect(exported.limitations.join(" ")).toMatch(
+      /coverage status describes the sampling result/i
+    );
+  });
+
+  it("distinguishes unavailable coverage from an observed zero-valid sample", () => {
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [
+        {
+          ...input.products[0],
+          observations: [
+            {
+              dataMonth: { year: 2026, month: 4 },
+              value: null,
+              validFraction: 0,
+              unavailableReason: "source-no-data",
+            },
+            {
+              dataMonth: { year: 2026, month: 5 },
+              value: null,
+              unavailableReason: "source-no-data",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(exported.products[0].observations).toEqual([
+      {
+        dataMonth: "2026-04",
+        value: null,
+        validFraction: 0,
+        unavailableReason: "source-no-data",
+        coverageStatus: "no-valid-samples",
+      },
+      {
+        dataMonth: "2026-05",
+        value: null,
+        validFraction: null,
+        unavailableReason: "source-no-data",
+        coverageStatus: "not-supplied",
+      },
+    ]);
+    expect(exported.reproducibility.dataMonthMatrix).toEqual([
+      {
+        dataMonth: "2026-04",
+        layers: [{ layerId: "ndvi", recordStatus: "no-data-recorded" }],
+      },
+      {
+        dataMonth: "2026-05",
+        layers: [{ layerId: "ndvi", recordStatus: "no-data-recorded" }],
+      },
+    ]);
   });
 
   it("preserves a dateline-crossing footprint as a short-arc envelope", () => {
@@ -315,6 +375,7 @@ describe("place observation export", () => {
     expect(Object.keys(exported).sort()).toEqual([
       "boundary",
       "generated",
+      "geography",
       "kind",
       "limitations",
       "method",
@@ -339,6 +400,20 @@ describe("place observation export", () => {
     );
     expect(JSON.stringify(dataBearingExport)).not.toMatch(
       /account|session|device|search-query/i
+    );
+  });
+
+  it("declares boundary CRS, axis order, and requested-footprint semantics", () => {
+    const exported = createPlaceObservationExport(input);
+
+    expect(exported.geography).toEqual({
+      coordinateReferenceSystem: "OGC:CRS84",
+      coordinateOrder: "longitude-latitude",
+      boundaryRole: "requested-sampling-footprint",
+    });
+    expect(exported.boundary).toEqual(boundary);
+    expect(exported.limitations.join(" ")).toMatch(
+      /boundary is the requested sampling footprint.*validFraction records usable sampled coverage/i
     );
   });
 

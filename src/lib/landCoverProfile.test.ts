@@ -70,7 +70,11 @@ describe("buildLandCoverClassProfile", () => {
     expect(profile.status).toBe("unavailable");
     expect(profile.reason).toBe("unpublished-data-year");
     expect(profile.rows.every((row) => row.sampleCount === null)).toBe(true);
-    expect(profile.coverage.knownLandCoverSampleCount).toBe(5);
+    expect(profile.coverage).toMatchObject({
+      status: "unavailable",
+      knownLandCoverSampleCount: 0,
+      reason: "record-not-published",
+    });
     expect(profile.provenance.dataYear).toBe(2025);
   });
 

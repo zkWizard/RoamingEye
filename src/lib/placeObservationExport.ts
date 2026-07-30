@@ -22,6 +22,12 @@ import {
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
   "roamingeye-place-observation-export/v4" as const;
 
+export const PLACE_OBSERVATION_GEOGRAPHY = {
+  coordinateReferenceSystem: "OGC:CRS84",
+  coordinateOrder: "longitude-latitude",
+  boundaryRole: "requested-sampling-footprint",
+} as const;
+
 export const GIBS_IMAGERY_SOURCE = {
   name: "NASA Global Imagery Browse Services (GIBS)",
   url: "https://gibs.earthdata.nasa.gov",
@@ -99,6 +105,7 @@ export interface PlaceObservationExport {
   schema: typeof PLACE_OBSERVATION_EXPORT_SCHEMA;
   kind: "place-observation-export";
   boundary: GeoGeometry;
+  geography: typeof PLACE_OBSERVATION_GEOGRAPHY;
   products: PlaceObservationExportProduct[];
   method: {
     sampling: PlaceObservationSampling;
@@ -134,10 +141,15 @@ export interface PlaceObservationExport {
   limitations: readonly [
     "Values are supplied sampling results in native source units.",
     "Rendered-imagery values are approximate; use the cited data product for measurement-grade work.",
+    "The boundary is the requested sampling footprint; per-observation validFraction records usable sampled coverage.",
     "This export does not infer conditions, causes, risks, or future values.",
+    "Coverage status describes the sampling result, not environmental condition or source-product availability.",
     "Data-month record states do not make values across products interchangeable or describe environmental condition.",
   ];
 }
+
+export type PlaceObservationCoverageStatus =
+  "fraction-recorded" | "no-valid-samples" | "not-supplied";
 
 export interface PlaceObservationExportProduct {
   layerId: LayerId;
@@ -152,6 +164,7 @@ export interface PlaceObservationExportProduct {
     value: number | null;
     validFraction: number | null;
     unavailableReason?: PlaceObservationUnavailableReason | null;
+    coverageStatus: PlaceObservationCoverageStatus;
   }[];
 }
 
@@ -250,7 +263,9 @@ const EXCLUDED_FIELDS = [
 const LIMITATIONS = [
   "Values are supplied sampling results in native source units.",
   "Rendered-imagery values are approximate; use the cited data product for measurement-grade work.",
+  "The boundary is the requested sampling footprint; per-observation validFraction records usable sampled coverage.",
   "This export does not infer conditions, causes, risks, or future values.",
+  "Coverage status describes the sampling result, not environmental condition or source-product availability.",
   "Data-month record states do not make values across products interchangeable or describe environmental condition.",
 ] as const;
 
@@ -266,6 +281,7 @@ export function createPlaceObservationExport(
     schema: PLACE_OBSERVATION_EXPORT_SCHEMA,
     kind: "place-observation-export",
     boundary: cloneGeometry(input.boundary),
+    geography: PLACE_OBSERVATION_GEOGRAPHY,
     products,
     method: {
       sampling: input.method.sampling,
@@ -631,6 +647,7 @@ function exportProducts(
           value: observation.value,
           validFraction: observation.validFraction ?? null,
           unavailableReason: observation.unavailableReason ?? null,
+          coverageStatus: coverageStatus(observation.validFraction),
         }))
         .sort((left, right) => compareText(left.dataMonth, right.dataMonth)),
     }))
@@ -675,6 +692,13 @@ function validateSamplingSupport(product: PlaceObservationProductInput): void {
       `Product ${product.layerId} has inconsistent sampling-support plan metadata.`
     );
   }
+}
+
+function coverageStatus(
+  validFraction: number | undefined
+): PlaceObservationCoverageStatus {
+  if (validFraction === undefined) return "not-supplied";
+  return validFraction === 0 ? "no-valid-samples" : "fraction-recorded";
 }
 
 function dataMonthMatrix(

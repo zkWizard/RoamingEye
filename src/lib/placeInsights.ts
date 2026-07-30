@@ -154,6 +154,22 @@ export function placeInsightPhysicalReading(
   );
 }
 
+/**
+ * Admit only values decoded through an authoritative physical colormap to the
+ * native-value export path.
+ *
+ * A display-ramp position is not a native product value even when both happen
+ * to share the same numeric range. Preserve month and coverage elsewhere, but
+ * withhold display-ramp positions from a contract that promises native units.
+ */
+export function nativePlaceSampleValues(
+  values: readonly (number | null)[],
+  valueSource: "authoritative-colormap" | "display-ramp"
+): (number | null)[] {
+  if (valueSource === "display-ramp") return values.map(() => null);
+  return [...values];
+}
+
 function makePlaceInsightReading(
   metric: PlaceMetric,
   months: [YearMonth, YearMonth],

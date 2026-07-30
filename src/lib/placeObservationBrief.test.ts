@@ -367,6 +367,7 @@ describe("place observation environmental brief", () => {
         value: null,
         validFraction: 0,
         unavailableReason: reason,
+        coverageStatus: "no-valid-samples",
       },
     ];
 
@@ -435,6 +436,7 @@ describe("place observation environmental brief", () => {
           dataMonth: "2026-02",
           value: 0.99,
           validFraction: 1,
+          coverageStatus: "fraction-recorded",
         },
       ],
     });
@@ -452,7 +454,12 @@ describe("place observation environmental brief", () => {
   it("rejects an invalid serialized month rather than treating it as absent", () => {
     const record = exportRecord();
     record.products.find((p) => p.layerId === "ndvi")!.observations = [
-      { dataMonth: "2026-13", value: 0.45, validFraction: 0.8 },
+      {
+        dataMonth: "2026-13",
+        value: 0.45,
+        validFraction: 0.8,
+        coverageStatus: "fraction-recorded",
+      },
     ];
 
     const result = composePlaceObservationBrief(record);
@@ -468,8 +475,18 @@ describe("place observation environmental brief", () => {
   it("rejects the whole product when a malformed month accompanies a valid record", () => {
     const record = exportRecord();
     record.products.find((p) => p.layerId === "ndvi")!.observations = [
-      { dataMonth: "2026-01", value: 0.45, validFraction: 0.8 },
-      { dataMonth: "2026-13", value: 0.72, validFraction: 0.9 },
+      {
+        dataMonth: "2026-01",
+        value: 0.45,
+        validFraction: 0.8,
+        coverageStatus: "fraction-recorded",
+      },
+      {
+        dataMonth: "2026-13",
+        value: 0.72,
+        validFraction: 0.9,
+        coverageStatus: "fraction-recorded",
+      },
     ];
 
     const result = composePlaceObservationBrief(record);
@@ -492,8 +509,18 @@ describe("place observation environmental brief", () => {
   it("rejects duplicate serialized months rather than choosing one value", () => {
     const record = exportRecord();
     record.products.find((p) => p.layerId === "ndvi")!.observations = [
-      { dataMonth: "2026-01", value: 0.45, validFraction: null },
-      { dataMonth: "2026-01", value: 0.72, validFraction: null },
+      {
+        dataMonth: "2026-01",
+        value: 0.45,
+        validFraction: null,
+        coverageStatus: "not-supplied",
+      },
+      {
+        dataMonth: "2026-01",
+        value: 0.72,
+        validFraction: null,
+        coverageStatus: "not-supplied",
+      },
     ];
 
     const result = composePlaceObservationBrief(record);
@@ -513,6 +540,7 @@ describe("place observation environmental brief", () => {
       value: 0.62,
       validFraction: 0.85,
       unavailableReason: null,
+      coverageStatus: "fraction-recorded",
     });
 
     const result = composePlaceObservationBrief(record);
@@ -589,6 +617,7 @@ describe("place observation environmental brief", () => {
         value: 0.58,
         validFraction: 0.8,
         unavailableReason: null,
+        coverageStatus: "fraction-recorded",
       },
     ];
 
