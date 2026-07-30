@@ -3,6 +3,7 @@ import { LAYERS } from "./timeline";
 import {
   GIBS_IMAGERY_SOURCE,
   PLACE_OBSERVATION_NATIVE_UNITS,
+  PLACE_OBSERVATION_GEOGRAPHY,
   createPlaceObservationExport,
   placeObservationProductFromSample,
   serializePlaceObservationExport,
@@ -174,6 +175,7 @@ describe("place observation export", () => {
       schema: "roamingeye-place-observation-export/v4",
       kind: "place-observation-export",
       boundary,
+      geography: PLACE_OBSERVATION_GEOGRAPHY,
       products: [
         {
           layerId: "ndvi",
@@ -315,6 +317,7 @@ describe("place observation export", () => {
     expect(Object.keys(exported).sort()).toEqual([
       "boundary",
       "generated",
+      "geography",
       "kind",
       "limitations",
       "method",
@@ -339,6 +342,20 @@ describe("place observation export", () => {
     );
     expect(JSON.stringify(dataBearingExport)).not.toMatch(
       /account|session|device|search-query/i
+    );
+  });
+
+  it("declares boundary CRS, axis order, and requested-footprint semantics", () => {
+    const exported = createPlaceObservationExport(input);
+
+    expect(exported.geography).toEqual({
+      coordinateReferenceSystem: "OGC:CRS84",
+      coordinateOrder: "longitude-latitude",
+      boundaryRole: "requested-sampling-footprint",
+    });
+    expect(exported.boundary).toEqual(boundary);
+    expect(exported.limitations.join(" ")).toMatch(
+      /boundary is the requested sampling footprint.*validFraction records usable sampled coverage/i
     );
   });
 
