@@ -162,6 +162,28 @@ function preparedPolygons(geometry: GeoGeometry): PreparedPolygon[] {
   });
 }
 
+function preparedGeometryBounds(
+  polygons: readonly PreparedPolygon[]
+): GeometryBounds | null {
+  if (polygons.length === 0) return null;
+  let south = Infinity;
+  let north = -Infinity;
+  const lons: number[] = [];
+  for (const { outer } of polygons) {
+    for (const [lon, lat] of outer) {
+      south = Math.min(south, lat);
+      north = Math.max(north, lat);
+      lons.push(lon);
+    }
+  }
+  const lonBounds = shortArcLonBounds(lons);
+  return Number.isFinite(south) &&
+    south < north &&
+    lonBounds.west < lonBounds.east
+    ? { south, north, ...lonBounds }
+    : null;
+}
+
 function lonInFrame(lon: number, reference: number): number {
   let framed = normalizeLon(lon);
   while (framed - reference > 180) framed -= 360;
@@ -202,24 +224,7 @@ export function isAreaGeometry(geometry: GeoGeometry | null): boolean {
 
 /** Bounds of all outer polygon rings, or null when no area is present. */
 export function geometryBounds(geometry: GeoGeometry): GeometryBounds | null {
-  const polygons = preparedPolygons(geometry);
-  if (polygons.length === 0) return null;
-  let south = Infinity;
-  let north = -Infinity;
-  const lons: number[] = [];
-  for (const { outer } of polygons) {
-    for (const [lon, lat] of outer) {
-      south = Math.min(south, lat);
-      north = Math.max(north, lat);
-      lons.push(lon);
-    }
-  }
-  const lonBounds = shortArcLonBounds(lons);
-  return Number.isFinite(south) &&
-    south < north &&
-    lonBounds.west < lonBounds.east
-    ? { south, north, ...lonBounds }
-    : null;
+  return preparedGeometryBounds(preparedPolygons(geometry));
 }
 
 type RingLocation = "outside" | "boundary" | "inside";
@@ -298,9 +303,9 @@ function geometryGridCandidates(
   geometry: GeoGeometry,
   n: number
 ): GeometryGridCandidate[] {
-  const bounds = geometryBounds(geometry);
-  if (!bounds || n < 1) return [];
   const polygons = preparedPolygons(geometry);
+  const bounds = preparedGeometryBounds(polygons);
+  if (!bounds || n < 1) return [];
   const candidates: GeometryGridCandidate[] = [];
   for (let row = 0; row < n; row++) {
     const lat =
