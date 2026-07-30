@@ -58,8 +58,15 @@ export interface PlaceObservationProductInput {
   sampleToNative?: PlaceObservationValueTransform;
   /** Exact searched-boundary strategy used for this product's observations. */
   samplingStrategy?: GeometrySamplingStrategy | "unavailable";
+  /** Exact rendered-value mapping used, or why it was unavailable. */
+  valueMapping?: PlaceObservationValueMapping;
   observations: readonly PlaceObservationInput[];
 }
+
+export type PlaceObservationValueMapping =
+  | { status: "gibs-colormap"; url: string }
+  | { status: "ui-legend-approximation"; url: null }
+  | { status: "not-available"; url: null };
 
 export interface PlaceObservationSamplingSupport {
   gridSize: number;
@@ -159,6 +166,7 @@ export interface PlaceObservationExportProduct {
   samplingSupport: PlaceObservationSamplingSupport | null;
   sampleToNative: PlaceObservationValueTransform;
   samplingStrategy: GeometrySamplingStrategy | "unavailable";
+  valueMapping: PlaceObservationValueMapping;
   observations: {
     dataMonth: string;
     value: number | null;
@@ -224,6 +232,8 @@ export interface PlaceObservationExportSample {
   samplingStrategy?: GeometrySamplingStrategy;
   sourceValueFactor?: number;
   samplingSupport?: PlaceObservationSamplingSupport;
+  colormapUrl?: string | null;
+  usedUiLegendApproximation?: boolean;
 }
 
 /**
@@ -384,6 +394,11 @@ export function placeObservationProductFromSample(
       factor: sourceValueFactor,
     },
     samplingStrategy: sample.samplingStrategy ?? "unavailable",
+    valueMapping: sample.colormapUrl
+      ? { status: "gibs-colormap", url: sample.colormapUrl }
+      : sample.usedUiLegendApproximation
+        ? { status: "ui-legend-approximation", url: null }
+        : { status: "not-available", url: null },
     observations: sample.observations.map((observation) => ({
       ...observation,
       value:
@@ -461,6 +476,7 @@ function validateInput(input: PlaceObservationExportInput): void {
         `Product ${product.layerId} has an invalid sampling strategy.`
       );
     }
+    validateValueMapping(product.layerId, product.valueMapping);
     if (!hasCitation(product.source)) {
       throw new Error(
         `Product ${product.layerId} needs a complete source citation.`
@@ -641,6 +657,7 @@ function exportProducts(
             factor: 1,
           },
       samplingStrategy: product.samplingStrategy ?? "unavailable",
+      valueMapping: exportValueMapping(product.valueMapping),
       observations: product.observations
         .map((observation) => ({
           dataMonth: formatYearMonth(observation.dataMonth),
@@ -652,6 +669,33 @@ function exportProducts(
         .sort((left, right) => compareText(left.dataMonth, right.dataMonth)),
     }))
     .sort((left, right) => compareText(left.layerId, right.layerId));
+}
+
+function exportValueMapping(
+  mapping: PlaceObservationValueMapping | undefined
+): PlaceObservationValueMapping {
+  return mapping ? { ...mapping } : { status: "not-available", url: null };
+}
+
+function validateValueMapping(
+  layerId: LayerId,
+  mapping: PlaceObservationValueMapping | undefined
+): void {
+  if (!mapping || mapping.status !== "gibs-colormap") return;
+
+  let url: URL;
+  try {
+    url = new URL(mapping.url);
+  } catch {
+    throw new Error(`Product ${layerId} has an invalid GIBS colormap URL.`);
+  }
+  if (
+    url.protocol !== "https:" ||
+    url.hostname !== "gibs.earthdata.nasa.gov" ||
+    !/^\/colormaps\/v\d+(?:\.\d+)*\/[^/]+\.xml$/.test(url.pathname)
+  ) {
+    throw new Error(`Product ${layerId} has an invalid GIBS colormap URL.`);
+  }
 }
 
 function validateSamplingSupport(product: PlaceObservationProductInput): void {

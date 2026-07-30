@@ -6,7 +6,7 @@ import { fetchJson } from "../lib/net";
 import {
   parseEarthquakeFeedSnapshot,
   depthClass,
-  earthquakeHoverLabel,
+  formatEarthquakeObservation,
   DEPTH_CLASS_COLORS,
   USGS_FEED_URL,
   type DepthClass,
@@ -53,7 +53,9 @@ export class EarthquakesOverlay implements MapOverlay {
 
   private loadPromise: Promise<void> | undefined;
   /** One hover source per magnitude-size bucket, in rendered point order. */
-  readonly hoverSources: HoverPointSource[] = [];
+  readonly hoverSources: Array<HoverPointSource | undefined> = new Array(
+    SIZE_BUCKETS.length
+  );
   private feedSnapshot: EarthquakeFeedSnapshot | null = null;
 
   constructor(
@@ -78,16 +80,18 @@ export class EarthquakesOverlay implements MapOverlay {
     );
     const quakes = this.feedSnapshot.events;
 
-    for (const bucket of SIZE_BUCKETS) {
+    for (const [bucketIndex, bucket] of SIZE_BUCKETS.entries()) {
       const inBucket = quakes.filter((q) => bucketFor(q.magnitude) === bucket);
       if (inBucket.length === 0) continue;
       const points = this.buildPoints(inBucket, bucket.size);
       this.object.add(points);
-      this.hoverSources.push({
+      this.hoverSources[bucketIndex] = {
         points,
-        describe: (index) =>
-          inBucket[index] ? earthquakeHoverLabel(inBucket[index]) : undefined,
-      });
+        describe: (pointIndex) => {
+          const quake = inBucket[pointIndex];
+          return quake ? formatEarthquakeObservation(quake) : undefined;
+        },
+      };
     }
   }
 

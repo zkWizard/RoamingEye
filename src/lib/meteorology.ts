@@ -7,7 +7,7 @@ import {
 } from "./climate";
 import { SCALE_CONVERSIONS } from "./colormap";
 import { classifyModality } from "./observationModality";
-import type { LayerId, YearMonth } from "./timeline";
+import { compareYm, type LayerId, type YearMonth } from "./timeline";
 import { toConventionalClimateValue } from "./climateConventionalUnits";
 import type { GeometrySamplingStrategy } from "./geojson";
 import type {
@@ -54,6 +54,15 @@ export interface RenderedClimateSampleInput {
   validFractions?: readonly number[];
   /** Rendered source-image dimensions; provenance only, never resolution. */
   sourceImageDimensions?: { width: number; height: number };
+  /**
+   * Month-aligned rendered source-image dimensions. Null explicitly records
+   * that dimensions were unavailable for that month. When supplied, this
+   * takes precedence over the series-level fallback above.
+   */
+  sourceImageDimensionsByMonth?: readonly ({
+    width: number;
+    height: number;
+  } | null)[];
   /** Spatial method used by the place sampler for every supplied month. */
   geometrySamplingStrategy?: GeometrySamplingStrategy;
 }
@@ -82,8 +91,13 @@ export function climateMetricForLayer(
 export function observationsFromRenderedClimateSample(
   input: RenderedClimateSampleInput
 ): RenderedClimateSeries {
-  const { months, sampledValues, validFractions, nativeToSampledValueFactor } =
-    input;
+  const {
+    months,
+    sampledValues,
+    validFractions,
+    sourceImageDimensionsByMonth,
+    nativeToSampledValueFactor,
+  } = input;
   if (months.length !== sampledValues.length) {
     throw new Error(
       "RoamingEye: rendered climate months and sampled values must have matching lengths"
@@ -92,6 +106,14 @@ export function observationsFromRenderedClimateSample(
   if (validFractions && validFractions.length !== months.length) {
     throw new Error(
       "RoamingEye: rendered climate months and coverage must have matching lengths"
+    );
+  }
+  if (
+    sourceImageDimensionsByMonth &&
+    sourceImageDimensionsByMonth.length !== months.length
+  ) {
+    throw new Error(
+      "RoamingEye: rendered climate months and image provenance must have matching lengths"
     );
   }
   assertStrictlyIncreasingMonths(months);
@@ -116,23 +138,32 @@ export function observationsFromRenderedClimateSample(
     isForecast: false,
     metric: CLIMATE_METRICS[input.metricId],
     nativeToSampledValueFactor,
-    observations: months.map((dataMonth, index) => ({
-      metricId: input.metricId,
-      // Keep the sampled value bound to the month supplied at sampling time,
-      // even when a caller later reuses or advances its timeline month object.
-      dataMonth: { ...dataMonth },
-      value:
-        sampledValues[index] === null
-          ? null
-          : sampledValues[index] / nativeToSampledValueFactor,
-      ...(validFractions ? { validFraction: validFractions[index] } : {}),
-      ...(input.sourceImageDimensions
-        ? { sourceImageDimensions: { ...input.sourceImageDimensions } }
-        : {}),
-      ...(input.geometrySamplingStrategy
-        ? { geometrySamplingStrategy: input.geometrySamplingStrategy }
-        : {}),
-    })),
+    observations: months.map((dataMonth, index) => {
+      const monthDimensions = sourceImageDimensionsByMonth
+        ? sourceImageDimensionsByMonth[index]
+        : input.sourceImageDimensions;
+      return {
+        metricId: input.metricId,
+        // Keep the sampled value bound to the month supplied at sampling time,
+        // even when a caller later reuses or advances its timeline month object.
+        dataMonth: { ...dataMonth },
+        value:
+          sampledValues[index] === null
+            ? null
+            : sampledValues[index] / nativeToSampledValueFactor,
+        ...(validFractions ? { validFraction: validFractions[index] } : {}),
+        ...(monthDimensions === undefined
+          ? {}
+          : {
+              sourceImageDimensions: monthDimensions
+                ? { ...monthDimensions }
+                : null,
+            }),
+        ...(input.geometrySamplingStrategy
+          ? { geometrySamplingStrategy: input.geometrySamplingStrategy }
+          : {}),
+      };
+    }),
   };
 }
 
@@ -256,19 +287,26 @@ export function climateInsightText(
     previous?.publicationStatus === "published" &&
     previous.coverage.status === "available" &&
     previous.observedValue !== null;
+  const comparisonIssue = previous
+    ? climateComparisonIssue(previous, current)
+    : null;
   const nativeDelta =
-    previousUsable && previous?.observedValue !== null
+    previousUsable &&
+    previous?.observedValue !== null &&
+    comparisonIssue === null
       ? current.observedValue - previous.observedValue
       : null;
   const comparison =
-    nativeDelta === null
-      ? ""
-      : `; ${formatNativeDelta(
+    nativeDelta !== null
+      ? `; ${formatNativeDelta(
           conventional
             ? nativeDelta * conventional.conversion.scale
             : nativeDelta,
           conventional?.conventionalUnit ?? current.metric.nativeUnit
-        )} vs ${formatMonth(previous!.dataMonth)}`;
+        )} vs ${formatMonth(previous!.dataMonth)}`
+      : comparisonIssue
+        ? `; comparison unavailable (${comparisonIssue})`
+        : "";
   const nativeProvenance = conventional
     ? `; native source value ${formatNativeValue(
         current.observedValue,
@@ -318,6 +356,28 @@ function climateModalityText(summary: MonthlyClimateSummary): {
         limit: "production method not classified",
       };
   }
+}
+
+function climateComparisonIssue(
+  previous: MonthlyClimateSummary,
+  current: MonthlyClimateSummary
+): string | null {
+  if (
+    previous.metric.id !== current.metric.id ||
+    previous.metric.nativeUnit !== current.metric.nativeUnit
+  ) {
+    return "different climate metric or native unit";
+  }
+  if (
+    previous.metric.source.shortName !== current.metric.source.shortName ||
+    previous.metric.source.version !== current.metric.source.version
+  ) {
+    return "different source product";
+  }
+  if (compareYm(previous.dataMonth, current.dataMonth) >= 0) {
+    return "comparison month is not earlier";
+  }
+  return null;
 }
 
 function unavailableReason(summary: MonthlyClimateSummary): string {

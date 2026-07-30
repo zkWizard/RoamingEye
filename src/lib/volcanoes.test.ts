@@ -139,7 +139,7 @@ describe("eruptionClass", () => {
     expect(eruptionClass(1899)).toBe("historic");
     expect(eruptionClass(79)).toBe("historic"); // Vesuvius
     expect(eruptionClass(1)).toBe("historic");
-    expect(eruptionClass(0)).toBe("holocene");
+    expect(eruptionClass(0)).toBe("historic");
     expect(eruptionClass(-4360)).toBe("holocene"); // BCE eruptions
     expect(eruptionClass(null)).toBe("holocene");
   });
@@ -230,6 +230,16 @@ describe("volcanoHoverLabel", () => {
     expect(volcanoHoverLabel(v)).toBe(
       "Etna · volcano type not recorded · country/territory not recorded · summit elevation not recorded · Holocene evidence only"
     );
+  });
+
+  it("shows the GVP source-year convention for a year-zero record", () => {
+    const v = parseVolcanoList([
+      volcano({ name: "Arxan-Chaihe", lastEruptionYear: 0 }),
+    ])[0];
+    expect(volcanoHoverLabel(v)).toContain(
+      "last eruption year 0 (source value; era not converted)"
+    );
+    expect(volcanoHoverLabel(v)).not.toContain("0 BCE");
   });
 
   it("retains zero and negative summit elevations in native metres", () => {

@@ -27,6 +27,12 @@ describe("marine coverage summaries", () => {
         sampleCounts: null,
         reason: null,
       },
+      sourceImageMetadata: {
+        status: "available",
+        suppliedDimensions: { width: 2048, height: 1024 },
+        dimensions: { width: 2048, height: 1024 },
+        reason: null,
+      },
       sourceImageDimensions: { width: 2048, height: 1024 },
       sourceImageDimensionsStatus: "supplied",
       geography: { kind: "boundary", label: "Monterey County" },
@@ -54,6 +60,12 @@ describe("marine coverage summaries", () => {
     });
     expect(summary.sourceImageDimensions).toBeNull();
     expect(summary.sourceImageDimensionsStatus).toBe("not-supplied");
+    expect(summary.sourceImageMetadata).toEqual({
+      status: "not-supplied",
+      suppliedDimensions: null,
+      dimensions: null,
+      reason: "dimensions-not-supplied",
+    });
     expect(summary.accessibleText).toContain(
       "Source image dimensions were not supplied"
     );
@@ -88,7 +100,7 @@ describe("marine coverage summaries", () => {
     });
   });
 
-  it("rejects invalid coverage and exposes invalid image dimensions", () => {
+  it("rejects invalid coverage while preserving invalid image metadata", () => {
     const summary = summarizeMarineCoverage({
       dataMonth: { year: 2026, month: 3 },
       footprint: "water",
@@ -105,8 +117,17 @@ describe("marine coverage summaries", () => {
     });
     expect(summary.sourceImageDimensions).toBeNull();
     expect(summary.sourceImageDimensionsStatus).toBe("invalid");
+    expect(summary.sourceImageMetadata).toEqual({
+      status: "invalid",
+      suppliedDimensions: { width: 0, height: 1024 },
+      dimensions: null,
+      reason: "invalid-dimensions",
+    });
     expect(summary.accessibleText).toContain(
-      "Supplied source image dimensions were invalid"
+      "Supplied source image dimensions are invalid (0 by 1024)"
+    );
+    expect(summary.accessibleText).not.toContain(
+      "Source image dimensions were not supplied"
     );
   });
 

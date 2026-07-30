@@ -23,10 +23,11 @@ import {
   sstPlaceObservationFromSample,
   type PlaceObservationExportSample,
 } from "./lib/placeObservationExport";
-import { SCALE_CONVERSIONS } from "./lib/colormap";
+import { SCALE_CONVERSIONS, colormapUrl } from "./lib/colormap";
 import { environmentUnavailableSample } from "./lib/environmentUnavailableSample";
 import {
   PLACE_METRICS,
+  PLACE_COLORMAP_DOCS,
   latestComparisonMonths,
   loadPlaceColormap,
   placeInsightPhysicalReading,
@@ -550,6 +551,7 @@ function runPlaceInsights(result: GeoResult): void {
                 metric.layerId as keyof typeof SCALE_CONVERSIONS
               ]?.unit ?? PLACE_OBSERVATION_NATIVE_UNITS[metric.layerId],
             sourceValueFactor: colormap?.factor ?? 1,
+            colormapUrl: colormapUrl(PLACE_COLORMAP_DOCS[metric.layerId]),
             samplingSupport: geometrySampling,
             samplingStrategy: geometrySamplingStrategy,
             observations:
@@ -639,6 +641,7 @@ function runPlaceInsights(result: GeoResult): void {
       exportSamples.set("sst", {
         layerId: "sst",
         sourceValueFactor: colormap.factor,
+        colormapUrl: colormapUrl(PLACE_COLORMAP_DOCS.sst),
         observations: [
           sstPlaceObservationFromSample(
             sstMonth,

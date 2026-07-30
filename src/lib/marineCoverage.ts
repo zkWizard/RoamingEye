@@ -36,6 +36,18 @@ export interface SourceImageDimensions {
   height: number;
 }
 
+export type SourceImageMetadataStatus =
+  "available" | "not-supplied" | "invalid";
+
+export interface SourceImageMetadata {
+  status: SourceImageMetadataStatus;
+  /** Dimensions exactly as supplied by the sampler, including invalid values. */
+  suppliedDimensions: SourceImageDimensions | null;
+  /** Positive integer dimensions safe for downstream display or export. */
+  dimensions: SourceImageDimensions | null;
+  reason: "dimensions-not-supplied" | "invalid-dimensions" | null;
+}
+
 export interface MarineCoverageGeography {
   kind: "point" | "boundary" | "area" | "unknown";
   /** Source or workflow label for the sampled geography; null is explicit. */
@@ -87,6 +99,9 @@ export interface MarineCoverageSummary {
   };
   /** Supplied sampling geography; null means the caller did not provide it. */
   geography: MarineCoverageGeography | null;
+  /** Distinguishes missing image metadata from malformed supplied metadata. */
+  sourceImageMetadata: SourceImageMetadata;
+  /** @deprecated Use sourceImageMetadata.dimensions and status. */
   sourceImageDimensions: SourceImageDimensions | null;
   /** Distinguishes absent image provenance from malformed sampler metadata. */
   sourceImageDimensionsStatus: "supplied" | "not-supplied" | "invalid";
@@ -103,11 +118,12 @@ export function summarizeMarineCoverage(
 ): MarineCoverageSummary {
   const geography = geographyFor(input.geography);
   const coverage = coverageFor(input, geography.valid);
-  const sourceImageDimensions = dimensionsFor(input.sourceImageDimensions);
-  const sourceImageDimensionsStatus = dimensionsStatusFor(
-    input.sourceImageDimensions,
-    sourceImageDimensions
-  );
+  const sourceImageMetadata = imageMetadataFor(input.sourceImageDimensions);
+  const sourceImageDimensions = sourceImageMetadata.dimensions;
+  const sourceImageDimensionsStatus =
+    sourceImageMetadata.status === "available"
+      ? "supplied"
+      : sourceImageMetadata.status;
 
   return {
     kind: "sea-surface-temperature-coverage",
@@ -117,14 +133,14 @@ export function summarizeMarineCoverage(
     dataMonth: input.dataMonth,
     coverage,
     geography: geography.value,
+    sourceImageMetadata,
     sourceImageDimensions,
     sourceImageDimensionsStatus,
     accessibleText: accessibleTextFor(
       input.dataMonth,
       coverage,
       geography.value,
-      sourceImageDimensions,
-      sourceImageDimensionsStatus
+      sourceImageMetadata
     ),
   };
 }
@@ -231,32 +247,35 @@ function geographyFor(geography: MarineCoverageGeography | null | undefined): {
   return { value: valid ? geography : null, valid };
 }
 
-function dimensionsFor(
+function imageMetadataFor(
   dimensions: SourceImageDimensions | undefined
-): SourceImageDimensions | null {
-  if (!dimensions) return null;
-  return Number.isInteger(dimensions.width) &&
+): SourceImageMetadata {
+  if (!dimensions) {
+    return {
+      status: "not-supplied",
+      suppliedDimensions: null,
+      dimensions: null,
+      reason: "dimensions-not-supplied",
+    };
+  }
+  const valid =
+    Number.isInteger(dimensions.width) &&
     Number.isInteger(dimensions.height) &&
     dimensions.width > 0 &&
-    dimensions.height > 0
-    ? dimensions
-    : null;
-}
-
-function dimensionsStatusFor(
-  supplied: SourceImageDimensions | undefined,
-  normalized: SourceImageDimensions | null
-): MarineCoverageSummary["sourceImageDimensionsStatus"] {
-  if (supplied === undefined) return "not-supplied";
-  return normalized === null ? "invalid" : "supplied";
+    dimensions.height > 0;
+  return {
+    status: valid ? "available" : "invalid",
+    suppliedDimensions: dimensions,
+    dimensions: valid ? dimensions : null,
+    reason: valid ? null : "invalid-dimensions",
+  };
 }
 
 function accessibleTextFor(
   dataMonth: YearMonth,
   coverage: MarineCoverageSummary["coverage"],
   geography: MarineCoverageGeography | null,
-  dimensions: SourceImageDimensions | null,
-  dimensionsStatus: MarineCoverageSummary["sourceImageDimensionsStatus"]
+  imageMetadata: SourceImageMetadata
 ): string {
   const month = isYearMonth(dataMonth)
     ? formatYm(dataMonth)
@@ -275,11 +294,12 @@ function accessibleTextFor(
           : coverage.status === "invalid"
             ? "Coverage metadata is invalid."
             : fraction;
-  const image = dimensions
-    ? ` Source image dimensions: ${dimensions.width} by ${dimensions.height} pixels.`
-    : dimensionsStatus === "invalid"
-      ? " Supplied source image dimensions were invalid."
-      : " Source image dimensions were not supplied.";
+  const image =
+    imageMetadata.status === "available"
+      ? ` Source image dimensions: ${imageMetadata.dimensions!.width} by ${imageMetadata.dimensions!.height} pixels.`
+      : imageMetadata.status === "invalid"
+        ? ` Supplied source image dimensions are invalid (${imageMetadata.suppliedDimensions!.width} by ${imageMetadata.suppliedDimensions!.height}); no usable dimensions are reported.`
+        : " Source image dimensions were not supplied.";
   const place =
     geography === null
       ? " Sampling geography was not supplied."

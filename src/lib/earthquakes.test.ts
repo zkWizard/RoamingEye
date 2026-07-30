@@ -6,6 +6,7 @@ import {
   parseEarthquakeFeedSnapshot,
   depthClass,
   earthquakeHoverLabel,
+  formatEarthquakeObservation,
   magnitudeClass,
   MAGNITUDE_CLASS_ORDER,
   summarizeEarthquakes,
@@ -26,6 +27,36 @@ describe("earthquakeHoverLabel", () => {
     ).toBe(
       "12 km NE of Example · M 4.6 · 8.4 km depth · 2026-07-16T12:34:56.000Z"
     );
+  });
+});
+
+describe("formatEarthquakeObservation", () => {
+  it("preserves reported magnitude, native depth, location, and UTC event time", () => {
+    expect(
+      formatEarthquakeObservation({
+        lat: -4.2,
+        lon: 152.3,
+        depthKm: 45,
+        magnitude: 6.1,
+        time: Date.UTC(2026, 6, 27, 1, 23, 45),
+        place: "63 km SW of Kokopo, Papua New Guinea",
+      })
+    ).toBe(
+      "63 km SW of Kokopo, Papua New Guinea · M 6.1 (reported) · 45 km depth · 2026-07-27T01:23:45.000 UTC"
+    );
+  });
+
+  it("makes an unavailable feed location explicit", () => {
+    expect(
+      formatEarthquakeObservation({
+        lat: 0,
+        lon: 0,
+        depthKm: 10.5,
+        magnitude: 4.5,
+        time: Date.UTC(2026, 6, 1),
+        place: " ",
+      })
+    ).toContain("Location not supplied");
   });
 });
 

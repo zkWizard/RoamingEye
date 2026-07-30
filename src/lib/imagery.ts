@@ -77,6 +77,45 @@ export interface BoundsPart {
   fraction: number;
 }
 
+/** Allocate positive integer widths that exactly fill a stitched image. */
+export function boundsPartPixelWidths(
+  parts: readonly BoundsPart[],
+  totalWidth: number
+): number[] {
+  if (
+    parts.length === 0 ||
+    !Number.isInteger(totalWidth) ||
+    totalWidth < parts.length
+  ) {
+    throw new Error("RoamingEye: image width cannot represent bounds pieces");
+  }
+
+  const widths: number[] = [];
+  let remainingWidth = totalWidth;
+  let remainingFraction = parts.reduce((sum, part) => sum + part.fraction, 0);
+  for (let index = 0; index < parts.length; index++) {
+    const remainingParts = parts.length - index;
+    if (remainingParts === 1) {
+      widths.push(remainingWidth);
+      break;
+    }
+    const proportional =
+      remainingFraction > 0
+        ? Math.round(
+            remainingWidth * (parts[index].fraction / remainingFraction)
+          )
+        : 1;
+    const width = Math.min(
+      remainingWidth - (remainingParts - 1),
+      Math.max(1, proportional)
+    );
+    widths.push(width);
+    remainingWidth -= width;
+    remainingFraction -= parts[index].fraction;
+  }
+  return widths;
+}
+
 /**
  * Allocate an exact output width across antimeridian pieces without ever
  * issuing an invalid zero-width WMS request. Reserving one pixel per piece

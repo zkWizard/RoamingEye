@@ -462,6 +462,35 @@ describe("geometryToRings", () => {
     expect(coordinateReads).toBeLessThanOrEqual(4);
   });
 
+  it("prepares source coordinates once per grid pass", () => {
+    let longitudeReads = 0;
+    const position = (longitude: number, latitude: number): [number, number] =>
+      Object.defineProperty([longitude, latitude], "0", {
+        configurable: true,
+        get() {
+          longitudeReads++;
+          return longitude;
+        },
+      }) as [number, number];
+    const geometry = {
+      type: "Polygon",
+      coordinates: [
+        [
+          position(0, 0),
+          position(10, 0),
+          position(10, 10),
+          position(0, 10),
+          position(0, 0),
+        ],
+      ],
+    };
+
+    expect(geometryGridPoints(geometry, 32)).toHaveLength(32 * 32);
+    // Geometry preparation may inspect each source longitude a small, fixed
+    // number of times, but candidate-cell containment uses the prepared copy.
+    expect(longitudeReads).toBeLessThan(50);
+  });
+
   it("retains represented multipolygon components when applying the point cap", () => {
     const geometry = {
       type: "MultiPolygon",

@@ -81,6 +81,37 @@ describe("rendered monthly meteorology", () => {
     });
   });
 
+  it("keeps rendered image provenance aligned to each data month", () => {
+    const summaries = summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [
+          { year: 2026, month: 1 },
+          { year: 2026, month: 2 },
+          { year: 2026, month: 3 },
+        ],
+        sampledValues: [281, 282, 283],
+        nativeToSampledValueFactor: 1,
+        sourceImageDimensions: { width: 256, height: 256 },
+        sourceImageDimensionsByMonth: [
+          { width: 512, height: 256 },
+          null,
+          { width: 1024, height: 512 },
+        ],
+      },
+      { year: 2026, month: 3 }
+    );
+
+    expect(summaries.map((summary) => summary.sourceImageDimensions)).toEqual([
+      { width: 512, height: 256 },
+      null,
+      { width: 1024, height: 512 },
+    ]);
+    expect(climateInsightText(summaries[0], summaries[1]).detail).toContain(
+      "rendered source image dimensions not supplied"
+    );
+  });
+
   it("identifies GLDAS values as model fields while retaining native comparisons", () => {
     const summaries = summarizeRenderedClimateSample(
       {
@@ -115,6 +146,18 @@ describe("rendered monthly meteorology", () => {
         nativeToSampledValueFactor: 1,
       })
     ).toThrow("matching lengths");
+    expect(() =>
+      observationsFromRenderedClimateSample({
+        metricId: "soil-moisture",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [1],
+        nativeToSampledValueFactor: 1,
+        sourceImageDimensionsByMonth: [
+          { width: 256, height: 256 },
+          { width: 512, height: 512 },
+        ],
+      })
+    ).toThrow("image provenance must have matching lengths");
   });
 
   it("keeps rendered values bound to the source months supplied at sampling time", () => {
@@ -330,5 +373,51 @@ describe("rendered monthly meteorology", () => {
     expect(climateInsightText(summaries[0], summaries[1]).detail).toContain(
       "99.96% sampled coverage"
     );
+  });
+
+  it("withholds deltas across different metrics, sources, and non-earlier months", () => {
+    const [january, february] = summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [
+          { year: 2026, month: 1 },
+          { year: 2026, month: 2 },
+        ],
+        sampledValues: [280, 282],
+        nativeToSampledValueFactor: 1,
+        validFractions: [1, 1],
+      },
+      { year: 2026, month: 2 }
+    );
+    const [soil] = summarizeRenderedClimateSample(
+      {
+        metricId: "soil-moisture",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [280],
+        nativeToSampledValueFactor: 1,
+        validFractions: [1],
+      },
+      { year: 2026, month: 2 }
+    );
+
+    expect(climateInsightText(soil, february).detail).toContain(
+      "comparison unavailable (different climate metric or native unit)"
+    );
+    expect(
+      climateInsightText(
+        {
+          ...january,
+          metric: {
+            ...january.metric,
+            source: { ...january.metric.source, version: "different-version" },
+          },
+        },
+        february
+      ).detail
+    ).toContain("comparison unavailable (different source product)");
+    expect(climateInsightText(february, january).detail).toContain(
+      "comparison unavailable (comparison month is not earlier)"
+    );
+    expect(climateInsightText(soil, february).detail).not.toContain("kg/m² vs");
   });
 });
