@@ -115,9 +115,9 @@ describe("land-cover context summaries", () => {
     expect(summary.mostFrequentClasses).toEqual([]);
   });
 
-  it("reports no-data and invalid-year outcomes explicitly", () => {
+  it("withholds samples for an invalid annual record", () => {
     const summary = summarizeLandCoverContext(
-      [{ classCode: 12, sampleCount: 0 }],
+      [{ classCode: 12, sampleCount: 4 }],
       2024.5
     );
 
@@ -125,15 +125,36 @@ describe("land-cover context summaries", () => {
     expect(summary.observationStatus).toBe("unavailable");
     expect(summary.unavailableReason).toBe("invalid-year");
     expect(summary.coverage).toEqual({
-      status: "no-data",
+      status: "unavailable",
       totalSampleCount: 0,
       knownLandCoverSampleCount: 0,
       unclassifiedSampleCount: 0,
       noDataSampleCount: 0,
       invalidClassSampleCount: 0,
-      invalidRecordCount: 1,
+      invalidRecordCount: 0,
       knownLandCoverFraction: null,
-      reason: "no-samples",
+      reason: "record-not-published",
+    });
+    expect(summary.classCoverage).toEqual([]);
+    expect(summary.dominantClass).toBeNull();
+  });
+
+  it("withholds samples outside the published annual layer range", () => {
+    const summary = summarizeLandCoverContext(
+      [{ classCode: 12, sampleCount: 4 }],
+      2025
+    );
+
+    expect(summary.provenance).toMatchObject({
+      dataYear: 2025,
+      publicationStatus: "outside-layer-range",
+      source: LAND_COVER_SOURCE,
+    });
+    expect(summary.coverage).toMatchObject({
+      status: "unavailable",
+      totalSampleCount: 0,
+      knownLandCoverSampleCount: 0,
+      reason: "record-not-published",
     });
     expect(summary.classCoverage).toEqual([]);
     expect(summary.dominantClass).toBeNull();
@@ -147,7 +168,8 @@ describe("land-cover context summaries", () => {
 
     expect(unpublished.observationStatus).toBe("unavailable");
     expect(unpublished.unavailableReason).toBe("outside-layer-range");
-    expect(unpublished.coverage.status).toBe("available");
+    expect(unpublished.coverage.status).toBe("unavailable");
+    expect(unpublished.coverage.reason).toBe("record-not-published");
     expect(noData.observationStatus).toBe("unavailable");
     expect(noData.unavailableReason).toBe("no-known-land-cover");
     expect(noData.provenance.publicationStatus).toBe("published");
