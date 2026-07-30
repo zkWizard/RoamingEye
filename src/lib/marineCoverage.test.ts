@@ -11,6 +11,7 @@ describe("marine coverage summaries", () => {
       footprint: "water",
       validFraction: 0.74,
       sourceImageDimensions: { width: 2048, height: 1024 },
+      geography: { kind: "boundary", label: "Monterey County" },
     });
 
     expect(summary).toMatchObject({
@@ -28,11 +29,13 @@ describe("marine coverage summaries", () => {
       },
       sourceImageDimensions: { width: 2048, height: 1024 },
       sourceImageDimensionsStatus: "supplied",
+      geography: { kind: "boundary", label: "Monterey County" },
     });
     expect(summary.accessibleText).toContain("74% of the supplied footprint");
     expect(summary.accessibleText).toContain(
       "not a marine-biology observation"
     );
+    expect(summary.accessibleText).toContain("boundary “Monterey County”");
   });
 
   it("makes coastal mixing and absent image dimensions visible", () => {
@@ -195,5 +198,24 @@ describe("marine coverage summaries", () => {
     expect(summary.accessibleText).toContain(
       "not a marine-biology observation"
     );
+  });
+
+  it("withholds invalid sampling geography instead of mislabeling coverage", () => {
+    const summary = summarizeMarineCoverage({
+      dataMonth: { year: 2026, month: 3 },
+      footprint: "water",
+      validFraction: 0.8,
+      geography: { kind: "boundary", label: "   " },
+    });
+
+    expect(summary.geography).toBeNull();
+    expect(summary.coverage).toEqual({
+      status: "invalid",
+      footprint: "water",
+      validFraction: 0.8,
+      sampleCounts: null,
+      reason: "invalid-geography",
+    });
+    expect(summary.accessibleText).toContain("Coverage metadata is invalid");
   });
 });

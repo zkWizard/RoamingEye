@@ -87,6 +87,39 @@ export interface EarthquakeFeedParseResult {
   units: typeof SEISMICITY_UNITS;
 }
 
+/** Metadata published with one USGS GeoJSON summary-feed response. */
+export interface EarthquakeFeedMetadata {
+  /** Time the feed was generated, epoch milliseconds UTC. */
+  generatedTime: number | null;
+  /** Event count declared by metadata.count. */
+  declaredEventCount: number | null;
+  title: string | null;
+  url: string | null;
+  /** HTTP-style status value embedded in the feed metadata. */
+  statusCode: number | null;
+  apiVersion: string | null;
+}
+
+export interface EarthquakeFeedSnapshotCoverage {
+  status: "available" | "invalid-feed";
+  suppliedFeatureCount: number;
+  parsedEventCount: number;
+  droppedFeatureCount: number;
+  /** Null when the source did not publish a usable metadata.count value. */
+  declaredEventCountMatchesFeatures: boolean | null;
+}
+
+/**
+ * A parsed feed response with source publication metadata and explicit parser
+ * coverage. This describes the supplied response only; it is not a statement
+ * about seismic completeness, hazard, or future activity.
+ */
+export interface EarthquakeFeedSnapshot {
+  events: Earthquake[];
+  metadata: EarthquakeFeedMetadata;
+  coverage: EarthquakeFeedSnapshotCoverage;
+}
+
 /**
  * Provenance retained by seismic filters and summaries. The USGS feed reports
  * earthquake magnitude values, hypocentre depth in kilometres, and UTC epoch
@@ -461,7 +494,6 @@ export function parseEarthquakeFeedWithCoverage(
       },
     });
   }
-
   const rejectedFeatureCount = features.length - out.length;
   return {
     earthquakes: out,
@@ -477,6 +509,38 @@ export function parseEarthquakeFeedWithCoverage(
   };
 }
 
+/**
+ * Parse a USGS GeoJSON summary response while retaining its publication
+ * metadata and reporting how many supplied features were usable.
+ */
+export function parseEarthquakeFeedSnapshot(
+  json: unknown
+): EarthquakeFeedSnapshot {
+  const parsed = parseEarthquakeFeedWithCoverage(json);
+  const feed =
+    typeof json === "object" && json !== null
+      ? (json as { features?: unknown; metadata?: unknown })
+      : null;
+  const metadata = parseFeedMetadata(feed?.metadata);
+  return {
+    events: parsed.earthquakes,
+    metadata,
+    coverage: {
+      status:
+        parsed.coverage.status === "invalid-feed"
+          ? "invalid-feed"
+          : "available",
+      suppliedFeatureCount: parsed.coverage.suppliedFeatureCount,
+      parsedEventCount: parsed.coverage.usableEventCount,
+      droppedFeatureCount: parsed.coverage.rejectedFeatureCount,
+      declaredEventCountMatchesFeatures:
+        metadata.declaredEventCount === null || !Array.isArray(feed?.features)
+          ? null
+          : metadata.declaredEventCount === feed.features.length,
+    },
+  };
+}
+
 function finiteNumberOrNull(value: unknown): number | null {
   const number = toNumber(value);
   return Number.isFinite(number) ? number : null;
@@ -485,4 +549,29 @@ function finiteNumberOrNull(value: unknown): number | null {
 function nonNegativeFiniteNumberOrNull(value: unknown): number | null {
   const number = finiteNumberOrNull(value);
   return number !== null && number >= 0 ? number : null;
+}
+
+function parseFeedMetadata(value: unknown): EarthquakeFeedMetadata {
+  const metadata =
+    typeof value === "object" && value !== null
+      ? (value as Record<string, unknown>)
+      : {};
+  const declaredEventCount = nonNegativeIntegerOrNull(metadata.count);
+  return {
+    generatedTime: finiteNumberOrNull(metadata.generated),
+    declaredEventCount,
+    title: stringOrNull(metadata.title),
+    url: stringOrNull(metadata.url),
+    statusCode: finiteNumberOrNull(metadata.status),
+    apiVersion: stringOrNull(metadata.api),
+  };
+}
+
+function nonNegativeIntegerOrNull(value: unknown): number | null {
+  const number = toNumber(value);
+  return Number.isSafeInteger(number) && number >= 0 ? number : null;
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
 }

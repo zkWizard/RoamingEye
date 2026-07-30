@@ -262,6 +262,24 @@ describe("regional imagery resource cleanup", () => {
   });
 });
 
+describe("drawn-region probe sampling", () => {
+  it("reports the adaptive grid and deduplicated source-pixel provenance", async () => {
+    const bounds = { south: 0, north: 1, west: 0, east: 1 };
+    const result = await new ProbeSampler({
+      width: 8,
+      height: 4,
+    }).sampleRegion(LAYERS.ndvi, [], bounds);
+
+    const grid = regionGridDimensions(bounds);
+    expect(result.regionSampling).toEqual({
+      latitudeGridSize: grid.latitude,
+      longitudeGridSize: grid.longitude,
+      candidatePointCount: grid.latitude * grid.longitude,
+      sourcePixelCount: 1,
+    });
+  });
+});
+
 describe("hexToRgb", () => {
   it("parses channels", () => {
     expect(hexToRgb("#ff0000")).toEqual({ r: 255, g: 0, b: 0 });
@@ -695,6 +713,31 @@ describe("buildProbeCsv", () => {
       "2001-04,0.500,0.000,",
     ]);
     expect(unavailableCsv).not.toMatch(/NaN|Infinity/);
+  });
+
+  it("records the drawn-region sampling layout without claiming resolution", () => {
+    const regionCsv = buildProbeCsv(
+      {
+        ...meta,
+        mode: "region" as const,
+        sampledBounds: { south: -4, north: -3, west: -63, east: -62 },
+        regionSampling: {
+          latitudeGridSize: 8,
+          longitudeGridSize: 16,
+          candidatePointCount: 128,
+          sourcePixelCount: 120,
+        },
+      },
+      [{ year: 2001, month: 1 }],
+      [0.5]
+    );
+    expect(regionCsv).toContain(
+      "# sampling_grid: 8x16 geographic cell centres (latitude x longitude)"
+    );
+    expect(regionCsv).toContain("# sampling_candidates: 128");
+    expect(regionCsv).toContain(
+      "# sampled_source_pixels: 120 unique rendered-image pixels"
+    );
   });
 
   it("stamps tool version and reproduction URL when provided", () => {

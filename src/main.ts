@@ -629,6 +629,7 @@ function runPlaceInsights(result: GeoResult): void {
           observedValue: sample.values[0],
           validFraction: sample.validFractions[0],
           sourceImageDimensions: sample.sourceImageDimensions,
+          geography: { kind: "boundary", label: result.name },
         })
       );
       exportSamples.set("sst", {
@@ -646,7 +647,10 @@ function runPlaceInsights(result: GeoResult): void {
       if (isAbortError(error) || abort.signal.aborted) return;
       console.warn("RoamingEye: marine place insight sampling failed", error);
       placeInsights.setReading(
-        unavailableMarineBoundarySstReading(sstMonth, result.name)
+        unavailableMarineBoundarySstReading(sstMonth, {
+          kind: "boundary",
+          label: result.name,
+        })
       );
     })
   );
@@ -1154,7 +1158,7 @@ if (probeEl) {
           }
         },
       })
-      .then(({ values, validFractions }) => {
+      .then(({ values, validFractions, regionSampling }) => {
         if (abort.signal.aborted) return;
         panel.finish(
           () =>
@@ -1168,6 +1172,7 @@ if (probeEl) {
                 scale,
                 mode: "region",
                 sampledBounds: bounds,
+                regionSampling,
                 imageWidth: PROBE_IMAGE.width,
                 imageHeight: PROBE_IMAGE.height,
                 generatedIso: new Date().toISOString(),

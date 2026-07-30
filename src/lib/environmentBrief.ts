@@ -529,13 +529,21 @@ function temporalAlignmentStatement(
 ): string {
   const noun = count === 1 ? "observation" : "observations";
   if (count === 1) {
-    return `1 usable ${noun}, dated ${formatYearMonth(earliest)}; no cross-signal temporal comparison.`;
+    return `1 usable ${noun}, dated ${formatYearMonth(
+      earliest
+    )}; no cross-signal temporal comparison.`;
   }
   if (spanMonths === 0) {
-    return `${count} usable ${noun} all dated ${formatYearMonth(earliest)}; temporally aligned.`;
+    return `${count} usable ${noun} all dated ${formatYearMonth(
+      earliest
+    )}; temporally aligned.`;
   }
   const monthWord = spanMonths === 1 ? "month" : "months";
-  return `${count} usable ${noun} span ${formatYearMonth(earliest)} to ${formatYearMonth(latest)} (${spanMonths}-${monthWord} spread); signals are not a synchronized snapshot and should not be read as simultaneous.`;
+  return `${count} usable ${noun} span ${formatYearMonth(
+    earliest
+  )} to ${formatYearMonth(
+    latest
+  )} (${spanMonths}-${monthWord} spread); signals are not a synchronized snapshot and should not be read as simultaneous.`;
 }
 
 /**
@@ -725,9 +733,15 @@ export function attributeBrief(
   };
 }
 
-/** Trimmed DOI text (original casing preserved), or "" when none is present. */
+/** Canonical DOI text (original suffix casing preserved), or "" when absent. */
 function normalizedDoiText(doi: DatasetRef["doi"]): string {
-  return typeof doi === "string" ? doi.trim() : "";
+  return typeof doi === "string"
+    ? doi
+        .trim()
+        .replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, "")
+        .replace(/^doi:\s*/i, "")
+        .trim()
+    : "";
 }
 
 /**
@@ -749,7 +763,9 @@ function attributionLine(sources: readonly SourceAttribution[]): string {
   const credits = sources
     .map((entry) => {
       const link = entry.doiUrl ? ` (${entry.doiUrl})` : "";
-      return `${sourceLabel(entry.source)} — ${entry.signalLabels.join(", ")}${link}`;
+      return `${sourceLabel(entry.source)} — ${entry.signalLabels.join(
+        ", "
+      )}${link}`;
     })
     .join("; ");
   return `Data sources: ${credits}. ${GIBS_ACKNOWLEDGMENT}`;
@@ -813,9 +829,15 @@ function completenessStatement(summary: {
 
   if (summary.total === 0) return "No signals composed.";
   if (summary.available === 0) {
-    return `No usable observations across ${summary.total} signal${plural(summary.total)}${remainder}.`;
+    return `No usable observations across ${summary.total} signal${plural(
+      summary.total
+    )}${remainder}.`;
   }
-  return `Usable observations for ${summary.available} of ${summary.total} signal${plural(summary.total)}: ${summary.availableSignalIds.join(", ")}${remainder}.`;
+  return `Usable observations for ${summary.available} of ${
+    summary.total
+  } signal${plural(summary.total)}: ${summary.availableSignalIds.join(
+    ", "
+  )}${remainder}.`;
 }
 
 function plural(count: number): string {
@@ -1025,9 +1047,13 @@ function statementFor(signal: {
   const source = sourceLabel(signal.source);
 
   if (signal.status === "available") {
-    return `${signal.label}: ${formatValue(signal.observedValue)} ${signal.nativeUnit} observed for ${month}; ${coverage}; source ${source}.`;
+    return `${signal.label}: ${formatValue(signal.observedValue)} ${
+      signal.nativeUnit
+    } observed for ${month}; ${coverage}; source ${source}.`;
   }
-  return `${signal.label}: ${signal.status} observation for ${month} (${signal.coverage.reason ?? "unspecified"}); ${coverage}; source ${source}.`;
+  return `${signal.label}: ${signal.status} observation for ${month} (${
+    signal.coverage.reason ?? "unspecified"
+  }); ${coverage}; source ${source}.`;
 }
 
 function coverageText(coverage: EnvironmentSignalCoverage): string {

@@ -9,6 +9,7 @@ describe("monthly climate summaries", () => {
         dataMonth: { year: 2026, month: 1 },
         value: 0.0002,
         validFraction: 0.74,
+        geometrySamplingStrategy: "boundary-grid",
       },
       { year: 2026, month: 5 }
     );
@@ -27,6 +28,7 @@ describe("monthly climate summaries", () => {
       publicationLagMonths: 4,
       observedValue: 0.0002,
       coverage: { status: "available", validFraction: 0.74, reason: null },
+      geometrySamplingStrategy: "boundary-grid",
     });
   });
 

@@ -55,6 +55,7 @@ export type OceanCoverageReason =
   | "land-footprint"
   | "unknown-footprint"
   | "missing-sst-value"
+  | "unknown-footprint"
   | "zero-sst-coverage"
   | null;
 
