@@ -452,7 +452,12 @@ describe("place observation environmental brief", () => {
   it("rejects an invalid serialized month rather than treating it as absent", () => {
     const record = exportRecord();
     record.products.find((p) => p.layerId === "ndvi")!.observations = [
-      { dataMonth: "2026-13", value: 0.45, validFraction: 0.8 },
+      {
+        dataMonth: "2026-13",
+        value: 0.45,
+        validFraction: 0.8,
+        coverageStatus: "fraction-recorded",
+      },
     ];
 
     const result = composePlaceObservationBrief(record);

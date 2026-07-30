@@ -143,9 +143,13 @@ export interface PlaceObservationExport {
     "Rendered-imagery values are approximate; use the cited data product for measurement-grade work.",
     "The boundary is the requested sampling footprint; per-observation validFraction records usable sampled coverage.",
     "This export does not infer conditions, causes, risks, or future values.",
+    "Coverage status describes the sampling result, not environmental condition or source-product availability.",
     "Data-month record states do not make values across products interchangeable or describe environmental condition.",
   ];
 }
+
+export type PlaceObservationCoverageStatus =
+  "fraction-recorded" | "no-valid-samples" | "not-supplied";
 
 export interface PlaceObservationExportProduct {
   layerId: LayerId;
@@ -160,6 +164,7 @@ export interface PlaceObservationExportProduct {
     value: number | null;
     validFraction: number | null;
     unavailableReason?: PlaceObservationUnavailableReason | null;
+    coverageStatus: PlaceObservationCoverageStatus;
   }[];
 }
 
@@ -260,6 +265,7 @@ const LIMITATIONS = [
   "Rendered-imagery values are approximate; use the cited data product for measurement-grade work.",
   "The boundary is the requested sampling footprint; per-observation validFraction records usable sampled coverage.",
   "This export does not infer conditions, causes, risks, or future values.",
+  "Coverage status describes the sampling result, not environmental condition or source-product availability.",
   "Data-month record states do not make values across products interchangeable or describe environmental condition.",
 ] as const;
 
@@ -641,6 +647,7 @@ function exportProducts(
           value: observation.value,
           validFraction: observation.validFraction ?? null,
           unavailableReason: observation.unavailableReason ?? null,
+          coverageStatus: coverageStatus(observation.validFraction),
         }))
         .sort((left, right) => compareText(left.dataMonth, right.dataMonth)),
     }))
@@ -685,6 +692,13 @@ function validateSamplingSupport(product: PlaceObservationProductInput): void {
       `Product ${product.layerId} has inconsistent sampling-support plan metadata.`
     );
   }
+}
+
+function coverageStatus(
+  validFraction: number | undefined
+): PlaceObservationCoverageStatus {
+  if (validFraction === undefined) return "not-supplied";
+  return validFraction === 0 ? "no-valid-samples" : "fraction-recorded";
 }
 
 function dataMonthMatrix(

@@ -202,12 +202,14 @@ describe("place observation export", () => {
               value: 0.62,
               validFraction: 0.82,
               unavailableReason: null,
+              coverageStatus: "fraction-recorded",
             },
             {
               dataMonth: "2026-05",
               value: null,
               validFraction: null,
               unavailableReason: "source-no-data",
+              coverageStatus: "not-supplied",
             },
           ],
         },
@@ -228,6 +230,7 @@ describe("place observation export", () => {
               value: 0.00014,
               validFraction: 0.61,
               unavailableReason: null,
+              coverageStatus: "fraction-recorded",
             },
           ],
         },
@@ -284,6 +287,60 @@ describe("place observation export", () => {
     expect(exported.limitations.join(" ")).toMatch(
       /do not make values across products interchangeable/i
     );
+    expect(exported.limitations.join(" ")).toMatch(
+      /coverage status describes the sampling result/i
+    );
+  });
+
+  it("distinguishes unavailable coverage from an observed zero-valid sample", () => {
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [
+        {
+          ...input.products[0],
+          observations: [
+            {
+              dataMonth: { year: 2026, month: 4 },
+              value: null,
+              validFraction: 0,
+              unavailableReason: "source-no-data",
+            },
+            {
+              dataMonth: { year: 2026, month: 5 },
+              value: null,
+              unavailableReason: "source-no-data",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(exported.products[0].observations).toEqual([
+      {
+        dataMonth: "2026-04",
+        value: null,
+        validFraction: 0,
+        unavailableReason: "source-no-data",
+        coverageStatus: "no-valid-samples",
+      },
+      {
+        dataMonth: "2026-05",
+        value: null,
+        validFraction: null,
+        unavailableReason: "source-no-data",
+        coverageStatus: "not-supplied",
+      },
+    ]);
+    expect(exported.reproducibility.dataMonthMatrix).toEqual([
+      {
+        dataMonth: "2026-04",
+        layers: [{ layerId: "ndvi", recordStatus: "no-data-recorded" }],
+      },
+      {
+        dataMonth: "2026-05",
+        layers: [{ layerId: "ndvi", recordStatus: "no-data-recorded" }],
+      },
+    ]);
   });
 
   it("preserves a dateline-crossing footprint as a short-arc envelope", () => {
