@@ -108,6 +108,10 @@ describe("summarizeRenderedLandCover", () => {
     expect(summary.landCover.provenance.publicationStatus).toBe(
       "outside-layer-range"
     );
-    expect(summary.landCover.coverage.status).toBe("available");
+    expect(summary.landCover.coverage).toMatchObject({
+      status: "unavailable",
+      totalSampleCount: 0,
+      reason: "record-not-published",
+    });
   });
 });

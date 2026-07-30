@@ -165,7 +165,11 @@ describe("land-cover human-use partition", () => {
 
       const humanUse = summarizeLandCoverHumanUse(context);
 
-      expect(context.coverage.knownLandCoverSampleCount).toBe(7);
+      expect(context.coverage).toMatchObject({
+        status: "unavailable",
+        knownLandCoverSampleCount: 0,
+        reason: "record-not-published",
+      });
       expect(humanUse.status).toBe("unavailable");
       expect(humanUse.unavailableReason).toBe(reason);
       expect(humanUse.provenance).toBe(context.provenance);
