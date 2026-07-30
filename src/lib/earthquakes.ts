@@ -129,7 +129,7 @@ export interface EarthquakeFeedSnapshot {
 export function formatEarthquakeObservation(earthquake: Earthquake): string {
   const timeUtc = new Date(earthquake.time).toISOString();
   const parts = [
-    earthquake.place.trim() || "Location not supplied",
+    earthquake.place?.trim() || "Location not supplied",
     `M ${earthquake.magnitude} (reported)`,
     `${earthquake.depthKm} km depth`,
     timeUtc.replace("Z", " UTC"),

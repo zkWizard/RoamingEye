@@ -37,9 +37,7 @@ export interface SourceImageDimensions {
 }
 
 export type SourceImageMetadataStatus =
-  | "available"
-  | "not-supplied"
-  | "invalid";
+  "available" | "not-supplied" | "invalid";
 
 export interface SourceImageMetadata {
   status: SourceImageMetadataStatus;

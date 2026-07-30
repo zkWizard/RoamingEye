@@ -418,8 +418,6 @@ describe("rendered monthly meteorology", () => {
     expect(climateInsightText(february, january).detail).toContain(
       "comparison unavailable (comparison month is not earlier)"
     );
-    expect(climateInsightText(soil, february).detail).not.toContain(
-      "kg/m² vs"
-    );
+    expect(climateInsightText(soil, february).detail).not.toContain("kg/m² vs");
   });
 });
