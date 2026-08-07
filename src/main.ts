@@ -554,6 +554,7 @@ function runPlaceInsights(result: GeoResult): void {
             colormapUrl: colormapUrl(PLACE_COLORMAP_DOCS[metric.layerId]),
             samplingSupport: geometrySampling,
             samplingStrategy: geometrySamplingStrategy,
+            sourceImageDimensions,
             observations:
               colormap && climateMetricId
                 ? exportObservationsFromRenderedClimateSample(
@@ -642,6 +643,7 @@ function runPlaceInsights(result: GeoResult): void {
         layerId: "sst",
         sourceValueFactor: colormap.factor,
         samplingStrategy: sample.geometrySamplingStrategy,
+        sourceImageDimensions: sample.sourceImageDimensions,
         colormapUrl: colormapUrl(PLACE_COLORMAP_DOCS.sst),
         observations: [
           sstPlaceObservationFromSample(

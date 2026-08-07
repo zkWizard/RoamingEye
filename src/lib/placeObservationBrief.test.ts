@@ -34,6 +34,7 @@ function exportRecord() {
         source: sourceFor("ndvi"),
         nativeUnit: NDVI_UNIT,
         samplingStrategy: "boundary-grid",
+        sourceImageDimensions: { width: 512, height: 512 },
         observations: [
           { dataMonth: { year: 2025, month: 12 }, value: 0.41 },
           {
@@ -49,6 +50,7 @@ function exportRecord() {
         source: sourceFor("precip"),
         nativeUnit: CLIMATE_METRICS["precipitation-rate"].nativeUnit,
         samplingStrategy: "boundary-grid",
+        sourceImageDimensions: { width: 512, height: 512 },
         observations: [
           {
             dataMonth: { year: 2026, month: 1 },
@@ -78,6 +80,7 @@ function exportRecord() {
         source: sourceFor("airtemp"),
         nativeUnit: CLIMATE_METRICS["air-temperature-2m"].nativeUnit,
         samplingStrategy: "boundary-grid",
+        sourceImageDimensions: { width: 512, height: 512 },
         observations: [
           {
             dataMonth: { year: 2026, month: 3 },
@@ -102,6 +105,7 @@ describe("place observation environmental brief", () => {
     const vegetation = placeObservationProductFromSample({
       layerId: "ndvi",
       samplingStrategy: "boundary-grid",
+      sourceImageDimensions: { width: 512, height: 512 },
       observations: [
         {
           dataMonth: { year: 2026, month: 1 },

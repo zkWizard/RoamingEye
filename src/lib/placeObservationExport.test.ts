@@ -49,6 +49,7 @@ const input = {
         factor: 1,
       },
       samplingStrategy: "boundary-grid" as const,
+      sourceImageDimensions: { width: 768, height: 384 },
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -77,6 +78,7 @@ const input = {
         factor: 86_400,
       },
       samplingStrategy: "boundary-point" as const,
+      sourceImageDimensions: { width: 1024, height: 512 },
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },
@@ -152,6 +154,7 @@ describe("place observation export", () => {
       layerId: "sst",
       sourceValueFactor: 1,
       samplingStrategy: "boundary-grid",
+      sourceImageDimensions: { width: 512, height: 256 },
       observations: [
         {
           dataMonth: { year: 2026, month: 5 },
@@ -1014,17 +1017,10 @@ describe("place observation export", () => {
       })
     ).toThrow("Product sst needs a sampling strategy for recorded values.");
 
-    const product = placeObservationProductFromSample({
-      layerId: "precip",
-      samplingStrategy: "unavailable",
-      observations: [
-        {
-          dataMonth: { year: 2026, month: 4 },
-          value: 0.0001,
-          validFraction: 0.75,
-        },
-      ],
-    });
+    const product = {
+      ...input.products[1],
+      samplingStrategy: "unavailable" as const,
+    };
 
     expect(product.samplingStrategy).toBe("unavailable");
     expect(() =>
@@ -1043,10 +1039,41 @@ describe("place observation export", () => {
           {
             ...product,
             samplingStrategy: "boundary-grid",
+            sourceImageDimensions: { width: 512, height: 256 },
           },
         ],
       })
     ).not.toThrow();
+  });
+
+  it("rejects invalid product-level rendered-image dimensions", () => {
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            sourceImageDimensions: { width: 768, height: 0 },
+          },
+        ],
+      })
+    ).toThrow("Product ndvi has invalid source-image dimensions.");
+  });
+
+  it("rejects recorded values without product-level image provenance", () => {
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            sourceImageDimensions: undefined,
+          },
+        ],
+      })
+    ).toThrow(
+      "Product ndvi must identify its source image when a value is recorded."
+    );
   });
 
   it("retains successful products when SST sampling fails", () => {
