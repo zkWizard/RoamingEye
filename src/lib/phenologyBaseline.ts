@@ -30,6 +30,13 @@ export const MINIMUM_NDVI_SEASONAL_BASELINE_SAMPLES = 10;
 /** Comparisons require 60% valid sampled area in every retained observation. */
 export const MINIMUM_NDVI_SEASONAL_VALID_FRACTION = 0.6;
 
+/** Machine-readable limits retained with every reported comparison. */
+export const NDVI_SEASONAL_BASELINE_LIMITATIONS = [
+  "Supplied values remain in MOD13A3 NDVI units; no value or coverage is imputed.",
+  "This compares only prior same-calendar-month observations and does not establish phenological onset, senescence, productivity, or ecological condition.",
+  "This does not diagnose, attribute causes, rank risk, or forecast future vegetation.",
+] as const;
+
 export interface NdviMetric {
   layerId: "ndvi";
   label: "Vegetation (NDVI)";
@@ -78,7 +85,9 @@ export interface MonthlyNdviSummary {
 export interface NdviSeasonalBaselineOptions {
   minimumSamples?: number;
   minimumValidFraction?: number;
+  /** Optional inclusive first baseline year. */
   baselineStartYear?: number;
+  /** Inclusive final baseline year; it must precede the target year. */
   baselineEndYear?: number;
 }
 
@@ -145,6 +154,7 @@ export interface NdviSeasonalBaselineComparison {
   differenceUnit: typeof NDVI_UNIT;
   /** Retained samples, sorted oldest to newest for auditability. */
   samples: NdviSeasonalBaselineSample[];
+  limitations: typeof NDVI_SEASONAL_BASELINE_LIMITATIONS;
   /** Short machine-readable reason when no comparison is reported. */
   reason: string | null;
 }
@@ -209,8 +219,10 @@ export function compareMonthlyNdviToSeasonalBaseline(
   const targetMonth = isCalendarMonth(targetObservation.month)
     ? targetObservation.month.month
     : null;
-  const baselineEndYear =
-    options.baselineEndYear ?? targetObservation.month.year - 1;
+  const latestBaselineYear = isCalendarMonth(targetObservation.month)
+    ? targetObservation.month.year - 1
+    : null;
+  const baselineEndYear = options.baselineEndYear ?? latestBaselineYear;
   const bounds: NdviSeasonalBaselineBounds = {
     startYear: options.baselineStartYear ?? null,
     endYear: Number.isInteger(baselineEndYear) ? baselineEndYear : null,
@@ -229,11 +241,12 @@ export function compareMonthlyNdviToSeasonalBaseline(
     minimumValidFraction <= 1 &&
     validYearBound(options.baselineStartYear) &&
     validYearBound(options.baselineEndYear) &&
-    (options.baselineStartYear === undefined ||
-      options.baselineEndYear === undefined ||
-      options.baselineStartYear <= options.baselineEndYear);
+    bounds.endYear !== null &&
+    latestBaselineYear !== null &&
+    bounds.endYear <= latestBaselineYear &&
+    (bounds.startYear === null || bounds.startYear <= bounds.endYear);
 
-  if (!validOptions || targetMonth === null || bounds.endYear === null) {
+  if (!validOptions || targetMonth === null || baselineEndYear === null) {
     return comparisonFor(
       "invalid",
       hemisphere,
@@ -376,6 +389,7 @@ export function compareMonthlyNdviToSeasonalBaseline(
     differenceFromBaseline: target.observedValue! - baseline.mean,
     differenceUnit: NDVI_UNIT,
     samples,
+    limitations: NDVI_SEASONAL_BASELINE_LIMITATIONS,
     reason: null,
   };
 }
@@ -554,6 +568,7 @@ function comparisonFor(
     differenceFromBaseline: null,
     differenceUnit: NDVI_UNIT,
     samples,
+    limitations: NDVI_SEASONAL_BASELINE_LIMITATIONS,
     reason,
   };
 }
