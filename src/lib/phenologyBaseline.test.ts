@@ -3,6 +3,7 @@ import {
   MINIMUM_NDVI_SEASONAL_BASELINE_SAMPLES,
   MINIMUM_NDVI_SEASONAL_VALID_FRACTION,
   NDVI_METRIC,
+  NDVI_SEASONAL_BASELINE_LIMITATIONS,
   compareMonthlyNdviToSeasonalBaseline,
   summarizeMonthlyNdvi,
 } from "./phenologyBaseline";
@@ -65,6 +66,7 @@ describe("seasonal NDVI baseline comparisons", () => {
       reason: null,
     });
     expect(comparison.metric.source).toBe(NDVI_SOURCE);
+    expect(comparison.limitations).toBe(NDVI_SEASONAL_BASELINE_LIMITATIONS);
     expect(comparison.baseline.mean).toBeCloseTo(0.345);
     expect(comparison.differenceFromBaseline).toBeCloseTo(0.155);
     expect(comparison.samples.map((sample) => sample.month.month)).toEqual(
@@ -72,6 +74,29 @@ describe("seasonal NDVI baseline comparisons", () => {
     );
     expect(comparison.baseline.sampleStandardDeviation).toBeGreaterThan(0);
     expect(comparison.baseline.standardErrorOfMean).toBeGreaterThan(0);
+  });
+
+  it("rejects a baseline window that reaches the target year", () => {
+    const comparison = compareMonthlyNdviToSeasonalBaseline(
+      ndvi(2025, 2, 0.5, 0.9),
+      [
+        ndvi(2022, 2, 0.2, 0.8),
+        ndvi(2023, 2, 0.3, 0.8),
+        ndvi(2024, 2, 0.4, 0.8),
+        ndvi(2025, 2, 0.5, 0.9),
+      ],
+      AVAILABLE_THROUGH,
+      48.8,
+      { minimumSamples: 3, baselineStartYear: 2022, baselineEndYear: 2025 }
+    );
+
+    expect(comparison).toMatchObject({
+      status: "invalid",
+      differenceFromBaseline: null,
+      reason: "invalid-baseline-configuration",
+      bounds: { startYear: 2022, endYear: 2025, calendarMonth: 2 },
+      limitations: NDVI_SEASONAL_BASELINE_LIMITATIONS,
+    });
   });
 
   it("does not assume boundary coverage when the sampler did not provide it", () => {
