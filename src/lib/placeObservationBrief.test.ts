@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { CLIMATE_METRICS } from "./climate";
 import { NDVI_UNIT } from "./phenology";
-import { createPlaceObservationExport } from "./placeObservationExport";
+import {
+  createPlaceObservationExport,
+  placeObservationProductFromSample,
+} from "./placeObservationExport";
 import { composePlaceObservationBrief } from "./placeObservationBrief";
 import { LAYERS } from "./timeline";
 
@@ -30,6 +33,8 @@ function exportRecord() {
         wmsLayer: LAYERS.ndvi.wmsLayer,
         source: sourceFor("ndvi"),
         nativeUnit: NDVI_UNIT,
+        samplingStrategy: "boundary-grid",
+        sourceImageDimensions: { width: 512, height: 512 },
         observations: [
           { dataMonth: { year: 2025, month: 12 }, value: 0.41 },
           {
@@ -44,6 +49,8 @@ function exportRecord() {
         wmsLayer: LAYERS.precip.wmsLayer,
         source: sourceFor("precip"),
         nativeUnit: CLIMATE_METRICS["precipitation-rate"].nativeUnit,
+        samplingStrategy: "boundary-grid",
+        sourceImageDimensions: { width: 512, height: 512 },
         observations: [
           {
             dataMonth: { year: 2026, month: 1 },
@@ -72,6 +79,8 @@ function exportRecord() {
         wmsLayer: LAYERS.airtemp.wmsLayer,
         source: sourceFor("airtemp"),
         nativeUnit: CLIMATE_METRICS["air-temperature-2m"].nativeUnit,
+        samplingStrategy: "boundary-grid",
+        sourceImageDimensions: { width: 512, height: 512 },
         observations: [
           {
             dataMonth: { year: 2026, month: 3 },
@@ -92,6 +101,53 @@ function exportRecord() {
 }
 
 describe("place observation environmental brief", () => {
+  it("accepts vegetation produced by the sample-to-export data path", () => {
+    const vegetation = placeObservationProductFromSample({
+      layerId: "ndvi",
+      samplingStrategy: "boundary-grid",
+      sourceImageDimensions: { width: 512, height: 512 },
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 1 },
+          value: 0.58,
+          validFraction: 0.8,
+        },
+      ],
+    });
+    const record = createPlaceObservationExport({
+      boundary: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [-120, 35],
+            [-119, 35],
+            [-119, 36],
+            [-120, 35],
+          ],
+        ],
+      },
+      products: [vegetation],
+      method: {
+        sampling: "area-weighted-grid-mean",
+        imageWidth: 512,
+        imageHeight: 512,
+      },
+      generatedIso: "2026-07-13T07:00:00.000Z",
+      toolVersion: "test",
+    });
+
+    expect(vegetation.nativeUnit).toBe(NDVI_UNIT);
+    const result = composePlaceObservationBrief(record);
+    expect(result.productStatus.vegetation).toBe("accepted");
+    expect(result.brief.signals[0]).toMatchObject({
+      id: "vegetation",
+      nativeUnit: NDVI_UNIT,
+      dataMonth: { year: 2026, month: 1 },
+      observedValue: 0.58,
+      coverage: { status: "available", validFraction: 0.8 },
+    });
+  });
+
   it("adapts latest native-unit observations with product-specific availability", () => {
     const record = exportRecord();
     const result = composePlaceObservationBrief(record);
@@ -144,7 +200,7 @@ describe("place observation environmental brief", () => {
     });
     expect(result.samplingProvenance).toEqual({
       vegetation: {
-        samplingStrategy: "unavailable",
+        samplingStrategy: "boundary-grid",
         samplingSupport: null,
         sampleToNative: {
           sampledUnit: NDVI_UNIT,
@@ -158,7 +214,7 @@ describe("place observation environmental brief", () => {
         },
       },
       rainfall: {
-        samplingStrategy: "unavailable",
+        samplingStrategy: "boundary-grid",
         samplingSupport: null,
         sampleToNative: {
           sampledUnit: CLIMATE_METRICS["precipitation-rate"].nativeUnit,
@@ -186,7 +242,7 @@ describe("place observation environmental brief", () => {
         },
       },
       "air-temperature": {
-        samplingStrategy: "unavailable",
+        samplingStrategy: "boundary-grid",
         samplingSupport: null,
         sampleToNative: {
           sampledUnit: CLIMATE_METRICS["air-temperature-2m"].nativeUnit,

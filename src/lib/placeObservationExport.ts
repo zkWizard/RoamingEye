@@ -3,6 +3,7 @@ import {
   type GeoGeometry,
   type GeometrySamplingStrategy,
 } from "./geojson";
+import { NDVI_UNIT } from "./phenology";
 import {
   LAYERS,
   type DatasetRef,
@@ -58,6 +59,8 @@ export interface PlaceObservationProductInput {
   sampleToNative?: PlaceObservationValueTransform;
   /** Exact searched-boundary strategy used for this product's observations. */
   samplingStrategy?: GeometrySamplingStrategy | "unavailable";
+  /** Actual rendered image returned by the sampler for this product. */
+  sourceImageDimensions?: { width: number; height: number };
   /** Exact rendered-value mapping used, or why it was unavailable. */
   valueMapping?: PlaceObservationValueMapping;
   observations: readonly PlaceObservationInput[];
@@ -166,6 +169,7 @@ export interface PlaceObservationExportProduct {
   samplingSupport: PlaceObservationSamplingSupport | null;
   sampleToNative: PlaceObservationValueTransform;
   samplingStrategy: GeometrySamplingStrategy | "unavailable";
+  sourceImage: { width: number; height: number } | null;
   valueMapping: PlaceObservationValueMapping;
   observations: {
     dataMonth: string;
@@ -209,7 +213,7 @@ export interface PlaceObservationGeography {
 
 /** Native product units for the independently sampled place-insight signals. */
 export const PLACE_OBSERVATION_NATIVE_UNITS = {
-  ndvi: "NDVI",
+  ndvi: NDVI_UNIT,
   precip: "kg/m²/s",
   soil: "kg/m²",
   airtemp: "K",
@@ -230,6 +234,7 @@ export interface PlaceObservationExportSample {
   /** Unit represented by the sampled values before native-unit conversion. */
   sampledUnit?: string;
   samplingStrategy?: GeometrySamplingStrategy;
+  sourceImageDimensions?: { width: number; height: number };
   sourceValueFactor?: number;
   samplingSupport?: PlaceObservationSamplingSupport;
   colormapUrl?: string | null;
@@ -381,6 +386,14 @@ export function placeObservationProductFromSample(
       `Product ${sample.layerId} needs a complete source citation.`
     );
   }
+  if (
+    sample.samplingStrategy === undefined &&
+    sample.observations.some((observation) => observation.value !== null)
+  ) {
+    throw new Error(
+      `Product ${sample.layerId} needs a sampling strategy for recorded values.`
+    );
+  }
 
   return {
     layerId: sample.layerId,
@@ -394,6 +407,9 @@ export function placeObservationProductFromSample(
       factor: sourceValueFactor,
     },
     samplingStrategy: sample.samplingStrategy ?? "unavailable",
+    sourceImageDimensions: sample.sourceImageDimensions
+      ? { ...sample.sourceImageDimensions }
+      : undefined,
     valueMapping: sample.colormapUrl
       ? { status: "gibs-colormap", url: sample.colormapUrl }
       : sample.usedUiLegendApproximation
@@ -474,6 +490,32 @@ function validateInput(input: PlaceObservationExportInput): void {
     ) {
       throw new Error(
         `Product ${product.layerId} has an invalid sampling strategy.`
+      );
+    }
+    if (
+      (product.samplingStrategy === undefined ||
+        product.samplingStrategy === "unavailable") &&
+      product.observations.some((observation) => observation.value !== null)
+    ) {
+      throw new Error(
+        `Product ${product.layerId} must retain a boundary sampling strategy for recorded values.`
+      );
+    }
+    if (
+      product.sourceImageDimensions !== undefined &&
+      (!isPositiveInteger(product.sourceImageDimensions.width) ||
+        !isPositiveInteger(product.sourceImageDimensions.height))
+    ) {
+      throw new Error(
+        `Product ${product.layerId} has invalid source-image dimensions.`
+      );
+    }
+    if (
+      product.observations.some((observation) => observation.value !== null) &&
+      product.sourceImageDimensions === undefined
+    ) {
+      throw new Error(
+        `Product ${product.layerId} must identify its source image when a value is recorded.`
       );
     }
     validateValueMapping(product.layerId, product.valueMapping);
@@ -657,6 +699,9 @@ function exportProducts(
             factor: 1,
           },
       samplingStrategy: product.samplingStrategy ?? "unavailable",
+      sourceImage: product.sourceImageDimensions
+        ? { ...product.sourceImageDimensions }
+        : null,
       valueMapping: exportValueMapping(product.valueMapping),
       observations: product.observations
         .map((observation) => ({
