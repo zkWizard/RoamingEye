@@ -151,6 +151,7 @@ describe("place observation export", () => {
     const product = placeObservationProductFromSample({
       layerId: "sst",
       sourceValueFactor: 1,
+      samplingStrategy: "boundary-grid",
       observations: [
         {
           dataMonth: { year: 2026, month: 5 },
@@ -1000,8 +1001,22 @@ describe("place observation export", () => {
   });
 
   it("requires sampling geography for every product with recorded values", () => {
+    expect(() =>
+      placeObservationProductFromSample({
+        layerId: "sst",
+        observations: [
+          {
+            dataMonth: { year: 2026, month: 5 },
+            value: 18.375,
+            validFraction: 0.37,
+          },
+        ],
+      })
+    ).toThrow("Product sst needs a sampling strategy for recorded values.");
+
     const product = placeObservationProductFromSample({
       layerId: "precip",
+      samplingStrategy: "unavailable",
       observations: [
         {
           dataMonth: { year: 2026, month: 4 },

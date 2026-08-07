@@ -382,6 +382,14 @@ export function placeObservationProductFromSample(
       `Product ${sample.layerId} needs a complete source citation.`
     );
   }
+  if (
+    sample.samplingStrategy === undefined &&
+    sample.observations.some((observation) => observation.value !== null)
+  ) {
+    throw new Error(
+      `Product ${sample.layerId} needs a sampling strategy for recorded values.`
+    );
+  }
 
   return {
     layerId: sample.layerId,
