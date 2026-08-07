@@ -77,6 +77,73 @@ export interface BoundsPart {
   fraction: number;
 }
 
+/** Allocate positive integer widths that exactly fill a stitched image. */
+export function boundsPartPixelWidths(
+  parts: readonly BoundsPart[],
+  totalWidth: number
+): number[] {
+  if (
+    parts.length === 0 ||
+    !Number.isInteger(totalWidth) ||
+    totalWidth < parts.length
+  ) {
+    throw new Error("RoamingEye: image width cannot represent bounds pieces");
+  }
+
+  const widths: number[] = [];
+  let remainingWidth = totalWidth;
+  let remainingFraction = parts.reduce((sum, part) => sum + part.fraction, 0);
+  for (let index = 0; index < parts.length; index++) {
+    const remainingParts = parts.length - index;
+    if (remainingParts === 1) {
+      widths.push(remainingWidth);
+      break;
+    }
+    const proportional =
+      remainingFraction > 0
+        ? Math.round(
+            remainingWidth * (parts[index].fraction / remainingFraction)
+          )
+        : 1;
+    const width = Math.min(
+      remainingWidth - (remainingParts - 1),
+      Math.max(1, proportional)
+    );
+    widths.push(width);
+    remainingWidth -= width;
+    remainingFraction -= parts[index].fraction;
+  }
+  return widths;
+}
+
+/**
+ * Allocate an exact output width across antimeridian pieces without ever
+ * issuing an invalid zero-width WMS request. Reserving one pixel per piece
+ * matters when a boundary crosses the seam by less than half an output pixel;
+ * ordinary rounding can otherwise erase that narrow (but real) geography.
+ */
+export function allocateBoundsPartWidths(
+  parts: BoundsPart[],
+  totalWidth: number
+): number[] {
+  if (!Number.isInteger(totalWidth) || totalWidth < parts.length) {
+    throw new Error(
+      "RoamingEye: imagery width must provide at least one pixel per bounds part"
+    );
+  }
+  if (parts.length === 0) return [];
+
+  const remaining = totalWidth - parts.length;
+  const exact = parts.map((part) => part.fraction * remaining);
+  const widths = exact.map((width) => 1 + Math.floor(width));
+  const unassigned = totalWidth - widths.reduce((sum, width) => sum + width, 0);
+  const remainderOrder = exact
+    .map((width, index) => ({ index, remainder: width - Math.floor(width) }))
+    .sort((a, b) => b.remainder - a.remainder || a.index - b.index);
+  for (let i = 0; i < unassigned; i++) widths[remainderOrder[i].index]++;
+  return widths;
+}
+
 /**
  * Split a continuous-longitude box at the ±180° seam into legal WMS pieces.
  * RFC 7946 §3.1.9 canonized splitting at the antimeridian for geometry; this
@@ -129,7 +196,7 @@ export interface RegionImageOptions {
 export function gibsRegionUrl(
   wmsLayer: string,
   bounds: Bounds,
-  time: string,
+  time: string | null,
   options: RegionImageOptions = {}
 ): string {
   const { width = 2048, height = 2048, format = "image/jpeg" } = options;
@@ -144,12 +211,20 @@ export function gibsRegionUrl(
     WIDTH: String(width),
     HEIGHT: String(height),
     FORMAT: format,
-    TIME: time,
   });
+  // Static products (for example ASTER GDEM shaded relief) have no temporal
+  // axis. Omitting TIME preserves that source contract and matches the global
+  // GIBS request path; a made-up calendar date can yield an empty WMS image.
+  if (time !== null) params.set("TIME", time);
   return `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?${params.toString()}`;
 }
 
 /** HLS is addressed by day; we sample mid-month for a given timeline month. */
 export function studyDate(ym: YearMonth): string {
   return `${ym.year}-${String(ym.month).padStart(2, "0")}-15`;
+}
+
+/** GIBS month identity, or no TIME parameter for a static source product. */
+export function imageryTime(ym: YearMonth, isStatic = false): string | null {
+  return isStatic ? null : `${ym.year}-${String(ym.month).padStart(2, "0")}-01`;
 }

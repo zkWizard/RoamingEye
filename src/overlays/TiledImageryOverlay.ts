@@ -8,6 +8,7 @@ import {
   gibsWmtsTileUrl,
   meshSegmentsForSpan,
   selectLodTiles,
+  TileRetryLedger,
   tileBounds,
   textureBudgetBytes,
   TILE_TEXTURE_BYTES,
@@ -65,6 +66,12 @@ interface ShownTile {
   provisional: boolean;
 }
 
+export interface VisibleTileCoverage {
+  requested: number;
+  loaded: number;
+  failed: number;
+}
+
 export class TiledImageryOverlay implements MapOverlay {
   readonly id = "hd";
   readonly label = "HD tiles";
@@ -76,6 +83,7 @@ export class TiledImageryOverlay implements MapOverlay {
   private readonly textures = new Map<string, THREE.Texture>(); // LRU
   private readonly shown = new Map<string, ShownTile>(); // by address key
   private readonly loading = new Set<string>();
+  private readonly retries = new TileRetryLedger();
   private queue: { key: string; url: string; tile: TileAddress }[] = [];
   private wantedKeys = new Set<string>();
   private readonly budgetBytes = textureBudgetBytes(
@@ -90,9 +98,18 @@ export class TiledImageryOverlay implements MapOverlay {
   private generationAbort = new AbortController();
   private lastSignature = "";
   private lastUpdate = 0;
+  private failedWanted = new Set<string>();
+  private coverageListener?: (coverage: VisibleTileCoverage) => void;
 
   constructor(private readonly maxAnisotropy = 1) {
     this.object.visible = false;
+  }
+
+  onVisibleCoverageChange(
+    listener: (coverage: VisibleTileCoverage) => void
+  ): void {
+    this.coverageListener = listener;
+    this.emitCoverage();
   }
 
   ensureLoaded(): Promise<void> {
@@ -151,6 +168,8 @@ export class TiledImageryOverlay implements MapOverlay {
       this.clearMeshes();
       this.wantedKeys.clear();
       this.lastWanted = [];
+      this.failedWanted.clear();
+      this.emitCoverage();
       return;
     }
     this.reconcile(wanted);
@@ -211,6 +230,9 @@ export class TiledImageryOverlay implements MapOverlay {
     }
 
     this.wantedKeys = new Set(wanted.map((t) => this.keyFor(t)));
+    this.failedWanted = new Set(
+      [...this.failedWanted].filter((key) => this.wantedKeys.has(key))
+    );
     this.lastWanted = wanted;
     this.queue = [];
     for (const [akey, tile] of wantedByAddr) {
@@ -224,7 +246,10 @@ export class TiledImageryOverlay implements MapOverlay {
         this.show(tile, key, cached, null);
         continue;
       }
-      if (!this.loading.has(key)) {
+      if (
+        !this.loading.has(key) &&
+        this.retries.canAttempt(key, performance.now())
+      ) {
         this.queue.push({
           key,
           url: gibsWmtsTileUrl(
@@ -240,6 +265,7 @@ export class TiledImageryOverlay implements MapOverlay {
       // footprint so zooming refines instead of opening a hole (milestone 5).
       if (!entry) this.showFallback(tile);
     }
+    this.emitCoverage();
     this.pump();
   }
 
@@ -265,6 +291,7 @@ export class TiledImageryOverlay implements MapOverlay {
         if (headroom <= 0) return;
         const key = this.keyFor(tile, time);
         if (this.textures.has(key) || this.loading.has(key)) continue;
+        if (!this.retries.canAttempt(key, performance.now())) continue;
         headroom--;
         this.queue.push({
           key,
@@ -318,6 +345,7 @@ export class TiledImageryOverlay implements MapOverlay {
           if (generation !== this.generation) {
             texture.dispose(); // superseded by a layer/month change
           } else {
+            this.retries.recordSuccess(job.key);
             texture.colorSpace = THREE.SRGBColorSpace;
             texture.anisotropy = this.maxAnisotropy;
             this.touch(job.key, texture);
@@ -326,6 +354,8 @@ export class TiledImageryOverlay implements MapOverlay {
             if (this.wantedKeys.has(job.key)) {
               this.show(job.tile, job.key, texture, null);
             }
+            this.failedWanted.delete(job.key);
+            this.emitCoverage();
             this.evict();
           }
           this.pump();
@@ -334,9 +364,41 @@ export class TiledImageryOverlay implements MapOverlay {
           // Abort (superseded generation) or a missing tile (ocean-only,
           // over-zoom, outages) — both keep the parent-tile fallback.
           this.loading.delete(job.key);
+          if (
+            generation === this.generation &&
+            !this.generationAbort.signal.aborted
+          ) {
+            const retryDelayMs = this.retries.recordFailure(
+              job.key,
+              performance.now()
+            );
+            // A visible tile gets another chance after its cooldown even when
+            // the camera remains still. Prefetch-only failures wait for later
+            // activity instead of keeping the network pump alive by timer.
+            if (this.wantedKeys.has(job.key)) {
+              this.failedWanted.add(job.key);
+              this.emitCoverage();
+              window.setTimeout(() => {
+                if (generation === this.generation) this.lastSignature = "";
+              }, retryDelayMs);
+            }
+          }
           this.pump();
         });
     }
+  }
+
+  private emitCoverage(): void {
+    if (!this.coverageListener) return;
+    let loaded = 0;
+    for (const key of this.wantedKeys) {
+      if (this.textures.has(key)) loaded++;
+    }
+    this.coverageListener({
+      requested: this.wantedKeys.size,
+      loaded,
+      failed: this.failedWanted.size,
+    });
   }
 
   /**

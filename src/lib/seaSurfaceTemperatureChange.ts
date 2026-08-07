@@ -26,7 +26,17 @@ import { formatYm, ymToIndex, type YearMonth } from "./timeline";
 export type SeaSurfaceTemperatureTrend = "warmer" | "cooler" | "little-change";
 
 export type SeaSurfaceTemperatureChangeStatus =
-  "available" | "non-adjacent-months" | "unavailable";
+  | "available"
+  | "non-adjacent-months"
+  | "incompatible-spatial-support"
+  | "unavailable";
+
+export interface SeaSurfaceTemperatureChangeSpatialSupport {
+  earlier: OceanConditionSummary["coverage"];
+  later: OceanConditionSummary["coverage"];
+  compatibility:
+    "same-footprint-context" | "different-footprint-context" | "unavailable";
+}
 
 /**
  * Change of observed SST (°C) below which the pair is reported as
@@ -39,6 +49,7 @@ export const SEA_SURFACE_TEMPERATURE_CHANGE_THRESHOLD_C = 0.5;
 
 export const SEA_SURFACE_TEMPERATURE_CHANGE_LIMITATIONS = [
   "The change is the plain difference of two monthly-mean SST observations (later minus earlier) in the source unit (°C).",
+  "A change is withheld when the supplied endpoint footprint contexts differ; coverage fractions are retained separately and never treated as equivalent geography.",
   "The direction bin (warmer/cooler/little-change) is a reporting convention over a continuous difference; its threshold is not a physical boundary.",
   "Two adjacent monthly means are not a trend line, a warming/cooling rate, or a climatology anomaly, and this helper does not compute one.",
   "It inherits the SST product's resolution and biases and infers no ecosystem condition, marine-biology signal, cause, hazard, or any future value.",
@@ -55,6 +66,12 @@ export interface SeaSurfaceTemperatureChange {
   /** The two supplied single-month SST summaries, unchanged. */
   earlier: OceanConditionSummary;
   later: OceanConditionSummary;
+  /**
+   * Endpoint coverage retained verbatim. A change is withheld when the two
+   * supplied footprint contexts differ; this helper never assumes they
+   * represent the same spatial support.
+   */
+  spatialSupport: SeaSurfaceTemperatureChangeSpatialSupport;
   /** Later observed value minus earlier, in the source unit (°C); null when not computable. */
   changeValue: number | null;
   trend: SeaSurfaceTemperatureTrend | null;
@@ -104,6 +121,7 @@ export function describeSeaSurfaceTemperatureChange(
     metric: SEA_SURFACE_TEMPERATURE_METRIC,
     earlier,
     later,
+    spatialSupport: spatialSupportFor(earlier, later),
     changeValue: null,
     trend: null,
     thresholdValue: validThreshold
@@ -118,6 +136,13 @@ export function describeSeaSurfaceTemperatureChange(
   }
   if (earlier.observedValue === null || later.observedValue === null) {
     return { ...base, status: "unavailable", reason: "endpoint-not-available" };
+  }
+  if (base.spatialSupport.compatibility === "different-footprint-context") {
+    return {
+      ...base,
+      status: "incompatible-spatial-support",
+      reason: "footprint-context-mismatch",
+    };
   }
   if (!isConsecutive(earlier.dataMonth, later.dataMonth)) {
     return {
@@ -180,6 +205,32 @@ export function formatSeaSurfaceTemperatureChange(
 
 function isConsecutive(earlier: YearMonth, later: YearMonth): boolean {
   return ymToIndex(later) - ymToIndex(earlier) === 1;
+}
+
+function spatialSupportFor(
+  earlier: OceanConditionSummary,
+  later: OceanConditionSummary
+): SeaSurfaceTemperatureChangeSpatialSupport {
+  const earlierUsable = isUsableCoverage(earlier);
+  const laterUsable = isUsableCoverage(later);
+  return {
+    earlier: earlier.coverage,
+    later: later.coverage,
+    compatibility:
+      !earlierUsable || !laterUsable
+        ? "unavailable"
+        : earlier.coverage.footprint === later.coverage.footprint
+          ? "same-footprint-context"
+          : "different-footprint-context",
+  };
+}
+
+function isUsableCoverage(summary: OceanConditionSummary): boolean {
+  return (
+    summary.observedValue !== null &&
+    (summary.coverage.status === "water" ||
+      summary.coverage.status === "land-mixed-coastal")
+  );
 }
 
 function formatSigned(value: number): string {

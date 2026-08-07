@@ -45,11 +45,28 @@ export type SoilMoistureObservation = Omit<
   "metricId"
 >;
 
+export type SoilMoistureChangeObservation = SoilMoistureObservation & {
+  /**
+   * Stable caller-supplied identity for the sampled place or footprint.
+   * This is opaque provenance: the helper compares it but does not infer a
+   * geometry, administrative area, or ground resolution from it.
+   */
+  geography: SoilMoistureGeography;
+};
+
+export interface SoilMoistureGeography {
+  /** Stable identity shared only by observations sampled for the same place. */
+  id: string;
+  /** Optional user-facing place or footprint label, retained unchanged. */
+  label?: string;
+}
+
 export type SoilMoistureChangeStatus =
   | "available"
   | "earlier-not-usable"
   | "later-not-usable"
   | "both-not-usable"
+  | "different-geography"
   | "non-chronological"
   | "invalid";
 
@@ -57,9 +74,9 @@ export type SoilMoistureChangeDirection = "wetter" | "drier" | "unchanged";
 
 export interface SoilMoistureChangeInput {
   /** The earlier of the two supplied monthly soil-moisture observations. */
-  earlier: SoilMoistureObservation;
+  earlier: SoilMoistureChangeObservation;
   /** The later of the two supplied monthly soil-moisture observations. */
-  later: SoilMoistureObservation;
+  later: SoilMoistureChangeObservation;
   /** Month through which the caller had confirmed source availability. */
   availableThrough: YearMonth;
 }
@@ -83,6 +100,10 @@ export interface SoilMoistureChangeSummary {
   /** Per-month climate summaries, retained verbatim for auditability. */
   earlier: MonthlyClimateSummary;
   later: MonthlyClimateSummary;
+  /** Earlier sampling geography, retained unchanged for auditability. */
+  earlierGeography: SoilMoistureGeography;
+  /** Later sampling geography, retained unchanged for auditability. */
+  laterGeography: SoilMoistureGeography;
   /** Calendar-month gap from earlier to later; null when a month is invalid. */
   monthSpan: number | null;
   /**
@@ -131,6 +152,8 @@ export function summarizeSoilMoistureChange(
     metric: SOIL_MOISTURE_CHANGE_METRIC,
     earlier,
     later,
+    earlierGeography: { ...input.earlier.geography },
+    laterGeography: { ...input.later.geography },
     changeUnit: SOIL_MOISTURE_CHANGE_METRIC.nativeUnit,
     limitations: SOIL_MOISTURE_CHANGE_LIMITATIONS,
   } as const;
@@ -164,6 +187,33 @@ export function summarizeSoilMoistureChange(
       direction: null,
       minValidFraction: null,
       reason: monthSpan === 0 ? "same-month" : "reversed-order",
+    };
+  }
+
+  if (
+    !isGeography(input.earlier.geography) ||
+    !isGeography(input.later.geography)
+  ) {
+    return {
+      ...base,
+      status: "invalid",
+      monthSpan,
+      change: null,
+      direction: null,
+      minValidFraction: null,
+      reason: "invalid-geography",
+    };
+  }
+
+  if (input.earlier.geography.id !== input.later.geography.id) {
+    return {
+      ...base,
+      status: "different-geography",
+      monthSpan,
+      change: null,
+      direction: null,
+      minValidFraction: null,
+      reason: "different-geography",
     };
   }
 
@@ -260,6 +310,15 @@ function isYearMonth(value: YearMonth): boolean {
     Number.isInteger(value.month) &&
     value.month >= 1 &&
     value.month <= 12
+  );
+}
+
+function isGeography(value: SoilMoistureGeography): boolean {
+  return (
+    typeof value.id === "string" &&
+    value.id.trim().length > 0 &&
+    (value.label === undefined ||
+      (typeof value.label === "string" && value.label.trim().length > 0))
   );
 }
 

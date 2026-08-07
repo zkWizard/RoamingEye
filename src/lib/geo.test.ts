@@ -66,6 +66,30 @@ describe("vector3ToLatLng", () => {
     expect(back.lat).toBeCloseTo(12, 4);
     expect(back.lon).toBeCloseTo(34, 4);
   });
+
+  it("does not invent longitude at either exact pole", () => {
+    for (const lat of [-90, 90]) {
+      for (const lon of [-179, -45, 0, 83, 179]) {
+        expect(vector3ToLatLng(latLngToVector3(lat, lon))).toEqual({
+          lat,
+          lon: 0,
+        });
+      }
+    }
+  });
+
+  it("retains longitude for real near-pole locations", () => {
+    const back = vector3ToLatLng(latLngToVector3(89.999999999, 73));
+    expect(back.lat).toBeCloseTo(89.999999999, 9);
+    expect(back.lon).toBeCloseTo(73, 4);
+  });
+
+  it("uses -180 as the canonical antimeridian longitude", () => {
+    const east = vector3ToLatLng(latLngToVector3(0, 180));
+    const west = vector3ToLatLng(latLngToVector3(0, -180));
+    expect(east.lon).toBe(-180);
+    expect(west.lon).toBe(-180);
+  });
 });
 
 describe("formatLatLng", () => {

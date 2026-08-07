@@ -36,7 +36,10 @@ describe("summarizeEruptionRecency", () => {
       provenance: {
         org: "Smithsonian Institution Global Volcanism Program",
       },
-      units: { lastEruptionYear: "calendar year; negative values are BCE" },
+      units: {
+        lastEruptionYear:
+          "source calendar year; negative values are BCE and zero is preserved without era conversion",
+      },
     });
   });
 
@@ -57,18 +60,18 @@ describe("summarizeEruptionRecency", () => {
     expect(summary.lastEruptionYear).toEqual({ min: -5600, max: -5600 });
   });
 
-  it("uses the 1900 and 1 CE class boundaries inclusively", () => {
+  it("uses the 1900 and GVP source-year-zero class boundaries inclusively", () => {
     const summary = summarizeEruptionRecency([
       volcano({ lastEruptionYear: 1900 }), // recent (>= 1900)
       volcano({ lastEruptionYear: 1899 }), // historic
-      volcano({ lastEruptionYear: 1 }), // historic (>= 1)
-      volcano({ lastEruptionYear: 0 }), // holocene (< 1)
+      volcano({ lastEruptionYear: 1 }), // historic
+      volcano({ lastEruptionYear: 0 }), // historic (GVP source year)
     ]);
 
     expect(summary.recencyClassCounts).toEqual({
       recent: 1,
-      historic: 2,
-      holocene: 1,
+      historic: 3,
+      holocene: 0,
     });
   });
 

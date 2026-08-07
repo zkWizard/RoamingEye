@@ -58,22 +58,38 @@ export interface PlaceColormap {
   factor: number;
 }
 
-const placeColormapCache = new Map<CalibratedLayerId, Promise<PlaceColormap>>();
+/**
+ * Place insights decode NDVI as well as the globally calibrated probe layers.
+ * MODIS_L3_NDVI is the GIBS colormap linked to the monthly MOD13A3 imagery;
+ * using it preserves native NDVI values (including valid negative values)
+ * instead of treating a display-gradient position as the observation.
+ */
+export const PLACE_COLORMAP_DOCS = {
+  ...COLORMAP_DOCS,
+  ndvi: "MODIS_L3_NDVI",
+} as const;
+
+type PlaceCalibratedLayerId = keyof typeof PLACE_COLORMAP_DOCS;
+
+const placeColormapCache = new Map<
+  PlaceCalibratedLayerId,
+  Promise<PlaceColormap>
+>();
 
 /**
  * Retrieve and cache NASA GIBS's own RGB-to-value ramp for an insight metric.
  * The display legend is intentionally concise; this data source is the
  * authoritative mapping used to turn rendered regional pixels into physical
- * rainfall, soil-moisture, and temperature values.
+ * NDVI, rainfall, soil-moisture, and temperature values.
  */
 export function loadPlaceColormap(
   layerId: LayerId
 ): Promise<PlaceColormap | null> {
-  if (!(layerId in COLORMAP_DOCS)) return Promise.resolve(null);
-  const calibrated = layerId as CalibratedLayerId;
+  if (!(layerId in PLACE_COLORMAP_DOCS)) return Promise.resolve(null);
+  const calibrated = layerId as PlaceCalibratedLayerId;
   let pending = placeColormapCache.get(calibrated);
   if (!pending) {
-    pending = fetchWithRetry(colormapUrl(COLORMAP_DOCS[calibrated]))
+    pending = fetchWithRetry(colormapUrl(PLACE_COLORMAP_DOCS[calibrated]))
       .then((response) => response.text())
       .then((xml) => {
         const entries = parseColormapEntries(xml);
@@ -84,7 +100,8 @@ export function loadPlaceColormap(
         }
         return {
           entries,
-          factor: SCALE_CONVERSIONS[calibrated]?.factor ?? 1,
+          factor:
+            SCALE_CONVERSIONS[calibrated as CalibratedLayerId]?.factor ?? 1,
         };
       })
       .catch((error: unknown) => {
@@ -135,6 +152,22 @@ export function placeInsightPhysicalReading(
     physicalPlaceValue,
     provenance
   );
+}
+
+/**
+ * Admit only values decoded through an authoritative physical colormap to the
+ * native-value export path.
+ *
+ * A display-ramp position is not a native product value even when both happen
+ * to share the same numeric range. Preserve month and coverage elsewhere, but
+ * withhold display-ramp positions from a contract that promises native units.
+ */
+export function nativePlaceSampleValues(
+  values: readonly (number | null)[],
+  valueSource: "authoritative-colormap" | "display-ramp"
+): (number | null)[] {
+  if (valueSource === "display-ramp") return values.map(() => null);
+  return [...values];
 }
 
 function makePlaceInsightReading(

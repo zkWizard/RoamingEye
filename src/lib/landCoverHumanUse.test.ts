@@ -53,6 +53,8 @@ describe("land-cover human-use partition", () => {
 
     expect(humanUse.kind).toBe("observed-land-cover-human-use");
     expect(humanUse.isForecast).toBe(false);
+    expect(humanUse.status).toBe("available");
+    expect(humanUse.unavailableReason).toBeNull();
     // Provenance is reused verbatim, never re-derived.
     expect(humanUse.provenance).toBe(context.provenance);
     expect(humanUse.provenance.source).toBe(LAND_COVER_SOURCE);
@@ -138,9 +140,46 @@ describe("land-cover human-use partition", () => {
     const humanUse = summarizeLandCoverHumanUse(context);
 
     expect(humanUse.categoryCoverage).toEqual([]);
+    expect(humanUse.status).toBe("unavailable");
+    expect(humanUse.unavailableReason).toBe("no-known-land-cover");
     expect(humanUse.anthropogenicShare.lowerBound).toBeNull();
     expect(humanUse.anthropogenicShare.upperBound).toBeNull();
     expect(humanUse.anthropogenicShare.mosaicSampleCount).toBe(0);
     expect(humanUse.ungroupedKnownSampleCount).toBe(0);
   });
+
+  it.each([
+    [2030, "outside-layer-range"],
+    [2024.5, "invalid-year"],
+  ] as const)(
+    "withholds derived shares for unavailable year %s",
+    (dataYear, reason) => {
+      const context = summarizeLandCoverContext(
+        [
+          { classCode: 12, sampleCount: 4 },
+          { classCode: 13, sampleCount: 2 },
+          { classCode: 14, sampleCount: 1 },
+        ],
+        dataYear
+      );
+
+      const humanUse = summarizeLandCoverHumanUse(context);
+
+      expect(context.coverage).toMatchObject({
+        status: "unavailable",
+        knownLandCoverSampleCount: 0,
+        reason: "record-not-published",
+      });
+      expect(humanUse.status).toBe("unavailable");
+      expect(humanUse.unavailableReason).toBe(reason);
+      expect(humanUse.provenance).toBe(context.provenance);
+      expect(humanUse.categoryCoverage).toEqual([]);
+      expect(humanUse.anthropogenicShare).toEqual({
+        lowerBound: null,
+        upperBound: null,
+        mosaicSampleCount: 0,
+      });
+      expect(humanUse.ungroupedKnownSampleCount).toBe(0);
+    }
+  );
 });

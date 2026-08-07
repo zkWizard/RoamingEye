@@ -101,6 +101,10 @@ export interface LandCoverHumanUseSummary {
   kind: "observed-land-cover-human-use";
   /** Explicitly prevents consumers from treating this as a temporal forecast. */
   isForecast: false;
+  /** Mirrors whether the source-backed land-cover observation is usable. */
+  status: LandCoverContextSummary["observationStatus"];
+  /** Preserves the upstream reason when category shares are withheld. */
+  unavailableReason: LandCoverContextSummary["unavailableReason"];
   provenance: LandCoverProvenance;
   categoryCoverage: LandCoverHumanUseCategoryCoverage[];
   /** Bounded fraction of informative land cover under direct human land use. */
@@ -132,6 +136,23 @@ const CATEGORY_BY_CLASS = new Map<
 export function summarizeLandCoverHumanUse(
   context: LandCoverContextSummary
 ): LandCoverHumanUseSummary {
+  if (context.observationStatus === "unavailable") {
+    return {
+      kind: "observed-land-cover-human-use",
+      isForecast: false,
+      status: "unavailable",
+      unavailableReason: context.unavailableReason,
+      provenance: context.provenance,
+      categoryCoverage: [],
+      anthropogenicShare: {
+        lowerBound: null,
+        upperBound: null,
+        mosaicSampleCount: 0,
+      },
+      ungroupedKnownSampleCount: 0,
+    };
+  }
+
   const categoryCounts = new Map<LandCoverHumanUseCategoryId, number>();
   let ungroupedKnownSampleCount = 0;
 
@@ -194,6 +215,8 @@ export function summarizeLandCoverHumanUse(
   return {
     kind: "observed-land-cover-human-use",
     isForecast: false,
+    status: "available",
+    unavailableReason: null,
     provenance: context.provenance,
     categoryCoverage,
     anthropogenicShare,

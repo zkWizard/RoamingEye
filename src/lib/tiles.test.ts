@@ -19,6 +19,9 @@ import {
   ancestorUvRect,
   TILE_TEXTURE_BYTES,
   textureBudgetBytes,
+  TileRetryLedger,
+  TILE_RETRY_BASE_MS,
+  TILE_RETRY_MAX_MS,
   type TileAddress,
 } from "./tiles";
 
@@ -193,6 +196,20 @@ describe("tilesInView", () => {
     const { cols: totalCols } = tileGridSize(4);
     expect(cols).toContain(totalCols - 1); // west of the antimeridian
     expect(cols).toContain(0); // east of it
+  });
+
+  it("does not fetch an adjacent column when a narrow view fits one tile", () => {
+    // Level 6 columns span 4.5°. This 1° view is wholly inside column 0,
+    // so loading a second column would fetch imagery outside the view.
+    const tiles = tilesInView(1, -178, 1, 1, 6);
+    expect(new Set(tiles.map((tile) => tile.col))).toEqual(new Set([0]));
+  });
+
+  it("treats a window ending on a tile edge as half-open", () => {
+    // [-180, -175.5] exactly covers column 0 at level 6. Column 1 only
+    // touches the eastern edge and must not trigger another network request.
+    const tiles = tilesInView(1, -177.75, 1, 4.5, 6);
+    expect(new Set(tiles.map((tile) => tile.col))).toEqual(new Set([0]));
   });
 
   it("covers the full ring when the window spans 360°", () => {
@@ -421,5 +438,40 @@ describe("gibsWmtsTileUrl", () => {
     ).toBe(
       "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/ASTER_GDEM_Color_Shaded_Relief/default/31.25m/2/1/2.jpg"
     );
+  });
+});
+
+describe("TileRetryLedger", () => {
+  it("holds failed tile requests until their monotonic cooldown expires", () => {
+    const retries = new TileRetryLedger();
+    const delay = retries.recordFailure("tile", 1_000);
+
+    expect(delay).toBe(TILE_RETRY_BASE_MS);
+    expect(retries.canAttempt("tile", 1_000 + delay - 1)).toBe(false);
+    expect(retries.canAttempt("tile", 1_000 + delay)).toBe(true);
+  });
+
+  it("backs off repeated failures, caps the delay, and resets on success", () => {
+    const retries = new TileRetryLedger();
+    let now = 0;
+    let delay = 0;
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      delay = retries.recordFailure("tile", now);
+      now += delay;
+    }
+    expect(delay).toBe(TILE_RETRY_MAX_MS);
+
+    retries.recordSuccess("tile");
+    expect(retries.canAttempt("tile", now)).toBe(true);
+    expect(retries.recordFailure("tile", now)).toBe(TILE_RETRY_BASE_MS);
+  });
+
+  it("isolates retry state by complete imagery cache key", () => {
+    const retries = new TileRetryLedger();
+    retries.recordFailure("layer:2024-01-01:4:2:3", 100);
+
+    expect(retries.canAttempt("layer:2024-01-01:4:2:3", 101)).toBe(false);
+    expect(retries.canAttempt("layer:2024-02-01:4:2:3", 101)).toBe(true);
   });
 });

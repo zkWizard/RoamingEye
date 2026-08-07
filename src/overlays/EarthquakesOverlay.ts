@@ -1,15 +1,17 @@
 import * as THREE from "three";
-import { GLOBE_RADIUS, type MapOverlay } from "./types";
+import { GLOBE_RADIUS, type HoverPointSource, type MapOverlay } from "./types";
 import { ICONS } from "../ui/icons";
 import { latLngToVector3 } from "../lib/geo";
 import { fetchJson } from "../lib/net";
 import {
-  parseEarthquakeFeed,
+  parseEarthquakeFeedSnapshot,
   depthClass,
+  formatEarthquakeObservation,
   DEPTH_CLASS_COLORS,
   USGS_FEED_URL,
   type DepthClass,
   type Earthquake,
+  type EarthquakeFeedSnapshot,
 } from "../lib/earthquakes";
 
 /**
@@ -36,6 +38,9 @@ const SIZE_BUCKETS: { min: number; size: number }[] = [
   { min: 0, size: 0.02 },
 ];
 
+/** Maximum number of point sources exposed for hover inspection. */
+export const EARTHQUAKE_HOVER_SOURCE_COUNT = SIZE_BUCKETS.length;
+
 function bucketFor(magnitude: number): (typeof SIZE_BUCKETS)[number] {
   return SIZE_BUCKETS.find((b) => magnitude >= b.min) ?? SIZE_BUCKETS[2];
 }
@@ -47,6 +52,11 @@ export class EarthquakesOverlay implements MapOverlay {
   readonly object = new THREE.Group();
 
   private loadPromise: Promise<void> | undefined;
+  /** One hover source per magnitude-size bucket, in rendered point order. */
+  readonly hoverSources: Array<HoverPointSource | undefined> = new Array(
+    SIZE_BUCKETS.length
+  );
+  private feedSnapshot: EarthquakeFeedSnapshot | null = null;
 
   constructor(
     private readonly url = USGS_FEED_URL,
@@ -59,13 +69,29 @@ export class EarthquakesOverlay implements MapOverlay {
     return (this.loadPromise ??= this.load());
   }
 
-  private async load(): Promise<void> {
-    const quakes = parseEarthquakeFeed(await fetchJson<unknown>(this.url));
+  /** The source-aware snapshot retained after a successful fetch and parse. */
+  get snapshot(): EarthquakeFeedSnapshot | null {
+    return this.feedSnapshot;
+  }
 
-    for (const bucket of SIZE_BUCKETS) {
+  private async load(): Promise<void> {
+    this.feedSnapshot = parseEarthquakeFeedSnapshot(
+      await fetchJson<unknown>(this.url)
+    );
+    const quakes = this.feedSnapshot.events;
+
+    for (const [bucketIndex, bucket] of SIZE_BUCKETS.entries()) {
       const inBucket = quakes.filter((q) => bucketFor(q.magnitude) === bucket);
       if (inBucket.length === 0) continue;
-      this.object.add(this.buildPoints(inBucket, bucket.size));
+      const points = this.buildPoints(inBucket, bucket.size);
+      this.object.add(points);
+      this.hoverSources[bucketIndex] = {
+        points,
+        describe: (pointIndex) => {
+          const quake = inBucket[pointIndex];
+          return quake ? formatEarthquakeObservation(quake) : undefined;
+        },
+      };
     }
   }
 

@@ -30,6 +30,8 @@ export interface GradientLegendSpec {
   maxLabel: string;
   /** Gradient stops, sorted by `at`, spanning 0 → 1. */
   stops: LegendStop[];
+  /** Optional guardrail shown with the legend when colors need interpretation. */
+  interpretationNote?: string;
 }
 
 /** Categorical layers (e.g. land cover): named class swatches, no gradient. */
@@ -37,6 +39,7 @@ export interface ClassLegendSpec {
   kind: "classes";
   measures: string;
   classes: { color: string; label: string }[];
+  interpretationNote?: string;
 }
 
 export type LegendSpec = GradientLegendSpec | ClassLegendSpec;
@@ -44,8 +47,10 @@ export type LegendSpec = GradientLegendSpec | ClassLegendSpec;
 export const LEGENDS: Record<LayerId, LegendSpec> = {
   ndvi: {
     measures: "Vegetation greenness (NDVI)",
-    minLabel: "bare / sparse",
-    maxLabel: "dense & lush",
+    minLabel: "lower NDVI",
+    maxLabel: "higher NDVI",
+    interpretationNote:
+      "NDVI is a unitless vegetation index; color does not measure vegetation cover, biomass, or condition.",
     stops: [
       { color: "#a97c50", at: 0 }, // bare soil / desert browns
       { color: "#d9c38a", at: 0.25 },
@@ -56,8 +61,10 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
   },
   evi: {
     measures: "Vegetation greenness (EVI)",
-    minLabel: "bare / sparse",
-    maxLabel: "dense & lush",
+    minLabel: "lower EVI",
+    maxLabel: "higher EVI",
+    interpretationNote:
+      "EVI is a unitless vegetation index; color does not measure vegetation cover, biomass, or condition.",
     stops: [
       { color: "#a97c50", at: 0 },
       { color: "#d9c38a", at: 0.25 },

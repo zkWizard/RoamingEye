@@ -32,17 +32,25 @@ export interface OceanConditionSeriesReading {
 
 export type OceanCoverageTally = Record<OceanCoverageStatus, number>;
 
+export type OceanConditionSeriesStatus = "available" | "duplicate-months";
+
 export interface OceanConditionSeriesSummary {
   kind: "observed-sea-surface-temperature-series";
   /** Explicitly prevents consumers from treating this as a forecast. */
   isForecast: false;
   claimScope: "descriptive-sea-surface-temperature-extent-only";
   metric: typeof SEA_SURFACE_TEMPERATURE_METRIC;
+  /** Duplicate calendar months make cross-month extremes ambiguous. */
+  status: OceanConditionSeriesStatus;
   /** Total supplied observations, including unusable months. */
   monthCount: number;
+  /** Number of distinct valid calendar months represented by the inputs. */
+  distinctMonthCount: number;
+  /** Repeated valid calendar months, sorted chronologically and listed once. */
+  duplicateMonths: YearMonth[];
   /** Months carrying a usable SST value (water or coastal/land-mixed footprint). */
   usableMonthCount: number;
-  /** Supplied months without a usable SST value (land, missing, or invalid). */
+  /** Supplied months without a usable SST value (land, unknown, missing, or invalid). */
   unusableMonthCount: number;
   /** Count of supplied months by their per-month coverage status. */
   coverageTally: OceanCoverageTally;
@@ -69,6 +77,7 @@ export const OCEAN_CONDITION_SERIES_LIMITATIONS = [
   "This is a descriptive summary of the supplied months only; it is not a climatology.",
   "No mean, trend, rate, anomaly, or forecast is derived; warmest and coolest describe the supplied set.",
   "Per-month coverage varies, so the extremes are not guaranteed to share sampling completeness.",
+  "Repeated records for one calendar month are retained but cross-month extremes are withheld because the series is temporally ambiguous.",
   "Sea surface temperature is a physical observation and never a marine-biological measurement.",
 ] as const;
 
@@ -76,6 +85,7 @@ const EMPTY_COVERAGE_TALLY: OceanCoverageTally = {
   water: 0,
   "land-mixed-coastal": 0,
   land: 0,
+  unknown: 0,
   missing: 0,
   invalid: 0,
 };
@@ -88,6 +98,8 @@ export function summarizeOceanConditionSeries(
   observations: readonly SeaSurfaceTemperatureObservation[]
 ): OceanConditionSeriesSummary {
   const months = observations.map(summarizeOceanConditions);
+  const { distinctMonthCount, duplicateMonths } = calendarMonthCoverage(months);
+  const hasDuplicateMonths = duplicateMonths.length > 0;
 
   const coverageTally: OceanCoverageTally = { ...EMPTY_COVERAGE_TALLY };
   for (const month of months) {
@@ -96,18 +108,24 @@ export function summarizeOceanConditionSeries(
 
   const usable = months.filter(
     (month): month is OceanConditionSummary & { observedValue: number } =>
-      month.observedValue !== null && month.temperatureBand !== null
+      (month.coverage.status === "water" ||
+        month.coverage.status === "land-mixed-coastal") &&
+      month.observedValue !== null &&
+      month.temperatureBand !== null
   );
 
-  const warmest = pickExtreme(usable, "warmest");
-  const coolest = pickExtreme(usable, "coolest");
+  const warmest = hasDuplicateMonths ? null : pickExtreme(usable, "warmest");
+  const coolest = hasDuplicateMonths ? null : pickExtreme(usable, "coolest");
 
   return {
     kind: "observed-sea-surface-temperature-series",
     isForecast: false,
     claimScope: "descriptive-sea-surface-temperature-extent-only",
     metric: SEA_SURFACE_TEMPERATURE_METRIC,
+    status: hasDuplicateMonths ? "duplicate-months" : "available",
     monthCount: months.length,
+    distinctMonthCount,
+    duplicateMonths,
     usableMonthCount: usable.length,
     unusableMonthCount: months.length - usable.length,
     coverageTally,
@@ -116,6 +134,28 @@ export function summarizeOceanConditionSeries(
     observedValueRange:
       warmest && coolest ? warmest.observedValue - coolest.observedValue : null,
     limitations: OCEAN_CONDITION_SERIES_LIMITATIONS,
+  };
+}
+
+function calendarMonthCoverage(months: readonly OceanConditionSummary[]): {
+  distinctMonthCount: number;
+  duplicateMonths: YearMonth[];
+} {
+  const counts = new Map<string, { dataMonth: YearMonth; count: number }>();
+  for (const month of months) {
+    if (month.coverage.reason === "invalid-month") continue;
+    const key = `${month.dataMonth.year}-${month.dataMonth.month}`;
+    const existing = counts.get(key);
+    if (existing) existing.count += 1;
+    else counts.set(key, { dataMonth: month.dataMonth, count: 1 });
+  }
+
+  return {
+    distinctMonthCount: counts.size,
+    duplicateMonths: [...counts.values()]
+      .filter(({ count }) => count > 1)
+      .map(({ dataMonth }) => dataMonth)
+      .sort(compareYm),
   };
 }
 

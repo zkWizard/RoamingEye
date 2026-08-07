@@ -20,6 +20,8 @@ describe("land-cover observation narratives", () => {
     expect(narrative).toMatchObject({
       kind: "land-cover-observation-narrative",
       isInterpretation: false,
+      observationStatus: "available",
+      unavailableReason: null,
       headline: "Most frequent observed class: Cropland",
       provenance: {
         dataYear: 2024,
@@ -47,6 +49,18 @@ describe("land-cover observation narratives", () => {
     );
   });
 
+  it("passes core categorical-unit and geography provenance through unchanged", () => {
+    const summary = summarizeLandCoverContext([{ classCode: 10 }], 2024);
+    const narrative = describeLandCoverObservation(summary);
+
+    expect(narrative.provenance.geographicCoverage).toBe(
+      summary.provenance.geographicCoverage
+    );
+    expect(narrative.provenance.nativeValue).toBe(
+      `${summary.provenance.nativeValue} (${summary.provenance.nativeUnit}; no physical unit)`
+    );
+  });
+
   it("makes missing source classes explicit instead of inventing a land-cover conclusion", () => {
     const narrative = describeLandCoverObservation(
       summarizeLandCoverContext(
@@ -64,6 +78,27 @@ describe("land-cover observation narratives", () => {
     );
   });
 
+  it("reports tied class frequencies without choosing a class-code winner", () => {
+    const narrative = describeLandCoverObservation(
+      summarizeLandCoverContext(
+        [
+          { classCode: 12, sampleCount: 3 },
+          { classCode: 4, sampleCount: 3 },
+          { classCode: 10, sampleCount: 1 },
+        ],
+        2024
+      )
+    );
+
+    expect(narrative.headline).toBe(
+      "Tied most frequent observed classes: Deciduous broadleaf forest, Cropland"
+    );
+    expect(narrative.detail).toBe(
+      "Deciduous broadleaf forest, Cropland each occurred in 3 of 7 counted selected-boundary samples (43% each). Known IGBP classes occurred in 7 of 7 counted samples (100%)."
+    );
+    expect(narrative.headline).not.toContain("dominant");
+  });
+
   it("does not present out-of-range or invalid annual records as published observations", () => {
     const outsideRange = describeLandCoverObservation(
       summarizeLandCoverContext([{ classCode: 12 }], 2025)
@@ -75,10 +110,22 @@ describe("land-cover observation narratives", () => {
     expect(outsideRange.headline).toBe(
       "Land-cover record not published for 2025"
     );
+    expect(outsideRange.observationStatus).toBe("unavailable");
+    expect(outsideRange.unavailableReason).toBe("outside-layer-range");
     expect(outsideRange.detail).toContain("outside the published layer range");
+    expect(outsideRange.coverage).toMatchObject({
+      status: "unavailable",
+      totalSampleCount: 0,
+      reason: "record-not-published",
+    });
     expect(invalidYear.headline).toBe(
       "Land-cover record not published for 2024.5"
     );
     expect(invalidYear.detail).toContain("not a whole calendar year");
+    expect(invalidYear.detail).toContain(
+      "No countable selected-boundary samples were supplied."
+    );
+    expect(invalidYear.observationStatus).toBe("unavailable");
+    expect(invalidYear.unavailableReason).toBe("invalid-year");
   });
 });

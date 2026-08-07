@@ -43,6 +43,10 @@ describe("nearbyEarthquakeContext", () => {
         suppliedEventCount: 3,
         validEventCount: 3,
         matchedEventCount: 2,
+        matchedDistanceKm: {
+          min: expect.closeTo(11.12, 2),
+          max: expect.closeTo(27.8, 1),
+        },
         sourceEventTime: { min: 1_000, max: 3_000 },
         invalidQueryFields: [],
       },
@@ -99,6 +103,7 @@ describe("nearbyEarthquakeContext", () => {
         suppliedEventCount: 1,
         validEventCount: 1,
         matchedEventCount: 0,
+        matchedDistanceKm: { min: null, max: null },
         sourceEventTime: {
           min: 1_750_000_000_000,
           max: 1_750_000_000_000,
@@ -112,6 +117,7 @@ describe("nearbyEarthquakeContext", () => {
         suppliedEventCount: 0,
         validEventCount: 0,
         matchedEventCount: 0,
+        matchedDistanceKm: { min: null, max: null },
         sourceEventTime: { min: null, max: null },
       },
     });
@@ -157,6 +163,7 @@ describe("nearbyEarthquakeContext", () => {
         suppliedEventCount: 1,
         validEventCount: 1,
         matchedEventCount: 0,
+        matchedDistanceKm: { min: null, max: null },
         invalidQueryFields: ["latitude", "longitude", "radiusKm"],
       },
     });
@@ -166,7 +173,10 @@ describe("nearbyEarthquakeContext", () => {
     const earthquakes = parseEarthquakeFeed({
       features: [
         {
-          geometry: { coordinates: [-122.42, 37.77, 8.4] },
+          geometry: {
+            type: "Point",
+            coordinates: [-122.42, 37.77, 8.4],
+          },
           properties: {
             mag: 4.6,
             time: 1_750_000_000_000,
@@ -187,8 +197,22 @@ describe("nearbyEarthquakeContext", () => {
         lon: -122.42,
         depthKm: 8.4,
         magnitude: 4.6,
+        // A feed that omits magType reports the type as explicitly unavailable
+        // rather than inventing one.
+        magnitudeType: null,
         time: 1_750_000_000_000,
         place: "San Francisco Bay Area",
+        // Native USGS record provenance travels with the event; a minimal
+        // feed carries it with every field explicitly null.
+        sourceRecord: {
+          id: null,
+          magnitudeType: null,
+          reviewStatus: null,
+          updatedTime: null,
+          url: null,
+          horizontalErrorKm: null,
+          depthErrorKm: null,
+        },
         distanceKm: 0,
         depthClass: "shallow",
       },
@@ -197,5 +221,22 @@ describe("nearbyEarthquakeContext", () => {
       feedWindow: "rolling past 30 days at source retrieval time",
       minimumMagnitude: 4.5,
     });
+  });
+
+  it("orders unavailable source places after named events when other sort keys tie", () => {
+    const context = nearbyEarthquakeContext(
+      [
+        earthquake({ place: null }),
+        earthquake({ place: "Named event" }),
+        earthquake({ place: "" }),
+      ],
+      { latitude: 0, longitude: 0, radiusKm: 0 }
+    );
+
+    expect(context.observations.map(({ place }) => place)).toEqual([
+      "",
+      "Named event",
+      null,
+    ]);
   });
 });
