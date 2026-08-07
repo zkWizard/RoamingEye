@@ -33,6 +33,7 @@ function exportRecord() {
         wmsLayer: LAYERS.ndvi.wmsLayer,
         source: sourceFor("ndvi"),
         nativeUnit: NDVI_UNIT,
+        samplingStrategy: "boundary-grid",
         observations: [
           { dataMonth: { year: 2025, month: 12 }, value: 0.41 },
           {
@@ -47,6 +48,7 @@ function exportRecord() {
         wmsLayer: LAYERS.precip.wmsLayer,
         source: sourceFor("precip"),
         nativeUnit: CLIMATE_METRICS["precipitation-rate"].nativeUnit,
+        samplingStrategy: "boundary-grid",
         observations: [
           {
             dataMonth: { year: 2026, month: 1 },
@@ -75,6 +77,7 @@ function exportRecord() {
         wmsLayer: LAYERS.airtemp.wmsLayer,
         source: sourceFor("airtemp"),
         nativeUnit: CLIMATE_METRICS["air-temperature-2m"].nativeUnit,
+        samplingStrategy: "boundary-grid",
         observations: [
           {
             dataMonth: { year: 2026, month: 3 },
@@ -98,6 +101,7 @@ describe("place observation environmental brief", () => {
   it("accepts vegetation produced by the sample-to-export data path", () => {
     const vegetation = placeObservationProductFromSample({
       layerId: "ndvi",
+      samplingStrategy: "boundary-grid",
       observations: [
         {
           dataMonth: { year: 2026, month: 1 },
@@ -192,7 +196,7 @@ describe("place observation environmental brief", () => {
     });
     expect(result.samplingProvenance).toEqual({
       vegetation: {
-        samplingStrategy: "unavailable",
+        samplingStrategy: "boundary-grid",
         samplingSupport: null,
         sampleToNative: {
           sampledUnit: NDVI_UNIT,
@@ -206,7 +210,7 @@ describe("place observation environmental brief", () => {
         },
       },
       rainfall: {
-        samplingStrategy: "unavailable",
+        samplingStrategy: "boundary-grid",
         samplingSupport: null,
         sampleToNative: {
           sampledUnit: CLIMATE_METRICS["precipitation-rate"].nativeUnit,
@@ -234,7 +238,7 @@ describe("place observation environmental brief", () => {
         },
       },
       "air-temperature": {
-        samplingStrategy: "unavailable",
+        samplingStrategy: "boundary-grid",
         samplingSupport: null,
         sampleToNative: {
           sampledUnit: CLIMATE_METRICS["air-temperature-2m"].nativeUnit,

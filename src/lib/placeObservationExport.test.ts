@@ -999,6 +999,41 @@ describe("place observation export", () => {
     expect(product.samplingStrategy).toBe("unavailable");
   });
 
+  it("requires sampling geography for every product with recorded values", () => {
+    const product = placeObservationProductFromSample({
+      layerId: "precip",
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 4 },
+          value: 0.0001,
+          validFraction: 0.75,
+        },
+      ],
+    });
+
+    expect(product.samplingStrategy).toBe("unavailable");
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [product],
+      })
+    ).toThrow(
+      "Product precip must retain a boundary sampling strategy for recorded values."
+    );
+
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...product,
+            samplingStrategy: "boundary-grid",
+          },
+        ],
+      })
+    ).not.toThrow();
+  });
+
   it("retains successful products when SST sampling fails", () => {
     const sst = placeObservationProductFromSample({
       layerId: "sst",
