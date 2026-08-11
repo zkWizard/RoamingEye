@@ -15,6 +15,10 @@ import {
   volcanoCoordinateLabel,
   type VolcanoExtentContext,
 } from "../lib/volcanoExtent";
+import {
+  nearestVolcanoStatement,
+  type VolcanoProximityContext,
+} from "../lib/volcanoProximityContext";
 import { ICONS } from "./icons";
 
 interface MetricElements {
@@ -185,9 +189,16 @@ export class PlaceInsights {
     this.volcanoRecords.replaceChildren();
   }
 
+  /**
+   * `proximity` supplies the nearest catalogued volcano inside a fixed, stated
+   * radius. It is only read when the bounding box matched nothing: a search
+   * extent is sized by the geocoder, so an empty inventory says more about the
+   * boundary than about the geology.
+   */
   setVolcanoContext(
     context: VolcanoExtentContext,
-    dataMonth: string | null = null
+    dataMonth: string | null = null,
+    proximity: VolcanoProximityContext | null = null
   ): void {
     this.volcanoRecords.replaceChildren();
     if (context.status === "invalid-bounds") {
@@ -210,9 +221,11 @@ export class PlaceInsights {
     const snapshot = dataMonth
       ? ` Bundled GVP snapshot retrieved ${dataMonth} (UTC).`
       : " Bundled snapshot retrieval month unavailable.";
+    const nearest =
+      count === 0 && proximity ? nearestVolcanoStatement(proximity) : null;
     this.volcanoDetail.textContent =
       count === 0
-        ? `No bundled GVP volcano records have coordinates inside this search bounding box.${snapshot}`
+        ? `No bundled GVP volcano records have coordinates inside this search bounding box.${nearest ? ` ${nearest}` : ""}${snapshot}`
         : `${context.geographicCoverage} Summit elevation is supplied for ${context.elevationCoverage.presentCount} of ${count} matched ${count === 1 ? "record" : "records"} in metres relative to sea level.${snapshot}`;
     for (const record of context.records.slice(0, 5)) {
       const item = document.createElement("li");

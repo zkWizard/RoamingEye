@@ -44,6 +44,10 @@ import {
   summarizeRenderedClimateSample,
 } from "./lib/meteorology";
 import { volcanoesInSearchExtent } from "./lib/volcanoExtent";
+import {
+  NEAREST_VOLCANO_RADIUS_KM,
+  nearbyVolcanoContext,
+} from "./lib/volcanoProximityContext";
 import { parseVolcanoDataset } from "./lib/volcanoes";
 import type { GeoResult } from "./lib/geocoding";
 import { refreshDataLatest } from "./lib/freshness";
@@ -456,9 +460,22 @@ function runPlaceInsights(result: GeoResult): void {
       .then(parseVolcanoDataset)
       .then((dataset) => {
         if (abort.signal.aborted) return;
+        const extent = volcanoesInSearchExtent(
+          dataset.volcanoes,
+          result.boundingBox
+        );
+        // An empty bounding box is a boundary-size artefact, not evidence of
+        // no volcanism nearby — fall back to a fixed, stated search radius.
         placeInsights.setVolcanoContext(
-          volcanoesInSearchExtent(dataset.volcanoes, result.boundingBox),
-          dataset.dataMonth
+          extent,
+          dataset.dataMonth,
+          extent.matchedRecordCount === 0
+            ? nearbyVolcanoContext(dataset.volcanoes, {
+                latitude: result.lat,
+                longitude: result.lon,
+                radiusKm: NEAREST_VOLCANO_RADIUS_KM,
+              })
+            : null
         );
       })
       .catch((error: unknown) => {
