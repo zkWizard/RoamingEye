@@ -15,6 +15,7 @@ import {
 import { encodeViewState, decodeViewState } from "./lib/viewState";
 import { latLngToVector3, vector3ToLatLng, formatLatLng } from "./lib/geo";
 import { buildProbeCsv, normalizeLon, PROBE_SCALES } from "./lib/probe";
+import { emptyAtmosphereProbeNote } from "./lib/atmosphereProbeDomain";
 import { isAreaGeometry } from "./lib/geojson";
 import {
   PLACE_OBSERVATION_NATIVE_UNITS,
@@ -1114,7 +1115,8 @@ if (probeEl) {
               undefined,
               validFractions
             ),
-          `roamingeye_probe_${mode}_${layer.id}_${lat.toFixed(3)}_${lon.toFixed(3)}.csv`
+          `roamingeye_probe_${mode}_${layer.id}_${lat.toFixed(3)}_${lon.toFixed(3)}.csv`,
+          emptyAtmosphereProbeNote(layer.id, values)
         );
       })
       .catch((err) => {
@@ -1198,7 +1200,8 @@ if (probeEl) {
               undefined,
               validFractions
             ),
-          `roamingeye_region_${layer.id}_${bounds.south.toFixed(2)}_${normalizeLon(bounds.west).toFixed(2)}_${bounds.north.toFixed(2)}_${normalizeLon(bounds.east).toFixed(2)}.csv`
+          `roamingeye_region_${layer.id}_${bounds.south.toFixed(2)}_${normalizeLon(bounds.west).toFixed(2)}_${bounds.north.toFixed(2)}_${normalizeLon(bounds.east).toFixed(2)}.csv`,
+          emptyAtmosphereProbeNote(layer.id, values)
         );
       })
       .catch((err) => {

@@ -208,8 +208,19 @@ export class ProbePanel {
     this.draw();
   }
 
-  /** Sampling finished: show summary stats and enable CSV download. */
-  finish(csv: () => string, filename: string): void {
+  /**
+   * Sampling finished: show summary stats and enable CSV download.
+   *
+   * `emptySeriesNote`, when supplied, replaces the bare "no data" line for a
+   * record that came back empty — see lib/atmosphereProbeDomain.ts. A product
+   * defined over land only has no value over open water by construction, and
+   * saying "no data" there reports a domain boundary as a retrieval failure.
+   */
+  finish(
+    csv: () => string,
+    filename: string,
+    emptySeriesNote?: string | null
+  ): void {
     this.csv = csv;
     this.csvFilename = filename;
     this.downloadBtn.disabled = false;
@@ -218,7 +229,11 @@ export class ProbePanel {
 
     const stats = seriesStats(this.values);
     if (!stats || !this.scale) {
-      this.setStatus("No data at this point for this layer.");
+      this.setStatus(
+        emptySeriesNote
+          ? `No data at this point for this layer. ${emptySeriesNote}`
+          : "No data at this point for this layer."
+      );
       return;
     }
     const s = this.scale;
