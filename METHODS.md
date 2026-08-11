@@ -201,11 +201,11 @@ settle.
 reduces its sub-monthly record to one monthly value differently, and the
 reduction is a fixed property of the cited product, keyed by its short name:
 
-| Signal (product)                          | Within-month value                  |
-| ----------------------------------------- | ----------------------------------- |
-| Vegetation NDVI (MOD13A3)                 | within-month composite (best-value) |
-| Rainfall, soil moisture (GLDAS_NOAH025_M) | monthly time-average                |
-| Air temperature 2 m (M2TMNXSLV)           | monthly time-average                |
+| Signal (product)                               | Within-month value                  |
+| ---------------------------------------------- | ----------------------------------- |
+| Vegetation NDVI (MOD13A3)                      | within-month composite (best-value) |
+| Precipitation, soil moisture (GLDAS_NOAH025_M) | monthly time-average                |
+| Air temperature 2 m (M2TMNXSLV)                | monthly time-average                |
 
 A **composite** reports a single favourable within-month state (the best pixel
 selected in the compositing window — e.g. peak greenness), **not** a mean over
@@ -218,7 +218,7 @@ from its value.
 
 **Quantity kind & time-integrability** (`src/lib/quantityKind.ts`). Placing four
 monthly numbers side by side invites accumulating them over time the same way,
-but only one may be. Rainfall (precipitation rate, kg/m²/s) is a per-unit-time
+but only one may be. Precipitation (total rate, kg/m²/s) is a per-unit-time
 **flux**: its integral over a period is a meaningful accumulated total (multiply
 the mean rate by the period's seconds to reach a precipitation depth). Soil
 moisture (kg/m²) and air temperature (K) are **states** — levels at an instant or
@@ -226,10 +226,37 @@ mean, with no such accumulation — and NDVI is a bounded **dimensionless index*
 not a physical amount at all. So the flux is time-integrable and the states and
 index are not; a level must never be summed into a meaningless "total". Kind is a
 property of the geophysical variable, not the product: the two GLDAS fields share
-a product yet differ (rainfall is a flux, soil moisture a state).
+a product yet differ (precipitation is a flux, soil moisture a state).
 
 Both descriptors report structure only — neither combines, accumulates, or ranks
 the values, and every signal keeps its source DOI.
+
+**Variable identity, and the phase it does not resolve**
+(`src/lib/briefPrecipitationPhase.ts`). A layer's rendered label must name the
+quantity the source actually serves, and the authority for that is the layer's
+own `ows:Title` in the GIBS WMTS capabilities — not the identifier, and not the
+GLDAS variable name. The precipitation signal reads
+`GLDAS_Surface_Total_Precipitation_Rate_Monthly`, whose title is **"Total
+Precipitation Rate (Monthly, Surface, Noah LSM, GLDAS)"**: the model's
+phase-summed precipitation flux, snowfall included. The place-panel card and the
+brief signal previously both read "Rainfall", asserting a liquid-only quantity
+the product does not render — and asserting it most wrongly in cold seasons and
+cold regions, where most of the total is snow. Both now name the total.
+
+Naming it correctly raises the obvious follow-up: can the brief say which phase
+the total fell as? It co-observes 2 m air temperature, so a below-freezing month
+looks like an answer. It is not one, and the reason is measured rather than
+rhetorical. Air temperature reaches the brief through the same colormap
+inversion as every raster layer, with an end-to-end RMSE of **18.95 K** (§3).
+The band therefore clears 273.15 K only outside **254.20–292.10 K** (about −19 °C
+to +19 °C) — a window containing essentially every monthly mean over inhabited
+land. So for ordinary months the descriptor returns
+`unresolved-band-straddles-freezing` and asserts nothing. Where the band does
+clear, the result is still only an `indicated-` status: a monthly mean describes
+the month's average state, not the hours precipitation actually fell, so a cold
+month can carry liquid precipitation and a warm one frozen. No rain/snow split
+is published by the product, derived here, or representable in the returned
+type — `phaseResolved` is the literal `false`.
 
 ## 9. What this tool does not do
 

@@ -103,7 +103,7 @@ describe("summarizeSpatialExtensivity", () => {
       areaIntegrable: true,
     });
     expect(byId.rainfall.statement).toBe(
-      "Rainfall (precipitation rate): per-unit-area density (areal-density), area-integrable; source GLDAS_NOAH025_M v2.1."
+      "Precipitation (total rate, all phases): per-unit-area density (areal-density), area-integrable; source GLDAS_NOAH025_M v2.1."
     );
     expect(byId["soil-moisture"]).toMatchObject({
       extensivity: "areal-density",

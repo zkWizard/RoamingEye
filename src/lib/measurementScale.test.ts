@@ -131,7 +131,7 @@ describe("summarizeMeasurementScale", () => {
       differenceMeaningful: true,
     });
     expect(rain?.statement).toBe(
-      "Rainfall (precipitation rate): ratio scale (true zero), unit kg/m²/s (ratio); differences and ratios/percentage changes valid; source GLDAS_NOAH025_M v2.1."
+      "Precipitation (total rate, all phases): ratio scale (true zero), unit kg/m²/s (ratio); differences and ratios/percentage changes valid; source GLDAS_NOAH025_M v2.1."
     );
   });
 

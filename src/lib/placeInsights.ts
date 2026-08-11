@@ -28,7 +28,12 @@ export interface PlaceMetric {
 
 export const PLACE_METRICS: readonly PlaceMetric[] = [
   { id: "vegetation", layerId: "ndvi", label: "Vegetation" },
-  { id: "rainfall", layerId: "precip", label: "Rainfall" },
+  // The card reads GLDAS_Surface_Total_Precipitation_Rate_Monthly, whose GIBS
+  // ows:Title is "Total Precipitation Rate (Monthly, Surface, Noah LSM,
+  // GLDAS)" — a phase-summed total that includes snowfall. The metric id stays
+  // "rainfall" (a structural key), but the rendered label must not claim a
+  // liquid-only quantity the layer does not serve.
+  { id: "rainfall", layerId: "precip", label: "Precipitation" },
   { id: "soil", layerId: "soil", label: "Soil moisture" },
   { id: "air", layerId: "airtemp", label: "Air temperature" },
 ];

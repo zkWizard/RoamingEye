@@ -493,7 +493,7 @@ test("search traces an exact returned boundary without a study-region box", asyn
   const insights = page.locator("#place-insights");
   await expect(insights).toHaveClass(/is-open/);
   await expect(insights).toContainText("Vegetation");
-  await expect(insights).toContainText("Rainfall");
+  await expect(insights).toContainText("Precipitation");
   await expect(insights).toContainText("Soil moisture");
   await expect(insights).toContainText("Air temperature");
   await page.waitForTimeout(500);

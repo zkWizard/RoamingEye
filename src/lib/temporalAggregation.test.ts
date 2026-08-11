@@ -124,7 +124,7 @@ describe("summarizeTemporalAggregation", () => {
       wholeMonthMean: true,
     });
     expect(rain?.statement).toBe(
-      "Rainfall (precipitation rate): monthly time-average (monthly-time-average); source GLDAS_NOAH025_M v2.1."
+      "Precipitation (total rate, all phases): monthly time-average (monthly-time-average); source GLDAS_NOAH025_M v2.1."
     );
   });
 

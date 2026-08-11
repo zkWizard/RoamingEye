@@ -257,9 +257,19 @@ const CLIMATE_SIGNAL_META: Record<
   Exclude<EnvironmentSignalId, "vegetation">,
   SignalMeta & { metricId: ClimateMetricId }
 > = {
+  // The signal id stays "rainfall" — it is a structural key shared with the
+  // place panel and a dozen descriptor modules — but the *rendered label* must
+  // name the quantity GIBS actually serves. The layer behind this signal is
+  // GLDAS_Surface_Total_Precipitation_Rate_Monthly, whose authoritative
+  // ows:Title is "Total Precipitation Rate (Monthly, Surface, Noah LSM,
+  // GLDAS)": the model's total precipitation flux, which includes snowfall.
+  // Calling it "rainfall" asserted a liquid-only quantity the product does not
+  // render, and it did so exactly where the difference matters — cold seasons
+  // and cold regions. `briefPrecipitationPhase.ts` carries the consequence:
+  // the brief cannot resolve which phase the total fell as.
   rainfall: {
     id: "rainfall",
-    label: "Rainfall (precipitation rate)",
+    label: "Precipitation (total rate, all phases)",
     layerId: "precip",
     source: CLIMATE_METRICS["precipitation-rate"].source,
     nativeUnit: CLIMATE_METRICS["precipitation-rate"].nativeUnit,

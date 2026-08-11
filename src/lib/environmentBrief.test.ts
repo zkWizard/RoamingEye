@@ -739,7 +739,7 @@ describe("environment brief attribution", () => {
     const gldas = attribution.sources[1];
     expect(gldas.signalIds).toEqual(["rainfall", "soil-moisture"]);
     expect(gldas.signalLabels).toEqual([
-      "Rainfall (precipitation rate)",
+      "Precipitation (total rate, all phases)",
       "Soil moisture",
     ]);
     expect(gldas.contributedValue).toBe(true);
@@ -749,7 +749,7 @@ describe("environment brief attribution", () => {
     expect(attribution.line).toBe(
       "Data sources: MOD13A3 v061 — Vegetation (NDVI) " +
         "(https://doi.org/10.5067/MODIS/MOD13A3.061); " +
-        "GLDAS_NOAH025_M v2.1 — Rainfall (precipitation rate), Soil moisture " +
+        "GLDAS_NOAH025_M v2.1 — Precipitation (total rate, all phases), Soil moisture " +
         "(https://doi.org/10.5067/SXAVCZFAQLNO); " +
         "M2TMNXSLV v5.12.4 — Air temperature " +
         `(https://doi.org/10.5067/AP1B0BA5PD2K). ${GIBS_ACKNOWLEDGMENT}`

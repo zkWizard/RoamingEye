@@ -94,7 +94,7 @@ describe("summarizeCoverageAdequacy", () => {
     const summary = summarizeCoverageAdequacy(brief.signals);
 
     expect(summary.reported[0].statement).toBe(
-      "Rainfall (precipitation rate): 82% of the sampled area returned usable data (substantial); source GLDAS_NOAH025_M v2.1."
+      "Precipitation (total rate, all phases): 82% of the sampled area returned usable data (substantial); source GLDAS_NOAH025_M v2.1."
     );
     const prose = [
       summary.statement,
