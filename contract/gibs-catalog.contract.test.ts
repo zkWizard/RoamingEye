@@ -127,20 +127,22 @@ describe("GIBS catalog contract (live GetCapabilities)", () => {
   );
 });
 
-describe("vegetation-index distribution gaps (MOD13A3)", () => {
+describe("distribution gaps (declared per product)", () => {
   // GIBS advertises a layer's time dimension as one <Value> per contiguous
-  // range. The MOD13A3 layers advertise two — 2000-03/2025-03 and
-  // 2025-05/2026-06 — so April 2025 was never distributed and its tile 404s.
-  // timeline.ts pins that month as `unpublished` so the scrubber, the place
-  // panel and the probe series never treat it as a failed retrieval.
+  // range. A layer that splits into several was never distributed for the
+  // months between them, and those tiles 404. timeline.ts pins them as
+  // `unpublished` so the scrubber, the place panel and the probe series never
+  // treat a distribution gap as a failed retrieval.
   //
-  // Two ways the pin rots: NASA backfills the month (the pin then hides real
+  // Two ways a pin rots: NASA backfills the month (the pin then hides real
   // data), or the product skips another one (a new gap is offered as if it
   // were observed). Both are caught by re-deriving the gaps from the live
-  // ranges. Scoped to the vegetation-index layers — snow, SST and air
-  // temperature also advertise interior gaps that their own catalogs do not
-  // declare yet, which is their products' business, not MOD13A3's.
-  const VEGETATION_LAYERS = [LAYERS.ndvi, LAYERS.evi];
+  // ranges. Covers every layer whose catalog declares its gaps: the MOD13A3
+  // vegetation indices (two ranges, April 2025) and the daytime MODIS/Aqua
+  // SST composite (five ranges). Snow and air temperature also split upstream
+  // and do not declare their gaps yet, so they are out of scope here — an
+  // undeclared gap is their own product catalog's business.
+  const GAP_DECLARING_LAYERS = [LAYERS.ndvi, LAYERS.evi, LAYERS.sst];
 
   /** Monthly ISO ranges ("2000-03-01/2025-03-01/P1M") as [start, end] months. */
   function publishedRanges(body: string): { start: number; end: number }[] {
@@ -157,7 +159,7 @@ describe("vegetation-index distribution gaps (MOD13A3)", () => {
     return ymToIndex({ year, month });
   }
 
-  it.each(VEGETATION_LAYERS)(
+  it.each(GAP_DECLARING_LAYERS)(
     "$wmsLayer: the months we pin as unpublished are the months GIBS omits",
     (layer) => {
       const body = layerBlocks.get(layer.wmsLayer);
@@ -175,9 +177,14 @@ describe("vegetation-index distribution gaps (MOD13A3)", () => {
           live.push(m);
         }
       }
-      // Only the part of the gap set that falls inside the record we scrub.
+      // Only the part of the gap set that falls inside the record we scrub —
+      // the same window isAvailable() enforces, so a layer that lags (SST
+      // stops at its own `latest`, ahead of which GIBS may already advertise
+      // more) is not asked to pin gaps it never offers.
       const scrubbed = live.filter(
-        (m) => m >= ymToIndex(layer.start) && m <= ymToIndex(DATA_LATEST)
+        (m) =>
+          m >= ymToIndex(layer.start) &&
+          m <= ymToIndex(layer.latest ?? DATA_LATEST)
       );
       const pinned = (layer.unpublished ?? []).map(ymToIndex);
 

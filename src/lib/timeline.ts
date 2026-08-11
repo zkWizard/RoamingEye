@@ -159,6 +159,41 @@ const MOD13A3_UNPUBLISHED_MONTHS: readonly YearMonth[] = [
   { year: 2025, month: 4 },
 ];
 
+/**
+ * Months the daytime MODIS/Aqua monthly SST composite never distributed,
+ * inside its own record.
+ *
+ * GIBS advertises this layer's time dimension as five disjoint ranges —
+ * 2002-07/2022-10, 2023-01/2023-05, 2023-07/2023-09, 2023-11/2025-11 and
+ * 2026-01/2026-04, all P1M (WMTS GetCapabilities, verified 2026-08-11). Each
+ * of the five months below sits between two of them and answers HTTP 404,
+ * while every month on either side of every gap serves normally.
+ *
+ * A missing month reads differently in an SST record than in a vegetation
+ * one, and more dangerously. Absent *pixels* here are routine and
+ * informative — cloud, sea ice, and sun glint all withhold a thermal-IR
+ * retrieval, so a reader is right to credit a hole to the sea surface. These
+ * months are not that: no monthly composite was distributed at all, so
+ * offering them would invite exactly the reading the data cannot support.
+ * The gaps also fall where they cost the most: they thin the same-calendar
+ * -month baselines a December or June anomaly is measured against, and two
+ * of them (Nov and Dec 2022) are consecutive.
+ *
+ * That these are distribution artifacts rather than ocean signal is directly
+ * checkable: the sibling *night* layer of the same product
+ * (MODIS_Aqua_L3_SST_Thermal_9km_Night_Monthly) splits into five ranges too,
+ * but skips a different set of months — 2022-12, 2023-01, 2023-06, 2024-01
+ * and 2025-01 — sharing only two with the daytime half the app renders. No
+ * property of the ocean is visible by day and not by night in November 2022.
+ */
+const MODIS_AQUA_SST_DAY_UNPUBLISHED_MONTHS: readonly YearMonth[] = [
+  { year: 2022, month: 11 },
+  { year: 2022, month: 12 },
+  { year: 2023, month: 6 },
+  { year: 2023, month: 10 },
+  { year: 2025, month: 12 },
+];
+
 export const LAYERS: Record<LayerId, LayerConfig> = {
   ndvi: {
     id: "ndvi",
@@ -238,6 +273,7 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 2002, month: 7 },
     latest: { year: 2026, month: 3 },
+    unpublished: MODIS_AQUA_SST_DAY_UNPUBLISHED_MONTHS,
     description: "Ocean surface temperature (MODIS/Aqua thermal).",
   },
   precip: {
