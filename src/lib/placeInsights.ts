@@ -16,6 +16,10 @@ import {
 } from "./colormap";
 import { fetchWithRetry } from "./net";
 import type { GeometrySamplingStrategy } from "./geojson";
+import {
+  placeRainfallMonthLengthSplit,
+  rainfallMonthLengthNote,
+} from "./placeRainfallMonthLength";
 
 export type PlaceMetricId = "vegetation" | "rainfall" | "soil" | "air";
 export type PlaceMetricLayerId = "ndvi" | "precip" | "soil" | "airtemp";
@@ -213,10 +217,22 @@ function makePlaceInsightReading(
     };
   }
   const delta = current - previous;
+  // A rainfall total is a rate integrated over the month's own length, so part
+  // of any month-over-month step is calendar rather than weather. Disclose that
+  // share instead of letting a longer month read as a wetter one.
+  const monthLength =
+    metric.id === "rainfall"
+      ? rainfallMonthLengthNote(
+          placeRainfallMonthLengthSplit(
+            [previousMonth, currentMonth],
+            [previous, current]
+          )
+        )
+      : "";
   return {
     id: metric.id,
     value: formatPlaceValue(metric.id, current),
-    detail: `${formatDelta(metric.id, delta)} vs ${previousLabel} · ${currentLabel}`,
+    detail: `${formatDelta(metric.id, delta)} vs ${previousLabel} · ${currentLabel}${monthLength}`,
   };
 }
 

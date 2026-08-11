@@ -74,6 +74,44 @@ describe("place insights", () => {
     });
   });
 
+  it("says how much of a rainfall step is month length, not weather", () => {
+    const rainfall = PLACE_METRICS.find((metric) => metric.id === "rainfall");
+    if (!rainfall) throw new Error("rainfall metric missing");
+    // 3.0 mm/day in February, 2.8 mm/day in March: the total rises 3 mm only
+    // because March is three days longer. Reported as wetter, unqualified, it
+    // would invert what the rain actually did.
+    expect(
+      placeInsightPhysicalReading(
+        rainfall,
+        [
+          { year: 2026, month: 2 },
+          { year: 2026, month: 3 },
+        ],
+        [3, 87 / 31]
+      )
+    ).toEqual({
+      id: "rainfall",
+      value: "87 mm",
+      detail:
+        "+3 mm vs Feb 2026 · Mar 2026; +9 mm of that is 28 d → 31 d month length, and the daily rate moved the other way (3.0 → 2.8 mm/day)",
+    });
+  });
+
+  it("leaves non-rainfall metrics free of month-length qualification", () => {
+    const air = PLACE_METRICS.find((metric) => metric.id === "air");
+    if (!air) throw new Error("air metric missing");
+    expect(
+      placeInsightPhysicalReading(
+        air,
+        [
+          { year: 2026, month: 2 },
+          { year: 2026, month: 3 },
+        ],
+        [283.15, 285.15]
+      ).detail
+    ).toBe("+2.0 C vs Feb 2026 · Mar 2026");
+  });
+
   it("preserves native NDVI values decoded from NASA's colormap", () => {
     const vegetation = PLACE_METRICS.find(
       (metric) => metric.id === "vegetation"
