@@ -6,6 +6,7 @@ import {
   type SourceImageDimensions,
 } from "./marineCoverage";
 import { PROBE_SCALES } from "./probe";
+import { SST_SAMPLING_GATE_NOTE } from "./sstObservingConstraints";
 import { formatYm, type YearMonth } from "./timeline";
 
 /**
@@ -124,7 +125,13 @@ export function marineBoundarySstReading(
       input.observedValue !== null && usable
         ? `${input.observedValue.toFixed(1)} ${coverage.source.sourceUnit}`
         : "No usable SST observation",
-    detail: `${month} approximate boundary-mean SST observation for ${geographyLabel}; ${coverageText}; ${image}; source ${source}; not a marine-biology observation`,
+    // The sampling-gate note qualifies a value, so it is appended only when one
+    // is reported. See sstObservingConstraints for what the note stands in for:
+    // the cited product composites Aqua's daytime overpass on cloud-screened
+    // days only, so this mean is not a full-diurnal, all-weather monthly mean.
+    detail: `${month} approximate boundary-mean SST observation for ${geographyLabel}; ${coverageText}; ${image}; source ${source}${
+      usable ? `; ${SST_SAMPLING_GATE_NOTE}` : ""
+    }; not a marine-biology observation`,
     kind: "observed-boundary-sea-surface-temperature",
     availability: usable ? "available" : "no-usable-sst",
     marineBiologyObservation: false,
