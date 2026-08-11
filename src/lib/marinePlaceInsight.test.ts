@@ -230,6 +230,70 @@ describe("marine boundary SST insights", () => {
     });
   });
 
+  it("reports a ramp-floor boundary mean as an upper bound, not a measurement", () => {
+    // 0.075 °C is the midpoint of the published ramp's lowest bin — the value
+    // every sub-zero pixel is decoded as, because GIBS renders all of them in
+    // one open end-cap colour. Reporting it as "0.1 °C" would put the Barents
+    // or Bering Sea in winter ~1.9 °C warmer than the product observed.
+    const reading = marineBoundarySstReading({
+      geographyLabel: "Barents Sea",
+      dataMonth: { year: 2026, month: 3 },
+      observedValue: 0.075,
+      validFraction: 0.88,
+      sourceImageDimensions: { width: 512, height: 512 },
+    });
+
+    expect(reading.value).toBe("≤ 0.1 °C");
+    expect(reading.observedValue).toBe(0.075);
+    expect(reading.availability).toBe("available");
+    expect(reading.observationStatus).toBe("observed");
+    expect(reading.rampCensoring).toMatchObject({
+      status: "at-ramp-floor",
+      possiblyCensored: true,
+      boundDirection: "upper",
+    });
+    expect(reading.detail).toContain("upper bound");
+    expect(reading.detail).toContain("not a marine-biology observation");
+  });
+
+  it("leaves an in-ramp boundary mean unqualified", () => {
+    const reading = marineBoundarySstReading({
+      geographyLabel: "Monterey Bay",
+      dataMonth: { year: 2026, month: 3 },
+      observedValue: 18.375,
+      validFraction: 0.37,
+      sourceImageDimensions: { width: 512, height: 512 },
+    });
+
+    expect(reading.value).toBe("18.4 °C");
+    expect(reading.rampCensoring).toMatchObject({
+      status: "within-published-ramp",
+      possiblyCensored: false,
+    });
+    expect(reading.detail).not.toContain("upper bound");
+    expect(reading.detail).not.toContain("lower bound");
+    expect(reading.detail).not.toContain("published colormap");
+  });
+
+  it("does not judge ramp position when there is no usable observation", () => {
+    const reading = marineBoundarySstReading({
+      geographyLabel: "Nebraska",
+      dataMonth: { year: 2026, month: 3 },
+      observedValue: null,
+      validFraction: 0,
+      sourceImageDimensions: { width: 512, height: 512 },
+    });
+
+    expect(reading.value).toBe("No usable SST observation");
+    expect(reading.rampCensoring).toBeNull();
+    expect(
+      unavailableMarineBoundarySstReading(
+        { year: 2026, month: 3 },
+        "Monterey Bay"
+      ).rampCensoring
+    ).toBeNull();
+  });
+
   it("distinguishes sampling failure from sampled no-data", () => {
     const reading = unavailableMarineBoundarySstReading(
       { year: 2026, month: 3 },
