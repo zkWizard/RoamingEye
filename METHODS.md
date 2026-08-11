@@ -61,6 +61,28 @@ Two sources, both stated in every export:
   this by inverting against the real GIBS colormaps is tracked as
   [#170](https://github.com/zkWizard/RoamingEye/issues/170).
 
+### Gross-error plausibility bands (atmosphere)
+
+Separately from the uncertainty above, each atmospheric reading is checked
+against a fixed **gross-error band** before it is shown: 170–340 K for 2 m air
+temperature, 0–0.01 kg/m²/s for precipitation rate. A value outside its band
+is withheld from the place panel as a unit or decode failure rather than
+displayed as a measurement, and a month-over-month change is withheld when the
+comparison month fails its band.
+
+These bands are deliberately far wider than any real monthly mean. They sit
+outside the recorded surface-air extremes (−89.2 °C Vostok 1983; +56.7 °C Death
+Valley 1913) and outside the wettest calendar month on record (Cherrapunji 1861,
+≈300 mm/day mean), and they are much wider than the inversion RMSE in the table
+above. So they never flag a genuine extreme or ordinary inversion noise; they
+catch only physically impossible readings, such as a °C figure left unconverted
+to kelvin, or a mm/day rate left unscaled.
+
+**A pass is a sanity check, not a correctness claim.** A value inside its band
+still carries the full inversion uncertainty above. The bounds are fixed
+reference values, never derived from the sampled data. No band is defined for
+soil moisture, whose readings are passed through unchecked.
+
 ## 4. Trend analysis
 
 For a probed time series, the tool reports a nonparametric trend — chosen
