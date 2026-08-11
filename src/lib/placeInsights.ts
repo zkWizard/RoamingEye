@@ -61,8 +61,16 @@ export interface PlaceColormap {
 /**
  * Place insights decode NDVI as well as the globally calibrated probe layers.
  * MODIS_L3_NDVI is the GIBS colormap linked to the monthly MOD13A3 imagery;
- * using it preserves native NDVI values (including valid negative values)
- * instead of treating a display-gradient position as the observation.
+ * using it recovers native NDVI values instead of treating a display-gradient
+ * position as the observation.
+ *
+ * It does not recover the whole index. GIBS marks the fill band and both
+ * negative bands transparent and omits them from the continuous legend this
+ * parses (see vegetationIndexRenderedRange.ts), so the recoverable range starts
+ * just above zero. Negative NDVI — what open water, snow, ice, and cloud
+ * produce — is undrawn rather than decodable, which means a vegetation reading
+ * here is a mean over the drawn part of the boundary and the undrawn share
+ * lands in `validFractions`, not in the value.
  */
 export const PLACE_COLORMAP_DOCS = {
   ...COLORMAP_DOCS,
