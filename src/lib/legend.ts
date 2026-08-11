@@ -51,12 +51,25 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
     maxLabel: "higher NDVI",
     interpretationNote:
       "NDVI is a unitless vegetation index; color does not measure vegetation cover, biomass, or condition.",
+    // Sampled from GIBS's own MODIS_L3_NDVI colormap — the document its WMTS
+    // capabilities ties to MODIS_Terra_L3_NDVI_Monthly — rather than drawn by
+    // hand, so the probe inverts rendered pixels through the ramp NASA
+    // actually draws. Two features of that ramp drive the stop placement:
+    //   * It is near-white at low NDVI and only reaches brown around 0.28,
+    //     then jumps abruptly to yellow-green. The 0.28→0.30 pair carries
+    //     that discontinuity; a smooth ramp through it would misread the
+    //     sparse-vegetation end entirely.
+    //   * Its darkest greens run to within 24 RGB units of black. Because
+    //     GIBS serves undrawn pixels as black in JPEG tiles, anchoring the
+    //     top stop there would make open ocean read as maximum greenness.
+    //     The top stop therefore stops at the NDVI-0.905 hue, 72 units from
+    //     black, which clears NO_DATA_DISTANCE (60) with margin.
     stops: [
-      { color: "#a97c50", at: 0 }, // bare soil / desert browns
-      { color: "#d9c38a", at: 0.25 },
-      { color: "#c7d96a", at: 0.5 },
-      { color: "#5da83f", at: 0.75 },
-      { color: "#1a6b1a", at: 1 }, // dense canopy
+      { color: "#f1ecec", at: 0 }, // sparse / bare — GIBS's near-white low end
+      { color: "#9d7c5f", at: 0.28 }, // brown, just below the ramp's hue jump
+      { color: "#a7cc4b", at: 0.3 }, // yellow-green, just above it
+      { color: "#126e01", at: 0.7 },
+      { color: "#004800", at: 1 }, // dense canopy, held clear of black
     ],
   },
   evi: {

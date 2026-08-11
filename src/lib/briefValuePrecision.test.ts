@@ -5,6 +5,7 @@ import {
   type EnvironmentBriefInput,
   type EnvironmentObservation,
 } from "./environmentBrief";
+import { MEASURED_INVERSION } from "./validation";
 import {
   BRIEF_RENDER_SIGNIFICANT_FIGURES,
   briefRenderedSignificantFigures,
@@ -165,19 +166,19 @@ describe("summarizeBriefValuePrecision", () => {
     expect(airtemp.statement).toContain("2 significant figures");
   });
 
-  it("reports an uncharacterized layer honestly and invents no precision", () => {
-    // NDVI is a satellite-derived index with no measured inversion RMSE.
+  it("justifies NDVI precision against its calibrated inversion RMSE", () => {
+    // NDVI used to be the brief's uncharacterized case. Its legend is now
+    // sampled from GIBS's MODIS_L3_NDVI ramp, so a measured RMSE (0.024)
+    // decides how many figures 0.62 may honestly carry.
     const brief = briefWith({ vegetation: obs(0.62) });
     const summary = summarizeBriefValuePrecision(brief.signals);
 
     const veg = summary.signals[0];
-    expect(veg.status).toBe("uncharacterized");
-    expect(veg.uncertainty).toBeNull();
-    expect(veg.justified).toBeNull();
-    expect(veg.overstatesPrecision).toBe(false);
-    expect(summary.characterizedCount).toBe(0);
-    expect(summary.uncharacterizedCount).toBe(1);
-    expect(veg.statement).toContain("not asserted");
+    expect(veg.status).toBe("characterized");
+    expect(veg.uncertainty).toBe(MEASURED_INVERSION.ndvi.rmse);
+    expect(veg.justified).not.toBeNull();
+    expect(summary.characterizedCount).toBe(1);
+    expect(summary.uncharacterizedCount).toBe(0);
   });
 
   it("considers only usable signals by default and every signal under 'all'", () => {

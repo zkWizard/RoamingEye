@@ -22,6 +22,7 @@ by a CI drift-guard.
 
 | Layer                 | RMSE                   | Colours recovered | Verdict                           |
 | --------------------- | ---------------------- | ----------------- | --------------------------------- |
+| Vegetation (NDVI)     | **0.024** (scale 0–1)  | 140 / 140         | Good — usable for absolute values |
 | Aerosol optical depth | **0.13** (scale 0–0.9) | 180 / 180         | Good — usable for absolute values |
 | Sea surface temp      | 5.1 °C                 | 128 / 213         | Coarse — relative use recommended |
 | Soil moisture         | 8.2 kg/m²              | 21 / 50           | Coarse — relative use recommended |

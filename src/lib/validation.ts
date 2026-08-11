@@ -99,11 +99,20 @@ export function validateInversion(
  * (trends, anomalies, seasonality — scale-monotone-robust), not absolute
  * values. Tightening this by inverting against the real GIBS colormaps is
  * tracked as follow-up (#170).
+ *
+ * NDVI is the worked example of that follow-up: its legend stops are sampled
+ * from MODIS_L3_NDVI instead of drawn by hand, and every one of GIBS's 140
+ * ramp colours now inverts (RMSE 0.024 on a 0–1 index). Note what a *banded*
+ * null-rate costs — the hand-drawn ramp rejected 32 colours in three
+ * contiguous blocks (NDVI ≤ 0.09, 0.41–0.46, ≥ 0.94), so sparse vegetation
+ * and closed canopy were dropped from every mean, trend, and percentile
+ * rather than merely measured imprecisely.
  */
 export const MEASURED_INVERSION: Record<
   CalibratedLayerId,
   { rmse: number | null; nulls: number; total: number }
 > = {
+  ndvi: { rmse: 0.0236, nulls: 0, total: 140 },
   lst: { rmse: null, nulls: 250, total: 250 },
   airtemp: { rmse: 18.95, nulls: 44, total: 90 },
   sst: { rmse: 5.11, nulls: 85, total: 213 },

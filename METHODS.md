@@ -46,6 +46,7 @@ Two sources, both stated in every export:
 
   | Layer                 | Inversion RMSE  | Recovered |
   | --------------------- | --------------- | --------- |
+  | Vegetation (NDVI)     | 0.024 (of 0–1)  | 140 / 140 |
   | Aerosol optical depth | 0.13 (of 0–0.9) | 180 / 180 |
   | Sea surface temp      | 5.1 °C          | 128 / 213 |
   | Soil moisture         | 8.2 kg/m²       | 21 / 50   |
