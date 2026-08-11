@@ -13,6 +13,7 @@ import {
   roundToPlace,
   summarizeBriefValuePrecision,
 } from "./briefValuePrecision";
+import { MEASURED_INVERSION } from "./validation";
 
 const AVAILABLE_THROUGH = { year: 2026, month: 3 };
 
@@ -151,7 +152,9 @@ describe("summarizeBriefValuePrecision", () => {
     expect(summary.consideredSignalIds).toEqual(["air-temperature"]);
     const airtemp = summary.signals[0];
     expect(airtemp.status).toBe("characterized");
-    expect(airtemp.uncertainty).toBe(18.95);
+    // Bound to the published figure, not a literal: the assertion below is
+    // that ±19 K justifies two significant figures, whatever the exact value.
+    expect(airtemp.uncertainty).toBe(MEASURED_INVERSION.airtemp.rmse);
     expect(airtemp.justified).toEqual({
       roundingPlace: 1,
       roundedValue: 290,

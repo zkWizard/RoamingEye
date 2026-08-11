@@ -25,9 +25,20 @@ by a CI drift-guard.
 | Aerosol optical depth | **0.13** (scale 0–0.9) | 180 / 180         | Good — usable for absolute values |
 | Sea surface temp      | 5.1 °C                 | 128 / 213         | Coarse — relative use recommended |
 | Soil moisture         | 8.2 kg/m²              | 21 / 50           | Coarse — relative use recommended |
-| Air temperature (2 m) | 19.0 K                 | 46 / 90           | Poor absolute accuracy            |
+| Air temperature (2 m) | 19.0 K                 | 93 / 180          | Poor absolute accuracy            |
 | Precipitation         | 20.4 mm/day            | 27 / 50           | Poor absolute accuracy            |
 | Land surface temp     | — (all no-data)        | 0 / 250           | Gradient misses GIBS's hues       |
+
+Air temperature's denominator was corrected on 2026-08-11, from 90 to the
+ramp's true 180. GIBS prints that colormap's tooltips rounded to whole kelvin
+while the ramp itself steps 0.5 K, so 90 entries show a zero-width range
+("222 – 222") and the parser had been discarding them as unusable. They name a
+value perfectly well, and the RMSE barely moved once they were included
+(18.95 → 18.99 K) — the check that they sit on the same ramp. The figure that
+changed is coverage: half of this colormap had never been measured, and the
+place panel, which decodes rendered pixels through these same entries, had been
+resolving each of those 90 colours to its nearest surviving neighbour — exactly
+0.5 K away in every case.
 
 ## What this means (and doesn't)
 

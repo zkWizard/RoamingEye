@@ -99,13 +99,22 @@ export function validateInversion(
  * (trends, anomalies, seasonality — scale-monotone-robust), not absolute
  * values. Tightening this by inverting against the real GIBS colormaps is
  * tracked as follow-up (#170).
+ *
+ * `total` is the number of ramp colours the layer's colormap actually offers,
+ * so it is the denominator that makes `nulls` a coverage figure. Air
+ * temperature's was re-measured 2026-08-11 at 180 (was 90): GIBS prints that
+ * ramp's tooltips rounded to whole kelvin while the ramp itself steps 0.5 K,
+ * and the parser had been discarding every entry whose printed range collapsed
+ * to zero width. The RMSE is unmoved (18.95 → 18.99) — the restored colours sit
+ * on the same ramp, which is the check that they belong — but half the ramp had
+ * never been presented to the inversion at all. See `parseColormapEntries`.
  */
 export const MEASURED_INVERSION: Record<
   CalibratedLayerId,
   { rmse: number | null; nulls: number; total: number }
 > = {
   lst: { rmse: null, nulls: 250, total: 250 },
-  airtemp: { rmse: 18.95, nulls: 44, total: 90 },
+  airtemp: { rmse: 18.99, nulls: 87, total: 180 },
   sst: { rmse: 5.11, nulls: 85, total: 213 },
   precip: { rmse: 20.36, nulls: 23, total: 50 },
   soil: { rmse: 8.23, nulls: 29, total: 50 },

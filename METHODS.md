@@ -49,7 +49,7 @@ Two sources, both stated in every export:
   | Aerosol optical depth | 0.13 (of 0–0.9) | 180 / 180 |
   | Sea surface temp      | 5.1 °C          | 128 / 213 |
   | Soil moisture         | 8.2 kg/m²       | 21 / 50   |
-  | Air temperature (2 m) | 19.0 K          | 46 / 90   |
+  | Air temperature (2 m) | 19.0 K          | 93 / 180  |
   | Precipitation         | 20.4 mm/day     | 27 / 50   |
   | Land surface temp     | no-data (all)   | 0 / 250   |
 
