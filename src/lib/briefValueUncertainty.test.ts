@@ -7,9 +7,14 @@ import {
 import { MEASURED_INVERSION } from "./validation";
 import {
   calibratedLayerWithRmse,
+  characterizeLayerInversion,
   inversionUncertaintyForLayer,
   summarizeBriefValueUncertainty,
 } from "./briefValueUncertainty";
+import { COLORMAP_DOCS } from "./colormap";
+import { LEGENDS } from "./legend";
+import { PROBE_SCALES } from "./probe";
+import { LAYERS, type LayerId } from "./timeline";
 
 const AVAILABLE_THROUGH = { year: 2026, month: 3 };
 
@@ -42,11 +47,85 @@ describe("calibratedLayerWithRmse", () => {
   });
 
   it("returns null for uncharacterized or all-null layers", () => {
-    // NDVI is a satellite-derived index, not a calibrated colormap-inverted layer.
+    // NDVI *is* colormap-inverted, but GIBS publishes no colormap document for
+    // it, so there is no measured figure to bound with.
     expect(calibratedLayerWithRmse("ndvi")).toBeNull();
+    expect(COLORMAP_DOCS).not.toHaveProperty("ndvi");
     // LST inverts to no value at all (rmse === null), so it bounds nothing.
     expect(MEASURED_INVERSION.lst.rmse).toBeNull();
     expect(calibratedLayerWithRmse("lst")).toBeNull();
+  });
+});
+
+describe("characterizeLayerInversion", () => {
+  it("characterizes the layers with a measured, non-null RMSE", () => {
+    for (const layer of [
+      "soil",
+      "airtemp",
+      "precip",
+      "sst",
+      "aerosol",
+    ] as const) {
+      const c = characterizeLayerInversion(layer);
+      expect(c.status).toBe("characterized");
+      expect(c.reason).toBeNull();
+      expect(c.totalSteps).toBe(MEASURED_INVERSION[layer].total);
+    }
+  });
+
+  it("separates a measured-but-unrecoverable layer from an unmeasured one", () => {
+    // The defect this guards: LST and NDVI are epistemically opposite yet both
+    // came out simply "uncharacterized" with the evidence discarded.
+    const lst = characterizeLayerInversion("lst");
+    expect(lst.reason).toBe("inversion-recovers-nothing");
+    // The finding is retained rather than nulled out: 0 of 250 steps recovered.
+    expect(lst.recoveredSteps).toBe(0);
+    expect(lst.totalSteps).toBe(250);
+
+    const ndvi = characterizeLayerInversion("ndvi");
+    expect(ndvi.reason).toBe("unvalidated-inversion");
+    // Never measured, so there is no recovery count to report.
+    expect(ndvi.recoveredSteps).toBeNull();
+    expect(ndvi.totalSteps).toBeNull();
+
+    expect(lst.reason).not.toBe(ndvi.reason);
+  });
+
+  it("labels the ramp-inverted-but-unvalidated layers by that reason", () => {
+    // Each is a gradient legend with a physically calibrated probe scale, so its
+    // value is inverted exactly like soil moisture — only never validated.
+    for (const layer of ["ndvi", "evi", "snow"] as const) {
+      expect(LEGENDS[layer].kind).not.toBe("classes");
+      expect(PROBE_SCALES[layer].calibrated).toBe(true);
+      expect(COLORMAP_DOCS).not.toHaveProperty(layer);
+      expect(characterizeLayerInversion(layer).reason).toBe(
+        "unvalidated-inversion"
+      );
+    }
+  });
+
+  it("reads categorical and fraction-of-scale layers off their own evidence", () => {
+    // Land cover has no ramp to invert at all.
+    expect(LEGENDS.landcover.kind).toBe("classes");
+    expect(characterizeLayerInversion("landcover").reason).toBe(
+      "categorical-layer"
+    );
+    // Terrain inverts a ramp, but its scale carries no physical units.
+    expect(PROBE_SCALES.terrain.calibrated).toBe(false);
+    expect(characterizeLayerInversion("terrain").reason).toBe(
+      "uncalibrated-scale"
+    );
+  });
+
+  it("classifies every layer, and agrees with calibratedLayerWithRmse", () => {
+    for (const layer of Object.keys(LAYERS) as LayerId[]) {
+      const c = characterizeLayerInversion(layer);
+      expect(c.status === "characterized").toBe(
+        calibratedLayerWithRmse(layer) !== null
+      );
+      // reason is null exactly when characterized — no third state leaks out.
+      expect(c.reason === null).toBe(c.status === "characterized");
+    }
   });
 });
 
@@ -127,6 +206,49 @@ describe("summarizeBriefValueUncertainty", () => {
     expect(veg.statement).toContain("no characterized end-to-end");
     expect(summary.characterizedCount).toBe(0);
     expect(summary.uncharacterizedCount).toBe(1);
+  });
+
+  it("says vegetation is unmeasured, not exempt from inversion error", () => {
+    const brief = briefWith({ vegetation: obs(0.6) });
+    const summary = summarizeBriefValueUncertainty(brief.signals);
+    const veg = summary.signals.find((s) => s.id === "vegetation")!;
+
+    expect(veg.uncharacterizedReason).toBe("unvalidated-inversion");
+    // The statement must name the mechanism, so the reader cannot conclude the
+    // value dodges the inversion error the bounded signals disclose.
+    expect(veg.statement).toContain("inverting a sampled colour");
+    expect(veg.statement).toContain("unmeasured, not absent");
+    // Provenance still travels with it.
+    expect(veg.statement).toContain(veg.source.shortName);
+
+    // Counted as unbounded *and* as still-inverted, and the summary says so.
+    expect(summary.unquantifiedInversionCount).toBe(1);
+    expect(summary.statement).toContain("unquantified rather than absent");
+  });
+
+  it("never claims greater precision for an unbounded signal", () => {
+    const brief = briefWith({ vegetation: obs(0.6), soilMoisture: obs(24) });
+    const summary = summarizeBriefValueUncertainty(brief.signals);
+
+    expect(summary.characterizedCount).toBe(1);
+    expect(summary.unquantifiedInversionCount).toBe(1);
+    expect(summary.statement).toContain("not a sign of greater precision");
+    // The corrected limits must retire the "derived index" exemption wording and
+    // keep the LST all-null finding on the record.
+    const limits = summary.limits.join(" ");
+    expect(limits).toContain("not exempt by virtue of being a derived index");
+    expect(limits).toContain("0 of 250 colormap steps");
+  });
+
+  it("keeps a characterized signal's reason null", () => {
+    const brief = briefWith({ soilMoisture: obs(24) });
+    const summary = summarizeBriefValueUncertainty(brief.signals);
+    const soil = summary.signals.find((s) => s.id === "soil-moisture")!;
+
+    expect(soil.status).toBe("characterized");
+    expect(soil.uncharacterizedReason).toBeNull();
+    expect(summary.unquantifiedInversionCount).toBe(0);
+    expect(summary.statement).not.toContain("unquantified rather than absent");
   });
 
   it("considers only available signals by default", () => {
