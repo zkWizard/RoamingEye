@@ -228,8 +228,23 @@ index are not; a level must never be summed into a meaningless "total". Kind is 
 property of the geophysical variable, not the product: the two GLDAS fields share
 a product yet differ (rainfall is a flux, soil moisture a state).
 
-Both descriptors report structure only — neither combines, accumulates, or ranks
-the values, and every signal keeps its source DOI.
+**Panel contemporaneity** (`src/lib/placeMonthAlignment.ts`). Before either
+descriptor above applies, two values must refer to the same month at all. The
+place panel's five cards each read the latest month _their own_ product
+publishes, and those calendars differ — the GLDAS fields, MERRA-2, MODIS SST and
+the MODIS vegetation composite carry different publication lags, so the cards
+routinely span three or four months. Laid out as one grid under one place name
+they read as a single snapshot, which they are not. This descriptor partitions
+the cards into cohorts sharing one month and reports the span, and the panel
+renders that statement in place of its former hedge ("products may publish on
+different monthly schedules"). Only cards inside one cohort may be read together
+in time. It describes the month each card _reads_, not what it observed: a card
+reporting no usable coverage contributes no observation for its month. A shared
+month makes two cards contemporaneous, not commensurate — that is what the two
+descriptors above settle.
+
+All three descriptors report structure only — none combines, accumulates, or
+ranks the values, and every signal keeps its source DOI.
 
 ## 9. What this tool does not do
 
