@@ -1,3 +1,7 @@
+import {
+  anomalyBaselineCsvHeaders,
+  anomalyBaselineDepth,
+} from "./anomalyBaselineDepth";
 import type { Bounds } from "./imagery";
 import type { LegendStop } from "./legend";
 import { makeNeumaierAcc } from "./numerics";
@@ -669,7 +673,11 @@ export function buildProbeCsv(
         ? "approximate physical scale"
         : "fraction of color scale"
     })`,
-    `# anomaly: value minus this location's mean for the same calendar month (same units)`,
+    // The anomaly is a within-record departure, and how much record backs it
+    // varies by calendar month — say both, so a single-year calendar month's
+    // constructed zero is never read as a measured "exactly average".
+    `# anomaly: value minus this location's mean for the same calendar month in this file (same units) — a within-record departure; not an independent climatological normal`,
+    ...anomalyBaselineCsvHeaders(anomalyBaselineDepth(months, values)),
     `# uncertainty: ${uncertaintyText(meta.scale)} colormap quantization (compression noise on top; see the probe accuracy suite for end-to-end bounds)`,
     ...trendCsvHeaders(trend),
     ...(fractions
