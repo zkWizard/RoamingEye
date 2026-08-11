@@ -92,13 +92,16 @@ export function validateInversion(
  * docs/validation.md and METHODS.md stay true, and any drift (a GIBS palette
  * change, a legend edit) fails CI naming the layer.
  *
- * These are sobering by design: inversion through our coarse legend gradients
- * recovers aerosol well (RMSE 0.13) but temperature, precipitation, and soil
- * only loosely, and LST's gradient misses GIBS's cold-end hues entirely
- * (all-null). The probe is reliable for *relative* analysis on these layers
- * (trends, anomalies, seasonality — scale-monotone-robust), not absolute
- * values. Tightening this by inverting against the real GIBS colormaps is
- * tracked as follow-up (#170).
+ * These are sobering by design, and they track how closely each layer's legend
+ * follows the colormap GIBS actually renders with. Where the stops are taken
+ * from that colormap the inversion is tight (precipitation, RMSE 0.27 mm/day
+ * over the whole ramp; aerosol, 0.13); where the gradient is still a hand-drawn
+ * approximation it is loose (air temperature, soil moisture) or fails outright
+ * (LST's gradient misses GIBS's cold-end hues entirely, all-null). On the loose
+ * layers the probe remains reliable for *relative* analysis (trends, anomalies,
+ * seasonality — scale-monotone-robust), not absolute values. Rebuilding the
+ * remaining gradients from the real GIBS colormaps is tracked as follow-up
+ * (#170).
  */
 export const MEASURED_INVERSION: Record<
   CalibratedLayerId,
@@ -107,7 +110,10 @@ export const MEASURED_INVERSION: Record<
   lst: { rmse: null, nulls: 250, total: 250 },
   airtemp: { rmse: 18.95, nulls: 44, total: 90 },
   sst: { rmse: 5.11, nulls: 85, total: 213 },
-  precip: { rmse: 20.36, nulls: 23, total: 50 },
+  // Re-measured 2026-08-11 after the precip legend was rebuilt from GIBS's own
+  // ramp (was rmse 20.36 / nulls 23, when the hand-drawn tan → blue gradient
+  // sent mid-range rates to the dry end).
+  precip: { rmse: 0.27, nulls: 0, total: 50 },
   soil: { rmse: 8.23, nulls: 29, total: 50 },
   aerosol: { rmse: 0.13, nulls: 0, total: 180 },
 };

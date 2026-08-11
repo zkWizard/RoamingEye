@@ -13,8 +13,8 @@ import {
 
 const AVAILABLE_THROUGH = { year: 2026, month: 3 };
 
-/** Precipitation RMSE 20.36 mm/day converted to native kg/m²/s (÷ 86 400 s/day). */
-const PRECIP_NATIVE_RMSE = 20.36 / 86_400;
+/** Precipitation RMSE 0.27 mm/day converted to native kg/m²/s (÷ 86 400 s/day). */
+const PRECIP_NATIVE_RMSE = 0.27 / 86_400;
 
 function obs(value: number, validFraction = 0.9): EnvironmentObservation {
   return { dataMonth: { year: 2026, month: 1 }, value, validFraction };
@@ -66,11 +66,12 @@ describe("inversionUncertaintyForLayer", () => {
     const precip = inversionUncertaintyForLayer("precip", "kg/m²/s");
     expect(precip).not.toBeNull();
     // Published figure stays in the probe's reported unit.
-    expect(precip!.reportedRmse).toBe(20.36);
+    expect(precip!.reportedRmse).toBe(0.27);
     expect(precip!.reportedUnit).toBe("mm/day");
     // Band is dimensionally matched to the brief's native kg/m²/s value.
     expect(precip!.nativeRmse).toBeCloseTo(PRECIP_NATIVE_RMSE, 12);
-    expect(precip!.recoveredSteps).toBe(27);
+    // Every ramp colour now inverts; none is rejected as no-data.
+    expect(precip!.recoveredSteps).toBe(50);
   });
 
   it("never invents an uncertainty for an uncharacterized layer", () => {
@@ -107,12 +108,12 @@ describe("summarizeBriefValueUncertainty", () => {
     const summary = summarizeBriefValueUncertainty(brief.signals);
 
     const precip = summary.signals.find((s) => s.id === "rainfall")!;
-    expect(precip.reportedRmse).toBe(20.36);
+    expect(precip.reportedRmse).toBe(0.27);
     expect(precip.reportedUnit).toBe("mm/day");
     expect(precip.nativeRmse).toBeCloseTo(PRECIP_NATIVE_RMSE, 12);
     // Native band qualifies the kg/m²/s value; the mm/day figure stays traceable.
     expect(precip.statement).toContain("kg/m²/s");
-    expect(precip.statement).toContain("published RMSE 20.36 mm/day");
+    expect(precip.statement).toContain("published RMSE 0.27 mm/day");
   });
 
   it("reports NDVI as uncharacterized and never bounds it", () => {
