@@ -9,6 +9,7 @@ import { SCALE_CONVERSIONS } from "./colormap";
 import { classifyModality } from "./observationModality";
 import { compareYm, type LayerId, type YearMonth } from "./timeline";
 import { toConventionalClimateValue } from "./climateConventionalUnits";
+import { precipitationAccumulation } from "./precipitationAccumulation";
 import type { GeometrySamplingStrategy } from "./geojson";
 import type {
   PlaceObservationInput,
@@ -313,9 +314,22 @@ export function climateInsightText(
         current.metric.nativeUnit
       )} (${conventional.conversion.basis})`
     : "";
+  // A mean rate says how hard it rained; the plainest hydrologic question about
+  // a month is how much fell, and precipitation climatology is conventionally
+  // reported as a monthly total. That total is the exact integration of the
+  // reported mean rate over the month's own calendar length, so it is stated
+  // alongside the rate — never in place of it — with the month length shown,
+  // because month length is part of why two months' totals differ. Non-
+  // precipitation metrics yield null here and gain no clause.
+  const accumulated = precipitationAccumulation(current);
+  const accumulation = accumulated
+    ? `; ${accumulated.monthDays}-day total ${formatNumber(
+        accumulated.totalMm
+      )} mm water-equivalent (mean rate integrated over the calendar month)`
+    : "";
   return {
     value,
-    detail: `${month} ${modality.field}${comparison}${nativeProvenance}; ${coverage}; ${provenance}; ${sampling}; ${modality.limit}; ${sourceVariable}; source ${source}`,
+    detail: `${month} ${modality.field}${comparison}${accumulation}${nativeProvenance}; ${coverage}; ${provenance}; ${sampling}; ${modality.limit}; ${sourceVariable}; source ${source}`,
   };
 }
 

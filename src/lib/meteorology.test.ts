@@ -212,7 +212,7 @@ describe("rendered monthly meteorology", () => {
     expect(climateInsightText(precipitation[0], precipitation[1])).toEqual({
       value: "8.64 mm/day",
       detail:
-        "2026-02 land-surface-model field; +4.32 mm/day vs 2026-01; native source value 0.0001 kg/m²/s (1 kg/m² of liquid water ≡ 1 mm depth; × 86,400 s/day); 90% sampled coverage; rendered source image dimensions not supplied; sampling strategy not supplied; model-derived, not a direct measurement; GIBS layer GLDAS_Surface_Total_Precipitation_Rate_Monthly; source GLDAS_NOAH025_M v2.1",
+        "2026-02 land-surface-model field; +4.32 mm/day vs 2026-01; 28-day total 241.92 mm water-equivalent (mean rate integrated over the calendar month); native source value 0.0001 kg/m²/s (1 kg/m² of liquid water ≡ 1 mm depth; × 86,400 s/day); 90% sampled coverage; rendered source image dimensions not supplied; sampling strategy not supplied; model-derived, not a direct measurement; GIBS layer GLDAS_Surface_Total_Precipitation_Rate_Monthly; source GLDAS_NOAH025_M v2.1",
     });
     expect(
       climateInsightText(airTemperature[0], airTemperature[1])
@@ -419,5 +419,116 @@ describe("rendered monthly meteorology", () => {
       "comparison unavailable (comparison month is not earlier)"
     );
     expect(climateInsightText(soil, february).detail).not.toContain("kg/m² vs");
+  });
+});
+
+/**
+ * Precipitation climatology is conventionally reported as a monthly total, not
+ * as the mean rate the source product stores. The place readout states both:
+ * the total is the exact integration of the reported mean rate over the data
+ * month's own calendar length, so it must track month length and must never
+ * appear for a metric that is not a rate or for a month with no usable value.
+ */
+describe("place readout monthly precipitation accumulation", () => {
+  const rateSummary = (month: { year: number; month: number }) =>
+    summarizeRenderedClimateSample(
+      {
+        metricId: "precipitation-rate",
+        months: [month],
+        // 4.32 mm/day rendered is 5e-5 kg/m²/s native.
+        sampledValues: [4.32],
+        nativeToSampledValueFactor: 86_400,
+        validFractions: [0.9],
+        geometrySamplingStrategy: "boundary-grid",
+      },
+      month
+    )[0];
+
+  it("states the total depth integrated over the data month's own length", () => {
+    // 5e-5 kg/m²/s x 31 days = 133.92 mm; the mm/day rate is kept alongside it.
+    const detail = climateInsightText(
+      undefined,
+      rateSummary({ year: 2026, month: 1 })
+    ).detail;
+    expect(detail).toContain("31-day total 133.92 mm water-equivalent");
+    expect(detail).toContain("mean rate integrated over the calendar month");
+    expect(
+      climateInsightText(undefined, rateSummary({ year: 2026, month: 1 })).value
+    ).toBe("4.32 mm/day");
+  });
+
+  it("tracks calendar-month length rather than assuming a fixed month", () => {
+    // Same mean rate, shorter month: 5e-5 x 28 days = 120.96 mm.
+    expect(
+      climateInsightText(undefined, rateSummary({ year: 2026, month: 2 }))
+        .detail
+    ).toContain("28-day total 120.96 mm water-equivalent");
+    // A leap February is 29 days: 5e-5 x 29 days = 125.28 mm.
+    expect(
+      climateInsightText(undefined, rateSummary({ year: 2024, month: 2 }))
+        .detail
+    ).toContain("29-day total 125.28 mm water-equivalent");
+  });
+
+  it("adds no total for metrics that are not a precipitation rate", () => {
+    const [airTemperature] = summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [287.4],
+        nativeToSampledValueFactor: 1,
+        validFractions: [0.9],
+      },
+      { year: 2026, month: 1 }
+    );
+    const [soil] = summarizeRenderedClimateSample(
+      {
+        metricId: "soil-moisture",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [280],
+        nativeToSampledValueFactor: 1,
+        validFractions: [0.9],
+      },
+      { year: 2026, month: 1 }
+    );
+
+    expect(climateInsightText(undefined, airTemperature).detail).not.toContain(
+      "water-equivalent"
+    );
+    expect(climateInsightText(undefined, soil).detail).not.toContain(
+      "water-equivalent"
+    );
+  });
+
+  it("withholds a total when the month has no usable observation", () => {
+    const [noData] = summarizeRenderedClimateSample(
+      {
+        metricId: "precipitation-rate",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [null],
+        nativeToSampledValueFactor: 86_400,
+        validFractions: [0],
+      },
+      { year: 2026, month: 1 }
+    );
+    const [unpublished] = summarizeRenderedClimateSample(
+      {
+        metricId: "precipitation-rate",
+        months: [{ year: 2026, month: 6 }],
+        sampledValues: [4.32],
+        nativeToSampledValueFactor: 86_400,
+        validFractions: [0.9],
+      },
+      { year: 2026, month: 1 }
+    );
+
+    // A missing total means "no total can be stated", never "no rain fell".
+    expect(climateInsightText(undefined, noData).value).toBe("Unavailable");
+    expect(climateInsightText(undefined, noData).detail).not.toContain(
+      "water-equivalent"
+    );
+    expect(climateInsightText(undefined, unpublished).detail).not.toContain(
+      "water-equivalent"
+    );
   });
 });
