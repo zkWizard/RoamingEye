@@ -5,6 +5,7 @@ import {
   parseColormapEntries,
 } from "../src/lib/colormap";
 import { validateInversion, MEASURED_INVERSION } from "../src/lib/validation";
+import { snapshotColormapEntries } from "../src/lib/gibsColormapSnapshot";
 import type { CalibratedLayerId } from "../src/lib/colormap";
 
 /**
@@ -69,6 +70,19 @@ describe("probe inversion ↔ GIBS colormap (live accuracy)", () => {
           `${layer} inversion RMSE drifted: ${ref.rmse} → ${live.rmse?.toFixed(2)} (update docs/validation.md)`
         ).toBeLessThan(0.2);
       }
+    });
+
+    it(`${layer}: the pinned colormap snapshot still matches the live document`, async () => {
+      // The offline guard (src/lib/gibsColormapSnapshot.test.ts) measures the
+      // accuracy against a committed copy of this ramp. That cache is only
+      // trustworthy while it equals the authoritative document, so re-check
+      // it here — a GIBS palette re-render fails loudly and names the doc to
+      // regenerate, instead of leaving the fast guard measuring a fossil.
+      const live = parseColormapEntries(await fetchColormap(doc));
+      expect(
+        live,
+        `${doc} has been re-rendered upstream — regenerate the pinned ramps with \`node scripts/snapshot-colormaps.mjs\` and re-commit MEASURED_INVERSION`
+      ).toEqual(snapshotColormapEntries(layer));
     });
   }
 });
