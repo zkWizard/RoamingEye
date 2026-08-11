@@ -38,6 +38,10 @@ import {
   unavailableMarineBoundarySstReading,
 } from "./lib/marinePlaceInsight";
 import {
+  describeMarineBoundarySstChange,
+  formatMarineBoundarySstChange,
+} from "./lib/marineBoundarySstChange";
+import {
   climateInsightText,
   climateMetricForLayer,
   exportObservationsFromRenderedClimateSample,
@@ -603,15 +607,17 @@ function runPlaceInsights(result: GeoResult): void {
     );
   }
 
-  // SST is a single, latest-observation card rather than a terrestrial
-  // month-over-month "condition". Sample the exact searched geometry through
-  // NASA GIBS's published physical colormap so the value remains in °C.
-  const sstMonths = monthRangeForLayer(LAYERS.sst);
+  // SST carries the latest observation plus, when the preceding month is also
+  // usable, the month-over-month change every terrestrial place metric already
+  // reports. Sample the exact searched geometry through NASA GIBS's published
+  // physical colormap so the values remain in °C.
+  const sstMonths =
+    latestComparisonMonths("sst") ?? monthRangeForLayer(LAYERS.sst).slice(-1);
   const sstMonth = sstMonths[sstMonths.length - 1];
   let sstFailureReason:
     "source-colormap-unavailable" | "boundary-sampling-failed" =
     "source-colormap-unavailable";
-  exportSamples.set("sst", environmentUnavailableSample("sst", [sstMonth]));
+  exportSamples.set("sst", environmentUnavailableSample("sst", sstMonths));
   samplingTasks.push(
     (async () => {
       const colormap = await loadPlaceColormap("sst");
@@ -621,7 +627,7 @@ function runPlaceInsights(result: GeoResult): void {
       sstFailureReason = "boundary-sampling-failed";
       const sample = await placeSampler.sampleGeometryPhysical(
         LAYERS.sst,
-        [sstMonth],
+        sstMonths,
         geometry,
         { lat: result.lat, lon: result.lon },
         colormap.entries,
@@ -629,15 +635,30 @@ function runPlaceInsights(result: GeoResult): void {
         { signal: abort.signal }
       );
       if (abort.signal.aborted) return;
-      placeInsights.setReading(
+      const sstReadings = sstMonths.map((month, i) =>
         marineBoundarySstReading({
           geographyLabel: result.name,
-          dataMonth: sstMonth,
-          observedValue: sample.values[0],
-          validFraction: sample.validFractions[0],
+          dataMonth: month,
+          observedValue: sample.values[i],
+          validFraction: sample.validFractions[i],
           sourceImageDimensions: sample.sourceImageDimensions,
           geography: { kind: "boundary", label: result.name },
         })
+      );
+      const latestSst = sstReadings[sstReadings.length - 1];
+      // Only explain the change once the latest month is itself a reading; an
+      // unusable latest month already says so and needs no second negative.
+      const sstChange =
+        sstReadings.length > 1 && latestSst.availability === "available"
+          ? describeMarineBoundarySstChange(sstReadings[0], latestSst)
+          : null;
+      placeInsights.setReading(
+        sstChange
+          ? {
+              ...latestSst,
+              detail: `${latestSst.detail}; ${formatMarineBoundarySstChange(sstChange)}`,
+            }
+          : latestSst
       );
       exportSamples.set("sst", {
         layerId: "sst",
@@ -645,13 +666,13 @@ function runPlaceInsights(result: GeoResult): void {
         samplingStrategy: sample.geometrySamplingStrategy,
         sourceImageDimensions: sample.sourceImageDimensions,
         colormapUrl: colormapUrl(PLACE_COLORMAP_DOCS.sst),
-        observations: [
+        observations: sstMonths.map((month, i) =>
           sstPlaceObservationFromSample(
-            sstMonth,
-            sample.values[0],
-            sample.validFractions[0]
-          ),
-        ],
+            month,
+            sample.values[i],
+            sample.validFractions[i]
+          )
+        ),
       });
     })().catch((error: unknown) => {
       if (isAbortError(error) || abort.signal.aborted) return;
