@@ -46,6 +46,7 @@ Two sources, both stated in every export:
 
   | Layer                 | Inversion RMSE  | Recovered |
   | --------------------- | --------------- | --------- |
+  | Snow cover            | 0.50 pp         | 100 / 100 |
   | Aerosol optical depth | 0.13 (of 0–0.9) | 180 / 180 |
   | Sea surface temp      | 5.1 °C          | 128 / 213 |
   | Soil moisture         | 8.2 kg/m²       | 21 / 50   |
@@ -54,7 +55,10 @@ Two sources, both stated in every export:
   | Land surface temp     | no-data (all)   | 0 / 250   |
 
   These are honest and, for several layers, poor: our legend gradients are
-  coarse approximations of GIBS's finely-hued colormaps. **Absolute values for
+  coarse approximations of GIBS's finely-hued colormaps. Where a legend is
+  instead anchored on the ramp GIBS publishes — snow cover, whose gradient
+  traces MODIS_NDSI_Snow_Cover's 100 integer classes — the residual collapses
+  to the palette's own quantization. **Absolute values for
   temperature, precipitation, and soil moisture carry large uncertainty; use
   the probe for relative and temporal analysis on those layers.** The full
   method and framing is in [docs/validation.md](docs/validation.md); tightening

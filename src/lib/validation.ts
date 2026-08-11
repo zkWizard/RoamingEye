@@ -105,6 +105,7 @@ export const MEASURED_INVERSION: Record<
   { rmse: number | null; nulls: number; total: number }
 > = {
   lst: { rmse: null, nulls: 250, total: 250 },
+  snow: { rmse: 0.5, nulls: 0, total: 100 },
   airtemp: { rmse: 18.95, nulls: 44, total: 90 },
   sst: { rmse: 5.11, nulls: 85, total: 213 },
   precip: { rmse: 20.36, nulls: 23, total: 50 },

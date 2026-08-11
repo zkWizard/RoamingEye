@@ -22,6 +22,7 @@ by a CI drift-guard.
 
 | Layer                 | RMSE                   | Colours recovered | Verdict                           |
 | --------------------- | ---------------------- | ----------------- | --------------------------------- |
+| Snow cover            | **0.50** pp (1–100%)   | 100 / 100         | Good — usable for absolute values |
 | Aerosol optical depth | **0.13** (scale 0–0.9) | 180 / 180         | Good — usable for absolute values |
 | Sea surface temp      | 5.1 °C                 | 128 / 213         | Coarse — relative use recommended |
 | Soil moisture         | 8.2 kg/m²              | 21 / 50           | Coarse — relative use recommended |
@@ -36,7 +37,17 @@ by a CI drift-guard.
   are coarse (a handful of stops) approximations of GIBS's finely-hued
   colormaps. For land-surface temperature the gradient misses GIBS's cold-end
   colours entirely, so those pixels read as no-data. Aerosol optical depth is
-  the exception — its palette is simple enough that inversion is tight.
+  one exception — its palette is simple enough that inversion is tight — and
+  snow cover is the other, for a different reason: its gradient is anchored on
+  the ramp GIBS publishes rather than drawn by hand, so what remains is the
+  palette's own quantization rather than a shape mismatch.
+- **A legend can be blind rather than merely coarse.** Snow cover's previous
+  hand-drawn dark-blue → white gradient shared no hue with the yellow → red
+  NDSI ramp GIBS actually renders, so it rejected all 100 painted colours as
+  no-data and the probe returned an empty record wherever there was snow to
+  measure. Nothing caught it, because the layer had no registered colormap
+  document and so never entered this table. Every calibrated layer is now
+  measured here, which is what makes that failure mode visible.
 - **Relative and temporal analysis is far more robust.** Trends (seasonal
   Mann-Kendall / Sen's slope), anomalies, and seasonality depend on the
   _ordering_ of values, not their absolute calibration, and survive a

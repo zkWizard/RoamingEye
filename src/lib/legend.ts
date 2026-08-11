@@ -75,13 +75,30 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
   },
   snow: {
     measures: "Snow cover (monthly average)",
-    minLabel: "0%",
+    minLabel: "1%",
     maxLabel: "100%",
+    interpretationNote:
+      "Snow-free ground (0%) is not drawn — nor are cloud, polar night, water, or fill. A pixel without colour is any of those, not a measured zero.",
+    // GIBS renders this layer with MODIS_NDSI_Snow_Cover: 100 integer percent
+    // classes, a green-channel staircase (240→210→180→150→120 every 20 points)
+    // carrying the coarse extent, a 19-step blue ramp resolving position
+    // *within* each band, and a hard jump to pure red at 100%. Stops sit on
+    // both edges of every band so the staircase is traced, not averaged
+    // across — a smooth 4-stop gradient cannot represent it (see
+    // snowCoverRamp.test.ts for the measured cost of trying).
     stops: [
-      { color: "#274a6d", at: 0 }, // snow-free ground reads dark
-      { color: "#5b87ad", at: 0.35 },
-      { color: "#a8c8dd", at: 0.7 },
-      { color: "#ffffff", at: 1 }, // full snow cover
+      { color: "#f0f080", at: 0 }, // 1% — the palest class GIBS paints
+      { color: "#f0f093", at: 0.2 }, // 20%
+      { color: "#f0d280", at: 0.21 }, // 21% — green steps down
+      { color: "#f0d293", at: 0.4 }, // 40%
+      { color: "#f0b480", at: 0.41 }, // 41%
+      { color: "#f0b493", at: 0.6 }, // 60%
+      { color: "#f09680", at: 0.61 }, // 61%
+      { color: "#f09693", at: 0.8 }, // 80%
+      { color: "#f07880", at: 0.81 }, // 81%
+      { color: "#f08081", at: 0.9 }, // 90%
+      { color: "#f08585", at: 0.99 }, // 99%
+      { color: "#ff0000", at: 1 }, // 100% — complete cover
     ],
   },
   lst: {

@@ -30,10 +30,24 @@ const GRADIENT_LEGENDS = Object.entries(LEGENDS).filter(
 );
 
 /**
- * Noise-free roundtrip bound, all layers: LUT quantization (1/255) plus
- * nearest-neighbor rounding. Measured worst case is ≤ 0.006 everywhere.
+ * Noise-free roundtrip bound: LUT quantization (1/255) plus nearest-neighbor
+ * rounding. Measured worst case is ≤ 0.006 for every hand-drawn gradient.
  */
 const CLEAN_TOLERANCE = 0.01;
+
+/**
+ * Per-layer exceptions, for legends that trace a *published* GIBS ramp rather
+ * than being drawn smooth. `snow` reproduces MODIS_NDSI_Snow_Cover, whose own
+ * classes 90–99% span only six RGB units before jumping to pure red at 100%:
+ * nearest-colour lookup is genuinely ambiguous by ~1.3 pp there, and that
+ * ambiguity belongs to NASA's palette, not to our gradient. Smoothing it away
+ * would pass this guard at a cost of ~4.7 pp of real inversion accuracy
+ * (measured — see snowCoverRamp.test.ts), which is the wrong trade.
+ */
+const CLEAN_TOLERANCE_BY_LAYER: Record<string, number> = { snow: 0.02 };
+
+const cleanToleranceFor = (id: string): number =>
+  CLEAN_TOLERANCE_BY_LAYER[id] ?? CLEAN_TOLERANCE;
 
 /**
  * Roundtrip bound under ±8/channel perturbation (JPEG-like), per layer —
@@ -45,11 +59,18 @@ const CLEAN_TOLERANCE = 0.01;
  * collides with the brown→white summit ramp, so noisy inversion is ambiguous
  * (worst ≈ 0.48). The layer is static (no time dimension), so the probe never
  * charts it — but if its legend is ever redrawn, aim below 0.15 like the rest.
+ *
+ * `snow` is documented for a different reason: its bound describes noise the
+ * layer never sees. GIBS serves it as lossless indexed PNG (see LAYERS.snow
+ * `wmts.ext`), so a sampled pixel is one of the palette's exact colours; the
+ * ±8/channel figure is what *would* happen near NDSI's 99%→100% jump to pure
+ * red if the tiles were ever re-served lossily. Worth keeping measured — a
+ * format change would then show up here rather than in the data.
  */
 const NOISY_TOLERANCE: Record<string, number> = {
   ndvi: 0.16,
   evi: 0.16,
-  snow: 0.07,
+  snow: 0.4,
   lst: 0.05,
   airtemp: 0.07,
   sst: 0.07,
@@ -99,16 +120,14 @@ const jpegNoise = (i: number): Rgb => {
 
 describe("colormap inversion accuracy (every gradient legend)", () => {
   it.each(GRADIENT_LEGENDS)(
-    "%s: clean roundtrip within ±%f of scale".replace(
-      "%f",
-      String(CLEAN_TOLERANCE)
-    ),
+    "%s: clean roundtrip within its documented bound",
     (id, spec) => {
+      const tolerance = cleanToleranceFor(id);
       const worst = maxRoundtripError(spec.stops);
       expect(
         worst.error,
-        `${id}: worst clean roundtrip error ${worst.error.toFixed(4)} at t=${worst.at.toFixed(3)} exceeds ${CLEAN_TOLERANCE}`
-      ).toBeLessThanOrEqual(CLEAN_TOLERANCE);
+        `${id}: worst clean roundtrip error ${worst.error.toFixed(4)} at t=${worst.at.toFixed(3)} exceeds ${tolerance}`
+      ).toBeLessThanOrEqual(tolerance);
     }
   );
 
