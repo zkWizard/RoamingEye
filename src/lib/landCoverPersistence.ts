@@ -2,6 +2,7 @@ import {
   IGBP_LAND_COVER_CLASSES,
   LAND_COVER_SOURCE,
   publicationStatusForYear,
+  resolveIgbpSourceValue,
   type IgbpLandCoverClass,
   type IgbpLandCoverClassCode,
 } from "./landCover";
@@ -137,12 +138,13 @@ export function summarizeLandCoverPersistence(
       continue;
     }
 
+    // Source values the rendered layer aliases onto a class code (the legacy
+    // water code 0 → 17) resolve to that class, so a year whose map used the
+    // other encoding still contributes its tenure instead of being rejected.
     const classCode = observation.classCode;
-    if (
-      classCode !== null &&
-      (!Number.isInteger(classCode) ||
-        !IGBP_BY_CODE.has(classCode as IgbpLandCoverClassCode))
-    ) {
+    const resolution =
+      classCode === null ? null : resolveIgbpSourceValue(classCode);
+    if (resolution !== null && resolution.status === "outside-contract") {
       invalidRecordCount += 1;
       continue;
     }
@@ -151,13 +153,13 @@ export function summarizeLandCoverPersistence(
     firstYear = firstYear === null ? year : Math.min(firstYear, year);
     lastYear = lastYear === null ? year : Math.max(lastYear, year);
 
-    if (classCode === null) {
+    if (resolution === null) {
       noDataYearCount += 1;
       continue;
     }
 
     observedYearCount += 1;
-    const igbpCode = classCode as IgbpLandCoverClassCode;
+    const igbpCode = resolution.classCode;
     if (IGBP_BY_CODE.get(igbpCode)!.isInformativeLandCover) {
       knownLandCoverYearCount += 1;
       const years = classYears.get(igbpCode) ?? [];

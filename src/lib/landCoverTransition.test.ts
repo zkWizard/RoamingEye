@@ -180,6 +180,41 @@ describe("land-cover transition summaries", () => {
     }
   );
 
+  it("reads the two water source encodings as one stable class, not a change", () => {
+    // GIBS renders source values 0 and 17 as the same "Water Bodies" class, so
+    // a pair that differs only in encoding is stable water — not a transition,
+    // and not a rejected sample.
+    const summary = summarizeLandCoverTransitions(
+      [
+        { fromClassCode: 0, toClassCode: 17, sampleCount: 5 },
+        { fromClassCode: 0, toClassCode: 12, sampleCount: 2 },
+      ],
+      2019,
+      2020
+    );
+
+    expect(summary.coverage).toMatchObject({
+      status: "available",
+      totalSampleCount: 7,
+      bothClassifiedSampleCount: 7,
+      invalidClassSampleCount: 0,
+      invalidRecordCount: 0,
+    });
+    expect(summary.stableSampleCount).toBe(5);
+    expect(summary.changedSampleCount).toBe(2);
+    expect(
+      summary.transitions.map((entry) => [
+        entry.fromClassCode,
+        entry.toClassCode,
+        entry.isStable,
+        entry.sampleCount,
+      ])
+    ).toEqual([
+      [17, 17, true, 5],
+      [17, 12, false, 2],
+    ]);
+  });
+
   it("reports no samples honestly for an empty input", () => {
     const summary = summarizeLandCoverTransitions([], 2019, 2020);
 

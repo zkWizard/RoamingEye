@@ -238,6 +238,31 @@ describe("land-cover persistence summaries", () => {
     expect(summary.persistence).toBeNull();
   });
 
+  it("keeps a year whose map used the other water encoding", () => {
+    // Source values 0 and 17 are one rendered class, so a year coded 0 counts
+    // toward water tenure instead of being rejected as an invalid record.
+    const summary = summarizeLandCoverPersistence([
+      { year: 2019, classCode: 0 },
+      { year: 2020, classCode: 17 },
+      { year: 2021, classCode: 17 },
+    ]);
+
+    expect(summary.coverage).toMatchObject({
+      status: "available",
+      observedYearCount: 3,
+      knownLandCoverYearCount: 3,
+      invalidRecordCount: 0,
+    });
+    expect(summary.distinctKnownClassCount).toBe(1);
+    expect(
+      summary.classTenure.map((entry) => [entry.classCode, entry.years])
+    ).toEqual([[17, [2019, 2020, 2021]]]);
+    expect(summary.persistence).toMatchObject({
+      modalClassCode: 17,
+      modalYearCount: 3,
+    });
+  });
+
   it("reports no-known-land-cover when only unclassified years exist", () => {
     const summary = summarizeLandCoverPersistence([
       { year: 2020, classCode: 255 },
