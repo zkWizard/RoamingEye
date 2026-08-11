@@ -86,19 +86,21 @@ export function validateInversion(
 }
 
 /**
- * The committed validation figures (measured 2026-07-09 against the live
- * colormaps). The contract test re-measures and asserts the live numbers
- * still match these within tolerance — so the published accuracy figures in
- * docs/validation.md and METHODS.md stay true, and any drift (a GIBS palette
- * change, a legend edit) fails CI naming the layer.
+ * The committed validation figures (SST re-measured 2026-08-11; the rest
+ * 2026-07-09, against the live colormaps). The contract test re-measures and
+ * asserts the live numbers still match these within tolerance — so the
+ * published accuracy figures in docs/validation.md and METHODS.md stay true,
+ * and any drift (a GIBS palette change, a legend edit) fails CI naming the
+ * layer.
  *
- * These are sobering by design: inversion through our coarse legend gradients
- * recovers aerosol well (RMSE 0.13) but temperature, precipitation, and soil
- * only loosely, and LST's gradient misses GIBS's cold-end hues entirely
- * (all-null). The probe is reliable for *relative* analysis on these layers
- * (trends, anomalies, seasonality — scale-monotone-robust), not absolute
- * values. Tightening this by inverting against the real GIBS colormaps is
- * tracked as follow-up (#170).
+ * The spread tracks how closely each legend follows the ramp GIBS actually
+ * renders with. Aerosol (0.13) and SST (1.0) take their stops from that ramp
+ * and invert across its whole length; air temperature and soil are still
+ * coarse hand-drawn approximations, and LST's gradient misses GIBS's cold-end
+ * hues entirely (all-null). The probe stays reliable for *relative* analysis
+ * on the coarse layers (trends, anomalies, seasonality —
+ * scale-monotone-robust), not absolute values. Rebuilding the remaining
+ * gradients from the real GIBS colormaps is tracked as follow-up (#170).
  */
 export const MEASURED_INVERSION: Record<
   CalibratedLayerId,
@@ -106,7 +108,7 @@ export const MEASURED_INVERSION: Record<
 > = {
   lst: { rmse: null, nulls: 250, total: 250 },
   airtemp: { rmse: 18.95, nulls: 44, total: 90 },
-  sst: { rmse: 5.11, nulls: 85, total: 213 },
+  sst: { rmse: 1.0, nulls: 0, total: 213 },
   precip: { rmse: 20.36, nulls: 23, total: 50 },
   soil: { rmse: 8.23, nulls: 29, total: 50 },
   aerosol: { rmse: 0.13, nulls: 0, total: 180 },

@@ -47,18 +47,23 @@ Two sources, both stated in every export:
   | Layer                 | Inversion RMSE  | Recovered |
   | --------------------- | --------------- | --------- |
   | Aerosol optical depth | 0.13 (of 0–0.9) | 180 / 180 |
-  | Sea surface temp      | 5.1 °C          | 128 / 213 |
+  | Sea surface temp      | 1.0 °C          | 213 / 213 |
   | Soil moisture         | 8.2 kg/m²       | 21 / 50   |
   | Air temperature (2 m) | 19.0 K          | 46 / 90   |
   | Precipitation         | 20.4 mm/day     | 27 / 50   |
   | Land surface temp     | no-data (all)   | 0 / 250   |
 
-  These are honest and, for several layers, poor: our legend gradients are
-  coarse approximations of GIBS's finely-hued colormaps. **Absolute values for
-  temperature, precipitation, and soil moisture carry large uncertainty; use
-  the probe for relative and temporal analysis on those layers.** The full
-  method and framing is in [docs/validation.md](docs/validation.md); tightening
-  this by inverting against the real GIBS colormaps is tracked as
+  The spread is not about the layers — it is about how closely each legend
+  follows the ramp GIBS renders with. Sea surface temperature and aerosol take
+  their stops from that ramp and invert across its whole length. The rest are
+  still coarse hand-drawn approximations of GIBS's finely-hued colormaps, and
+  the cost is visible in the "Recovered" column: colours the gradient cannot
+  place are rejected as no-data, so nearly half of the air-temperature ramp
+  never yields a value at all. **Absolute values for air temperature,
+  precipitation, and soil moisture carry large uncertainty; use the probe for
+  relative and temporal analysis on those layers.** The full method and framing
+  is in [docs/validation.md](docs/validation.md); rebuilding the remaining
+  gradients from the real GIBS colormaps is tracked as
   [#170](https://github.com/zkWizard/RoamingEye/issues/170).
 
 ## 4. Trend analysis
