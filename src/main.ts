@@ -43,6 +43,7 @@ import {
   exportObservationsFromRenderedClimateSample,
   summarizeRenderedClimateSample,
 } from "./lib/meteorology";
+import { guardPrecipitationReadout } from "./lib/precipitationReadoutGuard";
 import { volcanoesInSearchExtent } from "./lib/volcanoExtent";
 import { parseVolcanoDataset } from "./lib/volcanoes";
 import type { GeoResult } from "./lib/geocoding";
@@ -529,7 +530,12 @@ function runPlaceInsights(result: GeoResult): void {
           climateReading
             ? {
                 id: metric.id,
-                ...climateInsightText(climateReading[0], climateReading[1]),
+                // Withhold a precipitation rate that fails the gross-error
+                // band rather than citing an impossible value as a measurement.
+                ...guardPrecipitationReadout(
+                  climateReading[1],
+                  climateInsightText(climateReading[0], climateReading[1])
+                ),
               }
             : colormap
               ? placeInsightPhysicalReading(metric, months, values, {
