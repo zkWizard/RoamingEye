@@ -9,6 +9,7 @@ import { SCALE_CONVERSIONS } from "./colormap";
 import { classifyModality } from "./observationModality";
 import { compareYm, type LayerId, type YearMonth } from "./timeline";
 import { toConventionalClimateValue } from "./climateConventionalUnits";
+import { monthOverMonthCoverageSupport } from "./climateChangeSupport";
 import type { GeometrySamplingStrategy } from "./geojson";
 import type {
   PlaceObservationInput,
@@ -296,6 +297,15 @@ export function climateInsightText(
     comparisonIssue === null
       ? current.observedValue - previous.observedValue
       : null;
+  // Each month's value aggregates only that month's usable pixels, so when the
+  // two months' coverage differs part of the difference is a change in which
+  // ground was aggregated. The pixel masks are gone by this point, so the
+  // readout states the tightest bound the two coverage fractions permit rather
+  // than letting a difference imply fixed common ground.
+  const sharedSupport =
+    nativeDelta !== null
+      ? monthOverMonthCoverageSupport(previous!, current).statement
+      : null;
   const comparison =
     nativeDelta !== null
       ? `; ${formatNativeDelta(
@@ -303,7 +313,9 @@ export function climateInsightText(
             ? nativeDelta * conventional.conversion.scale
             : nativeDelta,
           conventional?.conventionalUnit ?? current.metric.nativeUnit
-        )} vs ${formatMonth(previous!.dataMonth)}`
+        )} vs ${formatMonth(previous!.dataMonth)}${
+          sharedSupport ? ` (${sharedSupport})` : ""
+        }`
       : comparisonIssue
         ? `; comparison unavailable (${comparisonIssue})`
         : "";

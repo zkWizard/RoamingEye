@@ -131,7 +131,7 @@ describe("rendered monthly meteorology", () => {
     expect(climateInsightText(summaries[0], summaries[1])).toEqual({
       value: "7.8 kg/m\u00b2",
       detail:
-        "2026-02 land-surface-model field; +0.6 kg/m\u00b2 vs 2026-01; 90% sampled coverage; rendered source image dimensions not supplied; single in-boundary image sample, not a regional mean; model-derived, not a direct measurement; GIBS layer GLDAS_Underground_Soil_Moisture_Monthly; source GLDAS_NOAH025_M v2.1",
+        "2026-02 land-surface-model field; +0.6 kg/m\u00b2 vs 2026-01 (at least 70% and at most 80% of the sampled area is common to both months); 90% sampled coverage; rendered source image dimensions not supplied; single in-boundary image sample, not a regional mean; model-derived, not a direct measurement; GIBS layer GLDAS_Underground_Soil_Moisture_Monthly; source GLDAS_NOAH025_M v2.1",
     });
   });
 
@@ -212,14 +212,14 @@ describe("rendered monthly meteorology", () => {
     expect(climateInsightText(precipitation[0], precipitation[1])).toEqual({
       value: "8.64 mm/day",
       detail:
-        "2026-02 land-surface-model field; +4.32 mm/day vs 2026-01; native source value 0.0001 kg/m²/s (1 kg/m² of liquid water ≡ 1 mm depth; × 86,400 s/day); 90% sampled coverage; rendered source image dimensions not supplied; sampling strategy not supplied; model-derived, not a direct measurement; GIBS layer GLDAS_Surface_Total_Precipitation_Rate_Monthly; source GLDAS_NOAH025_M v2.1",
+        "2026-02 land-surface-model field; +4.32 mm/day vs 2026-01 (at least 70% and at most 80% of the sampled area is common to both months); native source value 0.0001 kg/m²/s (1 kg/m² of liquid water ≡ 1 mm depth; × 86,400 s/day); 90% sampled coverage; rendered source image dimensions not supplied; sampling strategy not supplied; model-derived, not a direct measurement; GIBS layer GLDAS_Surface_Total_Precipitation_Rate_Monthly; source GLDAS_NOAH025_M v2.1",
     });
     expect(
       climateInsightText(airTemperature[0], airTemperature[1])
     ).toMatchObject({
       value: "1 °C",
       detail: expect.stringContaining(
-        "+1 °C vs 2026-01; native source value 274.15 K (kelvin to Celsius is an exact −273.15 offset)"
+        "+1 °C vs 2026-01 (exactly 100% of the sampled area is common to both months); native source value 274.15 K (kelvin to Celsius is an exact −273.15 offset)"
       ),
     });
   });
@@ -419,5 +419,78 @@ describe("rendered monthly meteorology", () => {
       "comparison unavailable (comparison month is not earlier)"
     );
     expect(climateInsightText(soil, february).detail).not.toContain("kg/m² vs");
+  });
+});
+
+/**
+ * A month-over-month difference on the place readout subtracts two area
+ * aggregates, each taken over only its own month's usable pixels. When the two
+ * months' coverage differs, part of that difference is a change in which ground
+ * was aggregated. The readout must therefore carry the bound on how much ground
+ * the two months can share, and must say plainly when that guarantee is zero.
+ */
+describe("place readout month-over-month shared-coverage bound", () => {
+  const pair = (validFractions: readonly number[]) =>
+    summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [
+          { year: 2026, month: 1 },
+          { year: 2026, month: 2 },
+        ],
+        sampledValues: [286.15, 287.15],
+        nativeToSampledValueFactor: 1,
+        validFractions,
+        geometrySamplingStrategy: "boundary-grid",
+      },
+      { year: 2026, month: 2 }
+    );
+
+  it("bounds the area the differenced months have in common", () => {
+    // 0.9 + 0.85 − 1 = 0.75 guaranteed; the less-covered month caps it at 0.85.
+    const [january, february] = pair([0.9, 0.85]);
+
+    expect(climateInsightText(january, february).detail).toContain(
+      "+1 °C vs 2026-01 (at least 75% and at most 85% of the sampled area is common to both months)"
+    );
+  });
+
+  it("warns when two available months may share no ground at all", () => {
+    // Both months are individually usable, yet 0.6 + 0.3 − 1 < 0: the readout
+    // must not let the difference imply a change over one fixed place.
+    const [january, february] = pair([0.6, 0.3]);
+
+    expect(climateInsightText(january, february).detail).toContain(
+      "+1 °C vs 2026-01 (the two months may share no common sampled area; at most 30% can overlap)"
+    );
+  });
+
+  it("adds no bound when the difference itself is withheld", () => {
+    const [january, february] = pair([0.9, 0.85]);
+
+    // Reversed months are not differenced, so there is no overlap to qualify.
+    const reversed = climateInsightText(february, january).detail;
+    expect(reversed).toContain("comparison unavailable");
+    expect(reversed).not.toContain("common to both months");
+  });
+
+  it("leaves the overlap unstated when a month supplied no coverage", () => {
+    const [january, february] = summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [
+          { year: 2026, month: 1 },
+          { year: 2026, month: 2 },
+        ],
+        sampledValues: [286.15, 287.15],
+        nativeToSampledValueFactor: 1,
+      },
+      { year: 2026, month: 2 }
+    );
+
+    const detail = climateInsightText(january, february).detail;
+    expect(detail).toContain("+1 °C vs 2026-01;");
+    // Absent coverage must not be silently read as complete coverage.
+    expect(detail).not.toContain("common to both months");
   });
 });
