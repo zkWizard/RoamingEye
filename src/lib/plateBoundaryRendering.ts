@@ -7,6 +7,24 @@ import type { PlateBoundary } from "./plates";
 export const MAX_PLATE_RENDER_SEGMENT_DEGREES = 1;
 
 /**
+ * Rendered linework plus the supplied boundary each rendered segment came from.
+ *
+ * The overlay flattens every boundary into a single LineSegments for one draw
+ * call, which drops the plate-pair label the source polyline carried. This
+ * index restores that association — it records provenance already present in
+ * the input and neither adds observations nor changes what is drawn.
+ */
+export interface PlateBoundaryRenderGeometry {
+  /** Flat [x, y, z, ...] vertex pairs: two vertices per rendered segment. */
+  positions: number[];
+  /**
+   * Index into the supplied `boundaries` array for each rendered segment, so
+   * `segmentBoundaries[n]` owns the segment starting at `positions[n * 6]`.
+   */
+  segmentBoundaries: number[];
+}
+
+/**
  * Convert Bird (2003) boundary polylines into line-segment positions that
  * follow great-circle arcs. Subdivision is render-only and does not add source
  * observations or alter the supplied coordinates.
@@ -16,6 +34,20 @@ export function plateBoundaryRenderPositions(
   radius: number,
   maxSegmentDegrees = MAX_PLATE_RENDER_SEGMENT_DEGREES
 ): number[] {
+  return plateBoundaryRenderGeometry(boundaries, radius, maxSegmentDegrees)
+    .positions;
+}
+
+/**
+ * As {@link plateBoundaryRenderPositions}, but also reporting which supplied
+ * boundary produced each rendered segment. Invalid render parameters yield
+ * empty linework rather than a guessed fallback.
+ */
+export function plateBoundaryRenderGeometry(
+  boundaries: readonly PlateBoundary[],
+  radius: number,
+  maxSegmentDegrees = MAX_PLATE_RENDER_SEGMENT_DEGREES
+): PlateBoundaryRenderGeometry {
   if (
     !Number.isFinite(radius) ||
     radius <= 0 ||
@@ -23,35 +55,40 @@ export function plateBoundaryRenderPositions(
     maxSegmentDegrees <= 0 ||
     maxSegmentDegrees > 180
   ) {
-    return [];
+    return { positions: [], segmentBoundaries: [] };
   }
 
   const positions: number[] = [];
-  for (const boundary of boundaries) {
+  const segmentBoundaries: number[] = [];
+  for (const [boundaryIndex, boundary] of boundaries.entries()) {
     for (let index = 0; index + 1 < boundary.points.length; index++) {
-      appendGreatCircleEdge(
+      const appended = appendGreatCircleEdge(
         positions,
         boundary.points[index],
         boundary.points[index + 1],
         radius,
         maxSegmentDegrees
       );
+      for (let segment = 0; segment < appended; segment++) {
+        segmentBoundaries.push(boundaryIndex);
+      }
     }
   }
-  return positions;
+  return { positions, segmentBoundaries };
 }
 
+/** Appends one source edge's segments and reports how many were written. */
 function appendGreatCircleEdge(
   positions: number[],
   start: Position,
   end: Position,
   radius: number,
   maxSegmentDegrees: number
-): void {
+): number {
   const a = latLngToVector3(start[1], start[0], radius);
   const b = latLngToVector3(end[1], end[0], radius);
   const angle = a.angleTo(b);
-  if (!Number.isFinite(angle)) return;
+  if (!Number.isFinite(angle)) return 0;
 
   const subdivisions = Math.max(
     1,
@@ -73,6 +110,7 @@ function appendGreatCircleEdge(
     );
     previous = current;
   }
+  return subdivisions;
 }
 
 function slerpOnSphere(
