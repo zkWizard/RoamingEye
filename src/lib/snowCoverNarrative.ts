@@ -1,3 +1,4 @@
+import { doiResolverUrl } from "./doiLink";
 import type { YearMonth } from "./timeline";
 import {
   SNOW_COVER_LIMITATIONS,
@@ -169,7 +170,7 @@ function provenanceFor(
     validFraction: summary.coverage.validFraction,
     nativeValue: "MOD10CM monthly-average snow-covered area (% of footprint)",
     sourceLabel: `${dataset.shortName} v${dataset.version} — ${dataset.title}`,
-    sourceUrl: `https://doi.org/${dataset.doi}`,
+    sourceUrl: doiResolverUrl(dataset.doi),
     sourceResolution: summary.sourceResolution,
   };
 }

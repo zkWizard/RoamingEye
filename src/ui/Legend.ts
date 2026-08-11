@@ -1,3 +1,4 @@
+import { doiResolverUrl } from "../lib/doiLink";
 import { LAYERS, type LayerId } from "../lib/timeline";
 import {
   LEGENDS,
@@ -227,7 +228,7 @@ export class Legend {
     }
 
     const source = document.createElement("a");
-    source.href = `https://doi.org/${dataset.doi}`;
+    source.href = doiResolverUrl(dataset.doi);
     source.target = "_blank";
     source.rel = "noreferrer";
     source.textContent = `${dataset.shortName} v${dataset.version}`;

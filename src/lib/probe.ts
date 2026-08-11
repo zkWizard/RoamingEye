@@ -1,3 +1,4 @@
+import { doiResolverUrl } from "./doiLink";
 import type { Bounds } from "./imagery";
 import type { LegendStop } from "./legend";
 import { makeNeumaierAcc } from "./numerics";
@@ -651,7 +652,9 @@ export function buildProbeCsv(
           `# data_product: ${csvHeaderText(
             `${meta.dataset.shortName} v${meta.dataset.version} — ${meta.dataset.title}`
           )}`,
-          `# data_doi: https://doi.org/${csvHeaderText(meta.dataset.doi)}`,
+          // Percent-encode the DOI for URL safety first, then apply the CSV
+          // header contract (no comma, no quote, single line) to the link.
+          `# data_doi: ${csvHeaderText(doiResolverUrl(meta.dataset.doi))}`,
         ]
       : []),
     `# lat: ${meta.lat.toFixed(4)}`,
