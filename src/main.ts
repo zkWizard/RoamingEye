@@ -43,6 +43,7 @@ import {
   exportObservationsFromRenderedClimateSample,
   summarizeRenderedClimateSample,
 } from "./lib/meteorology";
+import { snowIlluminationNote } from "./lib/snowCoverIllumination";
 import { volcanoesInSearchExtent } from "./lib/volcanoExtent";
 import { parseVolcanoDataset } from "./lib/volcanoes";
 import type { GeoResult } from "./lib/geocoding";
@@ -1049,11 +1050,17 @@ if (probeEl) {
     probeShare = { lat, lon };
     drawer.clear(); // a point probe replaces any drawn-region chart
     scheduleHashSync();
-    panel.open(layer.label, formatLatLng({ lat, lon }));
+    const where =
+      mode === "area"
+        ? `~1° area around ${formatLatLng({ lat, lon })}`
+        : formatLatLng({ lat, lon });
+    // MOD10CM maps snow from reflected sunlight, so a high-latitude record has
+    // months it cannot have observed at all. Name them before the chart fills
+    // in, so a polar-winter gap — or a filled dark-month value — is not read
+    // as a snow measurement. Null, and free, everywhere equatorward of 63.3°.
+    const darkness = layer.id === "snow" ? snowIlluminationNote(lat) : null;
+    panel.open(layer.label, darkness ? `${where} · ${darkness}` : where);
     panel.setModeToggleVisible(true);
-    if (mode === "area") {
-      panel.setSubtitle(`~1° area around ${formatLatLng({ lat, lon })}`);
-    }
     if (layer.static) {
       panel.setStatus(
         "This layer has no time dimension — pick a monthly layer to chart a series."
