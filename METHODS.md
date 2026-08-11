@@ -61,6 +61,38 @@ Two sources, both stated in every export:
   this by inverting against the real GIBS colormaps is tracked as
   [#170](https://github.com/zkWizard/RoamingEye/issues/170).
 
+- **Where the inversion goes blind**: the "Recovered" column above is a count,
+  and a count hides the property that matters. A rejected colour is not an
+  untested one — at probe time the same rejection returns no value, so the
+  sample is **dropped from the series**. Where the rejected colours form a
+  contiguous block, the loss is _value-dependent_: the probe cannot see that
+  part of the range at all, and every mean, trend, anomaly and percentile
+  derived from the survivors is conditioned on a censored sample. Measured
+  against the same colormaps (`src/lib/inversionBlindSpots.ts`):
+
+  | Layer                 | Blind-spot shape | Widest unreadable span          |
+  | --------------------- | ---------------- | ------------------------------- |
+  | Aerosol optical depth | none             | —                               |
+  | Sea surface temp      | end-truncated    | 17.9–24.4 °C (20% of the range) |
+  | Soil moisture         | end-truncated    | 19.5–34.5 kg/m² (31%)           |
+  | Air temperature (2 m) | interior         | 238.5–281.5 K (48%)             |
+  | Precipitation         | end-truncated    | 0.4–19.4 mm/day (45%)           |
+  | Land surface temp     | total            | 200.3–349.7 K (the whole ramp)  |
+
+  Two consequences follow, and both bound how the table above may be read.
+  First, **only aerosol's RMSE is a whole-ramp figure**; every other number is
+  _survivor-only_, measured on the colours that happened to invert. Second,
+  `end-truncated` means a blind run reaches a ramp end, so that layer's
+  observed extreme is a censoring artefact of our gradient rather than an
+  observation — soil moisture is also blind from 0.5 to 11.5 kg/m² at the dry
+  end, sea surface temperature above 29.9 °C, and precipitation from the ramp
+  floor upward, which is to say ordinary rainfall drops out and only the
+  heaviest months survive. Air temperature's hole is interior: both ends read,
+  but −34.6 to +8.4 °C does not, so a mid-latitude series keeps only the months
+  warm enough to invert. These spans locate a failure of _our legend gradient_,
+  not of the source product, and each shrinks as a layer is recalibrated under
+  [#170](https://github.com/zkWizard/RoamingEye/issues/170).
+
 ## 4. Trend analysis
 
 For a probed time series, the tool reports a nonparametric trend — chosen
