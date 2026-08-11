@@ -206,7 +206,7 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 2002, month: 7 },
     latest: { year: 2026, month: 3 },
-    description: "Ocean surface temperature (MODIS/Aqua thermal).",
+    description: "Daytime ocean surface temperature (MODIS/Aqua thermal).",
   },
   precip: {
     id: "precip",
