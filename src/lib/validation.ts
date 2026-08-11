@@ -92,13 +92,14 @@ export function validateInversion(
  * docs/validation.md and METHODS.md stay true, and any drift (a GIBS palette
  * change, a legend edit) fails CI naming the layer.
  *
- * These are sobering by design: inversion through our coarse legend gradients
- * recovers aerosol well (RMSE 0.13) but temperature, precipitation, and soil
- * only loosely, and LST's gradient misses GIBS's cold-end hues entirely
- * (all-null). The probe is reliable for *relative* analysis on these layers
- * (trends, anomalies, seasonality — scale-monotone-robust), not absolute
- * values. Tightening this by inverting against the real GIBS colormaps is
- * tracked as follow-up (#170).
+ * These are sobering by design, and the spread tracks one thing: whether the
+ * layer's legend was drawn from the colormap GIBS renders with. Aerosol and
+ * soil moisture are (RMSE 0.13 and 0.23, every ramp colour recovered);
+ * temperature and precipitation are not, and LST's gradient misses GIBS's
+ * cold-end hues entirely (all-null). The probe is reliable for *relative*
+ * analysis on the loose layers (trends, anomalies, seasonality —
+ * scale-monotone-robust), not absolute values. Rebuilding the remaining
+ * gradients from the real GIBS colormaps is tracked as follow-up (#170).
  */
 export const MEASURED_INVERSION: Record<
   CalibratedLayerId,
@@ -108,6 +109,6 @@ export const MEASURED_INVERSION: Record<
   airtemp: { rmse: 18.95, nulls: 44, total: 90 },
   sst: { rmse: 5.11, nulls: 85, total: 213 },
   precip: { rmse: 20.36, nulls: 23, total: 50 },
-  soil: { rmse: 8.23, nulls: 29, total: 50 },
+  soil: { rmse: 0.23, nulls: 0, total: 50 },
   aerosol: { rmse: 0.13, nulls: 0, total: 180 },
 };

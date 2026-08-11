@@ -18,25 +18,37 @@ each calibrated layer. They are re-measured against the live colormaps weekly
 (`contract/inversion-validation.contract.test.ts`); this table is kept in sync
 by a CI drift-guard.
 
-## Results (measured 2026-07-09)
+## Results (soil moisture re-measured 2026-08-12; others 2026-07-09)
 
 | Layer                 | RMSE                   | Colours recovered | Verdict                           |
 | --------------------- | ---------------------- | ----------------- | --------------------------------- |
 | Aerosol optical depth | **0.13** (scale 0–0.9) | 180 / 180         | Good — usable for absolute values |
+| Soil moisture         | **0.23** kg/m²         | 50 / 50           | Good — usable for absolute values |
 | Sea surface temp      | 5.1 °C                 | 128 / 213         | Coarse — relative use recommended |
-| Soil moisture         | 8.2 kg/m²              | 21 / 50           | Coarse — relative use recommended |
 | Air temperature (2 m) | 19.0 K                 | 46 / 90           | Poor absolute accuracy            |
 | Precipitation         | 20.4 mm/day            | 27 / 50           | Poor absolute accuracy            |
 | Land surface temp     | — (all no-data)        | 0 / 250           | Gradient misses GIBS's hues       |
 
+Soil moisture was `8.2 kg/m²` over `21 / 50` colours until 2026-08-12. Its
+legend was a hand-drawn brown → teal gradient, but GIBS renders the layer on a
+reversed _spectral_ ramp (red = dry, yellow-green mid, blue = wet), so the two
+palettes agreed almost nowhere: 29 of 50 ramp colours — the whole dry end below
+12 kg/m², most of the 19–35 kg/m² mid-range, and the wettest bin — were
+rejected outright as no-data, and what did invert came back biased dry by
+6.3 kg/m². Rebuilding the stops from that colormap recovers every ramp colour
+and drops the residual to the quantization floor. The same treatment for the
+remaining approximate gradients is
+[#170](https://github.com/zkWizard/RoamingEye/issues/170).
+
 ## What this means (and doesn't)
 
 - **Absolute values** from these inversions carry large uncertainty for
-  temperature, precipitation, and soil moisture, because our legend gradients
-  are coarse (a handful of stops) approximations of GIBS's finely-hued
-  colormaps. For land-surface temperature the gradient misses GIBS's cold-end
-  colours entirely, so those pixels read as no-data. Aerosol optical depth is
-  the exception — its palette is simple enough that inversion is tight.
+  temperature and precipitation, because their legend gradients are coarse (a
+  handful of stops) approximations of GIBS's finely-hued colormaps. For
+  land-surface temperature the gradient misses GIBS's cold-end colours
+  entirely, so those pixels read as no-data. Aerosol optical depth and soil
+  moisture are the exceptions — their stops are taken from the colormap GIBS
+  renders with, so inversion is tight across the whole ramp.
 - **Relative and temporal analysis is far more robust.** Trends (seasonal
   Mann-Kendall / Sen's slope), anomalies, and seasonality depend on the
   _ordering_ of values, not their absolute calibration, and survive a
