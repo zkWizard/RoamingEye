@@ -15,7 +15,7 @@ import {
 import { encodeViewState, decodeViewState } from "./lib/viewState";
 import { latLngToVector3, vector3ToLatLng, formatLatLng } from "./lib/geo";
 import { buildProbeCsv, normalizeLon, PROBE_SCALES } from "./lib/probe";
-import { isAreaGeometry } from "./lib/geojson";
+import { geometryBounds, isAreaGeometry } from "./lib/geojson";
 import {
   PLACE_OBSERVATION_NATIVE_UNITS,
   placeObservationProductFromSample,
@@ -637,6 +637,9 @@ function runPlaceInsights(result: GeoResult): void {
           validFraction: sample.validFractions[0],
           sourceImageDimensions: sample.sourceImageDimensions,
           geography: { kind: "boundary", label: result.name },
+          // Extent of the searched boundary, so the reading can bound how many
+          // native ~9 km source cells stand behind its "boundary-mean".
+          bounds: geometryBounds(geometry),
         })
       );
       exportSamples.set("sst", {

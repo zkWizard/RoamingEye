@@ -6,7 +6,12 @@ import {
   type SourceImageDimensions,
 } from "./marineCoverage";
 import { PROBE_SCALES } from "./probe";
+import {
+  summarizeSstNativeSupport,
+  type SstNativeSupportSummary,
+} from "./sstNativeSupport";
 import { formatYm, type YearMonth } from "./timeline";
+import type { Bounds } from "./imagery";
 
 /**
  * A single, source-aware SST reading for the exact boundary returned by place
@@ -34,6 +39,12 @@ export interface MarineBoundarySstInput {
   sourceImageDimensions: SourceImageDimensions;
   /** Searched boundary identity supplied by the place-search workflow. */
   geography?: MarineCoverageGeography;
+  /**
+   * Bounding box of the sampled boundary, for the native-grid support bound.
+   * Omitted when the workflow did not supply one; support is then unbounded
+   * rather than assumed.
+   */
+  bounds?: Bounds | null;
 }
 
 export interface MarinePlaceInsightReading {
@@ -59,6 +70,13 @@ export interface MarinePlaceInsightReading {
   geography: MarineCoverageGeography;
   /** Structured sampler state for UI/export consumers; null when sampling failed. */
   coverage: MarineCoverageSummary | null;
+  /**
+   * How many native source cells the searched boundary can span. Rendered
+   * pixels are not independent measurements, so a boundary smaller than one
+   * ~9 km cell yields a "mean" resting on a single source value. Reported
+   * alongside the value, never folded into it.
+   */
+  nativeSupport: SstNativeSupportSummary;
   observationStatus:
     | "observed"
     | "no-sst-coverage"
@@ -140,6 +158,7 @@ export function marineBoundarySstReading(
     source: coverage.source,
     geography,
     coverage,
+    nativeSupport: summarizeSstNativeSupport(input.bounds ?? null),
     observationStatus: usable
       ? "observed"
       : coverage.coverage.status === "no-sst-coverage"
@@ -194,6 +213,8 @@ export function unavailableMarineBoundarySstReading(
     source: SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE,
     geography,
     coverage: null,
+    // Sampling never completed, so no extent was established to bound.
+    nativeSupport: summarizeSstNativeSupport(null),
     observationStatus:
       reason === "source-colormap-unavailable"
         ? "source-unavailable"
