@@ -58,6 +58,57 @@ describe("formatEarthquakeObservation", () => {
       })
     ).toContain("Location not supplied");
   });
+
+  it("names the magnitude method the feed reported", () => {
+    // ~80% of the live M4.5+ feed is mb and most of the rest mww; the readout
+    // must not present the two as one comparable "M" column.
+    const at = (magnitudeType: string | null): string =>
+      formatEarthquakeObservation({
+        lat: -4.2,
+        lon: 152.3,
+        depthKm: 45,
+        magnitude: 5.6,
+        magnitudeType,
+        time: Date.UTC(2026, 6, 27, 1, 23, 45),
+        place: "63 km SW of Kokopo, Papua New Guinea",
+      });
+    expect(at("mb")).toContain("M 5.6 mb (body-wave, reported)");
+    expect(at("mww")).toContain("M 5.6 mww (W-phase moment, reported)");
+    // An event whose type the feed omits keeps the unqualified reading.
+    expect(at(null)).toContain("M 5.6 (reported)");
+  });
+
+  it("marks a saturated reading as a lower bound on size", () => {
+    expect(
+      formatEarthquakeObservation({
+        lat: -4.2,
+        lon: 152.3,
+        depthKm: 45,
+        magnitude: 6.9,
+        magnitudeType: "mb",
+        time: Date.UTC(2026, 6, 27, 1, 23, 45),
+        place: "63 km SW of Kokopo, Papua New Guinea",
+      })
+    ).toBe(
+      "63 km SW of Kokopo, Papua New Guinea · M 6.9 mb (body-wave, reported) · 45 km depth · 2026-07-27T01:23:45.000 UTC · mb saturates above M 6.5 — reported value is a lower bound on size"
+    );
+  });
+
+  it("adds no qualifier to a reading inside its method's range", () => {
+    expect(
+      formatEarthquakeObservation({
+        lat: -4.2,
+        lon: 152.3,
+        depthKm: 45,
+        magnitude: 6.1,
+        magnitudeType: "mww",
+        time: Date.UTC(2026, 6, 27, 1, 23, 45),
+        place: "63 km SW of Kokopo, Papua New Guinea",
+      })
+    ).toBe(
+      "63 km SW of Kokopo, Papua New Guinea · M 6.1 mww (W-phase moment, reported) · 45 km depth · 2026-07-27T01:23:45.000 UTC"
+    );
+  });
 });
 
 const feature = (

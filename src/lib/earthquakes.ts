@@ -9,6 +9,11 @@
  * Served with permissive CORS, no key required. M4.5+/30-days is ~400 kB.
  */
 
+import {
+  formatReportedMagnitude,
+  magnitudeMethodNote,
+} from "./magnitudeMethod";
+
 export interface Earthquake {
   lat: number;
   lon: number;
@@ -122,18 +127,27 @@ export interface EarthquakeFeedSnapshot {
 
 /**
  * Compact, source-faithful text for inspecting one parsed feed observation.
- * The feed's reported magnitude is left unclassified because summary feeds
- * may mix magnitude types; depth remains in its native kilometres and the
- * event timestamp is rendered explicitly in UTC.
+ * The magnitude is left unconverted because summary feeds mix magnitude
+ * types, but the reported type is named: an M 5.6 measured as body-wave `mb`
+ * and one measured as W-phase moment `mww` are different measurements, not
+ * two readings of one quantity. Depth remains in its native kilometres and
+ * the event timestamp is rendered explicitly in UTC.
  */
 export function formatEarthquakeObservation(earthquake: Earthquake): string {
   const timeUtc = new Date(earthquake.time).toISOString();
   const parts = [
     earthquake.place?.trim() || "Location not supplied",
-    `M ${earthquake.magnitude} (reported)`,
+    formatReportedMagnitude(earthquake.magnitude, earthquake.magnitudeType),
     `${earthquake.depthKm} km depth`,
     timeUtc.replace("Z", " UTC"),
   ];
+  // Only appended where the reported value stands above the range USGS
+  // documents for its own method, so a routine reading gains no noise.
+  const note = magnitudeMethodNote(
+    earthquake.magnitude,
+    earthquake.magnitudeType
+  );
+  if (note !== null) parts.push(note);
   return parts.join(" · ");
 }
 
