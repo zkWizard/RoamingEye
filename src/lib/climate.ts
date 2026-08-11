@@ -5,6 +5,7 @@ import {
   type YearMonth,
 } from "./timeline";
 import type { GeometrySamplingStrategy } from "./geojson";
+import { SOIL_MOISTURE_DEPTH_LABEL } from "./soilMoistureDepth";
 
 /**
  * Source-aware descriptions of supplied monthly climate observations.
@@ -65,7 +66,7 @@ export const CLIMATE_METRICS: Record<ClimateMetricId, ClimateMetric> = {
   "soil-moisture": citedMetric(
     "soil-moisture",
     "soil",
-    "Underground soil moisture",
+    `Surface soil moisture (${SOIL_MOISTURE_DEPTH_LABEL})`,
     "kg/m²"
   ),
 };

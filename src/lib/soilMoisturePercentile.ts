@@ -11,8 +11,9 @@ import type { YearMonth } from "./timeline";
 /**
  * Empirical percentile-of-record for a supplied monthly soil-moisture value.
  *
- * The soil layer renders GLDAS-Noah underground (root-zone) soil moisture as a
- * modeled column water content in kg/m². The plainest wetness question a reader
+ * The soil layer renders GLDAS-Noah *surface* (0-10 cm) soil moisture as a
+ * modeled column water content in kg/m² — not the 0-100 cm root zone (see
+ * ./soilMoistureDepth.ts). The plainest wetness question a reader
  * asks — *is this month wet or dry for here?* — cannot be answered from the raw
  * value, because column water content carries the model's seasonal cycle and
  * scales with the model's soil-column depth, so a number is only meaningful
