@@ -251,6 +251,11 @@ export class ProbeSampler {
    * Sample a searched place using GIBS's published colormap values rather
    * than the UI legend approximation. The returned values are in the source
    * product's units after `factor` (for example precipitation in mm/day).
+   *
+   * `maxInversionDistance` overrides the app-wide no-data threshold for a
+   * layer whose ramp runs too close to its own no-data colour to be separated
+   * by the default (see lib/vegetationIndexNoData.ts). Omitted, behaviour is
+   * unchanged.
    */
   async sampleGeometryPhysical(
     layer: LayerConfig,
@@ -259,11 +264,17 @@ export class ProbeSampler {
     fallback: { lat: number; lon: number },
     entries: ColormapEntry[],
     factor: number,
-    options: Omit<SampleOptions, "mode"> = {}
+    options: Omit<SampleOptions, "mode"> & {
+      maxInversionDistance?: number;
+    } = {}
   ): Promise<SampleResult> {
     const sampling = this.geometrySampling(geometry, fallback);
     const invert: ColorInverter = (rgb) => {
-      const value = invertColormapEntries(rgb, entries);
+      const value = invertColormapEntries(
+        rgb,
+        entries,
+        options.maxInversionDistance
+      );
       return value === null ? null : value * factor;
     };
     const result = await this.run(
