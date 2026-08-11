@@ -9,6 +9,7 @@ import {
   ymEqual,
   ymToIndex,
   gibsWmsUrl,
+  type LayerConfig,
   type LayerId,
   type YearMonth,
 } from "./lib/timeline";
@@ -1042,6 +1043,45 @@ if (probeEl) {
     panel.close();
   };
 
+  /**
+   * Read the IGBP class at a point on the class-coded land-cover layer.
+   *
+   * Class codes are categorical, so the pixels are decoded through the source
+   * palette and counted — never inverted through a colormap or averaged. The
+   * panel reports the most frequent sampled class with its pixel count and the
+   * cited MCD12Q1 record it came from.
+   */
+  const readLandCoverClass = (
+    layer: LayerConfig,
+    ym: YearMonth,
+    lat: number,
+    lon: number,
+    mode: "point" | "area",
+    abort: AbortController
+  ): void => {
+    panel.setStatus("Reading land-cover class…");
+    // The class tables and decoder load on demand: only this one layer needs
+    // them, and the entry chunk's budget is shared with everything else.
+    Promise.all([
+      sampler.sampleRenderedPixels(layer, ym, lat, lon, {
+        mode,
+        signal: abort.signal,
+      }),
+      import("./probe/landCoverClassRead"),
+    ])
+      .then(([pixels, { readLandCoverClassText }]) => {
+        if (abort.signal.aborted) return;
+        panel.setStatus(readLandCoverClassText(pixels, ym.year));
+      })
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        console.warn("RoamingEye: land-cover class read failed", err);
+        panel.setStatus(
+          "Reading the land-cover class failed — check the connection and retry."
+        );
+      });
+  };
+
   const runProbe = (lat: number, lon: number): void => {
     const layer = LAYERS[currentLayer];
     const mode = panel.mode;
@@ -1061,6 +1101,17 @@ if (probeEl) {
       return;
     }
     if (layer.categorical) {
+      // No numeric series to chart — but the class at the point is a real,
+      // citable observation, so read it instead of dead-ending. Only the IGBP
+      // layer has a decodable palette here; any other class-coded layer keeps
+      // the honest "nothing to chart" message rather than being read through
+      // a palette that does not describe it.
+      if (layer.id === "landcover") {
+        probeAbort?.abort();
+        const abort = (probeAbort = new AbortController());
+        readLandCoverClass(layer, months[currentIndex], lat, lon, mode, abort);
+        return;
+      }
       panel.setStatus(
         "This layer shows classes, not a measurement — there is no numeric series to chart."
       );
