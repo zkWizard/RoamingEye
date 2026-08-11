@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   describeDomainsUrl,
+  isObservableMonth,
   parseLatestFromDomains,
   refreshDataLatest,
   FRESHNESS_FAMILIES,
@@ -59,6 +60,32 @@ describe("parseLatestFromDomains", () => {
   });
 });
 
+describe("isObservableMonth", () => {
+  // Mid-month, so "the current month" is unambiguously in progress.
+  const now = new Date("2026-08-14T09:30:00Z");
+
+  it("accepts past months and the in-progress current month", () => {
+    expect(isObservableMonth({ year: 2026, month: 7 }, now)).toBe(true);
+    expect(isObservableMonth({ year: 2026, month: 8 }, now)).toBe(true);
+    expect(isObservableMonth({ year: 2000, month: 3 }, now)).toBe(true);
+  });
+
+  it("rejects a month that has not begun", () => {
+    expect(isObservableMonth({ year: 2026, month: 9 }, now)).toBe(false);
+    expect(isObservableMonth({ year: 2028, month: 1 }, now)).toBe(false);
+  });
+
+  it("judges the boundary in UTC, not local time", () => {
+    // 23:30 on the last day of August in UTC — a UTC+2 clock is already in
+    // September, but September is not observable yet.
+    const lastInstant = new Date("2026-08-31T23:30:00Z");
+    expect(isObservableMonth({ year: 2026, month: 9 }, lastInstant)).toBe(
+      false
+    );
+    expect(isObservableMonth({ year: 2026, month: 8 }, lastInstant)).toBe(true);
+  });
+});
+
 describe("describeDomainsUrl", () => {
   it("asks for a layer's own time domain from just before the baseline", () => {
     const url = describeDomainsUrl("ndvi", { year: 2026, month: 5 });
@@ -80,6 +107,11 @@ describe("describeDomainsUrl", () => {
 
 describe("refreshDataLatest (per-product families)", () => {
   const mocked = vi.mocked(fetchWithRetry);
+
+  // Pin the clock: the observability ceiling is judged against it, so these
+  // cases must not depend on when the suite runs. Well past the compiled
+  // baseline, so every fixture month below is observable.
+  const NOW = new Date("2026-12-15T00:00:00Z");
 
   const domainsResponse = (end: string): Response =>
     new Response(`<Domain>2020-01-01/${end}/P1M</Domain>`);
@@ -131,7 +163,7 @@ describe("refreshDataLatest (per-product families)", () => {
 
   it("all families fail → false, nothing moves", async () => {
     respondByLayer({});
-    await expect(refreshDataLatest()).resolves.toBe(false);
+    await expect(refreshDataLatest(NOW)).resolves.toBe(false);
     const end = monthRangeForLayer(LAYERS.lst).at(-1);
     expect(end).toEqual(DATA_LATEST);
   });
@@ -146,7 +178,7 @@ describe("refreshDataLatest (per-product families)", () => {
       lst: day(addMonths(floor, 1)),
       snow: new Error("timeout"),
     });
-    await expect(refreshDataLatest()).resolves.toBe(true);
+    await expect(refreshDataLatest(NOW)).resolves.toBe(true);
     expect(monthRangeForLayer(LAYERS.ndvi).at(-1)).toEqual(addMonths(floor, 2));
     expect(monthRangeForLayer(LAYERS.evi).at(-1)).toEqual(addMonths(floor, 2));
     // LST is offered only its own verified end…
@@ -168,7 +200,39 @@ describe("refreshDataLatest (per-product families)", () => {
       lst: "2020-01-01",
       snow: "2020-01-01",
     });
-    await expect(refreshDataLatest()).resolves.toBe(false);
+    await expect(refreshDataLatest(NOW)).resolves.toBe(false);
     expect(monthRangeForLayer(LAYERS.ndvi).at(-1)).toEqual(before);
+  });
+
+  it("a domain end past the current month is discarded, not offered", async () => {
+    // The DescribeDomains window runs two years ahead (describeDomainsUrl), so
+    // a declared-but-unproduced domain end is parseable and plausible-looking.
+    // Accepting it would put ~13 months of 404-ing tiles on the timeline.
+    const before = monthRangeForLayer(LAYERS.ndvi).at(-1);
+    respondByLayer({
+      ndvi: "2028-01-01",
+      lst: "2028-01-01",
+      snow: "2028-01-01",
+    });
+    await expect(refreshDataLatest(NOW)).resolves.toBe(false);
+    expect(monthRangeForLayer(LAYERS.ndvi).at(-1)).toEqual(before);
+    expect(monthRangeForLayer(LAYERS.snow).at(-1)).toEqual(before);
+  });
+
+  it("one family's future end cannot drag the others forward", async () => {
+    const floor = DATA_LATEST;
+    const day = (m: YearMonth): string =>
+      `${m.year}-${String(m.month).padStart(2, "0")}-01`;
+    respondByLayer({
+      ndvi: "2030-01-01", // declared domain runs ahead of production
+      lst: day(addMonths(floor, 1)), // genuinely published
+      snow: day(floor),
+    });
+    await expect(refreshDataLatest(NOW)).resolves.toBe(true);
+    // NDVI falls back to the curated baseline rather than to LST's month:
+    // rejecting an answer must not borrow another product's schedule.
+    expect(monthRangeForLayer(LAYERS.ndvi).at(-1)).toEqual(floor);
+    expect(monthRangeForLayer(LAYERS.evi).at(-1)).toEqual(floor);
+    expect(monthRangeForLayer(LAYERS.lst).at(-1)).toEqual(addMonths(floor, 1));
   });
 });

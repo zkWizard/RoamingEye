@@ -88,14 +88,43 @@ export function parseLatestFromDomains(xml: string): YearMonth | null {
 }
 
 /**
+ * Is `ym` a month a monthly composite could actually cover? A month that has
+ * not begun cannot have been observed, so an answer naming one is not data.
+ *
+ * This is worth checking because a *parseable* answer can still be wrong in
+ * that direction: DescribeDomains is asked over a two-year forward window
+ * (see describeDomainsUrl), and an interval end is the domain the layer
+ * declares, not a granule that exists — a server that echoes the requested
+ * range, or a layer whose declared domain runs ahead of production, hands
+ * back a future month. Accepting it would put months of 404-ing tiles on the
+ * timeline and present them as available observations.
+ *
+ * Only the physically impossible region is rejected. Whether the *current*
+ * month has published yet is exactly what the probe is asked to find out, so
+ * it is left to the answer. Judged in UTC, as GIBS dates its domains.
+ */
+export function isObservableMonth(ym: YearMonth, now: Date): boolean {
+  const current = { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 };
+  return compareYm(ym, current) <= 0;
+}
+
+/**
  * Boot-time entry point: verify each product family's newest published month
  * and pin every dynamic layer to its own family's verified end. Resolves
  * true when any family grew past the compiled-in baseline (the app should
  * rebuild its month range). A family whose check fails — network, timeout,
- * malformed XML — is pinned to the baseline: conservative, exactly like the
- * old behavior, but now a laggard can no longer ride a leader's extension.
+ * malformed XML, or an answer naming a month that cannot have been observed
+ * yet — is pinned to the baseline: conservative, exactly like the old
+ * behavior, but now a laggard can no longer ride a leader's extension.
+ *
+ * `now` is injectable for tests. A client clock set far in the past makes
+ * this discard good answers and fall back to the compiled baseline — the
+ * same conservative outcome as an unreachable probe, and the direction to
+ * fail in: the baseline is a curated, verified month.
  */
-export async function refreshDataLatest(): Promise<boolean> {
+export async function refreshDataLatest(
+  now: Date = new Date()
+): Promise<boolean> {
   const floor = DATA_LATEST;
   const results = await Promise.allSettled(
     FRESHNESS_FAMILIES.map(async (family) => {
@@ -112,7 +141,12 @@ export async function refreshDataLatest(): Promise<boolean> {
   let grew = false;
   let globalMax = floor;
   results.forEach((result, i) => {
-    const verified = result.status === "fulfilled" ? result.value : null;
+    const answered = result.status === "fulfilled" ? result.value : null;
+    // Discard rather than clamp: if the declared domain runs past what could
+    // have been observed, we don't know which of its months are backed by a
+    // granule, so we claim none of them.
+    const verified =
+      answered && isObservableMonth(answered, now) ? answered : null;
     const pin = verified && compareYm(verified, floor) > 0 ? verified : floor;
     for (const id of FRESHNESS_FAMILIES[i].layers) setLayerLatest(id, pin);
     if (compareYm(pin, floor) > 0) grew = true;
