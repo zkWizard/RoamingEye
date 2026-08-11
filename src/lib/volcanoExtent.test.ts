@@ -223,4 +223,42 @@ describe("volcanoesInSearchExtent", () => {
       { status: "invalid-bounds", matchedRecordCount: 0 }
     );
   });
+
+  it("summarizes eruption recency over every matched record, not the listed few", () => {
+    const context = volcanoesInSearchExtent(
+      [
+        volcano({ name: "A", lat: 35, lon: 10, lastEruptionYear: 2011 }),
+        volcano({ name: "B", lat: 35, lon: 11, lastEruptionYear: 1980 }),
+        volcano({ name: "C", lat: 35, lon: 12, lastEruptionYear: 1500 }),
+        volcano({ name: "D", lat: 35, lon: 13, lastEruptionYear: null }),
+        volcano({ name: "E", lat: 35, lon: 14, lastEruptionYear: -900 }),
+        // Outside the box: must not reach the recency tally.
+        volcano({ name: "Z", lat: 5, lon: 14, lastEruptionYear: 2020 }),
+      ],
+      [30, 40, 0, 20]
+    );
+
+    expect(context.matchedRecordCount).toBe(5);
+    expect(context.eruptionRecency).toMatchObject({
+      kind: "gvp-eruption-recency-summary",
+      isForecast: false,
+      volcanoCount: 5,
+      // The BCE record is Holocene-evidence-only by class but still dated.
+      recencyClassCounts: { recent: 2, historic: 1, holocene: 2 },
+      datedEruptionCount: 4,
+      undatedCount: 1,
+      lastEruptionYear: { min: -900, max: 2011 },
+    });
+    expect(context.eruptionRecency.limitations.join(" ")).toMatch(/dormancy/i);
+  });
+
+  it("reports an empty recency tally rather than omitting it when nothing matched", () => {
+    const context = volcanoesInSearchExtent([volcano()], null);
+
+    expect(context.eruptionRecency.volcanoCount).toBe(0);
+    expect(context.eruptionRecency.lastEruptionYear).toEqual({
+      min: null,
+      max: null,
+    });
+  });
 });

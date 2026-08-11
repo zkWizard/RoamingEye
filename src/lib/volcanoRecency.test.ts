@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Volcano } from "./volcanoes";
 import {
   ERUPTION_CLASS_ORDER,
+  eruptionRecencyText,
   summarizeEruptionRecency,
 } from "./volcanoRecency";
 
@@ -114,5 +115,81 @@ describe("summarizeEruptionRecency", () => {
 
   it("orders recency classes most-recent first for deterministic iteration", () => {
     expect(ERUPTION_CLASS_ORDER).toEqual(["recent", "historic", "holocene"]);
+  });
+
+  it("tallies any record shape that carries the GVP eruption-year field", () => {
+    // Search-extent records are derived from markers and are not Volcano
+    // objects; the tally must not require widening them back into markers.
+    const summary = summarizeEruptionRecency([
+      { lastEruptionYear: 2021 },
+      { lastEruptionYear: null },
+    ]);
+
+    expect(summary.recencyClassCounts).toEqual({
+      recent: 1,
+      historic: 0,
+      holocene: 1,
+    });
+  });
+});
+
+describe("eruptionRecencyText", () => {
+  it("states the class boundaries and the counted set, not a hazard claim", () => {
+    const text = eruptionRecencyText(
+      summarizeEruptionRecency([
+        volcano({ lastEruptionYear: 2025 }),
+        volcano({ lastEruptionYear: 1944 }),
+        volcano({ lastEruptionYear: 1650 }),
+        volcano({ lastEruptionYear: null }),
+      ])
+    );
+
+    expect(text).toContain("all 4 matched records");
+    expect(text).toContain("2 dated 1900 or later");
+    expect(text).toContain("1 dated between source year 0 and 1899");
+    expect(text).toContain("1 with Holocene evidence only");
+    expect(text).toContain("Dated eruption years span 1650 to 2025.");
+    expect(text).toMatch(/not a hazard ranking/i);
+    expect(text).toMatch(/not a measure of current activity/i);
+  });
+
+  it("agrees in number for a single matched record", () => {
+    const text = eruptionRecencyText(
+      summarizeEruptionRecency([volcano({ lastEruptionYear: 1902 })])
+    );
+
+    expect(text).toContain("all 1 matched record:");
+    expect(text).toContain("Dated eruption years span 1902 to 1902.");
+  });
+
+  it("reports BCE and GVP source year zero without a fake civil era", () => {
+    const text = eruptionRecencyText(
+      summarizeEruptionRecency([
+        volcano({ lastEruptionYear: -5600 }),
+        volcano({ lastEruptionYear: 0 }),
+      ])
+    );
+
+    expect(text).toContain(
+      "Dated eruption years span 5600 BCE to source year 0."
+    );
+    expect(text).not.toContain("-5600");
+    // Year 0 must never be rendered as "0 BCE"; there is no such year.
+    expect(text).not.toMatch(/(?<!\d)0 BCE/);
+  });
+
+  it("omits the year span when no matched record carries a dated eruption", () => {
+    const text = eruptionRecencyText(
+      summarizeEruptionRecency([volcano({ lastEruptionYear: null })])
+    );
+
+    expect(text).toContain("1 with Holocene evidence only.");
+    expect(text).not.toMatch(/span/i);
+  });
+
+  it("returns null for an empty set rather than a row of zeroes", () => {
+    // Zero counts across three classes would read as a finding about the
+    // place; there is simply nothing to characterise.
+    expect(eruptionRecencyText(summarizeEruptionRecency([]))).toBeNull();
   });
 });
