@@ -5,6 +5,11 @@ import {
   type MarineCoverageGeography,
   type SourceImageDimensions,
 } from "./marineCoverage";
+import {
+  describeMarineBoundarySstSupport,
+  summarizeMarineBoundarySstSupport,
+  type MarineBoundarySstSupportSummary,
+} from "./marineBoundarySstSupport";
 import { PROBE_SCALES } from "./probe";
 import { formatYm, type YearMonth } from "./timeline";
 
@@ -59,6 +64,12 @@ export interface MarinePlaceInsightReading {
   geography: MarineCoverageGeography;
   /** Structured sampler state for UI/export consumers; null when sampling failed. */
   coverage: MarineCoverageSummary | null;
+  /**
+   * How much of the searched boundary actually carried SST, and what the
+   * reported mean therefore averages over. SST is undefined over land, so a
+   * searched place is usually mostly outside the product's domain.
+   */
+  spatialSupport: MarineBoundarySstSupportSummary;
   observationStatus:
     | "observed"
     | "no-sst-coverage"
@@ -111,12 +122,10 @@ export function marineBoundarySstReading(
       ? "rendered source image dimensions invalid"
       : "rendered source image dimensions not supplied";
   const source = `${coverage.source.source.shortName} v${coverage.source.source.version}`;
-  const coverageText =
-    coverage.coverage.validFraction === null
-      ? "sampled coverage not supplied"
-      : `${Math.round(
-          coverage.coverage.validFraction * 100
-        )}% sampled boundary coverage`;
+  // Grade the share as the sampler supplied it, not as `summarizeMarineCoverage`
+  // nulls it out on rejection: an invalid fraction was still supplied, and
+  // reporting it as "not supplied" would hide which of the two happened.
+  const spatialSupport = summarizeMarineBoundarySstSupport(input.validFraction);
 
   return {
     id: MARINE_PLACE_METRIC.id,
@@ -124,7 +133,7 @@ export function marineBoundarySstReading(
       input.observedValue !== null && usable
         ? `${input.observedValue.toFixed(1)} ${coverage.source.sourceUnit}`
         : "No usable SST observation",
-    detail: `${month} approximate boundary-mean SST observation for ${geographyLabel}; ${coverageText}; ${image}; source ${source}; not a marine-biology observation`,
+    detail: `${month} approximate mean SST observation sampled within ${geographyLabel}; ${describeMarineBoundarySstSupport(spatialSupport)}; ${image}; source ${source}; not a marine-biology observation`,
     kind: "observed-boundary-sea-surface-temperature",
     availability: usable ? "available" : "no-usable-sst",
     marineBiologyObservation: false,
@@ -140,6 +149,7 @@ export function marineBoundarySstReading(
     source: coverage.source,
     geography,
     coverage,
+    spatialSupport,
     observationStatus: usable
       ? "observed"
       : coverage.coverage.status === "no-sst-coverage"
@@ -194,6 +204,9 @@ export function unavailableMarineBoundarySstReading(
     source: SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE,
     geography,
     coverage: null,
+    // Sampling never produced a share, so none is reported. A failed workflow
+    // must not be recorded as a boundary that held no water.
+    spatialSupport: summarizeMarineBoundarySstSupport(null),
     observationStatus:
       reason === "source-colormap-unavailable"
         ? "source-unavailable"
