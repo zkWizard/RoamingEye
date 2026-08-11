@@ -45,13 +45,23 @@ const CLEAN_TOLERANCE = 0.01;
  * collides with the brown→white summit ramp, so noisy inversion is ambiguous
  * (worst ≈ 0.48). The layer is static (no time dimension), so the probe never
  * charts it — but if its legend is ever redrawn, aim below 0.15 like the rest.
+ *
+ * `airtemp` bought colormap fidelity with noise headroom, and the trade is
+ * worth stating. Its stops now reproduce the Spectral ramp GIBS renders with
+ * (inversion RMSE against the real colormap fell 18.95 K → 0.51 K, and no ramp
+ * colour is rejected any more), but that ramp passes through a near-white
+ * pale-yellow shoulder around t ≈ 0.57 (≈ 271 K) where consecutive
+ * temperatures are only a channel or two apart. There ±8/channel noise can
+ * slide the nearest LUT match by up to 0.162. It is a narrow band, not the
+ * whole scale: over the sweep the noisy error is 0.014 median / 0.030 at p90,
+ * and only 12 of 501 positions exceed 0.07.
  */
 const NOISY_TOLERANCE: Record<string, number> = {
   ndvi: 0.16,
   evi: 0.16,
   snow: 0.07,
   lst: 0.05,
-  airtemp: 0.07,
+  airtemp: 0.17,
   sst: 0.07,
   precip: 0.09,
   soil: 0.11,

@@ -100,12 +100,28 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
     measures: "Air temperature at 2 m",
     minLabel: "cold",
     maxLabel: "hot",
+    interpretationNote:
+      "The bar covers 220–310 K only. GIBS paints anything colder violet and anything warmer dark crimson — neither is on this ramp, so both read as no-data rather than as the end of the scale.",
+    // Colours published in MERRA2_2m_Air_Temperature_Monthly (the colormap the
+    // tiles are rendered with). GIBS draws that ramp by interpolating nine
+    // ColorBrewer Spectral anchors across 220–310 K, so nine stops placed on
+    // those anchors reproduce the rendered ramp rather than approximating it.
+    // The previous five hand-drawn stops opened on violet — GIBS's *below-220 K*
+    // overflow colour, not its 220 K blue — and ran to a dark red GIBS never
+    // paints, so 44 of the 90 ramp colours sat further than the no-data
+    // threshold from the gradient and were rejected outright, while the rest
+    // inverted at 18.95 K RMSE. See validation.MEASURED_INVERSION and the
+    // inversion-validation contract for the measured before/after.
     stops: [
-      { color: "#4a2e8f", at: 0 }, // polar air
-      { color: "#2c6fbb", at: 0.3 },
-      { color: "#7ec96a", at: 0.55 },
-      { color: "#f2a33c", at: 0.8 },
-      { color: "#b71c1c", at: 1 }, // tropical heat
+      { color: "#348abb", at: 0 }, // 220 K — coldest rendered temperature
+      { color: "#66c2a5", at: 0.125 }, // 231 K
+      { color: "#addea3", at: 0.25 }, // 243 K
+      { color: "#e6f598", at: 0.375 }, // 254 K
+      { color: "#fefdbc", at: 0.5 }, // 265 K
+      { color: "#fdd985", at: 0.625 }, // 276 K
+      { color: "#fca85e", at: 0.75 }, // 288 K
+      { color: "#ef6644", at: 0.875 }, // 299 K
+      { color: "#cf384d", at: 1 }, // 310 K — warmest rendered temperature
     ],
   },
   sst: {

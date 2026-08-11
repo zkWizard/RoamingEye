@@ -70,10 +70,12 @@ _Urban climate / land-use change — "is my city measurably hotter than 2000?"_
    Use this recipe to decide _whether_ a site is worth that pull — which is what
    it is genuinely good for — not to produce the numbers themselves.
 
-Want a probe-based temperature series today? **Air temperature (2 m)** does
-invert, though with large absolute uncertainty (19.0 K RMSE); METHODS §3 is
-explicit that those layers are for **relative and temporal** analysis, so work
-in anomalies rather than absolute degrees.
+Want a probe-based temperature series today? **Air temperature (2 m)** is the
+layer to reach for: its legend is taken from the colormap GIBS renders with, so
+inversion recovers every ramp colour at 0.51 K RMSE (METHODS §3) — tight enough
+to read in absolute degrees, unlike the coarser gradients on this list. It is
+still MERRA-2 reanalysis rather than a station measurement, and readings near
+271 K sit on the ramp's low-contrast pale-yellow shoulder (docs/validation.md).
 
 ## 3. The plate-tectonics lecture view
 

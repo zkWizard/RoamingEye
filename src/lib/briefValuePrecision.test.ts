@@ -151,18 +151,21 @@ describe("summarizeBriefValuePrecision", () => {
     expect(summary.consideredSignalIds).toEqual(["air-temperature"]);
     const airtemp = summary.signals[0];
     expect(airtemp.status).toBe("characterized");
-    expect(airtemp.uncertainty).toBe(18.95);
+    // Air temperature's legend is taken from the GIBS colormap, so its
+    // measured inversion RMSE justifies the tenths place — not the tens the
+    // old hand-drawn gradient left us with.
+    expect(airtemp.uncertainty).toBe(0.51);
     expect(airtemp.justified).toEqual({
-      roundingPlace: 1,
-      roundedValue: 290,
-      significantFigures: 2,
+      roundingPlace: -1,
+      roundedValue: 287.3,
+      significantFigures: 4,
     });
     expect(airtemp.renderedSignificantFigures).toBe(5);
     expect(airtemp.overstatesPrecision).toBe(true);
     expect(summary.characterizedCount).toBe(1);
     expect(summary.overstatedCount).toBe(1);
-    expect(airtemp.statement).toContain("290 K");
-    expect(airtemp.statement).toContain("2 significant figures");
+    expect(airtemp.statement).toContain("287.3 K");
+    expect(airtemp.statement).toContain("4 significant figures");
   });
 
   it("reports an uncharacterized layer honestly and invents no precision", () => {

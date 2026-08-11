@@ -98,8 +98,8 @@ describe("summarizeBriefValueUncertainty", () => {
     expect(soil.statement).toContain("± 8.23 kg/m²");
 
     const air = summary.signals.find((s) => s.id === "air-temperature")!;
-    expect(air.nativeRmse).toBe(18.95);
-    expect(air.statement).toContain("290 ± 18.95 K");
+    expect(air.nativeRmse).toBe(0.51);
+    expect(air.statement).toContain("290 ± 0.51 K");
   });
 
   it("surfaces the published reported-unit figure when the native unit differs", () => {
