@@ -23,20 +23,38 @@ by a CI drift-guard.
 | Layer                 | RMSE                   | Colours recovered | Verdict                           |
 | --------------------- | ---------------------- | ----------------- | --------------------------------- |
 | Aerosol optical depth | **0.13** (scale 0–0.9) | 180 / 180         | Good — usable for absolute values |
+| Air temperature (2 m) | **1.0 K**              | 90 / 90           | Good — usable for absolute values |
 | Sea surface temp      | 5.1 °C                 | 128 / 213         | Coarse — relative use recommended |
 | Soil moisture         | 8.2 kg/m²              | 21 / 50           | Coarse — relative use recommended |
-| Air temperature (2 m) | 19.0 K                 | 46 / 90           | Poor absolute accuracy            |
 | Precipitation         | 20.4 mm/day            | 27 / 50           | Poor absolute accuracy            |
 | Land surface temp     | — (all no-data)        | 0 / 250           | Gradient misses GIBS's hues       |
+
+Air temperature was re-measured on 2026-08-11. Its gradient previously opened
+on a purple approximating `#5e4fa2` — which is the MERRA-2 colormap's
+`[-INF,220)` **end cap**, not its 220 K ramp colour — so the whole gradient sat
+off the ramp it was inverting: RMSE 19.0 K, a +12.1 K warm bias, 44 of 90
+colours rejected as no-data, and the under-range cap itself wrongly accepted
+and reported as 230.2 K. Re-anchoring the stops on the nine interior
+ColorBrewer Spectral anchors GIBS actually renders gives RMSE 1.03 K with all
+90 colours recovered, and returns both open end caps to no-data, where a bound
+belongs.
 
 ## What this means (and doesn't)
 
 - **Absolute values** from these inversions carry large uncertainty for
-  temperature, precipitation, and soil moisture, because our legend gradients
-  are coarse (a handful of stops) approximations of GIBS's finely-hued
-  colormaps. For land-surface temperature the gradient misses GIBS's cold-end
-  colours entirely, so those pixels read as no-data. Aerosol optical depth is
-  the exception — its palette is simple enough that inversion is tight.
+  precipitation and soil moisture, because those legend gradients are coarse
+  (a handful of stops) approximations of GIBS's finely-hued colormaps. For
+  land-surface temperature the gradient misses GIBS's cold-end colours
+  entirely, so those pixels read as no-data. Aerosol optical depth and 2 m air
+  temperature are the exceptions: their gradients are anchored on the
+  published colormaps' own anchor colours, so inversion is tight.
+- **Anchoring removes the systematic error, not the sampling noise.** The
+  probe reads JPEG tiles, and the residual left after anchoring is largest
+  wherever a palette changes hue slowly, because a small RGB perturbation
+  slides further in value there. On the air-temperature ramp that is the pale
+  yellow around 255–270 K, where a ±8-per-channel wobble can move a reading by
+  ~13 K even though no reading is dropped. Per-value uncertainty is reported
+  for this reason rather than left implied.
 - **Relative and temporal analysis is far more robust.** Trends (seasonal
   Mann-Kendall / Sen's slope), anomalies, and seasonality depend on the
   _ordering_ of values, not their absolute calibration, and survive a

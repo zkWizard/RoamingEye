@@ -45,13 +45,23 @@ const CLEAN_TOLERANCE = 0.01;
  * collides with the brown→white summit ramp, so noisy inversion is ambiguous
  * (worst ≈ 0.48). The layer is static (no time dimension), so the probe never
  * charts it — but if its legend is ever redrawn, aim below 0.15 like the rest.
+ *
+ * Note this is a *self-consistency* bound — how far our own gradient can be
+ * walked by noise — not accuracy against GIBS, which `validation.ts` measures.
+ * The two can pull against each other: a gradient with exaggerated hue
+ * separation roundtrips tightly through itself while inverting the real
+ * imagery badly. `airtemp` is that trade made deliberately. Anchoring it on
+ * GIBS's own Spectral ramp (2026-08-11) cut its inversion RMSE from 18.95 K to
+ * 1.03 K and recovered all 90 colormap colours, at the cost of a perceptually
+ * flat pale-yellow midpoint around 255–270 K — the same shape as NDVI's
+ * brown→tan segment, and its bound moves into the same range.
  */
 const NOISY_TOLERANCE: Record<string, number> = {
   ndvi: 0.16,
   evi: 0.16,
   snow: 0.07,
   lst: 0.05,
-  airtemp: 0.07,
+  airtemp: 0.19, // measured 0.170 at t≈0.574 (≈266 K), plus headroom
   sst: 0.07,
   precip: 0.09,
   soil: 0.11,

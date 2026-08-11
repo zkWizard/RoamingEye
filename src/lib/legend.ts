@@ -100,12 +100,29 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
     measures: "Air temperature at 2 m",
     minLabel: "cold",
     maxLabel: "hot",
+    // Anchored on the ramp GIBS actually renders (colormaps/v1.3/
+    // MERRA2_2m_Air_Temperature_Monthly.xml, read 2026-08-11): ColorBrewer
+    // Spectral-11 reversed, spanning the pinned 220–310 K scale.
+    //
+    // These are the nine *interior* Spectral anchors. The palette's two
+    // remaining anchors, #5e4fa2 and #9e0142, are the colormap's open end
+    // caps — `[-INF,220)` and `[310,+INF)` — not ramp colours. The previous
+    // cold stop (#4a2e8f) approximated the under-range cap instead of the
+    // 220 K ramp colour #3288bd, which both shifted every recovered value
+    // warm and made the cap inseparable from a real reading. Keeping the caps
+    // off the gradient leaves them beyond NO_DATA_DISTANCE, so a pixel colder
+    // than 220 K or warmer than 310 K is withheld rather than reported as a
+    // number it is only a bound on. See validation.MEASURED_INVERSION.
     stops: [
-      { color: "#4a2e8f", at: 0 }, // polar air
-      { color: "#2c6fbb", at: 0.3 },
-      { color: "#7ec96a", at: 0.55 },
-      { color: "#f2a33c", at: 0.8 },
-      { color: "#b71c1c", at: 1 }, // tropical heat
+      { color: "#3288bd", at: 0 }, // 220 K — the ramp's cold end, not the cap
+      { color: "#66c2a5", at: 0.125 },
+      { color: "#abdda4", at: 0.25 },
+      { color: "#e6f598", at: 0.375 },
+      { color: "#ffffbf", at: 0.5 }, // ~265 K
+      { color: "#fee08b", at: 0.625 },
+      { color: "#fdae61", at: 0.75 },
+      { color: "#f46d43", at: 0.875 },
+      { color: "#d53e4f", at: 1 }, // 310 K — tropical heat
     ],
   },
   sst: {

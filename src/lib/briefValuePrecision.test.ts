@@ -13,6 +13,7 @@ import {
   roundToPlace,
   summarizeBriefValuePrecision,
 } from "./briefValuePrecision";
+import { MEASURED_INVERSION } from "./validation";
 
 const AVAILABLE_THROUGH = { year: 2026, month: 3 };
 
@@ -151,18 +152,21 @@ describe("summarizeBriefValuePrecision", () => {
     expect(summary.consideredSignalIds).toEqual(["air-temperature"]);
     const airtemp = summary.signals[0];
     expect(airtemp.status).toBe("characterized");
-    expect(airtemp.uncertainty).toBe(18.95);
+    expect(airtemp.uncertainty).toBe(MEASURED_INVERSION.airtemp.rmse);
+    // A 1.03 K inversion RMSE fixes the least-significant justified digit at
+    // the units place, so 287.34 K rounds to 287 rather than the 290 the old
+    // 18.95 K figure allowed. Rendering still overstates it at 5 figures.
     expect(airtemp.justified).toEqual({
-      roundingPlace: 1,
-      roundedValue: 290,
-      significantFigures: 2,
+      roundingPlace: 0,
+      roundedValue: 287,
+      significantFigures: 3,
     });
     expect(airtemp.renderedSignificantFigures).toBe(5);
     expect(airtemp.overstatesPrecision).toBe(true);
     expect(summary.characterizedCount).toBe(1);
     expect(summary.overstatedCount).toBe(1);
-    expect(airtemp.statement).toContain("290 K");
-    expect(airtemp.statement).toContain("2 significant figures");
+    expect(airtemp.statement).toContain("287 K");
+    expect(airtemp.statement).toContain("3 significant figures");
   });
 
   it("reports an uncharacterized layer honestly and invents no precision", () => {

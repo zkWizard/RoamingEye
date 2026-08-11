@@ -47,18 +47,24 @@ Two sources, both stated in every export:
   | Layer                 | Inversion RMSE  | Recovered |
   | --------------------- | --------------- | --------- |
   | Aerosol optical depth | 0.13 (of 0–0.9) | 180 / 180 |
+  | Air temperature (2 m) | 1.0 K           | 90 / 90   |
   | Sea surface temp      | 5.1 °C          | 128 / 213 |
   | Soil moisture         | 8.2 kg/m²       | 21 / 50   |
-  | Air temperature (2 m) | 19.0 K          | 46 / 90   |
   | Precipitation         | 20.4 mm/day     | 27 / 50   |
   | Land surface temp     | no-data (all)   | 0 / 250   |
 
-  These are honest and, for several layers, poor: our legend gradients are
-  coarse approximations of GIBS's finely-hued colormaps. **Absolute values for
-  temperature, precipitation, and soil moisture carry large uncertainty; use
-  the probe for relative and temporal analysis on those layers.** The full
-  method and framing is in [docs/validation.md](docs/validation.md); tightening
-  this by inverting against the real GIBS colormaps is tracked as
+  The spread is not about the products — it is about how closely each legend
+  gradient tracks the ramp GIBS renders that layer with. Aerosol and 2 m air
+  temperature are anchored on the published colormap's own anchor colours and
+  recover every entry; the rest are coarse freehand approximations of finely
+  hued colormaps and are correspondingly loose. **Absolute values for
+  precipitation and soil moisture carry large uncertainty; use the probe for
+  relative and temporal analysis on those layers.** Anchoring a gradient
+  removes the systematic error but not the sampling noise: the residual is
+  largest where a palette changes hue slowly (for air temperature, the pale
+  yellow around 255–270 K). The full method and framing is in
+  [docs/validation.md](docs/validation.md); re-anchoring the remaining
+  gradients is tracked as
   [#170](https://github.com/zkWizard/RoamingEye/issues/170).
 
 ## 4. Trend analysis
