@@ -77,11 +77,26 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
     measures: "Snow cover (monthly average)",
     minLabel: "0%",
     maxLabel: "100%",
+    interpretationNote:
+      "GIBS renders this layer in 20-point bands below 81%, and draws no colour at all for 0% — so snow-free ground and an unobserved pixel look the same. Cloud, night, water and fill are drawn as flag colours, not snow amounts.",
+    // GIBS renders these tiles with the MODIS_NDSI_Snow_Cover colormap — a
+    // *discrete* ramp (yellow → red), not the blue → white one a snow layer
+    // invites. Each stop below is a colour published in that document, at the
+    // position of the percent it stands for, so the bar the user reads and the
+    // LUT the probe inverts both describe the imagery on the globe. See
+    // lib/snowCoverRamp.ts for the audit and the weekly contract check.
     stops: [
-      { color: "#274a6d", at: 0 }, // snow-free ground reads dark
-      { color: "#5b87ad", at: 0.35 },
-      { color: "#a8c8dd", at: 0.7 },
-      { color: "#ffffff", at: 1 }, // full snow cover
+      { color: "#f0f080", at: 0 }, // 1% — 0% is transparent, never drawn
+      { color: "#f0f093", at: 0.2 }, // 20%, top of the first band
+      { color: "#f0d280", at: 0.21 }, // 21%
+      { color: "#f0d293", at: 0.4 }, // 40%
+      { color: "#f0b480", at: 0.41 }, // 41%
+      { color: "#f0b493", at: 0.6 }, // 60%
+      { color: "#f09680", at: 0.61 }, // 61%
+      { color: "#f09693", at: 0.8 }, // 80%
+      { color: "#f07880", at: 0.81 }, // 81% — finely resolved above here
+      { color: "#f08585", at: 0.99 }, // 99%
+      { color: "#ff0000", at: 1 }, // 100% — a colour of its own
     ],
   },
   lst: {
