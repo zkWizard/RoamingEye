@@ -1071,7 +1071,7 @@ if (probeEl) {
     const abort = (probeAbort = new AbortController());
     const probeMonths = monthRangeForLayer(layer);
     const scale = PROBE_SCALES[layer.id];
-    panel.beginSeries(probeMonths, scale);
+    panel.beginSeries(probeMonths, scale, { layerId: layer.id, latitude: lat });
 
     let lastDraw = 0;
     sampler

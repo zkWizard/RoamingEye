@@ -11,8 +11,14 @@ import type { ProbeMode } from "../probe/ProbeSampler";
 
 /** The user-toggleable sampling modes (regions are drawn, not toggled). */
 type PanelMode = Exclude<ProbeMode, "region">;
-import type { YearMonth } from "../lib/timeline";
+import type { LayerId, YearMonth } from "../lib/timeline";
 import { ICONS } from "./icons";
+
+/** What the current series is: which layer, and where it was sampled. */
+export interface ProbeSeriesContext {
+  layerId: LayerId;
+  latitude: number;
+}
 
 /**
  * The probe result card: a time-series chart of the sampled values at a
@@ -46,6 +52,9 @@ export class ProbePanel {
   private months: YearMonth[] = [];
   private values: (number | null)[] = [];
   private scale: ProbeScale | undefined;
+  private context: ProbeSeriesContext | undefined;
+  /** Bumped per series so a late lazy summary of an old probe is discarded. */
+  private seriesToken = 0;
   private csv: (() => string) | undefined;
   private csvFilename = "probe.csv";
   private view: ProbeView = "values";
@@ -192,10 +201,19 @@ export class ProbePanel {
   }
 
   /** Provide the full month range up front; values stream in via setValue. */
-  beginSeries(months: YearMonth[], scale: ProbeScale): void {
+  beginSeries(
+    months: YearMonth[],
+    scale: ProbeScale,
+    // Identifies what is being charted, for layer-specific summaries. Omitted
+    // for drawn regions, whose mean spans locations that need not share a
+    // hemisphere or a seasonal cycle.
+    context?: ProbeSeriesContext
+  ): void {
     this.months = months;
     this.values = new Array(months.length).fill(null);
     this.scale = scale;
+    this.context = context;
+    this.seriesToken++;
     this.draw();
   }
 
@@ -229,14 +247,46 @@ export class ProbePanel {
       v === null ? null : scaleValue(v, s)
     );
     const trend = trendSummary(this.months, physical, s);
-    this.setStatus(
+    const stat =
       `${stats.count} of ${this.months.length} months · ` +
-        `min ${fmt(stats.min)} · mean ${fmt(stats.mean)} · max ${fmt(stats.max)}` +
-        // Each value is only known to the colormap's quantization step —
-        // say so right where the numbers are.
-        ` · ${uncertaintyText(s)} per value` +
-        ` · ${trendClause(trend)}`
-    );
+      `min ${fmt(stats.min)} · mean ${fmt(stats.mean)} · max ${fmt(stats.max)}` +
+      // Each value is only known to the colormap's quantization step —
+      // say so right where the numbers are.
+      ` · ${uncertaintyText(s)} per value` +
+      ` · ${trendClause(trend)}`;
+    this.setStatus(stat);
+    this.appendPeakGreenness(stat, physical);
+  }
+
+  /**
+   * Append the vegetation-index calendar-timing clause: which month held each
+   * year's highest NDVI, and how tightly that recurs. The NDVI phenology
+   * helpers pull in per-year summarization and circular statistics, so they
+   * load on demand rather than riding in the entry chunk; the clause lands a
+   * moment after the stats, which the status line already fills in
+   * progressively. A newer series invalidates an in-flight load.
+   */
+  private appendPeakGreenness(stat: string, physical: (number | null)[]): void {
+    const context = this.context;
+    if (!context) return;
+    const months = this.months;
+    const token = this.seriesToken;
+    void import("../lib/probePeakGreenness")
+      .then(({ peakGreennessClause, probePeakGreennessTiming }) => {
+        if (token !== this.seriesToken) return; // superseded by a newer probe
+        const clause = peakGreennessClause(
+          probePeakGreennessTiming(
+            context.layerId,
+            months,
+            physical,
+            context.latitude
+          )
+        );
+        if (clause) this.setStatus(`${stat} · ${clause}`);
+      })
+      .catch(() => {
+        // A failed chunk load must leave the stats already on screen intact.
+      });
   }
 
   // --- Toggles -----------------------------------------------------------------
