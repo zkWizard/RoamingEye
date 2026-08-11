@@ -16,6 +16,11 @@ import {
 } from "./colormap";
 import { fetchWithRetry } from "./net";
 import type { GeometrySamplingStrategy } from "./geojson";
+import {
+  isPlausibleNdvi,
+  placeVegetationComparison,
+  type PlaceVegetationComparison,
+} from "./placeVegetationChange";
 
 export type PlaceMetricId = "vegetation" | "rainfall" | "soil" | "air";
 export type PlaceMetricLayerId = "ndvi" | "precip" | "soil" | "airtemp";
@@ -190,6 +195,23 @@ function makePlaceInsightReading(
     currentLabel,
     1
   )}`;
+  // NDVI is bounded by its own definition. An out-of-range value is a decode or
+  // scaling error, so it is withheld rather than shown as a greenness reading.
+  if (
+    metric.id === "vegetation" &&
+    current !== null &&
+    !isPlausibleNdvi(current)
+  ) {
+    return {
+      id: metric.id,
+      value: "Unavailable",
+      detail: withSamplingProvenance(
+        `${currentLabel} value is outside the valid -1 to 1 NDVI range`,
+        provenance,
+        1
+      ),
+    };
+  }
   if (current === null) {
     return {
       id: metric.id,
@@ -212,12 +234,56 @@ function makePlaceInsightReading(
       ),
     };
   }
+  if (metric.id === "vegetation") {
+    return {
+      id: metric.id,
+      value: formatPlaceValue(metric.id, current),
+      detail: vegetationDetail(
+        placeVegetationComparison(
+          [previousMonth, currentMonth],
+          [previous, current]
+        ),
+        {
+          currentLabel,
+          previousMonthLabel: formatMonth(previousMonth),
+          suffix: samplingSuffix(provenance, currentLabel, 1),
+        }
+      ),
+    };
+  }
   const delta = current - previous;
   return {
     id: metric.id,
     value: formatPlaceValue(metric.id, current),
     detail: `${formatDelta(metric.id, delta)} vs ${previousLabel} · ${currentLabel}`,
   };
+}
+
+/**
+ * Phrase the vegetation card's month-over-month statement from the verdict in
+ * `placeVegetationChange`. A direction word describes the NDVI index only, and
+ * every comparison carries the reminder that the difference is not
+ * deseasonalized — at most latitudes a one-month step is the annual cycle, not
+ * an anomaly. Where no comparison is allowed, the reason is stated instead of a
+ * signed difference being shown under a "month over month" label.
+ */
+function vegetationDetail(
+  comparison: PlaceVegetationComparison,
+  labels: { currentLabel: string; previousMonthLabel: string; suffix: string }
+): string {
+  if (comparison.kind === "not-comparable") {
+    const reason =
+      comparison.reason === "ndvi-out-of-range"
+        ? `${labels.previousMonthLabel} is outside the valid -1 to 1 NDVI range and was not compared`
+        : `${labels.previousMonthLabel} is not the preceding month, so no month-over-month change is reported`;
+    return `${labels.currentLabel} regional mean${labels.suffix}; ${reason}`;
+  }
+  const delta = formatDelta("vegetation", comparison.delta);
+  const statement =
+    comparison.direction === "little-change"
+      ? `Little change (${delta} NDVI, within the ${comparison.stabilityThreshold} stability band)`
+      : `${comparison.direction === "greening" ? "Greening" : "Browning"} ${delta} NDVI`;
+  return `${statement} vs ${labels.previousMonthLabel}${labels.suffix} · ${labels.currentLabel} · annual cycle not removed`;
 }
 
 function withSamplingProvenance(
