@@ -2,6 +2,10 @@ import {
   canonicalVolcanoType,
   canonicalVolcanoTypeLabel,
 } from "./volcanoMorphology";
+import {
+  parseVolcanoTectonicSetting,
+  tectonicSettingLabel,
+} from "./volcanoTectonicSetting";
 
 /**
  * Holocene volcanoes from the Smithsonian Global Volcanism Program's
@@ -140,9 +144,11 @@ export function elevationRegimeLabel(elevationMeters: number | null): string {
 }
 
 /**
- * Source-faithful tooltip text for a hovered marker. Country and summit
- * elevation come directly from the bundled GVP snapshot; missing values stay
- * explicit instead of being mistaken for zero or silently disappearing.
+ * Source-faithful tooltip text for a hovered marker. Country, summit
+ * elevation, and the tectonic setting come directly from the bundled GVP
+ * snapshot; missing values stay explicit instead of being mistaken for zero or
+ * silently disappearing. The tectonic setting is GVP's catalog assignment for
+ * the site, not an inference RoamingEye drew from the marker's position.
  */
 export function volcanoHoverLabel(volcano: Volcano): string {
   const morphology = canonicalVolcanoType(volcano.type);
@@ -156,6 +162,9 @@ export function volcanoHoverLabel(volcano: Volcano): string {
       ? "summit elevation not recorded"
       : `summit elevation ${volcano.elevation} m`,
     lastEruptionLabel(volcano.lastEruptionYear),
+    tectonicSettingLabel(
+      parseVolcanoTectonicSetting(volcano.sourceRecord?.tectonicSetting)
+    ),
   ];
   return parts.join(" · ");
 }
