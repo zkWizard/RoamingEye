@@ -15,6 +15,11 @@ import {
   volcanoCoordinateLabel,
   type VolcanoExtentContext,
 } from "../lib/volcanoExtent";
+import {
+  USGS_M45_MONTH_SOURCE,
+  type EarthquakePlaceContext,
+  type NearbyEarthquakeObservation,
+} from "../lib/earthquakeContext";
 import { ICONS } from "./icons";
 
 interface MetricElements {
@@ -36,6 +41,9 @@ export class PlaceInsights {
   private readonly volcanoDetail: HTMLElement;
   private readonly volcanoRecords: HTMLUListElement;
   private readonly volcanoSource: HTMLAnchorElement;
+  private readonly seismicityValue: HTMLElement;
+  private readonly seismicityDetail: HTMLElement;
+  private readonly seismicityRecords: HTMLUListElement;
 
   constructor(
     container: HTMLElement,
@@ -110,6 +118,32 @@ export class PlaceInsights {
       this.volcanoSource
     );
 
+    const seismicity = document.createElement("section");
+    seismicity.className = "place-insights__geology";
+    seismicity.setAttribute("aria-label", "Recent earthquakes near this place");
+    const seismicityTitle = document.createElement("h3");
+    seismicityTitle.textContent = "Recent seismicity";
+    this.seismicityValue = document.createElement("p");
+    this.seismicityValue.className = "place-insights__value";
+    this.seismicityValue.setAttribute("aria-live", "polite");
+    this.seismicityDetail = document.createElement("p");
+    this.seismicityDetail.className = "place-insights__detail";
+    this.seismicityRecords = document.createElement("ul");
+    this.seismicityRecords.className = "place-insights__record-list";
+    const seismicitySource = document.createElement("a");
+    seismicitySource.className = "place-insights__source";
+    seismicitySource.href = USGS_M45_MONTH_SOURCE.url;
+    seismicitySource.target = "_blank";
+    seismicitySource.rel = "noopener";
+    seismicitySource.textContent = `Source: ${USGS_M45_MONTH_SOURCE.name} — M${USGS_M45_MONTH_SOURCE.minimumMagnitude}+, ${USGS_M45_MONTH_SOURCE.feedWindow}`;
+    seismicity.append(
+      seismicityTitle,
+      this.seismicityValue,
+      this.seismicityDetail,
+      this.seismicityRecords,
+      seismicitySource
+    );
+
     const note = document.createElement("p");
     note.className = "place-insights__note";
     note.textContent =
@@ -131,7 +165,7 @@ export class PlaceInsights {
       "Includes the selected boundary, cited products, native units, data months, and sampling coverage.";
     exportControls.append(this.downloadButton, exportNote);
 
-    container.append(header, grid, volcanoes, exportControls, note);
+    container.append(header, grid, volcanoes, seismicity, exportControls, note);
   }
 
   open(name: string): void {
@@ -143,6 +177,7 @@ export class PlaceInsights {
       detail.textContent = "Latest two available months";
     }
     this.setVolcanoLoading();
+    this.setSeismicityLoading();
     this.root.classList.add("is-open");
     this.root.setAttribute("aria-hidden", "false");
   }
@@ -259,4 +294,109 @@ export class PlaceInsights {
     this.volcanoDetail.textContent =
       "The bundled GVP-derived volcano data could not be loaded for this search.";
   }
+
+  setSeismicityLoading(): void {
+    this.seismicityValue.textContent = "Loading USGS events";
+    this.seismicityDetail.textContent =
+      "Checking the live USGS M4.5+ 30-day feed against this search extent";
+    this.seismicityRecords.replaceChildren();
+  }
+
+  /**
+   * Render nearby recorded seismicity. Deliberately descriptive: an event count
+   * is a record of what the feed observed in a rolling 30-day window, never a
+   * hazard rating, and an empty result is reported as "no recorded events",
+   * not as a quiet or safe place.
+   */
+  setSeismicityContext(context: EarthquakePlaceContext): void {
+    this.seismicityRecords.replaceChildren();
+    const { coverage, query } = context;
+
+    if (coverage.status === "invalid-query") {
+      this.seismicityValue.textContent = "Search extent unavailable";
+      this.seismicityDetail.textContent =
+        "This place supplied no usable bounding box, so no radial search was run against the USGS feed.";
+      return;
+    }
+    if (coverage.status === "no-usable-events") {
+      this.setSeismicityUnavailable();
+      this.seismicityDetail.textContent =
+        "The USGS feed supplied no valid events, so no comparison with this search extent was made.";
+      return;
+    }
+
+    const count = coverage.matchedEventCount;
+    const radius = formatRadiusKm(query.radiusKm);
+    this.seismicityValue.textContent =
+      count === 0
+        ? "No recorded events"
+        : `${count} ${count === 1 ? "event" : "events"}`;
+    // The radial query circumscribes the rectangular search extent, so the
+    // circle reaches past the boundary corners. Say "near", never "inside".
+    const scope = `Epicentres within ${radius} km of the search-extent centre — a circle circumscribing the extent, so it reaches past the boundary corners.`;
+    this.seismicityDetail.textContent =
+      count === 0
+        ? `${scope} No M4.5+ events recorded in the feed window; that does not establish the area is seismically quiet.`
+        : `${scope} Counted from ${coverage.validEventCount} valid events in the global feed.`;
+
+    for (const observation of context.observations.slice(0, 5)) {
+      this.seismicityRecords.appendChild(seismicityListItem(observation));
+    }
+    if (count > 5) {
+      const item = document.createElement("li");
+      item.textContent = `${count - 5} additional events not listed`;
+      this.seismicityRecords.appendChild(item);
+    }
+  }
+
+  setSeismicityUnavailable(): void {
+    this.seismicityRecords.replaceChildren();
+    this.seismicityValue.textContent = "Events unavailable";
+    this.seismicityDetail.textContent =
+      "The live USGS M4.5+ feed could not be loaded for this search.";
+  }
+}
+
+/**
+ * One matched event: magnitude with its reported scale, epicentral distance,
+ * hypocentre depth and class, and the source-reported place. Links to the USGS
+ * event page when the feed supplied one so the record stays traceable.
+ */
+function seismicityListItem(
+  observation: NearbyEarthquakeObservation
+): HTMLLIElement {
+  const item = document.createElement("li");
+  const magnitude = `M${observation.magnitude.toFixed(1)}${
+    observation.magnitudeType ? ` ${observation.magnitudeType}` : ""
+  }`;
+  const details = [
+    observation.place ?? "source location not supplied",
+    `${formatDistanceKm(observation.distanceKm)} km away`,
+    `${observation.depthKm} km deep (${observation.depthClass})`,
+    `${new Date(observation.time).toISOString().slice(0, 10)} UTC`,
+  ];
+  const url = observation.sourceRecord?.url;
+  if (url) {
+    const link = document.createElement("a");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = magnitude;
+    link.setAttribute("aria-label", `${magnitude} — USGS event record`);
+    item.append(link, `: ${details.join("; ")}`);
+  } else {
+    item.textContent = `${magnitude}: ${details.join("; ")}`;
+  }
+  return item;
+}
+
+/** Radii span metropolitan boundaries to whole countries; keep both legible. */
+function formatRadiusKm(radiusKm: number): string {
+  return radiusKm >= 100 ? String(Math.round(radiusKm)) : radiusKm.toFixed(1);
+}
+
+function formatDistanceKm(distanceKm: number): string {
+  return distanceKm >= 10
+    ? String(Math.round(distanceKm))
+    : distanceKm.toFixed(1);
 }

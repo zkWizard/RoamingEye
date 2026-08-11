@@ -2243,7 +2243,8 @@ body {
   font-weight: 650;
 }
 
-.place-insights__volcano-list {
+.place-insights__volcano-list,
+.place-insights__record-list {
   display: grid;
   gap: 0.22rem;
   margin: 0;
