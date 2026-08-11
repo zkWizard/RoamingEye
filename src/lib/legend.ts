@@ -1,6 +1,6 @@
 import type { LayerId } from "./timeline";
 import { DEPTH_CLASS_COLORS } from "./earthquakes";
-import { ERUPTION_CLASS_COLORS } from "./volcanoes";
+import { ERUPTION_CLASS_COLORS, ERUPTION_CLASS_LABELS } from "./volcanoes";
 import { PROBE_SCALES, formatProbeValue, scaleValue } from "./probe";
 import { IGBP_LAND_COVER_CLASSES } from "./landCover";
 import { IGBP_RENDERED_PALETTE } from "./landCoverPalette";
@@ -235,9 +235,18 @@ export const OVERLAY_KEYS: Record<"quakes" | "volcanoes", OverlayKeySpec> = {
   volcanoes: {
     title: "Last eruption",
     entries: [
-      { color: ERUPTION_CLASS_COLORS.recent, label: "since 1900" },
-      { color: ERUPTION_CLASS_COLORS.historic, label: "1 CE–1899" },
-      { color: ERUPTION_CLASS_COLORS.holocene, label: "Holocene only" },
+      {
+        color: ERUPTION_CLASS_COLORS.recent,
+        label: ERUPTION_CLASS_LABELS.recent,
+      },
+      {
+        color: ERUPTION_CLASS_COLORS.historic,
+        label: ERUPTION_CLASS_LABELS.historic,
+      },
+      {
+        color: ERUPTION_CLASS_COLORS.holocene,
+        label: ERUPTION_CLASS_LABELS.holocene,
+      },
     ],
   },
 };

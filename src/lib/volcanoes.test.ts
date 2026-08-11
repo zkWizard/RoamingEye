@@ -3,6 +3,7 @@ import {
   parseVolcanoList,
   parseVolcanoDataset,
   eruptionClass,
+  ERUPTION_CLASS_LABELS,
   elevationRegime,
   elevationRegimeLabel,
   lastEruptionLabel,
@@ -253,5 +254,45 @@ describe("volcanoHoverLabel", () => {
         parseVolcanoList([volcano({ elevation: -55, country: "Tonga" })])[0]
       )
     ).toContain("summit elevation -55 m");
+  });
+});
+
+describe("ERUPTION_CLASS_LABELS", () => {
+  it("names a band eruptionClass actually assigns, at every boundary", () => {
+    // "since 1900" — inclusive lower bound, open above.
+    expect(eruptionClass(1900)).toBe("recent");
+    expect(eruptionClass(2025)).toBe("recent");
+    expect(eruptionClass(1899)).not.toBe("recent");
+
+    // "year 0–1899" — both bounds inclusive, and year 0 really is inside it,
+    // so the label may not start the band at 1 CE.
+    expect(eruptionClass(0)).toBe("historic");
+    expect(eruptionClass(1899)).toBe("historic");
+    expect(eruptionClass(-1)).not.toBe("historic");
+
+    // "BCE or undated" — the class merges dated-BCE with no-dated-eruption.
+    expect(eruptionClass(-1)).toBe("holocene");
+    expect(eruptionClass(-9450)).toBe("holocene");
+    expect(eruptionClass(null)).toBe("holocene");
+  });
+
+  it("does not call the merged bucket 'Holocene only'", () => {
+    // A BCE year is a *dated* eruption, so a label reading "no dated eruption"
+    // would misdescribe it. lastEruptionLabel reports the same record as dated.
+    expect(lastEruptionLabel(-9450)).toBe("last erupted 9450 BCE");
+    expect(eruptionClass(-9450)).toBe("holocene");
+    expect(ERUPTION_CLASS_LABELS.holocene).not.toMatch(/holocene only/i);
+    expect(ERUPTION_CLASS_LABELS.holocene).toMatch(/BCE/);
+  });
+
+  it("labels every class exactly once, with no empty label", () => {
+    const labels = Object.values(ERUPTION_CLASS_LABELS);
+    expect(Object.keys(ERUPTION_CLASS_LABELS).sort()).toEqual([
+      "historic",
+      "holocene",
+      "recent",
+    ]);
+    expect(new Set(labels).size).toBe(labels.length);
+    for (const label of labels) expect(label.trim().length).toBeGreaterThan(0);
   });
 });

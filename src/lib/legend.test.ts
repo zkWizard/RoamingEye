@@ -9,7 +9,7 @@ import {
 import { PROBE_SCALES } from "./probe";
 import { LAYER_ORDER } from "./timeline";
 import { DEPTH_CLASS_COLORS } from "./earthquakes";
-import { ERUPTION_CLASS_COLORS } from "./volcanoes";
+import { ERUPTION_CLASS_COLORS, ERUPTION_CLASS_LABELS } from "./volcanoes";
 
 describe("LEGENDS", () => {
   it("covers every data layer", () => {
@@ -107,6 +107,19 @@ describe("OVERLAY_KEYS", () => {
       "< 70 km",
       "70–300 km",
       "> 300 km",
+    ]);
+  });
+
+  it("names the eruption bands eruptionClass assigns, in order", () => {
+    // Sourced from volcanoes.ts so the key cannot drift from the classifier
+    // the overlay colors with — the same contract as the colors above.
+    expect(OVERLAY_KEYS.volcanoes.entries.map((e) => e.label)).toEqual(
+      Object.values(ERUPTION_CLASS_LABELS)
+    );
+    expect(OVERLAY_KEYS.volcanoes.entries.map((e) => e.label)).toEqual([
+      "since 1900",
+      "year 0–1899",
+      "BCE or undated",
     ]);
   });
 });
