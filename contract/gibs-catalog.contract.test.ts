@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { LAYERS } from "../src/lib/timeline";
+import { DATA_LATEST, LAYERS, indexToYm, ymToIndex } from "../src/lib/timeline";
 import { HIRES_LAYER } from "../src/lib/imagery";
 import { degreesPerPixel, tileGridSize, TILE_SIZE } from "../src/lib/tiles";
 
@@ -123,6 +123,69 @@ describe("GIBS catalog contract (live GetCapabilities)", () => {
           `layer "${id}" lost its Time dimension — the scrubber has nothing to address`
         ).toContain("<ows:Identifier>Time</ows:Identifier>");
       }
+    }
+  );
+});
+
+describe("vegetation-index distribution gaps (MOD13A3)", () => {
+  // GIBS advertises a layer's time dimension as one <Value> per contiguous
+  // range. The MOD13A3 layers advertise two — 2000-03/2025-03 and
+  // 2025-05/2026-06 — so April 2025 was never distributed and its tile 404s.
+  // timeline.ts pins that month as `unpublished` so the scrubber, the place
+  // panel and the probe series never treat it as a failed retrieval.
+  //
+  // Two ways the pin rots: NASA backfills the month (the pin then hides real
+  // data), or the product skips another one (a new gap is offered as if it
+  // were observed). Both are caught by re-deriving the gaps from the live
+  // ranges. Scoped to the vegetation-index layers — snow, SST and air
+  // temperature also advertise interior gaps that their own catalogs do not
+  // declare yet, which is their products' business, not MOD13A3's.
+  const VEGETATION_LAYERS = [LAYERS.ndvi, LAYERS.evi];
+
+  /** Monthly ISO ranges ("2000-03-01/2025-03-01/P1M") as [start, end] months. */
+  function publishedRanges(body: string): { start: number; end: number }[] {
+    return [...body.matchAll(/<Value>([^<]+)<\/Value>/g)]
+      .map((m) => m[1].trim().split("/"))
+      .filter(([, , period]) => period === "P1M")
+      .map(([from, to]) => ({ start: isoToIndex(from), end: isoToIndex(to) }))
+      .sort((a, b) => a.start - b.start);
+  }
+
+  /** "2025-04-01" → absolute month index, matching timeline's ymToIndex. */
+  function isoToIndex(iso: string): number {
+    const [year, month] = iso.split("-").map(Number);
+    return ymToIndex({ year, month });
+  }
+
+  it.each(VEGETATION_LAYERS)(
+    "$wmsLayer: the months we pin as unpublished are the months GIBS omits",
+    (layer) => {
+      const body = layerBlocks.get(layer.wmsLayer);
+      expect(body, `layer "${layer.wmsLayer}" missing`).toBeDefined();
+      const ranges = publishedRanges(body!);
+      expect(
+        ranges.length,
+        `no monthly time ranges parsed for "${layer.wmsLayer}"`
+      ).toBeGreaterThan(0);
+
+      // Every month between one range's end and the next range's start.
+      const live: number[] = [];
+      for (let i = 1; i < ranges.length; i++) {
+        for (let m = ranges[i - 1].end + 1; m < ranges[i].start; m++) {
+          live.push(m);
+        }
+      }
+      // Only the part of the gap set that falls inside the record we scrub.
+      const scrubbed = live.filter(
+        (m) => m >= ymToIndex(layer.start) && m <= ymToIndex(DATA_LATEST)
+      );
+      const pinned = (layer.unpublished ?? []).map(ymToIndex);
+
+      expect(
+        scrubbed.map(indexToYm),
+        `"${layer.wmsLayer}" distribution gaps drifted — GIBS now omits a ` +
+          `different set of months than timeline.ts pins as unpublished`
+      ).toEqual(pinned.map(indexToYm));
     }
   );
 });

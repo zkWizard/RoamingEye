@@ -7,6 +7,8 @@ import {
   formatYm,
   buildMonthRange,
   isAvailable,
+  isUnpublished,
+  ymEqual,
   fractionToIndex,
   indexToFraction,
   gibsWmsUrl,
@@ -166,6 +168,66 @@ describe("monthRangeForLayer", () => {
     for (let i = 1; i < range.length; i++) {
       expect(ymToIndex(range[i])).toBe(ymToIndex(range[i - 1]) + 1);
     }
+  });
+});
+
+describe("MOD13A3 distribution gap (NDVI/EVI, April 2025)", () => {
+  // GIBS advertises the vegetation-index time dimension as two disjoint
+  // ranges — 2000-03/2025-03 and 2025-05/2026-06 — so April 2025 was never
+  // distributed and its tile 404s. The gap is a property of the product, not
+  // of the surface: nothing was observed to be missing that month.
+  const GAP = { year: 2025, month: 4 };
+
+  it("declares the gap on both MOD13A3 layers and nowhere else", () => {
+    expect(LAYERS.ndvi.unpublished).toEqual([GAP]);
+    // NDVI and EVI are two fields of the same granule, so the gap is shared.
+    expect(LAYERS.evi.unpublished).toEqual(LAYERS.ndvi.unpublished);
+    const declared = Object.values(LAYERS)
+      .filter((layer) => layer.unpublished?.length)
+      .map((layer) => layer.id);
+    expect(declared).toEqual(["ndvi", "evi"]);
+  });
+
+  it("reports the gap month as unavailable, inside the record", () => {
+    expect(isUnpublished(LAYERS.ndvi, GAP)).toBe(true);
+    expect(isAvailable(LAYERS.ndvi, GAP)).toBe(false);
+    // It is genuinely interior: the months on either side are published.
+    expect(isAvailable(LAYERS.ndvi, { year: 2025, month: 3 })).toBe(true);
+    expect(isAvailable(LAYERS.ndvi, { year: 2025, month: 5 })).toBe(true);
+    expect(compareYm(GAP, LAYERS.ndvi.start)).toBeGreaterThan(0);
+    expect(compareYm(GAP, DATA_LATEST)).toBeLessThan(0);
+  });
+
+  it("drops the gap from the enumerated record, leaving the rest intact", () => {
+    const range = monthRangeForLayer(LAYERS.ndvi);
+    expect(range.some((ym) => ymEqual(ym, GAP))).toBe(false);
+    expect(range[0]).toEqual({ year: 2000, month: 3 });
+    expect(range[range.length - 1]).toEqual(DATA_LATEST);
+    // Exactly one month short of the contiguous span it would otherwise be.
+    const span = ymToIndex(DATA_LATEST) - ymToIndex(LAYERS.ndvi.start) + 1;
+    expect(range.length).toBe(span - 1);
+  });
+
+  it("leaves the record's only discontinuity at the declared gap", () => {
+    const range = monthRangeForLayer(LAYERS.evi);
+    const breaks = range
+      .slice(1)
+      .filter((ym, i) => ymToIndex(ym) !== ymToIndex(range[i]) + 1);
+    expect(breaks).toEqual([{ year: 2025, month: 5 }]);
+  });
+
+  it("keeps a layer with no declared gap contiguous", () => {
+    expect(LAYERS.lst.unpublished).toBeUndefined();
+    expect(isUnpublished(LAYERS.lst, GAP)).toBe(false);
+    expect(isAvailable(LAYERS.lst, GAP)).toBe(true);
+  });
+
+  it("still steps the scrubber across the gap without landing in it", () => {
+    const range = monthRangeForLayer(LAYERS.ndvi);
+    // Asking for the missing month snaps to a neighbour that exists.
+    const nearest = range[nearestMonthIndex(range, GAP)];
+    expect(ymEqual(nearest, GAP)).toBe(false);
+    expect(Math.abs(ymToIndex(nearest) - ymToIndex(GAP))).toBe(1);
   });
 });
 
