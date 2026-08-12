@@ -34,7 +34,7 @@ This table is kept in sync with the measured figures by a CI drift-guard.
 | Layer                 | RMSE                   | Colours recovered | Verdict                           |
 | --------------------- | ---------------------- | ----------------- | --------------------------------- |
 | Precipitation         | **0.27** mm/day        | 50 / 50           | Good — usable for absolute values |
-| Air temperature (2 m) | **0.51** K             | 90 / 90           | Good — usable for absolute values |
+| Air temperature (2 m) | **0.485** K            | 180 / 180         | Good — usable for absolute values |
 | Aerosol optical depth | **0.13** (scale 0–0.9) | 180 / 180         | Good — usable for absolute values |
 | Sea surface temp      | **1.0** °C             | 213 / 213         | Good — usable for absolute values |
 | Soil moisture         | **0.23** kg/m²         | 50 / 50           | Good — usable for absolute values |
@@ -69,6 +69,17 @@ bar (`probe.accuracy.test.ts` bounds it at 0.162 of the scale, versus 0.014
 median across the whole ramp). The table's RMSE is measured on the colormap's
 exact colours; readings near 271 K carry this extra transport uncertainty on
 top.
+
+Air temperature's denominator was also corrected on 2026-08-11, from 90 to
+the ramp's true 180. GIBS prints that colormap's tooltips rounded to whole
+kelvin while the ramp itself steps 0.5 K, so 90 entries show a zero-width
+range ("222 – 222") and the parser had been discarding them as unusable. A
+zero-width printed range still names a value — its midpoint — so they are now
+kept, and with the rebuilt stops all 180 invert (RMSE 0.485 K over the full
+ramp). Half of this colormap had never been measured before the correction,
+and the place panel, which decodes rendered pixels through these same
+entries, had been resolving each of those 90 colours to its nearest
+surviving neighbour — exactly 0.5 K away in every case.
 
 Sea surface temperature was `5.1 °C` over `128 / 213` colours until
 2026-08-11. Its legend was a smooth cool-to-warm gradient, but GIBS renders

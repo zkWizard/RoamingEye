@@ -13,6 +13,7 @@ import {
   roundToPlace,
   summarizeBriefValuePrecision,
 } from "./briefValuePrecision";
+import { MEASURED_INVERSION } from "./validation";
 
 const AVAILABLE_THROUGH = { year: 2026, month: 3 };
 
@@ -162,10 +163,10 @@ describe("summarizeBriefValuePrecision", () => {
     expect(summary.consideredSignalIds).toEqual(["air-temperature"]);
     const airtemp = summary.signals[0];
     expect(airtemp.status).toBe("characterized");
-    // Air temperature's legend is taken from the GIBS colormap, so its
+    // Bound to the published figure, not a literal. The recalibrated legend's
     // measured inversion RMSE justifies the tenths place — not the tens the
     // old hand-drawn gradient left us with.
-    expect(airtemp.uncertainty).toBe(0.51);
+    expect(airtemp.uncertainty).toBe(MEASURED_INVERSION.airtemp.rmse);
     expect(airtemp.justified).toEqual({
       roundingPlace: -1,
       roundedValue: 287.3,

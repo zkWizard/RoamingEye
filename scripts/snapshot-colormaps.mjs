@@ -55,7 +55,11 @@ function parseColormapEntries(xml) {
     if (!rgbM || !rangeM) continue;
     const lo = Number(rangeM[1]);
     const hi = Number(rangeM[2]);
-    if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) continue;
+    // A zero-width printed range still names a value (its midpoint); GIBS
+    // rounds the 2 m air-temperature tooltips to whole kelvin while the ramp
+    // steps 0.5 K, so half that ramp prints as "222 - 222". Only a genuinely
+    // inverted range is malformed — mirror parseColormapEntries (colormap.ts).
+    if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi < lo) continue;
     entries.push({ rgb: [+rgbM[1], +rgbM[2], +rgbM[3]], value: (lo + hi) / 2 });
   }
   return entries;

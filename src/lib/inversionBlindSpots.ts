@@ -334,8 +334,8 @@ export const MEASURED_BLIND_SPOTS: Record<
   },
   airtemp: {
     shape: "none",
-    recovered: 90,
-    total: 90,
+    recovered: 180,
+    total: 180,
     widest: null,
   },
   sst: {

@@ -71,6 +71,24 @@ describe("parseColormap", () => {
   it("returns an empty ramp for documents with no continuous legend", () => {
     expect(parseColormap("<ColorMaps></ColorMaps>").bins).toEqual([]);
   });
+
+  /**
+   * The deliberate asymmetry with parseColormapEntries, pinned so it reads as a
+   * decision rather than an oversight. A tooltip rounded to a zero-width range
+   * still names a value (an entry keeps it), but carries no width — and bins
+   * exist to describe how the ramp is laid out in value space, which
+   * linearityDeviation then measures off their edges.
+   */
+  it("omits a zero-width printed range from the ramp's bins", () => {
+    const rounded = FIXTURE.replace(
+      'tooltip="200.0 – 250.0"',
+      'tooltip="200.0 – 200.0"'
+    );
+    expect(parseColormap(rounded).bins).toEqual([
+      { lo: 250, hi: 300 },
+      { lo: 300, hi: 350 },
+    ]);
+  });
 });
 
 describe("linearityDeviation", () => {

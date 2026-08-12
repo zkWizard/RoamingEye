@@ -68,7 +68,7 @@ Two sources, both stated in every export:
   | Layer                 | Inversion RMSE   | Recovered |
   | --------------------- | ---------------- | --------- |
   | Precipitation         | 0.27 mm/day      | 50 / 50   |
-  | Air temperature (2 m) | 0.51 K           | 90 / 90   |
+  | Air temperature (2 m) | 0.485 K          | 180 / 180 |
   | Aerosol optical depth | 0.13 (of 0–0.9)  | 180 / 180 |
   | Snow cover            | 0.62 (of 0–100%) | 100 / 100 |
   | Sea surface temp      | 1.0 °C           | 213 / 213 |

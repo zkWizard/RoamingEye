@@ -83,10 +83,13 @@ describe("pinned colormap snapshot", () => {
 
   it("ramps monotonically increase in value", () => {
     // The inversion maps a 0..1 gradient position onto [scale.min, scale.max]
-    // linearly; that is only meaningful if the ramp's values ascend.
+    // linearly; that is only meaningful if the ramp's values ascend. Ties are
+    // allowed: GIBS prints the 2 m air-temperature tooltips rounded to whole
+    // kelvin while the ramp steps 0.5 K, so two adjacent bins can name the
+    // same midpoint without the ramp ever running backwards.
     for (const layer of LAYERS) {
       const values = snapshotColormapEntries(layer).map((e) => e.value);
-      const ascending = values.every((v, i) => i === 0 || v > values[i - 1]);
+      const ascending = values.every((v, i) => i === 0 || v >= values[i - 1]);
       expect(ascending, `${layer}: ramp values ascend`).toBe(true);
     }
   });

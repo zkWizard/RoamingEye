@@ -99,8 +99,11 @@ describe("summarizeBriefValueUncertainty", () => {
     expect(soil.statement).toContain("± 0.23 kg/m²");
 
     const air = summary.signals.find((s) => s.id === "air-temperature")!;
-    expect(air.nativeRmse).toBe(0.51);
-    expect(air.statement).toContain("290 ± 0.51 K");
+    // Bound to the published figure rather than a literal: this asserts the
+    // plumbing carries MEASURED_INVERSION through, not what the number is.
+    const airRmse = MEASURED_INVERSION.airtemp.rmse!;
+    expect(air.nativeRmse).toBe(airRmse);
+    expect(air.statement).toContain(`290 ± ${airRmse} K`);
   });
 
   it("surfaces the published reported-unit figure when the native unit differs", () => {
