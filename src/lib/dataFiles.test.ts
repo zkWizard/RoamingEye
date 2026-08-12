@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { parseCityList } from "./cities";
 import { parseVolcanoDataset } from "./volcanoes";
 import { canonicalVolcanoType } from "./volcanoMorphology";
-import { parsePlateBoundaries } from "./plates";
+import { parsePlateBoundaries, plateBoundaryClass } from "./plates";
 import { decodePlatePair } from "./platePairs";
 import { buildAdmin1Index, buildCountryIndex } from "./countryIndex";
 
@@ -78,6 +78,43 @@ describe("bundled data files", () => {
       .map((boundary) => boundary.name)
       .filter((name) => !decodePlatePair(name)?.recognized);
     expect(undecodable).toEqual([]);
+  });
+
+  it("carries PB2002's own plate codes, type, and per-step citations", () => {
+    const plates = parsePlateBoundaries(load("plate-boundaries.geojson"));
+    // A regeneration that dropped the step attributes again would leave the
+    // linework rendering fine while silently losing the source's boundary-type
+    // marking and its per-step digitization credit.
+    expect(plates.every((boundary) => boundary.step !== undefined)).toBe(true);
+    expect(plates.filter((boundary) => boundary.step?.plateA === null)).toEqual(
+      []
+    );
+    expect(
+      plates.filter((boundary) => plateBoundaryClass(boundary) === "subduction")
+        .length
+    ).toBeGreaterThanOrEqual(50);
+    // PB2002 is a compilation of dozens of separately sourced digitizations.
+    const citations = new Set(
+      plates
+        .map((boundary) => boundary.step?.sourceCitation)
+        .filter((citation): citation is string => Boolean(citation))
+    );
+    expect(citations.size).toBeGreaterThanOrEqual(50);
+  });
+
+  it("agrees with the label delimiter on which steps are subduction zones", () => {
+    const plates = parsePlateBoundaries(load("plate-boundaries.geojson"));
+    // PB2002 writes a subduction step's label with "/" or "\" and every other
+    // step's with "-". That is the source's own convention, and its `Type`
+    // field is the evidence: the two must not drift apart in the bundled file.
+    const disagreeing = plates.filter((boundary) => {
+      const separator = decodePlatePair(boundary.name)?.separator;
+      const labelledSubduction = separator === "/" || separator === "\\";
+      return (
+        labelledSubduction !== (plateBoundaryClass(boundary) === "subduction")
+      );
+    });
+    expect(disagreeing.map((boundary) => boundary.name)).toEqual([]);
   });
 
   it("countries.geojson builds a working lookup index", () => {
