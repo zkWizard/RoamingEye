@@ -6,6 +6,10 @@ import {
   type SourceImageDimensions,
 } from "./marineCoverage";
 import { PROBE_SCALES } from "./probe";
+import {
+  summarizeSstRampCensoring,
+  type SstRampCensoringSummary,
+} from "./sstRampCensoring";
 import { formatYm, type YearMonth } from "./timeline";
 
 /**
@@ -118,6 +122,12 @@ export interface MarinePlaceInsightReading {
   coverage: MarineCoverageSummary | null;
   /** Same-calendar-month year-over-year difference; always a stated status. */
   yearOverYear: MarineBoundarySstYearComparison;
+  /**
+   * Whether the decoded value sits in a terminal bin of NASA's published SST
+   * colormap, where the ramp collapses colder or warmer water into one colour.
+   * Null when there is no usable value to judge.
+   */
+  rampCensoring: SstRampCensoringSummary | null;
   observationStatus:
     | "observed"
     | "no-sst-coverage"
@@ -185,13 +195,22 @@ export function marineBoundarySstReading(
     input.priorYear
   );
 
+  // A boundary mean that lands in a terminal ramp bin cannot be separated from
+  // an observation the colormap censored, and a censored pixel always decodes
+  // on the inner side of its cap — so the mean is reported as a bound in that
+  // direction rather than as a point estimate.
+  const rampCensoring = usable
+    ? summarizeSstRampCensoring(input.observedValue)
+    : null;
+
   return {
     id: MARINE_PLACE_METRIC.id,
     value:
       input.observedValue !== null && usable
-        ? `${input.observedValue.toFixed(1)} ${coverage.source.sourceUnit}`
+        ? (rampCensoring?.valueText ??
+          `${input.observedValue.toFixed(1)} ${coverage.source.sourceUnit}`)
         : "No usable SST observation",
-    detail: `${month} approximate boundary-mean SST observation for ${geographyLabel}; ${coverageText}; ${image}; source ${source}${describeYearOverYear(yearOverYear)}; not a marine-biology observation`,
+    detail: `${month} approximate boundary-mean SST observation for ${geographyLabel}; ${coverageText}; ${image}; source ${source}${describeYearOverYear(yearOverYear)}${rampCensoring?.qualifier ? `; ${rampCensoring.qualifier}` : ""}; not a marine-biology observation`,
     kind: "observed-boundary-sea-surface-temperature",
     availability: usable ? "available" : "no-usable-sst",
     marineBiologyObservation: false,
@@ -208,6 +227,7 @@ export function marineBoundarySstReading(
     geography,
     coverage,
     yearOverYear,
+    rampCensoring,
     observationStatus: usable
       ? "observed"
       : coverage.coverage.status === "no-sst-coverage"
@@ -264,6 +284,7 @@ export function unavailableMarineBoundarySstReading(
     coverage: null,
     // Sampling did not complete, so there is no target to compare against.
     yearOverYear: unavailableYearComparison("target-not-usable", null),
+    rampCensoring: null,
     observationStatus:
       reason === "source-colormap-unavailable"
         ? "source-unavailable"
