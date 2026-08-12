@@ -10,10 +10,15 @@ import type { PlateBoundary } from "./plates";
  * plate names so a place panel or export can name the plates a boundary
  * separates.
  *
- * Categorical decode only. Names come from the fixed PB2002 vocabulary; the
- * module never measures anything, averages codes, or classifies the boundary's
- * type, motion, activity, or hazard. Unknown codes are surfaced (name: null),
- * never dropped, so the provenance stays honest.
+ * The delimiter between the two codes is itself part of the model: PB2002
+ * encodes subduction polarity in it (see PB2002_LABEL_CONVENTION). This module
+ * reads that encoding back out rather than discarding it.
+ *
+ * Categorical decode only. Names and polarity come from the fixed PB2002
+ * vocabulary and label grammar; the module never measures anything, averages
+ * codes, or classifies the boundary's non-subduction type, motion rate,
+ * activity, or hazard. Unknown codes are surfaced (name: null), never dropped,
+ * so the provenance stays honest.
  */
 
 export const PB2002_PLATE_MODEL_SOURCE = {
@@ -90,11 +95,67 @@ export const PB2002_PLATE_NAMES: Readonly<Record<string, string>> =
   });
 
 /**
- * Delimiter observed between the two codes in a PB2002 label. It reflects the
- * source digitization's boundary-step orientation and is NOT a boundary-type
- * code (spreading / convergent / transform are not encoded here).
+ * The PB2002 boundary-label grammar, quoted from the model's own data
+ * documentation so the decode below can be checked against its source.
+ *
+ * Bird (2003), electronic supplement readme (2001GC000252_readme.txt),
+ * mirrored in the tectonicplates digitization this app bundles:
+ *
+ *   "The title record for each segment has 5 bytes, in which the first two
+ *    bytes give the identifier of the plate on the left (as one travels along
+ *    the segment, looking down from outside the Earth) and bytes 4-5 give the
+ *    identifier of the plate on the right."
+ *
+ *   "In byte 3, the symbol '/' indicates that the right-hand plate subducts
+ *    under the left-hand plate, while symbol '\' indicates the opposite
+ *    polarity of subduction. All non-subducting plate boundary segments have a
+ *    hyphen '-' in byte 3."
+ *
+ * Left/right are properties of the label itself, so the polarity decode needs
+ * only the label — never the rendered polyline's traversal direction.
+ */
+export const PB2002_LABEL_CONVENTION = {
+  source: "Bird (2003) PB2002 electronic supplement readme, byte-3 convention",
+  url: "https://raw.githubusercontent.com/fraxen/tectonicplates/master/original/README.md",
+  separators: {
+    "-": "non-subducting segment",
+    "/": "right-hand plate subducts under the left-hand plate",
+    "\\": "left-hand plate subducts under the right-hand plate",
+  },
+} as const;
+
+/**
+ * Delimiter observed between the two codes in a PB2002 label. Byte 3 of the
+ * source model's title record: "/" and "\" encode subduction polarity, "-"
+ * marks a non-subducting segment (see PB2002_LABEL_CONVENTION).
+ *
+ * It is NOT the model's 7-way boundary-class code. PB2002 classifies each
+ * boundary step as one of CRB/CTF/CCB/OSR/OTF/OCB/SUB in its separate steps
+ * file, which this app does not bundle; a hyphen therefore says only "not
+ * subduction", never which of the non-subducting classes applies.
  */
 export type PlateSeparator = "-" | "/" | "\\";
+
+/**
+ * The subduction polarity a PB2002 label's delimiter encodes, resolved to the
+ * two plates involved.
+ *
+ * This reports what the model records for the segment: which plate descends
+ * and which overrides. It is a categorical assertion from PB2002's linework,
+ * not a measured convergence rate, a slab geometry, a depth, an activity
+ * level, or a hazard statement.
+ */
+export interface PlatePairSubduction {
+  /**
+   * True only when the delimiter encodes a polarity ("/" or "\"). A hyphen is
+   * an explicit "not a subduction segment" in PB2002, not missing data.
+   */
+  encoded: boolean;
+  /** The descending (downgoing) plate; null when no polarity is encoded. */
+  subducting: PlateIdentity | null;
+  /** The overriding plate; null when no polarity is encoded. */
+  overriding: PlateIdentity | null;
+}
 
 export interface PlateIdentity {
   /** Two-letter PB2002 code, normalized to upper case, e.g. "AF". */
@@ -106,10 +167,15 @@ export interface PlateIdentity {
 export interface DecodedPlatePair {
   /** Original label exactly as supplied, e.g. "AF-AN". */
   label: string;
-  /** The two plates in the order they appear in the label. */
+  /**
+   * The two plates in the order they appear in the label, which PB2002 defines
+   * as [left, right] along the digitized segment.
+   */
   plates: [PlateIdentity, PlateIdentity];
   /** The delimiter found between the two codes. */
   separator: PlateSeparator;
+  /** Subduction polarity read back out of the delimiter (byte 3). */
+  subduction: PlatePairSubduction;
   /**
    * Order- and delimiter-independent grouping key: both codes upper-cased and
    * sorted, joined with "-". "AF-AN", "AN-AF", and "AN\\AF" all yield "AF-AN".
@@ -153,9 +219,69 @@ export function decodePlatePair(label: string): DecodedPlatePair | null {
     label,
     plates,
     separator: separator as PlateSeparator,
+    subduction: subductionFor(separator as PlateSeparator, plates),
     canonicalKey,
     recognized: plates.every((plate) => plate.name !== null),
   };
+}
+
+/**
+ * Resolve byte 3 into the descending and overriding plates. "/" means the
+ * right-hand plate goes down; "\" is the opposite polarity; "-" encodes no
+ * subduction at all.
+ */
+function subductionFor(
+  separator: PlateSeparator,
+  [left, right]: readonly [PlateIdentity, PlateIdentity]
+): PlatePairSubduction {
+  if (separator === "/") {
+    return { encoded: true, subducting: right, overriding: left };
+  }
+  if (separator === "\\") {
+    return { encoded: true, subducting: left, overriding: right };
+  }
+  return { encoded: false, subducting: null, overriding: null };
+}
+
+/**
+ * One-line reading of an encoded subduction polarity, e.g.
+ * "Nazca subducts beneath South America". Returns null when the label's
+ * delimiter encodes no subduction, so callers render nothing rather than
+ * implying a polarity PB2002 did not record.
+ *
+ * Plates outside the vocabulary fall back to their raw code rather than being
+ * dropped, keeping an unrecognized pair visible instead of silently omitted.
+ */
+export function subductionSummary(pair: DecodedPlatePair): string | null {
+  const { subducting, overriding } = pair.subduction;
+  if (subducting === null || overriding === null) return null;
+  const label = (plate: PlateIdentity): string => plate.name ?? plate.code;
+  return `${label(subducting)} subducts beneath ${label(overriding)}`;
+}
+
+/**
+ * Tally how the supplied boundary polylines divide across PB2002's byte-3
+ * classes. Descriptive coverage of the supplied linework only: it counts
+ * labeled segments, not trench length, convergence, or activity. Undecodable
+ * labels are counted separately rather than folded into a class.
+ */
+export function subductionPolarityCoverage(
+  boundaries: readonly PlateBoundary[]
+): {
+  subductionEncodedCount: number;
+  nonSubductingCount: number;
+  undecodableCount: number;
+} {
+  let subductionEncodedCount = 0;
+  let nonSubductingCount = 0;
+  let undecodableCount = 0;
+  for (const boundary of boundaries) {
+    const decoded = decodePlatePair(boundary.name);
+    if (!decoded) undecodableCount += 1;
+    else if (decoded.subduction.encoded) subductionEncodedCount += 1;
+    else nonSubductingCount += 1;
+  }
+  return { subductionEncodedCount, nonSubductingCount, undecodableCount };
 }
 
 export interface PlateInventoryEntry {
@@ -201,7 +327,8 @@ export function platesInBoundaries(
 }
 
 export const PLATE_PAIR_LIMITATIONS = [
-  "Decodes only the plate-pair identity of the supplied Bird (2003) PB2002 labels; it does not add geometry, boundary type, relative motion, deformation, activity, or a data month.",
-  "The delimiter and code order reflect the source digitization's boundary-step orientation, not a boundary-type or which-plate-subducts classification.",
-  "Naming the plates a boundary separates is descriptive map context only; it does not infer seismicity, volcanism, hazard, risk, cause, or a forecast.",
+  "Decodes only the plate-pair identity and byte-3 subduction polarity of the supplied Bird (2003) PB2002 labels; it does not add geometry, relative motion, convergence rate, slab depth, deformation, activity, or a data month.",
+  "Subduction polarity is read from the label's delimiter as PB2002 recorded it, not measured or inferred; a hyphen is the model's explicit 'non-subducting segment', never missing data.",
+  "PB2002's 7-way boundary class (CRB/CTF/CCB/OSR/OTF/OCB/SUB) lives in a steps file this app does not bundle, so a non-subducting segment cannot be resolved to rift, ridge, or transform here.",
+  "Naming the plates a boundary separates, and which of them descends, is descriptive map context only; it does not infer seismicity, volcanism, hazard, risk, cause, or a forecast.",
 ] as const;
