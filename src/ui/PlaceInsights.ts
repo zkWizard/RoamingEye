@@ -8,6 +8,10 @@ import {
   type MarinePlaceInsightReading,
 } from "../lib/marinePlaceInsight";
 import {
+  AEROSOL_PLACE_METRIC,
+  type AerosolPlaceInsightReading,
+} from "../lib/aerosolPlaceInsight";
+import {
   GVP_VOLCANO_SOURCE,
   gvpVolcanoSourceLabel,
 } from "../lib/volcanoContext";
@@ -32,7 +36,9 @@ export class PlaceInsights {
   private readonly root: HTMLElement;
   private readonly title: HTMLElement;
   private readonly metrics = new Map<
-    PlaceMetricId | MarinePlaceInsightReading["id"],
+    | PlaceMetricId
+    | MarinePlaceInsightReading["id"]
+    | AerosolPlaceInsightReading["id"],
     MetricElements
   >();
   private readonly downloadButton: HTMLButtonElement;
@@ -78,7 +84,11 @@ export class PlaceInsights {
     const grid = document.createElement("section");
     grid.className = "place-insights__grid";
     grid.setAttribute("aria-label", "Monthly conditions");
-    for (const metric of [...PLACE_METRICS, MARINE_PLACE_METRIC]) {
+    for (const metric of [
+      ...PLACE_METRICS,
+      MARINE_PLACE_METRIC,
+      AEROSOL_PLACE_METRIC,
+    ]) {
       const card = document.createElement("article");
       card.className = "place-insights__metric";
       const label = document.createElement("h3");
@@ -189,7 +199,12 @@ export class PlaceInsights {
     this.onClose();
   }
 
-  setReading(reading: PlaceInsightReading | MarinePlaceInsightReading): void {
+  setReading(
+    reading:
+      | PlaceInsightReading
+      | MarinePlaceInsightReading
+      | AerosolPlaceInsightReading
+  ): void {
     const metric = this.metrics.get(reading.id);
     if (!metric) return;
     metric.value.textContent = reading.value;

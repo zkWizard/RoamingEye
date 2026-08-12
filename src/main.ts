@@ -38,6 +38,10 @@ import {
   unavailableMarineBoundarySstReading,
 } from "./lib/marinePlaceInsight";
 import {
+  aerosolBoundaryLoadingReading,
+  unavailableAerosolBoundaryReading,
+} from "./lib/aerosolPlaceInsight";
+import {
   climateInsightText,
   climateMetricForLayer,
   exportObservationsFromRenderedClimateSample,
@@ -723,6 +727,71 @@ function runPlaceInsights(result: GeoResult): void {
       );
     })
   );
+
+  // Column aerosol optical depth gets its own card and formatter. It is
+  // neither a terrestrial surface metric nor a marine one: MERRA-2 AOD is a
+  // modelled, whole-column optical property, so the reading must carry limits
+  // ("not surface air quality, not a health index") that the surface
+  // formatters do not state.
+  const aerosolMonths = latestComparisonMonths("aerosol");
+  if (aerosolMonths) {
+    exportSamples.set(
+      "aerosol",
+      environmentUnavailableSample("aerosol", aerosolMonths)
+    );
+    samplingTasks.push(
+      (async () => {
+        const colormap = await loadPlaceColormap("aerosol");
+        if (!colormap) {
+          throw new Error(
+            "RoamingEye: aerosol physical colormap is unavailable"
+          );
+        }
+        const sample = await placeSampler.sampleGeometryPhysical(
+          LAYERS.aerosol,
+          aerosolMonths,
+          geometry,
+          { lat: result.lat, lon: result.lon },
+          colormap.entries,
+          colormap.factor,
+          { signal: abort.signal }
+        );
+        if (abort.signal.aborted) return;
+        placeInsights.setReading(
+          aerosolBoundaryLoadingReading({
+            months: aerosolMonths,
+            observedValues: [sample.values[0], sample.values[1]],
+            validFractions: [
+              sample.validFractions[0],
+              sample.validFractions[1],
+            ],
+            sourceImageDimensions: sample.sourceImageDimensions,
+          })
+        );
+        exportSamples.set("aerosol", {
+          layerId: "aerosol",
+          sourceValueFactor: colormap.factor,
+          samplingStrategy: sample.geometrySamplingStrategy,
+          sourceImageDimensions: sample.sourceImageDimensions,
+          colormapUrl: colormapUrl(PLACE_COLORMAP_DOCS.aerosol),
+          observations: aerosolMonths.map((dataMonth, index) => ({
+            dataMonth,
+            value: sample.values[index] ?? null,
+            validFraction: sample.validFractions[index],
+          })),
+        });
+      })().catch((error: unknown) => {
+        if (isAbortError(error) || abort.signal.aborted) return;
+        console.warn(
+          "RoamingEye: aerosol place insight sampling failed",
+          error
+        );
+        placeInsights.setReading(
+          unavailableAerosolBoundaryReading(aerosolMonths[1])
+        );
+      })
+    );
+  }
 
   void Promise.all(samplingTasks)
     .then(() => {

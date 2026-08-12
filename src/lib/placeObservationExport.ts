@@ -218,6 +218,10 @@ export const PLACE_OBSERVATION_NATIVE_UNITS = {
   soil: "kg/m²",
   airtemp: "K",
   sst: "°C",
+  // Column aerosol optical thickness at 550 nm is an optical property with no
+  // physical unit; "dimensionless" is the product's own unit, not a placeholder
+  // for one we failed to record.
+  aerosol: "dimensionless",
 } as const satisfies Partial<Record<LayerId, string>>;
 
 export type PlaceObservationExportLayerId =
