@@ -467,7 +467,7 @@ describe("rendered monthly meteorology", () => {
     expect(climateObservationPlausibility(soil)).toEqual({
       status: "not-checked",
       statement:
-        "No gross-error plausibility band is defined for Underground soil moisture",
+        "No gross-error plausibility band is defined for Surface soil moisture (0-10 cm)",
     });
   });
 
@@ -511,10 +511,8 @@ describe("rendered monthly meteorology", () => {
 
     const insight = climateInsightText(undefined, unconverted);
     expect(insight.value).toBe("Unavailable");
-    expect(insight.detail).toContain(
-      "below the plausible near-surface band 170–340 K"
-    );
-    expect(insight.detail).toContain("likely a unit or decode error");
+    expect(insight.detail).toContain("implausibly-cold");
+    expect(insight.detail).toContain("gross-error band (170–340 K");
     // Provenance survives the withheld value.
     expect(insight.detail).toContain("source M2TMNXSLV");
     expect(insight.detail).toContain("90% sampled coverage");
@@ -535,9 +533,8 @@ describe("rendered monthly meteorology", () => {
 
     const insight = climateInsightText(undefined, unconverted);
     expect(insight.value).toBe("Unavailable");
-    expect(insight.detail).toContain(
-      "above the plausible precipitation-rate band"
-    );
+    expect(insight.detail).toContain("implausibly-wet");
+    expect(insight.detail).toContain("gross-error band (0–0.01 kg/m²/s");
     expect(insight.detail).toContain("source GLDAS_NOAH025_M");
   });
 
@@ -771,5 +768,123 @@ describe("place readout month-over-month shared-coverage bound", () => {
     expect(detail).toContain("+1 °C vs 2026-01;");
     // Absent coverage must not be silently read as complete coverage.
     expect(detail).not.toContain("common to both months");
+  });
+});
+
+describe("gross-error plausibility screening of reported atmosphere values", () => {
+  // Each case is a published, fully covered month whose value carries the
+  // right sign — so `climate.ts` admits it — but whose magnitude no monthly
+  // mean could have. These are the signatures of a unit or decode mistake.
+  const airTemperature = (sampled: number) =>
+    summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [sampled],
+        nativeToSampledValueFactor: 1,
+        validFractions: [0.95],
+      },
+      { year: 2026, month: 3 }
+    )[0];
+
+  // Sampled precipitation is mm/day; native is kg/m²/s (÷ 86,400).
+  const precipitation = (sampledMmPerDay: number) =>
+    summarizeRenderedClimateSample(
+      {
+        metricId: "precipitation-rate",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [sampledMmPerDay],
+        nativeToSampledValueFactor: 86_400,
+        validFractions: [0.95],
+      },
+      { year: 2026, month: 1 }
+    )[0];
+
+  it("still admits the value as a covered observation upstream", () => {
+    // Establishes that this screen is load-bearing: without it the impossible
+    // value is a published, available observation and would be printed.
+    const summary = airTemperature(15);
+    expect(summary.coverage).toMatchObject({ status: "available" });
+    expect(summary.observedValue).toBe(15);
+  });
+
+  it.each([
+    ["a °C figure never converted to kelvin", 15, "implausibly-cold"],
+    ["a mis-scaled decode", 3000, "implausibly-warm"],
+  ])("refuses to report air temperature from %s", (_label, sampled, status) => {
+    const reading = climateInsightText(undefined, airTemperature(sampled));
+
+    expect(reading.value).toBe("Unavailable");
+    expect(reading.detail).toContain(status);
+    // The cited basis travels with the refusal, not a bare rejection.
+    expect(reading.detail).toContain("gross-error band");
+    expect(reading.detail).toContain("source M2TMNXSLV");
+  });
+
+  it("refuses to report a precipitation rate above the cited band", () => {
+    // ~2,000 mm/day as a monthly mean — ~6.7x the wettest calendar month
+    // ever recorded, and ~2.3x the band's own upper bound.
+    const reading = climateInsightText(undefined, precipitation(2000));
+
+    expect(reading.value).toBe("Unavailable");
+    expect(reading.detail).toContain("implausibly-wet");
+    expect(reading.detail).toContain("Cherrapunji");
+  });
+
+  it("withholds an implausible value from the export as a sampling failure", () => {
+    // Not "insufficient-valid-coverage": coverage was 95%. The defect is ours,
+    // and the export must not blame the source for it.
+    expect(
+      exportObservationsFromRenderedClimateSample(
+        {
+          metricId: "air-temperature-2m",
+          months: [{ year: 2026, month: 1 }],
+          sampledValues: [3000],
+          nativeToSampledValueFactor: 1,
+          validFractions: [0.95],
+        },
+        { year: 2026, month: 3 }
+      )
+    ).toEqual([
+      {
+        dataMonth: { year: 2026, month: 1 },
+        value: null,
+        unavailableReason: "sampling-failed",
+        validFraction: 0.95,
+      },
+    ]);
+  });
+
+  it("reports real extremes and ordinary months unchanged", () => {
+    // The bands are drawn wider than any record, so a genuine extreme must
+    // survive. Vostok's -89.2 °C and a 250 mm/day monsoon month both stand.
+    for (const summary of [
+      airTemperature(183.95),
+      airTemperature(329.85),
+      airTemperature(288.15),
+      precipitation(250),
+      precipitation(0),
+    ]) {
+      expect(climateInsightText(undefined, summary).value).not.toBe(
+        "Unavailable"
+      );
+    }
+  });
+
+  it("leaves soil moisture unjudged, having no cited band of its own", () => {
+    // Inventing a limit for a GLDAS soil-moisture store would be a fabricated
+    // bound, not a cited one, so a large value is still reported.
+    const soil = summarizeRenderedClimateSample(
+      {
+        metricId: "soil-moisture",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [9000],
+        nativeToSampledValueFactor: 1,
+        validFractions: [0.95],
+      },
+      { year: 2026, month: 1 }
+    )[0];
+
+    expect(climateInsightText(undefined, soil).value).not.toBe("Unavailable");
   });
 });

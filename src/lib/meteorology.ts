@@ -220,7 +220,9 @@ export function summarizeRenderedClimateSample(
  * `placeObservationProductFromSample` performs the cited native-unit
  * conversion exactly once. Unusable observations are withheld instead of
  * allowing a non-finite or physically impossible value to invalidate the
- * entire download.
+ * entire download — including a value the metric's cited gross-error band
+ * rejects (see `implausibleValueReason`), which no longer reaches the export
+ * as a measurement.
  */
 export function exportObservationsFromRenderedClimateSample(
   input: RenderedClimateSampleInput,
@@ -232,7 +234,8 @@ export function exportObservationsFromRenderedClimateSample(
     if (
       summary.publicationStatus === "published" &&
       summary.coverage.status === "available" &&
-      summary.observedValue !== null
+      summary.observedValue !== null &&
+      implausibleValueReason(summary) === null
     ) {
       return {
         dataMonth: summary.dataMonth,
@@ -339,16 +342,18 @@ export function climateInsightText(
   const provenance = imageProvenance(current.sourceImageDimensions);
   const coverage = coverageText(current.coverage.validFraction);
   const sampling = samplingText(current.geometrySamplingStrategy);
+  const implausible = implausibleValueReason(current);
   if (
     current.publicationStatus !== "published" ||
     current.coverage.status !== "available" ||
-    current.observedValue === null
+    current.observedValue === null ||
+    implausible !== null
   ) {
     return {
       value: "Unavailable",
-      detail: `No usable ${month} ${modality.field} (${unavailableReason(
-        current
-      )}); ${sampling}; ${coverage}; ${provenance}; ${
+      detail: `No usable ${month} ${modality.field} (${
+        implausible ?? unavailableReason(current)
+      }); ${sampling}; ${coverage}; ${provenance}; ${
         modality.limit
       }; ${sourceVariable}; source ${source}`,
     };
@@ -501,12 +506,50 @@ function unavailableReason(summary: MonthlyClimateSummary): string {
   return summary.coverage.reason ?? "unspecified";
 }
 
+/**
+ * Screen a usable atmosphere observation against the gross-error plausibility
+ * band published with its metric, and describe the failure when it fails.
+ *
+ * `climate.ts` decides whether the *source* supplied a usable value: it checks
+ * the sign the quantity must carry, and nothing about magnitude. So a value
+ * whose units or decode went wrong — a °C figure never converted to kelvin, a
+ * mm/day rate read as kg/m²/s — still arrives here as a published, fully
+ * covered observation. This screen is where such a value stops being reported
+ * as a measurement.
+ *
+ * Deliberate limits, because callers surface this:
+ *  - The bands are gross-error bands, drawn wider than any recorded extreme.
+ *    Passing is a sanity check, never a correctness claim, and a real extreme
+ *    month is never flagged.
+ *  - Only the two atmosphere metrics have a cited band in this repo. Soil
+ *    moisture returns null here rather than being judged against an invented
+ *    limit.
+ *  - The screen never substitutes, clamps, or repairs a value. It withholds
+ *    the reading and says why.
+ *
+ * Returns null when the value passes, or when there is no band to judge it by.
+ */
+function implausibleValueReason(summary: MonthlyClimateSummary): string | null {
+  const verdict =
+    airTemperaturePlausibility(summary) ??
+    precipitationRatePlausibility(summary);
+  if (!verdict || verdict.status === "plausible") return null;
+  // "not-usable" means the summary carried no value to judge; the caller's own
+  // unavailability reason already covers that and is more specific.
+  if (verdict.status === "not-usable") return null;
+  return `${verdict.status}; ${verdict.basis}`;
+}
+
 function exportUnavailableReason(
   summary: MonthlyClimateSummary
 ): PlaceObservationUnavailableReason {
   if (
     summary.publicationStatus !== "published" ||
-    summary.coverage.status === "invalid"
+    summary.coverage.status === "invalid" ||
+    // A value the cited band rejects is a unit/decode failure of our own
+    // sampling, not a gap in what the source published. Reporting it as
+    // thin coverage would blame the source for our mistake.
+    implausibleValueReason(summary) !== null
   ) {
     return "sampling-failed";
   }
