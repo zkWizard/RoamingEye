@@ -163,8 +163,13 @@ describe("monthRangeForLayer", () => {
     expect(range.length).toBe((2026 - 1980) * 12 + 3);
   });
 
-  it("is consecutive with no gaps", () => {
-    const range = monthRangeForLayer(LAYERS.sst);
+  it("is consecutive for a layer with no declared distribution gaps", () => {
+    // Was asserted on sst, whose record is not in fact contiguous: GIBS
+    // advertises it as five disjoint ranges. lst declares no gaps, so it is
+    // the honest fixture for the consecutive case; the layers that do declare
+    // gaps assert their own discontinuities below.
+    expect(LAYERS.lst.unpublished).toBeUndefined();
+    const range = monthRangeForLayer(LAYERS.lst);
     for (let i = 1; i < range.length; i++) {
       expect(ymToIndex(range[i])).toBe(ymToIndex(range[i - 1]) + 1);
     }
@@ -178,14 +183,18 @@ describe("MOD13A3 distribution gap (NDVI/EVI, April 2025)", () => {
   // of the surface: nothing was observed to be missing that month.
   const GAP = { year: 2025, month: 4 };
 
-  it("declares the gap on both MOD13A3 layers and nowhere else", () => {
+  it("declares the gap on both MOD13A3 layers, and on no other product", () => {
     expect(LAYERS.ndvi.unpublished).toEqual([GAP]);
     // NDVI and EVI are two fields of the same granule, so the gap is shared.
     expect(LAYERS.evi.unpublished).toEqual(LAYERS.ndvi.unpublished);
-    const declared = Object.values(LAYERS)
+    // Other products declare their own gaps; none of them is this month.
+    const alsoDeclaring = Object.values(LAYERS)
       .filter((layer) => layer.unpublished?.length)
-      .map((layer) => layer.id);
-    expect(declared).toEqual(["ndvi", "evi"]);
+      .filter((layer) => layer.id !== "ndvi" && layer.id !== "evi");
+    expect(alsoDeclaring.map((layer) => layer.id)).toEqual(["sst"]);
+    for (const layer of alsoDeclaring) {
+      expect(isUnpublished(layer, GAP)).toBe(false);
+    }
   });
 
   it("reports the gap month as unavailable, inside the record", () => {
@@ -228,6 +237,108 @@ describe("MOD13A3 distribution gap (NDVI/EVI, April 2025)", () => {
     const nearest = range[nearestMonthIndex(range, GAP)];
     expect(ymEqual(nearest, GAP)).toBe(false);
     expect(Math.abs(ymToIndex(nearest) - ymToIndex(GAP))).toBe(1);
+  });
+});
+
+describe("MODIS/Aqua SST distribution gaps (daytime monthly composite)", () => {
+  // GIBS advertises this layer's time dimension as five disjoint ranges, so
+  // five months inside the record were never distributed and their tiles 404.
+  // Unlike absent SST *pixels* — cloud, sea ice, and sun glint all withhold a
+  // thermal-IR retrieval, which is a real statement about the sea surface —
+  // these months carry no observation at all.
+  const GAPS = [
+    { year: 2022, month: 11 },
+    { year: 2022, month: 12 },
+    { year: 2023, month: 6 },
+    { year: 2023, month: 10 },
+    { year: 2025, month: 12 },
+  ];
+  const sstLatest = LAYERS.sst.latest ?? DATA_LATEST;
+
+  it("declares exactly the five months GIBS omits, in order", () => {
+    expect(LAYERS.sst.unpublished).toEqual(GAPS);
+  });
+
+  it("reports every gap as unavailable but interior to the record", () => {
+    for (const gap of GAPS) {
+      expect(isUnpublished(LAYERS.sst, gap)).toBe(true);
+      expect(isAvailable(LAYERS.sst, gap)).toBe(false);
+      expect(compareYm(gap, LAYERS.sst.start)).toBeGreaterThan(0);
+      expect(compareYm(gap, sstLatest)).toBeLessThan(0);
+    }
+  });
+
+  it("keeps the month on each side of every gap available", () => {
+    for (const gap of GAPS) {
+      const before = addMonths(gap, -1);
+      const after = addMonths(gap, 1);
+      // Nov/Dec 2022 are consecutive, so a neighbour can be another gap.
+      if (!isUnpublished(LAYERS.sst, before)) {
+        expect(isAvailable(LAYERS.sst, before)).toBe(true);
+      }
+      if (!isUnpublished(LAYERS.sst, after)) {
+        expect(isAvailable(LAYERS.sst, after)).toBe(true);
+      }
+    }
+  });
+
+  it("drops the gaps from the enumerated record and nothing else", () => {
+    const range = monthRangeForLayer(LAYERS.sst);
+    for (const gap of GAPS) {
+      expect(range.some((ym) => ymEqual(ym, gap))).toBe(false);
+    }
+    expect(range[0]).toEqual({ year: 2002, month: 7 });
+    expect(range[range.length - 1]).toEqual(sstLatest);
+    const span = ymToIndex(sstLatest) - ymToIndex(LAYERS.sst.start) + 1;
+    expect(range.length).toBe(span - GAPS.length);
+  });
+
+  it("leaves discontinuities only where a gap was declared", () => {
+    const range = monthRangeForLayer(LAYERS.sst);
+    const resumesAfterBreak = range
+      .slice(1)
+      .filter((ym, i) => ymToIndex(ym) !== ymToIndex(range[i]) + 1);
+    // Four breaks, not five: Nov and Dec 2022 form one two-month gap.
+    expect(resumesAfterBreak).toEqual([
+      { year: 2023, month: 1 },
+      { year: 2023, month: 7 },
+      { year: 2023, month: 11 },
+      { year: 2026, month: 1 },
+    ]);
+  });
+
+  it("thins the same-calendar-month baselines the gaps fall in", () => {
+    // The scientific cost of the gaps: a December or June SST anomaly is
+    // measured against one fewer year than the record's span implies. This
+    // pins that the shortfall is now visible to callers rather than silently
+    // filled by a month that would have 404'd.
+    const range = monthRangeForLayer(LAYERS.sst);
+    const decembers = range.filter((ym) => ym.month === 12);
+    expect(decembers.some((ym) => ym.year === 2022)).toBe(false);
+    expect(decembers.some((ym) => ym.year === 2025)).toBe(false);
+    // 2002-07 → 2026-03 spans 24 Decembers (2002…2025) less the two skipped.
+    expect(decembers.length).toBe(22);
+    const junes = range.filter((ym) => ym.month === 6);
+    expect(junes.some((ym) => ym.year === 2023)).toBe(false);
+  });
+
+  it("snaps the scrubber to a published month instead of into a gap", () => {
+    const range = monthRangeForLayer(LAYERS.sst);
+    for (const gap of GAPS) {
+      const nearest = range[nearestMonthIndex(range, gap)];
+      expect(isUnpublished(LAYERS.sst, nearest)).toBe(false);
+      expect(isAvailable(LAYERS.sst, nearest)).toBe(true);
+    }
+  });
+
+  it("does not leak the SST gaps onto another product's layer", () => {
+    // The sibling *night* SST layer skips a different set of months, which is
+    // why these are distribution artifacts and not an ocean signal. Nothing
+    // else in the catalog shares this product's record.
+    for (const gap of GAPS) {
+      expect(isUnpublished(LAYERS.lst, gap)).toBe(false);
+      expect(isAvailable(LAYERS.airtemp, gap)).toBe(true);
+    }
   });
 });
 
