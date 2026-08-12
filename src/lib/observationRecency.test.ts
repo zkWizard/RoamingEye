@@ -42,7 +42,7 @@ describe("summarizeObservationRecency", () => {
     const summary = summarizeObservationRecency(
       [
         obs("vegetation", "Vegetation (NDVI)", 2026, 3),
-        obs("rainfall", "Rainfall (precipitation rate)", 2026, 1),
+        obs("rainfall", "Precipitation (total rate, all phases)", 2026, 1),
         obs("air-temperature", "Air temperature", 2025, 8),
       ],
       reference

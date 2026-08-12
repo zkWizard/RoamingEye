@@ -99,7 +99,7 @@ describe("summarizeQuantityKinds", () => {
       timeIntegrable: true,
     });
     expect(byId.rainfall.statement).toBe(
-      "Rainfall (precipitation rate): per-unit-time flux (rate) (flux), time-integrable; source GLDAS_NOAH025_M v2.1."
+      "Precipitation (total rate, all phases): per-unit-time flux (rate) (flux), time-integrable; source GLDAS_NOAH025_M v2.1."
     );
     expect(byId["soil-moisture"]).toMatchObject({
       quantityKind: "state",
