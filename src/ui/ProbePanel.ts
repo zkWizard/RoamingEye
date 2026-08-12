@@ -11,7 +11,11 @@ import type { ProbeMode } from "../probe/ProbeSampler";
 
 /** The user-toggleable sampling modes (regions are drawn, not toggled). */
 type PanelMode = Exclude<ProbeMode, "region">;
-import type { YearMonth } from "../lib/timeline";
+import type { LayerId, YearMonth } from "../lib/timeline";
+import {
+  inversionAccuracyClause,
+  probeInversionAccuracy,
+} from "../lib/probeInversionAccuracy";
 import { ICONS } from "./icons";
 
 /**
@@ -46,6 +50,8 @@ export class ProbePanel {
   private months: YearMonth[] = [];
   private values: (number | null)[] = [];
   private scale: ProbeScale | undefined;
+  /** Layer being charted — selects the committed inversion-accuracy figure. */
+  private layerId: LayerId | undefined;
   private csv: (() => string) | undefined;
   private csvFilename = "probe.csv";
   private view: ProbeView = "values";
@@ -192,10 +198,11 @@ export class ProbePanel {
   }
 
   /** Provide the full month range up front; values stream in via setValue. */
-  beginSeries(months: YearMonth[], scale: ProbeScale): void {
+  beginSeries(months: YearMonth[], scale: ProbeScale, layerId: LayerId): void {
     this.months = months;
     this.values = new Array(months.length).fill(null);
     this.scale = scale;
+    this.layerId = layerId;
     this.draw();
   }
 
@@ -229,12 +236,18 @@ export class ProbePanel {
       v === null ? null : scaleValue(v, s)
     );
     const trend = trendSummary(this.months, physical, s);
+    // Two different accuracy claims, both needed. The quantization step is how
+    // finely a gradient position resolves; the measured inversion RMSE is
+    // whether that position lands on the right value — for SST the second is
+    // ~80x the first, so quoting only the step overstates precision badly.
+    const accuracy = this.layerId
+      ? inversionAccuracyClause(probeInversionAccuracy(this.layerId, s))
+      : "";
     this.setStatus(
       `${stats.count} of ${this.months.length} months · ` +
         `min ${fmt(stats.min)} · mean ${fmt(stats.mean)} · max ${fmt(stats.max)}` +
-        // Each value is only known to the colormap's quantization step —
-        // say so right where the numbers are.
         ` · ${uncertaintyText(s)} per value` +
+        (accuracy ? ` · ${accuracy}` : "") +
         ` · ${trendClause(trend)}`
     );
   }

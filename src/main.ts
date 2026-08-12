@@ -16,6 +16,10 @@ import {
 import { encodeViewState, decodeViewState } from "./lib/viewState";
 import { latLngToVector3, vector3ToLatLng, formatLatLng } from "./lib/geo";
 import { buildProbeCsv, normalizeLon, PROBE_SCALES } from "./lib/probe";
+import {
+  inversionAccuracyCsvHeaders,
+  probeInversionAccuracy,
+} from "./lib/probeInversionAccuracy";
 import { isAreaGeometry } from "./lib/geojson";
 import {
   PLACE_OBSERVATION_NATIVE_UNITS,
@@ -1272,7 +1276,7 @@ if (probeEl) {
     const abort = (probeAbort = new AbortController());
     const probeMonths = monthRangeForLayer(layer);
     const scale = PROBE_SCALES[layer.id];
-    panel.beginSeries(probeMonths, scale);
+    panel.beginSeries(probeMonths, scale, layer.id);
 
     let lastDraw = 0;
     sampler
@@ -1309,6 +1313,9 @@ if (probeEl) {
                 generatedIso: new Date().toISOString(),
                 toolVersion: __APP_VERSION__,
                 viewUrl: currentShareUrl(),
+                inversionAccuracyHeaders: inversionAccuracyCsvHeaders(
+                  probeInversionAccuracy(layer.id, scale)
+                ),
               },
               probeMonths,
               values,
@@ -1357,7 +1364,7 @@ if (probeEl) {
     const abort = (probeAbort = new AbortController());
     const probeMonths = monthRangeForLayer(layer);
     const scale = PROBE_SCALES[layer.id];
-    panel.beginSeries(probeMonths, scale);
+    panel.beginSeries(probeMonths, scale, layer.id);
 
     let lastDraw = 0;
     sampler
@@ -1393,6 +1400,9 @@ if (probeEl) {
                 generatedIso: new Date().toISOString(),
                 toolVersion: __APP_VERSION__,
                 viewUrl: currentShareUrl(),
+                inversionAccuracyHeaders: inversionAccuracyCsvHeaders(
+                  probeInversionAccuracy(layer.id, scale)
+                ),
               },
               probeMonths,
               values,

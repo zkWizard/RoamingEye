@@ -137,6 +137,17 @@ Three further limits of the rendered product that no inversion can remove:
   ([`contract/snow-cover-ramp.contract.test.ts`](contract/snow-cover-ramp.contract.test.ts))
   fails if a GIBS re-render ever narrows that margin.
 
+  Both figures travel with the data, because quoting only the first overstates
+  precision — for sea-surface temperature the quantization step is ±0.06 °C
+  while the measured inversion error is ±5.1 °C, and the rejected 85 colours
+  are contiguous temperature bands (near-freezing polar water, most of
+  18–24 °C, and the warmest tropical water) rather than scattered noise. The
+  probe panel carries the measured band next to the quantization step, and
+  every probe CSV carries an `# inversion_validation` header naming the RMSE,
+  the rejected-colour count, and the fact that this is rendering-inversion
+  error only — not the L3 product's accuracy against in-situ measurement
+  (`src/lib/probeInversionAccuracy.ts`).
+
 ## 4. Trend analysis
 
 For a probed time series, the tool reports a nonparametric trend — chosen

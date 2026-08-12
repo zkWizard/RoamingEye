@@ -580,6 +580,14 @@ export interface ProbeCsvMeta {
   toolVersion?: string;
   /** Deep link that reproduces the exact chart (layer, month, probe). */
   viewUrl?: string;
+  /**
+   * Measured colormap-inversion accuracy lines for this layer, built by
+   * `probeInversionAccuracy.inversionAccuracyCsvHeaders`. Passed in rather
+   * than derived here so this module stays a leaf of the validation figures
+   * (validation.ts already imports this file). Omitted for layers with no
+   * committed measurement — never replaced with a hedged placeholder.
+   */
+  inversionAccuracyHeaders?: string[];
 }
 
 /**
@@ -671,6 +679,10 @@ export function buildProbeCsv(
     })`,
     `# anomaly: value minus this location's mean for the same calendar month (same units)`,
     `# uncertainty: ${uncertaintyText(meta.scale)} colormap quantization (compression noise on top; see the probe accuracy suite for end-to-end bounds)`,
+    // Quantization is the floor, not the error. The measured disagreement with
+    // GIBS's own colormap is far larger on most layers, so it ships alongside
+    // rather than staying in docs/validation.md (see probeInversionAccuracy).
+    ...(meta.inversionAccuracyHeaders ?? []),
     ...trendCsvHeaders(trend),
     ...(fractions
       ? [
