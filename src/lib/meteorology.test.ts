@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   climateInsightText,
   climateMetricForLayer,
+  climateObservationPlausibility,
   exportObservationsFromRenderedClimateSample,
   observationsFromRenderedClimateSample,
   summarizeRenderedClimateSample,
@@ -419,5 +420,172 @@ describe("rendered monthly meteorology", () => {
       "comparison unavailable (comparison month is not earlier)"
     );
     expect(climateInsightText(soil, february).detail).not.toContain("kg/m² vs");
+  });
+
+  it("applies the metric-appropriate gross-error band and none to soil moisture", () => {
+    const [airTemperature] = summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [287.4],
+        nativeToSampledValueFactor: 1,
+        validFractions: [0.9],
+      },
+      { year: 2026, month: 1 }
+    );
+    const [precipitation] = summarizeRenderedClimateSample(
+      {
+        metricId: "precipitation-rate",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [8.64],
+        nativeToSampledValueFactor: 86_400,
+        validFractions: [0.9],
+      },
+      { year: 2026, month: 1 }
+    );
+    const [soil] = summarizeRenderedClimateSample(
+      {
+        metricId: "soil-moisture",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [280],
+        nativeToSampledValueFactor: 1,
+        validFractions: [0.9],
+      },
+      { year: 2026, month: 1 }
+    );
+
+    expect(climateObservationPlausibility(airTemperature)).toMatchObject({
+      status: "plausible",
+    });
+    expect(climateObservationPlausibility(airTemperature).statement).toContain(
+      "not a correctness guarantee"
+    );
+    expect(climateObservationPlausibility(precipitation)).toMatchObject({
+      status: "plausible",
+    });
+    // Soil moisture is out of scope here; no band is invented for it.
+    expect(climateObservationPlausibility(soil)).toEqual({
+      status: "not-checked",
+      statement:
+        "No gross-error plausibility band is defined for Underground soil moisture",
+    });
+  });
+
+  it("does not check a band when there is no usable value to check", () => {
+    const [missing] = summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [null],
+        nativeToSampledValueFactor: 1,
+        validFractions: [0],
+      },
+      { year: 2026, month: 1 }
+    );
+
+    expect(climateObservationPlausibility(missing)).toMatchObject({
+      status: "not-checked",
+    });
+    expect(climateObservationPlausibility(missing).statement).toContain(
+      "No usable 2 m air-temperature value to check"
+    );
+  });
+
+  it("withholds an air-temperature value left in degrees Celsius rather than kelvin", () => {
+    // 15 would be a plausible °C monthly mean but is an impossible 15 K reading.
+    const [unconverted] = summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [15],
+        nativeToSampledValueFactor: 1,
+        validFractions: [0.9],
+        geometrySamplingStrategy: "boundary-grid",
+      },
+      { year: 2026, month: 1 }
+    );
+
+    expect(climateObservationPlausibility(unconverted)).toMatchObject({
+      status: "implausible",
+    });
+
+    const insight = climateInsightText(undefined, unconverted);
+    expect(insight.value).toBe("Unavailable");
+    expect(insight.detail).toContain(
+      "below the plausible near-surface band 170–340 K"
+    );
+    expect(insight.detail).toContain("likely a unit or decode error");
+    // Provenance survives the withheld value.
+    expect(insight.detail).toContain("source M2TMNXSLV");
+    expect(insight.detail).toContain("90% sampled coverage");
+  });
+
+  it("withholds a precipitation rate left in mm/day rather than kg/m²/s", () => {
+    // A native 20 kg/m²/s is ~5 orders of magnitude above any monthly mean.
+    const [unconverted] = summarizeRenderedClimateSample(
+      {
+        metricId: "precipitation-rate",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [20 * 86_400],
+        nativeToSampledValueFactor: 86_400,
+        validFractions: [0.9],
+      },
+      { year: 2026, month: 1 }
+    );
+
+    const insight = climateInsightText(undefined, unconverted);
+    expect(insight.value).toBe("Unavailable");
+    expect(insight.detail).toContain(
+      "above the plausible precipitation-rate band"
+    );
+    expect(insight.detail).toContain("source GLDAS_NOAH025_M");
+  });
+
+  it("withholds a delta computed against an implausible comparison month", () => {
+    const [decodeError, usable] = summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [
+          { year: 2025, month: 12 },
+          { year: 2026, month: 1 },
+        ],
+        sampledValues: [15, 287.4],
+        nativeToSampledValueFactor: 1,
+        validFractions: [0.9, 0.9],
+      },
+      { year: 2026, month: 1 }
+    );
+
+    const insight = climateInsightText(decodeError, usable);
+    // The current month is usable, so its value is still reported (in the
+    // conventional display unit, with the native kelvin value kept in detail).
+    expect(insight.value).toBe("14.25 °C");
+    expect(insight.detail).toContain("native source value 287.4 K");
+    expect(insight.detail).toContain(
+      "comparison unavailable (comparison month failed the gross-error plausibility band)"
+    );
+    expect(insight.detail).not.toContain("vs 2025-12");
+  });
+
+  it("leaves a plausible reading's value and delta untouched", () => {
+    const [december, january] = summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [
+          { year: 2025, month: 12 },
+          { year: 2026, month: 1 },
+        ],
+        sampledValues: [285.4, 287.4],
+        nativeToSampledValueFactor: 1,
+        validFractions: [0.9, 0.9],
+      },
+      { year: 2026, month: 1 }
+    );
+
+    const insight = climateInsightText(december, january);
+    expect(insight.value).not.toBe("Unavailable");
+    expect(insight.detail).toContain("vs 2025-12");
+    // A sanity pass is never announced as a quality claim.
+    expect(insight.detail).not.toContain("plausib");
   });
 });

@@ -9,6 +9,16 @@ import { SCALE_CONVERSIONS } from "./colormap";
 import { classifyModality } from "./observationModality";
 import { compareYm, type LayerId, type YearMonth } from "./timeline";
 import { toConventionalClimateValue } from "./climateConventionalUnits";
+import {
+  airTemperaturePlausibility,
+  formatAirTemperaturePlausibility,
+  type AirTemperaturePlausibilityStatus,
+} from "./airTemperaturePlausibility";
+import {
+  formatPrecipitationRatePlausibility,
+  precipitationRatePlausibility,
+  type PrecipitationRatePlausibilityStatus,
+} from "./precipitationRatePlausibility";
 import type { GeometrySamplingStrategy } from "./geojson";
 import type {
   PlaceObservationInput,
@@ -242,6 +252,70 @@ export function exportObservationsFromRenderedClimateSample(
   });
 }
 
+export type ClimatePlausibilityStatus =
+  "plausible" | "implausible" | "not-checked";
+
+export interface ClimatePlausibilityVerdict {
+  status: ClimatePlausibilityStatus;
+  /**
+   * The band verdict with its cited source, or why no band was applied.
+   * Callers surface this verbatim rather than restating the bounds.
+   */
+  statement: string;
+}
+
+/**
+ * Apply the metric-appropriate gross-error plausibility band to one rendered
+ * monthly observation.
+ *
+ * Rendered-imagery sampling can fail in ways `climate.ts` cannot catch: it only
+ * guards sign and finiteness, so an unconverted °C figure, a mm/day rate left
+ * unscaled, or a colormap decode error still arrives as a "usable" native
+ * value. The atmospheric bands are deliberately far wider than any real monthly
+ * mean, so a genuine extreme is never flagged — only physically impossible
+ * readings are.
+ *
+ * `not-checked` is returned for soil moisture, which has no band defined here,
+ * and for observations with no usable value to check. It is never a pass:
+ * a `plausible` result is a gross-error sanity pass, not a correctness claim.
+ */
+export function climateObservationPlausibility(
+  summary: MonthlyClimateSummary
+): ClimatePlausibilityVerdict {
+  const airTemperature = airTemperaturePlausibility(summary);
+  if (airTemperature) {
+    return {
+      status: bandStatus(airTemperature.status),
+      statement: formatAirTemperaturePlausibility(airTemperature),
+    };
+  }
+
+  const precipitation = precipitationRatePlausibility(summary);
+  if (precipitation) {
+    return {
+      status: bandStatus(precipitation.status),
+      statement: formatPrecipitationRatePlausibility(precipitation),
+    };
+  }
+
+  return {
+    status: "not-checked",
+    statement: `No gross-error plausibility band is defined for ${summary.metric.label}`,
+  };
+}
+
+/**
+ * Collapse a metric-specific band verdict onto the shared status. Every
+ * non-`plausible`, checkable verdict is treated as implausible, so a new
+ * failure mode added to a band is withheld by default rather than displayed.
+ */
+function bandStatus(
+  status: AirTemperaturePlausibilityStatus | PrecipitationRatePlausibilityStatus
+): ClimatePlausibilityStatus {
+  if (status === "not-usable") return "not-checked";
+  return status === "plausible" ? "plausible" : "implausible";
+}
+
 export interface ClimateInsightText {
   value: string;
   detail: string;
@@ -275,6 +349,16 @@ export function climateInsightText(
       )}); ${sampling}; ${coverage}; ${provenance}; ${
         modality.limit
       }; ${sourceVariable}; source ${source}`,
+    };
+  }
+
+  // A value outside the metric's gross-error band is a unit/decode failure,
+  // not an observation, so it is withheld rather than shown as a measurement.
+  const plausibility = climateObservationPlausibility(current);
+  if (plausibility.status === "implausible") {
+    return {
+      value: "Unavailable",
+      detail: `Withheld ${month} ${modality.field}: ${plausibility.statement}; ${sampling}; ${coverage}; ${provenance}; ${modality.limit}; ${sourceVariable}`,
     };
   }
 
@@ -376,6 +460,10 @@ function climateComparisonIssue(
   }
   if (compareYm(previous.dataMonth, current.dataMonth) >= 0) {
     return "comparison month is not earlier";
+  }
+  // A change computed against an impossible value would itself be impossible.
+  if (climateObservationPlausibility(previous).status === "implausible") {
+    return "comparison month failed the gross-error plausibility band";
   }
   return null;
 }
