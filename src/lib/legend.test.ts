@@ -6,6 +6,7 @@ import {
   legendTicks,
   overlayKeyFor,
 } from "./legend";
+import { vegetationIndexLegendNote } from "./vegetationIndexRenderedRange";
 import { PROBE_SCALES } from "./probe";
 import { LAYER_ORDER } from "./timeline";
 import { DEPTH_CLASS_COLORS } from "./earthquakes";
@@ -66,18 +67,27 @@ describe("LEGENDS", () => {
   });
 
   it("describes vegetation-index colors without inferring cover or condition", () => {
+    // The exact sentence is derived from the measured GIBS ramp and pinned in
+    // vegetationIndexRenderedRange.test.ts. What this suite guards is the
+    // property: the note disclaims cover/biomass/condition, and it says a gap
+    // in the layer is undrawn rather than low.
     expect(LEGENDS.ndvi).toMatchObject({
       minLabel: "lower NDVI",
       maxLabel: "higher NDVI",
-      interpretationNote:
-        "NDVI is a unitless vegetation index; color does not measure vegetation cover, biomass, or condition.",
+      interpretationNote: vegetationIndexLegendNote("ndvi"),
     });
     expect(LEGENDS.evi).toMatchObject({
       minLabel: "lower EVI",
       maxLabel: "higher EVI",
-      interpretationNote:
-        "EVI is a unitless vegetation index; color does not measure vegetation cover, biomass, or condition.",
+      interpretationNote: vegetationIndexLegendNote("evi"),
     });
+    for (const index of ["ndvi", "evi"] as const) {
+      const note = vegetationIndexLegendNote(index);
+      expect(note).toContain(
+        "color does not measure vegetation cover, biomass, or condition"
+      );
+      expect(note).toContain("not low greenness");
+    }
   });
 });
 

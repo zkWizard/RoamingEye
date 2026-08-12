@@ -4,6 +4,7 @@ import { ERUPTION_CLASS_COLORS } from "./volcanoes";
 import { PROBE_SCALES, formatProbeValue, scaleValue } from "./probe";
 import { IGBP_LAND_COVER_CLASSES } from "./landCover";
 import { IGBP_RENDERED_PALETTE } from "./landCoverPalette";
+import { vegetationIndexLegendNote } from "./vegetationIndexRenderedRange";
 
 /**
  * Legend model: what the colors on the globe mean, per data layer.
@@ -49,8 +50,7 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
     measures: "Vegetation greenness (NDVI)",
     minLabel: "lower NDVI",
     maxLabel: "higher NDVI",
-    interpretationNote:
-      "NDVI is a unitless vegetation index; color does not measure vegetation cover, biomass, or condition.",
+    interpretationNote: vegetationIndexLegendNote("ndvi"),
     stops: [
       { color: "#a97c50", at: 0 }, // bare soil / desert browns
       { color: "#d9c38a", at: 0.25 },
@@ -63,8 +63,7 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
     measures: "Vegetation greenness (EVI)",
     minLabel: "lower EVI",
     maxLabel: "higher EVI",
-    interpretationNote:
-      "EVI is a unitless vegetation index; color does not measure vegetation cover, biomass, or condition.",
+    interpretationNote: vegetationIndexLegendNote("evi"),
     stops: [
       { color: "#a97c50", at: 0 },
       { color: "#d9c38a", at: 0.25 },
