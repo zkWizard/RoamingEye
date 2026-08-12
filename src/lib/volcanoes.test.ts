@@ -204,7 +204,21 @@ describe("lastEruptionLabel", () => {
 describe("volcanoHoverLabel", () => {
   it("preserves source geography, native summit units, and eruption recency", () => {
     expect(volcanoHoverLabel(parseVolcanoList([volcano()])[0])).toBe(
-      "Etna · Stratovolcano · Italy · summit elevation 3357 m · last erupted 2025"
+      "Etna · Stratovolcano · Italy · summit elevation 3357 m · last erupted 2025 · tectonic setting not recorded"
+    );
+  });
+
+  it("names the GVP tectonic setting recorded for the site", () => {
+    expect(
+      volcanoHoverLabel(
+        parseVolcanoList([
+          volcano({
+            tectonicSetting: "Subduction zone / Continental crust (> 25 km)",
+          }),
+        ])[0]
+      )
+    ).toBe(
+      "Etna · Stratovolcano · Italy · summit elevation 3357 m · last erupted 2025 · subduction zone, continental crust"
     );
   });
 
@@ -214,7 +228,7 @@ describe("volcanoHoverLabel", () => {
         parseVolcanoList([volcano({ type: "Stratovolcano(es)?" })])[0]
       )
     ).toBe(
-      "Etna · Stratovolcano (multiple landforms; type uncertain) · Italy · summit elevation 3357 m · last erupted 2025"
+      "Etna · Stratovolcano (multiple landforms; type uncertain) · Italy · summit elevation 3357 m · last erupted 2025 · tectonic setting not recorded"
     );
   });
 
@@ -228,7 +242,7 @@ describe("volcanoHoverLabel", () => {
       }),
     ])[0];
     expect(volcanoHoverLabel(v)).toBe(
-      "Etna · volcano type not recorded · country/territory not recorded · summit elevation not recorded · Holocene evidence only"
+      "Etna · volcano type not recorded · country/territory not recorded · summit elevation not recorded · Holocene evidence only · tectonic setting not recorded"
     );
   });
 
