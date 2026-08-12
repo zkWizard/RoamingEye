@@ -84,6 +84,30 @@ export const ERUPTION_CLASS_COLORS: Record<EruptionClass, string> = {
 };
 
 /**
+ * The eruption-year band each class actually covers, phrased for the legend
+ * key. Shared with the legend for the same reason as the colors above: the key
+ * can never claim a band that {@link eruptionClass} does not assign.
+ *
+ * The "holocene" bucket is deliberately NOT called "Holocene only". It holds
+ * two distinct evidence states that the class cannot separate: a record dated
+ * BCE (a known eruption, GVP source year < 0) and a record with no dated
+ * eruption at all. In the bundled GVP snapshot 169 of the 533 records in this
+ * class carry a dated BCE year (−9450 to −50), so "Holocene only" — which
+ * reads as "no dated eruption" — misdescribes about a third of them. Callers
+ * needing the two states apart should use the dated/undated counts in
+ * volcanoRecency.ts rather than the class label.
+ *
+ * "year 0" is stated verbatim rather than as "1 CE": GVP reports one record
+ * (Arxan-Chaihe) with source year zero, which eruptionClass keeps in the
+ * historic band without converting it to a civil-calendar era.
+ */
+export const ERUPTION_CLASS_LABELS: Record<EruptionClass, string> = {
+  recent: "since 1900",
+  historic: "year 0–1899",
+  holocene: "BCE or undated",
+};
+
+/**
  * Human-readable "most recent eruption" phrase, honest about the data:
  * a null year means Holocene evidence only, and negative years are BCE.
  */

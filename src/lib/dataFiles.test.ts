@@ -2,7 +2,11 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseCityList } from "./cities";
-import { parseVolcanoDataset } from "./volcanoes";
+import {
+  ERUPTION_CLASS_LABELS,
+  eruptionClass,
+  parseVolcanoDataset,
+} from "./volcanoes";
 import { canonicalVolcanoType } from "./volcanoMorphology";
 import { parsePlateBoundaries, plateBoundaryClass } from "./plates";
 import { decodePlatePair } from "./platePairs";
@@ -62,6 +66,41 @@ describe("bundled data files", () => {
       .filter((base) => !/^[A-Za-z][A-Za-z -]*$/.test(base))
       .sort();
     expect(unexpected).toEqual(REVIEWED_EXCEPTIONS);
+  });
+
+  it("the legend's eruption bands describe the bundled records honestly", () => {
+    // Evidence for why the violet band is not labelled "Holocene only": in the
+    // shipped GVP snapshot a substantial minority of that class carries a
+    // *dated* BCE eruption year, so a "no dated eruption" reading is wrong for
+    // it. Measured against the real file through the app's own parser.
+    const volcanoes = parseVolcanoDataset(load("volcanoes.json")).volcanoes;
+    const inClass = (c: string) =>
+      volcanoes.filter((v) => eruptionClass(v.lastEruptionYear) === c);
+
+    const holocene = inClass("holocene");
+    const datedBce = holocene.filter((v) => (v.lastEruptionYear ?? 0) < 0);
+    const undated = holocene.filter((v) => v.lastEruptionYear === null);
+    expect(datedBce.length + undated.length).toBe(holocene.length);
+    // Both states are well populated, so the label must not claim either one.
+    expect(datedBce.length).toBeGreaterThanOrEqual(100);
+    expect(undated.length).toBeGreaterThanOrEqual(100);
+    expect(ERUPTION_CLASS_LABELS.holocene).not.toMatch(/holocene only/i);
+
+    // Every dated record in the band really is BCE, as the label says.
+    for (const v of datedBce) expect(v.lastEruptionYear).toBeLessThan(0);
+
+    // The historic band's label starts at year 0, not 1 CE, because GVP ships
+    // a source-year-zero record that eruptionClass puts there.
+    const historic = inClass("historic");
+    for (const v of historic) {
+      expect(v.lastEruptionYear).toBeGreaterThanOrEqual(0);
+      expect(v.lastEruptionYear).toBeLessThanOrEqual(1899);
+    }
+    expect(historic.some((v) => v.lastEruptionYear === 0)).toBe(true);
+
+    for (const v of inClass("recent")) {
+      expect(v.lastEruptionYear).toBeGreaterThanOrEqual(1900);
+    }
   });
 
   it("plate-boundaries.geojson parses into boundary segments", () => {
