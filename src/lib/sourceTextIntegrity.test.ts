@@ -77,6 +77,30 @@ describe("committed source stays readable to text tooling", () => {
     ).toEqual([]);
   });
 
+  it("carries no unresolved merge-conflict marker", () => {
+    // A `=======` / `>>>>>>>` pair was merged to main inside validation.ts's
+    // doc comment, duplicating the whole MEASURED_INVERSION preamble with a
+    // stale copy of itself. Because a conflict left *inside a block comment* is
+    // still syntactically valid TypeScript, tsc, vitest, and the bundle-size
+    // check all stayed green — the corruption was only visible to a reader.
+    // Line-anchored so prose about conflict markers (and Markdown's `---`
+    // rules) cannot trip it.
+    const markers = /^(<{7}|={7}|>{7})(\s|$)/;
+    const offenders: string[] = [];
+    for (const file of FILES) {
+      const lines = readFileSync(join(ROOT, file), "utf8").split("\n");
+      lines.forEach((line, index) => {
+        if (markers.test(line)) {
+          offenders.push(`${relative(".", file)}:${index + 1}: ${line.trim()}`);
+        }
+      });
+    }
+    expect(
+      offenders,
+      `unresolved merge-conflict markers are committed here; inside a comment they compile and test clean, so nothing else will catch them:\n${offenders.join("\n")}`
+    ).toEqual([]);
+  });
+
   it("decodes as valid UTF-8", () => {
     const decoder = new TextDecoder("utf-8", { fatal: true });
     const offenders: string[] = [];
