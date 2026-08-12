@@ -51,8 +51,17 @@ describe("marine boundary SST insights", () => {
       sourceImageDimensions: { width: 512, height: 512 },
       geography: { kind: "boundary", label: "Monterey County" },
     });
-    expect(reading.detail).toContain("37% sampled boundary coverage");
-    expect(reading.detail).toContain("for Monterey Bay");
+    expect(reading.detail).toContain(
+      "usable SST over 37% of the searched boundary (sparse); mean covers only those pixels"
+    );
+    expect(reading.spatialSupport).toMatchObject({
+      status: "usable-sample",
+      validFraction: 0.37,
+      tier: "sparse",
+      meanScope: "usable-sampled-pixels",
+      representsSearchedBoundary: false,
+    });
+    expect(reading.detail).toContain("sampled within Monterey Bay");
     expect(reading.detail).toContain("rendered source image 512 x 512 px");
     expect(reading.detail).toContain(
       "MODIS_AQUA_L3_SST_THERMAL_MONTHLY_9KM_DAYTIME_V2019.0 v2019.0"
@@ -89,7 +98,15 @@ describe("marine boundary SST insights", () => {
       // carry none rather than an invented zero tally.
       sampleCounts: null,
     });
-    expect(reading.detail).toContain("0% sampled boundary coverage");
+    expect(reading.detail).toContain(
+      "no usable SST anywhere in the searched boundary"
+    );
+    expect(reading.spatialSupport).toMatchObject({
+      status: "no-usable-sample",
+      validFraction: 0,
+      meanScope: null,
+      reason: "zero-usable-share",
+    });
   });
 
   it("rejects invalid sampling coverage instead of presenting its value", () => {
@@ -109,7 +126,15 @@ describe("marine boundary SST insights", () => {
     expect(reading.unavailableReason).toBe("invalid-coverage");
     expect(reading.coverage?.coverage.reason).toBe("invalid-coverage");
     expect(reading.validFraction).toBeNull();
-    expect(reading.detail).toContain("sampled coverage not supplied");
+    // A rejected fraction was still supplied; saying "not supplied" would
+    // hide which of the two happened.
+    expect(reading.detail).toContain("sampled boundary share invalid");
+    expect(reading.spatialSupport).toMatchObject({
+      status: "unclassifiable",
+      validFraction: null,
+      tier: null,
+      reason: "invalid-coverage-fraction",
+    });
   });
 
   it("does not present an SST value outside the configured source scale", () => {
@@ -209,10 +234,13 @@ describe("marine boundary SST insights", () => {
     });
 
     expect(reading.sampledGeography.label).toBe("unknown searched area");
-    expect(reading.detail).toContain("for unknown searched area");
+    expect(reading.detail).toContain("sampled within unknown searched area");
   });
 
-  it("preserves exact low coverage even when display text rounds it", () => {
+  it("does not print a stated temperature beside a rounded-down 0% share", () => {
+    // A mostly-land searched boundary is the normal case for SST, which is
+    // undefined over land. Rounding its sliver of water down to "0%" read as
+    // "no data" next to a stated temperature.
     const reading = marineBoundarySstReading({
       geographyLabel: "Monterey Bay",
       dataMonth: { year: 2026, month: 3 },
@@ -222,7 +250,12 @@ describe("marine boundary SST insights", () => {
     });
 
     expect(reading.value).toBe("18.4 °C");
-    expect(reading.detail).toContain("0% sampled boundary coverage");
+    expect(reading.detail).toContain(
+      "usable SST over <1% of the searched boundary (sparse); mean covers only those pixels"
+    );
+    expect(reading.detail).not.toContain("0%");
+    // The exact share still travels unrounded for export consumers.
+    expect(reading.spatialSupport.validFraction).toBe(0.004);
     expect(reading.validFraction).toBe(0.004);
     expect(reading.sourceImageDimensions).toEqual({
       width: 1024,
