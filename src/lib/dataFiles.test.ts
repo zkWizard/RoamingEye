@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseCityList } from "./cities";
 import { parseVolcanoDataset } from "./volcanoes";
+import { canonicalVolcanoType } from "./volcanoMorphology";
 import { parsePlateBoundaries } from "./plates";
 import { decodePlatePair } from "./platePairs";
 import { buildAdmin1Index, buildCountryIndex } from "./countryIndex";
@@ -39,6 +40,28 @@ describe("bundled data files", () => {
     expect(
       volcanoes.filter((v) => v.lastEruptionYear !== null).length
     ).toBeGreaterThanOrEqual(500);
+  });
+
+  it("every volcanoes.json type label canonicalizes to a clean landform", () => {
+    const { volcanoes } = parseVolcanoDataset(load("volcanoes.json"));
+    // volcanoHoverLabel() renders the canonical base directly, so a
+    // regeneration that introduced a qualifier form the parser does not
+    // recognize would leak raw punctuation into the tooltip and split the
+    // type tallies into a spurious extra bucket. A clean base is plain words;
+    // anything else is a GVP vocabulary change that deserves a human read.
+    // "Shield(pyroclastic)" is the one reviewed exception: its parenthetical
+    // qualifies the landform rather than marking multiplicity, so the parser
+    // is right to preserve it.
+    const REVIEWED_EXCEPTIONS = ["Shield(pyroclastic)"];
+    const bases = new Set(
+      volcanoes
+        .map((volcano) => canonicalVolcanoType(volcano.type).base)
+        .filter((base): base is string => base !== null)
+    );
+    const unexpected = [...bases]
+      .filter((base) => !/^[A-Za-z][A-Za-z -]*$/.test(base))
+      .sort();
+    expect(unexpected).toEqual(REVIEWED_EXCEPTIONS);
   });
 
   it("plate-boundaries.geojson parses into boundary segments", () => {
