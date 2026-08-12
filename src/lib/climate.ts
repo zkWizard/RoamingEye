@@ -1,4 +1,5 @@
 import {
+  DATA_LATEST,
   LAYERS,
   type DatasetRef,
   type LayerId,
@@ -106,8 +107,31 @@ export interface MonthlyClimateSummary {
   dataMonth: YearMonth;
   /** Earliest monthly observation published by the metric's cited layer. */
   firstAvailableMonth: YearMonth;
+  /**
+   * Latest monthly observation the metric's cited layer *declares* — its
+   * `latest`, falling back to the global timeline end. This is a floor, not a
+   * ceiling: it is a conservative compiled-in baseline until freshness.ts
+   * verifies the product against GIBS at boot and extends it forward.
+   */
+  lastAvailableMonth: YearMonth;
   /** Month through which the caller had confirmed source availability. */
   availableThrough: YearMonth;
+  /**
+   * True when `dataMonth` sits past `lastAvailableMonth` — the caller supplied
+   * a value for a month the cited product does not declare as published.
+   *
+   * This does not by itself make the value wrong, which is why it is reported
+   * rather than used to withhold: before boot verification `lastAvailableMonth`
+   * is a conservative baseline, so a real observation can legitimately outrun
+   * it. But `availableThrough` is the caller's own claim, and nothing else in
+   * this summary checks it against the source. Reanalysis and land-model
+   * products lag the MODIS composites (that lag is exactly what `latest`
+   * records), so a caller driving off the global timeline end reaches months
+   * MERRA-2 and GLDAS have never distributed and is told only "published".
+   * Consumers that must not overstate the record should treat a flagged
+   * observation as unverified against its source.
+   */
+  beyondDeclaredRecord: boolean;
   /** Whether this data month is within the cited source's known record. */
   publicationStatus:
     | "published"
@@ -132,6 +156,12 @@ export interface MonthlyClimateSummary {
  * Describe a single supplied monthly value and publication lag at month
  * precision. `availableThrough` is an availability checkpoint, not a promise
  * that a future monthly value will be published.
+ *
+ * The cited layer's record bounds this on both ends. A month before `start` is
+ * withheld as `before-source-record`. A month past the layer's declared
+ * `latest` is reported through `beyondDeclaredRecord` rather than withheld,
+ * because that end of the record is a conservative baseline until boot
+ * verification extends it — see the field's note.
  */
 export function summarizeMonthlyClimate(
   observation: MonthlyClimateObservation,
@@ -139,10 +169,14 @@ export function summarizeMonthlyClimate(
 ): MonthlyClimateSummary {
   const metric = CLIMATE_METRICS[observation.metricId];
   const firstAvailableMonth = LAYERS[metric.layerId].start;
+  // Read at call time: freshness.ts extends both bindings at boot, so a
+  // summary must reflect the record as verified then, not as compiled in.
+  const lastAvailableMonth = LAYERS[metric.layerId].latest ?? DATA_LATEST;
   const dataMonth = observation.dataMonth;
   const validMonths =
     isYearMonth(dataMonth) &&
     isYearMonth(firstAvailableMonth) &&
+    isYearMonth(lastAvailableMonth) &&
     isYearMonth(availableThrough);
   const lag = validMonths ? monthDistance(dataMonth, availableThrough) : null;
   const publicationStatus =
@@ -164,7 +198,10 @@ export function summarizeMonthlyClimate(
     // observation that has already been paired with a source value.
     dataMonth: { ...dataMonth },
     firstAvailableMonth: { ...firstAvailableMonth },
+    lastAvailableMonth: { ...lastAvailableMonth },
     availableThrough: { ...availableThrough },
+    beyondDeclaredRecord:
+      validMonths && monthDistance(lastAvailableMonth, dataMonth) > 0,
     publicationStatus,
     publicationLagMonths: lag === null || lag < 0 ? null : lag,
     coverage,
