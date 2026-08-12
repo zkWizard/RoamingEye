@@ -18,8 +18,14 @@ export type LandCoverPixelDecode =
 
 /**
  * The categorical RGB values published by NASA GIBS for the MCD12Q1 LC_Type1
- * IGBP layer. These are source rendering colours, not a continuous scale, so
- * decoding deliberately accepts exact opaque palette entries only.
+ * IGBP layer, in the MODIS_IGBP_Land_Cover_Type colormap document. These are
+ * source rendering colours, not a continuous scale, so decoding deliberately
+ * accepts exact opaque palette entries only.
+ *
+ * Re-derived from that live document by contract/land-cover-palette.contract
+ * (see lib/landCoverPaletteSource.ts), because a re-render of a categorical
+ * palette renames classes rather than shifting values, and would otherwise
+ * mislabel every decoded pixel silently.
  */
 export const IGBP_RENDERED_PALETTE: Readonly<
   Record<IgbpLandCoverClassCode, Readonly<RenderedLandCoverPixel>>
@@ -40,6 +46,10 @@ export const IGBP_RENDERED_PALETTE: Readonly<
   14: { r: 153, g: 147, b: 86 },
   15: { r: 255, g: 255, b: 255 },
   16: { r: 191, g: 191, b: 189 },
+  // Source values 0 and 17 share this colour, so the rendered image does not
+  // separate them. Only 17 is a published LC_Type1 class (the product
+  // documents 1..17 with 255 as fill), which is what resolves it to water —
+  // the product specification, not the pixel.
   17: { r: 134, g: 202, b: 227 },
   255: { r: 100, g: 100, b: 100 },
 };

@@ -13,8 +13,8 @@ import {
 
 const AVAILABLE_THROUGH = { year: 2026, month: 3 };
 
-/** Precipitation RMSE 20.36 mm/day converted to native kg/m²/s (÷ 86 400 s/day). */
-const PRECIP_NATIVE_RMSE = 20.36 / 86_400;
+/** Precipitation RMSE 0.27 mm/day converted to native kg/m²/s (÷ 86 400 s/day). */
+const PRECIP_NATIVE_RMSE = 0.27 / 86_400;
 
 function obs(value: number, validFraction = 0.9): EnvironmentObservation {
   return { dataMonth: { year: 2026, month: 1 }, value, validFraction };
@@ -42,8 +42,10 @@ describe("calibratedLayerWithRmse", () => {
   });
 
   it("returns null for uncharacterized or all-null layers", () => {
-    // NDVI is a satellite-derived index, not a calibrated colormap-inverted layer.
-    expect(calibratedLayerWithRmse("ndvi")).toBeNull();
+    // EVI has no measured inversion RMSE: GIBS's MODIS_L3_EVI ramp contains
+    // pure black, which is also an undrawn tile pixel, so the ramp cannot be
+    // calibrated the way NDVI's was.
+    expect(calibratedLayerWithRmse("evi")).toBeNull();
     // LST inverts to no value at all (rmse === null), so it bounds nothing.
     expect(MEASURED_INVERSION.lst.rmse).toBeNull();
     expect(calibratedLayerWithRmse("lst")).toBeNull();
@@ -54,11 +56,11 @@ describe("inversionUncertaintyForLayer", () => {
   it("returns the measured RMSE in native units when no conversion applies", () => {
     const soil = inversionUncertaintyForLayer("soil", "kg/m²");
     expect(soil).not.toBeNull();
-    expect(soil!.reportedRmse).toBe(8.23);
+    expect(soil!.reportedRmse).toBe(0.23);
     expect(soil!.reportedUnit).toBe("kg/m²");
-    expect(soil!.nativeRmse).toBe(8.23);
-    // 50 total colormap steps, 29 rejected as no-data → 21 recovered.
-    expect(soil!.recoveredSteps).toBe(21);
+    expect(soil!.nativeRmse).toBe(0.23);
+    // The legend is built from GIBS's own ramp, so no colour is rejected.
+    expect(soil!.recoveredSteps).toBe(50);
     expect(soil!.totalSteps).toBe(50);
   });
 
@@ -66,15 +68,26 @@ describe("inversionUncertaintyForLayer", () => {
     const precip = inversionUncertaintyForLayer("precip", "kg/m²/s");
     expect(precip).not.toBeNull();
     // Published figure stays in the probe's reported unit.
-    expect(precip!.reportedRmse).toBe(20.36);
+    expect(precip!.reportedRmse).toBe(0.27);
     expect(precip!.reportedUnit).toBe("mm/day");
     // Band is dimensionally matched to the brief's native kg/m²/s value.
     expect(precip!.nativeRmse).toBeCloseTo(PRECIP_NATIVE_RMSE, 12);
-    expect(precip!.recoveredSteps).toBe(27);
+    // Every ramp colour now inverts; none is rejected as no-data.
+    expect(precip!.recoveredSteps).toBe(50);
   });
 
   it("never invents an uncertainty for an uncharacterized layer", () => {
-    expect(inversionUncertaintyForLayer("ndvi", "NDVI")).toBeNull();
+    expect(inversionUncertaintyForLayer("evi", "EVI")).toBeNull();
+  });
+
+  it("bounds NDVI now that its legend is calibrated against GIBS", () => {
+    const ndvi = inversionUncertaintyForLayer("ndvi", "NDVI");
+    expect(ndvi).not.toBeNull();
+    expect(ndvi!.reportedRmse).toBe(MEASURED_INVERSION.ndvi.rmse);
+    // NDVI is unitless, so no conversion separates reported from native.
+    expect(ndvi!.nativeRmse).toBe(ndvi!.reportedRmse);
+    // Every colormap step inverts, so none are dropped from the record.
+    expect(ndvi!.recoveredSteps).toBe(ndvi!.totalSteps);
   });
 });
 
@@ -92,14 +105,17 @@ describe("summarizeBriefValueUncertainty", () => {
     const soil = summary.signals.find((s) => s.id === "soil-moisture")!;
     expect(soil.status).toBe("characterized");
     expect(soil.observedValue).toBe(24);
-    expect(soil.nativeRmse).toBe(8.23);
-    expect(soil.lower).toBeCloseTo(24 - 8.23, 6);
-    expect(soil.upper).toBeCloseTo(24 + 8.23, 6);
-    expect(soil.statement).toContain("± 8.23 kg/m²");
+    expect(soil.nativeRmse).toBe(0.23);
+    expect(soil.lower).toBeCloseTo(24 - 0.23, 6);
+    expect(soil.upper).toBeCloseTo(24 + 0.23, 6);
+    expect(soil.statement).toContain("± 0.23 kg/m²");
 
     const air = summary.signals.find((s) => s.id === "air-temperature")!;
-    expect(air.nativeRmse).toBe(18.95);
-    expect(air.statement).toContain("290 ± 18.95 K");
+    // Bound to the published figure rather than a literal: this asserts the
+    // plumbing carries MEASURED_INVERSION through, not what the number is.
+    const airRmse = MEASURED_INVERSION.airtemp.rmse!;
+    expect(air.nativeRmse).toBe(airRmse);
+    expect(air.statement).toContain(`290 ± ${airRmse} K`);
   });
 
   it("surfaces the published reported-unit figure when the native unit differs", () => {
@@ -107,26 +123,29 @@ describe("summarizeBriefValueUncertainty", () => {
     const summary = summarizeBriefValueUncertainty(brief.signals);
 
     const precip = summary.signals.find((s) => s.id === "rainfall")!;
-    expect(precip.reportedRmse).toBe(20.36);
+    expect(precip.reportedRmse).toBe(0.27);
     expect(precip.reportedUnit).toBe("mm/day");
     expect(precip.nativeRmse).toBeCloseTo(PRECIP_NATIVE_RMSE, 12);
     // Native band qualifies the kg/m²/s value; the mm/day figure stays traceable.
     expect(precip.statement).toContain("kg/m²/s");
-    expect(precip.statement).toContain("published RMSE 20.36 mm/day");
+    expect(precip.statement).toContain("published RMSE 0.27 mm/day");
   });
 
-  it("reports NDVI as uncharacterized and never bounds it", () => {
+  it("bounds the vegetation signal against the calibrated NDVI legend", () => {
+    // Before the NDVI legend was sampled from GIBS's MODIS_L3_NDVI ramp this
+    // signal was the brief's uncharacterized case. It now carries a measured
+    // band like every other signal the brief reports.
     const brief = briefWith({ vegetation: obs(0.6) });
     const summary = summarizeBriefValueUncertainty(brief.signals);
 
     const veg = summary.signals.find((s) => s.id === "vegetation")!;
-    expect(veg.status).toBe("uncharacterized");
-    expect(veg.nativeRmse).toBeNull();
-    expect(veg.lower).toBeNull();
-    expect(veg.upper).toBeNull();
-    expect(veg.statement).toContain("no characterized end-to-end");
-    expect(summary.characterizedCount).toBe(0);
-    expect(summary.uncharacterizedCount).toBe(1);
+    const rmse = MEASURED_INVERSION.ndvi.rmse!;
+    expect(veg.status).toBe("characterized");
+    expect(veg.nativeRmse).toBe(rmse);
+    expect(veg.lower).toBeCloseTo(0.6 - rmse, 12);
+    expect(veg.upper).toBeCloseTo(0.6 + rmse, 12);
+    expect(summary.characterizedCount).toBe(1);
+    expect(summary.uncharacterizedCount).toBe(0);
   });
 
   it("considers only available signals by default", () => {
@@ -152,7 +171,7 @@ describe("summarizeBriefValueUncertainty", () => {
     expect(soil.status).toBe("characterized");
     expect(soil.observedValue).toBeNull();
     expect(soil.lower).toBeNull();
-    expect(soil.reportedRmse).toBe(8.23);
+    expect(soil.reportedRmse).toBe(0.23);
     expect(soil.statement).toContain("no usable value to bound");
   });
 

@@ -30,8 +30,10 @@ _Hydrology / agriculture / ecology — "did the 2023–24 drought reach my site?
 
 1. Pick **Soil moisture** (or **Precipitation**) in the layer picker.
 2. Search your field site by name, or rotate/zoom to it.
-3. **Click the exact point.** The probe panel charts root-zone soil moisture
-   at that spot for every month since 2000.
+3. **Click the exact point.** The probe panel charts surface (0–10 cm) soil
+   moisture at that spot for every month since 2000. This is the top Noah soil
+   layer, not the 0–100 cm root zone — it dries and rewets within days, so read
+   a single month as a wetness snapshot, not as stored water.
 4. Drought years read directly off the chart as troughs that undercut the
    usual seasonal cycle. Hit **Download CSV**.
 5. Repeat the click on **Vegetation (NDVI)** — a lagging NDVI trough at the
@@ -70,10 +72,12 @@ _Urban climate / land-use change — "is my city measurably hotter than 2000?"_
    Use this recipe to decide _whether_ a site is worth that pull — which is what
    it is genuinely good for — not to produce the numbers themselves.
 
-Want a probe-based temperature series today? **Air temperature (2 m)** does
-invert, though with large absolute uncertainty (19.0 K RMSE); METHODS §3 is
-explicit that those layers are for **relative and temporal** analysis, so work
-in anomalies rather than absolute degrees.
+Want a probe-based temperature series today? **Air temperature (2 m)** is the
+layer to reach for: its legend is taken from the colormap GIBS renders with, so
+inversion recovers every ramp colour at 0.51 K RMSE (METHODS §3) — tight enough
+to read in absolute degrees, unlike the coarser gradients on this list. It is
+still MERRA-2 reanalysis rather than a station measurement, and readings near
+271 K sit on the ramp's low-contrast pale-yellow shoulder (docs/validation.md).
 
 ## 3. The plate-tectonics lecture view
 

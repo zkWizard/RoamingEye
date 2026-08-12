@@ -15,10 +15,66 @@ export interface PlateBoundary {
   name: string;
   /** The boundary polyline as [lon, lat] positions. */
   points: Position[];
+  /**
+   * PB2002's own per-step attributes, when the supplied file carries them.
+   *
+   * Optional only for compatibility with callers constructing boundaries
+   * outside the parser; parsed features always carry the object and use null
+   * for fields the source left blank.
+   */
+  step?: PlateBoundaryStep;
+}
+
+/** Attributes retained verbatim from one PB2002 boundary step. */
+export interface PlateBoundaryStep {
+  /** First bordering plate's PB2002 code, from the source `PlateA` field. */
+  plateA: string | null;
+  /** Second bordering plate's PB2002 code, from the source `PlateB` field. */
+  plateB: string | null;
+  /**
+   * The source `Type` field, verbatim. PB2002 sets this to "subduction" on
+   * subduction steps and leaves it blank on every other step, so null means
+   * "the source did not mark this step", not "measured as non-subduction".
+   * The model does not distinguish spreading from transform steps here.
+   */
+  boundaryType: string | null;
+  /**
+   * The digitization credited for this step, from the source `Source` field
+   * (e.g. "Mueller et al. [1987]"). PB2002 is a compilation of dozens of
+   * separately sourced digitizations, not one uniform survey; this keeps the
+   * per-step credit attached rather than crediting Bird (2003) alone.
+   */
+  sourceCitation: string | null;
+}
+
+/**
+ * How the source marked a step's boundary type. "not-marked" and "unavailable"
+ * are kept apart so a blank source field never reads as a missing file.
+ */
+export type PlateBoundaryClass = "subduction" | "not-marked" | "unavailable";
+
+/**
+ * Report the source's own boundary-type marking for a step. Categorical
+ * passthrough of PB2002's `Type` field: it asserts nothing about relative
+ * motion, dip, polarity, activity, seismicity, or hazard.
+ */
+export function plateBoundaryClass(
+  boundary: PlateBoundary
+): PlateBoundaryClass {
+  if (!boundary.step) return "unavailable";
+  return boundary.step.boundaryType === "subduction"
+    ? "subduction"
+    : "not-marked";
 }
 
 interface FeatureLike {
-  properties?: { name?: unknown };
+  properties?: {
+    name?: unknown;
+    plateA?: unknown;
+    plateB?: unknown;
+    type?: unknown;
+    source?: unknown;
+  };
   geometry?: GeoGeometry | null;
 }
 
@@ -35,16 +91,22 @@ export function parsePlateBoundaries(json: unknown): PlateBoundary[] {
   for (const feature of features as FeatureLike[]) {
     const geometry = feature?.geometry;
     if (!geometry || typeof geometry.type !== "string") continue;
-    const name =
-      typeof feature.properties?.name === "string"
-        ? feature.properties.name
-        : "";
+    const properties = feature.properties;
+    const name = typeof properties?.name === "string" ? properties.name : "";
+    const step: PlateBoundaryStep = {
+      plateA: nonEmptyStringOrNull(properties?.plateA),
+      plateB: nonEmptyStringOrNull(properties?.plateB),
+      boundaryType: nonEmptyStringOrNull(properties?.type),
+      sourceCitation: nonEmptyStringOrNull(properties?.source),
+    };
     for (const ring of geometryToRings(geometry)) {
       // Keep only contiguous valid runs. Filtering individual positions would
       // join the vertices on either side of malformed source data and invent a
       // boundary segment that was never present in the supplied linework.
       for (const points of contiguousValidRuns(ring)) {
-        if (points.length >= 2) out.push({ name, points });
+        // Each run inherits the feature's step attributes: splitting a run is
+        // a geometry repair, not a change of which step the source described.
+        if (points.length >= 2) out.push({ name, points, step });
       }
     }
   }
@@ -65,6 +127,11 @@ function contiguousValidRuns(points: readonly Position[]): Position[][] {
   }
   if (current.length > 0) runs.push(current);
   return runs;
+}
+
+/** Blank source fields read as unavailable rather than as an empty label. */
+function nonEmptyStringOrNull(value: unknown): string | null {
+  return typeof value === "string" && value.trim() !== "" ? value : null;
 }
 
 function isValidPosition(position: Position): boolean {

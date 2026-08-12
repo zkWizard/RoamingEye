@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { LAYERS, LAYER_ORDER } from "../src/lib/timeline";
 import { HIRES_LAYER } from "../src/lib/imagery";
 import { citedDatasets } from "../src/lib/providers";
+import { citedVectorSources } from "../src/lib/citedVectorSources";
 
 /**
  * Data-citation contract: the dataset references pinned in the LAYERS config
@@ -73,16 +74,25 @@ describe("GIBS layer-metadata ↔ pinned dataset contract", () => {
 });
 
 describe("DOI resolution contract", () => {
-  for (const { dataset } of citedDatasets()) {
-    it(`${dataset.doi} resolves at doi.org`, async () => {
-      const res = await fetchWithRetry(`https://doi.org/${dataset.doi}`, {
+  // Every DOI the app hands a reader must resolve — the GIBS products and the
+  // vector sources behind the volcano and plate-boundary overlays alike. The
+  // USGS feed is deliberately absent: it has no DOI, and citedVectorSources()
+  // cites it by URL rather than borrowing one.
+  const dois = [
+    ...citedDatasets().map((c) => c.dataset.doi),
+    ...citedVectorSources().flatMap((s) => (s.doi ? [s.doi] : [])),
+  ];
+
+  for (const doi of dois) {
+    it(`${doi} resolves at doi.org`, async () => {
+      const res = await fetchWithRetry(`https://doi.org/${doi}`, {
         method: "HEAD",
         redirect: "manual",
       });
       // A registered DOI answers with a redirect to its landing page.
       expect(
         [301, 302, 303, 307, 308].includes(res.status),
-        `expected a redirect for ${dataset.doi}, got HTTP ${res.status}`
+        `expected a redirect for ${doi}, got HTTP ${res.status}`
       ).toBe(true);
     });
   }

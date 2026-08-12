@@ -1,6 +1,12 @@
+import {
+  anomalyBaselineCsvHeaders,
+  anomalyBaselineDepth,
+} from "./anomalyBaselineDepth";
+import { doiResolverUrl } from "./doiLink";
 import type { Bounds } from "./imagery";
 import type { LegendStop } from "./legend";
 import { makeNeumaierAcc } from "./numerics";
+import { SOIL_MOISTURE_DEPTH_LABEL } from "./soilMoistureDepth";
 import type { DatasetRef, LayerId, YearMonth } from "./timeline";
 import { trendSummary, trendCsvHeaders } from "./trend";
 
@@ -440,7 +446,9 @@ export const PROBE_SCALES: Record<LayerId, ProbeScale> = {
     calibrated: true,
   },
   soil: {
-    label: "Soil moisture (approx.)",
+    // Depth belongs in the label: it rides into the CSV's "# value:" header,
+    // where a downstream reader has nothing else to tell 0-10 cm from root zone.
+    label: `Soil moisture ${SOIL_MOISTURE_DEPTH_LABEL} (approx.)`,
     min: 0,
     max: 50,
     unit: "kg/m²",
@@ -464,10 +472,24 @@ export function scaleValue(t: number, scale: ProbeScale): number {
   return scale.min + t * (scale.max - scale.min);
 }
 
-/** Display formatting: 3 significant digits + unit ("0.63", "78 %"). */
+/**
+ * Display formatting: enough decimals to resolve the inversion's quantization
+ * step, plus the unit ("0.634", "78.4 %").
+ *
+ * Decimals come from `csvDecimals` — the same quantization-derived rule the
+ * download already applies — so the status line, the chart axes, the legend
+ * ticks and the CSV state one measurement at one method-justified precision.
+ * The previous rule keyed the decimals off the scale's *span* (none above 10
+ * units, two below), which printed a value coarser than the uncertainty
+ * quoted beside it. That hurt the atmospheric layers most: precipitation
+ * resolves ±0.08 mm/day but rendered to a whole mm/day, so every arid and
+ * semi-arid monthly mean (< 0.5 mm/day) collapsed onto "0 mm/day" — the same
+ * string a rain-free month gets — and the anomaly axis printed sub-unit
+ * departures as "+0"; 2 m air temperature quoted ±0.2 K next to a value
+ * rounded to the nearest kelvin, discarding the interannual signal entirely.
+ */
 export function formatProbeValue(value: number, scale: ProbeScale): string {
-  const digits = scale.max - scale.min > 10 ? 0 : 2;
-  return `${value.toFixed(digits)}${scale.unit ? ` ${scale.unit}` : ""}`;
+  return `${value.toFixed(csvDecimals(scale))}${scale.unit ? ` ${scale.unit}` : ""}`;
 }
 
 // --- Quantified uncertainty ------------------------------------------------------
@@ -489,6 +511,11 @@ export function quantizationStep(scale: ProbeScale): number {
  * Decimals that honestly represent the quantization step — enough to
  * resolve it, none implying precision the method doesn't have (the old
  * fixed 4 decimals printed 0.6338 from a ±0.002 measurement).
+ *
+ * Named for the download it was written for, but it is the repository's one
+ * value-precision rule: `formatProbeValue` renders every on-screen value with
+ * it too, so no surface can quote a number coarser or finer than the method
+ * resolves.
  */
 export function csvDecimals(scale: ProbeScale): number {
   const step = quantizationStep(scale);
@@ -580,6 +607,14 @@ export interface ProbeCsvMeta {
   toolVersion?: string;
   /** Deep link that reproduces the exact chart (layer, month, probe). */
   viewUrl?: string;
+  /**
+   * Measured colormap-inversion accuracy lines for this layer, built by
+   * `probeInversionAccuracy.inversionAccuracyCsvHeaders`. Passed in rather
+   * than derived here so this module stays a leaf of the validation figures
+   * (validation.ts already imports this file). Omitted for layers with no
+   * committed measurement — never replaced with a hedged placeholder.
+   */
+  inversionAccuracyHeaders?: string[];
 }
 
 /**
@@ -651,7 +686,9 @@ export function buildProbeCsv(
           `# data_product: ${csvHeaderText(
             `${meta.dataset.shortName} v${meta.dataset.version} — ${meta.dataset.title}`
           )}`,
-          `# data_doi: https://doi.org/${csvHeaderText(meta.dataset.doi)}`,
+          // Percent-encode the DOI for URL safety first, then apply the CSV
+          // header contract (no comma, no quote, single line) to the link.
+          `# data_doi: ${csvHeaderText(doiResolverUrl(meta.dataset.doi))}`,
         ]
       : []),
     `# lat: ${meta.lat.toFixed(4)}`,
@@ -669,8 +706,16 @@ export function buildProbeCsv(
         ? "approximate physical scale"
         : "fraction of color scale"
     })`,
-    `# anomaly: value minus this location's mean for the same calendar month (same units)`,
+    // The anomaly is a within-record departure, and how much record backs it
+    // varies by calendar month — say both, so a single-year calendar month's
+    // constructed zero is never read as a measured "exactly average".
+    `# anomaly: value minus this location's mean for the same calendar month in this file (same units) — a within-record departure; not an independent climatological normal`,
+    ...anomalyBaselineCsvHeaders(anomalyBaselineDepth(months, values)),
     `# uncertainty: ${uncertaintyText(meta.scale)} colormap quantization (compression noise on top; see the probe accuracy suite for end-to-end bounds)`,
+    // Quantization is the floor, not the error. The measured disagreement with
+    // GIBS's own colormap is far larger on most layers, so it ships alongside
+    // rather than staying in docs/validation.md (see probeInversionAccuracy).
+    ...(meta.inversionAccuracyHeaders ?? []),
     ...trendCsvHeaders(trend),
     ...(fractions
       ? [

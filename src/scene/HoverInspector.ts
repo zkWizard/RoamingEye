@@ -5,11 +5,16 @@ import type {
   CountryIndex,
   RegionIndex,
 } from "../lib/countryIndex";
-import type { HoverPointSource } from "../overlays/types";
+import type { HoverLineSource, HoverPointSource } from "../overlays/types";
 
 // Hit radius around a point marker, in world units — a little wider than the
 // markers themselves (~0.022) feel, so they don't demand pixel-perfect aim.
 const POINT_THRESHOLD = 0.012;
+
+// Hit radius around a line, in world units. Tighter than the point threshold:
+// plate linework spans the whole globe, so a generous radius would shadow the
+// point markers sitting on top of it.
+const LINE_THRESHOLD = 0.006;
 
 // A marker hit may sit slightly beyond the earth hit near the limb (markers
 // float just above the surface); anything farther than this is on the far
@@ -27,6 +32,7 @@ export class HoverInspector {
   private readonly raycaster = new THREE.Raycaster();
   private readonly ndc = new THREE.Vector2();
   private readonly sources: Array<() => HoverPointSource | undefined> = [];
+  private readonly lineSources: Array<() => HoverLineSource | undefined> = [];
   private countryIndex: CountryIndex | undefined;
   private admin1Index: RegionIndex<Admin1Region> | undefined;
   private pointerDown = false;
@@ -38,6 +44,7 @@ export class HoverInspector {
     private readonly tooltip: HTMLElement
   ) {
     this.raycaster.params.Points.threshold = POINT_THRESHOLD;
+    this.raycaster.params.Line.threshold = LINE_THRESHOLD;
     canvas.addEventListener("pointermove", (e) => this.onMove(e));
     canvas.addEventListener("pointerleave", () => this.hide());
     canvas.addEventListener("pointerdown", () => {
@@ -63,6 +70,15 @@ export class HoverInspector {
    */
   addPointSource(source: () => HoverPointSource | undefined): void {
     this.sources.push(source);
+  }
+
+  /**
+   * Register overlay linework to name on hover (e.g. plate boundaries). Point
+   * markers take precedence: a marker names one specific feature, while a line
+   * only names the boundary it belongs to.
+   */
+  addLineSource(source: () => HoverLineSource | undefined): void {
+    this.lineSources.push(source);
   }
 
   private onMove(event: PointerEvent): void {
@@ -118,6 +134,33 @@ export class HoverInspector {
         }
         if (best && hit.distance >= best.distance) break;
         const text = source.describe(hit.index);
+        if (text) {
+          best = { distance: hit.distance, text };
+          break;
+        }
+      }
+    }
+    return best?.text ?? this.pickLine(earthDistance);
+  }
+
+  /** Text for the nearest visible overlay line under the cursor, if any. */
+  private pickLine(earthDistance: number | undefined): string | undefined {
+    let best: { distance: number; text: string } | undefined;
+    for (const get of this.lineSources) {
+      const source = get();
+      if (!source || !isShown(source.lines)) continue;
+      for (const hit of this.raycaster.intersectObject(source.lines, false)) {
+        if (hit.index === undefined) continue;
+        if (
+          earthDistance !== undefined &&
+          hit.distance > earthDistance + FAR_SIDE_SLACK
+        ) {
+          break; // this and everything after is behind the globe
+        }
+        if (best && hit.distance >= best.distance) break;
+        // three.js reports the segment's FIRST vertex index; LineSegments
+        // consumes two vertices per segment, so halving recovers the segment.
+        const text = source.describe(hit.index / 2);
         if (text) {
           best = { distance: hit.distance, text };
           break;

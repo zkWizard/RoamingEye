@@ -6,6 +6,8 @@ import {
   type ProviderUse,
 } from "../lib/providers";
 import { citationBundle, type CitationFormat } from "../lib/citation";
+import { citedVectorSources } from "../lib/citedVectorSources";
+import { doiResolverUrl } from "../lib/doiLink";
 import { FocusTrap } from "./modal";
 import { ICONS } from "./icons";
 
@@ -65,21 +67,53 @@ export class ProvidersPage {
     const citingIntro = document.createElement("p");
     citingIntro.className = "providers__desc";
     citingIntro.textContent =
-      "Publishing work made with RoamingEye? Cite the source datasets " +
-      "(each DOI resolves to its citation), and acknowledge the imagery " +
-      "service:";
+      "Publishing work made with RoamingEye? Cite every source dataset you " +
+      "used — the imagery products and the volcano, earthquake and " +
+      "plate-boundary sources alike (a DOI resolves to its own citation; the " +
+      "one source without a DOI says what to add) — and acknowledge the " +
+      "imagery service:";
     const list = document.createElement("ul");
     list.className = "providers__datasets";
     for (const { dataset, usedBy } of citedDatasets()) {
       const item = document.createElement("li");
       const link = document.createElement("a");
-      link.href = `https://doi.org/${dataset.doi}`;
+      link.href = doiResolverUrl(dataset.doi);
       link.target = "_blank";
       link.rel = "noopener";
       link.textContent = `${dataset.shortName} v${dataset.version}`;
       const rest = document.createElement("span");
       rest.textContent = ` — ${dataset.title} (${usedBy.join(", ")})`;
       item.append(link, rest);
+      list.appendChild(item);
+    }
+    // The vector overlays are rendered just as prominently as the imagery but
+    // are not CMR products, so they are listed from their own registry. One of
+    // them has no DOI: it is linked by its landing page and carries the note
+    // saying what the reader must add (see citedVectorSources.ts).
+    for (const source of citedVectorSources()) {
+      const item = document.createElement("li");
+      const link = document.createElement("a");
+      link.href = source.doi ? doiResolverUrl(source.doi) : source.url;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent =
+        source.version === undefined
+          ? source.title
+          : `${source.title} v${source.version}`;
+      const rest = document.createElement("span");
+      // A paper names its journal instead of a publisher; an entry with
+      // neither still lists the surfaces it powers rather than "undefined".
+      const attribution = source.publisher ?? source.containerTitle;
+      rest.textContent = attribution
+        ? ` — ${attribution} (${source.usedBy.join(", ")})`
+        : ` — ${source.usedBy.join(", ")}`;
+      item.append(link, rest);
+      if (source.note) {
+        const note = document.createElement("span");
+        note.className = "providers__dataset-note";
+        note.textContent = ` ${source.note}`;
+        item.appendChild(note);
+      }
       list.appendChild(item);
     }
     const ack = document.createElement("blockquote");

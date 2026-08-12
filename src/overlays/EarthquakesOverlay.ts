@@ -13,6 +13,7 @@ import {
   type Earthquake,
   type EarthquakeFeedSnapshot,
 } from "../lib/earthquakes";
+import { reportedDepthBasisNote } from "../lib/seismicFixedDepth";
 
 /**
  * Live seismicity: the last 30 days of M4.5+ earthquakes from the USGS feed.
@@ -89,7 +90,13 @@ export class EarthquakesOverlay implements MapOverlay {
         points,
         describe: (pointIndex) => {
           const quake = inBucket[pointIndex];
-          return quake ? formatEarthquakeObservation(quake) : undefined;
+          if (!quake) return undefined;
+          // The marker's color already asserts a depth class. Where the feed's
+          // depth is one of the conventional operator defaults, say so rather
+          // than let the readout imply an independently resolved hypocenter.
+          const note = reportedDepthBasisNote(quake.depthKm);
+          const observation = formatEarthquakeObservation(quake);
+          return note ? `${observation} · ${note}` : observation;
         },
       };
     }

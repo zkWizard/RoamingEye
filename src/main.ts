@@ -9,45 +9,22 @@ import {
   ymEqual,
   ymToIndex,
   gibsWmsUrl,
+  type LayerConfig,
   type LayerId,
   type YearMonth,
 } from "./lib/timeline";
 import { encodeViewState, decodeViewState } from "./lib/viewState";
 import { latLngToVector3, vector3ToLatLng, formatLatLng } from "./lib/geo";
 import { buildProbeCsv, normalizeLon, PROBE_SCALES } from "./lib/probe";
-import { isAreaGeometry } from "./lib/geojson";
 import {
-  PLACE_OBSERVATION_NATIVE_UNITS,
-  placeObservationProductFromSample,
-  serializePlaceObservationExport,
-  sstPlaceObservationFromSample,
-  type PlaceObservationExportSample,
-} from "./lib/placeObservationExport";
-import { SCALE_CONVERSIONS, colormapUrl } from "./lib/colormap";
-import { environmentUnavailableSample } from "./lib/environmentUnavailableSample";
-import {
-  PLACE_METRICS,
-  PLACE_COLORMAP_DOCS,
-  latestComparisonMonths,
-  loadPlaceColormap,
-  placeInsightPhysicalReading,
-  placeInsightReading,
-} from "./lib/placeInsights";
-import {
-  marineBoundarySstReading,
-  unavailableMarineBoundarySstReading,
-} from "./lib/marinePlaceInsight";
-import {
-  climateInsightText,
-  climateMetricForLayer,
-  exportObservationsFromRenderedClimateSample,
-  summarizeRenderedClimateSample,
-} from "./lib/meteorology";
-import { volcanoesInSearchExtent } from "./lib/volcanoExtent";
-import { parseVolcanoDataset } from "./lib/volcanoes";
+  inversionAccuracyCsvHeaders,
+  probeInversionAccuracy,
+} from "./lib/probeInversionAccuracy";
+import { emptyAtmosphereProbeNote } from "./lib/atmosphereProbeDomain";
+import { snowIlluminationNote } from "./lib/snowCoverIllumination";
 import type { GeoResult } from "./lib/geocoding";
 import { refreshDataLatest } from "./lib/freshness";
-import { fetchJson, isAbortError, isOnline, OfflineError } from "./lib/net";
+import { isAbortError, isOnline, OfflineError } from "./lib/net";
 import { nextPixelRatio } from "./lib/perf";
 import { ProbeSampler } from "./probe/ProbeSampler";
 import { ProbePanel } from "./ui/ProbePanel";
@@ -91,7 +68,6 @@ import {
 import type { Bounds } from "./lib/imagery";
 import { StudyRegion } from "./scene/StudyRegion";
 import { StudyChip } from "./ui/StudyChip";
-import { PlaceInsights } from "./ui/PlaceInsights";
 import { ShortcutsOverlay } from "./ui/ShortcutsOverlay";
 import { loadAdmin1Index, loadCountryIndex } from "./lib/countryIndex";
 import { flyToDistance, rotateSpeedForDistance } from "./lib/navigation";
@@ -132,7 +108,6 @@ const studyChipEl = document.querySelector<HTMLElement>("#study-chip");
 const providersPageEl = document.querySelector<HTMLElement>("#providers-page");
 const softwarePageEl = document.querySelector<HTMLElement>("#software-page");
 const fleetPageEl = document.querySelector<HTMLElement>("#fleet-page");
-const placeInsightsEl = document.querySelector<HTMLElement>("#place-insights");
 const probeEl = document.querySelector<HTMLElement>("#probe-panel");
 const compareEl = document.querySelector<HTMLElement>("#compare");
 const compareDividerEl =
@@ -237,6 +212,7 @@ const hdTiles = new TiledImageryOverlay(
 const errorToast = new ErrorToast();
 
 const citiesOverlay = new CitiesOverlay();
+const plateBoundariesOverlay = new PlateBoundariesOverlay();
 const volcanoesOverlay = new VolcanoesOverlay();
 const earthquakesOverlay = new EarthquakesOverlay();
 // "You are here" — opt-in geolocation pin; denial reverts its toggle + toasts.
@@ -251,7 +227,7 @@ const overlays: MapOverlay[] = [
   new AtmosphereOverlay(),
   // The geology trio — plate boundaries, volcanoes, and live seismicity line
   // up on the globe to tell the plate-tectonics story.
-  new PlateBoundariesOverlay(),
+  plateBoundariesOverlay,
   volcanoesOverlay,
   earthquakesOverlay,
   userLocationOverlay,
@@ -285,6 +261,7 @@ if (tooltipEl) {
     inspector.addPointSource(() => earthquakesOverlay.hoverSources[index]);
   }
   inspector.addPointSource(() => userLocationOverlay.hoverSource);
+  inspector.addLineSource(() => plateBoundariesOverlay.hoverSource);
   loadCountryIndex()
     .then((index) => {
       inspector.setCountryIndex(index);
@@ -430,273 +407,17 @@ hdTiles.onVisibleCoverageChange(({ requested, loaded, failed }) => {
 // both because their contents belong to the previous layer.
 let closeProbe: (() => void) | undefined;
 let compareControls: CompareControls | undefined;
-let placeInsightsAbort: AbortController | undefined;
-const placeInsights = placeInsightsEl
-  ? new PlaceInsights(placeInsightsEl, () => placeInsightsAbort?.abort())
-  : undefined;
-const placeSampler = new ProbeSampler({ width: 512, height: 512 }, 2);
+let placeInsightsModule:
+  Promise<typeof import("./place/placeInsightsController")> | undefined;
 
+/**
+ * The place-insights subsystem (panel UI, samplers, and every per-domain
+ * reading) only matters once a search resolves a place, so it loads as its
+ * own chunk on first use rather than riding the boot bundle.
+ */
 function runPlaceInsights(result: GeoResult): void {
-  if (!placeInsights || !result.geometry || !isAreaGeometry(result.geometry)) {
-    placeInsights?.close();
-    return;
-  }
-
-  placeInsightsAbort?.abort();
-  const abort = (placeInsightsAbort = new AbortController());
-  const geometry = result.geometry;
-  placeInsights.open(result.name);
-  const exportSamples = new Map<string, PlaceObservationExportSample>();
-  const samplingTasks: Promise<void>[] = [];
-
-  if (result.boundingBox) {
-    void fetchJson<unknown>(`${import.meta.env.BASE_URL}data/volcanoes.json`, {
-      signal: abort.signal,
-    })
-      .then(parseVolcanoDataset)
-      .then((dataset) => {
-        if (abort.signal.aborted) return;
-        placeInsights.setVolcanoContext(
-          volcanoesInSearchExtent(dataset.volcanoes, result.boundingBox),
-          dataset.dataMonth
-        );
-      })
-      .catch((error: unknown) => {
-        if (isAbortError(error) || abort.signal.aborted) return;
-        console.warn("RoamingEye: place volcano context failed to load", error);
-        placeInsights.setVolcanoUnavailable();
-      });
-  } else {
-    placeInsights.setVolcanoContext(volcanoesInSearchExtent([], null));
-  }
-
-  for (const metric of PLACE_METRICS) {
-    const months = latestComparisonMonths(metric.layerId);
-    if (!months) continue;
-    // Start with explicit no-data observations. A failed request or an
-    // unavailable authoritative colormap must not be replaced with a
-    // display-converted value labelled as a native-unit measurement. NDVI is
-    // the exception: its 0..1 physical range is already its native unit.
-    exportSamples.set(
-      metric.layerId,
-      environmentUnavailableSample(metric.layerId, months)
-    );
-    samplingTasks.push(
-      (async () => {
-        const colormap = await loadPlaceColormap(metric.layerId);
-        const sample = colormap
-          ? placeSampler.sampleGeometryPhysical(
-              LAYERS[metric.layerId],
-              months,
-              geometry,
-              { lat: result.lat, lon: result.lon },
-              colormap.entries,
-              colormap.factor,
-              { signal: abort.signal }
-            )
-          : placeSampler.sampleGeometry(
-              LAYERS[metric.layerId],
-              months,
-              geometry,
-              { lat: result.lat, lon: result.lon },
-              { signal: abort.signal }
-            );
-        const {
-          values,
-          validFractions,
-          sourceImageDimensions,
-          geometrySampling,
-          geometrySamplingStrategy,
-        } = await sample;
-        if (abort.signal.aborted) return;
-        const climateMetricId = climateMetricForLayer(metric.layerId);
-        const climateReading =
-          colormap && climateMetricId
-            ? summarizeRenderedClimateSample(
-                {
-                  metricId: climateMetricId,
-                  months,
-                  sampledValues: values,
-                  nativeToSampledValueFactor: colormap.factor,
-                  validFractions,
-                  sourceImageDimensions,
-                  geometrySamplingStrategy,
-                },
-                months[1]
-              )
-            : null;
-        placeInsights.setReading(
-          climateReading
-            ? {
-                id: metric.id,
-                ...climateInsightText(climateReading[0], climateReading[1]),
-              }
-            : colormap
-              ? placeInsightPhysicalReading(metric, months, values, {
-                  validFractions,
-                  sourceImageDimensions,
-                  geometrySamplingStrategy,
-                })
-              : placeInsightReading(metric, months, values, {
-                  validFractions,
-                  sourceImageDimensions,
-                  geometrySamplingStrategy,
-                })
-        );
-        if (colormap) {
-          exportSamples.set(metric.layerId, {
-            layerId: metric.layerId,
-            sampledUnit:
-              SCALE_CONVERSIONS[
-                metric.layerId as keyof typeof SCALE_CONVERSIONS
-              ]?.unit ?? PLACE_OBSERVATION_NATIVE_UNITS[metric.layerId],
-            sourceValueFactor: colormap?.factor ?? 1,
-            colormapUrl: colormapUrl(PLACE_COLORMAP_DOCS[metric.layerId]),
-            samplingSupport: geometrySampling,
-            samplingStrategy: geometrySamplingStrategy,
-            sourceImageDimensions,
-            observations:
-              colormap && climateMetricId
-                ? exportObservationsFromRenderedClimateSample(
-                    {
-                      metricId: climateMetricId,
-                      months,
-                      sampledValues: values,
-                      nativeToSampledValueFactor: colormap.factor,
-                      validFractions,
-                      sourceImageDimensions,
-                      geometrySamplingStrategy,
-                    },
-                    months[1]
-                  )
-                : months.map((dataMonth, index) => {
-                    const value = values[index] ?? null;
-                    if (value === null) {
-                      return {
-                        dataMonth,
-                        value,
-                        unavailableReason:
-                          (validFractions[index] ?? 0) > 0
-                            ? ("insufficient-valid-coverage" as const)
-                            : ("source-no-data" as const),
-                        validFraction: validFractions[index],
-                      };
-                    }
-                    return {
-                      dataMonth,
-                      value,
-                      validFraction: validFractions[index],
-                    };
-                  }),
-          });
-        }
-      })().catch((error: unknown) => {
-        if (isAbortError(error) || abort.signal.aborted) return;
-        console.warn("RoamingEye: place insight sampling failed", error);
-        placeInsights.setReading({
-          id: metric.id,
-          value: "Unavailable",
-          detail:
-            "Boundary could not be represented by the bounded sample grid",
-        });
-      })
-    );
-  }
-
-  // SST is a single, latest-observation card rather than a terrestrial
-  // month-over-month "condition". Sample the exact searched geometry through
-  // NASA GIBS's published physical colormap so the value remains in °C.
-  const sstMonths = monthRangeForLayer(LAYERS.sst);
-  const sstMonth = sstMonths[sstMonths.length - 1];
-  let sstFailureReason:
-    "source-colormap-unavailable" | "boundary-sampling-failed" =
-    "source-colormap-unavailable";
-  exportSamples.set("sst", environmentUnavailableSample("sst", [sstMonth]));
-  samplingTasks.push(
-    (async () => {
-      const colormap = await loadPlaceColormap("sst");
-      if (!colormap) {
-        throw new Error("RoamingEye: SST physical colormap is unavailable");
-      }
-      sstFailureReason = "boundary-sampling-failed";
-      const sample = await placeSampler.sampleGeometryPhysical(
-        LAYERS.sst,
-        [sstMonth],
-        geometry,
-        { lat: result.lat, lon: result.lon },
-        colormap.entries,
-        colormap.factor,
-        { signal: abort.signal }
-      );
-      if (abort.signal.aborted) return;
-      placeInsights.setReading(
-        marineBoundarySstReading({
-          geographyLabel: result.name,
-          dataMonth: sstMonth,
-          observedValue: sample.values[0],
-          validFraction: sample.validFractions[0],
-          sourceImageDimensions: sample.sourceImageDimensions,
-          geography: { kind: "boundary", label: result.name },
-        })
-      );
-      exportSamples.set("sst", {
-        layerId: "sst",
-        sourceValueFactor: colormap.factor,
-        samplingStrategy: sample.geometrySamplingStrategy,
-        sourceImageDimensions: sample.sourceImageDimensions,
-        colormapUrl: colormapUrl(PLACE_COLORMAP_DOCS.sst),
-        observations: [
-          sstPlaceObservationFromSample(
-            sstMonth,
-            sample.values[0],
-            sample.validFractions[0]
-          ),
-        ],
-      });
-    })().catch((error: unknown) => {
-      if (isAbortError(error) || abort.signal.aborted) return;
-      console.warn("RoamingEye: marine place insight sampling failed", error);
-      placeInsights.setReading(
-        unavailableMarineBoundarySstReading(
-          sstMonth,
-          {
-            kind: "boundary",
-            label: result.name,
-          },
-          sstFailureReason
-        )
-      );
-    })
-  );
-
-  void Promise.all(samplingTasks)
-    .then(() => {
-      if (abort.signal.aborted) return;
-      const products = [...exportSamples.values()].map(
-        placeObservationProductFromSample
-      );
-      if (products.length === 0) return;
-      placeInsights.setObservationExport(
-        serializePlaceObservationExport({
-          boundary: geometry,
-          products,
-          method: {
-            sampling: "area-weighted-grid-mean",
-            imageWidth: 512,
-            imageHeight: 512,
-          },
-          generatedIso: new Date().toISOString(),
-          toolVersion: __APP_VERSION__,
-        })
-      );
-    })
-    .catch((error: unknown) => {
-      // Export validation throws on contract violations (unexplained nulls,
-      // invalid footprints). Losing the export beats an unhandled rejection
-      // that would silently strand the whole insights panel.
-      if (isAbortError(error) || abort.signal.aborted) return;
-      console.warn("RoamingEye: place observation export failed", error);
-    });
+  placeInsightsModule ??= import("./place/placeInsightsController");
+  void placeInsightsModule.then((m) => m.runPlaceInsights(result));
 }
 
 if (layerEl) {
@@ -1042,6 +763,45 @@ if (probeEl) {
     panel.close();
   };
 
+  /**
+   * Read the IGBP class at a point on the class-coded land-cover layer.
+   *
+   * Class codes are categorical, so the pixels are decoded through the source
+   * palette and counted — never inverted through a colormap or averaged. The
+   * panel reports the most frequent sampled class with its pixel count and the
+   * cited MCD12Q1 record it came from.
+   */
+  const readLandCoverClass = (
+    layer: LayerConfig,
+    ym: YearMonth,
+    lat: number,
+    lon: number,
+    mode: "point" | "area",
+    abort: AbortController
+  ): void => {
+    panel.setStatus("Reading land-cover class…");
+    // The class tables and decoder load on demand: only this one layer needs
+    // them, and the entry chunk's budget is shared with everything else.
+    Promise.all([
+      sampler.sampleRenderedPixels(layer, ym, lat, lon, {
+        mode,
+        signal: abort.signal,
+      }),
+      import("./probe/landCoverClassRead"),
+    ])
+      .then(([pixels, { readLandCoverClassText }]) => {
+        if (abort.signal.aborted) return;
+        panel.setStatus(readLandCoverClassText(pixels, ym.year));
+      })
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        console.warn("RoamingEye: land-cover class read failed", err);
+        panel.setStatus(
+          "Reading the land-cover class failed — check the connection and retry."
+        );
+      });
+  };
+
   const runProbe = (lat: number, lon: number): void => {
     const layer = LAYERS[currentLayer];
     const mode = panel.mode;
@@ -1049,11 +809,17 @@ if (probeEl) {
     probeShare = { lat, lon };
     drawer.clear(); // a point probe replaces any drawn-region chart
     scheduleHashSync();
-    panel.open(layer.label, formatLatLng({ lat, lon }));
+    const where =
+      mode === "area"
+        ? `~1° area around ${formatLatLng({ lat, lon })}`
+        : formatLatLng({ lat, lon });
+    // MOD10CM maps snow from reflected sunlight, so a high-latitude record has
+    // months it cannot have observed at all. Name them before the chart fills
+    // in, so a polar-winter gap — or a filled dark-month value — is not read
+    // as a snow measurement. Null, and free, everywhere equatorward of 63.3°.
+    const darkness = layer.id === "snow" ? snowIlluminationNote(lat) : null;
+    panel.open(layer.label, darkness ? `${where} · ${darkness}` : where);
     panel.setModeToggleVisible(true);
-    if (mode === "area") {
-      panel.setSubtitle(`~1° area around ${formatLatLng({ lat, lon })}`);
-    }
     if (layer.static) {
       panel.setStatus(
         "This layer has no time dimension — pick a monthly layer to chart a series."
@@ -1061,6 +827,17 @@ if (probeEl) {
       return;
     }
     if (layer.categorical) {
+      // No numeric series to chart — but the class at the point is a real,
+      // citable observation, so read it instead of dead-ending. Only the IGBP
+      // layer has a decodable palette here; any other class-coded layer keeps
+      // the honest "nothing to chart" message rather than being read through
+      // a palette that does not describe it.
+      if (layer.id === "landcover") {
+        probeAbort?.abort();
+        const abort = (probeAbort = new AbortController());
+        readLandCoverClass(layer, months[currentIndex], lat, lon, mode, abort);
+        return;
+      }
       panel.setStatus(
         "This layer shows classes, not a measurement — there is no numeric series to chart."
       );
@@ -1071,7 +848,7 @@ if (probeEl) {
     const abort = (probeAbort = new AbortController());
     const probeMonths = monthRangeForLayer(layer);
     const scale = PROBE_SCALES[layer.id];
-    panel.beginSeries(probeMonths, scale);
+    panel.beginSeries(probeMonths, scale, { layerId: layer.id, latitude: lat });
 
     let lastDraw = 0;
     sampler
@@ -1108,13 +885,17 @@ if (probeEl) {
                 generatedIso: new Date().toISOString(),
                 toolVersion: __APP_VERSION__,
                 viewUrl: currentShareUrl(),
+                inversionAccuracyHeaders: inversionAccuracyCsvHeaders(
+                  probeInversionAccuracy(layer.id, scale)
+                ),
               },
               probeMonths,
               values,
               undefined,
               validFractions
             ),
-          `roamingeye_probe_${mode}_${layer.id}_${lat.toFixed(3)}_${lon.toFixed(3)}.csv`
+          `roamingeye_probe_${mode}_${layer.id}_${lat.toFixed(3)}_${lon.toFixed(3)}.csv`,
+          emptyAtmosphereProbeNote(layer.id, values)
         );
       })
       .catch((err) => {
@@ -1156,7 +937,7 @@ if (probeEl) {
     const abort = (probeAbort = new AbortController());
     const probeMonths = monthRangeForLayer(layer);
     const scale = PROBE_SCALES[layer.id];
-    panel.beginSeries(probeMonths, scale);
+    panel.beginSeries(probeMonths, scale, { layerId: layer.id });
 
     let lastDraw = 0;
     sampler
@@ -1192,13 +973,17 @@ if (probeEl) {
                 generatedIso: new Date().toISOString(),
                 toolVersion: __APP_VERSION__,
                 viewUrl: currentShareUrl(),
+                inversionAccuracyHeaders: inversionAccuracyCsvHeaders(
+                  probeInversionAccuracy(layer.id, scale)
+                ),
               },
               probeMonths,
               values,
               undefined,
               validFractions
             ),
-          `roamingeye_region_${layer.id}_${bounds.south.toFixed(2)}_${normalizeLon(bounds.west).toFixed(2)}_${bounds.north.toFixed(2)}_${normalizeLon(bounds.east).toFixed(2)}.csv`
+          `roamingeye_region_${layer.id}_${bounds.south.toFixed(2)}_${normalizeLon(bounds.west).toFixed(2)}_${bounds.north.toFixed(2)}_${normalizeLon(bounds.east).toFixed(2)}.csv`,
+          emptyAtmosphereProbeNote(layer.id, values)
         );
       })
       .catch((err) => {

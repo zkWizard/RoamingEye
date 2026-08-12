@@ -520,12 +520,45 @@ describe("scales", () => {
         scaleValue(0.5, PROBE_SCALES.airtemp),
         PROBE_SCALES.airtemp
       )
-    ).toBe("265 K");
+    ).toBe("265.0 K");
   });
 
   it("formats values with the unit", () => {
-    expect(formatProbeValue(78.4, PROBE_SCALES.snow)).toBe("78 %");
-    expect(formatProbeValue(0.634, PROBE_SCALES.ndvi)).toBe("0.63");
+    expect(formatProbeValue(78.4, PROBE_SCALES.snow)).toBe("78.4 %");
+    expect(formatProbeValue(0.634, PROBE_SCALES.ndvi)).toBe("0.634");
+  });
+
+  it("resolves the quantization step rather than the scale's span", () => {
+    // The span-keyed rule this replaced gave every scale wider than ten units
+    // zero decimals, printing a value coarser than its own uncertainty.
+    for (const [id, scale] of Object.entries(PROBE_SCALES)) {
+      if (!scale.calibrated) continue;
+      const printed = formatProbeValue(scaleValue(0.5, scale), scale);
+      const decimals = printed.split(" ")[0].split(".")[1]?.length ?? 0;
+      expect(decimals, id).toBe(csvDecimals(scale));
+      // Two neighbouring LUT steps must not collapse onto the same string,
+      // or the readout is hiding a difference the method can measure.
+      const step = quantizationStep(scale);
+      expect(
+        formatProbeValue(scaleValue(0.5, scale) + step, scale),
+        id
+      ).not.toBe(printed);
+    }
+  });
+
+  it("keeps sub-millimetre precipitation distinct from a rain-free month", () => {
+    // Monthly means over arid and semi-arid land sit below 1 mm/day. Whole-
+    // millimetre rounding printed all of them — and true zero — as "0 mm/day".
+    const arid = formatProbeValue(0.4, PROBE_SCALES.precip);
+    expect(arid).toBe("0.4 mm/day");
+    expect(arid).not.toBe(formatProbeValue(0, PROBE_SCALES.precip));
+  });
+
+  it("keeps a 2 m air-temperature departure visible on the anomaly axis", () => {
+    // GLDAS interannual anomalies are a few tenths of a kelvin; rounding to
+    // the nearest kelvin erased the sign as well as the magnitude.
+    expect(formatProbeValue(0.6, PROBE_SCALES.airtemp)).toBe("0.6 K");
+    expect(formatProbeValue(-0.6, PROBE_SCALES.airtemp)).toBe("-0.6 K");
   });
 });
 

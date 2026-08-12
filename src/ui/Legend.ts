@@ -1,3 +1,4 @@
+import { doiResolverUrl } from "../lib/doiLink";
 import { LAYERS, type LayerId } from "../lib/timeline";
 import {
   LEGENDS,
@@ -10,6 +11,7 @@ import {
   terrainTileAvailability,
   terrainTileAvailabilityNotice,
 } from "../lib/terrainContext";
+import { vegetationRampTickCaveat } from "../lib/vegetationIndexRamp";
 
 /**
  * A compact key for the active data layer: a color-scale bar with end labels
@@ -184,6 +186,20 @@ export class Legend {
     this.valueTicks.min!.textContent = ticks?.min ?? "";
     this.valueTicks.mid!.textContent = ticks?.mid ?? "";
     this.valueTicks.max!.textContent = ticks?.max ?? "";
+
+    // The vegetation indices are read off our gradient, not GIBS's ramp, and
+    // that ramp is non-linear — so the interior tick is an approximation while
+    // the end labels are exact. Say so on the number itself rather than growing
+    // the legend, which sits over the globe.
+    const caveat = ticks === null ? null : vegetationRampTickCaveat(id);
+    const mid = this.valueTicks.mid!;
+    if (caveat) {
+      mid.title = caveat;
+      mid.setAttribute("aria-label", `${ticks!.mid} — ${caveat}`);
+    } else {
+      mid.removeAttribute("title");
+      mid.removeAttribute("aria-label");
+    }
     this.bar.setAttribute(
       "aria-label",
       ticks
@@ -227,7 +243,7 @@ export class Legend {
     }
 
     const source = document.createElement("a");
-    source.href = `https://doi.org/${dataset.doi}`;
+    source.href = doiResolverUrl(dataset.doi);
     source.target = "_blank";
     source.rel = "noreferrer";
     source.textContent = `${dataset.shortName} v${dataset.version}`;

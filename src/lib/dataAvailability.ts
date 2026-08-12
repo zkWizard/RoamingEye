@@ -1,3 +1,4 @@
+import { doiResolverUrl } from "./doiLink";
 import { citedDatasets, GIBS_ACKNOWLEDGMENT } from "./providers";
 import type { DatasetRef } from "./timeline";
 
@@ -32,9 +33,6 @@ import type { DatasetRef } from "./timeline";
  * affordance can call `dataAvailabilityStatement()` directly.
  */
 
-/** DOI resolver prefix, so every named product carries a resolvable link. */
-const DOI_RESOLVER = "https://doi.org/";
-
 export interface DataAvailabilityOptions {
   /**
    * Optional access date/month rendered verbatim (e.g. "2026-07" or
@@ -56,11 +54,13 @@ export interface DataAvailabilityOptions {
  * `Title (shortName vversion, https://doi.org/DOI)`. The DOI is rendered as a
  * resolvable link only when the ref actually carries one — a blank/absent DOI is
  * dropped rather than fabricated into a broken `https://doi.org/` link (citation
- * completeness is audited separately in `citationCompleteness.ts`).
+ * completeness is audited separately in `citationCompleteness.ts`). The link is
+ * built by `doiResolverUrl` (doiLink.ts) so a DAS pasted into a manuscript
+ * carries exactly the same resolver URL as the reference-list citation.
  */
 export function dataAvailabilityClause(ref: DatasetRef): string {
   const doi = typeof ref.doi === "string" ? ref.doi.trim() : "";
-  const link = doi ? `, ${DOI_RESOLVER}${doi}` : "";
+  const link = doi ? `, ${doiResolverUrl(doi)}` : "";
   return `${ref.title} (${ref.shortName} v${ref.version}${link})`;
 }
 

@@ -6,10 +6,11 @@ import {
   legendTicks,
   overlayKeyFor,
 } from "./legend";
+import { vegetationIndexLegendNote } from "./vegetationIndexRenderedRange";
 import { PROBE_SCALES } from "./probe";
 import { LAYER_ORDER } from "./timeline";
 import { DEPTH_CLASS_COLORS } from "./earthquakes";
-import { ERUPTION_CLASS_COLORS } from "./volcanoes";
+import { ERUPTION_CLASS_COLORS, ERUPTION_CLASS_LABELS } from "./volcanoes";
 
 describe("LEGENDS", () => {
   it("covers every data layer", () => {
@@ -66,18 +67,27 @@ describe("LEGENDS", () => {
   });
 
   it("describes vegetation-index colors without inferring cover or condition", () => {
+    // The exact sentence is derived from the measured GIBS ramp and pinned in
+    // vegetationIndexRenderedRange.test.ts. What this suite guards is the
+    // property: the note disclaims cover/biomass/condition, and it says a gap
+    // in the layer is undrawn rather than low.
     expect(LEGENDS.ndvi).toMatchObject({
       minLabel: "lower NDVI",
       maxLabel: "higher NDVI",
-      interpretationNote:
-        "NDVI is a unitless vegetation index; color does not measure vegetation cover, biomass, or condition.",
+      interpretationNote: vegetationIndexLegendNote("ndvi"),
     });
     expect(LEGENDS.evi).toMatchObject({
       minLabel: "lower EVI",
       maxLabel: "higher EVI",
-      interpretationNote:
-        "EVI is a unitless vegetation index; color does not measure vegetation cover, biomass, or condition.",
+      interpretationNote: vegetationIndexLegendNote("evi"),
     });
+    for (const index of ["ndvi", "evi"] as const) {
+      const note = vegetationIndexLegendNote(index);
+      expect(note).toContain(
+        "color does not measure vegetation cover, biomass, or condition"
+      );
+      expect(note).toContain("not low greenness");
+    }
   });
 });
 
@@ -109,6 +119,19 @@ describe("OVERLAY_KEYS", () => {
       "> 300 km",
     ]);
   });
+
+  it("names the eruption bands eruptionClass assigns, in order", () => {
+    // Sourced from volcanoes.ts so the key cannot drift from the classifier
+    // the overlay colors with — the same contract as the colors above.
+    expect(OVERLAY_KEYS.volcanoes.entries.map((e) => e.label)).toEqual(
+      Object.values(ERUPTION_CLASS_LABELS)
+    );
+    expect(OVERLAY_KEYS.volcanoes.entries.map((e) => e.label)).toEqual([
+      "since 1900",
+      "year 0–1899",
+      "BCE or undated",
+    ]);
+  });
 });
 
 describe("overlayKeyFor", () => {
@@ -122,15 +145,17 @@ describe("overlayKeyFor", () => {
 
 describe("legendTicks", () => {
   it("prints min/mid/max in the layer's units for calibrated gradients", () => {
+    // Digits follow the probe's quantization step, so a tick and a probed
+    // value can never quote the same colour at two different precisions.
     expect(legendTicks("ndvi")).toEqual({
-      min: "0.00",
-      mid: "0.50",
-      max: "1.00",
+      min: "0.000",
+      mid: "0.500",
+      max: "1.000",
     });
     expect(legendTicks("snow")).toEqual({
-      min: "0 %",
-      mid: "50 %",
-      max: "100 %",
+      min: "0.0 %",
+      mid: "50.0 %",
+      max: "100.0 %",
     });
   });
 

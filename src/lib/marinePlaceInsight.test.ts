@@ -4,6 +4,7 @@ import {
   marineBoundarySstReading,
   unavailableMarineBoundarySstReading,
 } from "./marinePlaceInsight";
+import { SST_SAMPLING_GATE_NOTE } from "./sstObservingConstraints";
 
 describe("marine boundary SST insights", () => {
   it("keeps the source-month SST value and boundary coverage distinct from biology", () => {
@@ -51,13 +52,26 @@ describe("marine boundary SST insights", () => {
       sourceImageDimensions: { width: 512, height: 512 },
       geography: { kind: "boundary", label: "Monterey County" },
     });
-    expect(reading.detail).toContain("37% sampled boundary coverage");
-    expect(reading.detail).toContain("for Monterey Bay");
+    expect(reading.detail).toContain(
+      "usable SST over 37% of the searched boundary (sparse); mean covers only those pixels"
+    );
+    expect(reading.spatialSupport).toMatchObject({
+      status: "usable-sample",
+      validFraction: 0.37,
+      tier: "sparse",
+      meanScope: "usable-sampled-pixels",
+      representsSearchedBoundary: false,
+    });
+    expect(reading.detail).toContain("sampled within Monterey Bay");
     expect(reading.detail).toContain("rendered source image 512 x 512 px");
     expect(reading.detail).toContain(
       "MODIS_AQUA_L3_SST_THERMAL_MONTHLY_9KM_DAYTIME_V2019.0 v2019.0"
     );
     expect(reading.detail).toContain("not a marine-biology observation");
+    // A reported mean must not read as a full-diurnal, all-weather monthly
+    // mean: the cited product composites Aqua's daytime overpass on
+    // cloud-screened days only.
+    expect(reading.detail).toContain(SST_SAMPLING_GATE_NOTE);
   });
 
   it("does not invent a reading when the sampled boundary has zero SST coverage", () => {
@@ -89,7 +103,19 @@ describe("marine boundary SST insights", () => {
       // carry none rather than an invented zero tally.
       sampleCounts: null,
     });
-    expect(reading.detail).toContain("0% sampled boundary coverage");
+    expect(reading.detail).toContain(
+      "no usable SST anywhere in the searched boundary"
+    );
+    expect(reading.spatialSupport).toMatchObject({
+      status: "no-usable-sample",
+      validFraction: 0,
+      meanScope: null,
+      reason: "zero-usable-share",
+    });
+    // The sampling-gate note qualifies a reported value. With no value to
+    // qualify, appending it would imply one was withheld for a sampling reason
+    // rather than absent for lack of coverage.
+    expect(reading.detail).not.toContain(SST_SAMPLING_GATE_NOTE);
   });
 
   it("rejects invalid sampling coverage instead of presenting its value", () => {
@@ -109,7 +135,15 @@ describe("marine boundary SST insights", () => {
     expect(reading.unavailableReason).toBe("invalid-coverage");
     expect(reading.coverage?.coverage.reason).toBe("invalid-coverage");
     expect(reading.validFraction).toBeNull();
-    expect(reading.detail).toContain("sampled coverage not supplied");
+    // A rejected fraction was still supplied; saying "not supplied" would
+    // hide which of the two happened.
+    expect(reading.detail).toContain("sampled boundary share invalid");
+    expect(reading.spatialSupport).toMatchObject({
+      status: "unclassifiable",
+      validFraction: null,
+      tier: null,
+      reason: "invalid-coverage-fraction",
+    });
   });
 
   it("does not present an SST value outside the configured source scale", () => {
@@ -209,10 +243,13 @@ describe("marine boundary SST insights", () => {
     });
 
     expect(reading.sampledGeography.label).toBe("unknown searched area");
-    expect(reading.detail).toContain("for unknown searched area");
+    expect(reading.detail).toContain("sampled within unknown searched area");
   });
 
-  it("preserves exact low coverage even when display text rounds it", () => {
+  it("does not print a stated temperature beside a rounded-down 0% share", () => {
+    // A mostly-land searched boundary is the normal case for SST, which is
+    // undefined over land. Rounding its sliver of water down to "0%" read as
+    // "no data" next to a stated temperature.
     const reading = marineBoundarySstReading({
       geographyLabel: "Monterey Bay",
       dataMonth: { year: 2026, month: 3 },
@@ -222,12 +259,81 @@ describe("marine boundary SST insights", () => {
     });
 
     expect(reading.value).toBe("18.4 °C");
-    expect(reading.detail).toContain("0% sampled boundary coverage");
+    expect(reading.detail).toContain(
+      "usable SST over <1% of the searched boundary (sparse); mean covers only those pixels"
+    );
+    expect(reading.detail).not.toContain("0%");
+    // The exact share still travels unrounded for export consumers.
+    expect(reading.spatialSupport.validFraction).toBe(0.004);
     expect(reading.validFraction).toBe(0.004);
     expect(reading.sourceImageDimensions).toEqual({
       width: 1024,
       height: 512,
     });
+  });
+
+  it("reports a ramp-floor boundary mean as an upper bound, not a measurement", () => {
+    // 0.075 °C is the midpoint of the published ramp's lowest bin — the value
+    // every sub-zero pixel is decoded as, because GIBS renders all of them in
+    // one open end-cap colour. Reporting it as "0.1 °C" would put the Barents
+    // or Bering Sea in winter ~1.9 °C warmer than the product observed.
+    const reading = marineBoundarySstReading({
+      geographyLabel: "Barents Sea",
+      dataMonth: { year: 2026, month: 3 },
+      observedValue: 0.075,
+      validFraction: 0.88,
+      sourceImageDimensions: { width: 512, height: 512 },
+    });
+
+    expect(reading.value).toBe("≤ 0.1 °C");
+    expect(reading.observedValue).toBe(0.075);
+    expect(reading.availability).toBe("available");
+    expect(reading.observationStatus).toBe("observed");
+    expect(reading.rampCensoring).toMatchObject({
+      status: "at-ramp-floor",
+      possiblyCensored: true,
+      boundDirection: "upper",
+    });
+    expect(reading.detail).toContain("upper bound");
+    expect(reading.detail).toContain("not a marine-biology observation");
+  });
+
+  it("leaves an in-ramp boundary mean unqualified", () => {
+    const reading = marineBoundarySstReading({
+      geographyLabel: "Monterey Bay",
+      dataMonth: { year: 2026, month: 3 },
+      observedValue: 18.375,
+      validFraction: 0.37,
+      sourceImageDimensions: { width: 512, height: 512 },
+    });
+
+    expect(reading.value).toBe("18.4 °C");
+    expect(reading.rampCensoring).toMatchObject({
+      status: "within-published-ramp",
+      possiblyCensored: false,
+    });
+    expect(reading.detail).not.toContain("upper bound");
+    expect(reading.detail).not.toContain("lower bound");
+    expect(reading.detail).not.toContain("published colormap");
+  });
+
+  it("does not judge ramp position when there is no usable observation", () => {
+    const reading = marineBoundarySstReading({
+      geographyLabel: "Nebraska",
+      dataMonth: { year: 2026, month: 3 },
+      observedValue: null,
+      validFraction: 0,
+      sourceImageDimensions: { width: 512, height: 512 },
+    });
+
+    expect(reading.value).toBe("No usable SST observation");
+    expect(reading.rampCensoring).toBeNull();
+    expect(
+      unavailableMarineBoundarySstReading(
+        { year: 2026, month: 3 },
+        "Monterey Bay"
+      ).rampCensoring
+    ).toBeNull();
   });
 
   it("distinguishes sampling failure from sampled no-data", () => {
@@ -271,5 +377,172 @@ describe("marine boundary SST insights", () => {
     });
     expect(sampling.detail).toContain("searched boundary");
     expect(sampling.detail).not.toContain("published source colormap");
+  });
+});
+
+describe("same-calendar-month year-over-year boundary SST difference", () => {
+  const target = {
+    geographyLabel: "Monterey Bay",
+    dataMonth: { year: 2026, month: 3 } as const,
+    observedValue: 18.375,
+    validFraction: 0.62,
+    sourceImageDimensions: { width: 512, height: 512 },
+  };
+
+  it("differences two supplied observations without claiming a trend", () => {
+    const reading = marineBoundarySstReading({
+      ...target,
+      priorYear: {
+        dataMonth: { year: 2025, month: 3 },
+        observedValue: 17.5,
+        validFraction: 0.58,
+      },
+    });
+
+    expect(reading.yearOverYear).toMatchObject({
+      kind: "same-calendar-month-boundary-sst-difference",
+      status: "available",
+      isForecast: false,
+      isTrend: false,
+      claimScope: "descriptive-difference-between-two-observations-only",
+      marineBiologyObservation: false,
+      priorDataMonth: { year: 2025, month: 3 },
+      priorObservedValue: 17.5,
+      priorValidFraction: 0.58,
+      direction: "warmer",
+      differenceUnit: "°C",
+      reason: null,
+    });
+    expect(reading.yearOverYear.difference).toBeCloseTo(0.875, 10);
+    // The weaker of the two coverages, never their mean, so the comparison is
+    // not presented as better supported than its thinnest month.
+    expect(reading.yearOverYear.minValidFraction).toBeCloseTo(0.58, 10);
+    expect(reading.yearOverYear.validFractionDelta).toBeCloseTo(0.04, 10);
+    expect(reading.detail).toContain("+0.9 °C vs Mar 2025");
+    expect(reading.detail).toContain("58% sampled coverage that month");
+    expect(reading.detail).toContain("not a trend");
+  });
+
+  it("reports a cooler difference and an unchanged pair by sign only", () => {
+    const cooler = marineBoundarySstReading({
+      ...target,
+      priorYear: {
+        dataMonth: { year: 2025, month: 3 },
+        observedValue: 19.375,
+        validFraction: 0.62,
+      },
+    });
+    const unchanged = marineBoundarySstReading({
+      ...target,
+      priorYear: {
+        dataMonth: { year: 2025, month: 3 },
+        observedValue: 18.375,
+        validFraction: 0.62,
+      },
+    });
+
+    expect(cooler.yearOverYear.direction).toBe("cooler");
+    expect(cooler.yearOverYear.difference).toBeCloseTo(-1, 10);
+    expect(cooler.detail).toContain("-1.0 °C vs Mar 2025");
+    expect(unchanged.yearOverYear).toMatchObject({
+      direction: "unchanged",
+      difference: 0,
+      validFractionDelta: 0,
+    });
+  });
+
+  it("refuses a month that is not exactly one year earlier", () => {
+    for (const priorMonth of [
+      { year: 2025, month: 2 },
+      { year: 2026, month: 2 },
+      { year: 2024, month: 3 },
+      { year: 2025, month: 13 },
+    ]) {
+      const reading = marineBoundarySstReading({
+        ...target,
+        priorYear: {
+          dataMonth: priorMonth,
+          observedValue: 17.5,
+          validFraction: 0.58,
+        },
+      });
+
+      // A neighbouring month would report the seasonal cycle as a change, so
+      // the offered month is retained but never differenced.
+      expect(reading.yearOverYear).toMatchObject({
+        status: "not-same-calendar-month-one-year-earlier",
+        priorDataMonth: priorMonth,
+        difference: null,
+        direction: null,
+        priorObservedValue: null,
+        reason: "not-same-calendar-month-one-year-earlier",
+      });
+    }
+  });
+
+  it("states an unusable prior year instead of dropping it", () => {
+    for (const priorYear of [
+      { observedValue: null, validFraction: 0.58 },
+      { observedValue: 17.5, validFraction: 0 },
+      { observedValue: 17.5, validFraction: 1.4 },
+      { observedValue: 17.5, validFraction: Number.NaN },
+      { observedValue: Number.POSITIVE_INFINITY, validFraction: 0.58 },
+      // Outside the published SST scale, so not a physical source value.
+      { observedValue: 500, validFraction: 0.58 },
+    ]) {
+      const reading = marineBoundarySstReading({
+        ...target,
+        priorYear: { dataMonth: { year: 2025, month: 3 }, ...priorYear },
+      });
+
+      expect(reading.yearOverYear).toMatchObject({
+        status: "prior-year-not-usable",
+        priorDataMonth: { year: 2025, month: 3 },
+        difference: null,
+        minValidFraction: null,
+        validFractionDelta: null,
+      });
+      // The target month itself is unaffected by an unusable comparison.
+      expect(reading.observedValue).toBe(18.375);
+      expect(reading.detail).not.toContain("vs Mar 2025");
+    }
+  });
+
+  it("does not difference against an unusable target month", () => {
+    const reading = marineBoundarySstReading({
+      ...target,
+      observedValue: null,
+      validFraction: 0,
+      priorYear: {
+        dataMonth: { year: 2025, month: 3 },
+        observedValue: 17.5,
+        validFraction: 0.58,
+      },
+    });
+
+    expect(reading.yearOverYear).toMatchObject({
+      status: "target-not-usable",
+      priorDataMonth: { year: 2025, month: 3 },
+      difference: null,
+    });
+    expect(reading.value).toBe("No usable SST observation");
+  });
+
+  it("stays explicit when no prior-year sample was supplied at all", () => {
+    const reading = marineBoundarySstReading(target);
+    const unavailable = unavailableMarineBoundarySstReading(
+      { year: 2026, month: 3 },
+      "Monterey Bay"
+    );
+
+    expect(reading.yearOverYear).toMatchObject({
+      status: "not-supplied",
+      priorDataMonth: null,
+      difference: null,
+      reason: "not-supplied",
+    });
+    expect(reading.detail).not.toContain("not a trend");
+    // Sampling never completed, so there is no target to compare against.
+    expect(unavailable.yearOverYear.status).toBe("target-not-usable");
   });
 });

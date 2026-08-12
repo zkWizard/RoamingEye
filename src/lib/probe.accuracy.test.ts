@@ -36,6 +36,24 @@ const GRADIENT_LEGENDS = Object.entries(LEGENDS).filter(
 const CLEAN_TOLERANCE = 0.01;
 
 /**
+ * Layers whose published ramp cannot meet the default bound.
+ *
+ * `snow` is the only one: GIBS renders it with a **discrete** colormap
+ * (MODIS_NDSI_Snow_Cover) whose colours inside a 20-point band differ by a
+ * single channel step, so a 256-entry LUT holds near-duplicates and inversion
+ * resolves to the band rather than the step (worst 0.013 — 1.3 of 100
+ * percentage points). Reproducing that ramp faithfully is still the right
+ * trade: the smooth blue → white gradient it replaced met this bound while
+ * rejecting all 100 colours GIBS actually renders. See lib/snowCoverRamp.ts.
+ */
+const CLEAN_TOLERANCE_OVERRIDES: Record<string, number> = {
+  snow: 0.015,
+};
+
+const cleanTolerance = (id: string): number =>
+  CLEAN_TOLERANCE_OVERRIDES[id] ?? CLEAN_TOLERANCE;
+
+/**
  * Roundtrip bound under ±8/channel perturbation (JPEG-like), per layer —
  * measured worst case plus headroom. These ARE the honest accuracy numbers
  * behind the CSV caveat: e.g. a noisy NDVI inversion can be off by ~0.14 of
@@ -45,13 +63,31 @@ const CLEAN_TOLERANCE = 0.01;
  * collides with the brown→white summit ramp, so noisy inversion is ambiguous
  * (worst ≈ 0.48). The layer is static (no time dimension), so the probe never
  * charts it — but if its legend is ever redrawn, aim below 0.15 like the rest.
+ *
+ * `snow` is documented too, for a different reason: the detail inside a band
+ * of GIBS's discrete ramp is a 19-step blue ripple, finer than the ±8/channel
+ * noise the JPEG transport adds, so a noisy sample resolves to its band and
+ * can cross into the neighbour (worst 0.378). Measured against GIBS's own ramp
+ * colours the same noise costs 6–12 percentage points RMSE (METHODS.md §3):
+ * for this layer the binding limit is the JPEG transport, not the legend, and
+ * no gradient can recover what compression has already discarded.
+ *
+ * `airtemp` bought colormap fidelity with noise headroom, and the trade is
+ * worth stating. Its stops now reproduce the Spectral ramp GIBS renders with
+ * (inversion RMSE against the real colormap fell 18.95 K → 0.51 K, and no ramp
+ * colour is rejected any more), but that ramp passes through a near-white
+ * pale-yellow shoulder around t ≈ 0.57 (≈ 271 K) where consecutive
+ * temperatures are only a channel or two apart. There ±8/channel noise can
+ * slide the nearest LUT match by up to 0.162. It is a narrow band, not the
+ * whole scale: over the sweep the noisy error is 0.014 median / 0.030 at p90,
+ * and only 12 of 501 positions exceed 0.07.
  */
 const NOISY_TOLERANCE: Record<string, number> = {
   ndvi: 0.16,
   evi: 0.16,
-  snow: 0.07,
+  snow: 0.4,
   lst: 0.05,
-  airtemp: 0.07,
+  airtemp: 0.17,
   sst: 0.07,
   precip: 0.09,
   soil: 0.11,
@@ -99,16 +135,14 @@ const jpegNoise = (i: number): Rgb => {
 
 describe("colormap inversion accuracy (every gradient legend)", () => {
   it.each(GRADIENT_LEGENDS)(
-    "%s: clean roundtrip within ±%f of scale".replace(
-      "%f",
-      String(CLEAN_TOLERANCE)
-    ),
+    "%s: clean roundtrip stays within its documented bound",
     (id, spec) => {
+      const tolerance = cleanTolerance(id);
       const worst = maxRoundtripError(spec.stops);
       expect(
         worst.error,
-        `${id}: worst clean roundtrip error ${worst.error.toFixed(4)} at t=${worst.at.toFixed(3)} exceeds ${CLEAN_TOLERANCE}`
-      ).toBeLessThanOrEqual(CLEAN_TOLERANCE);
+        `${id}: worst clean roundtrip error ${worst.error.toFixed(4)} at t=${worst.at.toFixed(3)} exceeds ${tolerance}`
+      ).toBeLessThanOrEqual(tolerance);
     }
   );
 

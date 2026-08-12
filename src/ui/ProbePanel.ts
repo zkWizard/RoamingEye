@@ -7,12 +7,27 @@ import {
   type ProbeScale,
 } from "../lib/probe";
 import { trendSummary, trendClause } from "../lib/trend";
+import {
+  seasonalSamplingBalance,
+  seasonalSamplingClause,
+} from "../lib/seasonalSamplingBalance";
 import type { ProbeMode } from "../probe/ProbeSampler";
 
 /** The user-toggleable sampling modes (regions are drawn, not toggled). */
 type PanelMode = Exclude<ProbeMode, "region">;
-import type { YearMonth } from "../lib/timeline";
+import type { LayerId, YearMonth } from "../lib/timeline";
+import {
+  inversionAccuracyClause,
+  probeInversionAccuracy,
+} from "../lib/probeInversionAccuracy";
 import { ICONS } from "./icons";
+
+/** What the current series is: which layer, and where it was sampled. */
+export interface ProbeSeriesContext {
+  layerId: LayerId;
+  /** Omitted for drawn regions, whose mean spans many latitudes. */
+  latitude?: number;
+}
 
 /**
  * The probe result card: a time-series chart of the sampled values at a
@@ -46,6 +61,9 @@ export class ProbePanel {
   private months: YearMonth[] = [];
   private values: (number | null)[] = [];
   private scale: ProbeScale | undefined;
+  private context: ProbeSeriesContext | undefined;
+  /** Bumped per series so a late lazy summary of an old probe is discarded. */
+  private seriesToken = 0;
   private csv: (() => string) | undefined;
   private csvFilename = "probe.csv";
   private view: ProbeView = "values";
@@ -187,15 +205,20 @@ export class ProbePanel {
     this.status.textContent = text;
   }
 
-  setSubtitle(text: string): void {
-    this.subtitle.textContent = text;
-  }
-
   /** Provide the full month range up front; values stream in via setValue. */
-  beginSeries(months: YearMonth[], scale: ProbeScale): void {
+  beginSeries(
+    months: YearMonth[],
+    scale: ProbeScale,
+    // Identifies what is being charted, for layer-specific summaries. A drawn
+    // region carries no latitude: its mean spans locations that need not share
+    // a hemisphere or a seasonal cycle.
+    context?: ProbeSeriesContext
+  ): void {
     this.months = months;
     this.values = new Array(months.length).fill(null);
     this.scale = scale;
+    this.context = context;
+    this.seriesToken++;
     this.draw();
   }
 
@@ -208,8 +231,19 @@ export class ProbePanel {
     this.draw();
   }
 
-  /** Sampling finished: show summary stats and enable CSV download. */
-  finish(csv: () => string, filename: string): void {
+  /**
+   * Sampling finished: show summary stats and enable CSV download.
+   *
+   * `emptySeriesNote`, when supplied, replaces the bare "no data" line for a
+   * record that came back empty — see lib/atmosphereProbeDomain.ts. A product
+   * defined over land only has no value over open water by construction, and
+   * saying "no data" there reports a domain boundary as a retrieval failure.
+   */
+  finish(
+    csv: () => string,
+    filename: string,
+    emptySeriesNote?: string | null
+  ): void {
     this.csv = csv;
     this.csvFilename = filename;
     this.downloadBtn.disabled = false;
@@ -218,7 +252,11 @@ export class ProbePanel {
 
     const stats = seriesStats(this.values);
     if (!stats || !this.scale) {
-      this.setStatus("No data at this point for this layer.");
+      this.setStatus(
+        emptySeriesNote
+          ? `No data at this point for this layer. ${emptySeriesNote}`
+          : "No data at this point for this layer."
+      );
       return;
     }
     const s = this.scale;
@@ -229,14 +267,60 @@ export class ProbePanel {
       v === null ? null : scaleValue(v, s)
     );
     const trend = trendSummary(this.months, physical, s);
-    this.setStatus(
-      `${stats.count} of ${this.months.length} months · ` +
-        `min ${fmt(stats.min)} · mean ${fmt(stats.mean)} · max ${fmt(stats.max)}` +
-        // Each value is only known to the colormap's quantization step —
-        // say so right where the numbers are.
-        ` · ${uncertaintyText(s)} per value` +
-        ` · ${trendClause(trend)}`
+    // Two different accuracy claims, both needed. The quantization step is how
+    // finely a gradient position resolves; the measured inversion RMSE is
+    // whether that position lands on the right value — for SST the second is
+    // ~80x the first, so quoting only the step overstates precision badly.
+    const accuracy = this.context
+      ? inversionAccuracyClause(probeInversionAccuracy(this.context.layerId, s))
+      : "";
+    // The trend is seasonally corrected, but the mean beside it is not: it
+    // averages whichever months returned data. When those months are unevenly
+    // spread across the calendar the mean carries a seasonal-sampling bias,
+    // so measure it and say so. Silent whenever the record is balanced or the
+    // bias falls below the inversion's own resolution.
+    const seasonal = seasonalSamplingClause(
+      seasonalSamplingBalance(this.months, physical),
+      s
     );
+    const stat =
+      `${stats.count} of ${this.months.length} months · ` +
+      `min ${fmt(stats.min)} · mean ${fmt(stats.mean)} · max ${fmt(stats.max)}` +
+      ` · ${uncertaintyText(s)} per value` +
+      (accuracy ? ` · ${accuracy}` : "") +
+      ` · ${trendClause(trend)}` +
+      (seasonal ? ` · ${seasonal}` : "");
+    this.setStatus(stat);
+    this.appendPeakGreenness(stat, physical);
+  }
+
+  /**
+   * Append the vegetation-index calendar-timing clause: which month held each
+   * year's highest NDVI, and how tightly that recurs. The NDVI phenology
+   * helpers pull in per-year summarization and circular statistics, so they
+   * load on demand rather than riding in the entry chunk; the clause lands a
+   * moment after the stats, which the status line already fills in
+   * progressively. A newer series invalidates an in-flight load.
+   */
+  private appendPeakGreenness(stat: string, physical: (number | null)[]): void {
+    const context = this.context;
+    // A drawn region has no single latitude, so its seasonal timing is
+    // undefined — skip the clause rather than pick a hemisphere.
+    const latitude = context?.latitude;
+    if (!context || latitude === undefined) return;
+    const months = this.months;
+    const token = this.seriesToken;
+    void import("../lib/probePeakGreenness")
+      .then(({ peakGreennessClause, probePeakGreennessTiming }) => {
+        if (token !== this.seriesToken) return; // superseded by a newer probe
+        const clause = peakGreennessClause(
+          probePeakGreennessTiming(context.layerId, months, physical, latitude)
+        );
+        if (clause) this.setStatus(`${stat} · ${clause}`);
+      })
+      .catch(() => {
+        // A failed chunk load must leave the stats already on screen intact.
+      });
   }
 
   // --- Toggles -----------------------------------------------------------------

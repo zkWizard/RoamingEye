@@ -33,8 +33,31 @@ export interface ColormapEntry {
 /**
  * Pair every continuous-legend entry's RGB with its value (range midpoint) —
  * the ground truth for "what does this color mean", used to validate the
- * probe's inversion end to end (see the inversion-validation contract). Open
- * end-cap entries ("< 200", "≥ 350") carry no finite range and are skipped.
+ * probe's inversion end to end (see the inversion-validation contract) and, in
+ * the place panel, to decode rendered pixels through GIBS's own ramp rather
+ * than our display legend. Open end-cap entries ("< 200", "≥ 350") carry no
+ * finite range and are skipped.
+ *
+ * A tooltip whose two edges print **equal** ("222 – 222") is kept. That is not
+ * a malformed or empty bin: it is a bin narrower than the precision GIBS chose
+ * to print the tooltip at. MERRA-2 2 m air temperature is the live case — its
+ * ramp steps 0.5 K but the tooltips are rounded to whole kelvin, so 90 of the
+ * 180 ramp entries collapse to a zero-width printed range. Reading those as
+ * unusable discarded half the authoritative colormap: the place panel's lookup
+ * held only the surviving 90 colours and resolved each dropped colour to its
+ * nearest survivor — measured at exactly 0.5 K away for all 90 (zero-mean
+ * across the ramp, so a wide regional mean largely cancels it, but a single
+ * pixel or a place rendered in one colour keeps the full 0.5 K), and the
+ * inversion validation measured 90 colours rather than the ramp's 180. The
+ * midpoint of a zero-width printed range is simply that value, so the pair is
+ * recoverable exactly. Only `hi < lo` — a genuinely inverted range — is
+ * rejected.
+ *
+ * Deliberately *not* mirrored in `parseColormap` below: these two answer
+ * different questions. An entry answers "what value is this colour?", which a
+ * zero-width printed range still names; a bin answers "how is the ramp laid out
+ * in value space?", which a zero-width printed range carries no information
+ * about and would distort in `linearityDeviation`.
  */
 export function parseColormapEntries(xml: string): ColormapEntry[] {
   const legend = /<Legend type="continuous"[\s\S]*?<\/Legend>/.exec(xml)?.[0];
@@ -49,7 +72,7 @@ export function parseColormapEntries(xml: string): ColormapEntry[] {
     if (!rgbM || !rangeM) continue;
     const lo = Number(rangeM[1]);
     const hi = Number(rangeM[2]);
-    if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) continue;
+    if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi < lo) continue;
     entries.push({
       rgb: { r: +rgbM[1], g: +rgbM[2], b: +rgbM[3] },
       value: (lo + hi) / 2,
@@ -65,6 +88,7 @@ export function parseColormapEntries(xml: string): ColormapEntry[] {
  * ows:Metadata colormap link in the live WMTS capabilities).
  */
 export const COLORMAP_DOCS = {
+  ndvi: "MODIS_L3_NDVI",
   lst: "MODIS_Land_Surface_Temp",
   airtemp: "MERRA2_2m_Air_Temperature_Monthly",
   sst: "MODIS_Sea_Surface_Temperature",

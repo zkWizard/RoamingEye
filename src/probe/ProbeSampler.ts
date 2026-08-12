@@ -57,6 +57,14 @@ import {
 
 export type ProbeMode = "point" | "area" | "region";
 
+/** One opaque RGBA sample read straight from the rendered GIBS image. */
+export interface RenderedPixel {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}
+
 /** An image pixel to sample plus the geographic area weight it represents. */
 interface WeightedPixel {
   x: number;
@@ -158,6 +166,52 @@ export class ProbeSampler {
   }
 
   /**
+   * Read the rendered pixels a point probe would sample, without inverting them
+   * through a colormap. Class-coded layers publish discrete palette colours
+   * rather than a gradient, so decoding belongs to that layer's palette and not
+   * to lib/probe's numeric inversion.
+   *
+   * PNG is requested explicitly: the default JPEG blends neighbouring class
+   * colours, which would turn exact palette entries into unmatchable ones.
+   */
+  async sampleRenderedPixels(
+    layer: LayerConfig,
+    ym: YearMonth,
+    lat: number,
+    lon: number,
+    options: { mode?: "point" | "area"; signal?: AbortSignal } = {}
+  ): Promise<RenderedPixel[]> {
+    const pixels = this.pixelsFor(options.mode ?? "point", lat, lon);
+    const canvas = document.createElement("canvas");
+    canvas.width = pixels.length;
+    canvas.height = 1;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) throw new Error("RoamingEye: 2d canvas context unavailable");
+
+    const blob = await fetchBlob(
+      gibsWmsUrl(layer, ym, { ...this.imageSize, format: "image/png" }),
+      { signal: options.signal, retries: 1 }
+    );
+    const image = await createImageBitmap(blob);
+    for (let i = 0; i < pixels.length; i++) {
+      ctx.drawImage(image, pixels[i].x, pixels[i].y, 1, 1, i, 0, 1, 1);
+    }
+    image.close();
+
+    const { data } = ctx.getImageData(0, 0, pixels.length, 1);
+    const out: RenderedPixel[] = [];
+    for (let i = 0; i < pixels.length; i++) {
+      out.push({
+        r: data[i * 4],
+        g: data[i * 4 + 1],
+        b: data[i * 4 + 2],
+        a: data[i * 4 + 3],
+      });
+    }
+    return out;
+  }
+
+  /**
    * Sample a layer at (lat, lon) across the given months. Resolves with one
    * value (or null = no data) per month, in order. Rejects on abort.
    */
@@ -251,6 +305,11 @@ export class ProbeSampler {
    * Sample a searched place using GIBS's published colormap values rather
    * than the UI legend approximation. The returned values are in the source
    * product's units after `factor` (for example precipitation in mm/day).
+   *
+   * `maxInversionDistance` overrides the app-wide no-data threshold for a
+   * layer whose ramp runs too close to its own no-data colour to be separated
+   * by the default (see lib/sstNoData.ts and lib/vegetationIndexNoData.ts).
+   * Omitted, behaviour is unchanged.
    */
   async sampleGeometryPhysical(
     layer: LayerConfig,
@@ -259,11 +318,17 @@ export class ProbeSampler {
     fallback: { lat: number; lon: number },
     entries: ColormapEntry[],
     factor: number,
-    options: Omit<SampleOptions, "mode"> = {}
+    options: Omit<SampleOptions, "mode"> & {
+      maxInversionDistance?: number;
+    } = {}
   ): Promise<SampleResult> {
     const sampling = this.geometrySampling(geometry, fallback);
     const invert: ColorInverter = (rgb) => {
-      const value = invertColormapEntries(rgb, entries);
+      const value = invertColormapEntries(
+        rgb,
+        entries,
+        options.maxInversionDistance
+      );
       return value === null ? null : value * factor;
     };
     const result = await this.run(

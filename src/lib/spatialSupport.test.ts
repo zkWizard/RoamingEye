@@ -113,10 +113,59 @@ describe("summarizeSpatialSupport", () => {
     // Areal grain contrast is the square of the linear ratio: ~28× → ~775×.
     expect(summary.areaScaleRatio).toBeCloseTo(linear * linear, 5);
     expect(summary.commonGrid).toBe(false);
+    // Every considered signal states a grid, so the contrast is the brief's own.
+    expect(summary.contrastIsLowerBound).toBe(false);
     expect(summary.statement).toContain("distinct native grids");
     expect(summary.statement).toContain("not co-registered");
     expect(summary.statement).toContain("28×");
     expect(summary.statement).toContain("averages over about 775× the area");
+    expect(summary.statement).not.toContain("at least");
+  });
+
+  it("reports the grain contrast as a lower bound when a grid is unstated", () => {
+    // The app's own four-signal brief: NDVI 1 km, GLDAS 0.25°, and MERRA-2 air
+    // temperature — whose cited title states no grid. The unstated grid belongs
+    // to the coarsest cited product, so a flat "28× / 775×" would understate the
+    // brief's real grain contrast. Adding any grid to a set can only widen its
+    // min/max range, so the stated-subset figures are floors, never the value.
+    const brief = briefWith({
+      vegetation: obs(0.6, 1),
+      rainfall: obs(4, 0.9),
+      soilMoisture: obs(0.3, 0.9),
+      airTemperature: obs(280, 0.9),
+    });
+
+    const summary = summarizeSpatialSupport(brief.signals);
+
+    expect(summary.unknownGridSignalIds).toEqual(["air-temperature"]);
+    expect(summary.contrastIsLowerBound).toBe(true);
+    // The numbers are unchanged — only their status as bounds is now stated.
+    expect(summary.finestMetres).toBe(1000);
+    expect(summary.coarsestMetres).toBe(0.25 * 111_320);
+    expect(summary.statement).toContain("at least ~28× the finest");
+    expect(summary.statement).toContain(
+      "averages over at least ~775× the area"
+    );
+    expect(summary.statement).toContain("can only be wider");
+    expect(summary.limits.some((limit) => limit.includes("lower bounds"))).toBe(
+      true
+    );
+  });
+
+  it("claims no bound when there is no contrast to bound", () => {
+    // One stated grid (NDVI) plus one unstated (MERRA-2): no ratio is reported,
+    // so there is nothing to qualify as a floor.
+    const brief = briefWith({
+      vegetation: obs(0.6, 1),
+      airTemperature: obs(280, 0.9),
+    });
+
+    const summary = summarizeSpatialSupport(brief.signals);
+
+    expect(summary.scaleRatio).toBeNull();
+    expect(summary.contrastIsLowerBound).toBe(false);
+    expect(summary.statement).not.toContain("at least");
+    expect(summary.statement).not.toContain("can only be wider");
   });
 
   it("asserts a common grid only when every considered signal shares one", () => {

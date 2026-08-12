@@ -39,10 +39,26 @@ export type MeteorologicalSeason =
   "spring" | "summer" | "autumn" | "winter" | "not-assigned";
 
 export interface NdviExtremum {
+  /**
+   * Earliest supplied month holding this value. When `status` is "tied" it is
+   * one of several equally extreme months, not the year's single peak/trough.
+   */
   month: YearMonth;
   ndvi: number;
-  /** Calendar-season label, not a claim about a biological growth phase. */
+  /**
+   * Calendar-season label for `month`, not a claim about a biological growth
+   * phase. Tied months may fall in different seasons; read `tiedMonths`.
+   */
   meteorologicalSeason: MeteorologicalSeason;
+  /** Whether one supplied month holds this value on its own. */
+  status: "unique" | "tied";
+  /**
+   * Every supplied month holding this value, in calendar order (length 1 when
+   * unique). MOD13A3 observations reaching these summaries are decoded from a
+   * quantised colour ramp, so exact ties between months are ordinary rather
+   * than pathological, and naming one of them the peak would over-claim.
+   */
+  tiedMonths: YearMonth[];
 }
 
 export interface NdviCoverage {
@@ -139,7 +155,9 @@ export function meteorologicalSeasonForMonth(
  * Input may be incomplete; omitted calendar months are never counted as data.
  * Every record in a duplicate calendar month is rejected rather than choosing
  * the first or averaging, so input order cannot silently alter an annual peak
- * or trough.
+ * or trough. Months that tie for a year's highest or lowest value are all
+ * reported (see {@link NdviExtremum}) instead of letting supply order decide
+ * which one is named.
  */
 export function summarizeAnnualNdviPhenology(
   observations: readonly NdviMonthlyObservation[],
@@ -274,14 +292,21 @@ function annualSummary(
     return { ...base, peak: null, trough: null, seasonalRange: null };
   }
 
-  const peakObservation = valid.reduce((best, current) =>
-    current.ndvi! > best.ndvi! ? current : best
+  // Compare in calendar order so a tie resolves to the earliest month rather
+  // than to whichever record the caller happened to supply first.
+  const chronological = [...valid].sort(
+    (a, b) => a.month.month - b.month.month
   );
-  const troughObservation = valid.reduce((best, current) =>
-    current.ndvi! < best.ndvi! ? current : best
+  const peak = extremumFor(
+    chronological,
+    Math.max(...chronological.map(({ ndvi }) => ndvi!)),
+    hemisphere
   );
-  const peak = extremumFor(peakObservation, hemisphere);
-  const trough = extremumFor(troughObservation, hemisphere);
+  const trough = extremumFor(
+    chronological,
+    Math.min(...chronological.map(({ ndvi }) => ndvi!)),
+    hemisphere
+  );
   return {
     ...base,
     peak,
@@ -291,15 +316,19 @@ function annualSummary(
 }
 
 function extremumFor(
-  observation: NdviMonthlyObservation,
+  chronological: readonly NdviMonthlyObservation[],
+  ndvi: number,
   hemisphere: Hemisphere
 ): NdviExtremum {
+  const tiedMonths = chronological
+    .filter((observation) => observation.ndvi === ndvi)
+    .map(({ month }) => month);
+  const [month] = tiedMonths;
   return {
-    month: observation.month,
-    ndvi: observation.ndvi!,
-    meteorologicalSeason: meteorologicalSeasonForMonth(
-      observation.month.month,
-      hemisphere
-    ),
+    month,
+    ndvi,
+    meteorologicalSeason: meteorologicalSeasonForMonth(month.month, hemisphere),
+    status: tiedMonths.length > 1 ? "tied" : "unique",
+    tiedMonths,
   };
 }

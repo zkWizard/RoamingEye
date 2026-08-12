@@ -5,6 +5,7 @@ import {
   type EnvironmentBriefInput,
   type EnvironmentObservation,
 } from "./environmentBrief";
+import { MEASURED_INVERSION } from "./validation";
 import {
   BRIEF_RENDER_SIGNIFICANT_FIGURES,
   briefRenderedSignificantFigures,
@@ -84,7 +85,18 @@ describe("justifiedPrecision", () => {
     });
   });
 
-  it("justifies two figures for soil moisture read to ±8 kg/m²", () => {
+  it("justifies three figures for soil moisture read to ±0.23 kg/m²", () => {
+    // Soil's legend is built from GIBS's own ramp, so the inversion resolves
+    // tenths — one more justified figure than a whole-unit uncertainty would.
+    const p = justifiedPrecision(24.3, 0.23);
+    expect(p).toEqual({
+      roundingPlace: -1,
+      roundedValue: 24.3,
+      significantFigures: 3,
+    });
+  });
+
+  it("justifies only two figures when the same value is read to ±8 kg/m²", () => {
     const p = justifiedPrecision(24.3, 8.23);
     expect(p).toEqual({
       roundingPlace: 0,
@@ -151,33 +163,36 @@ describe("summarizeBriefValuePrecision", () => {
     expect(summary.consideredSignalIds).toEqual(["air-temperature"]);
     const airtemp = summary.signals[0];
     expect(airtemp.status).toBe("characterized");
-    expect(airtemp.uncertainty).toBe(18.95);
+    // Bound to the published figure, not a literal. The recalibrated legend's
+    // measured inversion RMSE justifies the tenths place — not the tens the
+    // old hand-drawn gradient left us with.
+    expect(airtemp.uncertainty).toBe(MEASURED_INVERSION.airtemp.rmse);
     expect(airtemp.justified).toEqual({
-      roundingPlace: 1,
-      roundedValue: 290,
-      significantFigures: 2,
+      roundingPlace: -1,
+      roundedValue: 287.3,
+      significantFigures: 4,
     });
     expect(airtemp.renderedSignificantFigures).toBe(5);
     expect(airtemp.overstatesPrecision).toBe(true);
     expect(summary.characterizedCount).toBe(1);
     expect(summary.overstatedCount).toBe(1);
-    expect(airtemp.statement).toContain("290 K");
-    expect(airtemp.statement).toContain("2 significant figures");
+    expect(airtemp.statement).toContain("287.3 K");
+    expect(airtemp.statement).toContain("4 significant figures");
   });
 
-  it("reports an uncharacterized layer honestly and invents no precision", () => {
-    // NDVI is a satellite-derived index with no measured inversion RMSE.
+  it("justifies NDVI precision against its calibrated inversion RMSE", () => {
+    // NDVI used to be the brief's uncharacterized case. Its legend is now
+    // sampled from GIBS's MODIS_L3_NDVI ramp, so a measured RMSE (0.024)
+    // decides how many figures 0.62 may honestly carry.
     const brief = briefWith({ vegetation: obs(0.62) });
     const summary = summarizeBriefValuePrecision(brief.signals);
 
     const veg = summary.signals[0];
-    expect(veg.status).toBe("uncharacterized");
-    expect(veg.uncertainty).toBeNull();
-    expect(veg.justified).toBeNull();
-    expect(veg.overstatesPrecision).toBe(false);
-    expect(summary.characterizedCount).toBe(0);
-    expect(summary.uncharacterizedCount).toBe(1);
-    expect(veg.statement).toContain("not asserted");
+    expect(veg.status).toBe("characterized");
+    expect(veg.uncertainty).toBe(MEASURED_INVERSION.ndvi.rmse);
+    expect(veg.justified).not.toBeNull();
+    expect(summary.characterizedCount).toBe(1);
+    expect(summary.uncharacterizedCount).toBe(0);
   });
 
   it("considers only usable signals by default and every signal under 'all'", () => {
@@ -208,9 +223,9 @@ describe("summarizeBriefValuePrecision", () => {
   });
 
   it("marks a value within its own uncertainty as justifying no figure", () => {
-    // A sub-unit soil-moisture reading sits below the ±8.2 kg/m² inversion
-    // RMSE's units place, so not even one figure is resolved from zero.
-    const brief = briefWith({ soilMoisture: obs(0.4) });
+    // A soil-moisture reading below the ±0.23 kg/m² inversion RMSE is not
+    // resolved from zero, so not even one figure is justified.
+    const brief = briefWith({ soilMoisture: obs(0.05) });
     const summary = summarizeBriefValuePrecision(brief.signals);
     const soil = summary.signals[0];
     expect(soil.status).toBe("characterized");

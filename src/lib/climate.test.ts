@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CLIMATE_METRICS, summarizeMonthlyClimate } from "./climate";
+import { DATA_LATEST, LAYERS, type YearMonth } from "./timeline";
 
 describe("monthly climate summaries", () => {
   it("retains native units, cited sources, and the product publication lag", () => {
@@ -201,4 +202,96 @@ describe("monthly climate summaries", () => {
       });
     }
   );
+
+  it.each([
+    ["precipitation-rate", "precip", 0.0002],
+    ["air-temperature-2m", "airtemp", 289.4],
+    ["soil-moisture", "soil", 7.2],
+  ] as const)(
+    "reports the %s record end the cited layer actually declares",
+    (metricId, layerId, value) => {
+      const declared = LAYERS[layerId].latest ?? DATA_LATEST;
+      const summary = summarizeMonthlyClimate(
+        { metricId, dataMonth: declared, value },
+        declared
+      );
+
+      expect(summary.lastAvailableMonth).toEqual(declared);
+      expect(summary.beyondDeclaredRecord).toBe(false);
+      expect(summary.observedValue).toBe(value);
+    }
+  );
+
+  it("flags a month past the cited layer's declared record without withholding it", () => {
+    // MERRA-2 is a reanalysis: it lags the MODIS composites the global
+    // timeline end tracks, which is why `airtemp` carries its own `latest`.
+    // A caller driving off DATA_LATEST therefore reaches months MERRA-2 has
+    // not declared — the case this flag exists to name.
+    const declared = LAYERS.airtemp.latest ?? DATA_LATEST;
+    expect(monthsAfter(declared, DATA_LATEST)).toBeGreaterThan(0);
+
+    const summary = summarizeMonthlyClimate(
+      {
+        metricId: "air-temperature-2m",
+        dataMonth: DATA_LATEST,
+        value: 289.4,
+        validFraction: 0.9,
+      },
+      DATA_LATEST
+    );
+
+    expect(summary).toMatchObject({
+      dataMonth: DATA_LATEST,
+      lastAvailableMonth: declared,
+      beyondDeclaredRecord: true,
+      // Behaviour is unchanged: the flag reports the overreach, it does not
+      // withhold. A conservative pre-boot baseline must not delete real data.
+      publicationStatus: "published",
+      observedValue: 289.4,
+    });
+  });
+
+  it("does not flag an observation inside the record, or one that is unusable", () => {
+    const inside = summarizeMonthlyClimate(
+      {
+        metricId: "precipitation-rate",
+        dataMonth: { year: 2010, month: 6 },
+        value: 0.0002,
+      },
+      { year: 2026, month: 5 }
+    );
+    // An unusable availability checkpoint leaves nothing to compare against.
+    const invalidMonth = summarizeMonthlyClimate(
+      {
+        metricId: "precipitation-rate",
+        dataMonth: { year: 2030, month: 6 },
+        value: 0.0002,
+      },
+      { year: 2026, month: 13 }
+    );
+
+    expect(inside.beyondDeclaredRecord).toBe(false);
+    expect(invalidMonth.publicationStatus).toBe("invalid-reference-month");
+    expect(invalidMonth.beyondDeclaredRecord).toBe(false);
+  });
+
+  it("snapshots the record end so a later timeline mutation cannot re-date it", () => {
+    const declared = LAYERS.precip.latest ?? DATA_LATEST;
+    const summary = summarizeMonthlyClimate(
+      {
+        metricId: "precipitation-rate",
+        dataMonth: { year: 2010, month: 6 },
+        value: 0.0002,
+      },
+      { year: 2026, month: 5 }
+    );
+
+    expect(summary.lastAvailableMonth).toEqual(declared);
+    expect(summary.lastAvailableMonth).not.toBe(LAYERS.precip.latest);
+  });
 });
+
+/** Calendar months from `earlier` to `later` (negative when `later` is first). */
+function monthsAfter(earlier: YearMonth, later: YearMonth): number {
+  return (later.year - earlier.year) * 12 + later.month - earlier.month;
+}

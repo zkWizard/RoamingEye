@@ -32,6 +32,40 @@ describe("parseColormapEntries", () => {
   it("skips the open end caps and returns [] with no continuous legend", () => {
     expect(parseColormapEntries("<ColorMaps></ColorMaps>")).toEqual([]);
   });
+
+  /**
+   * The MERRA-2 2 m air-temperature shape: a ramp stepping finer than the
+   * precision GIBS prints its tooltips at, so half the entries show a
+   * zero-width range. They name a value perfectly well and must survive —
+   * dropping them halved the ramp available to the place panel's lookup and to
+   * the inversion validation.
+   */
+  it("keeps an entry whose printed range is narrower than the tooltip's precision", () => {
+    const rounded = `<ColorMaps><ColorMap title="T" units="K">
+      <Legend type="continuous">
+        <LegendEntry rgb="10,20,30" tooltip="220 – 220" id="1"/>
+        <LegendEntry rgb="11,21,31" tooltip="220 – 221" id="2"/>
+        <LegendEntry rgb="12,22,32" tooltip="221 – 221" id="3"/>
+      </Legend>
+    </ColorMap></ColorMaps>`;
+    expect(parseColormapEntries(rounded)).toEqual([
+      { rgb: { r: 10, g: 20, b: 30 }, value: 220 },
+      { rgb: { r: 11, g: 21, b: 31 }, value: 220.5 },
+      { rgb: { r: 12, g: 22, b: 32 }, value: 221 },
+    ]);
+  });
+
+  it("still rejects an inverted range, which no rounding can produce", () => {
+    const inverted = `<ColorMaps><ColorMap title="T" units="K">
+      <Legend type="continuous">
+        <LegendEntry rgb="10,20,30" tooltip="250 – 240" id="1"/>
+        <LegendEntry rgb="11,21,31" tooltip="250 – 260" id="2"/>
+      </Legend>
+    </ColorMap></ColorMaps>`;
+    expect(parseColormapEntries(inverted)).toEqual([
+      { rgb: { r: 11, g: 21, b: 31 }, value: 255 },
+    ]);
+  });
 });
 
 describe("validateInversion", () => {

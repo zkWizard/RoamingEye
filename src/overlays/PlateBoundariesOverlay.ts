@@ -1,9 +1,10 @@
 import * as THREE from "three";
 import { fetchJson } from "../lib/net";
-import { plateBoundaryRenderPositions } from "../lib/plateBoundaryRendering";
+import { plateBoundarySegmentHoverLabel } from "../lib/plateBoundaryHover";
+import { plateBoundaryRenderGeometry } from "../lib/plateBoundaryRendering";
 import { parsePlateBoundaries } from "../lib/plates";
 import { ICONS } from "../ui/icons";
-import { GLOBE_RADIUS, type MapOverlay } from "./types";
+import { GLOBE_RADIUS, type HoverLineSource, type MapOverlay } from "./types";
 
 /**
  * Tectonic plate boundaries (Bird 2003). Together with the earthquakes and
@@ -18,6 +19,12 @@ export class PlateBoundariesOverlay implements MapOverlay {
   readonly label = "Plates";
   readonly icon = ICONS.plates;
   readonly object = new THREE.Group();
+
+  /**
+   * Names the plate pair of a hovered boundary once the linework has loaded.
+   * Undefined until then, matching the other overlays' lazy hover sources.
+   */
+  hoverSource: HoverLineSource | undefined;
 
   private loadPromise: Promise<void> | undefined;
 
@@ -36,7 +43,12 @@ export class PlateBoundariesOverlay implements MapOverlay {
   private async load(): Promise<void> {
     const boundaries = parsePlateBoundaries(await fetchJson<unknown>(this.url));
 
-    const positions = plateBoundaryRenderPositions(boundaries, this.radius);
+    // The ownership index is what lets a hovered segment name its plate pair
+    // again after every boundary is flattened into one draw call.
+    const { positions, segmentBoundaries } = plateBoundaryRenderGeometry(
+      boundaries,
+      this.radius
+    );
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute(
@@ -48,6 +60,16 @@ export class PlateBoundariesOverlay implements MapOverlay {
       transparent: true,
       opacity: 0.7,
     });
-    this.object.add(new THREE.LineSegments(geometry, material));
+    const lines = new THREE.LineSegments(geometry, material);
+    this.object.add(lines);
+    this.hoverSource = {
+      lines,
+      describe: (segmentIndex) =>
+        plateBoundarySegmentHoverLabel(
+          boundaries,
+          segmentBoundaries,
+          segmentIndex
+        ),
+    };
   }
 }

@@ -41,6 +41,75 @@ export interface EarthquakePlaceQuery {
   radiusKm: number;
 }
 
+/**
+ * Turn a `[south, north, west, east]` search extent into the smallest radial
+ * query that still contains every corner of that extent.
+ *
+ * The nearby-seismicity helper is radial while place search is rectangular, so
+ * some conversion is unavoidable. Circumscribing (rather than inscribing) the
+ * extent keeps the query a superset of the searched area: no event inside the
+ * boundary is silently dropped. The cost is that the circle also reaches
+ * *outside* the boundary near its corners, so matched events are "near this
+ * place", not "inside this place" — callers must say so, and every observation
+ * carries its own `distanceKm` for exactly that reason.
+ *
+ * Bounds that are missing, non-finite, or outside valid coordinate ranges
+ * produce a deliberately invalid query, which `nearbyEarthquakeContext`
+ * reports as `invalid-query` rather than as an empty-but-valid result.
+ */
+export function searchExtentEarthquakeQuery(
+  boundingBox: readonly [number, number, number, number] | null
+): EarthquakePlaceQuery {
+  if (!boundingBox || !isUsableExtent(boundingBox)) {
+    return { latitude: NaN, longitude: NaN, radiusKm: NaN };
+  }
+
+  const [south, north, west, rawEast] = boundingBox;
+  // A west > east extent crosses the antimeridian; unwrap the eastern edge so
+  // the midpoint and corner distances are measured across the seam, not the
+  // long way around the globe.
+  const east = rawEast < west ? rawEast + 360 : rawEast;
+  const latitude = (south + north) / 2;
+  const longitude = normalizeLongitude((west + east) / 2);
+
+  const radiusKm = Math.max(
+    ...[south, north].flatMap((cornerLat) =>
+      [west, east].map((cornerLon) =>
+        greatCircleDistance(
+          latitude,
+          longitude,
+          cornerLat,
+          normalizeLongitude(cornerLon),
+          EARTH_RADIUS_KM
+        )
+      )
+    )
+  );
+
+  return { latitude, longitude, radiusKm };
+}
+
+function isUsableExtent(
+  boundingBox: readonly [number, number, number, number]
+): boolean {
+  const [south, north, west, east] = boundingBox;
+  return (
+    boundingBox.every((value) => Number.isFinite(value)) &&
+    Math.abs(south) <= 90 &&
+    Math.abs(north) <= 90 &&
+    south <= north &&
+    Math.abs(west) <= 180 &&
+    Math.abs(east) <= 180
+  );
+}
+
+/** Wrap a longitude into [-180, 180]; +180 is preserved rather than flipped. */
+function normalizeLongitude(longitude: number): number {
+  if (longitude > 180) return ((longitude + 180) % 360) - 180;
+  if (longitude < -180) return ((longitude - 180) % 360) + 180;
+  return longitude;
+}
+
 export interface NearbyEarthquakeObservation extends Earthquake {
   /** Surface distance from the query point to the event epicentre. */
   distanceKm: number;

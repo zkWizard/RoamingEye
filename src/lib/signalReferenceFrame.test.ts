@@ -116,7 +116,7 @@ describe("summarizeReferenceFrames", () => {
       "Vegetation (NDVI): absolute observation (a measured value in native units, not a departure from a climatological baseline); source MOD13A3 v061."
     );
     expect(byId.rainfall.statement).toBe(
-      "Rainfall (precipitation rate): absolute observation (a measured value in native units, not a departure from a climatological baseline); source GLDAS_NOAH025_M v2.1."
+      "Precipitation (total rate, all phases): absolute observation (a measured value in native units, not a departure from a climatological baseline); source GLDAS_NOAH025_M v2.1."
     );
     expect(byId["air-temperature"].statement).toBe(
       "Air temperature: absolute observation (a measured value in native units, not a departure from a climatological baseline); source M2TMNXSLV v5.12.4."

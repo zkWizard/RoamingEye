@@ -19,14 +19,19 @@ const snowMonth = (
   validFraction,
 });
 
-/** Same-calendar-month prior-year record, one value per year from 2015 up. */
+/**
+ * Same-calendar-month prior-year record, one value per year from 2005 up.
+ * 2005-2014 is clear of every month the imagery service does not distribute
+ * (see SNOW_COVER_UNDISTRIBUTED_MONTHS), so these fixtures exercise ranking
+ * rather than record gaps; the gap behaviour is asserted separately below.
+ */
 const priorYears = (
   month: number,
   values: readonly (number | null)[],
   validFraction = 0.9
 ): SnowCoverObservation[] =>
   values.map((value, index) =>
-    snowMonth(2015 + index, month, value, validFraction)
+    snowMonth(2005 + index, month, value, validFraction)
   );
 
 describe("snow-cover percentile of record", () => {
@@ -155,7 +160,7 @@ describe("snow-cover percentile of record", () => {
 
   it("drops duplicate years, keeping only the first observation per year", () => {
     const record = priorYears(2, [10, 15, 20, 25, 30, 35, 45, 50, 55, 60]);
-    const withDuplicate = [...record, snowMonth(2015, 2, 99)];
+    const withDuplicate = [...record, snowMonth(2005, 2, 99)];
     const result = describeSnowCoverPercentile(
       snowMonth(2025, 2, 40),
       withDuplicate,
@@ -179,6 +184,43 @@ describe("snow-cover percentile of record", () => {
     expect(result.sampleCount).toBe(10);
     expect(result.exclusions.wrongCalendarMonth).toBe(1);
     expect(result.percentileRank).toBeCloseTo(60, 10);
+  });
+
+  it("counts an undistributed baseline year apart from a published one with no value", () => {
+    // February 2016 is a gap in the record; February 2017 is a published month
+    // the sampler simply found nothing usable in. Both drop out of the rank,
+    // but only one of them says something about the sampled surface.
+    const record = [
+      ...priorYears(2, [10, 15, 20, 25, 30, 35, 45, 50, 55, 60]),
+      snowMonth(2016, 2, null),
+      snowMonth(2017, 2, null),
+    ];
+    const result = describeSnowCoverPercentile(
+      snowMonth(2025, 2, 40),
+      record,
+      AVAILABLE_THROUGH
+    );
+
+    expect(result.status).toBe("available");
+    expect(result.sampleCount).toBe(10);
+    expect(result.exclusions.notDistributed).toBe(1);
+    expect(result.exclusions.missing).toBe(1);
+    expect(result.exclusions.notYetPublished).toBe(0);
+  });
+
+  it("declines to rank a target month the service does not distribute", () => {
+    const record = priorYears(2, [10, 15, 20, 25, 30, 35, 45, 50, 55, 60]);
+    const result = describeSnowCoverPercentile(
+      snowMonth(2016, 2, 40),
+      record,
+      AVAILABLE_THROUGH
+    );
+
+    expect(result.status).toBe("not-distributed");
+    expect(result.reason).toBe("target-not-distributed");
+    expect(result.percentileRank).toBeNull();
+    expect(result.exceedanceProbability).toBeNull();
+    expect(result.isLeastInRecord).toBeNull();
   });
 
   it("passes through insufficient-samples without inventing a rank", () => {

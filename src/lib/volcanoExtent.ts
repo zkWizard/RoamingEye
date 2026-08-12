@@ -1,5 +1,9 @@
 import { GVP_VOLCANO_SOURCE, VOLCANO_CONTEXT_UNITS } from "./volcanoContext";
 import { lastEruptionLabel, type Volcano } from "./volcanoes";
+import {
+  summarizeEruptionRecency,
+  type EruptionRecencySummary,
+} from "./volcanoRecency";
 
 /**
  * Descriptive GVP volcano records whose coordinates fall in a searched
@@ -48,6 +52,13 @@ export interface VolcanoExtentContext {
     fraction: number | null;
   };
   records: readonly VolcanoExtentRecord[];
+  /**
+   * Eruption-recency composition of every matched record, not only the ones a
+   * caller chooses to list. Carries its own limitations because the recency
+   * classes disclaim things the extent inventory does not (a low "recent" count
+   * is not evidence of dormancy).
+   */
+  eruptionRecency: EruptionRecencySummary;
   bounds: SearchBoundingBox | null;
   crossesAntimeridian: boolean;
   geographicCoverage: string;
@@ -141,6 +152,7 @@ function contextFor(
         records.length === 0 ? null : presentElevationCount / records.length,
     },
     records,
+    eruptionRecency: summarizeEruptionRecency(records),
     bounds,
     crossesAntimeridian,
     geographicCoverage:
