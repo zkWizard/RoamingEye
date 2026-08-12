@@ -4,9 +4,11 @@ import {
   SNOW_COVER_DATASET,
   SNOW_COVER_EXTENT_BINS,
   SNOW_COVER_LIMITATIONS,
+  SNOW_COVER_UNDISTRIBUTED_MONTHS,
   SNOW_SEASON_CHANGE_THRESHOLD_PP,
   classifySnowCoverExtent,
   describeSnowSeasonChange,
+  isSnowCoverMonthDistributed,
   summarizeSnowCover,
   type SnowCoverObservation,
 } from "./snowCover";
@@ -27,6 +29,42 @@ describe("snow-cover provenance", () => {
   it("cites the MOD10CM product from the timeline catalog", () => {
     expect(SNOW_COVER_DATASET).toBe(LAYERS.snow.dataset);
     expect(SNOW_COVER_DATASET.shortName).toBe("MOD10CM");
+  });
+});
+
+describe("undistributed months", () => {
+  // The six months between the seven ranges GIBS advertises for the snow layer
+  // (WMTS GetCapabilities, verified 2026-08-11); each answers HTTP 404.
+  it("records exactly the gaps between the advertised ranges", () => {
+    expect(SNOW_COVER_UNDISTRIBUTED_MONTHS).toEqual([
+      { year: 2000, month: 8 },
+      { year: 2001, month: 6 },
+      { year: 2002, month: 3 },
+      { year: 2003, month: 12 },
+      { year: 2016, month: 2 },
+      { year: 2022, month: 10 },
+    ]);
+  });
+
+  it("places every recorded gap inside the layer's own record", () => {
+    const start = LAYERS.snow.start;
+    for (const gap of SNOW_COVER_UNDISTRIBUTED_MONTHS) {
+      // A gap outside the record would be described by `start`, not by this
+      // catalog — the catalog asserts interior absences only.
+      expect(gap.year * 12 + gap.month).toBeGreaterThan(
+        start.year * 12 + start.month
+      );
+      expect(gap.month).toBeGreaterThanOrEqual(1);
+      expect(gap.month).toBeLessThanOrEqual(12);
+    }
+  });
+
+  it("treats months outside the recorded gaps as distributed", () => {
+    expect(isSnowCoverMonthDistributed({ year: 2016, month: 2 })).toBe(false);
+    expect(isSnowCoverMonthDistributed({ year: 2016, month: 1 })).toBe(true);
+    expect(isSnowCoverMonthDistributed({ year: 2016, month: 3 })).toBe(true);
+    // Same calendar month, a different year: never generalised across years.
+    expect(isSnowCoverMonthDistributed({ year: 2017, month: 2 })).toBe(true);
   });
 });
 
@@ -78,6 +116,48 @@ describe("summarizeSnowCover", () => {
     expect(summary.publicationLagMonths).toBeNull();
     expect(summary.snowCoveredPercent).toBeNull();
     expect(summary.extentClass).toBeNull();
+  });
+
+  it("separates a month the service does not distribute from an observed absence", () => {
+    // February 2016 falls between two of the seven ranges GIBS advertises for
+    // MOD10CM; its tile answers 404 while January and March serve normally.
+    const summary = summarizeSnowCover(
+      observation({
+        dataMonth: { year: 2016, month: 2 },
+        snowCoveredPercent: null,
+      }),
+      AVAILABLE_THROUGH
+    );
+    expect(summary.publicationStatus).toBe("not-distributed");
+    // Never published, so there is no publication lag to state.
+    expect(summary.publicationLagMonths).toBeNull();
+    expect(summary.snowCoveredPercent).toBeNull();
+    expect(summary.extentClass).toBeNull();
+
+    // The months either side of the gap are ordinary published months.
+    for (const month of [1, 3]) {
+      const neighbour = summarizeSnowCover(
+        observation({ dataMonth: { year: 2016, month } }),
+        AVAILABLE_THROUGH
+      );
+      expect(neighbour.publicationStatus).toBe("published");
+      expect(neighbour.snowCoveredPercent).toBe(72);
+    }
+  });
+
+  it("withholds a value supplied for an undistributed month rather than crediting it", () => {
+    // A caller that hands over a value for a month the service does not serve
+    // is mistaken about its provenance; the summary must not carry it through.
+    const summary = summarizeSnowCover(
+      observation({
+        dataMonth: { year: 2022, month: 10 },
+        snowCoveredPercent: 88,
+      }),
+      AVAILABLE_THROUGH
+    );
+    expect(summary.publicationStatus).toBe("not-distributed");
+    expect(summary.snowCoveredPercent).toBeNull();
+    expect(summary.extentLabel).toBeNull();
   });
 
   it("marks an invalid reference month", () => {

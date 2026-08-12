@@ -100,6 +100,9 @@ export function describeSnowSeasonChangeNarrative(
 
 function snowHeadline(summary: SnowCoverSummary): string {
   const month = formatMonth(summary.dataMonth);
+  if (summary.publicationStatus === "not-distributed") {
+    return `Snow-cover imagery not distributed for ${month}`;
+  }
   if (summary.publicationStatus !== "published") {
     return `Snow-cover record not published for ${month}`;
   }
@@ -111,6 +114,12 @@ function snowHeadline(summary: SnowCoverSummary): string {
 
 function snowDetail(summary: SnowCoverSummary): string {
   const month = formatMonth(summary.dataMonth);
+  if (summary.publicationStatus === "not-distributed") {
+    return (
+      `The imagery service does not distribute ${month} for this product, so no monthly-average value exists to describe. ` +
+      `This is a gap in the record, not an observation that the sampled area was snow-free.`
+    );
+  }
   if (summary.publicationStatus !== "published") {
     return `The requested monthly record is ${publicationText(summary)} against availability through ${formatMonth(summary.availableThrough)}.`;
   }
@@ -176,6 +185,8 @@ function provenanceFor(
 
 function publicationText(summary: SnowCoverSummary): string {
   switch (summary.publicationStatus) {
+    case "not-distributed":
+      return "not distributed by the imagery service";
     case "not-yet-published":
       return "not yet published";
     case "invalid-reference-month":
