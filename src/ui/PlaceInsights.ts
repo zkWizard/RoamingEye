@@ -28,6 +28,7 @@ import {
   nearestVolcanoStatement,
   type VolcanoProximityContext,
 } from "../lib/volcanoProximityContext";
+import { eruptionRecencyText } from "../lib/volcanoRecency";
 
 import { ICONS } from "./icons";
 
@@ -50,6 +51,7 @@ export class PlaceInsights {
   private exportJson: string | undefined;
   private readonly volcanoValue: HTMLElement;
   private readonly volcanoDetail: HTMLElement;
+  private readonly volcanoRecency: HTMLElement;
   private readonly volcanoRecords: HTMLUListElement;
   private readonly volcanoSource: HTMLAnchorElement;
   private readonly seismicityValue: HTMLElement;
@@ -117,6 +119,10 @@ export class PlaceInsights {
     this.volcanoValue.setAttribute("aria-live", "polite");
     this.volcanoDetail = document.createElement("p");
     this.volcanoDetail.className = "place-insights__detail";
+    // The record list below is truncated and ordered by name, so the recency
+    // composition of the full matched set gets its own line.
+    this.volcanoRecency = document.createElement("p");
+    this.volcanoRecency.className = "place-insights__detail";
     this.volcanoRecords = document.createElement("ul");
     this.volcanoRecords.className = "place-insights__volcano-list";
     this.volcanoSource = document.createElement("a");
@@ -129,6 +135,7 @@ export class PlaceInsights {
       volcanoTitle,
       this.volcanoValue,
       this.volcanoDetail,
+      this.volcanoRecency,
       this.volcanoRecords,
       this.volcanoSource
     );
@@ -237,6 +244,7 @@ export class PlaceInsights {
     this.volcanoValue.textContent = "Loading GVP records";
     this.volcanoDetail.textContent =
       "Checking the bundled Smithsonian volcano dataset against the search bounding box";
+    this.volcanoRecency.textContent = "";
     this.volcanoRecords.replaceChildren();
   }
 
@@ -252,6 +260,8 @@ export class PlaceInsights {
     proximity: VolcanoProximityContext | null = null
   ): void {
     this.volcanoRecords.replaceChildren();
+    this.volcanoRecency.textContent =
+      eruptionRecencyText(context.eruptionRecency) ?? "";
     if (context.status === "invalid-bounds") {
       this.volcanoValue.textContent = "Search extent unavailable";
       this.volcanoDetail.textContent = context.geographicCoverage;
@@ -312,13 +322,16 @@ export class PlaceInsights {
     }
     if (count > 5) {
       const item = document.createElement("li");
-      item.textContent = `${count - 5} additional records not listed`;
+      // Say how the shown records were chosen: they are the alphabetically
+      // first five, not the largest, highest, or most recently active.
+      item.textContent = `${count - 5} additional records not listed; the list is ordered by name`;
       this.volcanoRecords.appendChild(item);
     }
   }
 
   setVolcanoUnavailable(): void {
     this.volcanoRecords.replaceChildren();
+    this.volcanoRecency.textContent = "";
     this.volcanoValue.textContent = "Records unavailable";
     this.volcanoDetail.textContent =
       "The bundled GVP-derived volcano data could not be loaded for this search.";
