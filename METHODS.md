@@ -65,14 +65,15 @@ Two sources, both stated in every export:
   colormap colours through the production inversion and comparing to truth.
   This is the real accuracy of the pipeline, and it is layer-dependent:
 
-  | Layer                 | Inversion RMSE  | Recovered |
-  | --------------------- | --------------- | --------- |
-  | Aerosol optical depth | 0.13 (of 0–0.9) | 180 / 180 |
-  | Sea surface temp      | 5.1 °C          | 128 / 213 |
-  | Soil moisture         | 8.2 kg/m²       | 21 / 50   |
-  | Air temperature (2 m) | 19.0 K          | 46 / 90   |
-  | Precipitation         | 20.4 mm/day     | 27 / 50   |
-  | Land surface temp     | no-data (all)   | 0 / 250   |
+  | Layer                 | Inversion RMSE   | Recovered |
+  | --------------------- | ---------------- | --------- |
+  | Aerosol optical depth | 0.13 (of 0–0.9)  | 180 / 180 |
+  | Snow cover            | 0.62 (of 0–100%) | 100 / 100 |
+  | Sea surface temp      | 5.1 °C           | 128 / 213 |
+  | Soil moisture         | 8.2 kg/m²        | 21 / 50   |
+  | Air temperature (2 m) | 19.0 K           | 46 / 90   |
+  | Precipitation         | 20.4 mm/day      | 27 / 50   |
+  | Land surface temp     | no-data (all)    | 0 / 250   |
 
   These are honest and, for several layers, poor: our legend gradients are
   coarse approximations of GIBS's finely-hued colormaps. **Absolute values for
@@ -103,6 +104,38 @@ to kelvin, or a mm/day rate left unscaled.
 still carries the full inversion uncertainty above. The bounds are fixed
 reference values, never derived from the sampled data. No band is defined for
 soil moisture, whose readings are passed through unchecked.
+
+### Snow cover: a discrete ramp, and what it cannot say
+
+Snow cover is the exception to the pattern above, in both directions. GIBS
+renders it with `MODIS_NDSI_Snow_Cover`, a **discrete** colormap — one published
+colour per whole percent — so the legend reproduces it stop for stop and the
+inversion is near-exact on the published colours (RMSE 0.62 of 100 percentage
+points, worst single colour 1.9). That is accuracy against the _rendering_;
+MOD10CM's own snow-cover retrieval carries its own, larger uncertainty, which
+is the product team's published validation, not ours.
+
+That 0.62 is also not what a user gets. The probe fetches these composites as
+**JPEG**, and the detail separating percentages inside a band is a 19-step
+ripple in one channel — finer than compression noise. Re-measured with the
+±8/channel perturbation the accuracy suite uses, the same ramp costs **6–12
+percentage points RMSE**. So: treat a probed snow percentage as a band, not a
+number, and the limiting factor as the transport rather than the colormap.
+
+Three further limits of the rendered product that no inversion can remove:
+
+- **The ramp is banded below 81%.** Percentages 1–20, 21–40, 41–60 and 61–80
+  each share a colour family, so a probed value in that range identifies its
+  band, not the percent within it. Above 81% the ramp resolves single points.
+- **0% is not drawn.** Snow-free ground is transparent in the tile, so in
+  rendered imagery "no snow" and "no observation" are indistinguishable. The
+  probe reports neither rather than guessing.
+- **Eight of the colours are flags, not amounts** — missing data, no decision,
+  night, inland water, ocean, cloud, detector saturated, fill. These are
+  rejected outright: the nearest sits 67 RGB units from the legend gradient,
+  above the 60-unit no-data threshold, and a weekly contract check
+  ([`contract/snow-cover-ramp.contract.test.ts`](contract/snow-cover-ramp.contract.test.ts))
+  fails if a GIBS re-render ever narrows that margin.
 
 ## 4. Trend analysis
 

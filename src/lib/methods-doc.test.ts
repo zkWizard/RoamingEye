@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { MEASURED_INVERSION } from "./validation";
+import { MEASURED_SNOW_COVER_INVERSION } from "./snowCoverRamp";
 import type { CalibratedLayerId } from "./colormap";
 import { classifyQuantityKind, type QuantityKind } from "./quantityKind";
 import {
@@ -49,6 +50,23 @@ describe("METHODS.md inversion-accuracy table", () => {
         `METHODS.md §3 is missing the ${layer} figure "${shown(m.rmse)}" — re-measure and update the table`
       ).toBe(true);
     }
+  });
+
+  it("quotes the snow-cover figures the discrete ramp is audited against", () => {
+    // Snow is not a CalibratedLayerId (its colormap is discrete, not
+    // continuous), so the loop above cannot cover it — bind it explicitly or
+    // §3 could drift from src/lib/snowCoverRamp.ts unnoticed.
+    expect(
+      methods.includes(MEASURED_SNOW_COVER_INVERSION.rmse.toFixed(2)),
+      "METHODS.md §3 is missing the snow-cover RMSE"
+    ).toBe(true);
+    expect(
+      methods.includes(
+        `${Math.round(MEASURED_SNOW_COVER_INVERSION.tightestFlagDistance)} RGB units`
+      ),
+      "METHODS.md §3 is missing the snow flag-colour separation"
+    ).toBe(true);
+    expect(methods).toContain("MODIS_NDSI_Snow_Cover");
   });
 
   it("documents the trend method and the honest limitation", () => {
