@@ -4,6 +4,7 @@ import {
   marineBoundarySstReading,
   unavailableMarineBoundarySstReading,
 } from "./marinePlaceInsight";
+import { SST_SAMPLING_GATE_NOTE } from "./sstObservingConstraints";
 
 describe("marine boundary SST insights", () => {
   it("keeps the source-month SST value and boundary coverage distinct from biology", () => {
@@ -67,6 +68,10 @@ describe("marine boundary SST insights", () => {
       "MODIS_AQUA_L3_SST_THERMAL_MONTHLY_9KM_DAYTIME_V2019.0 v2019.0"
     );
     expect(reading.detail).toContain("not a marine-biology observation");
+    // A reported mean must not read as a full-diurnal, all-weather monthly
+    // mean: the cited product composites Aqua's daytime overpass on
+    // cloud-screened days only.
+    expect(reading.detail).toContain(SST_SAMPLING_GATE_NOTE);
   });
 
   it("does not invent a reading when the sampled boundary has zero SST coverage", () => {
@@ -107,6 +112,10 @@ describe("marine boundary SST insights", () => {
       meanScope: null,
       reason: "zero-usable-share",
     });
+    // The sampling-gate note qualifies a reported value. With no value to
+    // qualify, appending it would imply one was withheld for a sampling reason
+    // rather than absent for lack of coverage.
+    expect(reading.detail).not.toContain(SST_SAMPLING_GATE_NOTE);
   });
 
   it("rejects invalid sampling coverage instead of presenting its value", () => {

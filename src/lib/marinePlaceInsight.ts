@@ -15,6 +15,7 @@ import {
   summarizeSstRampCensoring,
   type SstRampCensoringSummary,
 } from "./sstRampCensoring";
+import { SST_SAMPLING_GATE_NOTE } from "./sstObservingConstraints";
 import { formatYm, type YearMonth } from "./timeline";
 
 /**
@@ -220,7 +221,13 @@ export function marineBoundarySstReading(
         ? (rampCensoring?.valueText ??
           `${input.observedValue.toFixed(1)} ${coverage.source.sourceUnit}`)
         : "No usable SST observation",
-    detail: `${month} approximate mean SST observation sampled within ${geographyLabel}; ${describeMarineBoundarySstSupport(spatialSupport)}; ${image}; source ${source}${describeYearOverYear(yearOverYear)}${rampCensoring?.qualifier ? `; ${rampCensoring.qualifier}` : ""}; not a marine-biology observation`,
+    // The sampling-gate note qualifies a value, so it is appended only when one
+    // is reported. See sstObservingConstraints for what the note stands in for:
+    // the cited product composites Aqua's daytime overpass on cloud-screened
+    // days only, so this mean is not a full-diurnal, all-weather monthly mean.
+    detail: `${month} approximate mean SST observation sampled within ${geographyLabel}; ${describeMarineBoundarySstSupport(spatialSupport)}; ${image}; source ${source}${describeYearOverYear(yearOverYear)}${rampCensoring?.qualifier ? `; ${rampCensoring.qualifier}` : ""}${
+      usable ? `; ${SST_SAMPLING_GATE_NOTE}` : ""
+    }; not a marine-biology observation`,
     kind: "observed-boundary-sea-surface-temperature",
     availability: usable ? "available" : "no-usable-sst",
     marineBiologyObservation: false,
