@@ -1483,6 +1483,16 @@ body {
   color: var(--accent);
 }
 
+/* Qualification a source carries with it (bundled snapshot date, "no DOI —
+   add your retrieval date", the digitization the geometry came from). Set on
+   its own line so it reads as a caveat rather than part of the credit. */
+.providers__dataset-note {
+  display: block;
+  font-size: 0.74rem;
+  font-style: italic;
+  opacity: 0.85;
+}
+
 .providers__ack {
   margin: 0.75rem 0 0;
   padding: 0.5rem 0.9rem;

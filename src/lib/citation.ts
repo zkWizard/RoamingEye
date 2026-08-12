@@ -1,3 +1,7 @@
+import {
+  citedVectorSources,
+  type VectorSourceCitation,
+} from "./citedVectorSources";
 import { citedDatasets } from "./providers";
 import type { DatasetRef } from "./timeline";
 
@@ -6,9 +10,15 @@ import type { DatasetRef } from "./timeline";
  * export the tool and its source datasets in the formats reference managers
  * ingest — BibTeX (LaTeX), RIS (EndNote/Zotero/Mendeley), and CSL-JSON (the
  * Citation Style Language item format that pandoc, Quarto, and Zotero's
- * "Better BibTeX" round-trip) — each carrying a resolvable DOI, not a bare URL.
- * A researcher should be able to copy a citation and drop it straight into a
- * manuscript or a `references.json`.
+ * "Better BibTeX" round-trip) — each carrying a resolvable DOI wherever the
+ * source has one, rather than a bare URL. A researcher should be able to copy a
+ * citation and drop it straight into a manuscript or a `references.json`.
+ *
+ * "Sources" means everything the app renders, not just the imagery: the GIBS
+ * products behind the layers and the vector datasets behind the volcano,
+ * earthquake, and plate-boundary overlays. One of those (the USGS feed) has no
+ * DOI at all; it is cited by URL and says so, because dropping it from the
+ * bundle would silently under-credit data the reader can plainly see on screen.
  *
  * Pure and tested; the in-app "Copy citation" affordance calls these.
  */
@@ -196,16 +206,26 @@ export interface CslDate {
 export interface CslItem {
   /** Stable citation key (matches the BibTeX key for the same work). */
   id: string;
-  /** CSL item type: the tool is "software", each source is a "dataset". */
-  type: "software" | "dataset";
+  /**
+   * CSL item type: the tool is "software", a data product is a "dataset", and
+   * "article-journal" covers a source whose DOI resolves to the paper defining
+   * the model rather than to a data product (see citedVectorSources.ts).
+   */
+  type: "software" | "dataset" | "article-journal";
   title: string;
   author?: CslName[];
   issued?: CslDate;
   version?: string;
   publisher?: string;
+  /** Journal or database the work appeared in, per CSL's `container-title`. */
+  "container-title"?: string;
+  volume?: string;
+  issue?: string;
   /** Bare DOI (no resolver prefix), per CSL's `DOI` variable. */
   DOI?: string;
   URL?: string;
+  /** Free-text qualification a reader needs, per CSL's `note` variable. */
+  note?: string;
 }
 
 /** CSL-JSON item for the tool (type "software"). */
@@ -248,23 +268,148 @@ export function cslJson(items: readonly CslItem[]): string {
   return JSON.stringify(items, null, 2) + "\n";
 }
 
+/**
+ * The formatters above are specific to a CMR `DatasetRef`: they hard-code NASA
+ * GIBS as the publisher and assume a short name, a version, and a DOI. The
+ * globe also renders three vector datasets that are none of those things (see
+ * citedVectorSources.ts), so they get their own formatters rather than being
+ * squeezed into a shape that would misattribute them to GIBS.
+ *
+ * Each formatter emits only the fields the source actually holds. A source with
+ * no DOI is located by its URL alone — no DOI field is emitted empty, and none
+ * is borrowed — and its qualifying `note` travels with the entry so the
+ * limitation is not lost between the app and the manuscript.
+ */
+
+/** BibTeX entry for a rendered vector source. */
+export function bibtexVectorSource(ref: VectorSourceCitation): string {
+  const entry = ref.type === "article-journal" ? "article" : "misc";
+  const title =
+    ref.version === undefined
+      ? bibtexEscape(ref.title)
+      : `${bibtexEscape(ref.title)} (v${bibtexEscape(ref.version)})`;
+  const lines = [`@${entry}{${ref.key},`, `  title = {${title}},`];
+  if (ref.author) lines.push(`  author = {${bibtexEscape(ref.author)}},`);
+  if (ref.containerTitle)
+    lines.push(`  journal = {${bibtexEscape(ref.containerTitle)}},`);
+  if (ref.volume) lines.push(`  volume = {${bibtexEscape(ref.volume)}},`);
+  if (ref.issue) lines.push(`  number = {${bibtexEscape(ref.issue)}},`);
+  if (ref.year !== undefined) lines.push(`  year = {${ref.year}},`);
+  if (ref.publisher)
+    lines.push(`  publisher = {${bibtexEscape(ref.publisher)}},`);
+  if (ref.version !== undefined)
+    lines.push(`  version = {${bibtexEscape(ref.version)}},`);
+  if (ref.doi) lines.push(`  doi = {${bibtexEscape(ref.doi)}},`);
+  if (ref.note) lines.push(`  note = {${bibtexEscape(ref.note)}},`);
+  // The locator closes the entry, so it carries no trailing comma.
+  lines.push(`  url = {${ref.doi ? doiResolverUrl(ref.doi) : ref.url}}`);
+  lines.push(`}`);
+  return lines.join("\n");
+}
+
+/** RIS entry for a rendered vector source (TY=DATA, or JOUR for an article). */
+export function risVectorSource(ref: VectorSourceCitation): string {
+  const lines = [
+    `TY  - ${ref.type === "article-journal" ? "JOUR" : "DATA"}`,
+    `TI  - ${ref.version === undefined ? ref.title : `${ref.title} (v${ref.version})`}`,
+  ];
+  if (ref.author) lines.push(`AU  - ${ref.author}`);
+  if (ref.year !== undefined) lines.push(`PY  - ${ref.year}`);
+  if (ref.containerTitle) lines.push(`JO  - ${ref.containerTitle}`);
+  if (ref.volume) lines.push(`VL  - ${ref.volume}`);
+  if (ref.issue) lines.push(`IS  - ${ref.issue}`);
+  if (ref.publisher) lines.push(`PB  - ${ref.publisher}`);
+  if (ref.doi) lines.push(`DO  - ${ref.doi}`);
+  lines.push(`UR  - ${ref.doi ? doiResolverUrl(ref.doi) : ref.url}`);
+  if (ref.note) lines.push(`N1  - ${ref.note}`);
+  lines.push(`ER  - `);
+  return lines.join("\n");
+}
+
+/**
+ * Human-readable formatted-text citation for a rendered vector source. When the
+ * repo holds the publisher's own reference string it is used verbatim, so the
+ * rendered citation is the publisher's wording rather than a reconstruction.
+ */
+export function textVectorSource(ref: VectorSourceCitation): string {
+  const head =
+    ref.formattedCitation ??
+    [
+      ref.publisher,
+      ref.version === undefined ? ref.title : `${ref.title} (v${ref.version})`,
+      ref.type === "article-journal" ? undefined : "[Data set]",
+    ]
+      .filter((part) => part !== undefined)
+      .join(". ");
+  const locator = ref.doi ? doiResolverUrl(ref.doi) : ref.url;
+  return [head, locator, ref.note].filter(Boolean).join(". ");
+}
+
+/** CSL-JSON item for a rendered vector source. */
+export function cslVectorSource(ref: VectorSourceCitation): CslItem {
+  const item: CslItem = {
+    id: ref.key,
+    type: ref.type,
+    title:
+      ref.version === undefined ? ref.title : `${ref.title} (v${ref.version})`,
+    URL: ref.doi ? doiResolverUrl(ref.doi) : ref.url,
+  };
+  if (ref.author) item.author = [{ literal: ref.author }];
+  if (ref.year !== undefined) item.issued = { "date-parts": [[ref.year]] };
+  if (ref.version !== undefined) item.version = ref.version;
+  if (ref.publisher) item.publisher = ref.publisher;
+  if (ref.containerTitle) item["container-title"] = ref.containerTitle;
+  if (ref.volume) item.volume = ref.volume;
+  if (ref.issue) item.issue = ref.issue;
+  if (ref.doi) item.DOI = ref.doi;
+  if (ref.note) item.note = ref.note;
+  return item;
+}
+
 export type CitationFormat = "bibtex" | "ris" | "text" | "csljson";
 
 /**
- * The full citation bundle a researcher needs: the tool plus every source
- * dataset it renders, deduplicated, in the requested format — ready to paste
- * into a reference manager.
+ * The full citation bundle a researcher needs: the tool, every GIBS source
+ * dataset it renders (deduplicated by DOI), and the vector sources behind the
+ * volcano, earthquake, and plate-boundary overlays — in the requested format,
+ * ready to paste into a reference manager.
+ *
+ * The two groups are kept in a fixed order (imagery, then vector) so the bundle
+ * is byte-stable across calls and diffable between releases.
  */
 export function citationBundle(format: CitationFormat): string {
   const datasets = citedDatasets().map((c) => c.dataset);
+  const vectors = citedVectorSources();
   if (format === "ris") {
-    return [risTool(), ...datasets.map(risDataset)].join("\n\n") + "\n";
+    return (
+      [
+        risTool(),
+        ...datasets.map(risDataset),
+        ...vectors.map(risVectorSource),
+      ].join("\n\n") + "\n"
+    );
   }
   if (format === "text") {
-    return [textTool(), ...datasets.map(textDataset)].join("\n\n") + "\n";
+    return (
+      [
+        textTool(),
+        ...datasets.map(textDataset),
+        ...vectors.map(textVectorSource),
+      ].join("\n\n") + "\n"
+    );
   }
   if (format === "csljson") {
-    return cslJson([cslTool(), ...datasets.map(cslDataset)]);
+    return cslJson([
+      cslTool(),
+      ...datasets.map(cslDataset),
+      ...vectors.map(cslVectorSource),
+    ]);
   }
-  return [bibtexTool(), ...datasets.map(bibtexDataset)].join("\n\n") + "\n";
+  return (
+    [
+      bibtexTool(),
+      ...datasets.map(bibtexDataset),
+      ...vectors.map(bibtexVectorSource),
+    ].join("\n\n") + "\n"
+  );
 }
