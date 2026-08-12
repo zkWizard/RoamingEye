@@ -57,6 +57,14 @@ import {
 
 export type ProbeMode = "point" | "area" | "region";
 
+/** One opaque RGBA sample read straight from the rendered GIBS image. */
+export interface RenderedPixel {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}
+
 /** An image pixel to sample plus the geographic area weight it represents. */
 interface WeightedPixel {
   x: number;
@@ -155,6 +163,52 @@ export class ProbeSampler {
   /** The box area mode averages over, for provenance and the panel caption. */
   areaBounds(lat: number, lon: number): Bounds {
     return regionAround(lat, lon, AREA_SPAN_DEG);
+  }
+
+  /**
+   * Read the rendered pixels a point probe would sample, without inverting them
+   * through a colormap. Class-coded layers publish discrete palette colours
+   * rather than a gradient, so decoding belongs to that layer's palette and not
+   * to lib/probe's numeric inversion.
+   *
+   * PNG is requested explicitly: the default JPEG blends neighbouring class
+   * colours, which would turn exact palette entries into unmatchable ones.
+   */
+  async sampleRenderedPixels(
+    layer: LayerConfig,
+    ym: YearMonth,
+    lat: number,
+    lon: number,
+    options: { mode?: "point" | "area"; signal?: AbortSignal } = {}
+  ): Promise<RenderedPixel[]> {
+    const pixels = this.pixelsFor(options.mode ?? "point", lat, lon);
+    const canvas = document.createElement("canvas");
+    canvas.width = pixels.length;
+    canvas.height = 1;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) throw new Error("RoamingEye: 2d canvas context unavailable");
+
+    const blob = await fetchBlob(
+      gibsWmsUrl(layer, ym, { ...this.imageSize, format: "image/png" }),
+      { signal: options.signal, retries: 1 }
+    );
+    const image = await createImageBitmap(blob);
+    for (let i = 0; i < pixels.length; i++) {
+      ctx.drawImage(image, pixels[i].x, pixels[i].y, 1, 1, i, 0, 1, 1);
+    }
+    image.close();
+
+    const { data } = ctx.getImageData(0, 0, pixels.length, 1);
+    const out: RenderedPixel[] = [];
+    for (let i = 0; i < pixels.length; i++) {
+      out.push({
+        r: data[i * 4],
+        g: data[i * 4 + 1],
+        b: data[i * 4 + 2],
+        a: data[i * 4 + 3],
+      });
+    }
+    return out;
   }
 
   /**
