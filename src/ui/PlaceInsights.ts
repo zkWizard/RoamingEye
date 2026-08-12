@@ -34,12 +34,19 @@ import {
   summitDatumText,
   tallyElevationRegimes,
 } from "../lib/volcanoElevationProfile";
+import type { PlaceMonthAlignment } from "../lib/placeMonthAlignment";
 import { ICONS } from "./icons";
 
 interface MetricElements {
   value: HTMLElement;
   detail: HTMLElement;
 }
+
+const SAMPLING_NOTE =
+  "Boundary-grid means from NASA imagery; very small or thin boundaries may be labelled as a single in-boundary point estimate.";
+/** Stands in until the panel's actual card months have been resolved. */
+const UNRESOLVED_MONTHS_NOTE =
+  "Products may publish on different monthly schedules.";
 
 /** A compact month-over-month readout for the exact boundary selected in search. */
 export class PlaceInsights {
@@ -61,6 +68,7 @@ export class PlaceInsights {
   private readonly seismicityValue: HTMLElement;
   private readonly seismicityDetail: HTMLElement;
   private readonly seismicityRecords: HTMLUListElement;
+  private readonly note: HTMLElement;
 
   constructor(
     container: HTMLElement,
@@ -172,8 +180,8 @@ export class PlaceInsights {
 
     const note = document.createElement("p");
     note.className = "place-insights__note";
-    note.textContent =
-      "Boundary-grid means from NASA imagery; very small or thin boundaries may be labelled as a single in-boundary point estimate. Products may publish on different monthly schedules.";
+    note.textContent = `${SAMPLING_NOTE} ${UNRESOLVED_MONTHS_NOTE}`;
+    this.note = note;
 
     const exportControls = document.createElement("div");
     exportControls.className = "place-insights__export";
@@ -198,6 +206,7 @@ export class PlaceInsights {
     this.title.textContent = name;
     this.exportJson = undefined;
     this.downloadButton.disabled = true;
+    this.note.textContent = `${SAMPLING_NOTE} ${UNRESOLVED_MONTHS_NOTE}`;
     for (const { value, detail } of this.metrics.values()) {
       value.textContent = "Sampling";
       detail.textContent = "Latest two available months";
@@ -225,6 +234,15 @@ export class PlaceInsights {
     if (!metric) return;
     metric.value.textContent = reading.value;
     metric.detail.textContent = reading.detail;
+  }
+
+  /**
+   * Replace the standing "products may publish on different schedules" hedge
+   * with the months this panel's cards actually read, so a reader can see which
+   * cards are contemporaneous instead of assuming the grid is one snapshot.
+   */
+  setMonthAlignment(alignment: PlaceMonthAlignment): void {
+    this.note.textContent = `${SAMPLING_NOTE} ${alignment.statement}`;
   }
 
   /** Enable an explicit, user-triggered reproducibility export after sampling. */

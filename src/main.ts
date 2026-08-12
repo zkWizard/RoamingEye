@@ -39,6 +39,7 @@ import {
   placeInsightReading,
 } from "./lib/placeInsights";
 import {
+  MARINE_PLACE_METRIC,
   marineBoundarySstReading,
   unavailableMarineBoundarySstReading,
 } from "./lib/marinePlaceInsight";
@@ -47,6 +48,10 @@ import {
   aerosolBoundaryLoadingReading,
   unavailableAerosolBoundaryReading,
 } from "./lib/aerosolPlaceInsight";
+import {
+  summarizePlaceMonthAlignment,
+  type PlaceMonthCard,
+} from "./lib/placeMonthAlignment";
 import {
   climateInsightText,
   climateMetricForLayer,
@@ -469,6 +474,9 @@ function runPlaceInsights(result: GeoResult): void {
   placeInsights.open(result.name);
   const exportSamples = new Map<string, PlaceObservationExportSample>();
   const samplingTasks: Promise<void>[] = [];
+  // The month each card reads, collected as the cards are scheduled. The
+  // products publish on different lags, so this is rarely one month.
+  const monthCards: PlaceMonthCard[] = [];
 
   if (result.boundingBox) {
     void fetchJson<unknown>(`${import.meta.env.BASE_URL}data/volcanoes.json`, {
@@ -536,6 +544,7 @@ function runPlaceInsights(result: GeoResult): void {
   for (const metric of PLACE_METRICS) {
     const months = latestComparisonMonths(metric.layerId);
     if (!months) continue;
+    monthCards.push({ label: metric.label, month: months[1] });
     // Start with explicit no-data observations. A failed request or an
     // unavailable authoritative colormap must not be replaced with a
     // display-converted value labelled as a native-unit measurement. NDVI is
@@ -685,6 +694,11 @@ function runPlaceInsights(result: GeoResult): void {
     ? [sstPriorYearMonth, sstMonth]
     : [sstMonth];
   const sstTarget = sstSampleMonths.length - 1;
+  monthCards.push({ label: MARINE_PLACE_METRIC.label, month: sstMonth });
+  // Say which of these cards are contemporaneous before any sampling resolves:
+  // the months are fixed by the products' publication calendars, not by what
+  // this place returns, so the reader is never left assuming one snapshot.
+  placeInsights.setMonthAlignment(summarizePlaceMonthAlignment(monthCards));
   let sstFailureReason:
     "source-colormap-unavailable" | "boundary-sampling-failed" =
     "source-colormap-unavailable";
