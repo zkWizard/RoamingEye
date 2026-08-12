@@ -1,3 +1,4 @@
+import { PROBE_SCALES } from "./probe";
 import { LAYERS, type DatasetRef, type YearMonth } from "./timeline";
 
 /**
@@ -28,6 +29,35 @@ export const AEROSOL_WAVELENGTH_NM = 550;
 export const AEROSOL_UNIT = "dimensionless";
 
 /**
+ * Column AOD at which the *rendered* ramp stops resolving, at 550 nm.
+ *
+ * GIBS draws this product with a colormap whose bins run 0.000–0.900 in 0.005
+ * steps and whose final bin is open-ended (`≥ 0.900`), so every column loading
+ * at or above this value is painted in one terminal colour. A value recovered
+ * from that colour is therefore a *lower bound*, not a measurement: the true
+ * AOD could be 0.9 or 3.0 and the pixel would look identical. Heavy dust and
+ * biomass-burning plumes routinely exceed it, so this is a live limit on real
+ * scenes, not a theoretical edge case.
+ *
+ * Derived from `PROBE_SCALES.aerosol.max` (the range the probe inverts onto,
+ * taken from that colormap) so a scale edit can never silently desync this
+ * bound from the values callers actually receive. Colormap document:
+ * `MERRA2_Total_Aerosol_Optical_Thickness_550nm_Extinction_Monthly.xml`, the
+ * same one the inversion contract test validates against.
+ */
+export const AEROSOL_RENDERED_RAMP_MAX = requireRenderedRampMax();
+
+function requireRenderedRampMax(): number {
+  const scale = PROBE_SCALES.aerosol;
+  if (!scale.calibrated || !Number.isFinite(scale.max) || scale.max <= 0) {
+    throw new Error(
+      "RoamingEye: aerosol layer must retain a calibrated rendered ramp maximum"
+    );
+  }
+  return scale.max;
+}
+
+/**
  * Honest scope limits shared by the aerosol descriptors. Kept in code because
  * callers surface them alongside any AOD value or change they present.
  */
@@ -36,6 +66,7 @@ export const AEROSOL_LOADING_LIMITATIONS = [
   "MERRA-2 is a reanalysis (a model constrained by assimilated observations), so a value is a modelled monthly mean, not a direct pixel measurement.",
   "Loading tiers and the change band are descriptive reading conventions, not standardized thresholds, and carry no health, safety, or compliance meaning.",
   "A month-over-month change describes only the difference between two modelled monthly means; it implies nothing about cause, surface air quality, or any future value.",
+  "The rendered colormap's top bin is open-ended (AOD ≥ 0.9 at 550 nm), so a reading at that bound is a lower bound rather than a measurement, and a change computed from one is bounded rather than exact.",
 ] as const;
 
 /** Cited source for the aerosol optical depth observations (MERRA-2). */
@@ -95,6 +126,14 @@ interface AerosolLoadingBand {
  * values commonly used in aerosol literature to talk about column loading
  * (background ≲0.1; hazy ≳0.2; heavy dust/smoke ≳0.5-1.0). They are
  * qualitative descriptors only — no health or air-quality meaning is implied.
+ *
+ * Note the interaction with `AEROSOL_RENDERED_RAMP_MAX` (0.9): `very-high`
+ * starts at 1.0, *above* the top of the rendered ramp, so it can never be
+ * reached by a value read back from imagery. The bands are kept on the
+ * literature's break points rather than bent to fit the ramp — a reading that
+ * saturates is reported as a lower-bound tier (see `AerosolCensoring`) instead,
+ * which is why `summarizeAerosolLoading` never claims a censored value is
+ * definitively `high`.
  */
 export const AEROSOL_LOADING_BANDS: readonly AerosolLoadingBand[] = [
   {
@@ -136,6 +175,75 @@ export interface AerosolLoadingDescriptor {
   bandMin: number;
   /** Exclusive upper bound of the matched band, or null when unbounded. */
   bandMax: number | null;
+}
+
+/**
+ * Whether the rendered ramp could resolve a value, or only bound it below.
+ *
+ * `censored-high` means the reading sits in the colormap's open-ended top bin
+ * (AOD ≥ `AEROSOL_RENDERED_RAMP_MAX`): the true column loading is at least that
+ * much and may be far more. This is a *representability* limit of the imagery
+ * RoamingEye reads, never a claim that the value is a record or extreme.
+ */
+export type AerosolCensoringStatus = "uncensored" | "censored-high";
+
+export interface AerosolCensoring {
+  status: AerosolCensoringStatus;
+  /** AOD at/above which the rendered ramp stops resolving, at 550 nm. */
+  rampMax: number;
+  /**
+   * True when the reported value can only be read as "at least this much".
+   * This, not the tier label, is the authoritative signal for callers.
+   */
+  isLowerBound: boolean;
+  /**
+   * Lowest loading tier consistent with the reading, or null when there is no
+   * usable value. For a censored reading the true tier may be any tier at or
+   * above this one, so a caller must not present it as the definite tier.
+   */
+  lowestPossibleCategory: AerosolLoadingCategory | null;
+  /** Plain-language statement for callers that surface the value. */
+  statement: string;
+}
+
+/**
+ * Describe whether a usable column AOD was resolved by the rendered ramp or
+ * merely bounded below by it. Returns null for values that are not usable
+ * optical thickness, matching `describeAerosolLoading`, so no caller reads a
+ * representability claim off an unusable number.
+ */
+export function describeAerosolCensoring(
+  value: number | null,
+  rampMax: number = AEROSOL_RENDERED_RAMP_MAX
+): AerosolCensoring | null {
+  const loading = describeAerosolLoading(value);
+  if (value === null || loading === null) return null;
+  const bound =
+    Number.isFinite(rampMax) && rampMax > 0
+      ? rampMax
+      : AEROSOL_RENDERED_RAMP_MAX;
+
+  if (value < bound) {
+    return {
+      status: "uncensored",
+      rampMax: bound,
+      isLowerBound: false,
+      lowestPossibleCategory: loading.category,
+      statement: `column AOD ${formatAod(value)} is inside the rendered ramp (below ${formatAod(bound)}), so it reads as a value rather than a bound`,
+    };
+  }
+
+  return {
+    status: "censored-high",
+    rampMax: bound,
+    isLowerBound: true,
+    lowestPossibleCategory: loading.category,
+    statement: `the rendered colormap's top bin is open-ended at ${formatAod(bound)}, so this month reads as column AOD of at least ${formatAod(bound)} (${loading.label} or heavier); the true value cannot be recovered from the imagery`,
+  };
+}
+
+function formatAod(value: number): string {
+  return Number(value.toPrecision(5)).toString();
 }
 
 /**
@@ -195,8 +303,17 @@ export interface AerosolLoadingSummary {
    * How close the value sits to the nearest loading-tier boundary, so consumers
    * can tell a robustly-in-tier value from one that is only marginally binned.
    * Null when there is no usable value.
+   *
+   * Computed on the reported value alone: when `censoring.isLowerBound` is true
+   * the reported value is a bound, so a "robustly in tier" proximity here says
+   * nothing about the true loading. Callers must check `censoring` first.
    */
   tierProximity: AerosolBandProximity | null;
+  /**
+   * Whether the rendered ramp resolved the value or only bounded it below.
+   * Null when there is no usable value.
+   */
+  censoring: AerosolCensoring | null;
 }
 
 /**
@@ -244,6 +361,8 @@ export function summarizeAerosolLoading(
       observedValue === null
         ? null
         : describeAerosolBandProximity(observedValue),
+    censoring:
+      observedValue === null ? null : describeAerosolCensoring(observedValue),
   };
 }
 
@@ -341,6 +460,25 @@ export type AerosolLoadingChangeStatus =
   "available" | "non-adjacent-months" | "unavailable";
 
 /**
+ * How the rendered ramp's open-ended top bin bounds a reported change.
+ *
+ * A censored endpoint is a lower bound, so the difference built from it is a
+ * bound too. When *both* endpoints are censored the difference is not
+ * informative at all: two months reading 0.9 could truly be 0.9 and 3.0, so
+ * neither the sign nor the magnitude of the change survives, and no trend is
+ * reported.
+ */
+export type AerosolChangeBound =
+  /** Neither endpoint censored: `changeValue` is the plain difference. */
+  | "exact"
+  /** Later month censored: the true change is at least `changeValue`. */
+  | "bounded-below"
+  /** Earlier month censored: the true change is at most `changeValue`. */
+  | "bounded-above"
+  /** Both endpoints censored: sign and magnitude are both unrecoverable. */
+  | "indeterminate";
+
+/**
  * Absolute change in column AOD below which the difference is reported as
  * `little-change` rather than increasing or decreasing. It is a fifth of the
  * `very-low`/`low` break point (0.1) — small enough to name a real shift, wide
@@ -362,6 +500,12 @@ export interface AerosolLoadingChange {
   /** Later minus earlier column AOD (dimensionless); null when not computable. */
   changeValue: number | null;
   trend: AerosolLoadingTrend | null;
+  /**
+   * How the ramp's censoring bounds `changeValue`. Null when no change was
+   * computed. A caller presenting the number must honour this: anything other
+   * than `exact` means the difference is a bound, not a measured change.
+   */
+  changeBound: AerosolChangeBound | null;
   threshold: number;
   /** Short machine-readable reason when no trend is reported. */
   reason: string | null;
@@ -394,6 +538,11 @@ function usableEndpointValue(summary: AerosolLoadingSummary): number | null {
  * never spans a gap or fills a missing month. The result describes a difference
  * in modelled column loading only; it implies nothing about surface air quality,
  * cause, or any future value.
+ *
+ * Readings that saturate the rendered ramp are handled as bounds rather than
+ * values: see `changeBound`. A comparison in which *both* months saturate is
+ * withheld entirely, because the difference of two lower bounds constrains
+ * neither the sign nor the size of the true change.
  */
 export function describeAerosolLoadingChange(
   earlierObservation: AerosolObservation,
@@ -416,6 +565,7 @@ export function describeAerosolLoadingChange(
     later,
     changeValue: null,
     trend: null,
+    changeBound: null,
     threshold: validThreshold ? threshold : AEROSOL_LOADING_CHANGE_THRESHOLD,
     limitations: AEROSOL_LOADING_LIMITATIONS,
   };
@@ -441,20 +591,55 @@ export function describeAerosolLoadingChange(
     return { ...base, status: "unavailable", reason: "endpoint-not-available" };
   }
 
+  const earlierCensored = earlier.censoring?.isLowerBound === true;
+  const laterCensored = later.censoring?.isLowerBound === true;
+
+  // Both months sat in the ramp's open-ended top bin, so both values are lower
+  // bounds and their difference carries no information: two readings of 0.9
+  // could truly be 0.9 and 3.0, in either order. Reporting the arithmetic
+  // difference here would assert stability the imagery cannot support, so the
+  // change is withheld rather than qualified.
+  if (earlierCensored && laterCensored) {
+    return {
+      ...base,
+      status: "unavailable",
+      changeBound: "indeterminate",
+      reason: "both-endpoints-censored",
+    };
+  }
+
   const change = laterValue - earlierValue;
-  const trend: AerosolLoadingTrend =
+  const computedTrend: AerosolLoadingTrend =
     Math.abs(change) < threshold
       ? "little-change"
       : change > 0
         ? "increasing"
         : "decreasing";
 
+  // One censored endpoint bounds the true change on a single side, so the
+  // computed difference stays reportable as that bound. The *direction*,
+  // though, only survives when the difference already clears the threshold in
+  // the direction the bound can still travel: with the later month censored the
+  // true change lies in [change, +INF), so a computed "little-change" of +0.01
+  // is equally consistent with a true jump of +2, and naming a trend there
+  // would assert stability the imagery cannot support.
+  const changeBound: AerosolChangeBound = laterCensored
+    ? "bounded-below"
+    : earlierCensored
+      ? "bounded-above"
+      : "exact";
+  const directionSurvives =
+    changeBound === "exact" ||
+    (changeBound === "bounded-below" && computedTrend === "increasing") ||
+    (changeBound === "bounded-above" && computedTrend === "decreasing");
+
   return {
     ...base,
     status: "available",
     changeValue: change,
-    trend,
-    reason: null,
+    trend: directionSurvives ? computedTrend : null,
+    changeBound,
+    reason: directionSurvives ? null : "censored-endpoint-direction-unresolved",
   };
 }
 
