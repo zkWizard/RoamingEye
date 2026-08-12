@@ -117,23 +117,6 @@ export function validateInversion(
  * and the parser had been discarding every entry whose printed range collapsed
  * to zero width — half the ramp had never been presented to the inversion at
  * all. See `parseColormapEntries`.
-=======
- * These are sobering by design: inversion through our coarse legend gradients
- * recovers aerosol well (RMSE 0.13) but temperature, precipitation, and soil
- * only loosely, and LST's gradient misses GIBS's cold-end hues entirely
- * (all-null). The probe is reliable for *relative* analysis on these layers
- * (trends, anomalies, seasonality — scale-monotone-robust), not absolute
- * values. Tightening this by inverting against the real GIBS colormaps is
- * tracked as follow-up (#170).
- *
- * NDVI is the worked example of that follow-up: its legend stops are sampled
- * from MODIS_L3_NDVI instead of drawn by hand, and every one of GIBS's 140
- * ramp colours now inverts (RMSE 0.024 on a 0–1 index). Note what a *banded*
- * null-rate costs — the hand-drawn ramp rejected 32 colours in three
- * contiguous blocks (NDVI ≤ 0.09, 0.41–0.46, ≥ 0.94), so sparse vegetation
- * and closed canopy were dropped from every mean, trend, and percentile
- * rather than merely measured imprecisely.
->>>>>>> 274230125bcc4d4bb8b26137a76ef0a751aeaab7
  */
 export const MEASURED_INVERSION: Record<
   CalibratedLayerId,
