@@ -515,6 +515,84 @@ test("search traces an exact returned boundary without a study-region box", asyn
   expect(highResolutionRequests).toBe(0);
 });
 
+test("place insights report nearby USGS seismicity with its source and scope", async ({
+  page,
+}) => {
+  await page.route("**nominatim**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          name: "Exactville",
+          display_name: "Exactville, Example State, Example Country",
+          lat: "34.0000",
+          lon: "-118.0000",
+          type: "city",
+          category: "boundary",
+          // Centre (34, -118); the circumscribed radius is roughly 21 km.
+          boundingbox: ["33.9", "34.1", "-118.2", "-117.8"],
+          geojson: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [-118.2, 33.9],
+                [-117.8, 33.9],
+                [-117.8, 34.1],
+                [-118.2, 33.9],
+              ],
+            ],
+          },
+        },
+      ]),
+    })
+  );
+  await page.route("**earthquake.usgs.gov**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        features: [
+          {
+            // ~7 km from the extent centre: inside the radius.
+            geometry: { type: "Point", coordinates: [-118.05, 34.05, 9.2] },
+            properties: {
+              mag: 5.2,
+              magType: "mww",
+              time: 1_750_000_000_000,
+              place: "Near Exactville",
+            },
+          },
+          {
+            // Hundreds of km away: outside the radius.
+            geometry: { type: "Point", coordinates: [-120, 40, 480] },
+            properties: {
+              mag: 6.1,
+              time: 1_750_000_000_000,
+              place: "Far away",
+            },
+          },
+        ],
+      }),
+    })
+  );
+
+  await page.locator(".search__input").fill("Exactville");
+  await page.locator(".search__result").click();
+
+  const seismicity = page.locator(
+    '[aria-label="Recent earthquakes near this place"]'
+  );
+  await expect(seismicity).toContainText("1 event");
+  await expect(seismicity).toContainText("Near Exactville");
+  await expect(seismicity).toContainText("M5.2 mww");
+  await expect(seismicity).toContainText("shallow");
+  // Events outside the circumscribed radius must not be attributed to the place.
+  await expect(seismicity).not.toContainText("Far away");
+  // The radial query overshoots the rectangle's corners; the panel must say so
+  // rather than implying the events sit inside the searched boundary.
+  await expect(seismicity).toContainText("past the boundary corners");
+  await expect(seismicity).toContainText("USGS");
+});
+
 test("modals trap focus and restore it on close", async ({ page }) => {
   await page.locator("#shortcuts-link").click();
   const overlay = page.locator("#shortcuts-page");

@@ -44,6 +44,11 @@ import {
   summarizeRenderedClimateSample,
 } from "./lib/meteorology";
 import { volcanoesInSearchExtent } from "./lib/volcanoExtent";
+import {
+  nearbyEarthquakeContext,
+  searchExtentEarthquakeQuery,
+} from "./lib/earthquakeContext";
+import { parseEarthquakeFeed, USGS_FEED_URL } from "./lib/earthquakes";
 import { parseVolcanoDataset } from "./lib/volcanoes";
 import type { GeoResult } from "./lib/geocoding";
 import { refreshDataLatest } from "./lib/freshness";
@@ -468,6 +473,35 @@ function runPlaceInsights(result: GeoResult): void {
       });
   } else {
     placeInsights.setVolcanoContext(volcanoesInSearchExtent([], null));
+  }
+
+  // Live seismicity for the same extent. The overlay already reads this feed,
+  // so the place panel reuses the identical URL and parser rather than
+  // introducing a second, divergent view of USGS records.
+  const seismicityQuery = searchExtentEarthquakeQuery(result.boundingBox);
+  if (result.boundingBox) {
+    void fetchJson<unknown>(USGS_FEED_URL, { signal: abort.signal })
+      .then(parseEarthquakeFeed)
+      .then((earthquakes) => {
+        if (abort.signal.aborted) return;
+        placeInsights.setSeismicityContext(
+          nearbyEarthquakeContext(earthquakes, seismicityQuery)
+        );
+      })
+      .catch((error: unknown) => {
+        if (isAbortError(error) || abort.signal.aborted) return;
+        console.warn(
+          "RoamingEye: place seismicity context failed to load",
+          error
+        );
+        placeInsights.setSeismicityUnavailable();
+      });
+  } else {
+    // No usable extent means no answerable radial query — report that directly
+    // instead of spending a request on the shared USGS feed.
+    placeInsights.setSeismicityContext(
+      nearbyEarthquakeContext([], seismicityQuery)
+    );
   }
 
   for (const metric of PLACE_METRICS) {
