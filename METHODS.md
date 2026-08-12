@@ -34,6 +34,27 @@ rows (the canonical gridded-data mistake). Coverage is gated on the valid
 **area** fraction, not the sample count, so a box whose only data is a few
 polar slivers is correctly rejected rather than reported as a region mean.
 
+### No-data separation (sea surface temperature)
+
+GIBS serves these composites as JPEG, so a pixel the Level-3 product leaves
+empty — land, sea ice, persistent cloud, missing swath — arrives as **black**
+rather than as a flagged value. For most layers that black falls far outside the
+colormap and is rejected by the app-wide 60-unit colour distance. The
+sea-surface-temperature ramp is the exception: its coldest colour is only **53.0**
+units from black, so the default threshold inverted empty pixels into a
+plausible near-freezing reading and averaged them into boundary means. Measured
+on five 2026-03 scenes, that pulled a Gulf-coast boundary mean from 22.8 °C down
+to 17.3 °C, and reported a landlocked county as 0.1 °C water at full coverage.
+
+The SST place card therefore samples with a **24**-unit threshold: roughly 3× the
+worst deviation measured for genuine open-ocean pixels (**8.1**) and under half
+the 53.0 separation, so no-data is excluded while every published ramp colour
+still inverts — re-checked weekly against the live colormap. Coastline pixels
+that genuinely blend water and land stay ambiguous at any threshold; they are
+excluded rather than averaged in, which lowers the reported coverage fraction
+instead of biasing the mean. A rejected pixel means the product reports no SST
+there — not that the location is land, and not that the water is cold.
+
 ## 3. Uncertainty
 
 Two sources, both stated in every export:

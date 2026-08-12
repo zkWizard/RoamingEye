@@ -37,6 +37,7 @@ import {
   marineBoundarySstReading,
   unavailableMarineBoundarySstReading,
 } from "./lib/marinePlaceInsight";
+import { SST_MAX_INVERSION_DISTANCE } from "./lib/sstNoData";
 import {
   aerosolBoundaryLoadingReading,
   unavailableAerosolBoundaryReading,
@@ -662,7 +663,10 @@ function runPlaceInsights(result: GeoResult): void {
 
   // SST is a single, latest-observation card rather than a terrestrial
   // month-over-month "condition". Sample the exact searched geometry through
-  // NASA GIBS's published physical colormap so the value remains in °C.
+  // NASA GIBS's published physical colormap so the value remains in °C, with
+  // a tighter no-data threshold: this ramp's coldest colour is close enough
+  // to the JPEG black GIBS renders where the product holds no SST that the
+  // default would average land and ice in as ~0.08 °C water (lib/sstNoData).
   const sstMonths = monthRangeForLayer(LAYERS.sst);
   const sstMonth = sstMonths[sstMonths.length - 1];
   // Also sample the same calendar month one year earlier, so the card can
@@ -697,7 +701,10 @@ function runPlaceInsights(result: GeoResult): void {
         { lat: result.lat, lon: result.lon },
         colormap.entries,
         colormap.factor,
-        { signal: abort.signal }
+        {
+          signal: abort.signal,
+          maxInversionDistance: SST_MAX_INVERSION_DISTANCE,
+        }
       );
       if (abort.signal.aborted) return;
       placeInsights.setReading(
