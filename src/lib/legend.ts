@@ -207,11 +207,23 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
     measures: "Soil moisture (underground)",
     minLabel: "dry",
     maxLabel: "saturated",
+    // Taken from the colormap GIBS actually renders the layer with
+    // (colormaps/v1.3/GLDAS_Underground_Soil_Moisture_Monthly.xml): a reversed
+    // *spectral* ramp — red = dry, yellow-green mid, blue = wet — not the
+    // brown → teal gradient this legend used to draw. Every stop below is a
+    // verbatim GIBS anchor colour placed at the position of the 1 kg/m² bin it
+    // labels on the 0–50 scale (bin i covers [i, i+1], midpoint i+0.5). Only
+    // the two end stops are moved, stretched to 0 and 1 so the bar spans the
+    // full scale; that costs half a bin (0.5 kg/m²) at each end.
     stops: [
-      { color: "#a9743f", at: 0 }, // parched soil
-      { color: "#c9b178", at: 0.35 },
-      { color: "#63a58f", at: 0.7 },
-      { color: "#1f6f6b", at: 1 }, // waterlogged ground
+      { color: "#d53e4f", at: 0 }, // driest ground GIBS draws
+      { color: "#f46d43", at: 0.15 },
+      { color: "#fdae61", at: 0.29 },
+      { color: "#fee08b", at: 0.43 },
+      { color: "#e6f598", at: 0.57 },
+      { color: "#abdda4", at: 0.71 },
+      { color: "#66c2a5", at: 0.85 },
+      { color: "#3288bd", at: 1 }, // waterlogged ground
     ],
   },
   aerosol: {

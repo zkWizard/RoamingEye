@@ -72,17 +72,18 @@ Two sources, both stated in every export:
   | Aerosol optical depth | 0.13 (of 0–0.9)  | 180 / 180 |
   | Snow cover            | 0.62 (of 0–100%) | 100 / 100 |
   | Sea surface temp      | 1.0 °C           | 213 / 213 |
-  | Soil moisture         | 8.2 kg/m²        | 21 / 50   |
+  | Soil moisture         | 0.23 kg/m²       | 50 / 50   |
   | Land surface temp     | no-data (all)    | 0 / 250   |
 
   The spread is not about the layers — it is about how closely each legend
   follows the colormap GIBS renders with. Precipitation, air temperature, sea
-  surface temperature, and aerosol take their stops from that colormap and
-  invert tightly across the whole ramp. The rest are still coarse hand-drawn
-  approximations of GIBS's finely-hued colormaps, and the cost shows up in the
-  "Recovered" column: colours the gradient cannot place are rejected as
-  no-data. **Absolute values for soil moisture carry large uncertainty; use
-  the probe for relative and temporal analysis on that layer.** The full
+  surface temperature, soil moisture, and aerosol take their stops from that
+  colormap and invert tightly across the whole ramp. Only land-surface
+  temperature is still a hand-drawn approximation, and the cost shows up in
+  the "Recovered" column: colours the gradient cannot place are rejected as
+  no-data, which for LST is the entire ramp. **Every probed value remains an
+  approximation of rendered imagery — relative and temporal analysis is the
+  probe's most robust use.** The full
   method and framing is in
   [docs/validation.md](docs/validation.md); rebuilding the remaining gradients
   from the real GIBS colormaps is tracked as
@@ -168,19 +169,19 @@ Three further limits of the rendered product that no inversion can remove:
   | Sea surface temp      | none             | —                              |
   | Air temperature (2 m) | none             | —                              |
   | Precipitation         | none             | —                              |
-  | Soil moisture         | end-truncated    | 19.5–34.5 kg/m² (31%)          |
+  | Soil moisture         | none             | —                              |
   | Land surface temp     | total            | 200.3–349.7 K (the whole ramp) |
 
-  Air temperature, precipitation, and sea surface temperature each carried a
-  wide blind spot until their legends were rebuilt from GIBS's own ramps
-  (#717, #713, #736); re-measured after those recalibrations, all three read
-  the whole ramp. What remains bounds how the table above may be read: soil
-  moisture's RMSE is _survivor-only_, measured on the colours that happened to
-  invert, and its blind runs reach the ramp's ends — soil is also blind from
-  0.5 to 11.5 kg/m² at the dry end — so an observed extreme there is a
-  censoring artefact of our gradient rather than an observation. These spans
-  locate a failure of _our legend gradient_, not of the source product, and
-  each shrinks as a layer is recalibrated under
+  Air temperature, precipitation, sea surface temperature, and soil moisture
+  each carried a wide blind spot until their legends were rebuilt from GIBS's
+  own ramps (#717, #713, #736, #753); re-measured after those recalibrations,
+  all four read the whole ramp. A layer whose shape is not `none` has a
+  _survivor-only_ RMSE, measured on the colours that happened to invert, and
+  an observed extreme inside a blind run that reaches a ramp end is a
+  censoring artefact of our gradient rather than an observation — today that
+  caveat applies only to land-surface temperature, which recovers nothing.
+  These spans locate a failure of _our legend gradient_, not of the source
+  product, and each shrinks as a layer is recalibrated under
   [#170](https://github.com/zkWizard/RoamingEye/issues/170).
 
 ## 4. Trend analysis

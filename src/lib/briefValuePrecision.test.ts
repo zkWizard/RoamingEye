@@ -84,7 +84,18 @@ describe("justifiedPrecision", () => {
     });
   });
 
-  it("justifies two figures for soil moisture read to ±8 kg/m²", () => {
+  it("justifies three figures for soil moisture read to ±0.23 kg/m²", () => {
+    // Soil's legend is built from GIBS's own ramp, so the inversion resolves
+    // tenths — one more justified figure than a whole-unit uncertainty would.
+    const p = justifiedPrecision(24.3, 0.23);
+    expect(p).toEqual({
+      roundingPlace: -1,
+      roundedValue: 24.3,
+      significantFigures: 3,
+    });
+  });
+
+  it("justifies only two figures when the same value is read to ±8 kg/m²", () => {
     const p = justifiedPrecision(24.3, 8.23);
     expect(p).toEqual({
       roundingPlace: 0,
@@ -211,9 +222,9 @@ describe("summarizeBriefValuePrecision", () => {
   });
 
   it("marks a value within its own uncertainty as justifying no figure", () => {
-    // A sub-unit soil-moisture reading sits below the ±8.2 kg/m² inversion
-    // RMSE's units place, so not even one figure is resolved from zero.
-    const brief = briefWith({ soilMoisture: obs(0.4) });
+    // A soil-moisture reading below the ±0.23 kg/m² inversion RMSE is not
+    // resolved from zero, so not even one figure is justified.
+    const brief = briefWith({ soilMoisture: obs(0.05) });
     const summary = summarizeBriefValuePrecision(brief.signals);
     const soil = summary.signals[0];
     expect(soil.status).toBe("characterized");

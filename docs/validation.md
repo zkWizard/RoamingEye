@@ -29,7 +29,7 @@ each calibrated layer, and they are re-measured twice over:
 
 This table is kept in sync with the measured figures by a CI drift-guard.
 
-## Results (precipitation, air temperature, and sea surface temp re-measured 2026-08-11; others 2026-07-09)
+## Results (precipitation, air temperature, and sea surface temp re-measured 2026-08-11; soil moisture 2026-08-12; others 2026-07-09)
 
 | Layer                 | RMSE                   | Colours recovered | Verdict                           |
 | --------------------- | ---------------------- | ----------------- | --------------------------------- |
@@ -37,7 +37,7 @@ This table is kept in sync with the measured figures by a CI drift-guard.
 | Air temperature (2 m) | **0.51** K             | 90 / 90           | Good — usable for absolute values |
 | Aerosol optical depth | **0.13** (scale 0–0.9) | 180 / 180         | Good — usable for absolute values |
 | Sea surface temp      | **1.0** °C             | 213 / 213         | Good — usable for absolute values |
-| Soil moisture         | 8.2 kg/m²              | 21 / 50           | Coarse — relative use recommended |
+| Soil moisture         | **0.23** kg/m²         | 50 / 50           | Good — usable for absolute values |
 | Land surface temp     | — (all no-data)        | 0 / 250           | Gradient misses GIBS's hues       |
 
 Precipitation was `20.4 mm/day` over `27 / 50` colours until 2026-08-11. Its
@@ -91,15 +91,25 @@ MODIS most often reports no SST at all. Separately, a heavily compressed
 near-black pixel (≳ 20 per channel away from black) can still reach the deep
 blue cold stops; the place card addresses that with its own tighter threshold.
 
+Soil moisture was `8.2 kg/m²` over `21 / 50` colours until 2026-08-12. Its
+legend was a hand-drawn brown → teal gradient, but GIBS renders the layer on a
+reversed _spectral_ ramp (red = dry, yellow-green mid, blue = wet), so the two
+palettes agreed almost nowhere: 29 of 50 ramp colours — the whole dry end below
+12 kg/m², most of the 19–35 kg/m² mid-range, and the wettest bin — were
+rejected outright as no-data, and what did invert came back biased dry by
+6.3 kg/m². Rebuilding the stops from that colormap recovers every ramp colour
+and drops the residual to the quantization floor. The same treatment for the
+remaining approximate gradients is
+[#170](https://github.com/zkWizard/RoamingEye/issues/170).
+
 ## What this means (and doesn't)
 
-- **Absolute values** from these inversions carry large uncertainty for soil
-  moisture, because its legend gradient is a coarse (a handful of stops)
-  approximation of GIBS's finely-hued colormap. For land-surface temperature
-  the gradient misses GIBS's cold-end colours entirely, so those pixels read
-  as no-data. Precipitation, air temperature, sea surface temperature,
-  and aerosol optical depth are the exceptions — their stops are taken from the
-  colormap GIBS renders with, so inversion is tight across the whole ramp.
+- **Absolute values** now invert tightly for every dynamic layer —
+  precipitation, air temperature, sea surface temperature, soil moisture, and
+  aerosol optical depth all take their stops from the colormap GIBS renders
+  with, so inversion is tight across each whole ramp. Only land-surface
+  temperature remains unreadable: its gradient misses GIBS's cold-end colours
+  entirely, so those pixels read as no-data.
 - **Relative and temporal analysis is far more robust.** Trends (seasonal
   Mann-Kendall / Sen's slope), anomalies, and seasonality depend on the
   _ordering_ of values, not their absolute calibration, and survive a

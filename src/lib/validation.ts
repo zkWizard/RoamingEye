@@ -87,22 +87,21 @@ export function validateInversion(
 
 /**
  * The committed validation figures (measured 2026-07-09 against the live
- * colormaps; precipitation, air temperature, and SST re-measured 2026-08-11).
+ * colormaps; precipitation, air temperature, and SST re-measured 2026-08-11,
+ * soil moisture 2026-08-12).
  * The contract test re-measures and asserts the live numbers still match these
  * within tolerance — so the published accuracy figures in docs/validation.md
  * and METHODS.md stay true, and any drift (a GIBS palette change, a legend
  * edit) fails CI naming the layer.
  *
- * These are sobering by design, and they track how closely each layer's legend
- * follows the colormap GIBS actually renders with. Where the stops are taken
- * from that colormap the inversion is tight (precipitation, RMSE 0.27 mm/day
- * over the whole ramp; 2 m air temperature, 0.51 K; SST, 1.0 °C; aerosol,
- * 0.13); where the gradient is still a hand-drawn approximation it is loose
- * (soil moisture) or fails outright (LST's gradient misses GIBS's cold-end
- * hues entirely, all-null). On the loose layers the probe remains reliable for
- * *relative* analysis (trends, anomalies, seasonality — scale-monotone-robust),
- * not absolute values. Rebuilding the remaining gradients from the real GIBS
- * colormaps is tracked as follow-up (#170).
+ * These are sobering by design, and the spread tracks one thing: whether the
+ * layer's legend was drawn from the colormap GIBS renders with. Every dynamic
+ * layer's now is (precipitation, RMSE 0.27 mm/day over the whole ramp; 2 m air
+ * temperature, 0.51 K; SST, 1.0 °C; soil moisture, 0.23 kg/m²; aerosol, 0.13);
+ * only LST's gradient still misses GIBS's cold-end hues entirely (all-null).
+ * Relative analysis (trends, anomalies, seasonality — scale-monotone-robust)
+ * was reliable even before the recalibrations; rebuilding LST's gradient from
+ * the real GIBS colormap is tracked as follow-up (#170).
  */
 export const MEASURED_INVERSION: Record<
   CalibratedLayerId,
@@ -115,6 +114,6 @@ export const MEASURED_INVERSION: Record<
   // ramp (was rmse 20.36 / nulls 23, when the hand-drawn tan → blue gradient
   // sent mid-range rates to the dry end).
   precip: { rmse: 0.27, nulls: 0, total: 50 },
-  soil: { rmse: 8.23, nulls: 29, total: 50 },
+  soil: { rmse: 0.23, nulls: 0, total: 50 },
   aerosol: { rmse: 0.13, nulls: 0, total: 180 },
 };

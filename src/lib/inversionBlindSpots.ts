@@ -309,16 +309,13 @@ export interface MeasuredBlindSpot {
  * Blind-spot shape measured against the live GIBS colormaps (2026-08-12) — the
  * companion to `validation.MEASURED_INVERSION`, and only meaningful read
  * alongside it. Together they say what neither says alone: a layer's RMSE is a
- * whole-ramp figure only where the shape is `none`; soil's 8.23 kg/m² is a
- * *survivor-only* number, measured on a palette where our gradient cannot read
- * a third of the range at all.
+ * whole-ramp figure only where the shape is `none`.
  *
  * The findings name a concrete downstream hazard per layer:
- *  - `soil` loses both the dry end (0.5–11.5 kg/m²) and a 30% mid-range band.
  *  - `lst` recovers nothing at all, which is why it carries no RMSE.
- *  - `airtemp`, `precip` and `sst` had wide blind spots until their legends
- *    were rebuilt from GIBS's own ramps (#717, #713, #736); re-measured after
- *    those recalibrations, all three read the whole ramp.
+ *  - `airtemp`, `precip`, `sst` and `soil` had wide blind spots until their
+ *    legends were rebuilt from GIBS's own ramps (#717, #713, #736, #753);
+ *    re-measured after those recalibrations, all four read the whole ramp.
  *
  * `recovered`/`total` are deliberately redundant with `MEASURED_INVERSION`: the
  * unit test asserts the two tables agree, so recalibrating a legend (as #713,
@@ -354,10 +351,10 @@ export const MEASURED_BLIND_SPOTS: Record<
     widest: null,
   },
   soil: {
-    shape: "end-truncated",
-    recovered: 21,
+    shape: "none",
+    recovered: 50,
     total: 50,
-    widest: { lo: 19.5, hi: 34.5, unit: "kg/m²" },
+    widest: null,
   },
   aerosol: {
     shape: "none",

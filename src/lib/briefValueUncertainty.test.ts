@@ -54,11 +54,11 @@ describe("inversionUncertaintyForLayer", () => {
   it("returns the measured RMSE in native units when no conversion applies", () => {
     const soil = inversionUncertaintyForLayer("soil", "kg/m²");
     expect(soil).not.toBeNull();
-    expect(soil!.reportedRmse).toBe(8.23);
+    expect(soil!.reportedRmse).toBe(0.23);
     expect(soil!.reportedUnit).toBe("kg/m²");
-    expect(soil!.nativeRmse).toBe(8.23);
-    // 50 total colormap steps, 29 rejected as no-data → 21 recovered.
-    expect(soil!.recoveredSteps).toBe(21);
+    expect(soil!.nativeRmse).toBe(0.23);
+    // The legend is built from GIBS's own ramp, so no colour is rejected.
+    expect(soil!.recoveredSteps).toBe(50);
     expect(soil!.totalSteps).toBe(50);
   });
 
@@ -93,10 +93,10 @@ describe("summarizeBriefValueUncertainty", () => {
     const soil = summary.signals.find((s) => s.id === "soil-moisture")!;
     expect(soil.status).toBe("characterized");
     expect(soil.observedValue).toBe(24);
-    expect(soil.nativeRmse).toBe(8.23);
-    expect(soil.lower).toBeCloseTo(24 - 8.23, 6);
-    expect(soil.upper).toBeCloseTo(24 + 8.23, 6);
-    expect(soil.statement).toContain("± 8.23 kg/m²");
+    expect(soil.nativeRmse).toBe(0.23);
+    expect(soil.lower).toBeCloseTo(24 - 0.23, 6);
+    expect(soil.upper).toBeCloseTo(24 + 0.23, 6);
+    expect(soil.statement).toContain("± 0.23 kg/m²");
 
     const air = summary.signals.find((s) => s.id === "air-temperature")!;
     expect(air.nativeRmse).toBe(0.51);
@@ -153,7 +153,7 @@ describe("summarizeBriefValueUncertainty", () => {
     expect(soil.status).toBe("characterized");
     expect(soil.observedValue).toBeNull();
     expect(soil.lower).toBeNull();
-    expect(soil.reportedRmse).toBe(8.23);
+    expect(soil.reportedRmse).toBe(0.23);
     expect(soil.statement).toContain("no usable value to bound");
   });
 

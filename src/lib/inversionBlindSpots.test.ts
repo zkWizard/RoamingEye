@@ -266,13 +266,10 @@ describe("MEASURED_BLIND_SPOTS", () => {
         MEASURED_BLIND_SPOTS[layer].shape !== "none"
     );
 
-    expect(survivorOnly).toContain("soil");
-    // Rebuilt from GIBS's own ramps (#717, #713, #736), these three cleared
-    // their blind spots — their RMSE figures are whole-ramp again.
-    expect(survivorOnly).not.toContain("airtemp");
-    expect(survivorOnly).not.toContain("precip");
-    expect(survivorOnly).not.toContain("sst");
-    expect(survivorOnly).not.toContain("aerosol");
+    // Rebuilt from GIBS's own ramps (#717, #713, #736, #753), every layer
+    // with a published RMSE now reads its whole ramp — nothing is
+    // survivor-only. LST recovers nothing, so it publishes no RMSE at all.
+    expect(survivorOnly).toEqual([]);
   });
 });
 
