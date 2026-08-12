@@ -1,3 +1,4 @@
+import { doiResolverUrl } from "./doiLink";
 import type {
   AnomalyMagnitudeBand,
   StandardizedSeasonalAnomaly,
@@ -77,7 +78,7 @@ export function describeStandardizedAnomaly(
       metricLabel: metric.label,
       nativeUnit: anomaly.anomalyUnit,
       sourceLabel,
-      sourceUrl: `https://doi.org/${source.doi}`,
+      sourceUrl: doiResolverUrl(source.doi),
       baselineSampleCount: anomaly.baselineSampleCount,
     },
     limitations: LIMITATIONS,

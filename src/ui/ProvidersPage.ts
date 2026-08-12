@@ -5,12 +5,9 @@ import {
   citedDatasets,
   type ProviderUse,
 } from "../lib/providers";
-import {
-  citationBundle,
-  doiResolverUrl,
-  type CitationFormat,
-} from "../lib/citation";
+import { citationBundle, type CitationFormat } from "../lib/citation";
 import { citedVectorSources } from "../lib/citedVectorSources";
+import { doiResolverUrl } from "../lib/doiLink";
 import { FocusTrap } from "./modal";
 import { ICONS } from "./icons";
 
@@ -80,7 +77,7 @@ export class ProvidersPage {
     for (const { dataset, usedBy } of citedDatasets()) {
       const item = document.createElement("li");
       const link = document.createElement("a");
-      link.href = `https://doi.org/${dataset.doi}`;
+      link.href = doiResolverUrl(dataset.doi);
       link.target = "_blank";
       link.rel = "noopener";
       link.textContent = `${dataset.shortName} v${dataset.version}`;

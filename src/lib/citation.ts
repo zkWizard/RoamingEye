@@ -2,6 +2,7 @@ import {
   citedVectorSources,
   type VectorSourceCitation,
 } from "./citedVectorSources";
+import { doiResolverUrl } from "./doiLink";
 import { citedDatasets } from "./providers";
 import type { DatasetRef } from "./timeline";
 
@@ -23,55 +24,14 @@ import type { DatasetRef } from "./timeline";
  * Pure and tested; the in-app "Copy citation" affordance calls these.
  */
 
-/** The DOI proxy every resolvable citation link is built on. */
-export const DOI_RESOLVER = "https://doi.org/";
-
 /**
- * Characters that must be percent-encoded when a DOI name is placed in a URL,
- * per Crossref's DOI display guidance. A DOI name is an opaque string that may
- * legally contain characters a URL parser would otherwise swallow — a bare "#"
- * starts a fragment, "?" a query, an unescaped "%" an invalid escape — so a
- * copied resolver link built by naive interpolation could silently point
- * somewhere other than the dataset. The DOI's own "/" separators are structural
- * and are deliberately left intact; only these unsafe characters are escaped.
- *
- * "%" maps first in the table (and is listed first in the character class) so an
- * existing percent sign becomes "%25" rather than being read as the prefix of an
- * escape we just introduced.
+ * The resolver-link encoder now lives in the leaf module `doiLink.ts` so the
+ * non-citation call sites that emit DOI links (the probe CSV header, the legend
+ * link, the narrative source credits) can share it without pulling the provider
+ * catalog into their bundle chunk. Re-exported here because this is where
+ * citation-side callers expect to find it.
  */
-const DOI_URL_ESCAPES: Record<string, string> = {
-  "%": "%25",
-  '"': "%22",
-  "#": "%23",
-  "?": "%3F",
-  " ": "%20",
-  "<": "%3C",
-  ">": "%3E",
-  "{": "%7B",
-  "}": "%7D",
-  "^": "%5E",
-  "`": "%60",
-  "|": "%7C",
-  "\\": "%5C",
-};
-
-/**
- * Build the resolvable `https://doi.org/<doi>` link for a DOI name, percent-
- * encoding the URL-unsafe characters the DOI suffix may carry while preserving
- * its structural "/" separators. This is the single place a resolver link is
- * constructed, so BibTeX, RIS, plain-text, and the environment brief's source
- * credit all emit a link that resolves rather than one that breaks on a "#" or a
- * stray space. It performs no network dereference and asserts nothing about the
- * DOI's resolvability — only that the string is safe to embed in a URL. The DOI
- * is trimmed first; a caller holding a possibly-absent DOI should guard emptiness
- * before calling (an empty input yields the bare resolver base).
- */
-export function doiResolverUrl(doi: string): string {
-  const encoded = doi
-    .trim()
-    .replace(/[%"#?<>{}^`|\\ ]/g, (char) => DOI_URL_ESCAPES[char]);
-  return `${DOI_RESOLVER}${encoded}`;
-}
+export { DOI_RESOLVER, doiResolverUrl } from "./doiLink";
 
 /** Tool metadata, kept in step with CITATION.cff (the human-facing source). */
 export const TOOL_CITATION = {
@@ -244,9 +204,11 @@ export function cslTool(): CslItem {
 
 /**
  * CSL-JSON item for a source dataset (type "dataset"), carrying its DOI as both
- * the `DOI` variable and a resolvable `URL`. Built only from the provenance
+ * the bare `DOI` variable and a resolvable `URL`. Built only from the provenance
  * fields the DatasetRef holds and the known publisher — no author or release
- * date is invented.
+ * date is invented. The `URL` goes through `doiResolverUrl` like every other
+ * format's link; CSL's `DOI` variable is specified as the bare DOI name, so it
+ * is the one field that must stay unencoded.
  */
 export function cslDataset(ref: DatasetRef): CslItem {
   return {
@@ -256,7 +218,7 @@ export function cslDataset(ref: DatasetRef): CslItem {
     publisher: "NASA Global Imagery Browse Services (GIBS)",
     version: ref.version,
     DOI: ref.doi,
-    URL: `https://doi.org/${ref.doi}`,
+    URL: doiResolverUrl(ref.doi),
   };
 }
 
