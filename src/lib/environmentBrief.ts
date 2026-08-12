@@ -758,7 +758,7 @@ function normalizedDoiText(doi: DatasetRef["doi"]): string {
 function sourceDedupKey(source: DatasetRef): string {
   const doi = normalizedDoiText(source.doi).toLowerCase();
   if (doi) return `doi:${doi}\0${source.version}`;
-  return `nodoi:${source.shortName} ${source.version}`;
+  return `nodoi:${source.shortName}\0${source.version}`;
 }
 
 function attributionLine(sources: readonly SourceAttribution[]): string {
