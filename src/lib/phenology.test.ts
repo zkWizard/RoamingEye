@@ -189,6 +189,99 @@ describe("annual NDVI phenology summaries", () => {
     });
   });
 
+  it("names every month tied for the year's highest and lowest observation", () => {
+    const [summary] = summarizeAnnualNdviPhenology(
+      [
+        { month: { year: 2025, month: 1 }, ndvi: 0.12 },
+        { month: { year: 2025, month: 4 }, ndvi: 0.12 },
+        { month: { year: 2025, month: 5 }, ndvi: 0.44 },
+        { month: { year: 2025, month: 6 }, ndvi: 0.8 },
+        { month: { year: 2025, month: 7 }, ndvi: 0.8 },
+        { month: { year: 2025, month: 9 }, ndvi: 0.51 },
+      ],
+      45
+    );
+
+    expect(summary.peak).toMatchObject({
+      month: { year: 2025, month: 6 },
+      ndvi: 0.8,
+      meteorologicalSeason: "summer",
+      status: "tied",
+      tiedMonths: [
+        { year: 2025, month: 6 },
+        { year: 2025, month: 7 },
+      ],
+    });
+    expect(summary.trough).toMatchObject({
+      month: { year: 2025, month: 1 },
+      ndvi: 0.12,
+      status: "tied",
+      tiedMonths: [
+        { year: 2025, month: 1 },
+        { year: 2025, month: 4 },
+      ],
+    });
+    // A tie is still a real range between the two observed levels.
+    expect(summary.seasonalRange).toBeCloseTo(0.68, 10);
+  });
+
+  it("marks an outright highest and lowest month as unique", () => {
+    const [summary] = summarizeAnnualNdviPhenology(
+      [
+        { month: { year: 2025, month: 3 }, ndvi: 0.24 },
+        { month: { year: 2025, month: 4 }, ndvi: 0.39 },
+        { month: { year: 2025, month: 5 }, ndvi: 0.61 },
+        { month: { year: 2025, month: 6 }, ndvi: 0.82 },
+        { month: { year: 2025, month: 7 }, ndvi: 0.74 },
+        { month: { year: 2025, month: 8 }, ndvi: 0.42 },
+      ],
+      48.8
+    );
+
+    expect(summary.peak).toMatchObject({
+      status: "unique",
+      tiedMonths: [{ year: 2025, month: 6 }],
+    });
+    expect(summary.trough).toMatchObject({
+      status: "unique",
+      tiedMonths: [{ year: 2025, month: 3 }],
+    });
+  });
+
+  it("reports the same tied extrema whatever order the records arrive in", () => {
+    // Values decoded from a quantised colour ramp collide often, so the peak
+    // month must not depend on how the sampler happened to order its records.
+    const records = [
+      { month: { year: 2025, month: 1 }, ndvi: 0.1 },
+      { month: { year: 2025, month: 2 }, ndvi: 0.2 },
+      { month: { year: 2025, month: 3 }, ndvi: 0.3 },
+      { month: { year: 2025, month: 4 }, ndvi: 0.4 },
+      { month: { year: 2025, month: 6 }, ndvi: 0.8 },
+      { month: { year: 2025, month: 7 }, ndvi: 0.8 },
+    ];
+
+    const [forward] = summarizeAnnualNdviPhenology(records, 45);
+    const [reversed] = summarizeAnnualNdviPhenology([...records].reverse(), 45);
+
+    expect(forward).toEqual(reversed);
+    expect(forward.peak?.month).toEqual({ year: 2025, month: 6 });
+  });
+
+  it("treats a flat year as tied across every observed month", () => {
+    const [summary] = summarizeAnnualNdviPhenology(
+      Array.from({ length: 6 }, (_, index) => ({
+        month: { year: 2025, month: index + 1 },
+        ndvi: 0.33,
+      })),
+      45
+    );
+
+    expect(summary.seasonalRange).toBe(0);
+    expect(summary.peak?.status).toBe("tied");
+    expect(summary.peak?.tiedMonths).toHaveLength(6);
+    expect(summary.trough?.tiedMonths).toEqual(summary.peak?.tiedMonths);
+  });
+
   it("sorts exact coverage months without treating omitted months as missing", () => {
     const [summary] = summarizeAnnualNdviPhenology(
       [
