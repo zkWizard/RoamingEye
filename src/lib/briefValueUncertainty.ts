@@ -35,9 +35,15 @@ import { MEASURED_INVERSION } from "./validation";
  *    with the same `SCALE_CONVERSIONS` factor the probe used, so a ± value is
  *    never dimensionally mismatched to the number it qualifies.
  *  - Only layers with a measured inversion figure are bounded. Vegetation (NDVI)
- *    is a satellite-derived index, not one of the calibrated colormap-inverted
- *    layers, so it has no measured inversion RMSE and is reported as
- *    `uncharacterized` — a band is never invented for it.
+ *    has none and is reported as `uncharacterized` — a band is never invented
+ *    for it. The reason is specific, and worth stating correctly: NDVI *is*
+ *    served with an authoritative GIBS colormap (`MODIS_L3_NDVI`, which the
+ *    place panel already inverts against), but that ramp is non-linear in
+ *    value, so the linear position→value reading `MEASURED_INVERSION` is built
+ *    on does not apply to it. Its measured fidelity — an RMSE of 0.23 and a
+ *    +0.13 mean error, i.e. reported values read greener than the ramp — lives
+ *    in `vegetationIndexRamp` instead, where it is not mistaken for the same
+ *    kind of symmetric ± band the calibrated layers carry.
  */
 
 export type ValueUncertaintyStatus =
