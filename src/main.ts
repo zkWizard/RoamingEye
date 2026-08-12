@@ -246,6 +246,7 @@ const hdTiles = new TiledImageryOverlay(
 const errorToast = new ErrorToast();
 
 const citiesOverlay = new CitiesOverlay();
+const plateBoundariesOverlay = new PlateBoundariesOverlay();
 const volcanoesOverlay = new VolcanoesOverlay();
 const earthquakesOverlay = new EarthquakesOverlay();
 // "You are here" — opt-in geolocation pin; denial reverts its toggle + toasts.
@@ -260,7 +261,7 @@ const overlays: MapOverlay[] = [
   new AtmosphereOverlay(),
   // The geology trio — plate boundaries, volcanoes, and live seismicity line
   // up on the globe to tell the plate-tectonics story.
-  new PlateBoundariesOverlay(),
+  plateBoundariesOverlay,
   volcanoesOverlay,
   earthquakesOverlay,
   userLocationOverlay,
@@ -294,6 +295,7 @@ if (tooltipEl) {
     inspector.addPointSource(() => earthquakesOverlay.hoverSources[index]);
   }
   inspector.addPointSource(() => userLocationOverlay.hoverSource);
+  inspector.addLineSource(() => plateBoundariesOverlay.hoverSource);
   loadCountryIndex()
     .then((index) => {
       inspector.setCountryIndex(index);

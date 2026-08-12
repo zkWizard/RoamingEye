@@ -1,4 +1,4 @@
-import type { Object3D, PerspectiveCamera, Points } from "three";
+import type { LineSegments, Object3D, PerspectiveCamera, Points } from "three";
 
 /**
  * A toggleable map overlay. Each overlay owns a Three.js object added to the
@@ -35,6 +35,18 @@ export interface HoverPointSource {
   readonly points: Points;
   /** Tooltip text for the point at `index`, or undefined to skip it. */
   describe(index: number): string | undefined;
+}
+
+/**
+ * Line linework an overlay offers up for hover inspection, for overlays drawn
+ * as segments rather than markers (e.g. plate boundaries). The HoverInspector
+ * hit-tests the segments (only while they are visible) exactly as it does
+ * points, and shows `describe`'s text in the tooltip.
+ */
+export interface HoverLineSource {
+  readonly lines: LineSegments;
+  /** Tooltip text for the segment at `segmentIndex`, or undefined to skip it. */
+  describe(segmentIndex: number): string | undefined;
 }
 
 /** Globe radius (unit sphere). Overlays sit just above it to avoid z-fighting. */
