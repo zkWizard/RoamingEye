@@ -273,3 +273,170 @@ describe("marine boundary SST insights", () => {
     expect(sampling.detail).not.toContain("published source colormap");
   });
 });
+
+describe("same-calendar-month year-over-year boundary SST difference", () => {
+  const target = {
+    geographyLabel: "Monterey Bay",
+    dataMonth: { year: 2026, month: 3 } as const,
+    observedValue: 18.375,
+    validFraction: 0.62,
+    sourceImageDimensions: { width: 512, height: 512 },
+  };
+
+  it("differences two supplied observations without claiming a trend", () => {
+    const reading = marineBoundarySstReading({
+      ...target,
+      priorYear: {
+        dataMonth: { year: 2025, month: 3 },
+        observedValue: 17.5,
+        validFraction: 0.58,
+      },
+    });
+
+    expect(reading.yearOverYear).toMatchObject({
+      kind: "same-calendar-month-boundary-sst-difference",
+      status: "available",
+      isForecast: false,
+      isTrend: false,
+      claimScope: "descriptive-difference-between-two-observations-only",
+      marineBiologyObservation: false,
+      priorDataMonth: { year: 2025, month: 3 },
+      priorObservedValue: 17.5,
+      priorValidFraction: 0.58,
+      direction: "warmer",
+      differenceUnit: "°C",
+      reason: null,
+    });
+    expect(reading.yearOverYear.difference).toBeCloseTo(0.875, 10);
+    // The weaker of the two coverages, never their mean, so the comparison is
+    // not presented as better supported than its thinnest month.
+    expect(reading.yearOverYear.minValidFraction).toBeCloseTo(0.58, 10);
+    expect(reading.yearOverYear.validFractionDelta).toBeCloseTo(0.04, 10);
+    expect(reading.detail).toContain("+0.9 °C vs Mar 2025");
+    expect(reading.detail).toContain("58% sampled coverage that month");
+    expect(reading.detail).toContain("not a trend");
+  });
+
+  it("reports a cooler difference and an unchanged pair by sign only", () => {
+    const cooler = marineBoundarySstReading({
+      ...target,
+      priorYear: {
+        dataMonth: { year: 2025, month: 3 },
+        observedValue: 19.375,
+        validFraction: 0.62,
+      },
+    });
+    const unchanged = marineBoundarySstReading({
+      ...target,
+      priorYear: {
+        dataMonth: { year: 2025, month: 3 },
+        observedValue: 18.375,
+        validFraction: 0.62,
+      },
+    });
+
+    expect(cooler.yearOverYear.direction).toBe("cooler");
+    expect(cooler.yearOverYear.difference).toBeCloseTo(-1, 10);
+    expect(cooler.detail).toContain("-1.0 °C vs Mar 2025");
+    expect(unchanged.yearOverYear).toMatchObject({
+      direction: "unchanged",
+      difference: 0,
+      validFractionDelta: 0,
+    });
+  });
+
+  it("refuses a month that is not exactly one year earlier", () => {
+    for (const priorMonth of [
+      { year: 2025, month: 2 },
+      { year: 2026, month: 2 },
+      { year: 2024, month: 3 },
+      { year: 2025, month: 13 },
+    ]) {
+      const reading = marineBoundarySstReading({
+        ...target,
+        priorYear: {
+          dataMonth: priorMonth,
+          observedValue: 17.5,
+          validFraction: 0.58,
+        },
+      });
+
+      // A neighbouring month would report the seasonal cycle as a change, so
+      // the offered month is retained but never differenced.
+      expect(reading.yearOverYear).toMatchObject({
+        status: "not-same-calendar-month-one-year-earlier",
+        priorDataMonth: priorMonth,
+        difference: null,
+        direction: null,
+        priorObservedValue: null,
+        reason: "not-same-calendar-month-one-year-earlier",
+      });
+    }
+  });
+
+  it("states an unusable prior year instead of dropping it", () => {
+    for (const priorYear of [
+      { observedValue: null, validFraction: 0.58 },
+      { observedValue: 17.5, validFraction: 0 },
+      { observedValue: 17.5, validFraction: 1.4 },
+      { observedValue: 17.5, validFraction: Number.NaN },
+      { observedValue: Number.POSITIVE_INFINITY, validFraction: 0.58 },
+      // Outside the published SST scale, so not a physical source value.
+      { observedValue: 500, validFraction: 0.58 },
+    ]) {
+      const reading = marineBoundarySstReading({
+        ...target,
+        priorYear: { dataMonth: { year: 2025, month: 3 }, ...priorYear },
+      });
+
+      expect(reading.yearOverYear).toMatchObject({
+        status: "prior-year-not-usable",
+        priorDataMonth: { year: 2025, month: 3 },
+        difference: null,
+        minValidFraction: null,
+        validFractionDelta: null,
+      });
+      // The target month itself is unaffected by an unusable comparison.
+      expect(reading.observedValue).toBe(18.375);
+      expect(reading.detail).not.toContain("vs Mar 2025");
+    }
+  });
+
+  it("does not difference against an unusable target month", () => {
+    const reading = marineBoundarySstReading({
+      ...target,
+      observedValue: null,
+      validFraction: 0,
+      priorYear: {
+        dataMonth: { year: 2025, month: 3 },
+        observedValue: 17.5,
+        validFraction: 0.58,
+      },
+    });
+
+    expect(reading.yearOverYear).toMatchObject({
+      status: "target-not-usable",
+      priorDataMonth: { year: 2025, month: 3 },
+      difference: null,
+    });
+    expect(reading.value).toBe("No usable SST observation");
+  });
+
+  it("stays explicit when no prior-year sample was supplied at all", () => {
+    const reading = marineBoundarySstReading(target);
+    const unavailable = unavailableMarineBoundarySstReading(
+      { year: 2026, month: 3 },
+      "Monterey Bay"
+    );
+
+    expect(reading.yearOverYear).toMatchObject({
+      status: "not-supplied",
+      priorDataMonth: null,
+      difference: null,
+      reason: "not-supplied",
+    });
+    expect(reading.detail).not.toContain("not a trend");
+    // Sampling never completed, so there is no target to compare against.
+    expect(unavailable.yearOverYear.status).toBe("target-not-usable");
+  });
+});

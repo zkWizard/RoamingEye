@@ -34,6 +34,63 @@ export interface MarineBoundarySstInput {
   sourceImageDimensions: SourceImageDimensions;
   /** Searched boundary identity supplied by the place-search workflow. */
   geography?: MarineCoverageGeography;
+  /** Same calendar month, one year earlier, for the same searched boundary. */
+  priorYear?: MarineBoundarySstPriorYearInput;
+}
+
+/**
+ * A separately sampled SST observation for the same searched boundary, offered
+ * for a same-calendar-month comparison. It must be supplied by the caller; it
+ * is never derived, interpolated, or borrowed from a neighbouring month.
+ */
+export interface MarineBoundarySstPriorYearInput {
+  dataMonth: YearMonth;
+  observedValue: number | null;
+  validFraction: number;
+}
+
+export type MarineBoundarySstYearComparisonStatus =
+  | "available"
+  | "not-supplied"
+  | "not-same-calendar-month-one-year-earlier"
+  | "target-not-usable"
+  | "prior-year-not-usable";
+
+export type MarineBoundarySstDifferenceDirection =
+  "warmer" | "cooler" | "unchanged";
+
+/**
+ * The arithmetic difference between two supplied boundary-mean SST samples for
+ * the same searched boundary and the same calendar month, one year apart.
+ *
+ * Two observations are a difference, never a trend, rate, climatology, marine
+ * heat-wave status, cause, risk, or forecast — and never a marine-biology
+ * claim. Both samples are boundary means over whichever pixels the renderer
+ * left usable, so the two months can cover different parts of the same
+ * boundary; `validFractionDelta` exposes exactly that, because a difference
+ * between unequally covered means may reflect which water was sampled rather
+ * than how warm it was.
+ */
+export interface MarineBoundarySstYearComparison {
+  kind: "same-calendar-month-boundary-sst-difference";
+  isForecast: false;
+  isTrend: false;
+  claimScope: "descriptive-difference-between-two-observations-only";
+  marineBiologyObservation: false;
+  status: MarineBoundarySstYearComparisonStatus;
+  priorDataMonth: YearMonth | null;
+  priorObservedValue: number | null;
+  priorValidFraction: number | null;
+  /** Target SST minus prior-year SST, in `source.sourceUnit`. */
+  difference: number | null;
+  differenceUnit: string;
+  direction: MarineBoundarySstDifferenceDirection | null;
+  /** Weakest sampled coverage across the two months; never the mean of them. */
+  minValidFraction: number | null;
+  /** Absolute gap between the two sampled coverages; 0 means like-for-like. */
+  validFractionDelta: number | null;
+  /** Short machine-readable reason when no difference is reported. */
+  reason: string | null;
 }
 
 export interface MarinePlaceInsightReading {
@@ -59,6 +116,8 @@ export interface MarinePlaceInsightReading {
   geography: MarineCoverageGeography;
   /** Structured sampler state for UI/export consumers; null when sampling failed. */
   coverage: MarineCoverageSummary | null;
+  /** Same-calendar-month year-over-year difference; always a stated status. */
+  yearOverYear: MarineBoundarySstYearComparison;
   observationStatus:
     | "observed"
     | "no-sst-coverage"
@@ -117,6 +176,14 @@ export function marineBoundarySstReading(
       : `${Math.round(
           coverage.coverage.validFraction * 100
         )}% sampled boundary coverage`;
+  const yearOverYear = compareMarineBoundarySstToPriorYear(
+    {
+      dataMonth: input.dataMonth,
+      observedValue: usable ? input.observedValue : null,
+      validFraction: coverage.coverage.validFraction,
+    },
+    input.priorYear
+  );
 
   return {
     id: MARINE_PLACE_METRIC.id,
@@ -124,7 +191,7 @@ export function marineBoundarySstReading(
       input.observedValue !== null && usable
         ? `${input.observedValue.toFixed(1)} ${coverage.source.sourceUnit}`
         : "No usable SST observation",
-    detail: `${month} approximate boundary-mean SST observation for ${geographyLabel}; ${coverageText}; ${image}; source ${source}; not a marine-biology observation`,
+    detail: `${month} approximate boundary-mean SST observation for ${geographyLabel}; ${coverageText}; ${image}; source ${source}${describeYearOverYear(yearOverYear)}; not a marine-biology observation`,
     kind: "observed-boundary-sea-surface-temperature",
     availability: usable ? "available" : "no-usable-sst",
     marineBiologyObservation: false,
@@ -140,6 +207,7 @@ export function marineBoundarySstReading(
     source: coverage.source,
     geography,
     coverage,
+    yearOverYear,
     observationStatus: usable
       ? "observed"
       : coverage.coverage.status === "no-sst-coverage"
@@ -194,12 +262,143 @@ export function unavailableMarineBoundarySstReading(
     source: SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE,
     geography,
     coverage: null,
+    // Sampling did not complete, so there is no target to compare against.
+    yearOverYear: unavailableYearComparison("target-not-usable", null),
     observationStatus:
       reason === "source-colormap-unavailable"
         ? "source-unavailable"
         : "sampling-failed",
     unavailableReason: reason,
   };
+}
+
+/**
+ * Difference one boundary-mean SST sample against a supplied sample for the
+ * same boundary and the same calendar month exactly one year earlier.
+ *
+ * The prior-year month must be exactly that: an adjacent, nearby, or
+ * differently numbered month is refused rather than substituted, because a
+ * seasonal cycle would otherwise be reported as a year-over-year change. Both
+ * samples must independently be usable SST values with valid coverage; an
+ * unusable month is stated, never dropped so the other month can stand alone.
+ */
+export function compareMarineBoundarySstToPriorYear(
+  target: {
+    dataMonth: YearMonth;
+    observedValue: number | null;
+    validFraction: number | null;
+  },
+  priorYear: MarineBoundarySstPriorYearInput | undefined
+): MarineBoundarySstYearComparison {
+  if (priorYear === undefined) {
+    return unavailableYearComparison("not-supplied", null);
+  }
+  if (
+    !isCalendarMonth(target.dataMonth) ||
+    !isCalendarMonth(priorYear.dataMonth) ||
+    priorYear.dataMonth.year !== target.dataMonth.year - 1 ||
+    priorYear.dataMonth.month !== target.dataMonth.month
+  ) {
+    return unavailableYearComparison(
+      "not-same-calendar-month-one-year-earlier",
+      priorYear
+    );
+  }
+  if (
+    !isSstSourceValue(target.observedValue) ||
+    !isCoverage(target.validFraction)
+  ) {
+    return unavailableYearComparison("target-not-usable", priorYear);
+  }
+  if (
+    !isSstSourceValue(priorYear.observedValue) ||
+    !isCoverage(priorYear.validFraction)
+  ) {
+    return unavailableYearComparison("prior-year-not-usable", priorYear);
+  }
+
+  const difference = target.observedValue - priorYear.observedValue;
+  return {
+    ...yearComparisonBase,
+    status: "available",
+    priorDataMonth: priorYear.dataMonth,
+    priorObservedValue: priorYear.observedValue,
+    priorValidFraction: priorYear.validFraction,
+    difference,
+    direction:
+      difference > 0 ? "warmer" : difference < 0 ? "cooler" : "unchanged",
+    minValidFraction: Math.min(target.validFraction, priorYear.validFraction),
+    validFractionDelta: Math.abs(
+      target.validFraction - priorYear.validFraction
+    ),
+    reason: null,
+  };
+}
+
+const yearComparisonBase = {
+  kind: "same-calendar-month-boundary-sst-difference",
+  isForecast: false,
+  isTrend: false,
+  claimScope: "descriptive-difference-between-two-observations-only",
+  marineBiologyObservation: false,
+  differenceUnit: SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE.sourceUnit,
+} as const;
+
+/**
+ * Retain whichever prior-year month was offered even when it cannot be used,
+ * so a consumer can show what was compared against rather than an empty slot.
+ */
+function unavailableYearComparison(
+  status: Exclude<MarineBoundarySstYearComparisonStatus, "available">,
+  priorYear: MarineBoundarySstPriorYearInput | null
+): MarineBoundarySstYearComparison {
+  return {
+    ...yearComparisonBase,
+    status,
+    priorDataMonth: priorYear?.dataMonth ?? null,
+    priorObservedValue: null,
+    priorValidFraction: null,
+    difference: null,
+    direction: null,
+    minValidFraction: null,
+    validFractionDelta: null,
+    reason: status,
+  };
+}
+
+/**
+ * A short clause for the insight card. It names both months and both sampled
+ * coverages so the reader can see how comparable the two boundary means are,
+ * and says outright that two observations are not a trend.
+ */
+function describeYearOverYear(
+  comparison: MarineBoundarySstYearComparison
+): string {
+  if (comparison.status !== "available") return "";
+  const sign = comparison.difference! > 0 ? "+" : "";
+  return `; ${sign}${comparison.difference!.toFixed(1)} ${comparison.differenceUnit} vs ${formatYm(
+    comparison.priorDataMonth!
+  )} for the same boundary (${Math.round(
+    comparison.priorValidFraction! * 100
+  )}% sampled coverage that month) — a difference between two observations, not a trend`;
+}
+
+function isCoverage(validFraction: number | null): validFraction is number {
+  return (
+    validFraction !== null &&
+    Number.isFinite(validFraction) &&
+    validFraction > 0 &&
+    validFraction <= 1
+  );
+}
+
+function isCalendarMonth(month: YearMonth): boolean {
+  return (
+    Number.isInteger(month.year) &&
+    Number.isInteger(month.month) &&
+    month.month >= 1 &&
+    month.month <= 12
+  );
 }
 
 function normalizedGeographyLabel(label: string): string {

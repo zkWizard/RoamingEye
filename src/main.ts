@@ -608,10 +608,24 @@ function runPlaceInsights(result: GeoResult): void {
   // NASA GIBS's published physical colormap so the value remains in °C.
   const sstMonths = monthRangeForLayer(LAYERS.sst);
   const sstMonth = sstMonths[sstMonths.length - 1];
+  // Also sample the same calendar month one year earlier, so the card can
+  // report a like-for-like difference instead of the seasonal cycle. Only when
+  // the layer actually publishes that month — a nearby month is never
+  // substituted for it.
+  const sstPriorYearMonth = sstMonths.find(
+    (ym) => ym.year === sstMonth.year - 1 && ym.month === sstMonth.month
+  );
+  const sstSampleMonths = sstPriorYearMonth
+    ? [sstPriorYearMonth, sstMonth]
+    : [sstMonth];
+  const sstTarget = sstSampleMonths.length - 1;
   let sstFailureReason:
     "source-colormap-unavailable" | "boundary-sampling-failed" =
     "source-colormap-unavailable";
-  exportSamples.set("sst", environmentUnavailableSample("sst", [sstMonth]));
+  exportSamples.set(
+    "sst",
+    environmentUnavailableSample("sst", sstSampleMonths)
+  );
   samplingTasks.push(
     (async () => {
       const colormap = await loadPlaceColormap("sst");
@@ -621,7 +635,7 @@ function runPlaceInsights(result: GeoResult): void {
       sstFailureReason = "boundary-sampling-failed";
       const sample = await placeSampler.sampleGeometryPhysical(
         LAYERS.sst,
-        [sstMonth],
+        sstSampleMonths,
         geometry,
         { lat: result.lat, lon: result.lon },
         colormap.entries,
@@ -633,10 +647,15 @@ function runPlaceInsights(result: GeoResult): void {
         marineBoundarySstReading({
           geographyLabel: result.name,
           dataMonth: sstMonth,
-          observedValue: sample.values[0],
-          validFraction: sample.validFractions[0],
+          observedValue: sample.values[sstTarget],
+          validFraction: sample.validFractions[sstTarget],
           sourceImageDimensions: sample.sourceImageDimensions,
           geography: { kind: "boundary", label: result.name },
+          priorYear: sstPriorYearMonth && {
+            dataMonth: sstPriorYearMonth,
+            observedValue: sample.values[0],
+            validFraction: sample.validFractions[0],
+          },
         })
       );
       exportSamples.set("sst", {
@@ -645,13 +664,15 @@ function runPlaceInsights(result: GeoResult): void {
         samplingStrategy: sample.geometrySamplingStrategy,
         sourceImageDimensions: sample.sourceImageDimensions,
         colormapUrl: colormapUrl(PLACE_COLORMAP_DOCS.sst),
-        observations: [
+        // Both sampled months are exported, so the difference shown on the
+        // card can be recomputed from the record rather than trusted.
+        observations: sstSampleMonths.map((dataMonth, index) =>
           sstPlaceObservationFromSample(
-            sstMonth,
-            sample.values[0],
-            sample.validFractions[0]
-          ),
-        ],
+            dataMonth,
+            sample.values[index],
+            sample.validFractions[index]
+          )
+        ),
       });
     })().catch((error: unknown) => {
       if (isAbortError(error) || abort.signal.aborted) return;
