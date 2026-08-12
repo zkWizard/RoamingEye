@@ -1049,7 +1049,12 @@ describe("environment brief data currency", () => {
       stalestLagMonths: null,
     });
     expect(brief.dataCurrency.statement).toBe(
-      "Currency was not assessed for vegetation because no product-specific availability checkpoint was supplied."
+      "Currency was not assessed for vegetation: no product-specific availability checkpoint was supplied."
+    );
+    // The unassessed caveat is brief prose and must clear the same screen the
+    // assessed caveat does — a causal connective here would read as inference.
+    expect(unsupportedBriefLanguageHits(brief.dataCurrency.statement)).toEqual(
+      []
     );
   });
 
@@ -1069,7 +1074,10 @@ describe("environment brief data currency", () => {
       stalestLagMonths: 1,
     });
     expect(brief.dataCurrency.statement).toBe(
-      "1 usable observation (rainfall, dated 2026-02) lags its availability checkpoint by 1 month. Currency was not assessed for vegetation because no product-specific availability checkpoint was supplied."
+      "1 usable observation (rainfall, dated 2026-02) lags its availability checkpoint by 1 month. Currency was not assessed for vegetation: no product-specific availability checkpoint was supplied."
+    );
+    expect(unsupportedBriefLanguageHits(brief.dataCurrency.statement)).toEqual(
+      []
     );
   });
 

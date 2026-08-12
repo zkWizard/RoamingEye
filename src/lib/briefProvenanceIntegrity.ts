@@ -29,11 +29,11 @@ import {
  *    `auditBriefCitations`, so the export path and the brief share one standard.
  *  - **language-bounded** — the brief's *generated* prose carries none of the
  *    unsupported-claim vocabulary (risk, forecast, diagnosis, causation, …).
- *    Crucially this scans the brief's derived statements too — its completeness
- *    and temporal-alignment sentences — which the brief's own
- *    `unsupportedLanguageHits` field does not: that field is built only from the
- *    per-signal statements, so an over-claim in a derived sentence would slip
- *    past it. This gate closes that surface.
+ *    Crucially this scans every derived statement the brief carries —
+ *    completeness, temporal alignment, coverage context, and data currency —
+ *    which the brief's own `unsupportedLanguageHits` field does not: that field
+ *    is built only from the per-signal statements, so an over-claim in a derived
+ *    sentence would slip past it. This gate closes that surface.
  *  - **status-accounted** — the completeness tally is self-consistent with the
  *    signals it summarizes: every signal's status is one of the four known
  *    states, and the recomputed per-status counts and totals match the brief's.
@@ -86,8 +86,9 @@ export interface BriefIntegrityReport {
   incompleteCitationSignalIds: EnvironmentSignalId[];
   /**
    * Unsupported-claim vocabulary found anywhere in the brief's generated prose
-   * (per-signal statements plus the derived completeness and temporal-alignment
-   * sentences), deduplicated in first-seen order. Empty when language-bounded.
+   * (per-signal statements plus every derived sentence: completeness, temporal
+   * alignment, coverage context, and data currency), deduplicated in first-seen
+   * order. Empty when language-bounded.
    */
   unsupportedLanguageHits: string[];
   /** Honest one-line summary; carries no claim about the reported values. */
@@ -98,10 +99,19 @@ export interface BriefIntegrityReport {
 /**
  * The subset of a composed brief this gate reads. Callers pass a whole
  * `EnvironmentBrief`; tests can pass a minimal structural object.
+ *
+ * Every brief descriptor that generates a user-facing sentence belongs here, so
+ * the language screen cannot go stale as the brief grows: a new descriptor is
+ * added to this Pick in the same change that adds it to the brief.
  */
 export type BriefIntegrityInput = Pick<
   EnvironmentBrief,
-  "signals" | "statements" | "completeness" | "temporalAlignment"
+  | "signals"
+  | "statements"
+  | "completeness"
+  | "temporalAlignment"
+  | "coverageContext"
+  | "dataCurrency"
 >;
 
 const INTEGRITY_LIMITS = [
@@ -152,14 +162,24 @@ export function auditBriefIntegrity(
 /**
  * Scan the brief's full generated-prose surface for unsupported-claim language.
  * This is a strict superset of the brief's own `unsupportedLanguageHits` field:
- * it adds the derived completeness and temporal-alignment sentences, which that
- * field omits. Hits are deduplicated in first-seen order.
+ * it adds every derived sentence — completeness, temporal alignment, coverage
+ * context, and data currency — which that field omits. Hits are deduplicated in
+ * first-seen order.
+ *
+ * The coverage-context and data-currency sentences were added to the brief after
+ * this gate was written and went unscanned, so the surface the gate documented
+ * was wider than the one it read. `BriefIntegrityInput` now names every
+ * statement-bearing descriptor, and `scans every derived brief statement` in the
+ * tests re-derives the surface from a composed brief so a future descriptor
+ * cannot reopen the gap silently.
  */
 function unsupportedLanguageAcrossBrief(brief: BriefIntegrityInput): string[] {
   const prose = [
     ...brief.statements,
     brief.completeness.statement,
     brief.temporalAlignment.statement,
+    brief.coverageContext.statement,
+    brief.dataCurrency.statement,
   ].join(" ");
   return [...new Set(unsupportedBriefLanguageHits(prose))];
 }

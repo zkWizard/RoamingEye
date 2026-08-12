@@ -624,7 +624,10 @@ export function summarizeDataCurrency(
 function unassessedCurrencyStatement(
   signalIds: readonly EnvironmentSignalId[]
 ): string {
-  return `Currency was not assessed for ${signalIds.join(", ")} because no product-specific availability checkpoint was supplied.`;
+  // The reason is joined with a colon rather than a causal connective: this is
+  // brief prose, and `UNSUPPORTED_CLAIM_PATTERNS` screens causal vocabulary out
+  // of brief copy so no sentence can read as an inferred cause.
+  return `Currency was not assessed for ${signalIds.join(", ")}: no product-specific availability checkpoint was supplied.`;
 }
 
 function dataCurrencyStatement(
