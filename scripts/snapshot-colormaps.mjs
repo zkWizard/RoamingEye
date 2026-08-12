@@ -25,6 +25,7 @@ const OUT = join(ROOT, "src", "lib", "gibsColormaps.json");
 
 /** Kept in sync with COLORMAP_DOCS in src/lib/colormap.ts. */
 const COLORMAP_DOCS = {
+  ndvi: "MODIS_L3_NDVI",
   lst: "MODIS_Land_Surface_Temp",
   airtemp: "MERRA2_2m_Air_Temperature_Monthly",
   sst: "MODIS_Sea_Surface_Temperature",

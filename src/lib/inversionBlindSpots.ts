@@ -326,6 +326,13 @@ export const MEASURED_BLIND_SPOTS: Record<
   CalibratedLayerId,
   MeasuredBlindSpot
 > = {
+  // Sampled from GIBS's own MODIS_L3_NDVI ramp (#776); reads the whole ramp.
+  ndvi: {
+    shape: "none",
+    recovered: 140,
+    total: 140,
+    widest: null,
+  },
   lst: {
     shape: "total",
     recovered: 0,

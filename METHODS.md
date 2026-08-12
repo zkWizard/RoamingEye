@@ -67,6 +67,7 @@ Two sources, both stated in every export:
 
   | Layer                 | Inversion RMSE   | Recovered |
   | --------------------- | ---------------- | --------- |
+  | Vegetation (NDVI)     | 0.024 (of 0–1)   | 140 / 140 |
   | Precipitation         | 0.27 mm/day      | 50 / 50   |
   | Air temperature (2 m) | 0.485 K          | 180 / 180 |
   | Aerosol optical depth | 0.13 (of 0–0.9)  | 180 / 180 |

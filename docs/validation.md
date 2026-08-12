@@ -33,6 +33,7 @@ This table is kept in sync with the measured figures by a CI drift-guard.
 
 | Layer                 | RMSE                   | Colours recovered | Verdict                           |
 | --------------------- | ---------------------- | ----------------- | --------------------------------- |
+| Vegetation (NDVI)     | **0.024** (scale 0–1)  | 140 / 140         | Good — usable for absolute values |
 | Precipitation         | **0.27** mm/day        | 50 / 50           | Good — usable for absolute values |
 | Air temperature (2 m) | **0.485** K            | 180 / 180         | Good — usable for absolute values |
 | Aerosol optical depth | **0.13** (scale 0–0.9) | 180 / 180         | Good — usable for absolute values |

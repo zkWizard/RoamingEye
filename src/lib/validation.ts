@@ -103,6 +103,13 @@ export function validateInversion(
  * was reliable even before the recalibrations; rebuilding LST's gradient from
  * the real GIBS colormap is tracked as follow-up (#170).
  *
+ * NDVI shows what a *banded* null-rate used to cost: its legend stops are now
+ * sampled from MODIS_L3_NDVI instead of drawn by hand, and every one of GIBS's
+ * 140 ramp colours inverts (RMSE 0.024 on a 0–1 index). The hand-drawn ramp
+ * rejected 32 colours in three contiguous blocks (NDVI ≤ 0.09, 0.41–0.46,
+ * ≥ 0.94), so sparse vegetation and closed canopy were dropped from every
+ * mean, trend, and percentile rather than merely measured imprecisely.
+ *
  * `total` is the number of ramp colours the layer's colormap actually offers,
  * so it is the denominator that makes `nulls` a coverage figure. Air
  * temperature's was re-measured 2026-08-11 at 180 (was 90): GIBS prints that
@@ -110,11 +117,29 @@ export function validateInversion(
  * and the parser had been discarding every entry whose printed range collapsed
  * to zero width — half the ramp had never been presented to the inversion at
  * all. See `parseColormapEntries`.
+=======
+ * These are sobering by design: inversion through our coarse legend gradients
+ * recovers aerosol well (RMSE 0.13) but temperature, precipitation, and soil
+ * only loosely, and LST's gradient misses GIBS's cold-end hues entirely
+ * (all-null). The probe is reliable for *relative* analysis on these layers
+ * (trends, anomalies, seasonality — scale-monotone-robust), not absolute
+ * values. Tightening this by inverting against the real GIBS colormaps is
+ * tracked as follow-up (#170).
+ *
+ * NDVI is the worked example of that follow-up: its legend stops are sampled
+ * from MODIS_L3_NDVI instead of drawn by hand, and every one of GIBS's 140
+ * ramp colours now inverts (RMSE 0.024 on a 0–1 index). Note what a *banded*
+ * null-rate costs — the hand-drawn ramp rejected 32 colours in three
+ * contiguous blocks (NDVI ≤ 0.09, 0.41–0.46, ≥ 0.94), so sparse vegetation
+ * and closed canopy were dropped from every mean, trend, and percentile
+ * rather than merely measured imprecisely.
+>>>>>>> 274230125bcc4d4bb8b26137a76ef0a751aeaab7
  */
 export const MEASURED_INVERSION: Record<
   CalibratedLayerId,
   { rmse: number | null; nulls: number; total: number }
 > = {
+  ndvi: { rmse: 0.0236, nulls: 0, total: 140 },
   lst: { rmse: null, nulls: 250, total: 250 },
   // Re-measured against the parser-restored 180-entry ramp with the legend
   // rebuilt from GIBS's own stops (#717 + #758 combined).

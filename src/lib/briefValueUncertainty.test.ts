@@ -42,8 +42,10 @@ describe("calibratedLayerWithRmse", () => {
   });
 
   it("returns null for uncharacterized or all-null layers", () => {
-    // NDVI is a satellite-derived index, not a calibrated colormap-inverted layer.
-    expect(calibratedLayerWithRmse("ndvi")).toBeNull();
+    // EVI has no measured inversion RMSE: GIBS's MODIS_L3_EVI ramp contains
+    // pure black, which is also an undrawn tile pixel, so the ramp cannot be
+    // calibrated the way NDVI's was.
+    expect(calibratedLayerWithRmse("evi")).toBeNull();
     // LST inverts to no value at all (rmse === null), so it bounds nothing.
     expect(MEASURED_INVERSION.lst.rmse).toBeNull();
     expect(calibratedLayerWithRmse("lst")).toBeNull();
@@ -75,7 +77,17 @@ describe("inversionUncertaintyForLayer", () => {
   });
 
   it("never invents an uncertainty for an uncharacterized layer", () => {
-    expect(inversionUncertaintyForLayer("ndvi", "NDVI")).toBeNull();
+    expect(inversionUncertaintyForLayer("evi", "EVI")).toBeNull();
+  });
+
+  it("bounds NDVI now that its legend is calibrated against GIBS", () => {
+    const ndvi = inversionUncertaintyForLayer("ndvi", "NDVI");
+    expect(ndvi).not.toBeNull();
+    expect(ndvi!.reportedRmse).toBe(MEASURED_INVERSION.ndvi.rmse);
+    // NDVI is unitless, so no conversion separates reported from native.
+    expect(ndvi!.nativeRmse).toBe(ndvi!.reportedRmse);
+    // Every colormap step inverts, so none are dropped from the record.
+    expect(ndvi!.recoveredSteps).toBe(ndvi!.totalSteps);
   });
 });
 
@@ -119,18 +131,21 @@ describe("summarizeBriefValueUncertainty", () => {
     expect(precip.statement).toContain("published RMSE 0.27 mm/day");
   });
 
-  it("reports NDVI as uncharacterized and never bounds it", () => {
+  it("bounds the vegetation signal against the calibrated NDVI legend", () => {
+    // Before the NDVI legend was sampled from GIBS's MODIS_L3_NDVI ramp this
+    // signal was the brief's uncharacterized case. It now carries a measured
+    // band like every other signal the brief reports.
     const brief = briefWith({ vegetation: obs(0.6) });
     const summary = summarizeBriefValueUncertainty(brief.signals);
 
     const veg = summary.signals.find((s) => s.id === "vegetation")!;
-    expect(veg.status).toBe("uncharacterized");
-    expect(veg.nativeRmse).toBeNull();
-    expect(veg.lower).toBeNull();
-    expect(veg.upper).toBeNull();
-    expect(veg.statement).toContain("no characterized end-to-end");
-    expect(summary.characterizedCount).toBe(0);
-    expect(summary.uncharacterizedCount).toBe(1);
+    const rmse = MEASURED_INVERSION.ndvi.rmse!;
+    expect(veg.status).toBe("characterized");
+    expect(veg.nativeRmse).toBe(rmse);
+    expect(veg.lower).toBeCloseTo(0.6 - rmse, 12);
+    expect(veg.upper).toBeCloseTo(0.6 + rmse, 12);
+    expect(summary.characterizedCount).toBe(1);
+    expect(summary.uncharacterizedCount).toBe(0);
   });
 
   it("considers only available signals by default", () => {

@@ -88,6 +88,7 @@ export function parseColormapEntries(xml: string): ColormapEntry[] {
  * ows:Metadata colormap link in the live WMTS capabilities).
  */
 export const COLORMAP_DOCS = {
+  ndvi: "MODIS_L3_NDVI",
   lst: "MODIS_Land_Surface_Temp",
   airtemp: "MERRA2_2m_Air_Temperature_Monthly",
   sst: "MODIS_Sea_Surface_Temperature",
