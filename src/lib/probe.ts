@@ -471,10 +471,24 @@ export function scaleValue(t: number, scale: ProbeScale): number {
   return scale.min + t * (scale.max - scale.min);
 }
 
-/** Display formatting: 3 significant digits + unit ("0.63", "78 %"). */
+/**
+ * Display formatting: enough decimals to resolve the inversion's quantization
+ * step, plus the unit ("0.634", "78.4 %").
+ *
+ * Decimals come from `csvDecimals` — the same quantization-derived rule the
+ * download already applies — so the status line, the chart axes, the legend
+ * ticks and the CSV state one measurement at one method-justified precision.
+ * The previous rule keyed the decimals off the scale's *span* (none above 10
+ * units, two below), which printed a value coarser than the uncertainty
+ * quoted beside it. That hurt the atmospheric layers most: precipitation
+ * resolves ±0.08 mm/day but rendered to a whole mm/day, so every arid and
+ * semi-arid monthly mean (< 0.5 mm/day) collapsed onto "0 mm/day" — the same
+ * string a rain-free month gets — and the anomaly axis printed sub-unit
+ * departures as "+0"; 2 m air temperature quoted ±0.2 K next to a value
+ * rounded to the nearest kelvin, discarding the interannual signal entirely.
+ */
 export function formatProbeValue(value: number, scale: ProbeScale): string {
-  const digits = scale.max - scale.min > 10 ? 0 : 2;
-  return `${value.toFixed(digits)}${scale.unit ? ` ${scale.unit}` : ""}`;
+  return `${value.toFixed(csvDecimals(scale))}${scale.unit ? ` ${scale.unit}` : ""}`;
 }
 
 // --- Quantified uncertainty ------------------------------------------------------
@@ -496,6 +510,11 @@ export function quantizationStep(scale: ProbeScale): number {
  * Decimals that honestly represent the quantization step — enough to
  * resolve it, none implying precision the method doesn't have (the old
  * fixed 4 decimals printed 0.6338 from a ±0.002 measurement).
+ *
+ * Named for the download it was written for, but it is the repository's one
+ * value-precision rule: `formatProbeValue` renders every on-screen value with
+ * it too, so no surface can quote a number coarser or finer than the method
+ * resolves.
  */
 export function csvDecimals(scale: ProbeScale): number {
   const step = quantizationStep(scale);

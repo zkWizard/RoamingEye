@@ -132,15 +132,17 @@ describe("overlayKeyFor", () => {
 
 describe("legendTicks", () => {
   it("prints min/mid/max in the layer's units for calibrated gradients", () => {
+    // Digits follow the probe's quantization step, so a tick and a probed
+    // value can never quote the same colour at two different precisions.
     expect(legendTicks("ndvi")).toEqual({
-      min: "0.00",
-      mid: "0.50",
-      max: "1.00",
+      min: "0.000",
+      mid: "0.500",
+      max: "1.000",
     });
     expect(legendTicks("snow")).toEqual({
-      min: "0 %",
-      mid: "50 %",
-      max: "100 %",
+      min: "0.0 %",
+      mid: "50.0 %",
+      max: "100.0 %",
     });
   });
 
