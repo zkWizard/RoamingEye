@@ -138,11 +138,27 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
     measures: "Precipitation rate",
     minLabel: "dry",
     maxLabel: "wet",
+    interpretationNote:
+      "GIBS renders this layer on a spectral ramp where dry is red and wet is blue — the reverse of the usual rain palette. Red is the driest colour on the globe, not the heaviest rainfall.",
+    // Colours published in GLDAS_Surface_Total_Precipitation_Rate_Monthly (the
+    // colormap the tiles are rendered with), each placed at the position of the
+    // rate it stands for, so the bar the user reads and the LUT the probe
+    // inverts both describe the imagery. The previous tan → blue gradient was a
+    // hand-drawn guess: it put GIBS's pale-yellow mid-range rates nearest its
+    // dry end, so ~20 mm/day inverted to 0.0 mm/day and 23 of 50 ramp colours
+    // were rejected outright as no-data. See validation.MEASURED_INVERSION and
+    // the inversion-validation contract for the measured before/after.
     stops: [
-      { color: "#d9d2be", at: 0 }, // arid ground
-      { color: "#9ec9e0", at: 0.35 },
-      { color: "#3f83bf", at: 0.7 },
-      { color: "#173f7a", at: 1 }, // monsoon-level rainfall
+      { color: "#d53e4f", at: 0 }, // 0.0 mm/day — driest rendered rate
+      { color: "#eb5f46", at: 0.1111 }, // 4.8 mm/day
+      { color: "#f99254", at: 0.2222 }, // 9.6 mm/day
+      { color: "#fdbc6c", at: 0.3333 }, // 14.4 mm/day
+      { color: "#fae38c", at: 0.4444 }, // 19.2 mm/day
+      { color: "#e9f296", at: 0.5556 }, // 24.0 mm/day
+      { color: "#bbe3a0", at: 0.6667 }, // 28.8 mm/day
+      { color: "#8dd1a4", at: 0.7778 }, // 33.6 mm/day
+      { color: "#57b1ab", at: 0.8889 }, // 38.4 mm/day
+      { color: "#3288bd", at: 1 }, // 43.2 mm/day — monsoon-level rainfall
     ],
   },
   soil: {
