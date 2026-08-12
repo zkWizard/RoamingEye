@@ -2,6 +2,7 @@ import {
   IGBP_LAND_COVER_CLASSES,
   LAND_COVER_SOURCE,
   publicationStatusForYear,
+  resolveIgbpSourceValue,
   type IgbpLandCoverClass,
   type IgbpLandCoverClassCode,
   type LandCoverPublicationStatus,
@@ -121,19 +122,24 @@ const IGBP_BY_CODE = new Map<IgbpLandCoverClassCode, IgbpLandCoverClass>(
   IGBP_LAND_COVER_CLASSES.map((entry) => [entry.code, entry])
 );
 
-/** Resolve a supplied code to an informative IGBP class, or null otherwise. */
+/**
+ * Resolve a supplied code to an informative IGBP class, or null otherwise.
+ * Source values the rendered layer aliases onto a class code (the legacy water
+ * code 0 → 17) resolve to that class, so an encoding difference between two
+ * annual maps is not read as a difference in land cover.
+ */
 function informativeClass(code: number | null): IgbpLandCoverClass | null {
-  if (code === null || !Number.isInteger(code)) return null;
-  const igbpClass = IGBP_BY_CODE.get(code as IgbpLandCoverClassCode);
-  return igbpClass && igbpClass.isInformativeLandCover ? igbpClass : null;
+  if (code === null) return null;
+  const resolution = resolveIgbpSourceValue(code);
+  if (resolution.status !== "class") return null;
+  const igbpClass = IGBP_BY_CODE.get(resolution.classCode)!;
+  return igbpClass.isInformativeLandCover ? igbpClass : null;
 }
 
 /** True when a supplied code is present but outside the IGBP class contract. */
 function isInvalidCode(code: number | null): boolean {
   if (code === null) return false;
-  return (
-    !Number.isInteger(code) || !IGBP_BY_CODE.has(code as IgbpLandCoverClassCode)
-  );
+  return resolveIgbpSourceValue(code).status === "outside-contract";
 }
 
 /**
