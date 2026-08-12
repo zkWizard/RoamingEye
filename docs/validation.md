@@ -14,9 +14,20 @@ colormap through our production inversion and compare the recovered value to
 the true one.
 
 The residuals below are the **real accuracy of the inversion pipeline** for
-each calibrated layer. They are re-measured against the live colormaps weekly
-(`contract/inversion-validation.contract.test.ts`); this table is kept in sync
-by a CI drift-guard.
+each calibrated layer, and they are re-measured twice over:
+
+- **On every change**, offline, against a pinned copy of the same colormaps
+  (`src/lib/gibsColormaps.json`, retrieved from GIBS and regenerated with
+  `node scripts/snapshot-colormaps.mjs`). Editing a legend gradient, a probe
+  scale or a unit conversion changes the real accuracy, so that edit fails CI
+  until these figures are re-committed
+  (`src/lib/gibsColormapSnapshot.test.ts`).
+- **Weekly**, over the network, against the live colormaps
+  (`contract/inversion-validation.contract.test.ts`) — which also re-checks
+  the pinned copy, so the offline ramps cannot quietly go stale if NASA
+  re-renders a palette.
+
+This table is kept in sync with the measured figures by a CI drift-guard.
 
 ## Results (precipitation and air temperature re-measured 2026-08-11; others 2026-07-09)
 
