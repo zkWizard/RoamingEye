@@ -323,6 +323,26 @@ a product yet differ (rainfall is a flux, soil moisture a state).
 Both descriptors report structure only — neither combines, accumulates, or ranks
 the values, and every signal keeps its source DOI.
 
+**Month length in an accumulated total**
+(`src/lib/placeRainfallMonthLength.ts`). Integrating the one time-integrable
+signal has a consequence for reading two months side by side: because the
+integration window is the calendar month, two rainfall **totals** are not
+commensurate when the months differ in length (28–31 days). A February-to-March
+step gains three days of accumulation at no change in rate at all — at 3 mm/day,
+a spurious +9 mm. The place panel therefore splits the step it reports,
+
+`Tₗ − Tₑ = rₑ(dₗ − dₑ)` (calendar) `+ (rₗ − rₑ)dₗ` (rate)
+
+for `d` days and `r = T/d` the implied mean daily rate, and discloses the
+calendar share alongside the total. The identity is exact; attributing the
+calendar term at the **earlier** month's rate is a reporting convention (holding
+the later rate fixed divides the same total differently), chosen because it
+answers what a reader comparing two totals is implicitly asking. Where the total
+moves one way while the mean daily rate moves the other, the panel says so —
+that is the case in which reading the total alone inverts what the rain did. The
+mean daily rate is a total over its own month's length, not an observation of
+any individual day.
+
 ## 9. What this tool does not do
 
 - It does **not** validate the GIBS L3 products against in-situ measurements —
