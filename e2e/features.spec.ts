@@ -332,14 +332,29 @@ test("hovering a city dot shows its name", async ({ page }) => {
 
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport");
-  // Quito (-0.213, -78.502) — isolated enough that no other dot can win.
-  const pt = screenPointFor(-0.213, -78.502, viewport.width, viewport.height);
+  // Denver (39.741, -104.986) — facing the default camera, the most isolated
+  // dot in view (~52 px from its nearest neighbour against a ~5 px pick
+  // radius), and high above the bottom-centre HUD stack. Quito was the old
+  // target, but it projects a pixel below the vertical centre, which the
+  // growing HUD stack now covers.
+  const pt = screenPointFor(39.741, -104.986, viewport.width, viewport.height);
+
+  // A HUD panel over this point would swallow the pointermove and make the
+  // hover assertion below fail for a reason that has nothing to do with
+  // markers, so state the precondition explicitly.
+  const hitId = await page.evaluate(
+    ([x, y]) => document.elementFromPoint(x, y)?.id ?? "",
+    [pt.x, pt.y] as const
+  );
+  expect(hitId).toBe("globe");
 
   const tooltip = page.locator("#hover-tooltip");
   let jitter = 0;
   await expect(async () => {
     await page.mouse.move(pt.x + (jitter ^= 1), pt.y);
-    await expect(tooltip).toContainText("Quito · Ecuador", { timeout: 300 });
+    await expect(tooltip).toContainText("Denver · United States of America", {
+      timeout: 300,
+    });
   }).toPass({ timeout: 10_000 });
 });
 
