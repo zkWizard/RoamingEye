@@ -308,7 +308,8 @@ export class ProbeSampler {
    *
    * `maxInversionDistance` overrides the app-wide no-data threshold for a
    * layer whose ramp runs too close to its own no-data colour to be separated
-   * by the default (see lib/sstNoData.ts). Omitted, behaviour is unchanged.
+   * by the default (see lib/sstNoData.ts and lib/vegetationIndexNoData.ts).
+   * Omitted, behaviour is unchanged.
    */
   async sampleGeometryPhysical(
     layer: LayerConfig,

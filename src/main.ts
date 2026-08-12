@@ -38,6 +38,7 @@ import {
   placeInsightPhysicalReading,
   placeInsightReading,
 } from "./lib/placeInsights";
+import { NDVI_MAX_INVERSION_DISTANCE } from "./lib/vegetationIndexNoData";
 import {
   MARINE_PLACE_METRIC,
   marineBoundarySstReading,
@@ -565,7 +566,17 @@ function runPlaceInsights(result: GeoResult): void {
               { lat: result.lat, lon: result.lon },
               colormap.entries,
               colormap.factor,
-              { signal: abort.signal }
+              {
+                signal: abort.signal,
+                // NDVI's ramp runs to near-black, close enough to the JPEG
+                // black GIBS renders where it draws no index that the default
+                // would average undrawn water, snow, and cloud into the
+                // vegetation mean as 0.985 (lib/vegetationIndexNoData).
+                maxInversionDistance:
+                  metric.layerId === "ndvi"
+                    ? NDVI_MAX_INVERSION_DISTANCE
+                    : undefined,
+              }
             )
           : placeSampler.sampleGeometry(
               LAYERS[metric.layerId],
