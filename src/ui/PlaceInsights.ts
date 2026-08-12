@@ -29,7 +29,11 @@ import {
   type VolcanoProximityContext,
 } from "../lib/volcanoProximityContext";
 import { eruptionRecencyText } from "../lib/volcanoRecency";
-
+import { elevationRegimeLabel } from "../lib/volcanoes";
+import {
+  summitDatumText,
+  tallyElevationRegimes,
+} from "../lib/volcanoElevationProfile";
 import { ICONS } from "./icons";
 
 interface MetricElements {
@@ -284,10 +288,18 @@ export class PlaceInsights {
       : " Bundled snapshot retrieval month unavailable.";
     const nearest =
       count === 0 && proximity ? nearestVolcanoStatement(proximity) : null;
+    // GVP summit elevations are signed against the sea-level datum, so an arc
+    // extent can match mostly submarine seamounts. Say so, rather than leaving
+    // the negative metres in the list below to speak for themselves.
+    const datum = summitDatumText(
+      tallyElevationRegimes(
+        context.records.map((record) => record.elevationMeters)
+      )
+    );
     this.volcanoDetail.textContent =
       count === 0
         ? `No bundled GVP volcano records have coordinates inside this search bounding box.${nearest ? ` ${nearest}` : ""}${snapshot}`
-        : `${context.geographicCoverage} Summit elevation is supplied for ${context.elevationCoverage.presentCount} of ${count} matched ${count === 1 ? "record" : "records"} in metres relative to sea level.${snapshot}`;
+        : `${context.geographicCoverage} Summit elevation is supplied for ${context.elevationCoverage.presentCount} of ${count} matched ${count === 1 ? "record" : "records"} in metres relative to sea level.${datum ? ` ${datum}` : ""}${snapshot}`;
     for (const record of context.records.slice(0, 5)) {
       const item = document.createElement("li");
       const details = [
@@ -295,9 +307,9 @@ export class PlaceInsights {
         record.subregion ?? record.region,
         volcanoCoordinateLabel(record),
         record.primaryType ?? "primary type not supplied",
-        record.elevationMeters === null
-          ? "elevation not supplied"
-          : `${record.elevationMeters} m elevation`,
+        // Reads the datum sign GVP reports: a negative summit elevation is a
+        // summit below sea level, not a missing or erroneous height.
+        elevationRegimeLabel(record.elevationMeters),
         record.lastEruptionText,
         record.tectonicSetting
           ? `GVP tectonic setting: ${record.tectonicSetting}`

@@ -106,6 +106,67 @@ function emptyRegimeCounts(): Record<ElevationRegime, number> {
 }
 
 /**
+ * Bucket reported summit elevations by datum-relative regime. Every supplied
+ * value is counted — a missing or non-finite elevation lands in "unknown" —
+ * so the tally always sums to the number of values supplied.
+ *
+ * Exposed separately from {@link volcanoElevationProfile} because a caller that
+ * holds elevations without whole {@link Volcano} records (the place panel holds
+ * GVP extent records, which name the field `elevationMeters`) still needs the
+ * same classification, and duplicating it would let the two drift apart.
+ */
+export function tallyElevationRegimes(
+  elevations: readonly (number | null)[]
+): Record<ElevationRegime, number> {
+  const regimeCounts = emptyRegimeCounts();
+  for (const elevation of elevations) {
+    regimeCounts[elevationRegime(elevation)] += 1;
+  }
+  return regimeCounts;
+}
+
+/** Join clauses as "a", "a and b", or "a, b, and c" — locale-independent. */
+function joinClauses(parts: readonly string[]): string {
+  if (parts.length <= 1) return parts[0] ?? "";
+  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
+  return `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
+}
+
+/**
+ * One sentence describing where a set's reported summits sit relative to the
+ * sea-level datum. GVP reports summit elevation as a signed height against that
+ * datum, so a negative value is a summit *below* sea level, not a data error —
+ * a distinction a bare "−1410 m" in a record list does not make.
+ *
+ * Returns null when nothing would be added: when no supplied record reported a
+ * finite elevation, or when every reported summit is subaerial and the plain
+ * metres-above-sea-level reading is already unambiguous.
+ *
+ * This reads the sign GVP reports. It is not a claim about eruption style,
+ * edifice relief, or whether an edifice currently breaches the sea surface.
+ */
+export function summitDatumText(
+  regimeCounts: Record<ElevationRegime, number>
+): string | null {
+  const { subaerial, submarine } = regimeCounts;
+  const atDatum = regimeCounts["sea-level"];
+  const reported = subaerial + atDatum + submarine;
+  if (reported === 0 || submarine + atDatum === 0) return null;
+
+  const parts: string[] = [];
+  if (subaerial > 0) parts.push(`${subaerial} above sea level`);
+  if (atDatum > 0) parts.push(`${atDatum} at the 0 m datum`);
+  if (submarine > 0) {
+    parts.push(
+      `${submarine} below it (submarine ${submarine === 1 ? "summit" : "summits"})`
+    );
+  }
+  return `Of the ${reported} reported summit ${
+    reported === 1 ? "elevation" : "elevations"
+  }, ${joinClauses(parts)}.`;
+}
+
+/**
  * Summarize the reported summit-elevation distribution of the supplied volcano
  * records, retaining GVP provenance and native unit labels. Records without a
  * finite elevation are excluded from the quantiles but still counted in
@@ -115,12 +176,13 @@ function emptyRegimeCounts(): Record<ElevationRegime, number> {
 export function volcanoElevationProfile(
   volcanoes: readonly Volcano[]
 ): VolcanoElevationProfile {
-  const regimeCounts = emptyRegimeCounts();
+  const regimeCounts = tallyElevationRegimes(
+    volcanoes.map((volcano) => volcano.elevation)
+  );
   const elevations: number[] = [];
 
   for (const volcano of volcanoes) {
     const elevation = volcano.elevation;
-    regimeCounts[elevationRegime(elevation)] += 1;
     if (elevation !== null && Number.isFinite(elevation)) {
       elevations.push(elevation);
     }
