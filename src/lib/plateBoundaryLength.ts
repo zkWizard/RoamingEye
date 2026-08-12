@@ -96,6 +96,7 @@ const LIMITATIONS = [
   "A mapped-length inventory only: it is not a spreading or convergence rate, slip, motion, deformation, activity, or age, none of which the linework supplies.",
   "Lengths are measured on a mean-radius sphere; the source supplies no boundary type, so they are not split by divergent, convergent, or transform character.",
   "A span between any pair of non-finite or out-of-range vertices is skipped rather than bridged, so a malformed feature contributes only its valid portions.",
+  "Every supplied feature is summed, so a trace the source supplies twice is counted twice — the bundled Bird (2003) file repeats six antimeridian-crossing steps verbatim. Pass the linework through distinctPlateBoundaries (see plateBoundaryDuplication.ts) to total each mapped trace once.",
 ] as const;
 
 /**
