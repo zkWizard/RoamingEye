@@ -142,12 +142,38 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
     measures: "Sea surface temperature",
     minLabel: "polar",
     maxLabel: "tropical",
+    // Taken from the ramp GIBS renders MODIS_Sea_Surface_Temperature with
+    // (0–32 °C), sampled every ~2 °C. It is a spectral ramp — magenta and
+    // deep blue for cold water, green/yellow through the subtropics, red at
+    // the warm end — not the smooth cool-to-warm gradient this legend used to
+    // draw. That mismatch was not cosmetic: it put the whole 20–24 °C band
+    // (27 of 27 ramp colours) outside NO_DATA_DISTANCE, so subtropical water
+    // probed as no-data, and a true 8 °C inverted to 0 °C.
+    //
+    // The cold end is deliberately anchored at GIBS's ~2 °C hue rather than
+    // its true 0 °C colour (#2d001c): that colour sits only 53 units from the
+    // black GIBS renders where the L3 product has no SST, i.e. inside the
+    // 60-unit no-data threshold, so drawing it faithfully would invert land,
+    // sea ice, and cloud into plausible near-freezing water. The cost is
+    // absolute accuracy below ~4 °C (RMSE 2.8 °C there); the benefit is that
+    // empty pixels stay rejected. See docs/validation.md.
     stops: [
-      { color: "#3a1f6e", at: 0 }, // near-freezing seas
-      { color: "#2c6fbb", at: 0.35 },
-      { color: "#3fbf9f", at: 0.6 },
-      { color: "#f2c94c", at: 0.8 },
-      { color: "#d84315", at: 1 }, // warm tropical basins
+      { color: "#550249", at: 0 }, // near-freezing seas (GIBS ~2 °C hue)
+      { color: "#7a0677", at: 0.124 },
+      { color: "#4d0961", at: 0.185 },
+      { color: "#1e124e", at: 0.251 },
+      { color: "#1f2e76", at: 0.312 },
+      { color: "#214b9e", at: 0.373 },
+      { color: "#2878c8", at: 0.438 },
+      { color: "#2ea3ef", at: 0.499 },
+      { color: "#1ea35d", at: 0.56 },
+      { color: "#78d300", at: 0.626 },
+      { color: "#f8f500", at: 0.687 },
+      { color: "#ffb400", at: 0.748 },
+      { color: "#fa6d00", at: 0.813 },
+      { color: "#e03e00", at: 0.874 },
+      { color: "#b01b00", at: 0.935 },
+      { color: "#6e0300", at: 1 }, // warm tropical basins
     ],
   },
   precip: {

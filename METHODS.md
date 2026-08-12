@@ -71,18 +71,18 @@ Two sources, both stated in every export:
   | Air temperature (2 m) | 0.51 K           | 90 / 90   |
   | Aerosol optical depth | 0.13 (of 0–0.9)  | 180 / 180 |
   | Snow cover            | 0.62 (of 0–100%) | 100 / 100 |
-  | Sea surface temp      | 5.1 °C           | 128 / 213 |
+  | Sea surface temp      | 1.0 °C           | 213 / 213 |
   | Soil moisture         | 8.2 kg/m²        | 21 / 50   |
   | Land surface temp     | no-data (all)    | 0 / 250   |
 
   The spread is not about the layers — it is about how closely each legend
-  follows the colormap GIBS renders with. Precipitation, air temperature, and
-  aerosol take their stops from that colormap and invert tightly across the
-  whole ramp. The rest are still coarse hand-drawn approximations of GIBS's
-  finely-hued colormaps, and the cost shows up in the "Recovered" column:
-  colours the gradient cannot place are rejected as no-data. **Absolute values
-  for sea surface temperature and soil moisture carry large uncertainty; use
-  the probe for relative and temporal analysis on those layers.** The full
+  follows the colormap GIBS renders with. Precipitation, air temperature, sea
+  surface temperature, and aerosol take their stops from that colormap and
+  invert tightly across the whole ramp. The rest are still coarse hand-drawn
+  approximations of GIBS's finely-hued colormaps, and the cost shows up in the
+  "Recovered" column: colours the gradient cannot place are rejected as
+  no-data. **Absolute values for soil moisture carry large uncertainty; use
+  the probe for relative and temporal analysis on that layer.** The full
   method and framing is in
   [docs/validation.md](docs/validation.md); rebuilding the remaining gradients
   from the real GIBS colormaps is tracked as

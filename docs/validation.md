@@ -29,14 +29,14 @@ each calibrated layer, and they are re-measured twice over:
 
 This table is kept in sync with the measured figures by a CI drift-guard.
 
-## Results (precipitation and air temperature re-measured 2026-08-11; others 2026-07-09)
+## Results (precipitation, air temperature, and sea surface temp re-measured 2026-08-11; others 2026-07-09)
 
 | Layer                 | RMSE                   | Colours recovered | Verdict                           |
 | --------------------- | ---------------------- | ----------------- | --------------------------------- |
 | Precipitation         | **0.27** mm/day        | 50 / 50           | Good — usable for absolute values |
 | Air temperature (2 m) | **0.51** K             | 90 / 90           | Good — usable for absolute values |
 | Aerosol optical depth | **0.13** (scale 0–0.9) | 180 / 180         | Good — usable for absolute values |
-| Sea surface temp      | 5.1 °C                 | 128 / 213         | Coarse — relative use recommended |
+| Sea surface temp      | **1.0** °C             | 213 / 213         | Good — usable for absolute values |
 | Soil moisture         | 8.2 kg/m²              | 21 / 50           | Coarse — relative use recommended |
 | Land surface temp     | — (all no-data)        | 0 / 250           | Gradient misses GIBS's hues       |
 
@@ -70,13 +70,34 @@ median across the whole ramp). The table's RMSE is measured on the colormap's
 exact colours; readings near 271 K carry this extra transport uncertainty on
 top.
 
+Sea surface temperature was `5.1 °C` over `128 / 213` colours until
+2026-08-11. Its legend was a smooth cool-to-warm gradient, but GIBS renders
+MODIS SST on a _spectral_ ramp — magenta and deep blue for cold water,
+green/yellow through the subtropics, red at the warm end. The two ramps
+disagree most in the middle, and the effect was not subtle: **all 27 ramp
+colours between 20 °C and 24 °C fell outside the no-data distance**, so
+ordinary subtropical water probed as "no data", while a true 8 °C inverted to
+0.0 °C. Rebuilding the stops from that colormap recovers every published ramp
+colour.
+
+One deliberate exception remains at the cold end. GIBS's 0–2 °C colours sit
+only **53 units** from the black it renders where the L3 product carries no
+SST — inside the 60-unit no-data threshold — so drawing them faithfully would
+turn land, sea ice, and cloud into plausible near-freezing water. The legend
+therefore anchors its cold end at GIBS's ~2 °C hue instead. Empty pixels stay
+rejected; the price is absolute accuracy below ~4 °C, where RMSE is 2.8 °C
+against 0.1–0.4 °C over the rest of the ramp. Water that cold is also where
+MODIS most often reports no SST at all. Separately, a heavily compressed
+near-black pixel (≳ 20 per channel away from black) can still reach the deep
+blue cold stops; the place card addresses that with its own tighter threshold.
+
 ## What this means (and doesn't)
 
-- **Absolute values** from these inversions carry large uncertainty for sea
-  surface temperature and soil moisture, because their legend gradients are
-  coarse (a handful of stops) approximations of GIBS's finely-hued colormaps.
-  For land-surface temperature the gradient misses GIBS's cold-end colours
-  entirely, so those pixels read as no-data. Precipitation, air temperature,
+- **Absolute values** from these inversions carry large uncertainty for soil
+  moisture, because its legend gradient is a coarse (a handful of stops)
+  approximation of GIBS's finely-hued colormap. For land-surface temperature
+  the gradient misses GIBS's cold-end colours entirely, so those pixels read
+  as no-data. Precipitation, air temperature, sea surface temperature,
   and aerosol optical depth are the exceptions — their stops are taken from the
   colormap GIBS renders with, so inversion is tight across the whole ramp.
 - **Relative and temporal analysis is far more robust.** Trends (seasonal
