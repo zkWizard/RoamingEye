@@ -19,9 +19,9 @@ straight into the browser with no backend or API key.
 | `MERRA2_2m_Air_Temperature_Monthly`              | MERRA-2 reanalysis | 2 m air temp      | ~50 km      | Monthly, 1980→   | Near-surface air temperature.                                    |
 | `MODIS_Aqua_L3_SST_Thermal_9km_Day_Monthly`      | MODIS / Aqua       | Sea surface temp  | 9 km        | Monthly, 2002→   | Ocean thermal SST.                                               |
 | `GLDAS_Surface_Total_Precipitation_Rate_Monthly` | GLDAS land model   | Precipitation     | ~25 km      | Monthly, 2000→   | Total precipitation rate.                                        |
-| `GLDAS_Underground_Soil_Moisture_Monthly`        | GLDAS land model   | Soil moisture     | ~25 km      | Monthly, 2000→   | Root-zone moisture; drought/agriculture.                         |
+| `GLDAS_Underground_Soil_Moisture_Monthly`        | GLDAS land model   | Soil moisture     | ~25 km      | Monthly, 2000→   | Surface 0–10 cm column, not root zone.                           |
 | `MODIS_Terra_L3_Snow_Cover_Monthly_Average_Pct`  | MODIS / Terra      | Snow cover %      | 2 km        | Monthly, 2000→   | Average snow-covered fraction.                                   |
-| `MERRA2_..._Aerosol_Optical_Thickness_550nm...`  | MERRA-2 reanalysis | Aerosols (AOD)    | ~50 km      | Monthly, 1980→   | Dust, smoke, air quality.                                        |
+| `MERRA2_..._Aerosol_Optical_Thickness_550nm...`  | MERRA-2 reanalysis | Aerosols (AOD)    | ~50 km      | Monthly, 1980→   | Whole-column optical thickness; dust and smoke, not surface air. |
 | `MODIS_Combined_L3_IGBP_Land_Cover_Type_Annual`  | MODIS / combined   | Land cover (IGBP) | 500 m       | Annual, 2001→    | MCD12Q1 classification, 17 IGBP classes; timeline steps by year. |
 | `HLS_S30_Nadir_BRDF_Adjusted_Reflectance`        | Sentinel-2 (HLS)   | True colour       | ~30 m       | Per-scene, 2015→ | High-res; per-orbit, so coverage is date-specific.               |
 | `HLS_L30_Nadir_BRDF_Adjusted_Reflectance`        | Landsat 8/9 (HLS)  | True colour       | ~30 m       | Per-scene, 2013→ | High-res fallback for the study patch.                           |

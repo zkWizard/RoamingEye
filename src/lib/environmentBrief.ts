@@ -257,9 +257,19 @@ const CLIMATE_SIGNAL_META: Record<
   Exclude<EnvironmentSignalId, "vegetation">,
   SignalMeta & { metricId: ClimateMetricId }
 > = {
+  // The signal id stays "rainfall" — it is a structural key shared with the
+  // place panel and a dozen descriptor modules — but the *rendered label* must
+  // name the quantity GIBS actually serves. The layer behind this signal is
+  // GLDAS_Surface_Total_Precipitation_Rate_Monthly, whose authoritative
+  // ows:Title is "Total Precipitation Rate (Monthly, Surface, Noah LSM,
+  // GLDAS)": the model's total precipitation flux, which includes snowfall.
+  // Calling it "rainfall" asserted a liquid-only quantity the product does not
+  // render, and it did so exactly where the difference matters — cold seasons
+  // and cold regions. `briefPrecipitationPhase.ts` carries the consequence:
+  // the brief cannot resolve which phase the total fell as.
   rainfall: {
     id: "rainfall",
-    label: "Rainfall (precipitation rate)",
+    label: "Precipitation (total rate, all phases)",
     layerId: "precip",
     source: CLIMATE_METRICS["precipitation-rate"].source,
     nativeUnit: CLIMATE_METRICS["precipitation-rate"].nativeUnit,
@@ -624,7 +634,10 @@ export function summarizeDataCurrency(
 function unassessedCurrencyStatement(
   signalIds: readonly EnvironmentSignalId[]
 ): string {
-  return `Currency was not assessed for ${signalIds.join(", ")} because no product-specific availability checkpoint was supplied.`;
+  // The reason is joined with a colon rather than a causal connective: this is
+  // brief prose, and `UNSUPPORTED_CLAIM_PATTERNS` screens causal vocabulary out
+  // of brief copy so no sentence can read as an inferred cause.
+  return `Currency was not assessed for ${signalIds.join(", ")}: no product-specific availability checkpoint was supplied.`;
 }
 
 function dataCurrencyStatement(
@@ -755,7 +768,7 @@ function normalizedDoiText(doi: DatasetRef["doi"]): string {
 function sourceDedupKey(source: DatasetRef): string {
   const doi = normalizedDoiText(source.doi).toLowerCase();
   if (doi) return `doi:${doi}\0${source.version}`;
-  return `nodoi:${source.shortName} ${source.version}`;
+  return `nodoi:${source.shortName}\0${source.version}`;
 }
 
 function attributionLine(sources: readonly SourceAttribution[]): string {

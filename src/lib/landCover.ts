@@ -88,6 +88,63 @@ export const IGBP_LAND_COVER_CLASSES: readonly IgbpLandCoverClass[] = [
   { code: 255, label: "Unclassified", isInformativeLandCover: false },
 ];
 
+/** The IGBP class code every water source value is rendered as. */
+export const IGBP_WATER_CLASS_CODE: IgbpLandCoverClassCode = 17;
+
+/**
+ * Source values the rendered layer folds onto another IGBP class code.
+ *
+ * The land-cover layer's own GIBS colormap
+ * (colormaps/v1.3/MODIS_IGBP_Land_Cover_Type.xml) carries exactly one
+ * multi-valued entry — `sourceValue="0,17"` → "Water Bodies"; every other
+ * entry names a single value. 0 is the legacy IGBP water code that earlier
+ * MODIS land-cover collections wrote, 17 the MCD12Q1 v061 one, and the
+ * rendered product answers both with the same colour, so a sampler reading
+ * native source values can hand us either.
+ *
+ * Resolving 0 to 17 re-codes a value onto the class the source already
+ * renders it as: it cannot merge two distinct classes, and the samples it
+ * applies to are counted separately so no summary hides that it happened.
+ */
+export const IGBP_SOURCE_VALUE_ALIASES: Readonly<
+  Record<number, IgbpLandCoverClassCode>
+> = {
+  0: IGBP_WATER_CLASS_CODE,
+};
+
+export type IgbpSourceValueResolution =
+  | {
+      status: "class";
+      classCode: IgbpLandCoverClassCode;
+      /** True when the supplied value reached its class through an alias. */
+      aliased: boolean;
+    }
+  | { status: "outside-contract" };
+
+/**
+ * Resolve one native source value to the IGBP class GIBS renders it as.
+ *
+ * Values outside the published contract stay unresolved: nothing is rounded
+ * or snapped to a neighbouring code, because a class identifier has no
+ * neighbours.
+ */
+export function resolveIgbpSourceValue(
+  value: number
+): IgbpSourceValueResolution {
+  if (!Number.isInteger(value)) return { status: "outside-contract" };
+  const aliasTarget = IGBP_SOURCE_VALUE_ALIASES[value];
+  if (aliasTarget !== undefined) {
+    return { status: "class", classCode: aliasTarget, aliased: true };
+  }
+  return IGBP_BY_CODE.has(value as IgbpLandCoverClassCode)
+    ? {
+        status: "class",
+        classCode: value as IgbpLandCoverClassCode,
+        aliased: false,
+      }
+    : { status: "outside-contract" };
+}
+
 export interface LandCoverClassObservation {
   /** MCD12Q1 IGBP class code; null means the sampler observed no usable code. */
   classCode: number | null;
@@ -112,6 +169,12 @@ export interface LandCoverCoverage {
   noDataSampleCount: number;
   /** Samples whose code was outside the IGBP contract. */
   invalidClassSampleCount: number;
+  /**
+   * Samples that reached their class through {@link IGBP_SOURCE_VALUE_ALIASES}
+   * (today: the legacy water code 0). Reported so the fold onto the rendered
+   * class stays visible in the counts it contributed to.
+   */
+  aliasedSourceValueSampleCount: number;
   /**
    * Records rejected because their sample count was not a positive safe
    * integer or would make the cumulative sample count unsafe.
@@ -211,6 +274,7 @@ export function summarizeLandCoverContext(
         unclassifiedSampleCount: 0,
         noDataSampleCount: 0,
         invalidClassSampleCount: 0,
+        aliasedSourceValueSampleCount: 0,
         invalidRecordCount: 0,
         knownLandCoverFraction: null,
         reason: "record-not-published",
@@ -228,6 +292,7 @@ export function summarizeLandCoverContext(
   let unclassifiedSampleCount = 0;
   let noDataSampleCount = 0;
   let invalidClassSampleCount = 0;
+  let aliasedSourceValueSampleCount = 0;
   let invalidRecordCount = 0;
 
   for (const observation of observations) {
@@ -247,16 +312,15 @@ export function summarizeLandCoverContext(
       noDataSampleCount += sampleCount;
       continue;
     }
-    if (
-      !Number.isInteger(classCode) ||
-      !IGBP_BY_CODE.has(classCode as IgbpLandCoverClassCode)
-    ) {
+    const resolution = resolveIgbpSourceValue(classCode);
+    if (resolution.status === "outside-contract") {
       invalidClassSampleCount += sampleCount;
       invalidRecordCount += 1;
       continue;
     }
+    if (resolution.aliased) aliasedSourceValueSampleCount += sampleCount;
 
-    const igbpCode = classCode as IgbpLandCoverClassCode;
+    const igbpCode = resolution.classCode;
     const igbpClass = IGBP_BY_CODE.get(igbpCode)!;
     classCounts.set(igbpCode, (classCounts.get(igbpCode) ?? 0) + sampleCount);
     if (igbpClass.isInformativeLandCover) {
@@ -312,6 +376,7 @@ export function summarizeLandCoverContext(
     unclassifiedSampleCount,
     noDataSampleCount,
     invalidClassSampleCount,
+    aliasedSourceValueSampleCount,
     invalidRecordCount,
     knownLandCoverFraction:
       totalSampleCount === 0
@@ -419,7 +484,16 @@ export interface LandCoverFormationSummary {
   /** Retains the upstream publication or sampling limitation unchanged. */
   unavailableReason: LandCoverContextSummary["unavailableReason"];
   formationCoverage: LandCoverFormationCoverage[];
-  /** Most common formation by sample count; null when no known class present. */
+  /** Whether the largest formation count is unique, tied, or absent. */
+  mostFrequentFormationStatus: "unique" | "tied" | "no-data";
+  /** Every formation sharing the largest sample count. */
+  mostFrequentFormations: LandCoverFormationCoverage[];
+  /**
+   * Unique most common formation by sample count; null for a tie or when no
+   * known class is present. Formations aggregate whole classes (forest sums
+   * codes 1-5, cropland sums 12 and 14), so equal totals are more likely here
+   * than at class level and must not be resolved by the display sort order.
+   */
   dominantFormation: LandCoverFormationCoverage | null;
   /**
    * Informative-class samples not mapped to any formation. Zero for the
@@ -441,6 +515,12 @@ const FORMATION_BY_CLASS = new Map<IgbpLandCoverClassCode, LandCoverFormation>(
  * {@link summarizeLandCoverContext}: no dataset reference is dropped and no
  * class code is re-parsed. Fractions share the same denominators as the class
  * coverage so callers can mix formation and class views without rescaling.
+ *
+ * Ties are reported, not broken. `formationCoverage` keeps a deterministic
+ * display order (count, then lowest class code), but that ordering is a
+ * presentation detail: reading its first entry as "the" dominant formation
+ * would assert a winner the sample counts do not support. This mirrors how
+ * {@link summarizeLandCoverContext} reports tied most-frequent classes.
  */
 export function summarizeLandCoverFormations(
   context: LandCoverContextSummary
@@ -487,6 +567,20 @@ export function summarizeLandCoverFormations(
         b.sampleCount - a.sampleCount || a.classCodes[0] - b.classCodes[0]
     );
 
+  const largestFormationCount = formationCoverage[0]?.sampleCount ?? null;
+  const mostFrequentFormations =
+    largestFormationCount === null
+      ? []
+      : formationCoverage.filter(
+          (entry) => entry.sampleCount === largestFormationCount
+        );
+  const mostFrequentFormationStatus =
+    mostFrequentFormations.length === 0
+      ? "no-data"
+      : mostFrequentFormations.length === 1
+        ? "unique"
+        : "tied";
+
   return {
     kind: "observed-land-cover-formation-groups",
     isForecast: false,
@@ -494,7 +588,12 @@ export function summarizeLandCoverFormations(
     observationStatus: context.observationStatus,
     unavailableReason: context.unavailableReason,
     formationCoverage,
-    dominantFormation: formationCoverage[0] ?? null,
+    mostFrequentFormationStatus,
+    mostFrequentFormations,
+    dominantFormation:
+      mostFrequentFormationStatus === "unique"
+        ? mostFrequentFormations[0]
+        : null,
     ungroupedKnownSampleCount,
   };
 }

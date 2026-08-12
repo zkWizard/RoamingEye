@@ -1,9 +1,10 @@
 import type { LayerId } from "./timeline";
 import { DEPTH_CLASS_COLORS } from "./earthquakes";
-import { ERUPTION_CLASS_COLORS } from "./volcanoes";
+import { ERUPTION_CLASS_COLORS, ERUPTION_CLASS_LABELS } from "./volcanoes";
 import { PROBE_SCALES, formatProbeValue, scaleValue } from "./probe";
 import { IGBP_LAND_COVER_CLASSES } from "./landCover";
 import { IGBP_RENDERED_PALETTE } from "./landCoverPalette";
+import { vegetationIndexLegendNote } from "./vegetationIndexRenderedRange";
 
 /**
  * Legend model: what the colors on the globe mean, per data layer.
@@ -49,22 +50,33 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
     measures: "Vegetation greenness (NDVI)",
     minLabel: "lower NDVI",
     maxLabel: "higher NDVI",
-    interpretationNote:
-      "NDVI is a unitless vegetation index; color does not measure vegetation cover, biomass, or condition.",
+    interpretationNote: vegetationIndexLegendNote("ndvi"),
+    // Sampled from GIBS's own MODIS_L3_NDVI colormap — the document its WMTS
+    // capabilities ties to MODIS_Terra_L3_NDVI_Monthly — rather than drawn by
+    // hand, so the probe inverts rendered pixels through the ramp NASA
+    // actually draws. Two features of that ramp drive the stop placement:
+    //   * It is near-white at low NDVI and only reaches brown around 0.28,
+    //     then jumps abruptly to yellow-green. The 0.28→0.30 pair carries
+    //     that discontinuity; a smooth ramp through it would misread the
+    //     sparse-vegetation end entirely.
+    //   * Its darkest greens run to within 24 RGB units of black. Because
+    //     GIBS serves undrawn pixels as black in JPEG tiles, anchoring the
+    //     top stop there would make open ocean read as maximum greenness.
+    //     The top stop therefore stops at the NDVI-0.905 hue, 72 units from
+    //     black, which clears NO_DATA_DISTANCE (60) with margin.
     stops: [
-      { color: "#a97c50", at: 0 }, // bare soil / desert browns
-      { color: "#d9c38a", at: 0.25 },
-      { color: "#c7d96a", at: 0.5 },
-      { color: "#5da83f", at: 0.75 },
-      { color: "#1a6b1a", at: 1 }, // dense canopy
+      { color: "#f1ecec", at: 0 }, // sparse / bare — GIBS's near-white low end
+      { color: "#9d7c5f", at: 0.28 }, // brown, just below the ramp's hue jump
+      { color: "#a7cc4b", at: 0.3 }, // yellow-green, just above it
+      { color: "#126e01", at: 0.7 },
+      { color: "#004800", at: 1 }, // dense canopy, held clear of black
     ],
   },
   evi: {
     measures: "Vegetation greenness (EVI)",
     minLabel: "lower EVI",
     maxLabel: "higher EVI",
-    interpretationNote:
-      "EVI is a unitless vegetation index; color does not measure vegetation cover, biomass, or condition.",
+    interpretationNote: vegetationIndexLegendNote("evi"),
     stops: [
       { color: "#a97c50", at: 0 },
       { color: "#d9c38a", at: 0.25 },
@@ -77,11 +89,26 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
     measures: "Snow cover (monthly average)",
     minLabel: "0%",
     maxLabel: "100%",
+    interpretationNote:
+      "GIBS renders this layer in 20-point bands below 81%, and draws no colour at all for 0% — so snow-free ground and an unobserved pixel look the same. Cloud, night, water and fill are drawn as flag colours, not snow amounts.",
+    // GIBS renders these tiles with the MODIS_NDSI_Snow_Cover colormap — a
+    // *discrete* ramp (yellow → red), not the blue → white one a snow layer
+    // invites. Each stop below is a colour published in that document, at the
+    // position of the percent it stands for, so the bar the user reads and the
+    // LUT the probe inverts both describe the imagery on the globe. See
+    // lib/snowCoverRamp.ts for the audit and the weekly contract check.
     stops: [
-      { color: "#274a6d", at: 0 }, // snow-free ground reads dark
-      { color: "#5b87ad", at: 0.35 },
-      { color: "#a8c8dd", at: 0.7 },
-      { color: "#ffffff", at: 1 }, // full snow cover
+      { color: "#f0f080", at: 0 }, // 1% — 0% is transparent, never drawn
+      { color: "#f0f093", at: 0.2 }, // 20%, top of the first band
+      { color: "#f0d280", at: 0.21 }, // 21%
+      { color: "#f0d293", at: 0.4 }, // 40%
+      { color: "#f0b480", at: 0.41 }, // 41%
+      { color: "#f0b493", at: 0.6 }, // 60%
+      { color: "#f09680", at: 0.61 }, // 61%
+      { color: "#f09693", at: 0.8 }, // 80%
+      { color: "#f07880", at: 0.81 }, // 81% — finely resolved above here
+      { color: "#f08585", at: 0.99 }, // 99%
+      { color: "#ff0000", at: 1 }, // 100% — a colour of its own
     ],
   },
   lst: {
@@ -100,46 +127,116 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
     measures: "Air temperature at 2 m",
     minLabel: "cold",
     maxLabel: "hot",
+    interpretationNote:
+      "The bar covers 220–310 K only. GIBS paints anything colder violet and anything warmer dark crimson — neither is on this ramp, so both read as no-data rather than as the end of the scale.",
+    // Colours published in MERRA2_2m_Air_Temperature_Monthly (the colormap the
+    // tiles are rendered with). GIBS draws that ramp by interpolating nine
+    // ColorBrewer Spectral anchors across 220–310 K, so nine stops placed on
+    // those anchors reproduce the rendered ramp rather than approximating it.
+    // The previous five hand-drawn stops opened on violet — GIBS's *below-220 K*
+    // overflow colour, not its 220 K blue — and ran to a dark red GIBS never
+    // paints, so 44 of the 90 ramp colours sat further than the no-data
+    // threshold from the gradient and were rejected outright, while the rest
+    // inverted at 18.95 K RMSE. See validation.MEASURED_INVERSION and the
+    // inversion-validation contract for the measured before/after.
     stops: [
-      { color: "#4a2e8f", at: 0 }, // polar air
-      { color: "#2c6fbb", at: 0.3 },
-      { color: "#7ec96a", at: 0.55 },
-      { color: "#f2a33c", at: 0.8 },
-      { color: "#b71c1c", at: 1 }, // tropical heat
+      { color: "#348abb", at: 0 }, // 220 K — coldest rendered temperature
+      { color: "#66c2a5", at: 0.125 }, // 231 K
+      { color: "#addea3", at: 0.25 }, // 243 K
+      { color: "#e6f598", at: 0.375 }, // 254 K
+      { color: "#fefdbc", at: 0.5 }, // 265 K
+      { color: "#fdd985", at: 0.625 }, // 276 K
+      { color: "#fca85e", at: 0.75 }, // 288 K
+      { color: "#ef6644", at: 0.875 }, // 299 K
+      { color: "#cf384d", at: 1 }, // 310 K — warmest rendered temperature
     ],
   },
   sst: {
     measures: "Sea surface temperature",
     minLabel: "polar",
     maxLabel: "tropical",
+    // Taken from the ramp GIBS renders MODIS_Sea_Surface_Temperature with
+    // (0–32 °C), sampled every ~2 °C. It is a spectral ramp — magenta and
+    // deep blue for cold water, green/yellow through the subtropics, red at
+    // the warm end — not the smooth cool-to-warm gradient this legend used to
+    // draw. That mismatch was not cosmetic: it put the whole 20–24 °C band
+    // (27 of 27 ramp colours) outside NO_DATA_DISTANCE, so subtropical water
+    // probed as no-data, and a true 8 °C inverted to 0 °C.
+    //
+    // The cold end is deliberately anchored at GIBS's ~2 °C hue rather than
+    // its true 0 °C colour (#2d001c): that colour sits only 53 units from the
+    // black GIBS renders where the L3 product has no SST, i.e. inside the
+    // 60-unit no-data threshold, so drawing it faithfully would invert land,
+    // sea ice, and cloud into plausible near-freezing water. The cost is
+    // absolute accuracy below ~4 °C (RMSE 2.8 °C there); the benefit is that
+    // empty pixels stay rejected. See docs/validation.md.
     stops: [
-      { color: "#3a1f6e", at: 0 }, // near-freezing seas
-      { color: "#2c6fbb", at: 0.35 },
-      { color: "#3fbf9f", at: 0.6 },
-      { color: "#f2c94c", at: 0.8 },
-      { color: "#d84315", at: 1 }, // warm tropical basins
+      { color: "#550249", at: 0 }, // near-freezing seas (GIBS ~2 °C hue)
+      { color: "#7a0677", at: 0.124 },
+      { color: "#4d0961", at: 0.185 },
+      { color: "#1e124e", at: 0.251 },
+      { color: "#1f2e76", at: 0.312 },
+      { color: "#214b9e", at: 0.373 },
+      { color: "#2878c8", at: 0.438 },
+      { color: "#2ea3ef", at: 0.499 },
+      { color: "#1ea35d", at: 0.56 },
+      { color: "#78d300", at: 0.626 },
+      { color: "#f8f500", at: 0.687 },
+      { color: "#ffb400", at: 0.748 },
+      { color: "#fa6d00", at: 0.813 },
+      { color: "#e03e00", at: 0.874 },
+      { color: "#b01b00", at: 0.935 },
+      { color: "#6e0300", at: 1 }, // warm tropical basins
     ],
   },
   precip: {
     measures: "Precipitation rate",
     minLabel: "dry",
     maxLabel: "wet",
+    interpretationNote:
+      "GIBS renders this layer on a spectral ramp where dry is red and wet is blue — the reverse of the usual rain palette. Red is the driest colour on the globe, not the heaviest rainfall.",
+    // Colours published in GLDAS_Surface_Total_Precipitation_Rate_Monthly (the
+    // colormap the tiles are rendered with), each placed at the position of the
+    // rate it stands for, so the bar the user reads and the LUT the probe
+    // inverts both describe the imagery. The previous tan → blue gradient was a
+    // hand-drawn guess: it put GIBS's pale-yellow mid-range rates nearest its
+    // dry end, so ~20 mm/day inverted to 0.0 mm/day and 23 of 50 ramp colours
+    // were rejected outright as no-data. See validation.MEASURED_INVERSION and
+    // the inversion-validation contract for the measured before/after.
     stops: [
-      { color: "#d9d2be", at: 0 }, // arid ground
-      { color: "#9ec9e0", at: 0.35 },
-      { color: "#3f83bf", at: 0.7 },
-      { color: "#173f7a", at: 1 }, // monsoon-level rainfall
+      { color: "#d53e4f", at: 0 }, // 0.0 mm/day — driest rendered rate
+      { color: "#eb5f46", at: 0.1111 }, // 4.8 mm/day
+      { color: "#f99254", at: 0.2222 }, // 9.6 mm/day
+      { color: "#fdbc6c", at: 0.3333 }, // 14.4 mm/day
+      { color: "#fae38c", at: 0.4444 }, // 19.2 mm/day
+      { color: "#e9f296", at: 0.5556 }, // 24.0 mm/day
+      { color: "#bbe3a0", at: 0.6667 }, // 28.8 mm/day
+      { color: "#8dd1a4", at: 0.7778 }, // 33.6 mm/day
+      { color: "#57b1ab", at: 0.8889 }, // 38.4 mm/day
+      { color: "#3288bd", at: 1 }, // 43.2 mm/day — monsoon-level rainfall
     ],
   },
   soil: {
     measures: "Soil moisture (underground)",
     minLabel: "dry",
     maxLabel: "saturated",
+    // Taken from the colormap GIBS actually renders the layer with
+    // (colormaps/v1.3/GLDAS_Underground_Soil_Moisture_Monthly.xml): a reversed
+    // *spectral* ramp — red = dry, yellow-green mid, blue = wet — not the
+    // brown → teal gradient this legend used to draw. Every stop below is a
+    // verbatim GIBS anchor colour placed at the position of the 1 kg/m² bin it
+    // labels on the 0–50 scale (bin i covers [i, i+1], midpoint i+0.5). Only
+    // the two end stops are moved, stretched to 0 and 1 so the bar spans the
+    // full scale; that costs half a bin (0.5 kg/m²) at each end.
     stops: [
-      { color: "#a9743f", at: 0 }, // parched soil
-      { color: "#c9b178", at: 0.35 },
-      { color: "#63a58f", at: 0.7 },
-      { color: "#1f6f6b", at: 1 }, // waterlogged ground
+      { color: "#d53e4f", at: 0 }, // driest ground GIBS draws
+      { color: "#f46d43", at: 0.15 },
+      { color: "#fdae61", at: 0.29 },
+      { color: "#fee08b", at: 0.43 },
+      { color: "#e6f598", at: 0.57 },
+      { color: "#abdda4", at: 0.71 },
+      { color: "#66c2a5", at: 0.85 },
+      { color: "#3288bd", at: 1 }, // waterlogged ground
     ],
   },
   aerosol: {
@@ -235,9 +332,18 @@ export const OVERLAY_KEYS: Record<"quakes" | "volcanoes", OverlayKeySpec> = {
   volcanoes: {
     title: "Last eruption",
     entries: [
-      { color: ERUPTION_CLASS_COLORS.recent, label: "since 1900" },
-      { color: ERUPTION_CLASS_COLORS.historic, label: "1 CE–1899" },
-      { color: ERUPTION_CLASS_COLORS.holocene, label: "Holocene only" },
+      {
+        color: ERUPTION_CLASS_COLORS.recent,
+        label: ERUPTION_CLASS_LABELS.recent,
+      },
+      {
+        color: ERUPTION_CLASS_COLORS.historic,
+        label: ERUPTION_CLASS_LABELS.historic,
+      },
+      {
+        color: ERUPTION_CLASS_COLORS.holocene,
+        label: ERUPTION_CLASS_LABELS.holocene,
+      },
     ],
   },
 };

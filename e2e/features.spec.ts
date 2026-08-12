@@ -332,14 +332,29 @@ test("hovering a city dot shows its name", async ({ page }) => {
 
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport");
-  // Quito (-0.213, -78.502) — isolated enough that no other dot can win.
-  const pt = screenPointFor(-0.213, -78.502, viewport.width, viewport.height);
+  // Denver (39.741, -104.986) — facing the default camera, the most isolated
+  // dot in view (~52 px from its nearest neighbour against a ~5 px pick
+  // radius), and high above the bottom-centre HUD stack. Quito was the old
+  // target, but it projects a pixel below the vertical centre, which the
+  // growing HUD stack now covers.
+  const pt = screenPointFor(39.741, -104.986, viewport.width, viewport.height);
+
+  // A HUD panel over this point would swallow the pointermove and make the
+  // hover assertion below fail for a reason that has nothing to do with
+  // markers, so state the precondition explicitly.
+  const hitId = await page.evaluate(
+    ([x, y]) => document.elementFromPoint(x, y)?.id ?? "",
+    [pt.x, pt.y] as const
+  );
+  expect(hitId).toBe("globe");
 
   const tooltip = page.locator("#hover-tooltip");
   let jitter = 0;
   await expect(async () => {
     await page.mouse.move(pt.x + (jitter ^= 1), pt.y);
-    await expect(tooltip).toContainText("Quito · Ecuador", { timeout: 300 });
+    await expect(tooltip).toContainText("Denver · United States of America", {
+      timeout: 300,
+    });
   }).toPass({ timeout: 10_000 });
 });
 
@@ -493,11 +508,89 @@ test("search traces an exact returned boundary without a study-region box", asyn
   const insights = page.locator("#place-insights");
   await expect(insights).toHaveClass(/is-open/);
   await expect(insights).toContainText("Vegetation");
-  await expect(insights).toContainText("Rainfall");
+  await expect(insights).toContainText("Precipitation");
   await expect(insights).toContainText("Soil moisture");
   await expect(insights).toContainText("Air temperature");
   await page.waitForTimeout(500);
   expect(highResolutionRequests).toBe(0);
+});
+
+test("place insights report nearby USGS seismicity with its source and scope", async ({
+  page,
+}) => {
+  await page.route("**nominatim**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          name: "Exactville",
+          display_name: "Exactville, Example State, Example Country",
+          lat: "34.0000",
+          lon: "-118.0000",
+          type: "city",
+          category: "boundary",
+          // Centre (34, -118); the circumscribed radius is roughly 21 km.
+          boundingbox: ["33.9", "34.1", "-118.2", "-117.8"],
+          geojson: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [-118.2, 33.9],
+                [-117.8, 33.9],
+                [-117.8, 34.1],
+                [-118.2, 33.9],
+              ],
+            ],
+          },
+        },
+      ]),
+    })
+  );
+  await page.route("**earthquake.usgs.gov**", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        features: [
+          {
+            // ~7 km from the extent centre: inside the radius.
+            geometry: { type: "Point", coordinates: [-118.05, 34.05, 9.2] },
+            properties: {
+              mag: 5.2,
+              magType: "mww",
+              time: 1_750_000_000_000,
+              place: "Near Exactville",
+            },
+          },
+          {
+            // Hundreds of km away: outside the radius.
+            geometry: { type: "Point", coordinates: [-120, 40, 480] },
+            properties: {
+              mag: 6.1,
+              time: 1_750_000_000_000,
+              place: "Far away",
+            },
+          },
+        ],
+      }),
+    })
+  );
+
+  await page.locator(".search__input").fill("Exactville");
+  await page.locator(".search__result").click();
+
+  const seismicity = page.locator(
+    '[aria-label="Recent earthquakes near this place"]'
+  );
+  await expect(seismicity).toContainText("1 event");
+  await expect(seismicity).toContainText("Near Exactville");
+  await expect(seismicity).toContainText("M5.2 mww");
+  await expect(seismicity).toContainText("shallow");
+  // Events outside the circumscribed radius must not be attributed to the place.
+  await expect(seismicity).not.toContainText("Far away");
+  // The radial query overshoots the rectangle's corners; the panel must say so
+  // rather than implying the events sit inside the searched boundary.
+  await expect(seismicity).toContainText("past the boundary corners");
+  await expect(seismicity).toContainText("USGS");
 });
 
 test("modals trap focus and restore it on close", async ({ page }) => {

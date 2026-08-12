@@ -2,8 +2,13 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseCityList } from "./cities";
-import { parseVolcanoDataset } from "./volcanoes";
-import { parsePlateBoundaries } from "./plates";
+import {
+  ERUPTION_CLASS_LABELS,
+  eruptionClass,
+  parseVolcanoDataset,
+} from "./volcanoes";
+import { canonicalVolcanoType } from "./volcanoMorphology";
+import { parsePlateBoundaries, plateBoundaryClass } from "./plates";
 import { decodePlatePair } from "./platePairs";
 import { buildAdmin1Index, buildCountryIndex } from "./countryIndex";
 
@@ -41,6 +46,63 @@ describe("bundled data files", () => {
     ).toBeGreaterThanOrEqual(500);
   });
 
+  it("every volcanoes.json type label canonicalizes to a clean landform", () => {
+    const { volcanoes } = parseVolcanoDataset(load("volcanoes.json"));
+    // volcanoHoverLabel() renders the canonical base directly, so a
+    // regeneration that introduced a qualifier form the parser does not
+    // recognize would leak raw punctuation into the tooltip and split the
+    // type tallies into a spurious extra bucket. A clean base is plain words;
+    // anything else is a GVP vocabulary change that deserves a human read.
+    // "Shield(pyroclastic)" is the one reviewed exception: its parenthetical
+    // qualifies the landform rather than marking multiplicity, so the parser
+    // is right to preserve it.
+    const REVIEWED_EXCEPTIONS = ["Shield(pyroclastic)"];
+    const bases = new Set(
+      volcanoes
+        .map((volcano) => canonicalVolcanoType(volcano.type).base)
+        .filter((base): base is string => base !== null)
+    );
+    const unexpected = [...bases]
+      .filter((base) => !/^[A-Za-z][A-Za-z -]*$/.test(base))
+      .sort();
+    expect(unexpected).toEqual(REVIEWED_EXCEPTIONS);
+  });
+
+  it("the legend's eruption bands describe the bundled records honestly", () => {
+    // Evidence for why the violet band is not labelled "Holocene only": in the
+    // shipped GVP snapshot a substantial minority of that class carries a
+    // *dated* BCE eruption year, so a "no dated eruption" reading is wrong for
+    // it. Measured against the real file through the app's own parser.
+    const volcanoes = parseVolcanoDataset(load("volcanoes.json")).volcanoes;
+    const inClass = (c: string) =>
+      volcanoes.filter((v) => eruptionClass(v.lastEruptionYear) === c);
+
+    const holocene = inClass("holocene");
+    const datedBce = holocene.filter((v) => (v.lastEruptionYear ?? 0) < 0);
+    const undated = holocene.filter((v) => v.lastEruptionYear === null);
+    expect(datedBce.length + undated.length).toBe(holocene.length);
+    // Both states are well populated, so the label must not claim either one.
+    expect(datedBce.length).toBeGreaterThanOrEqual(100);
+    expect(undated.length).toBeGreaterThanOrEqual(100);
+    expect(ERUPTION_CLASS_LABELS.holocene).not.toMatch(/holocene only/i);
+
+    // Every dated record in the band really is BCE, as the label says.
+    for (const v of datedBce) expect(v.lastEruptionYear).toBeLessThan(0);
+
+    // The historic band's label starts at year 0, not 1 CE, because GVP ships
+    // a source-year-zero record that eruptionClass puts there.
+    const historic = inClass("historic");
+    for (const v of historic) {
+      expect(v.lastEruptionYear).toBeGreaterThanOrEqual(0);
+      expect(v.lastEruptionYear).toBeLessThanOrEqual(1899);
+    }
+    expect(historic.some((v) => v.lastEruptionYear === 0)).toBe(true);
+
+    for (const v of inClass("recent")) {
+      expect(v.lastEruptionYear).toBeGreaterThanOrEqual(1900);
+    }
+  });
+
   it("plate-boundaries.geojson parses into boundary segments", () => {
     const plates = parsePlateBoundaries(load("plate-boundaries.geojson"));
     expect(plates.length).toBeGreaterThanOrEqual(200);
@@ -55,6 +117,43 @@ describe("bundled data files", () => {
       .map((boundary) => boundary.name)
       .filter((name) => !decodePlatePair(name)?.recognized);
     expect(undecodable).toEqual([]);
+  });
+
+  it("carries PB2002's own plate codes, type, and per-step citations", () => {
+    const plates = parsePlateBoundaries(load("plate-boundaries.geojson"));
+    // A regeneration that dropped the step attributes again would leave the
+    // linework rendering fine while silently losing the source's boundary-type
+    // marking and its per-step digitization credit.
+    expect(plates.every((boundary) => boundary.step !== undefined)).toBe(true);
+    expect(plates.filter((boundary) => boundary.step?.plateA === null)).toEqual(
+      []
+    );
+    expect(
+      plates.filter((boundary) => plateBoundaryClass(boundary) === "subduction")
+        .length
+    ).toBeGreaterThanOrEqual(50);
+    // PB2002 is a compilation of dozens of separately sourced digitizations.
+    const citations = new Set(
+      plates
+        .map((boundary) => boundary.step?.sourceCitation)
+        .filter((citation): citation is string => Boolean(citation))
+    );
+    expect(citations.size).toBeGreaterThanOrEqual(50);
+  });
+
+  it("agrees with the label delimiter on which steps are subduction zones", () => {
+    const plates = parsePlateBoundaries(load("plate-boundaries.geojson"));
+    // PB2002 writes a subduction step's label with "/" or "\" and every other
+    // step's with "-". That is the source's own convention, and its `Type`
+    // field is the evidence: the two must not drift apart in the bundled file.
+    const disagreeing = plates.filter((boundary) => {
+      const separator = decodePlatePair(boundary.name)?.separator;
+      const labelledSubduction = separator === "/" || separator === "\\";
+      return (
+        labelledSubduction !== (plateBoundaryClass(boundary) === "subduction")
+      );
+    });
+    expect(disagreeing.map((boundary) => boundary.name)).toEqual([]);
   });
 
   it("countries.geojson builds a working lookup index", () => {

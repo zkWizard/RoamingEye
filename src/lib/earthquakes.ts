@@ -9,6 +9,8 @@
  * Served with permissive CORS, no key required. M4.5+/30-days is ~400 kB.
  */
 
+import { formatReportedMagnitude } from "./magnitudeScale";
+
 export interface Earthquake {
   lat: number;
   lon: number;
@@ -60,6 +62,30 @@ export interface EarthquakeSourceRecord {
    * `depthKm`, not depth itself, and is null when unavailable.
    */
   depthErrorKm: number | null;
+  /**
+   * Number of seismic stations used to locate the event (feed `nst`). Null when
+   * unavailable; zero would be a reported value, not an unavailable state.
+   */
+  stationCount: number | null;
+  /**
+   * Largest azimuthal gap between azimuthally adjacent stations, in degrees
+   * (feed `gap`). This describes the recording network's geometry around the
+   * epicentre, not the earthquake itself — see lib/seismicNetworkGeometry.ts
+   * for the constraint USGS documents at 180°.
+   */
+  azimuthalGapDeg: number | null;
+  /**
+   * Horizontal distance from the epicentre to the nearest reporting station, in
+   * degrees (feed `dmin`). Retained in the feed's native degrees; the USGS
+   * degrees-to-kilometres conversion lives in lib/seismicNetworkGeometry.ts.
+   */
+  nearestStationDeg: number | null;
+  /**
+   * Root-mean-square travel-time residual of the location fit, in seconds
+   * (feed `rms`). A goodness-of-fit measure for the reported location, not an
+   * uncertainty on any single reported quantity.
+   */
+  travelTimeResidualS: number | null;
 }
 
 export type EarthquakeFeedStatus =
@@ -122,15 +148,16 @@ export interface EarthquakeFeedSnapshot {
 
 /**
  * Compact, source-faithful text for inspecting one parsed feed observation.
- * The feed's reported magnitude is left unclassified because summary feeds
- * may mix magnitude types; depth remains in its native kilometres and the
- * event timestamp is rendered explicitly in UTC.
+ * The reported magnitude stays unclassified by size, but is attributed to the
+ * scale that measured it — summary feeds mix magnitude types, which are not
+ * directly comparable (see lib/magnitudeScale.ts). Depth remains in its native
+ * kilometres and the event timestamp is rendered explicitly in UTC.
  */
 export function formatEarthquakeObservation(earthquake: Earthquake): string {
   const timeUtc = new Date(earthquake.time).toISOString();
   const parts = [
     earthquake.place?.trim() || "Location not supplied",
-    `M ${earthquake.magnitude} (reported)`,
+    formatReportedMagnitude(earthquake.magnitude, earthquake.magnitudeType),
     `${earthquake.depthKm} km depth`,
     timeUtc.replace("Z", " UTC"),
   ];
@@ -508,6 +535,10 @@ export function parseEarthquakeFeedWithCoverage(
         reviewStatus: typeof props.status === "string" ? props.status : null,
         horizontalErrorKm: nonNegativeFiniteNumberOrNull(props.horizontalError),
         depthErrorKm: nonNegativeFiniteNumberOrNull(props.depthError),
+        stationCount: nonNegativeIntegerOrNull(props.nst),
+        azimuthalGapDeg: azimuthalGapOrNull(props.gap),
+        nearestStationDeg: nonNegativeFiniteNumberOrNull(props.dmin),
+        travelTimeResidualS: nonNegativeFiniteNumberOrNull(props.rms),
       },
     });
   }
@@ -566,6 +597,16 @@ function finiteNumberOrNull(value: unknown): number | null {
 function nonNegativeFiniteNumberOrNull(value: unknown): number | null {
   const number = finiteNumberOrNull(value);
   return number !== null && number >= 0 ? number : null;
+}
+
+/**
+ * An azimuthal gap is an angle between two station azimuths, so it cannot leave
+ * 0–360°. Out-of-range values are treated as unavailable rather than clamped,
+ * which would invent a constraint the source never reported.
+ */
+function azimuthalGapOrNull(value: unknown): number | null {
+  const number = finiteNumberOrNull(value);
+  return number !== null && number >= 0 && number <= 360 ? number : null;
 }
 
 function parseFeedMetadata(value: unknown): EarthquakeFeedMetadata {

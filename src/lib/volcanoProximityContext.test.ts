@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { Volcano } from "./volcanoes";
 import {
   GVP_HOLOCENE_VOLCANO_SOURCE,
+  NEAREST_VOLCANO_RADIUS_KM,
   VOLCANO_PROXIMITY_UNITS,
   nearbyVolcanoContext,
+  nearestVolcanoStatement,
 } from "./volcanoProximityContext";
 
 const volcano = (overrides: Partial<Volcano> = {}): Volcano => ({
@@ -159,5 +161,79 @@ describe("nearbyVolcanoContext", () => {
     ]);
     expect(context.observations).toEqual([]);
     expect(context.nearest).toBeNull();
+  });
+});
+
+describe("nearestVolcanoStatement", () => {
+  const query = { latitude: 0, longitude: 0, radiusKm: 100 };
+
+  it("names the nearest volcano with its distance, type, and eruption text", () => {
+    const context = nearbyVolcanoContext(
+      [
+        volcano({ name: "Far", lon: 0.8 }),
+        volcano({ name: "Near", lon: 0.5, type: "Caldera" }),
+      ],
+      query
+    );
+
+    expect(nearestVolcanoStatement(context)).toBe(
+      "Nearest catalogued Holocene volcano within 100 km: Near, 56 km from the search centre (Caldera; last erupted 2000). Summit great-circle distance, not a hazard footprint."
+    );
+  });
+
+  it("keeps a missing GVP primary type explicit rather than guessing one", () => {
+    const context = nearbyVolcanoContext(
+      [volcano({ name: "Untyped", lon: 0.5, type: null })],
+      query
+    );
+
+    expect(nearestVolcanoStatement(context)).toContain(
+      "(primary type not supplied; last erupted 2000)"
+    );
+  });
+
+  it("reports sub-10 km distances to one decimal", () => {
+    const context = nearbyVolcanoContext(
+      [volcano({ name: "Close", lon: 0.05 })],
+      query
+    );
+
+    expect(nearestVolcanoStatement(context)).toContain("Close, 5.6 km");
+  });
+
+  it("states an empty radius as absence from the inventory, not inactivity", () => {
+    const context = nearbyVolcanoContext([volcano({ lon: 5 })], query);
+
+    expect(context.coverage.status).toBe("no-volcanoes-in-radius");
+    expect(nearestVolcanoStatement(context)).toBe(
+      "No catalogued Holocene volcano lies within 100 km of the search centre; absence from the GVP inventory does not establish that a place is volcanically inactive."
+    );
+  });
+
+  it("declines to speak when the query or the supplied records are unusable", () => {
+    const invalidQuery = nearbyVolcanoContext([volcano()], {
+      latitude: 95,
+      longitude: 0,
+      radiusKm: 100,
+    });
+    const noRecords = nearbyVolcanoContext(
+      [volcano({ lat: Number.NaN })],
+      query
+    );
+
+    expect(invalidQuery.coverage.status).toBe("invalid-query");
+    expect(nearestVolcanoStatement(invalidQuery)).toBeNull();
+    expect(noRecords.coverage.status).toBe("no-usable-volcanoes");
+    expect(nearestVolcanoStatement(noRecords)).toBeNull();
+  });
+
+  it("quotes whatever radius the caller queried, including the shared default", () => {
+    const context = nearbyVolcanoContext([volcano({ lon: 0.5 })], {
+      ...query,
+      radiusKm: NEAREST_VOLCANO_RADIUS_KM,
+    });
+
+    expect(NEAREST_VOLCANO_RADIUS_KM).toBe(100);
+    expect(nearestVolcanoStatement(context)).toContain("within 100 km");
   });
 });

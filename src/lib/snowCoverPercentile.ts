@@ -61,6 +61,7 @@ export const SNOW_COVER_PERCENTILE_LIMITATIONS = [
 
 export type SnowCoverPercentileStatus =
   | "available"
+  | "not-distributed"
   | "not-yet-published"
   | "insufficient-samples"
   | "insufficient-coverage"
@@ -72,6 +73,12 @@ export interface SnowCoverPercentileExclusions {
   wrongCalendarMonth: number;
   outOfBounds: number;
   duplicateYear: number;
+  /**
+   * Years the imagery service does not distribute for this calendar month.
+   * Counted apart from `notYetPublished` and `missing` because it bounds the
+   * record itself: no coverage threshold or later re-sample can recover them.
+   */
+  notDistributed: number;
   notYetPublished: number;
   missing: number;
   invalid: number;
@@ -252,6 +259,10 @@ export function describeSnowCoverPercentile(
     seenYears.add(candidate.dataMonth.year);
 
     const summary = summarizeSnowCover(candidate, availableThrough);
+    if (summary.publicationStatus === "not-distributed") {
+      exclusions.notDistributed += 1;
+      continue;
+    }
     if (summary.publicationStatus !== "published") {
       exclusions.notYetPublished += 1;
       continue;
@@ -351,6 +362,9 @@ function targetReadiness(
   target: SnowCoverSummary,
   minimumValidFraction: number
 ): { status: SnowCoverPercentileStatus; reason: string | null } {
+  if (target.publicationStatus === "not-distributed") {
+    return { status: "not-distributed", reason: "target-not-distributed" };
+  }
   if (target.publicationStatus === "not-yet-published") {
     return { status: "not-yet-published", reason: "target-not-yet-published" };
   }
@@ -396,6 +410,7 @@ function emptyExclusions(): SnowCoverPercentileExclusions {
     wrongCalendarMonth: 0,
     outOfBounds: 0,
     duplicateYear: 0,
+    notDistributed: 0,
     notYetPublished: 0,
     missing: 0,
     invalid: 0,

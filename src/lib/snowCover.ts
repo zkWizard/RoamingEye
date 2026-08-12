@@ -92,12 +92,57 @@ export interface SnowCoverCoverage {
 }
 
 export type SnowCoverPublicationStatus =
-  "published" | "not-yet-published" | "invalid-reference-month";
+  | "published"
+  | "not-distributed"
+  | "not-yet-published"
+  | "invalid-reference-month";
+
+/**
+ * Months inside MOD10CM's own record that the imagery service does not serve.
+ *
+ * GIBS advertises the snow layer's time dimension as *seven* disjoint ranges
+ * rather than one span (WMTS GetCapabilities, verified 2026-08-11):
+ * 2000-03/2000-07, 2000-09/2001-05, 2001-07/2002-02, 2002-04/2003-11,
+ * 2004-01/2016-01, 2016-03/2022-09, 2022-11/2026-07, each P1M. The six months
+ * that fall between those ranges are listed here; each was confirmed to answer
+ * HTTP 404 at the tile endpoint while its neighbours serve normally.
+ *
+ * This is a *distribution* fact about the imagery this app reads, not a claim
+ * that NSIDC never produced the granule — the app samples rendered GIBS tiles,
+ * so a month GIBS does not serve is unavailable here whatever the archive
+ * holds. Recorded as catalog data rather than derived, because an absent month
+ * is not an observation: without it, a null for February 2016 is summarized as
+ * a published month with no usable coverage, which a reader would credit to
+ * cloud, polar darkness, or the quality screen — an implied statement about a
+ * snowpack nobody imaged. Four of the six (2001-06, 2002-03, 2003-12, 2016-02)
+ * fall inside a hemispheric snow season, so they also silently shorten any
+ * season or same-month baseline built from the surrounding months.
+ */
+export const SNOW_COVER_UNDISTRIBUTED_MONTHS: readonly YearMonth[] = [
+  { year: 2000, month: 8 },
+  { year: 2001, month: 6 },
+  { year: 2002, month: 3 },
+  { year: 2003, month: 12 },
+  { year: 2016, month: 2 },
+  { year: 2022, month: 10 },
+];
+
+/**
+ * True when the imagery service serves MOD10CM for this month. Months outside
+ * the recorded gaps are treated as distributed: this catalog asserts only the
+ * absences GIBS advertises, and never guesses at one.
+ */
+export function isSnowCoverMonthDistributed(month: YearMonth): boolean {
+  return !SNOW_COVER_UNDISTRIBUTED_MONTHS.some(
+    (gap) => gap.year === month.year && gap.month === month.month
+  );
+}
 
 export const SNOW_COVER_LIMITATIONS = [
   "Values are the monthly-average fraction of area flagged as snow, not snow depth or snow-water-equivalent.",
   "Extent classes are reporting bins over a continuous percentage; their boundaries are conventions, not physical thresholds.",
   "Monthly averaging and cloud or polar-darkness gaps can depress the covered-area value below the true extent.",
+  "Six months inside the record are not distributed by the imagery service; they are reported as not distributed, never as an observed absence of snow.",
   "This description does not infer melt, accumulation, runoff, water volume, cause, or any future value.",
 ] as const;
 
@@ -111,7 +156,10 @@ export interface SnowCoverSummary {
   /** Month through which the caller had confirmed source availability. */
   availableThrough: YearMonth;
   publicationStatus: SnowCoverPublicationStatus;
-  /** Calendar-month difference, or null when data month is not yet published. */
+  /**
+   * Calendar-month difference, or null when the data month was never published
+   * — a month the service does not distribute has no publication lag to state.
+   */
   publicationLagMonths: number | null;
   coverage: SnowCoverCoverage;
   /** Retained 0-100 percentage, or null when not usable. */
@@ -129,6 +177,12 @@ export interface SnowCoverSummary {
  * monthly value will be published. The value and extent are surfaced only for a
  * published month with usable coverage, so an unpublished future month is never
  * dressed up as an observation.
+ *
+ * Reaching `availableThrough` is necessary but not sufficient: a month the
+ * service does not distribute at all (see SNOW_COVER_UNDISTRIBUTED_MONTHS) is
+ * reported as `not-distributed` rather than as a published month that happened
+ * to carry no usable value, so an absent month is never read as an observed
+ * absence of snow.
  */
 export function summarizeSnowCover(
   observation: SnowCoverObservation,
@@ -143,7 +197,9 @@ export function summarizeSnowCover(
       ? "invalid-reference-month"
       : lag < 0
         ? "not-yet-published"
-        : "published";
+        : isSnowCoverMonthDistributed(dataMonth)
+          ? "published"
+          : "not-distributed";
   const coverage = coverageFor(observation, validMonths);
   const usablePercent =
     publicationStatus === "published" && coverage.status === "available"
@@ -160,7 +216,7 @@ export function summarizeSnowCover(
     dataMonth,
     availableThrough,
     publicationStatus,
-    publicationLagMonths: lag === null || lag < 0 ? null : lag,
+    publicationLagMonths: publicationStatus === "published" ? lag : null,
     coverage,
     snowCoveredPercent: usablePercent,
     extentClass: extent?.id ?? null,

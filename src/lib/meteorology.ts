@@ -9,6 +9,18 @@ import { SCALE_CONVERSIONS } from "./colormap";
 import { classifyModality } from "./observationModality";
 import { compareYm, type LayerId, type YearMonth } from "./timeline";
 import { toConventionalClimateValue } from "./climateConventionalUnits";
+import {
+  airTemperaturePlausibility,
+  formatAirTemperaturePlausibility,
+  type AirTemperaturePlausibilityStatus,
+} from "./airTemperaturePlausibility";
+import {
+  formatPrecipitationRatePlausibility,
+  precipitationRatePlausibility,
+  type PrecipitationRatePlausibilityStatus,
+} from "./precipitationRatePlausibility";
+import { precipitationAccumulation } from "./precipitationAccumulation";
+import { monthOverMonthCoverageSupport } from "./climateChangeSupport";
 import type { GeometrySamplingStrategy } from "./geojson";
 import type {
   PlaceObservationInput,
@@ -208,7 +220,9 @@ export function summarizeRenderedClimateSample(
  * `placeObservationProductFromSample` performs the cited native-unit
  * conversion exactly once. Unusable observations are withheld instead of
  * allowing a non-finite or physically impossible value to invalidate the
- * entire download.
+ * entire download — including a value the metric's cited gross-error band
+ * rejects (see `implausibleValueReason`), which no longer reaches the export
+ * as a measurement.
  */
 export function exportObservationsFromRenderedClimateSample(
   input: RenderedClimateSampleInput,
@@ -220,7 +234,8 @@ export function exportObservationsFromRenderedClimateSample(
     if (
       summary.publicationStatus === "published" &&
       summary.coverage.status === "available" &&
-      summary.observedValue !== null
+      summary.observedValue !== null &&
+      implausibleValueReason(summary) === null
     ) {
       return {
         dataMonth: summary.dataMonth,
@@ -240,6 +255,70 @@ export function exportObservationsFromRenderedClimateSample(
         : {}),
     };
   });
+}
+
+export type ClimatePlausibilityStatus =
+  "plausible" | "implausible" | "not-checked";
+
+export interface ClimatePlausibilityVerdict {
+  status: ClimatePlausibilityStatus;
+  /**
+   * The band verdict with its cited source, or why no band was applied.
+   * Callers surface this verbatim rather than restating the bounds.
+   */
+  statement: string;
+}
+
+/**
+ * Apply the metric-appropriate gross-error plausibility band to one rendered
+ * monthly observation.
+ *
+ * Rendered-imagery sampling can fail in ways `climate.ts` cannot catch: it only
+ * guards sign and finiteness, so an unconverted °C figure, a mm/day rate left
+ * unscaled, or a colormap decode error still arrives as a "usable" native
+ * value. The atmospheric bands are deliberately far wider than any real monthly
+ * mean, so a genuine extreme is never flagged — only physically impossible
+ * readings are.
+ *
+ * `not-checked` is returned for soil moisture, which has no band defined here,
+ * and for observations with no usable value to check. It is never a pass:
+ * a `plausible` result is a gross-error sanity pass, not a correctness claim.
+ */
+export function climateObservationPlausibility(
+  summary: MonthlyClimateSummary
+): ClimatePlausibilityVerdict {
+  const airTemperature = airTemperaturePlausibility(summary);
+  if (airTemperature) {
+    return {
+      status: bandStatus(airTemperature.status),
+      statement: formatAirTemperaturePlausibility(airTemperature),
+    };
+  }
+
+  const precipitation = precipitationRatePlausibility(summary);
+  if (precipitation) {
+    return {
+      status: bandStatus(precipitation.status),
+      statement: formatPrecipitationRatePlausibility(precipitation),
+    };
+  }
+
+  return {
+    status: "not-checked",
+    statement: `No gross-error plausibility band is defined for ${summary.metric.label}`,
+  };
+}
+
+/**
+ * Collapse a metric-specific band verdict onto the shared status. Every
+ * non-`plausible`, checkable verdict is treated as implausible, so a new
+ * failure mode added to a band is withheld by default rather than displayed.
+ */
+function bandStatus(
+  status: AirTemperaturePlausibilityStatus | PrecipitationRatePlausibilityStatus
+): ClimatePlausibilityStatus {
+  if (status === "not-usable") return "not-checked";
+  return status === "plausible" ? "plausible" : "implausible";
 }
 
 export interface ClimateInsightText {
@@ -263,18 +342,30 @@ export function climateInsightText(
   const provenance = imageProvenance(current.sourceImageDimensions);
   const coverage = coverageText(current.coverage.validFraction);
   const sampling = samplingText(current.geometrySamplingStrategy);
+  const implausible = implausibleValueReason(current);
   if (
     current.publicationStatus !== "published" ||
     current.coverage.status !== "available" ||
-    current.observedValue === null
+    current.observedValue === null ||
+    implausible !== null
   ) {
     return {
       value: "Unavailable",
-      detail: `No usable ${month} ${modality.field} (${unavailableReason(
-        current
-      )}); ${sampling}; ${coverage}; ${provenance}; ${
+      detail: `No usable ${month} ${modality.field} (${
+        implausible ?? unavailableReason(current)
+      }); ${sampling}; ${coverage}; ${provenance}; ${
         modality.limit
       }; ${sourceVariable}; source ${source}`,
+    };
+  }
+
+  // A value outside the metric's gross-error band is a unit/decode failure,
+  // not an observation, so it is withheld rather than shown as a measurement.
+  const plausibility = climateObservationPlausibility(current);
+  if (plausibility.status === "implausible") {
+    return {
+      value: "Unavailable",
+      detail: `Withheld ${month} ${modality.field}: ${plausibility.statement}; ${sampling}; ${coverage}; ${provenance}; ${modality.limit}; ${sourceVariable}`,
     };
   }
 
@@ -296,6 +387,15 @@ export function climateInsightText(
     comparisonIssue === null
       ? current.observedValue - previous.observedValue
       : null;
+  // Each month's value aggregates only that month's usable pixels, so when the
+  // two months' coverage differs part of the difference is a change in which
+  // ground was aggregated. The pixel masks are gone by this point, so the
+  // readout states the tightest bound the two coverage fractions permit rather
+  // than letting a difference imply fixed common ground.
+  const sharedSupport =
+    nativeDelta !== null
+      ? monthOverMonthCoverageSupport(previous!, current).statement
+      : null;
   const comparison =
     nativeDelta !== null
       ? `; ${formatNativeDelta(
@@ -303,7 +403,9 @@ export function climateInsightText(
             ? nativeDelta * conventional.conversion.scale
             : nativeDelta,
           conventional?.conventionalUnit ?? current.metric.nativeUnit
-        )} vs ${formatMonth(previous!.dataMonth)}`
+        )} vs ${formatMonth(previous!.dataMonth)}${
+          sharedSupport ? ` (${sharedSupport})` : ""
+        }`
       : comparisonIssue
         ? `; comparison unavailable (${comparisonIssue})`
         : "";
@@ -313,9 +415,22 @@ export function climateInsightText(
         current.metric.nativeUnit
       )} (${conventional.conversion.basis})`
     : "";
+  // A mean rate says how hard it rained; the plainest hydrologic question about
+  // a month is how much fell, and precipitation climatology is conventionally
+  // reported as a monthly total. That total is the exact integration of the
+  // reported mean rate over the month's own calendar length, so it is stated
+  // alongside the rate — never in place of it — with the month length shown,
+  // because month length is part of why two months' totals differ. Non-
+  // precipitation metrics yield null here and gain no clause.
+  const accumulated = precipitationAccumulation(current);
+  const accumulation = accumulated
+    ? `; ${accumulated.monthDays}-day total ${formatNumber(
+        accumulated.totalMm
+      )} mm water-equivalent (mean rate integrated over the calendar month)`
+    : "";
   return {
     value,
-    detail: `${month} ${modality.field}${comparison}${nativeProvenance}; ${coverage}; ${provenance}; ${sampling}; ${modality.limit}; ${sourceVariable}; source ${source}`,
+    detail: `${month} ${modality.field}${comparison}${accumulation}${nativeProvenance}; ${coverage}; ${provenance}; ${sampling}; ${modality.limit}; ${sourceVariable}; source ${source}`,
   };
 }
 
@@ -377,6 +492,10 @@ function climateComparisonIssue(
   if (compareYm(previous.dataMonth, current.dataMonth) >= 0) {
     return "comparison month is not earlier";
   }
+  // A change computed against an impossible value would itself be impossible.
+  if (climateObservationPlausibility(previous).status === "implausible") {
+    return "comparison month failed the gross-error plausibility band";
+  }
   return null;
 }
 
@@ -387,12 +506,50 @@ function unavailableReason(summary: MonthlyClimateSummary): string {
   return summary.coverage.reason ?? "unspecified";
 }
 
+/**
+ * Screen a usable atmosphere observation against the gross-error plausibility
+ * band published with its metric, and describe the failure when it fails.
+ *
+ * `climate.ts` decides whether the *source* supplied a usable value: it checks
+ * the sign the quantity must carry, and nothing about magnitude. So a value
+ * whose units or decode went wrong — a °C figure never converted to kelvin, a
+ * mm/day rate read as kg/m²/s — still arrives here as a published, fully
+ * covered observation. This screen is where such a value stops being reported
+ * as a measurement.
+ *
+ * Deliberate limits, because callers surface this:
+ *  - The bands are gross-error bands, drawn wider than any recorded extreme.
+ *    Passing is a sanity check, never a correctness claim, and a real extreme
+ *    month is never flagged.
+ *  - Only the two atmosphere metrics have a cited band in this repo. Soil
+ *    moisture returns null here rather than being judged against an invented
+ *    limit.
+ *  - The screen never substitutes, clamps, or repairs a value. It withholds
+ *    the reading and says why.
+ *
+ * Returns null when the value passes, or when there is no band to judge it by.
+ */
+function implausibleValueReason(summary: MonthlyClimateSummary): string | null {
+  const verdict =
+    airTemperaturePlausibility(summary) ??
+    precipitationRatePlausibility(summary);
+  if (!verdict || verdict.status === "plausible") return null;
+  // "not-usable" means the summary carried no value to judge; the caller's own
+  // unavailability reason already covers that and is more specific.
+  if (verdict.status === "not-usable") return null;
+  return `${verdict.status}; ${verdict.basis}`;
+}
+
 function exportUnavailableReason(
   summary: MonthlyClimateSummary
 ): PlaceObservationUnavailableReason {
   if (
     summary.publicationStatus !== "published" ||
-    summary.coverage.status === "invalid"
+    summary.coverage.status === "invalid" ||
+    // A value the cited band rejects is a unit/decode failure of our own
+    // sampling, not a gap in what the source published. Reporting it as
+    // thin coverage would blame the source for our mistake.
+    implausibleValueReason(summary) !== null
   ) {
     return "sampling-failed";
   }

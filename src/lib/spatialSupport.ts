@@ -29,7 +29,12 @@ import type { DatasetRef } from "./timeline";
  * title (the same metadata already carried on every `DatasetRef`), never from
  * an invented side table. A citation that states no grid — e.g. the MERRA-2 2 m
  * air-temperature title — is reported as `unknown`, not back-filled with a
- * guessed resolution. The nominal metres for an angular grid use the meridional
+ * guessed resolution. Refusing to invent it, however, leaves the reported grid
+ * range and contrast covering only the *stated* grids, and on the app's own
+ * four-signal brief the single unstated grid belongs to the coarsest cited
+ * product — so those figures are reported as lower bounds whenever a grid is
+ * unstated (`contrastIsLowerBound`), never as the brief's own grain contrast.
+ * The nominal metres for an angular grid use the meridional
  * degree length (~111.32 km) and are a coarse, latitude-dependent order-of-
  * magnitude figure for comparison only — never a ground-resolution or accuracy
  * claim. It reports grid structure and nothing about the values themselves: no
@@ -117,12 +122,18 @@ export interface SpatialSupportSummary {
   distinctStatedGrids: number;
   /** Ids of signals whose citation title states no native grid, in order. */
   unknownGridSignalIds: EnvironmentSignalId[];
-  /** Finest / coarsest nominal cell size (metres) among stated grids; null when none. */
+  /**
+   * Finest / coarsest nominal cell size (metres) among **stated** grids; null
+   * when none. When `contrastIsLowerBound` is true these bracket the stated
+   * subset only: `finestMetres` is then an upper bound on the brief's true
+   * finest grid and `coarsestMetres` a lower bound on its true coarsest.
+   */
   finestMetres: number | null;
   coarsestMetres: number | null;
   /**
    * Coarsest ÷ finest nominal linear scale among stated grids; null when fewer
    * than two signals carry a stated grid. 1 when every stated grid matches.
+   * A LOWER BOUND on the brief's grain contrast when `contrastIsLowerBound`.
    */
   scaleRatio: number | null;
   /**
@@ -132,9 +143,26 @@ export interface SpatialSupportSummary {
    * not a length, so a modest linear ratio (e.g. ~28×) is a far larger areal
    * one (~780×). Null when `scaleRatio` is null; 1 when every stated grid
    * matches. A nominal comparison figure, never a measured footprint or
-   * accuracy claim.
+   * accuracy claim, and — like `scaleRatio` — a lower bound when
+   * `contrastIsLowerBound`.
    */
   areaScaleRatio: number | null;
+  /**
+   * True when a grid contrast is reported while at least one considered signal
+   * carries no stated grid — so the reported range and contrast describe the
+   * *stated subset*, not the brief.
+   *
+   * The direction is not a guess: adding any further grid to a set can only
+   * widen its min/max range or leave it unchanged, never narrow it. So an
+   * unstated grid can only push `coarsestMetres` up or `finestMetres` down,
+   * and `scaleRatio` / `areaScaleRatio` can only grow. Reporting them flat
+   * would understate the change-of-support caveat exactly when the brief is
+   * least able to justify it — and the omission is not random: the brief's
+   * coarsest cited product (MERRA-2 near-surface diagnostics, whose title
+   * states no grid) is the one that goes unmeasured. Same bounding discipline
+   * as `coObservedCoverage`: bound the unknown, never invent it.
+   */
+  contrastIsLowerBound: boolean;
   /**
    * True only when 2+ considered signals all carry the same stated grid and
    * none is unknown — the only case where a shared native support can be
@@ -161,6 +189,7 @@ const SPATIAL_SUPPORT_LIMITS = [
   "The grid is read only from the cited title; an unstated grid is left unknown.",
   "Nominal metres for angular grids use the degree length and vary with latitude.",
   "Area contrast is the square of the linear grid ratio — a nominal comparison figure, not a measured footprint.",
+  "When any considered signal's grid is unstated, the reported range and contrast cover only the stated grids and are lower bounds on the brief's own.",
 ];
 
 /**
@@ -231,6 +260,8 @@ export function summarizeSpatialSupport(
       ? coarsestMetres! / finestMetres
       : null;
   const areaScaleRatio = scaleRatio === null ? null : scaleRatio * scaleRatio;
+  const contrastIsLowerBound =
+    scaleRatio !== null && unknownGridSignalIds.length > 0;
   const commonGrid =
     considered.length >= 2 &&
     unknownGridSignalIds.length === 0 &&
@@ -246,6 +277,7 @@ export function summarizeSpatialSupport(
     coarsestMetres,
     scaleRatio,
     areaScaleRatio,
+    contrastIsLowerBound,
     commonGrid,
     statement: summaryStatement({
       consideredCount: considered.length,
@@ -255,6 +287,7 @@ export function summarizeSpatialSupport(
       coarsestMetres,
       scaleRatio,
       areaScaleRatio,
+      contrastIsLowerBound,
     }),
     limits: SPATIAL_SUPPORT_LIMITS,
   };
@@ -293,10 +326,15 @@ function summaryStatement(summary: {
   coarsestMetres: number | null;
   scaleRatio: number | null;
   areaScaleRatio: number | null;
+  contrastIsLowerBound: boolean;
 }): string {
   const unknownClause =
     summary.unknownGridSignalIds.length > 0
-      ? ` Native grid not stated in the citation for: ${summary.unknownGridSignalIds.join(", ")}.`
+      ? ` Native grid not stated in the citation for: ${summary.unknownGridSignalIds.join(", ")}${
+          summary.contrastIsLowerBound
+            ? ", so the contrast across every considered signal can only be wider"
+            : ""
+        }.`
       : "";
 
   if (summary.consideredCount === 0) {
@@ -327,9 +365,13 @@ function summaryStatement(summary: {
   const range = `${summary.distinctStatedGrids} distinct native grids (~${formatMetres(
     summary.finestMetres!
   )} to ~${formatMetres(summary.coarsestMetres!)})`;
-  return `${knownCount} usable observations sit on ${range}; the coarsest cell is ~${formatRatio(
+  // With an unstated grid in play the two ratios are floors, not the brief's
+  // contrast, so they are worded as floors rather than stated flat.
+  const linear = summary.contrastIsLowerBound ? "at least ~" : "~";
+  const areal = summary.contrastIsLowerBound ? "at least ~" : "about ";
+  return `${knownCount} usable observations sit on ${range}; the coarsest cell is ${linear}${formatRatio(
     summary.scaleRatio!
-  )} the finest in linear scale, so it averages over about ${formatRatio(
+  )} the finest in linear scale, so it averages over ${areal}${formatRatio(
     summary.areaScaleRatio!
   )} the area — they are not co-registered at a common resolution and should not be read as the same patch of ground at the same detail.${unknownClause}`;
 }

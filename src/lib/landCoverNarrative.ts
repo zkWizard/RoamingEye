@@ -1,3 +1,4 @@
+import { doiResolverUrl } from "./doiLink";
 import type { LandCoverContextSummary } from "./landCover";
 
 /**
@@ -48,7 +49,7 @@ export function describeLandCoverObservation(
 ): LandCoverObservationNarrative {
   const { provenance, coverage } = summary;
   const sourceLabel = `${provenance.source.shortName} v${provenance.source.version} — ${provenance.source.title}`;
-  const sourceUrl = `https://doi.org/${provenance.source.doi}`;
+  const sourceUrl = doiResolverUrl(provenance.source.doi);
 
   return {
     kind: "land-cover-observation-narrative",

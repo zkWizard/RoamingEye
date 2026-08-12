@@ -34,6 +34,27 @@ rows (the canonical gridded-data mistake). Coverage is gated on the valid
 **area** fraction, not the sample count, so a box whose only data is a few
 polar slivers is correctly rejected rather than reported as a region mean.
 
+### No-data separation (sea surface temperature)
+
+GIBS serves these composites as JPEG, so a pixel the Level-3 product leaves
+empty — land, sea ice, persistent cloud, missing swath — arrives as **black**
+rather than as a flagged value. For most layers that black falls far outside the
+colormap and is rejected by the app-wide 60-unit colour distance. The
+sea-surface-temperature ramp is the exception: its coldest colour is only **53.0**
+units from black, so the default threshold inverted empty pixels into a
+plausible near-freezing reading and averaged them into boundary means. Measured
+on five 2026-03 scenes, that pulled a Gulf-coast boundary mean from 22.8 °C down
+to 17.3 °C, and reported a landlocked county as 0.1 °C water at full coverage.
+
+The SST place card therefore samples with a **24**-unit threshold: roughly 3× the
+worst deviation measured for genuine open-ocean pixels (**8.1**) and under half
+the 53.0 separation, so no-data is excluded while every published ramp colour
+still inverts — re-checked weekly against the live colormap. Coastline pixels
+that genuinely blend water and land stay ambiguous at any threshold; they are
+excluded rather than averaged in, which lowers the reported coverage fraction
+instead of biasing the mean. A rejected pixel means the product reports no SST
+there — not that the location is land, and not that the water is cold.
+
 ## 3. Uncertainty
 
 Two sources, both stated in every export:
@@ -44,21 +65,124 @@ Two sources, both stated in every export:
   colormap colours through the production inversion and comparing to truth.
   This is the real accuracy of the pipeline, and it is layer-dependent:
 
-  | Layer                 | Inversion RMSE  | Recovered |
-  | --------------------- | --------------- | --------- |
-  | Aerosol optical depth | 0.13 (of 0–0.9) | 180 / 180 |
-  | Sea surface temp      | 5.1 °C          | 128 / 213 |
-  | Soil moisture         | 8.2 kg/m²       | 21 / 50   |
-  | Air temperature (2 m) | 19.0 K          | 46 / 90   |
-  | Precipitation         | 20.4 mm/day     | 27 / 50   |
-  | Land surface temp     | no-data (all)   | 0 / 250   |
+  | Layer                 | Inversion RMSE   | Recovered |
+  | --------------------- | ---------------- | --------- |
+  | Vegetation (NDVI)     | 0.024 (of 0–1)   | 140 / 140 |
+  | Precipitation         | 0.27 mm/day      | 50 / 50   |
+  | Air temperature (2 m) | 0.485 K          | 180 / 180 |
+  | Aerosol optical depth | 0.13 (of 0–0.9)  | 180 / 180 |
+  | Snow cover            | 0.62 (of 0–100%) | 100 / 100 |
+  | Sea surface temp      | 1.0 °C           | 213 / 213 |
+  | Soil moisture         | 0.23 kg/m²       | 50 / 50   |
+  | Land surface temp     | no-data (all)    | 0 / 250   |
 
-  These are honest and, for several layers, poor: our legend gradients are
-  coarse approximations of GIBS's finely-hued colormaps. **Absolute values for
-  temperature, precipitation, and soil moisture carry large uncertainty; use
-  the probe for relative and temporal analysis on those layers.** The full
-  method and framing is in [docs/validation.md](docs/validation.md); tightening
-  this by inverting against the real GIBS colormaps is tracked as
+  The spread is not about the layers — it is about how closely each legend
+  follows the colormap GIBS renders with. Precipitation, air temperature, sea
+  surface temperature, soil moisture, and aerosol take their stops from that
+  colormap and invert tightly across the whole ramp. Only land-surface
+  temperature is still a hand-drawn approximation, and the cost shows up in
+  the "Recovered" column: colours the gradient cannot place are rejected as
+  no-data, which for LST is the entire ramp. **Every probed value remains an
+  approximation of rendered imagery — relative and temporal analysis is the
+  probe's most robust use.** The full
+  method and framing is in
+  [docs/validation.md](docs/validation.md); rebuilding the remaining gradients
+  from the real GIBS colormaps is tracked as
+  [#170](https://github.com/zkWizard/RoamingEye/issues/170).
+
+### Gross-error plausibility bands (atmosphere)
+
+Separately from the uncertainty above, each atmospheric reading is checked
+against a fixed **gross-error band** before it is shown: 170–340 K for 2 m air
+temperature, 0–0.01 kg/m²/s for precipitation rate. A value outside its band
+is withheld from the place panel as a unit or decode failure rather than
+displayed as a measurement, and a month-over-month change is withheld when the
+comparison month fails its band.
+
+These bands are deliberately far wider than any real monthly mean. They sit
+outside the recorded surface-air extremes (−89.2 °C Vostok 1983; +56.7 °C Death
+Valley 1913) and outside the wettest calendar month on record (Cherrapunji 1861,
+≈300 mm/day mean), and they are much wider than the inversion RMSE in the table
+above. So they never flag a genuine extreme or ordinary inversion noise; they
+catch only physically impossible readings, such as a °C figure left unconverted
+to kelvin, or a mm/day rate left unscaled.
+
+**A pass is a sanity check, not a correctness claim.** A value inside its band
+still carries the full inversion uncertainty above. The bounds are fixed
+reference values, never derived from the sampled data. No band is defined for
+soil moisture, whose readings are passed through unchecked.
+
+### Snow cover: a discrete ramp, and what it cannot say
+
+Snow cover is the exception to the pattern above, in both directions. GIBS
+renders it with `MODIS_NDSI_Snow_Cover`, a **discrete** colormap — one published
+colour per whole percent — so the legend reproduces it stop for stop and the
+inversion is near-exact on the published colours (RMSE 0.62 of 100 percentage
+points, worst single colour 1.9). That is accuracy against the _rendering_;
+MOD10CM's own snow-cover retrieval carries its own, larger uncertainty, which
+is the product team's published validation, not ours.
+
+That 0.62 is also not what a user gets. The probe fetches these composites as
+**JPEG**, and the detail separating percentages inside a band is a 19-step
+ripple in one channel — finer than compression noise. Re-measured with the
+±8/channel perturbation the accuracy suite uses, the same ramp costs **6–12
+percentage points RMSE**. So: treat a probed snow percentage as a band, not a
+number, and the limiting factor as the transport rather than the colormap.
+
+Three further limits of the rendered product that no inversion can remove:
+
+- **The ramp is banded below 81%.** Percentages 1–20, 21–40, 41–60 and 61–80
+  each share a colour family, so a probed value in that range identifies its
+  band, not the percent within it. Above 81% the ramp resolves single points.
+- **0% is not drawn.** Snow-free ground is transparent in the tile, so in
+  rendered imagery "no snow" and "no observation" are indistinguishable. The
+  probe reports neither rather than guessing.
+- **Eight of the colours are flags, not amounts** — missing data, no decision,
+  night, inland water, ocean, cloud, detector saturated, fill. These are
+  rejected outright: the nearest sits 67 RGB units from the legend gradient,
+  above the 60-unit no-data threshold, and a weekly contract check
+  ([`contract/snow-cover-ramp.contract.test.ts`](contract/snow-cover-ramp.contract.test.ts))
+  fails if a GIBS re-render ever narrows that margin.
+
+  Both figures travel with the data, because quoting only the first overstates
+  precision — for sea-surface temperature the quantization step is ±0.06 °C
+  while the measured inversion error is ±5.1 °C, and the rejected 85 colours
+  are contiguous temperature bands (near-freezing polar water, most of
+  18–24 °C, and the warmest tropical water) rather than scattered noise. The
+  probe panel carries the measured band next to the quantization step, and
+  every probe CSV carries an `# inversion_validation` header naming the RMSE,
+  the rejected-colour count, and the fact that this is rendering-inversion
+  error only — not the L3 product's accuracy against in-situ measurement
+  (`src/lib/probeInversionAccuracy.ts`).
+
+- **Where the inversion goes blind**: the "Recovered" column above is a count,
+  and a count hides the property that matters. A rejected colour is not an
+  untested one — at probe time the same rejection returns no value, so the
+  sample is **dropped from the series**. Where the rejected colours form a
+  contiguous block, the loss is _value-dependent_: the probe cannot see that
+  part of the range at all, and every mean, trend, anomaly and percentile
+  derived from the survivors is conditioned on a censored sample. Measured
+  against the same colormaps (`src/lib/inversionBlindSpots.ts`):
+
+  | Layer                 | Blind-spot shape | Widest unreadable span         |
+  | --------------------- | ---------------- | ------------------------------ |
+  | Aerosol optical depth | none             | —                              |
+  | Sea surface temp      | none             | —                              |
+  | Air temperature (2 m) | none             | —                              |
+  | Precipitation         | none             | —                              |
+  | Soil moisture         | none             | —                              |
+  | Land surface temp     | total            | 200.3–349.7 K (the whole ramp) |
+
+  Air temperature, precipitation, sea surface temperature, and soil moisture
+  each carried a wide blind spot until their legends were rebuilt from GIBS's
+  own ramps (#717, #713, #736, #753); re-measured after those recalibrations,
+  all four read the whole ramp. A layer whose shape is not `none` has a
+  _survivor-only_ RMSE, measured on the colours that happened to invert, and
+  an observed extreme inside a blind run that reaches a ramp end is a
+  censoring artefact of our gradient rather than an observation — today that
+  caveat applies only to land-surface temperature, which recovers nothing.
+  These spans locate a failure of _our legend gradient_, not of the source
+  product, and each shrinks as a layer is recalibrated under
   [#170](https://github.com/zkWizard/RoamingEye/issues/170).
 
 ## 4. Trend analysis
@@ -201,11 +325,11 @@ settle.
 reduces its sub-monthly record to one monthly value differently, and the
 reduction is a fixed property of the cited product, keyed by its short name:
 
-| Signal (product)                          | Within-month value                  |
-| ----------------------------------------- | ----------------------------------- |
-| Vegetation NDVI (MOD13A3)                 | within-month composite (best-value) |
-| Rainfall, soil moisture (GLDAS_NOAH025_M) | monthly time-average                |
-| Air temperature 2 m (M2TMNXSLV)           | monthly time-average                |
+| Signal (product)                               | Within-month value                  |
+| ---------------------------------------------- | ----------------------------------- |
+| Vegetation NDVI (MOD13A3)                      | within-month composite (best-value) |
+| Precipitation, soil moisture (GLDAS_NOAH025_M) | monthly time-average                |
+| Air temperature 2 m (M2TMNXSLV)                | monthly time-average                |
 
 A **composite** reports a single favourable within-month state (the best pixel
 selected in the compositing window — e.g. peak greenness), **not** a mean over
@@ -218,7 +342,7 @@ from its value.
 
 **Quantity kind & time-integrability** (`src/lib/quantityKind.ts`). Placing four
 monthly numbers side by side invites accumulating them over time the same way,
-but only one may be. Rainfall (precipitation rate, kg/m²/s) is a per-unit-time
+but only one may be. Precipitation (total rate, kg/m²/s) is a per-unit-time
 **flux**: its integral over a period is a meaningful accumulated total (multiply
 the mean rate by the period's seconds to reach a precipitation depth). Soil
 moisture (kg/m²) and air temperature (K) are **states** — levels at an instant or
@@ -226,10 +350,92 @@ mean, with no such accumulation — and NDVI is a bounded **dimensionless index*
 not a physical amount at all. So the flux is time-integrable and the states and
 index are not; a level must never be summed into a meaningless "total". Kind is a
 property of the geophysical variable, not the product: the two GLDAS fields share
-a product yet differ (rainfall is a flux, soil moisture a state).
+a product yet differ (precipitation is a flux, soil moisture a state).
 
-Both descriptors report structure only — neither combines, accumulates, or ranks
-the values, and every signal keeps its source DOI.
+**Panel contemporaneity** (`src/lib/placeMonthAlignment.ts`). Before either
+descriptor above applies, two values must refer to the same month at all. The
+place panel's five cards each read the latest month _their own_ product
+publishes, and those calendars differ — the GLDAS fields, MERRA-2, MODIS SST and
+the MODIS vegetation composite carry different publication lags, so the cards
+routinely span three or four months. Laid out as one grid under one place name
+they read as a single snapshot, which they are not. This descriptor partitions
+the cards into cohorts sharing one month and reports the span, and the panel
+renders that statement in place of its former hedge ("products may publish on
+different monthly schedules"). Only cards inside one cohort may be read together
+in time. It describes the month each card _reads_, not what it observed: a card
+reporting no usable coverage contributes no observation for its month. A shared
+month makes two cards contemporaneous, not commensurate — that is what the two
+descriptors above settle.
+
+All three descriptors report structure only — none combines, accumulates, or
+ranks the values, and every signal keeps its source DOI.
+
+**Month length in an accumulated total**
+(`src/lib/placeRainfallMonthLength.ts`). Integrating the one time-integrable
+signal has a consequence for reading two months side by side: because the
+integration window is the calendar month, two rainfall **totals** are not
+commensurate when the months differ in length (28–31 days). A February-to-March
+step gains three days of accumulation at no change in rate at all — at 3 mm/day,
+a spurious +9 mm. The place panel therefore splits the step it reports,
+
+`Tₗ − Tₑ = rₑ(dₗ − dₑ)` (calendar) `+ (rₗ − rₑ)dₗ` (rate)
+
+for `d` days and `r = T/d` the implied mean daily rate, and discloses the
+calendar share alongside the total. The identity is exact; attributing the
+calendar term at the **earlier** month's rate is a reporting convention (holding
+the later rate fixed divides the same total differently), chosen because it
+answers what a reader comparing two totals is implicitly asking. Where the total
+moves one way while the mean daily rate moves the other, the panel says so —
+that is the case in which reading the total alone inverts what the rain did. The
+mean daily rate is a total over its own month's length, not an observation of
+any individual day.
+
+**Soil-moisture sampling depth** (`src/lib/soilMoistureDepth.ts`). A column
+water content in kg/m² means nothing without the depth of the column it
+integrates, and GLDAS Noah carries several. GIBS publishes the layer
+RoamingEye renders, `GLDAS_Underground_Soil_Moisture_Monthly`, under the title
+"Soil Moisture (Monthly, **0-10 cm**, Noah LSM, GLDAS)" — the topmost soil
+layer. It is **not** the 0-100 cm root zone (`RootMoist`), which is the column
+agronomy and agricultural-drought monitoring are defined on. Two independent
+checks agree on the depth: NASA's own layer title, and the layer's GIBS
+colormap, which tops out at 50 kg/m² — about what a saturated 10 cm column
+holds (100 mm × ~0.45 volumetric ≈ 45 kg/m²) and roughly a tenth of a saturated
+root zone. The distinction changes what a reading supports: a near-surface
+column responds to individual rain events and to evaporative drying within
+days, whereas the root zone integrates weeks to months, so reading the surface
+value as root-zone water overstates both stored water and the persistence of a
+wet or dry signal. The depth string is defined once and imported by every soil
+surface (legend caption, layer picker, probe axis and CSV header, place-panel
+metric label) so they cannot drift apart, and
+`contract/soil-moisture-depth.contract.test.ts` re-checks the cited depth
+against the live GIBS title weekly.
+
+**Variable identity, and the phase it does not resolve**
+(`src/lib/briefPrecipitationPhase.ts`). A layer's rendered label must name the
+quantity the source actually serves, and the authority for that is the layer's
+own `ows:Title` in the GIBS WMTS capabilities — not the identifier, and not the
+GLDAS variable name. The precipitation signal reads
+`GLDAS_Surface_Total_Precipitation_Rate_Monthly`, whose title is **"Total
+Precipitation Rate (Monthly, Surface, Noah LSM, GLDAS)"**: the model's
+phase-summed precipitation flux, snowfall included. The place-panel card and the
+brief signal previously both read "Rainfall", asserting a liquid-only quantity
+the product does not render — and asserting it most wrongly in cold seasons and
+cold regions, where most of the total is snow. Both now name the total.
+
+Naming it correctly raises the obvious follow-up: can the brief say which phase
+the total fell as? It co-observes 2 m air temperature, so a below-freezing month
+looks like an answer. It is not one, and the reason is measured rather than
+rhetorical. Air temperature reaches the brief through the same colormap
+inversion as every raster layer, with an end-to-end RMSE of **18.95 K** (§3).
+The band therefore clears 273.15 K only outside **254.20–292.10 K** (about −19 °C
+to +19 °C) — a window containing essentially every monthly mean over inhabited
+land. So for ordinary months the descriptor returns
+`unresolved-band-straddles-freezing` and asserts nothing. Where the band does
+clear, the result is still only an `indicated-` status: a monthly mean describes
+the month's average state, not the hours precipitation actually fell, so a cold
+month can carry liquid precipitation and a warm one frozen. No rain/snow split
+is published by the product, derived here, or representable in the returned
+type — `phaseResolved` is the literal `false`.
 
 ## 9. What this tool does not do
 

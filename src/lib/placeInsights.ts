@@ -16,6 +16,15 @@ import {
 } from "./colormap";
 import { fetchWithRetry } from "./net";
 import type { GeometrySamplingStrategy } from "./geojson";
+import {
+  isPlausibleNdvi,
+  placeVegetationComparison,
+  type PlaceVegetationComparison,
+} from "./placeVegetationChange";
+import {
+  placeRainfallMonthLengthSplit,
+  rainfallMonthLengthNote,
+} from "./placeRainfallMonthLength";
 
 export type PlaceMetricId = "vegetation" | "rainfall" | "soil" | "air";
 export type PlaceMetricLayerId = "ndvi" | "precip" | "soil" | "airtemp";
@@ -28,7 +37,12 @@ export interface PlaceMetric {
 
 export const PLACE_METRICS: readonly PlaceMetric[] = [
   { id: "vegetation", layerId: "ndvi", label: "Vegetation" },
-  { id: "rainfall", layerId: "precip", label: "Rainfall" },
+  // The card reads GLDAS_Surface_Total_Precipitation_Rate_Monthly, whose GIBS
+  // ows:Title is "Total Precipitation Rate (Monthly, Surface, Noah LSM,
+  // GLDAS)" — a phase-summed total that includes snowfall. The metric id stays
+  // "rainfall" (a structural key), but the rendered label must not claim a
+  // liquid-only quantity the layer does not serve.
+  { id: "rainfall", layerId: "precip", label: "Precipitation" },
   { id: "soil", layerId: "soil", label: "Soil moisture" },
   { id: "air", layerId: "airtemp", label: "Air temperature" },
 ];
@@ -61,8 +75,16 @@ export interface PlaceColormap {
 /**
  * Place insights decode NDVI as well as the globally calibrated probe layers.
  * MODIS_L3_NDVI is the GIBS colormap linked to the monthly MOD13A3 imagery;
- * using it preserves native NDVI values (including valid negative values)
- * instead of treating a display-gradient position as the observation.
+ * using it recovers native NDVI values instead of treating a display-gradient
+ * position as the observation.
+ *
+ * It does not recover the whole index. GIBS marks the fill band and both
+ * negative bands transparent and omits them from the continuous legend this
+ * parses (see vegetationIndexRenderedRange.ts), so the recoverable range starts
+ * just above zero. Negative NDVI — what open water, snow, ice, and cloud
+ * produce — is undrawn rather than decodable, which means a vegetation reading
+ * here is a mean over the drawn part of the boundary and the undrawn share
+ * lands in `validFractions`, not in the value.
  */
 export const PLACE_COLORMAP_DOCS = {
   ...COLORMAP_DOCS,
@@ -190,6 +212,23 @@ function makePlaceInsightReading(
     currentLabel,
     1
   )}`;
+  // NDVI is bounded by its own definition. An out-of-range value is a decode or
+  // scaling error, so it is withheld rather than shown as a greenness reading.
+  if (
+    metric.id === "vegetation" &&
+    current !== null &&
+    !isPlausibleNdvi(current)
+  ) {
+    return {
+      id: metric.id,
+      value: "Unavailable",
+      detail: withSamplingProvenance(
+        `${currentLabel} value is outside the valid -1 to 1 NDVI range`,
+        provenance,
+        1
+      ),
+    };
+  }
   if (current === null) {
     return {
       id: metric.id,
@@ -212,12 +251,68 @@ function makePlaceInsightReading(
       ),
     };
   }
+  if (metric.id === "vegetation") {
+    return {
+      id: metric.id,
+      value: formatPlaceValue(metric.id, current),
+      detail: vegetationDetail(
+        placeVegetationComparison(
+          [previousMonth, currentMonth],
+          [previous, current]
+        ),
+        {
+          currentLabel,
+          previousMonthLabel: formatMonth(previousMonth),
+          suffix: samplingSuffix(provenance, currentLabel, 1),
+        }
+      ),
+    };
+  }
   const delta = current - previous;
+  // A rainfall total is a rate integrated over the month's own length, so part
+  // of any month-over-month step is calendar rather than weather. Disclose that
+  // share instead of letting a longer month read as a wetter one.
+  const monthLength =
+    metric.id === "rainfall"
+      ? rainfallMonthLengthNote(
+          placeRainfallMonthLengthSplit(
+            [previousMonth, currentMonth],
+            [previous, current]
+          )
+        )
+      : "";
   return {
     id: metric.id,
     value: formatPlaceValue(metric.id, current),
-    detail: `${formatDelta(metric.id, delta)} vs ${previousLabel} · ${currentLabel}`,
+    detail: `${formatDelta(metric.id, delta)} vs ${previousLabel} · ${currentLabel}${monthLength}`,
   };
+}
+
+/**
+ * Phrase the vegetation card's month-over-month statement from the verdict in
+ * `placeVegetationChange`. A direction word describes the NDVI index only, and
+ * every comparison carries the reminder that the difference is not
+ * deseasonalized — at most latitudes a one-month step is the annual cycle, not
+ * an anomaly. Where no comparison is allowed, the reason is stated instead of a
+ * signed difference being shown under a "month over month" label.
+ */
+function vegetationDetail(
+  comparison: PlaceVegetationComparison,
+  labels: { currentLabel: string; previousMonthLabel: string; suffix: string }
+): string {
+  if (comparison.kind === "not-comparable") {
+    const reason =
+      comparison.reason === "ndvi-out-of-range"
+        ? `${labels.previousMonthLabel} is outside the valid -1 to 1 NDVI range and was not compared`
+        : `${labels.previousMonthLabel} is not the preceding month, so no month-over-month change is reported`;
+    return `${labels.currentLabel} regional mean${labels.suffix}; ${reason}`;
+  }
+  const delta = formatDelta("vegetation", comparison.delta);
+  const statement =
+    comparison.direction === "little-change"
+      ? `Little change (${delta} NDVI, within the ${comparison.stabilityThreshold} stability band)`
+      : `${comparison.direction === "greening" ? "Greening" : "Browning"} ${delta} NDVI`;
+  return `${statement} vs ${labels.previousMonthLabel}${labels.suffix} · ${labels.currentLabel} · annual cycle not removed`;
 }
 
 function withSamplingProvenance(

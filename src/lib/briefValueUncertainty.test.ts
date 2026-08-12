@@ -3,6 +3,7 @@ import {
   composeEnvironmentBrief,
   type EnvironmentBriefInput,
   type EnvironmentObservation,
+  type EnvironmentSignalBrief,
 } from "./environmentBrief";
 import { MEASURED_INVERSION } from "./validation";
 import {
@@ -18,8 +19,8 @@ import { LAYERS, type LayerId } from "./timeline";
 
 const AVAILABLE_THROUGH = { year: 2026, month: 3 };
 
-/** Precipitation RMSE 20.36 mm/day converted to native kg/m²/s (÷ 86 400 s/day). */
-const PRECIP_NATIVE_RMSE = 20.36 / 86_400;
+/** Precipitation RMSE 0.27 mm/day converted to native kg/m²/s (÷ 86 400 s/day). */
+const PRECIP_NATIVE_RMSE = 0.27 / 86_400;
 
 function obs(value: number, validFraction = 0.9): EnvironmentObservation {
   return { dataMonth: { year: 2026, month: 1 }, value, validFraction };
@@ -39,6 +40,27 @@ function briefWith(
   });
 }
 
+/**
+ * A single real brief signal re-pointed at a layer that carries no measured
+ * inversion figure. Used where the assertion is about how the summary handles an
+ * unbounded signal — the brief's own four layers are all characterized now, and
+ * hardcoding whichever layer is currently uncalibrated would only re-create the
+ * staleness this module exists to avoid.
+ *
+ * Only `layerId` is swapped, so the observation must stay valid for the host
+ * (vegetation) signal or the brief marks it unavailable and the summary — which
+ * considers available signals by default — drops it before classifying.
+ */
+function unmeasuredSignal(
+  observation: EnvironmentObservation,
+  layerId: LayerId
+): EnvironmentSignalBrief[] {
+  const signal = briefWith({ vegetation: observation }).signals.find(
+    (s) => s.id === "vegetation"
+  )!;
+  return [{ ...signal, layerId }];
+}
+
 describe("calibratedLayerWithRmse", () => {
   it("resolves calibrated layers with a measured RMSE", () => {
     expect(calibratedLayerWithRmse("soil")).toBe("soil");
@@ -47,10 +69,10 @@ describe("calibratedLayerWithRmse", () => {
   });
 
   it("returns null for uncharacterized or all-null layers", () => {
-    // NDVI *is* colormap-inverted, but GIBS publishes no colormap document for
-    // it, so there is no measured figure to bound with.
-    expect(calibratedLayerWithRmse("ndvi")).toBeNull();
-    expect(COLORMAP_DOCS).not.toHaveProperty("ndvi");
+    // EVI has no measured inversion RMSE: GIBS's MODIS_L3_EVI ramp contains
+    // pure black, which is also an undrawn tile pixel, so the ramp cannot be
+    // calibrated the way NDVI's was.
+    expect(calibratedLayerWithRmse("evi")).toBeNull();
     // LST inverts to no value at all (rmse === null), so it bounds nothing.
     expect(MEASURED_INVERSION.lst.rmse).toBeNull();
     expect(calibratedLayerWithRmse("lst")).toBeNull();
@@ -74,7 +96,7 @@ describe("characterizeLayerInversion", () => {
   });
 
   it("separates a measured-but-unrecoverable layer from an unmeasured one", () => {
-    // The defect this guards: LST and NDVI are epistemically opposite yet both
+    // The defect this guards: LST and EVI are epistemically opposite yet both
     // came out simply "uncharacterized" with the evidence discarded.
     const lst = characterizeLayerInversion("lst");
     expect(lst.reason).toBe("inversion-recovers-nothing");
@@ -82,26 +104,39 @@ describe("characterizeLayerInversion", () => {
     expect(lst.recoveredSteps).toBe(0);
     expect(lst.totalSteps).toBe(250);
 
-    const ndvi = characterizeLayerInversion("ndvi");
-    expect(ndvi.reason).toBe("unvalidated-inversion");
+    const evi = characterizeLayerInversion("evi");
+    expect(evi.reason).toBe("unvalidated-inversion");
     // Never measured, so there is no recovery count to report.
-    expect(ndvi.recoveredSteps).toBeNull();
-    expect(ndvi.totalSteps).toBeNull();
+    expect(evi.recoveredSteps).toBeNull();
+    expect(evi.totalSteps).toBeNull();
 
-    expect(lst.reason).not.toBe(ndvi.reason);
+    expect(lst.reason).not.toBe(evi.reason);
   });
 
   it("labels the ramp-inverted-but-unvalidated layers by that reason", () => {
     // Each is a gradient legend with a physically calibrated probe scale, so its
     // value is inverted exactly like soil moisture — only never validated.
-    for (const layer of ["ndvi", "evi", "snow"] as const) {
+    for (const layer of ["evi", "snow"] as const) {
       expect(LEGENDS[layer].kind).not.toBe("classes");
       expect(PROBE_SCALES[layer].calibrated).toBe(true);
-      expect(COLORMAP_DOCS).not.toHaveProperty(layer);
+      expect(MEASURED_INVERSION).not.toHaveProperty(layer);
       expect(characterizeLayerInversion(layer).reason).toBe(
         "unvalidated-inversion"
       );
     }
+  });
+
+  it("reclassifies a layer the moment it gains a measured figure", () => {
+    // NDVI was this module's worked unbounded case until its legend was rebuilt
+    // from GIBS's MODIS_L3_NDVI ramp. Nothing in the classifier is keyed on a
+    // layer name, so it moved to "characterized" on the table alone — the guard
+    // is that the verdict and the evidence can never disagree.
+    expect(MEASURED_INVERSION).toHaveProperty("ndvi");
+    expect(COLORMAP_DOCS).toHaveProperty("ndvi");
+    const ndvi = characterizeLayerInversion("ndvi");
+    expect(ndvi.status).toBe("characterized");
+    expect(ndvi.reason).toBeNull();
+    expect(ndvi.totalSteps).toBe(MEASURED_INVERSION.ndvi.total);
   });
 
   it("reads categorical and fraction-of-scale layers off their own evidence", () => {
@@ -133,11 +168,11 @@ describe("inversionUncertaintyForLayer", () => {
   it("returns the measured RMSE in native units when no conversion applies", () => {
     const soil = inversionUncertaintyForLayer("soil", "kg/m²");
     expect(soil).not.toBeNull();
-    expect(soil!.reportedRmse).toBe(8.23);
+    expect(soil!.reportedRmse).toBe(0.23);
     expect(soil!.reportedUnit).toBe("kg/m²");
-    expect(soil!.nativeRmse).toBe(8.23);
-    // 50 total colormap steps, 29 rejected as no-data → 21 recovered.
-    expect(soil!.recoveredSteps).toBe(21);
+    expect(soil!.nativeRmse).toBe(0.23);
+    // The legend is built from GIBS's own ramp, so no colour is rejected.
+    expect(soil!.recoveredSteps).toBe(50);
     expect(soil!.totalSteps).toBe(50);
   });
 
@@ -145,15 +180,26 @@ describe("inversionUncertaintyForLayer", () => {
     const precip = inversionUncertaintyForLayer("precip", "kg/m²/s");
     expect(precip).not.toBeNull();
     // Published figure stays in the probe's reported unit.
-    expect(precip!.reportedRmse).toBe(20.36);
+    expect(precip!.reportedRmse).toBe(0.27);
     expect(precip!.reportedUnit).toBe("mm/day");
     // Band is dimensionally matched to the brief's native kg/m²/s value.
     expect(precip!.nativeRmse).toBeCloseTo(PRECIP_NATIVE_RMSE, 12);
-    expect(precip!.recoveredSteps).toBe(27);
+    // Every ramp colour now inverts; none is rejected as no-data.
+    expect(precip!.recoveredSteps).toBe(50);
   });
 
   it("never invents an uncertainty for an uncharacterized layer", () => {
-    expect(inversionUncertaintyForLayer("ndvi", "NDVI")).toBeNull();
+    expect(inversionUncertaintyForLayer("evi", "EVI")).toBeNull();
+  });
+
+  it("bounds NDVI now that its legend is calibrated against GIBS", () => {
+    const ndvi = inversionUncertaintyForLayer("ndvi", "NDVI");
+    expect(ndvi).not.toBeNull();
+    expect(ndvi!.reportedRmse).toBe(MEASURED_INVERSION.ndvi.rmse);
+    // NDVI is unitless, so no conversion separates reported from native.
+    expect(ndvi!.nativeRmse).toBe(ndvi!.reportedRmse);
+    // Every colormap step inverts, so none are dropped from the record.
+    expect(ndvi!.recoveredSteps).toBe(ndvi!.totalSteps);
   });
 });
 
@@ -171,14 +217,17 @@ describe("summarizeBriefValueUncertainty", () => {
     const soil = summary.signals.find((s) => s.id === "soil-moisture")!;
     expect(soil.status).toBe("characterized");
     expect(soil.observedValue).toBe(24);
-    expect(soil.nativeRmse).toBe(8.23);
-    expect(soil.lower).toBeCloseTo(24 - 8.23, 6);
-    expect(soil.upper).toBeCloseTo(24 + 8.23, 6);
-    expect(soil.statement).toContain("± 8.23 kg/m²");
+    expect(soil.nativeRmse).toBe(0.23);
+    expect(soil.lower).toBeCloseTo(24 - 0.23, 6);
+    expect(soil.upper).toBeCloseTo(24 + 0.23, 6);
+    expect(soil.statement).toContain("± 0.23 kg/m²");
 
     const air = summary.signals.find((s) => s.id === "air-temperature")!;
-    expect(air.nativeRmse).toBe(18.95);
-    expect(air.statement).toContain("290 ± 18.95 K");
+    // Bound to the published figure rather than a literal: this asserts the
+    // plumbing carries MEASURED_INVERSION through, not what the number is.
+    const airRmse = MEASURED_INVERSION.airtemp.rmse!;
+    expect(air.nativeRmse).toBe(airRmse);
+    expect(air.statement).toContain(`290 ± ${airRmse} K`);
   });
 
   it("surfaces the published reported-unit figure when the native unit differs", () => {
@@ -186,40 +235,48 @@ describe("summarizeBriefValueUncertainty", () => {
     const summary = summarizeBriefValueUncertainty(brief.signals);
 
     const precip = summary.signals.find((s) => s.id === "rainfall")!;
-    expect(precip.reportedRmse).toBe(20.36);
+    expect(precip.reportedRmse).toBe(0.27);
     expect(precip.reportedUnit).toBe("mm/day");
     expect(precip.nativeRmse).toBeCloseTo(PRECIP_NATIVE_RMSE, 12);
     // Native band qualifies the kg/m²/s value; the mm/day figure stays traceable.
     expect(precip.statement).toContain("kg/m²/s");
-    expect(precip.statement).toContain("published RMSE 20.36 mm/day");
+    expect(precip.statement).toContain("published RMSE 0.27 mm/day");
   });
 
-  it("reports NDVI as uncharacterized and never bounds it", () => {
+  it("bounds the vegetation signal against the calibrated NDVI legend", () => {
+    // Before the NDVI legend was sampled from GIBS's MODIS_L3_NDVI ramp this
+    // signal was the brief's uncharacterized case. It now carries a measured
+    // band like every other signal the brief reports.
     const brief = briefWith({ vegetation: obs(0.6) });
     const summary = summarizeBriefValueUncertainty(brief.signals);
 
     const veg = summary.signals.find((s) => s.id === "vegetation")!;
-    expect(veg.status).toBe("uncharacterized");
-    expect(veg.nativeRmse).toBeNull();
-    expect(veg.lower).toBeNull();
-    expect(veg.upper).toBeNull();
-    expect(veg.statement).toContain("no characterized end-to-end");
-    expect(summary.characterizedCount).toBe(0);
-    expect(summary.uncharacterizedCount).toBe(1);
+    const rmse = MEASURED_INVERSION.ndvi.rmse!;
+    expect(veg.status).toBe("characterized");
+    expect(veg.nativeRmse).toBe(rmse);
+    expect(veg.lower).toBeCloseTo(0.6 - rmse, 12);
+    expect(veg.upper).toBeCloseTo(0.6 + rmse, 12);
+    expect(summary.characterizedCount).toBe(1);
+    expect(summary.uncharacterizedCount).toBe(0);
   });
 
-  it("says vegetation is unmeasured, not exempt from inversion error", () => {
-    const brief = briefWith({ vegetation: obs(0.6) });
-    const summary = summarizeBriefValueUncertainty(brief.signals);
-    const veg = summary.signals.find((s) => s.id === "vegetation")!;
+  it("says an unmeasured layer is unquantified, not exempt from inversion error", () => {
+    // Every layer the brief itself reports now carries a measured figure, so the
+    // unbounded case is built by re-pointing a real signal at a ramp-inverted
+    // layer that has none. That keeps the assertion about the summary's
+    // machinery rather than about which layer happens to be uncalibrated today.
+    const summary = summarizeBriefValueUncertainty(
+      unmeasuredSignal(obs(0.6), "evi")
+    );
+    const signal = summary.signals[0];
 
-    expect(veg.uncharacterizedReason).toBe("unvalidated-inversion");
+    expect(signal.uncharacterizedReason).toBe("unvalidated-inversion");
     // The statement must name the mechanism, so the reader cannot conclude the
     // value dodges the inversion error the bounded signals disclose.
-    expect(veg.statement).toContain("inverting a sampled colour");
-    expect(veg.statement).toContain("unmeasured, not absent");
+    expect(signal.statement).toContain("inverting a sampled colour");
+    expect(signal.statement).toContain("unmeasured, not absent");
     // Provenance still travels with it.
-    expect(veg.statement).toContain(veg.source.shortName);
+    expect(signal.statement).toContain(signal.source.shortName);
 
     // Counted as unbounded *and* as still-inverted, and the summary says so.
     expect(summary.unquantifiedInversionCount).toBe(1);
@@ -227,8 +284,13 @@ describe("summarizeBriefValueUncertainty", () => {
   });
 
   it("never claims greater precision for an unbounded signal", () => {
-    const brief = briefWith({ vegetation: obs(0.6), soilMoisture: obs(24) });
-    const summary = summarizeBriefValueUncertainty(brief.signals);
+    const bounded = briefWith({ soilMoisture: obs(24) }).signals.filter(
+      (s) => s.status === "available"
+    );
+    const summary = summarizeBriefValueUncertainty([
+      ...unmeasuredSignal(obs(0.6), "evi"),
+      ...bounded,
+    ]);
 
     expect(summary.characterizedCount).toBe(1);
     expect(summary.unquantifiedInversionCount).toBe(1);
@@ -238,6 +300,23 @@ describe("summarizeBriefValueUncertainty", () => {
     const limits = summary.limits.join(" ");
     expect(limits).toContain("not exempt by virtue of being a derived index");
     expect(limits).toContain("0 of 250 colormap steps");
+  });
+
+  it("reports a measured-but-unrecoverable layer with its recovery counts", () => {
+    // LST is the other unbounded reason, and the one whose evidence must survive:
+    // "0 of 250 recovered" is a finding, so it is carried into the signal rather
+    // than nulled out alongside the missing band.
+    const summary = summarizeBriefValueUncertainty(
+      unmeasuredSignal(obs(0.6), "lst")
+    );
+    const signal = summary.signals[0];
+
+    expect(signal.uncharacterizedReason).toBe("inversion-recovers-nothing");
+    expect(signal.recoveredSteps).toBe(0);
+    expect(signal.totalSteps).toBe(250);
+    expect(signal.lower).toBeNull();
+    expect(signal.statement).toContain("0/250 colormap steps recovered");
+    expect(summary.unquantifiedInversionCount).toBe(1);
   });
 
   it("keeps a characterized signal's reason null", () => {
@@ -274,7 +353,7 @@ describe("summarizeBriefValueUncertainty", () => {
     expect(soil.status).toBe("characterized");
     expect(soil.observedValue).toBeNull();
     expect(soil.lower).toBeNull();
-    expect(soil.reportedRmse).toBe(8.23);
+    expect(soil.reportedRmse).toBe(0.23);
     expect(soil.statement).toContain("no usable value to bound");
   });
 

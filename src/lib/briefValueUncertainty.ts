@@ -14,14 +14,17 @@ import { MEASURED_INVERSION } from "./validation";
  *
  * The brief renders each signal's absolute value — e.g. "Soil moisture: 24.5
  * kg/m² observed for 2026-05" — as a confident-looking point number. But for the
- * raster layers RoamingEye reads by inverting a sampled colour through an
- * *approximate* legend gradient, that absolute value carries a large, measured
- * end-to-end uncertainty: feeding GIBS's authoritative colormap through the
- * production inversion recovers soil moisture only to ±8.2 kg/m², air
- * temperature to ±19 K, and precipitation to ±20 mm/day (METHODS §3;
- * docs/validation.md; the CI-asserted figures live in `MEASURED_INVERSION`).
- * The brief itself never surfaces this, so a reader can mistake an inversion
- * estimate for a precise reading.
+ * raster layers RoamingEye reads by inverting a sampled colour through the
+ * legend gradient, that absolute value carries a measured end-to-end
+ * uncertainty: feeding GIBS's authoritative colormap through the production
+ * inversion recovers each layer only to within its published RMSE, and how
+ * large that is depends entirely on whether the layer's gradient was rebuilt
+ * from GIBS's own ramp — tight where it was (soil, air temperature,
+ * precipitation), nothing at all where it was not (LST recovers 0 of 250
+ * colormap steps). No figure is restated here: the CI-asserted numbers live in
+ * `MEASURED_INVERSION` and move as legends are recalibrated (METHODS §3,
+ * docs/validation.md). The brief itself never surfaces any of this, so a reader
+ * can mistake an inversion estimate for a precise reading.
  *
  * This helper binds each brief signal's observed value to its layer's *measured*
  * end-to-end colormap-inversion RMSE, expressed as a ± band in the signal's own
@@ -47,18 +50,24 @@ import { MEASURED_INVERSION } from "./validation";
  *        the colour bar with no physical units, so an absolute band is undefined
  *        (`PROBE_SCALES[id].calibrated === false`: terrain).
  *      · `unvalidated-inversion` — read by inverting a sampled colour through the
- *        approximate legend gradient *exactly like the bounded layers*, but GIBS
- *        publishes no colormap document for it (absent from `COLORMAP_DOCS`), so
- *        the error was never measured (vegetation/NDVI, EVI, snow).
+ *        approximate legend gradient *exactly like the bounded layers*, but no
+ *        measured figure exists for it (absent from `MEASURED_INVERSION`), so the
+ *        error was never quantified (EVI, snow).
  *      · `inversion-recovers-nothing` — measured against GIBS's colormap and not
  *        one ramp colour inverted (`MEASURED_INVERSION.lst`: 0 of 250), so the
  *        evidence is retained and reported.
  *    The first two mean no band is *meaningful*; the last two mean a band is
  *    missing while the inversion uncertainty is real — unquantified, not absent.
- *    Vegetation is the live case: NDVI's absolute value comes out of the same
- *    gradient inversion as soil moisture and carries the same class of error, so
- *    calling it exempt because it is "a derived index" would overstate it. A band
- *    is still never invented for any of the four.
+ *    A band is still never invented for any of the four.
+ *
+ *    Every classification is read off committed evidence at call time, so a
+ *    layer moves category on its own as the repository learns. Vegetation is the
+ *    worked example: NDVI was the brief's unbounded case until its legend was
+ *    rebuilt from GIBS's `MODIS_L3_NDVI` ramp, and it now carries a measured
+ *    figure like every other brief signal. EVI stayed behind — its ramp contains
+ *    pure black, which is also an undrawn tile pixel, so it cannot be calibrated
+ *    the way NDVI's was. Nothing here is keyed on a layer name, so neither move
+ *    left stale prose behind in the classifier.
  */
 
 export type ValueUncertaintyStatus =
@@ -168,7 +177,7 @@ const VALUE_UNCERTAINTY_LIMITS = [
   "Uncertainty is the pipeline's end-to-end colormap-inversion RMSE measured against GIBS's authoritative colormap (METHODS §3, docs/validation.md), not the source product's own validation against in-situ measurements.",
   "The band qualifies an absolute value read via RoamingEye's raster colormap inversion; these absolute values carry large uncertainty on several layers — prefer relative and temporal analysis (trends, anomalies, seasonality).",
   "No relative-percentage error is reported: relative error is scale-dependent and misleading on offset scales such as Kelvin, so only the absolute band in native units is asserted.",
-  "Layers with no usable measured figure are reported as uncharacterized with an explicit reason, and an uncertainty is never invented for them. Two of those reasons still describe a colormap-inverted value: vegetation (NDVI) is read by inverting a sampled colour through the approximate legend gradient exactly like the bounded layers, but GIBS publishes no colormap document for it, so its inversion error is unmeasured rather than absent — it is not exempt by virtue of being a derived index.",
+  "Layers with no usable measured figure are reported as uncharacterized with an explicit reason, and an uncertainty is never invented for them. Two of those reasons still describe a colormap-inverted value: the value is read by inverting a sampled colour through the legend gradient exactly like the bounded layers, so its inversion error is unmeasured rather than absent — such a layer is not exempt by virtue of being a derived index.",
   "An unbounded signal is never evidence of a *smaller* uncertainty than a bounded one. Land surface temperature, for instance, was measured and recovered 0 of 250 colormap steps, so its absolute values rest on an inversion the validation run could not reproduce at all.",
 ];
 
@@ -246,7 +255,7 @@ const REASON_NOTES: Record<UncharacterizedReason, string> = {
   "uncalibrated-scale":
     "this layer's probe scale is a fraction of the colour ramp with no physical units, so an absolute ± band is undefined",
   "unvalidated-inversion":
-    "this value is read by inverting a sampled colour through the approximate legend gradient, the same way the bounded layers are, but GIBS publishes no colormap document for it — so that inversion error is unmeasured, not absent, and the value is no more precise than a bounded one",
+    "this value is read by inverting a sampled colour through the approximate legend gradient, the same way the bounded layers are, but no validation run has measured that gradient against GIBS's colormap — so the inversion error is unmeasured, not absent, and the value is no more precise than a bounded one",
   "inversion-recovers-nothing":
     "measured against GIBS's authoritative colormap, this layer's legend gradient recovered none of the ramp's colours, so no band can be stated and any absolute value rests on an inversion the validation run could not reproduce",
 };
@@ -311,8 +320,8 @@ export function inversionUncertaintyForLayer(
 /**
  * Attach each brief signal's measured colormap-inversion uncertainty to its
  * observed value. Signals on a calibrated layer are bounded with a ± band in
- * their native unit; signals on an uncharacterized layer (e.g. NDVI) are
- * reported honestly with no band.
+ * their native unit; signals on an uncharacterized layer are reported honestly
+ * with no band, carrying the reason they have none.
  */
 export function summarizeBriefValueUncertainty(
   signals: readonly EnvironmentSignalBrief[],

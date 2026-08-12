@@ -67,9 +67,13 @@ const LIMITATIONS = [
  * provenance and native unit labels. Every supplied record is countable: a null
  * or non-finite eruption year is a valid "Holocene evidence only" observation,
  * not malformed input, so no record is silently dropped.
+ *
+ * Only the GVP eruption-year field is read, so any record shape carrying it
+ * — a full {@link Volcano} marker or a derived search-extent record — can be
+ * tallied without first being widened back into a marker.
  */
 export function summarizeEruptionRecency(
-  volcanoes: readonly Volcano[]
+  volcanoes: readonly Pick<Volcano, "lastEruptionYear">[]
 ): EruptionRecencySummary {
   const recencyClassCounts: Record<EruptionClass, number> = {
     recent: 0,
@@ -101,4 +105,39 @@ export function summarizeEruptionRecency(
 function rangeFor(values: readonly number[]): EruptionYearRange {
   if (values.length === 0) return { min: null, max: null };
   return { min: Math.min(...values), max: Math.max(...values) };
+}
+
+/**
+ * One-sentence recency composition for a set of records, phrased so the class
+ * boundaries are visible rather than implied. It characterises the whole
+ * supplied set, which matters where a UI can only list part of it — a truncated
+ * list ordered by name says nothing about how many records carry an
+ * instrumental-era eruption.
+ *
+ * Returns null for an empty set: there is no composition to report, and a row
+ * of zeroes would read as a finding.
+ */
+export function eruptionRecencyText(
+  summary: EruptionRecencySummary
+): string | null {
+  if (summary.volcanoCount === 0) return null;
+  const { recent, historic, holocene } = summary.recencyClassCounts;
+  const { min, max } = summary.lastEruptionYear;
+  const span =
+    min === null || max === null
+      ? ""
+      : ` Dated eruption years span ${eruptionYearLabel(min)} to ${eruptionYearLabel(max)}.`;
+  return (
+    `Recorded eruption recency across all ${summary.volcanoCount} matched ${summary.volcanoCount === 1 ? "record" : "records"}: ` +
+    `${recent} dated 1900 or later, ${historic} dated between source year 0 and 1899, ` +
+    `${holocene} with Holocene evidence only.${span} These are counts of recorded eruption years, ` +
+    `not a measure of current activity, and not a hazard ranking.`
+  );
+}
+
+/** Year as GVP reports it: BCE stays signed in words, source year 0 is kept. */
+function eruptionYearLabel(year: number): string {
+  if (year > 0) return String(year);
+  if (year === 0) return "source year 0";
+  return `${Math.abs(year)} BCE`;
 }

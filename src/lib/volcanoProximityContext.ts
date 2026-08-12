@@ -190,6 +190,58 @@ function recencyRank(lastEruptionYear: number | null): number {
   return lastEruptionYear ?? Number.NEGATIVE_INFINITY;
 }
 
+/**
+ * Fixed comparison radius for a place readout's nearest-volcano statement.
+ *
+ * A search bounding box is a geocoder artefact: its size tracks how large the
+ * matched administrative boundary happens to be, not anything geological. "No
+ * volcanoes in the extent" is therefore not comparable between one place and
+ * the next — a city with a tight boundary can report nothing while a Holocene
+ * edifice sits just outside it. Quoting the nearest catalogued volcano inside a
+ * fixed, stated radius gives a reproducible statement instead.
+ *
+ * 100 km is an arbitrary but declared cutoff chosen so the same question is
+ * asked at every place. It is not a hazard distance, an exclusion zone, or any
+ * claim about how far an eruption's products travel.
+ */
+export const NEAREST_VOLCANO_RADIUS_KM = 100;
+
+/**
+ * One-line nearest-volcano phrasing for a place readout whose in-extent
+ * inventory matched nothing.
+ *
+ * Returns null when the supplied context cannot support any statement — an
+ * invalid query, or a dataset that supplied no usable records — so callers keep
+ * their own coverage wording rather than printing an absence the evidence does
+ * not back. A "none within the radius" result is reported as exactly that, and
+ * never as volcanic inactivity.
+ */
+export function nearestVolcanoStatement(
+  context: VolcanoProximityContext
+): string | null {
+  const { status } = context.coverage;
+  if (status === "invalid-query" || status === "no-usable-volcanoes") {
+    return null;
+  }
+  const radius = formatDistanceKm(context.query.radiusKm);
+  if (context.nearest === null) {
+    return `No catalogued Holocene volcano lies within ${radius} km of the search centre; absence from the GVP inventory does not establish that a place is volcanically inactive.`;
+  }
+  const { name, distanceKm, primaryType, lastEruptionText } = context.nearest;
+  return `Nearest catalogued Holocene volcano within ${radius} km: ${name}, ${formatDistanceKm(distanceKm)} km from the search centre (${primaryType ?? "primary type not supplied"}; ${lastEruptionText}). Summit great-circle distance, not a hazard footprint.`;
+}
+
+/**
+ * Whole kilometres from 10 km up, one decimal below. The bundled summit
+ * coordinates are catalogue positions for an edifice several kilometres across,
+ * so finer precision would imply an accuracy the source does not carry.
+ */
+function formatDistanceKm(distanceKm: number): string {
+  return distanceKm >= 10
+    ? String(Math.round(distanceKm))
+    : distanceKm.toFixed(1);
+}
+
 function isValidVolcano(volcano: Volcano): boolean {
   return (
     typeof volcano.name === "string" &&

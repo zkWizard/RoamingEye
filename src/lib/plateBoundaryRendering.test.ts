@@ -3,6 +3,7 @@ import { latLngToVector3 } from "./geo";
 import type { PlateBoundary } from "./plates";
 import {
   MAX_PLATE_RENDER_SEGMENT_DEGREES,
+  plateBoundaryRenderGeometry,
   plateBoundaryRenderPositions,
 } from "./plateBoundaryRendering";
 
@@ -76,5 +77,93 @@ describe("plateBoundaryRenderPositions", () => {
     ];
     expect(plateBoundaryRenderPositions(boundaries, 0)).toEqual([]);
     expect(plateBoundaryRenderPositions(boundaries, 1, 0)).toEqual([]);
+  });
+});
+
+describe("plateBoundaryRenderGeometry", () => {
+  it("records the owning boundary of every rendered segment", () => {
+    const boundaries: PlateBoundary[] = [
+      {
+        name: "AF-AN",
+        points: [
+          [0, 0],
+          [2, 0],
+        ],
+      },
+      {
+        name: "PA-NA",
+        points: [
+          [100, 0],
+          [101, 0],
+        ],
+      },
+    ];
+    const { positions, segmentBoundaries } = plateBoundaryRenderGeometry(
+      boundaries,
+      1.003
+    );
+
+    // One ownership entry per rendered segment (six position values each).
+    expect(segmentBoundaries).toHaveLength(positions.length / 6);
+    expect(segmentBoundaries).toEqual([0, 0, 1]);
+  });
+
+  it("keeps ownership aligned when a source edge is dropped", () => {
+    // A non-finite vertex contributes no segments; the following boundary's
+    // ownership must not shift onto the dropped edge's would-be segments.
+    const boundaries: PlateBoundary[] = [
+      {
+        name: "AF-AN",
+        points: [
+          [Number.NaN, 0],
+          [1, 0],
+        ],
+      },
+      {
+        name: "PA-NA",
+        points: [
+          [100, 0],
+          [101, 0],
+        ],
+      },
+    ];
+    const { positions, segmentBoundaries } = plateBoundaryRenderGeometry(
+      boundaries,
+      1.003
+    );
+
+    expect(segmentBoundaries).toHaveLength(positions.length / 6);
+    expect(segmentBoundaries).toEqual([1]);
+  });
+
+  it("agrees with plateBoundaryRenderPositions", () => {
+    const boundaries: PlateBoundary[] = [
+      {
+        name: "AF-AN",
+        points: [
+          [0, 0],
+          [3, 0],
+        ],
+      },
+    ];
+    expect(plateBoundaryRenderGeometry(boundaries, 1.003).positions).toEqual(
+      plateBoundaryRenderPositions(boundaries, 1.003)
+    );
+  });
+
+  it("withholds both linework and ownership for invalid parameters", () => {
+    const boundaries: PlateBoundary[] = [
+      {
+        name: "AF-AN",
+        points: [
+          [0, 0],
+          [1, 0],
+        ],
+      },
+    ];
+    expect(plateBoundaryRenderGeometry(boundaries, 0)).toEqual({
+      positions: [],
+      segmentBoundaries: [],
+    });
   });
 });

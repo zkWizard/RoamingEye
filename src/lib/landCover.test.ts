@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   IGBP_LAND_COVER_CLASSES,
+  IGBP_SOURCE_VALUE_ALIASES,
+  IGBP_WATER_CLASS_CODE,
   LAND_COVER_FORMATIONS,
   LAND_COVER_SOURCE,
+  resolveIgbpSourceValue,
   summarizeLandCoverContext,
   summarizeLandCoverFormations,
 } from "./landCover";
@@ -131,6 +134,7 @@ describe("land-cover context summaries", () => {
       unclassifiedSampleCount: 0,
       noDataSampleCount: 0,
       invalidClassSampleCount: 0,
+      aliasedSourceValueSampleCount: 0,
       invalidRecordCount: 0,
       knownLandCoverFraction: null,
       reason: "record-not-published",
@@ -191,6 +195,7 @@ describe("land-cover context summaries", () => {
       unclassifiedSampleCount: 0,
       noDataSampleCount: 0,
       invalidClassSampleCount: 0,
+      aliasedSourceValueSampleCount: 0,
       invalidRecordCount: 2,
       knownLandCoverFraction: null,
       reason: "no-samples",
@@ -234,6 +239,77 @@ describe("land-cover context summaries", () => {
     expect(IGBP_LAND_COVER_CLASSES.map((entry) => entry.code)).toEqual([
       1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 255,
     ]);
+  });
+
+  it("resolves the aliased water source value GIBS renders as class 17", () => {
+    // The land-cover layer's colormap carries exactly one multi-valued entry:
+    // <ColorMapEntry rgb="134,202,227" sourceValue="0,17" .../> "Water Bodies".
+    expect(IGBP_SOURCE_VALUE_ALIASES).toEqual({ 0: IGBP_WATER_CLASS_CODE });
+    expect(IGBP_WATER_CLASS_CODE).toBe(17);
+    expect(resolveIgbpSourceValue(0)).toEqual({
+      status: "class",
+      classCode: 17,
+      aliased: true,
+    });
+    expect(resolveIgbpSourceValue(17)).toEqual({
+      status: "class",
+      classCode: 17,
+      aliased: false,
+    });
+    // Nothing outside the published contract is snapped to a nearby code.
+    expect(resolveIgbpSourceValue(18)).toEqual({ status: "outside-contract" });
+    expect(resolveIgbpSourceValue(-1)).toEqual({ status: "outside-contract" });
+    expect(resolveIgbpSourceValue(17.5)).toEqual({
+      status: "outside-contract",
+    });
+  });
+
+  it("counts legacy-coded water as water rather than a contract violation", () => {
+    const summary = summarizeLandCoverContext(
+      [
+        { classCode: 0, sampleCount: 6 },
+        { classCode: 17, sampleCount: 2 },
+        { classCode: 12, sampleCount: 2 },
+      ],
+      2024
+    );
+
+    expect(summary.coverage).toMatchObject({
+      status: "available",
+      totalSampleCount: 10,
+      knownLandCoverSampleCount: 10,
+      invalidClassSampleCount: 0,
+      invalidRecordCount: 0,
+      aliasedSourceValueSampleCount: 6,
+      knownLandCoverFraction: 1,
+    });
+    // Folded onto the class GIBS renders it as — one water row, not two, and
+    // no invented 18th class.
+    expect(
+      summary.classCoverage.map((entry) => [entry.classCode, entry.sampleCount])
+    ).toEqual([
+      [17, 8],
+      [12, 2],
+    ]);
+    expect(summary.dominantClass?.classCode).toBe(17);
+    expect(
+      summarizeLandCoverFormations(summary).formationCoverage.map((entry) => [
+        entry.id,
+        entry.sampleCount,
+      ])
+    ).toEqual([
+      ["water", 8],
+      ["cropland", 2],
+    ]);
+  });
+
+  it("reports no aliased samples when every code is already the rendered one", () => {
+    const summary = summarizeLandCoverContext(
+      [{ classCode: 17, sampleCount: 3 }, { classCode: 255 }],
+      2024
+    );
+
+    expect(summary.coverage.aliasedSourceValueSampleCount).toBe(0);
   });
 
   it("preserves tied most-frequent classes instead of inventing a dominant class", () => {
@@ -296,8 +372,9 @@ describe("land-cover formation groups", () => {
     expect(formations.provenance.source).toBe(LAND_COVER_SOURCE);
     expect(formations.ungroupedKnownSampleCount).toBe(0);
 
-    // Cropland (12 + 14 = 5) ties forest (1 + 5 = 5); the lower first class
-    // code wins the deterministic tie-break, so forest sorts first.
+    // Cropland (12 + 14 = 5) ties forest (1 + 5 = 5). The lower first class
+    // code wins the deterministic *display* sort, so forest lists first — but
+    // that ordering must not be read as a dominant formation.
     expect(formations.formationCoverage).toEqual([
       {
         id: "forest",
@@ -316,11 +393,62 @@ describe("land-cover formation groups", () => {
         fractionOfKnownLandCover: 0.5,
       },
     ]);
-    expect(formations.dominantFormation?.id).toBe("forest");
+    expect(formations.mostFrequentFormationStatus).toBe("tied");
+    expect(formations.mostFrequentFormations.map((entry) => entry.id)).toEqual([
+      "forest",
+      "cropland",
+    ]);
+    expect(formations.dominantFormation).toBeNull();
 
     // Grouping must not average categorical class identifiers.
     expect(JSON.stringify(formations)).not.toContain("mean");
     expect(formations).not.toHaveProperty("meanClassCode");
+  });
+
+  it("names a dominant formation only when its sample count is unique", () => {
+    const context = summarizeLandCoverContext(
+      [
+        { classCode: 1, sampleCount: 3 },
+        { classCode: 5, sampleCount: 3 },
+        { classCode: 12, sampleCount: 4 },
+        { classCode: 14, sampleCount: 1 },
+      ],
+      2024
+    );
+
+    const formations = summarizeLandCoverFormations(context);
+
+    // Forest (1 + 5 = 6) now outright exceeds cropland (12 + 14 = 5).
+    expect(formations.mostFrequentFormationStatus).toBe("unique");
+    expect(formations.mostFrequentFormations.map((entry) => entry.id)).toEqual([
+      "forest",
+    ]);
+    expect(formations.dominantFormation?.id).toBe("forest");
+    expect(formations.dominantFormation?.sampleCount).toBe(6);
+  });
+
+  it("withholds a dominant formation when whole-class groups tie across formations", () => {
+    // A tie invisible at class level: no single class ties, but grassland (10)
+    // and cropland (12 + 14) both total 6 once whole classes are summed.
+    const context = summarizeLandCoverContext(
+      [
+        { classCode: 10, sampleCount: 6 },
+        { classCode: 12, sampleCount: 4 },
+        { classCode: 14, sampleCount: 2 },
+      ],
+      2024
+    );
+
+    const formations = summarizeLandCoverFormations(context);
+
+    expect(context.mostFrequentClassStatus).toBe("unique");
+    expect(context.dominantClass?.classCode).toBe(10);
+    expect(formations.mostFrequentFormationStatus).toBe("tied");
+    expect(formations.mostFrequentFormations.map((entry) => entry.id)).toEqual([
+      "grassland",
+      "cropland",
+    ]);
+    expect(formations.dominantFormation).toBeNull();
   });
 
   it("excludes unclassified and no-data samples from any formation", () => {

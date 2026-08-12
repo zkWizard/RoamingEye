@@ -739,7 +739,7 @@ describe("environment brief attribution", () => {
     const gldas = attribution.sources[1];
     expect(gldas.signalIds).toEqual(["rainfall", "soil-moisture"]);
     expect(gldas.signalLabels).toEqual([
-      "Rainfall (precipitation rate)",
+      "Precipitation (total rate, all phases)",
       "Soil moisture",
     ]);
     expect(gldas.contributedValue).toBe(true);
@@ -749,7 +749,7 @@ describe("environment brief attribution", () => {
     expect(attribution.line).toBe(
       "Data sources: MOD13A3 v061 — Vegetation (NDVI) " +
         "(https://doi.org/10.5067/MODIS/MOD13A3.061); " +
-        "GLDAS_NOAH025_M v2.1 — Rainfall (precipitation rate), Soil moisture " +
+        "GLDAS_NOAH025_M v2.1 — Precipitation (total rate, all phases), Soil moisture " +
         "(https://doi.org/10.5067/SXAVCZFAQLNO); " +
         "M2TMNXSLV v5.12.4 — Air temperature " +
         `(https://doi.org/10.5067/AP1B0BA5PD2K). ${GIBS_ACKNOWLEDGMENT}`
@@ -1049,7 +1049,12 @@ describe("environment brief data currency", () => {
       stalestLagMonths: null,
     });
     expect(brief.dataCurrency.statement).toBe(
-      "Currency was not assessed for vegetation because no product-specific availability checkpoint was supplied."
+      "Currency was not assessed for vegetation: no product-specific availability checkpoint was supplied."
+    );
+    // The unassessed caveat is brief prose and must clear the same screen the
+    // assessed caveat does — a causal connective here would read as inference.
+    expect(unsupportedBriefLanguageHits(brief.dataCurrency.statement)).toEqual(
+      []
     );
   });
 
@@ -1069,7 +1074,10 @@ describe("environment brief data currency", () => {
       stalestLagMonths: 1,
     });
     expect(brief.dataCurrency.statement).toBe(
-      "1 usable observation (rainfall, dated 2026-02) lags its availability checkpoint by 1 month. Currency was not assessed for vegetation because no product-specific availability checkpoint was supplied."
+      "1 usable observation (rainfall, dated 2026-02) lags its availability checkpoint by 1 month. Currency was not assessed for vegetation: no product-specific availability checkpoint was supplied."
+    );
+    expect(unsupportedBriefLanguageHits(brief.dataCurrency.statement)).toEqual(
+      []
     );
   });
 

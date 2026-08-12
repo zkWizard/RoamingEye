@@ -1,3 +1,4 @@
+import { doiResolverUrl } from "./doiLink";
 import { LAYERS } from "./timeline";
 
 /**
@@ -13,7 +14,7 @@ export const TERRAIN_CONTEXT_SOURCE = {
   imageryService: "NASA Global Imagery Browse Services (GIBS)",
   imageryServiceUrl: "https://nasa-gibs.github.io/gibs-api-docs/",
   dataset: LAYERS.terrain.dataset!,
-  datasetUrl: `https://doi.org/${LAYERS.terrain.dataset!.doi}`,
+  datasetUrl: doiResolverUrl(LAYERS.terrain.dataset!.doi),
   wmsLayer: LAYERS.terrain.wmsLayer,
   wmtsMatrixSet: LAYERS.terrain.wmts!.set,
   coverageReference:

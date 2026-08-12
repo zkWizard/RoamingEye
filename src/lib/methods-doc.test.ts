@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { MEASURED_INVERSION } from "./validation";
+import { MEASURED_SNOW_COVER_INVERSION } from "./snowCoverRamp";
 import type { CalibratedLayerId } from "./colormap";
 import { classifyQuantityKind, type QuantityKind } from "./quantityKind";
 import {
@@ -9,6 +10,14 @@ import {
 } from "./temporalAggregation";
 import type { EnvironmentSignalId } from "./environmentBrief";
 import type { DatasetRef } from "./timeline";
+import {
+  AIR_TEMPERATURE_RECORD_ANCHORS,
+  PLAUSIBLE_2M_AIR_TEMPERATURE_K,
+} from "./airTemperaturePlausibility";
+import {
+  PLAUSIBLE_PRECIPITATION_RATE_KG_M2_S,
+  PRECIPITATION_RATE_RECORD_ANCHOR,
+} from "./precipitationRatePlausibility";
 
 /**
  * Drift guard for METHODS.md §3: the inversion-accuracy table quotes the
@@ -43,12 +52,64 @@ describe("METHODS.md inversion-accuracy table", () => {
     }
   });
 
+  it("quotes the snow-cover figures the discrete ramp is audited against", () => {
+    // Snow is not a CalibratedLayerId (its colormap is discrete, not
+    // continuous), so the loop above cannot cover it — bind it explicitly or
+    // §3 could drift from src/lib/snowCoverRamp.ts unnoticed.
+    expect(
+      methods.includes(MEASURED_SNOW_COVER_INVERSION.rmse.toFixed(2)),
+      "METHODS.md §3 is missing the snow-cover RMSE"
+    ).toBe(true);
+    expect(
+      methods.includes(
+        `${Math.round(MEASURED_SNOW_COVER_INVERSION.tightestFlagDistance)} RGB units`
+      ),
+      "METHODS.md §3 is missing the snow flag-colour separation"
+    ).toBe(true);
+    expect(methods).toContain("MODIS_NDSI_Snow_Cover");
+  });
+
   it("documents the trend method and the honest limitation", () => {
     expect(methods).toContain("Seasonal Mann-Kendall");
     expect(methods).toContain("Sen's slope");
     expect(methods).toContain("cos(latitude)");
     // The load-bearing honesty: relative use for the poorly-inverted layers.
     expect(methods.toLowerCase()).toContain("relative and temporal analysis");
+  });
+});
+
+/**
+ * Drift guard for METHODS.md §3's gross-error plausibility bands. The handbook
+ * quotes the exact bounds the place panel enforces, so a widened or narrowed
+ * band in code must be reflected in the documented method rather than silently
+ * changing which readings the app is willing to show.
+ */
+describe("METHODS.md gross-error plausibility bands", () => {
+  it("quotes the air-temperature and precipitation bounds the code enforces", () => {
+    expect(methods).toContain(
+      `${PLAUSIBLE_2M_AIR_TEMPERATURE_K.minKelvin}–${PLAUSIBLE_2M_AIR_TEMPERATURE_K.maxKelvin} K`
+    );
+    expect(methods).toContain(
+      `${PLAUSIBLE_PRECIPITATION_RATE_KG_M2_S.minKgM2S}–${PLAUSIBLE_PRECIPITATION_RATE_KG_M2_S.maxKgM2S} kg/m²/s`
+    );
+  });
+
+  it("keeps the bands wider than the record anchors they are built from", () => {
+    // The documented promise is that a genuine extreme is never flagged.
+    expect(PLAUSIBLE_2M_AIR_TEMPERATURE_K.minKelvin).toBeLessThan(
+      AIR_TEMPERATURE_RECORD_ANCHORS.coldestKelvin
+    );
+    expect(PLAUSIBLE_2M_AIR_TEMPERATURE_K.maxKelvin).toBeGreaterThan(
+      AIR_TEMPERATURE_RECORD_ANCHORS.hottestKelvin
+    );
+    expect(PLAUSIBLE_PRECIPITATION_RATE_KG_M2_S.maxKgM2S).toBeGreaterThan(
+      PRECIPITATION_RATE_RECORD_ANCHOR.wettestCalendarMonthKgM2S
+    );
+  });
+
+  it("states that a pass is not a correctness claim and names the unchecked metric", () => {
+    expect(methods).toContain("not a correctness claim");
+    expect(methods).toContain("No band is defined for");
   });
 });
 

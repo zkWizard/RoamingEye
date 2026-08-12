@@ -8,8 +8,10 @@ import type { WmtsConfig } from "./tiles";
  * it's fast and deterministic to unit-test (see timeline.test.ts).
  *
  * Imagery: NASA GIBS (Global Imagery Browse Services) monthly composites —
- * cloud-free, gap-free, public domain, served with permissive CORS so the
- * browser can load them straight into WebGL textures.
+ * cloud-free, public domain, served with permissive CORS so the browser can
+ * load them straight into WebGL textures. Not gap-free: a product can skip a
+ * month of its own record (see `unpublished`), and GIBS says so by advertising
+ * the layer's time dimension as several disjoint ranges.
  */
 
 export type LayerId =
@@ -74,6 +76,13 @@ export interface LayerConfig {
   /** Most recent month available (defaults to DATA_LATEST). Reanalysis and
    * some products lag further behind than the MODIS composites. */
   latest?: YearMonth;
+  /** Months the product does not publish *inside* its own [start, latest]
+   * record. GIBS advertises a layer's time dimension as one or more ranges,
+   * and a layer with a distribution gap advertises several — the months
+   * between them were never distributed, so their tiles 404 rather than
+   * returning a no-data image. Left undefined for a layer whose record is
+   * contiguous. See MOD13A3_UNPUBLISHED_MONTHS. */
+  unpublished?: readonly YearMonth[];
   /** True for datasets with no time dimension (e.g. elevation): one image
    * regardless of the selected month, and no TIME param in GIBS URLs. */
   static?: boolean;
@@ -129,6 +138,62 @@ export const MONTH_NAMES = [
   "Dec",
 ] as const;
 
+/**
+ * Months MOD13A3 never distributed, inside its own record.
+ *
+ * GIBS advertises the vegetation-index time dimension as two disjoint ranges
+ * — 2000-03/2025-03/P1M and 2025-05/2026-06/P1M (WMTS GetCapabilities,
+ * verified 2026-08-11; the April 2025 tile answers HTTP 404 while March and
+ * May serve normally). NDVI and EVI are two fields of the same MOD13A3
+ * granule, so the gap is identical on both layers.
+ *
+ * Recorded as catalog data rather than derived, because a *distribution* gap
+ * is not an observation. Offering the month anyway would put the absence into
+ * a vegetation series as a failed retrieval, where a reader would credit it to
+ * cloud, snow, or the quality screen — a statement about a surface nobody
+ * measured that month. Other layers advertise interior gaps too (snow, SST and
+ * air temperature each split into several ranges upstream); those belong to
+ * their own product catalogs and are not asserted here.
+ */
+const MOD13A3_UNPUBLISHED_MONTHS: readonly YearMonth[] = [
+  { year: 2025, month: 4 },
+];
+
+/**
+ * Months the daytime MODIS/Aqua monthly SST composite never distributed,
+ * inside its own record.
+ *
+ * GIBS advertises this layer's time dimension as five disjoint ranges —
+ * 2002-07/2022-10, 2023-01/2023-05, 2023-07/2023-09, 2023-11/2025-11 and
+ * 2026-01/2026-04, all P1M (WMTS GetCapabilities, verified 2026-08-11). Each
+ * of the five months below sits between two of them and answers HTTP 404,
+ * while every month on either side of every gap serves normally.
+ *
+ * A missing month reads differently in an SST record than in a vegetation
+ * one, and more dangerously. Absent *pixels* here are routine and
+ * informative — cloud, sea ice, and sun glint all withhold a thermal-IR
+ * retrieval, so a reader is right to credit a hole to the sea surface. These
+ * months are not that: no monthly composite was distributed at all, so
+ * offering them would invite exactly the reading the data cannot support.
+ * The gaps also fall where they cost the most: they thin the same-calendar
+ * -month baselines a December or June anomaly is measured against, and two
+ * of them (Nov and Dec 2022) are consecutive.
+ *
+ * That these are distribution artifacts rather than ocean signal is directly
+ * checkable: the sibling *night* layer of the same product
+ * (MODIS_Aqua_L3_SST_Thermal_9km_Night_Monthly) splits into five ranges too,
+ * but skips a different set of months — 2022-12, 2023-01, 2023-06, 2024-01
+ * and 2025-01 — sharing only two with the daytime half the app renders. No
+ * property of the ocean is visible by day and not by night in November 2022.
+ */
+const MODIS_AQUA_SST_DAY_UNPUBLISHED_MONTHS: readonly YearMonth[] = [
+  { year: 2022, month: 11 },
+  { year: 2022, month: 12 },
+  { year: 2023, month: 6 },
+  { year: 2023, month: 10 },
+  { year: 2025, month: 12 },
+];
+
 export const LAYERS: Record<LayerId, LayerConfig> = {
   ndvi: {
     id: "ndvi",
@@ -143,6 +208,7 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     },
     wmts: { set: "1km", maxLevel: 6, ext: "png" },
     start: { year: 2000, month: 3 },
+    unpublished: MOD13A3_UNPUBLISHED_MONTHS,
     description: "Vegetation greenness — the classic seasonal-cycle signal.",
   },
   evi: {
@@ -158,6 +224,7 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     },
     wmts: { set: "1km", maxLevel: 6, ext: "png" },
     start: { year: 2000, month: 3 },
+    unpublished: MOD13A3_UNPUBLISHED_MONTHS,
     description:
       "Enhanced vegetation index — less saturated over dense canopy.",
   },
@@ -206,7 +273,8 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 2002, month: 7 },
     latest: { year: 2026, month: 3 },
-    description: "Ocean surface temperature (MODIS/Aqua thermal).",
+    unpublished: MODIS_AQUA_SST_DAY_UNPUBLISHED_MONTHS,
+    description: "Daytime ocean surface temperature (MODIS/Aqua thermal).",
   },
   precip: {
     id: "precip",
@@ -238,7 +306,10 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 2000, month: 1 },
     latest: { year: 2026, month: 1 },
-    description: "Root-zone soil moisture (GLDAS) — drought & agriculture.",
+    // Depth is GIBS's own ("Soil Moisture (Monthly, 0-10 cm, Noah LSM,
+    // GLDAS)"), not the root zone. Kept literal to preserve this module's
+    // dependency-free contract; soilMoistureDepth.test.ts pins the two together.
+    description: "Surface soil moisture, 0-10 cm (GLDAS Noah) — not root zone.",
   },
   snow: {
     id: "snow",
@@ -270,7 +341,12 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 1980, month: 1 },
     latest: { year: 2026, month: 3 },
-    description: "Aerosol optical thickness — dust, smoke, and air quality.",
+    // AOD is a whole-column optical thickness, so it cannot see the surface
+    // concentration an "air quality" caption used to promise here; and both
+    // sibling atmosphere captions name their production method (see
+    // lib/atmosphereLayerClaims.ts, which guards both points).
+    description:
+      "Aerosol optical thickness — dust, smoke (MERRA-2 reanalysis).",
   },
   landcover: {
     id: "landcover",
@@ -407,12 +483,22 @@ export function buildMonthRange(end: YearMonth, count: number): YearMonth[] {
   return out;
 }
 
-/** Whether a month falls within a layer's published range. */
+/**
+ * Whether a month was actually published for a layer — inside [start, latest]
+ * *and* not one of the months the product skipped (see `unpublished`). A month
+ * in a distribution gap is as unavailable as one before the record began.
+ */
 export function isAvailable(layer: LayerConfig, ym: YearMonth): boolean {
   return (
     compareYm(ym, layer.start) >= 0 &&
-    compareYm(ym, layer.latest ?? DATA_LATEST) <= 0
+    compareYm(ym, layer.latest ?? DATA_LATEST) <= 0 &&
+    !isUnpublished(layer, ym)
   );
+}
+
+/** Whether a month falls in one of a layer's declared distribution gaps. */
+export function isUnpublished(layer: LayerConfig, ym: YearMonth): boolean {
+  return layer.unpublished?.some((gap) => ymEqual(gap, ym)) ?? false;
 }
 
 /**
@@ -420,6 +506,14 @@ export function isAvailable(layer: LayerConfig, ym: YearMonth): boolean {
  * scientific record (MERRA-2 layers reach back to 1980), not a fixed window.
  * Annual layers get one entry per year (its January), so the same scrubber
  * steps by year.
+ *
+ * Months the product never distributed are dropped, so the record stays a list
+ * of months that exist: the scrubber cannot land on a tile that 404s, and no
+ * consumer that walks this list — the place panel, the probe series, the
+ * same-calendar-month baselines — records a distribution gap as a month that
+ * was observed and came back empty. The entries are therefore not guaranteed
+ * consecutive; `nearestMonthIndex` already handles that, as it must for the
+ * annual layers.
  */
 export function monthRangeForLayer(layer: LayerConfig): YearMonth[] {
   const latest = layer.latest ?? DATA_LATEST;
@@ -428,10 +522,19 @@ export function monthRangeForLayer(layer: LayerConfig): YearMonth[] {
     for (let year = layer.start.year; year <= latest.year; year++) {
       out.push({ year, month: 1 });
     }
-    return out.length > 0 ? out : [{ year: layer.start.year, month: 1 }];
+    return published(
+      layer,
+      out.length > 0 ? out : [{ year: layer.start.year, month: 1 }]
+    );
   }
   const count = ymToIndex(latest) - ymToIndex(layer.start) + 1;
-  return buildMonthRange(latest, Math.max(1, count));
+  return published(layer, buildMonthRange(latest, Math.max(1, count)));
+}
+
+/** Drop a layer's declared distribution gaps from an enumerated record. */
+function published(layer: LayerConfig, months: YearMonth[]): YearMonth[] {
+  if (!layer.unpublished?.length) return months;
+  return months.filter((ym) => !isUnpublished(layer, ym));
 }
 
 /**

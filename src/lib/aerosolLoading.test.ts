@@ -3,16 +3,19 @@ import {
   AEROSOL_LOADING_BANDS,
   AEROSOL_LOADING_CHANGE_THRESHOLD,
   AEROSOL_LOADING_LIMITATIONS,
+  AEROSOL_RENDERED_RAMP_MAX,
   AEROSOL_SOURCE,
   AEROSOL_TIER_EDGE_MARGIN,
   AEROSOL_UNIT,
   AEROSOL_WAVELENGTH_NM,
   describeAerosolBandProximity,
+  describeAerosolCensoring,
   describeAerosolLoading,
   describeAerosolLoadingChange,
   summarizeAerosolLoading,
   type AerosolLoadingCategory,
 } from "./aerosolLoading";
+import { PROBE_SCALES } from "./probe";
 import { LAYERS } from "./timeline";
 
 const AVAILABLE_THROUGH = { year: 2026, month: 3 } as const;
@@ -410,5 +413,149 @@ describe("month-over-month aerosol loading change", () => {
     expect(change.reason).toBe("invalid-threshold");
     expect(change.threshold).toBe(AEROSOL_LOADING_CHANGE_THRESHOLD);
     expect(change.changeValue).toBeNull();
+  });
+});
+
+describe("rendered-ramp censoring at the open-ended top bin", () => {
+  it("pins the ramp maximum to the calibrated probe scale GIBS's colormap sets", () => {
+    // GIBS renders this product in 0.005 bins from 0.000 to 0.900, with a final
+    // open-ended `>= 0.900` bin. Drifting from the probe scale would let a
+    // censored reading be presented as a measurement again.
+    expect(AEROSOL_RENDERED_RAMP_MAX).toBe(0.9);
+    expect(AEROSOL_RENDERED_RAMP_MAX).toBe(PROBE_SCALES.aerosol.max);
+  });
+
+  it("treats a value inside the ramp as a two-sided reading", () => {
+    const censoring = describeAerosolCensoring(0.32);
+    expect(censoring).toMatchObject({
+      status: "uncensored",
+      isLowerBound: false,
+      rampMax: 0.9,
+      lowestPossibleCategory: "moderate",
+    });
+    expect(censoring?.statement).toContain("inside the rendered ramp");
+  });
+
+  it("reports a value at the ramp's top bin as a lower bound, not a measurement", () => {
+    const censoring = describeAerosolCensoring(0.9);
+    expect(censoring).toMatchObject({
+      status: "censored-high",
+      isLowerBound: true,
+      // `high` is the *lowest* tier consistent with the reading; the true
+      // loading could be `very-high` and the pixel would look identical.
+      lowestPossibleCategory: "high",
+    });
+    expect(censoring?.statement).toContain("at least 0.9");
+    expect(censoring?.statement).toContain("cannot be recovered");
+  });
+
+  it("declines to characterize a value that is not usable optical thickness", () => {
+    expect(describeAerosolCensoring(null)).toBeNull();
+    expect(describeAerosolCensoring(-0.1)).toBeNull();
+    expect(describeAerosolCensoring(Number.NaN)).toBeNull();
+  });
+
+  it("cannot reach the very-high tier from a rendered reading", () => {
+    // The literature break point (1.0) sits above the ramp's top bin, so the
+    // tier is unreachable from imagery by construction. This guards the comment
+    // on AEROSOL_LOADING_BANDS: if either number moves, the claim must be re-checked.
+    const veryHigh = AEROSOL_LOADING_BANDS.find(
+      (band) => band.category === "very-high"
+    );
+    expect(veryHigh?.minInclusive).toBeGreaterThan(AEROSOL_RENDERED_RAMP_MAX);
+    expect(describeAerosolLoading(AEROSOL_RENDERED_RAMP_MAX)?.category).toBe(
+      "high"
+    );
+  });
+
+  it("attaches censoring to a summarized month", () => {
+    const summary = summarizeAerosolLoading(
+      { dataMonth: { year: 2026, month: 1 }, value: 0.9, validFraction: 0.95 },
+      AVAILABLE_THROUGH
+    );
+    expect(summary.censoring?.isLowerBound).toBe(true);
+    expect(summary.observedValue).toBe(0.9);
+    // Provenance and the cited source survive the bound.
+    expect(summary.source).toEqual(LAYERS.aerosol.dataset);
+  });
+
+  it("leaves censoring null when there is no usable value", () => {
+    const summary = summarizeAerosolLoading(
+      { dataMonth: { year: 2026, month: 1 }, value: null },
+      AVAILABLE_THROUGH
+    );
+    expect(summary.censoring).toBeNull();
+  });
+
+  it("names a rise from an uncensored month to a censored one a lower bound", () => {
+    const change = describeAerosolLoadingChange(
+      { dataMonth: { year: 2026, month: 1 }, value: 0.3 },
+      { dataMonth: { year: 2026, month: 2 }, value: 0.9 },
+      AVAILABLE_THROUGH
+    );
+    expect(change.status).toBe("available");
+    // The direction is safe: the true later value is only higher still.
+    expect(change.trend).toBe("increasing");
+    expect(change.changeBound).toBe("bounded-below");
+    expect(change.changeValue).toBeCloseTo(0.6, 10);
+  });
+
+  it("names a fall from a censored month to an uncensored one an upper bound", () => {
+    const change = describeAerosolLoadingChange(
+      { dataMonth: { year: 2026, month: 1 }, value: 0.9 },
+      { dataMonth: { year: 2026, month: 2 }, value: 0.3 },
+      AVAILABLE_THROUGH
+    );
+    expect(change.trend).toBe("decreasing");
+    expect(change.changeBound).toBe("bounded-above");
+    expect(change.changeValue).toBeCloseTo(-0.6, 10);
+  });
+
+  it("withholds the direction when censoring leaves it unresolved", () => {
+    // 0.89 -> >=0.9 computes as +0.01, under the little-change threshold, but
+    // the true later value could be 3.0. Calling that "little change" would
+    // assert a stability the imagery cannot support.
+    const change = describeAerosolLoadingChange(
+      { dataMonth: { year: 2026, month: 1 }, value: 0.89 },
+      { dataMonth: { year: 2026, month: 2 }, value: 0.9 },
+      AVAILABLE_THROUGH
+    );
+    expect(change.status).toBe("available");
+    expect(change.trend).toBeNull();
+    expect(change.reason).toBe("censored-endpoint-direction-unresolved");
+    expect(change.changeBound).toBe("bounded-below");
+    // The bound itself is still reportable.
+    expect(change.changeValue).toBeCloseTo(0.01, 10);
+  });
+
+  it("withholds a change entirely when both months saturate the ramp", () => {
+    // Both read 0.9, so the arithmetic difference is 0 -- but the true months
+    // could be 0.9 and 3.0 in either order. Neither sign nor size survives.
+    const change = describeAerosolLoadingChange(
+      { dataMonth: { year: 2026, month: 1 }, value: 0.9 },
+      { dataMonth: { year: 2026, month: 2 }, value: 1.4 },
+      AVAILABLE_THROUGH
+    );
+    expect(change.status).toBe("unavailable");
+    expect(change.reason).toBe("both-endpoints-censored");
+    expect(change.changeBound).toBe("indeterminate");
+    expect(change.changeValue).toBeNull();
+    expect(change.trend).toBeNull();
+  });
+
+  it("marks an ordinary in-ramp comparison exact", () => {
+    const change = describeAerosolLoadingChange(
+      { dataMonth: { year: 2026, month: 1 }, value: 0.2 },
+      { dataMonth: { year: 2026, month: 2 }, value: 0.5 },
+      AVAILABLE_THROUGH
+    );
+    expect(change.changeBound).toBe("exact");
+    expect(change.trend).toBe("increasing");
+  });
+
+  it("states the censoring limit alongside the other scope limits", () => {
+    expect(
+      AEROSOL_LOADING_LIMITATIONS.some((limit) => limit.includes("open-ended"))
+    ).toBe(true);
   });
 });

@@ -76,6 +76,69 @@ describe("auditBriefIntegrity", () => {
     expect(report.unsupportedLanguageHits).toContain("risk");
   });
 
+  it("catches unsupported-claim language in the coverage-context sentence", () => {
+    const brief = soundBrief();
+    brief.coverageContext.statement =
+      "Sampled coverage indicates drought risk.";
+    expect(brief.unsupportedLanguageHits).toEqual([]);
+
+    const report = auditBriefIntegrity(brief);
+    expect(report.sound).toBe(false);
+    expect(report.failedCheckIds).toEqual(["language-bounded"]);
+    expect(report.unsupportedLanguageHits).toContain("risk");
+  });
+
+  it("catches unsupported-claim language in the data-currency sentence", () => {
+    const brief = soundBrief();
+    brief.dataCurrency.statement =
+      "Lagged months will forecast the next value.";
+    expect(brief.unsupportedLanguageHits).toEqual([]);
+
+    const report = auditBriefIntegrity(brief);
+    expect(report.sound).toBe(false);
+    expect(report.failedCheckIds).toEqual(["language-bounded"]);
+    expect(report.unsupportedLanguageHits).toContain("forecast");
+  });
+
+  /**
+   * Drift guard. The coverage-context and data-currency sentences were added to
+   * the brief after this gate was written and stayed unscanned, so the gate
+   * silently documented a wider prose surface than it read. Rather than pin the
+   * four descriptors known today, re-derive the surface from a real composed
+   * brief: any future descriptor that carries a `statement` must also be scanned,
+   * or this fails naming the field.
+   */
+  it("scans every derived brief statement, including ones added later", () => {
+    const descriptorFields = Object.entries(soundBrief())
+      .filter(
+        (entry): entry is [string, { statement: string }] =>
+          typeof entry[1] === "object" &&
+          entry[1] !== null &&
+          !Array.isArray(entry[1]) &&
+          typeof (entry[1] as { statement?: unknown }).statement === "string"
+      )
+      .map(([field]) => field);
+
+    // Guard the guard: a rename must not quietly empty the loop below.
+    expect(descriptorFields).toEqual([
+      "completeness",
+      "temporalAlignment",
+      "coverageContext",
+      "dataCurrency",
+    ]);
+
+    for (const field of descriptorFields) {
+      const brief = soundBrief();
+      (brief as unknown as Record<string, { statement: string }>)[
+        field
+      ].statement = "This sentence claims a hazard.";
+
+      const report = auditBriefIntegrity(brief);
+      expect(report.unsupportedLanguageHits, field).toContain("hazard");
+      expect(report.failedCheckIds, field).toContain("language-bounded");
+    }
+  });
+
   it("catches unsupported-claim language in a per-signal statement", () => {
     const brief = soundBrief();
     brief.statements = [
@@ -164,6 +227,23 @@ describe("auditBriefIntegrity", () => {
         spanMonths: null,
         aligned: false,
         statement: "No usable observations to compare across time.",
+      },
+      coverageContext: {
+        suppliedSignalIds: [],
+        unsuppliedSignalIds: [],
+        minimumValidFraction: null,
+        maximumValidFraction: null,
+        statement: "No usable observations with spatial coverage to summarize.",
+      },
+      dataCurrency: {
+        comparedSignalIds: [],
+        unassessedSignalIds: [],
+        perSignal: [],
+        freshestLagMonths: null,
+        stalestLagMonths: null,
+        freshestSignalId: null,
+        stalestSignalId: null,
+        statement: "No usable observations to assess for data currency.",
       },
     });
     expect(report.sound).toBe(true);

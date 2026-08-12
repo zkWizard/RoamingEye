@@ -144,7 +144,13 @@ async function main() {
   }
 
   if (want("plates")) {
-    // --- Plate boundaries (Bird 2003): name + rounded geometry ---------------
+    // --- Plate boundaries (Bird 2003): step attributes + rounded geometry ----
+    // PB2002 publishes four per-step attributes we retain verbatim alongside
+    // the label, rather than leaving consumers to re-derive them from the
+    // label string: PlateA/PlateB (the bordering plate codes), Type (set to
+    // "subduction" on subduction steps and left blank on every other step),
+    // and Source (the digitization credited for that step — the dataset is a
+    // compilation of dozens of sources, not one uniform survey).
     console.log("Fetching plate boundaries (Bird 2003)…");
     const plates = await getJson(
       "https://raw.githubusercontent.com/fraxen/tectonicplates/master/GeoJSON/PB2002_boundaries.json"
@@ -155,7 +161,13 @@ async function main() {
         .filter((f) => f.geometry?.type === "LineString")
         .map((f) => ({
           type: "Feature",
-          properties: { name: f.properties?.Name ?? "" },
+          properties: {
+            name: f.properties?.Name ?? "",
+            plateA: f.properties?.PlateA ?? "",
+            plateB: f.properties?.PlateB ?? "",
+            type: f.properties?.Type ?? "",
+            source: f.properties?.Source ?? "",
+          },
           geometry: {
             type: "LineString",
             // 3 decimals ≈ 100 m — far below the dataset's own precision.

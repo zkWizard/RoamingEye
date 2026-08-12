@@ -61,6 +61,29 @@ describe("describeSnowCoverObservation", () => {
     expect(narrative.provenance.publicationLagMonths).toBeNull();
   });
 
+  it("names an undistributed month as a record gap, not a snow-free month", () => {
+    const summary = summarizeSnowCover(
+      observation({
+        dataMonth: { year: 2016, month: 2 },
+        snowCoveredPercent: null,
+      }),
+      AVAILABLE_THROUGH
+    );
+    const narrative = describeSnowCoverObservation(summary);
+
+    expect(narrative.headline).toBe(
+      "Snow-cover imagery not distributed for 2016-02"
+    );
+    expect(narrative.detail).toContain("does not distribute 2016-02");
+    expect(narrative.detail).toContain("not an observation");
+    // The wording a reader would otherwise credit to cloud or the quality
+    // screen must not appear for a month nobody imaged.
+    expect(narrative.detail).not.toContain("No usable monthly-average value");
+    expect(narrative.detail).not.toContain("%");
+    expect(narrative.provenance.publicationStatus).toBe("not-distributed");
+    expect(narrative.provenance.publicationLagMonths).toBeNull();
+  });
+
   it("reports a published month with no usable value honestly", () => {
     const summary = summarizeSnowCover(
       observation({ snowCoveredPercent: null, validFraction: 0 }),
