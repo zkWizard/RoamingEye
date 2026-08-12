@@ -205,10 +205,6 @@ export class ProbePanel {
     this.status.textContent = text;
   }
 
-  setSubtitle(text: string): void {
-    this.subtitle.textContent = text;
-  }
-
   /** Provide the full month range up front; values stream in via setValue. */
   beginSeries(
     months: YearMonth[],
