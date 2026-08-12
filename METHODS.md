@@ -153,6 +153,36 @@ Three further limits of the rendered product that no inversion can remove:
   error only — not the L3 product's accuracy against in-situ measurement
   (`src/lib/probeInversionAccuracy.ts`).
 
+- **Where the inversion goes blind**: the "Recovered" column above is a count,
+  and a count hides the property that matters. A rejected colour is not an
+  untested one — at probe time the same rejection returns no value, so the
+  sample is **dropped from the series**. Where the rejected colours form a
+  contiguous block, the loss is _value-dependent_: the probe cannot see that
+  part of the range at all, and every mean, trend, anomaly and percentile
+  derived from the survivors is conditioned on a censored sample. Measured
+  against the same colormaps (`src/lib/inversionBlindSpots.ts`):
+
+  | Layer                 | Blind-spot shape | Widest unreadable span         |
+  | --------------------- | ---------------- | ------------------------------ |
+  | Aerosol optical depth | none             | —                              |
+  | Sea surface temp      | none             | —                              |
+  | Air temperature (2 m) | none             | —                              |
+  | Precipitation         | none             | —                              |
+  | Soil moisture         | end-truncated    | 19.5–34.5 kg/m² (31%)          |
+  | Land surface temp     | total            | 200.3–349.7 K (the whole ramp) |
+
+  Air temperature, precipitation, and sea surface temperature each carried a
+  wide blind spot until their legends were rebuilt from GIBS's own ramps
+  (#717, #713, #736); re-measured after those recalibrations, all three read
+  the whole ramp. What remains bounds how the table above may be read: soil
+  moisture's RMSE is _survivor-only_, measured on the colours that happened to
+  invert, and its blind runs reach the ramp's ends — soil is also blind from
+  0.5 to 11.5 kg/m² at the dry end — so an observed extreme there is a
+  censoring artefact of our gradient rather than an observation. These spans
+  locate a failure of _our legend gradient_, not of the source product, and
+  each shrinks as a layer is recalibrated under
+  [#170](https://github.com/zkWizard/RoamingEye/issues/170).
+
 ## 4. Trend analysis
 
 For a probed time series, the tool reports a nonparametric trend — chosen
