@@ -9,6 +9,8 @@
  * Served with permissive CORS, no key required. M4.5+/30-days is ~400 kB.
  */
 
+import { formatReportedMagnitude } from "./magnitudeScale";
+
 export interface Earthquake {
   lat: number;
   lon: number;
@@ -122,15 +124,16 @@ export interface EarthquakeFeedSnapshot {
 
 /**
  * Compact, source-faithful text for inspecting one parsed feed observation.
- * The feed's reported magnitude is left unclassified because summary feeds
- * may mix magnitude types; depth remains in its native kilometres and the
- * event timestamp is rendered explicitly in UTC.
+ * The reported magnitude stays unclassified by size, but is attributed to the
+ * scale that measured it — summary feeds mix magnitude types, which are not
+ * directly comparable (see lib/magnitudeScale.ts). Depth remains in its native
+ * kilometres and the event timestamp is rendered explicitly in UTC.
  */
 export function formatEarthquakeObservation(earthquake: Earthquake): string {
   const timeUtc = new Date(earthquake.time).toISOString();
   const parts = [
     earthquake.place?.trim() || "Location not supplied",
-    `M ${earthquake.magnitude} (reported)`,
+    formatReportedMagnitude(earthquake.magnitude, earthquake.magnitudeType),
     `${earthquake.depthKm} km depth`,
     timeUtc.replace("Z", " UTC"),
   ];

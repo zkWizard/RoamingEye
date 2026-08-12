@@ -58,6 +58,38 @@ describe("formatEarthquakeObservation", () => {
       })
     ).toContain("Location not supplied");
   });
+
+  it("names the magnitude scale the feed reported the value on", () => {
+    expect(
+      formatEarthquakeObservation({
+        lat: -4.2,
+        lon: 152.3,
+        depthKm: 45,
+        magnitude: 6.1,
+        magnitudeType: "mww",
+        time: Date.UTC(2026, 6, 27, 1, 23, 45),
+        place: "63 km SW of Kokopo, Papua New Guinea",
+      })
+    ).toBe(
+      "63 km SW of Kokopo, Papua New Guinea · M 6.1 (Mww, reported) · 45 km depth · 2026-07-27T01:23:45.000 UTC"
+    );
+  });
+
+  it("marks a magnitude reported on a saturated scale as a lower bound", () => {
+    expect(
+      formatEarthquakeObservation({
+        lat: 38.1,
+        lon: 142.9,
+        depthKm: 24,
+        magnitude: 6.8,
+        magnitudeType: "mb",
+        time: Date.UTC(2026, 6, 27),
+        place: "off the east coast of Honshu, Japan",
+      })
+    ).toContain(
+      "M 6.8 (mb, reported; mb saturates at this size — a lower bound)"
+    );
+  });
 });
 
 const feature = (
