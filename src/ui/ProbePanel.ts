@@ -7,6 +7,10 @@ import {
   type ProbeScale,
 } from "../lib/probe";
 import { trendSummary, trendClause } from "../lib/trend";
+import {
+  seasonalSamplingBalance,
+  seasonalSamplingClause,
+} from "../lib/seasonalSamplingBalance";
 import type { ProbeMode } from "../probe/ProbeSampler";
 
 /** The user-toggleable sampling modes (regions are drawn, not toggled). */
@@ -259,12 +263,22 @@ export class ProbePanel {
     const accuracy = this.context
       ? inversionAccuracyClause(probeInversionAccuracy(this.context.layerId, s))
       : "";
+    // The trend is seasonally corrected, but the mean beside it is not: it
+    // averages whichever months returned data. When those months are unevenly
+    // spread across the calendar the mean carries a seasonal-sampling bias,
+    // so measure it and say so. Silent whenever the record is balanced or the
+    // bias falls below the inversion's own resolution.
+    const seasonal = seasonalSamplingClause(
+      seasonalSamplingBalance(this.months, physical),
+      s
+    );
     const stat =
       `${stats.count} of ${this.months.length} months · ` +
       `min ${fmt(stats.min)} · mean ${fmt(stats.mean)} · max ${fmt(stats.max)}` +
       ` · ${uncertaintyText(s)} per value` +
       (accuracy ? ` · ${accuracy}` : "") +
-      ` · ${trendClause(trend)}`;
+      ` · ${trendClause(trend)}` +
+      (seasonal ? ` · ${seasonal}` : "");
     this.setStatus(stat);
     this.appendPeakGreenness(stat, physical);
   }
