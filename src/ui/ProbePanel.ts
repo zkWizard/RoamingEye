@@ -18,6 +18,13 @@ import {
 } from "../lib/probeInversionAccuracy";
 import { ICONS } from "./icons";
 
+/** What the current series is: which layer, and where it was sampled. */
+export interface ProbeSeriesContext {
+  layerId: LayerId;
+  /** Omitted for drawn regions, whose mean spans many latitudes. */
+  latitude?: number;
+}
+
 /**
  * The probe result card: a time-series chart of the sampled values at a
  * clicked location, a status/stat line, and a CSV download. Fills in
@@ -50,8 +57,9 @@ export class ProbePanel {
   private months: YearMonth[] = [];
   private values: (number | null)[] = [];
   private scale: ProbeScale | undefined;
-  /** Layer being charted — selects the committed inversion-accuracy figure. */
-  private layerId: LayerId | undefined;
+  private context: ProbeSeriesContext | undefined;
+  /** Bumped per series so a late lazy summary of an old probe is discarded. */
+  private seriesToken = 0;
   private csv: (() => string) | undefined;
   private csvFilename = "probe.csv";
   private view: ProbeView = "values";
@@ -198,11 +206,19 @@ export class ProbePanel {
   }
 
   /** Provide the full month range up front; values stream in via setValue. */
-  beginSeries(months: YearMonth[], scale: ProbeScale, layerId: LayerId): void {
+  beginSeries(
+    months: YearMonth[],
+    scale: ProbeScale,
+    // Identifies what is being charted, for layer-specific summaries. A drawn
+    // region carries no latitude: its mean spans locations that need not share
+    // a hemisphere or a seasonal cycle.
+    context?: ProbeSeriesContext
+  ): void {
     this.months = months;
     this.values = new Array(months.length).fill(null);
     this.scale = scale;
-    this.layerId = layerId;
+    this.context = context;
+    this.seriesToken++;
     this.draw();
   }
 
@@ -240,16 +256,46 @@ export class ProbePanel {
     // finely a gradient position resolves; the measured inversion RMSE is
     // whether that position lands on the right value — for SST the second is
     // ~80x the first, so quoting only the step overstates precision badly.
-    const accuracy = this.layerId
-      ? inversionAccuracyClause(probeInversionAccuracy(this.layerId, s))
+    const accuracy = this.context
+      ? inversionAccuracyClause(probeInversionAccuracy(this.context.layerId, s))
       : "";
-    this.setStatus(
+    const stat =
       `${stats.count} of ${this.months.length} months · ` +
-        `min ${fmt(stats.min)} · mean ${fmt(stats.mean)} · max ${fmt(stats.max)}` +
-        ` · ${uncertaintyText(s)} per value` +
-        (accuracy ? ` · ${accuracy}` : "") +
-        ` · ${trendClause(trend)}`
-    );
+      `min ${fmt(stats.min)} · mean ${fmt(stats.mean)} · max ${fmt(stats.max)}` +
+      ` · ${uncertaintyText(s)} per value` +
+      (accuracy ? ` · ${accuracy}` : "") +
+      ` · ${trendClause(trend)}`;
+    this.setStatus(stat);
+    this.appendPeakGreenness(stat, physical);
+  }
+
+  /**
+   * Append the vegetation-index calendar-timing clause: which month held each
+   * year's highest NDVI, and how tightly that recurs. The NDVI phenology
+   * helpers pull in per-year summarization and circular statistics, so they
+   * load on demand rather than riding in the entry chunk; the clause lands a
+   * moment after the stats, which the status line already fills in
+   * progressively. A newer series invalidates an in-flight load.
+   */
+  private appendPeakGreenness(stat: string, physical: (number | null)[]): void {
+    const context = this.context;
+    // A drawn region has no single latitude, so its seasonal timing is
+    // undefined — skip the clause rather than pick a hemisphere.
+    const latitude = context?.latitude;
+    if (!context || latitude === undefined) return;
+    const months = this.months;
+    const token = this.seriesToken;
+    void import("../lib/probePeakGreenness")
+      .then(({ peakGreennessClause, probePeakGreennessTiming }) => {
+        if (token !== this.seriesToken) return; // superseded by a newer probe
+        const clause = peakGreennessClause(
+          probePeakGreennessTiming(context.layerId, months, physical, latitude)
+        );
+        if (clause) this.setStatus(`${stat} · ${clause}`);
+      })
+      .catch(() => {
+        // A failed chunk load must leave the stats already on screen intact.
+      });
   }
 
   // --- Toggles -----------------------------------------------------------------
