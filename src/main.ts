@@ -20,7 +20,7 @@ import {
   inversionAccuracyCsvHeaders,
   probeInversionAccuracy,
 } from "./lib/probeInversionAccuracy";
-import { isAreaGeometry } from "./lib/geojson";
+import { geometryBounds, isAreaGeometry } from "./lib/geojson";
 import {
   PLACE_OBSERVATION_NATIVE_UNITS,
   placeObservationProductFromSample,
@@ -739,6 +739,9 @@ function runPlaceInsights(result: GeoResult): void {
             observedValue: sample.values[0],
             validFraction: sample.validFractions[0],
           },
+          // Extent of the searched boundary, so the reading can bound how many
+          // native ~9 km source cells stand behind its "boundary-mean".
+          bounds: geometryBounds(geometry),
         })
       );
       exportSamples.set("sst", {

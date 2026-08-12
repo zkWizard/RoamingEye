@@ -16,7 +16,12 @@ import {
   type SstRampCensoringSummary,
 } from "./sstRampCensoring";
 import { SST_SAMPLING_GATE_NOTE } from "./sstObservingConstraints";
+import {
+  summarizeSstNativeSupport,
+  type SstNativeSupportSummary,
+} from "./sstNativeSupport";
 import { formatYm, type YearMonth } from "./timeline";
+import type { Bounds } from "./imagery";
 
 /**
  * A single, source-aware SST reading for the exact boundary returned by place
@@ -46,6 +51,12 @@ export interface MarineBoundarySstInput {
   geography?: MarineCoverageGeography;
   /** Same calendar month, one year earlier, for the same searched boundary. */
   priorYear?: MarineBoundarySstPriorYearInput;
+  /**
+   * Bounding box of the sampled boundary, for the native-grid support bound.
+   * Omitted when the workflow did not supply one; support is then unbounded
+   * rather than assumed.
+   */
+  bounds?: Bounds | null;
 }
 
 /**
@@ -140,6 +151,13 @@ export interface MarinePlaceInsightReading {
    * searched place is usually mostly outside the product's domain.
    */
   spatialSupport: MarineBoundarySstSupportSummary;
+  /**
+   * How many native source cells the searched boundary can span. Rendered
+   * pixels are not independent measurements, so a boundary smaller than one
+   * ~9 km cell yields a "mean" resting on a single source value. Reported
+   * alongside the value, never folded into it.
+   */
+  nativeSupport: SstNativeSupportSummary;
   observationStatus:
     | "observed"
     | "no-sst-coverage"
@@ -246,6 +264,7 @@ export function marineBoundarySstReading(
     yearOverYear,
     rampCensoring,
     spatialSupport,
+    nativeSupport: summarizeSstNativeSupport(input.bounds ?? null),
     observationStatus: usable
       ? "observed"
       : coverage.coverage.status === "no-sst-coverage"
@@ -306,6 +325,8 @@ export function unavailableMarineBoundarySstReading(
     // Sampling never produced a share, so none is reported. A failed workflow
     // must not be recorded as a boundary that held no water.
     spatialSupport: summarizeMarineBoundarySstSupport(null),
+    // Sampling never completed, so no extent was established to bound.
+    nativeSupport: summarizeSstNativeSupport(null),
     observationStatus:
       reason === "source-colormap-unavailable"
         ? "source-unavailable"
