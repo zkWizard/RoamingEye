@@ -81,12 +81,14 @@ describe("inversionAccuracyClause", () => {
     // recalibration; synthesize that state to keep the clause shape covered
     // now that no live layer rejects a partial ramp.
     const clause = inversionAccuracyClause({
+      layerId: "soil",
       status: "characterized",
       rmse: 8.23,
       unit: "kg/m²",
       rejectedColours: 29,
       totalColours: 50,
       rejectedFraction: 29 / 50,
+      quantizationText: "",
     });
     expect(clause).toBe("±8.2 kg/m² vs GIBS colormap, 58% of ramp unreadable");
   });
