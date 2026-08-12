@@ -33,12 +33,17 @@ describe("vegetation-index ramp fidelity", () => {
     }
   });
 
-  it("keeps the vegetation indices out of the calibrated colormap set", () => {
-    // The load-bearing invariant: membership in COLORMAP_DOCS asserts a linear
-    // position-to-value ramp, and these two measurably violate it. If a future
-    // edit adds them there, the probe-scale contract's linearity assertion
-    // would start failing against live GIBS — fail here first, with the reason.
-    for (const index of ["ndvi", "evi"] as const) {
+  it("keeps EVI out of the calibrated colormap set", () => {
+    // NDVI joined COLORMAP_DOCS in #776: its legend stops are placed at the
+    // ramp's own value fractions, so the 0.28→0.30 hue jump is encoded in stop
+    // position rather than assumed away, and the offline snapshot re-measure
+    // (0.024 RMSE, 140/140) guards that on every change. EVI cannot follow:
+    // its GIBS ramp contains pure black — indistinguishable from an undrawn
+    // JPEG pixel — so no stop placement can calibrate it.
+    expect(Object.prototype.hasOwnProperty.call(COLORMAP_DOCS, "ndvi")).toBe(
+      true
+    );
+    for (const index of ["evi"] as const) {
       expect(
         Object.prototype.hasOwnProperty.call(COLORMAP_DOCS, index),
         `${index} ramp deviates ${MEASURED_VEGETATION_RAMP[index].linearityDeviation} from linear; it cannot be a calibrated colormap-inverted layer`

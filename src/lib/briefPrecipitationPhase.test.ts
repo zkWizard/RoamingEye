@@ -122,12 +122,12 @@ describe("describeBriefPrecipitationPhase", () => {
   });
 
   it("declines to indicate a phase when the measured band spans freezing", () => {
-    // A near-freezing month: ±18.95 K straddles 273.15 K by a wide margin.
-    const result = phaseFor(270);
+    // A month right at freezing: ±rmse straddles 273.15 K.
+    const result = phaseFor(273);
     expect(result.status).toBe("unresolved-band-straddles-freezing");
     expect(result.thermal!.nativeRmse).toBe(AIRTEMP_RMSE_K);
-    expect(result.thermal!.lower).toBeCloseTo(270 - AIRTEMP_RMSE_K, 10);
-    expect(result.thermal!.upper).toBeCloseTo(270 + AIRTEMP_RMSE_K, 10);
+    expect(result.thermal!.lower).toBeCloseTo(273 - AIRTEMP_RMSE_K, 10);
+    expect(result.thermal!.upper).toBeCloseTo(273 + AIRTEMP_RMSE_K, 10);
     expect(result.statement).toMatch(/cannot indicate whether/i);
   });
 
@@ -136,8 +136,8 @@ describe("describeBriefPrecipitationPhase", () => {
     expect(phaseFor(below).status).toBe("indicated-frozen");
     expect(phaseFor(below).statement).toMatch(/not a measurement/i);
 
-    // One kelvin warmer the band touches freezing again and the claim is dropped.
-    expect(phaseFor(below + 2).status).toBe(
+    // Warm enough that the band reaches back across freezing, the claim drops.
+    expect(phaseFor(below + 1.2).status).toBe(
       "unresolved-band-straddles-freezing"
     );
   });
@@ -146,7 +146,7 @@ describe("describeBriefPrecipitationPhase", () => {
     const above = FREEZING_POINT_K + AIRTEMP_RMSE_K + 1;
     expect(phaseFor(above).status).toBe("indicated-liquid");
     expect(phaseFor(above).statement).toMatch(/not a measurement/i);
-    expect(phaseFor(above - 2).status).toBe(
+    expect(phaseFor(above - 1.2).status).toBe(
       "unresolved-band-straddles-freezing"
     );
   });
@@ -161,19 +161,20 @@ describe("describeBriefPrecipitationPhase", () => {
     );
   });
 
-  it("cannot indicate a phase across the whole ordinary monthly-mean range", () => {
-    // The point of the module, stated as a measurement. With air temperature's
-    // committed RMSE of 18.95 K, the band clears freezing only outside
-    // 273.15 ∓ 18.95 K — i.e. 254.20 K to 292.10 K, roughly −19 °C to +19 °C.
-    // Essentially every monthly mean over inhabited land falls inside that
-    // window, so the co-observed temperature indicates nothing about phase.
-    for (let k = 255; k <= 291; k += 1) {
-      expect(phaseFor(k).status).toBe("unresolved-band-straddles-freezing");
+  it("resolves a phase across the ordinary monthly-mean range since the recalibration", () => {
+    // Stated as a measurement of the committed figure. When the legend was
+    // hand-drawn (RMSE 18.95 K) the band straddled freezing across roughly
+    // −19 °C to +19 °C, so essentially no monthly mean earned an indication.
+    // The 2026-08-11 recalibration (#717/#758) collapsed that: the band now
+    // straddles freezing only within ±rmse of 273.15 K, and a whole-kelvin
+    // sweep clears it on both sides.
+    for (let k = 255; k <= 272; k += 1) {
+      expect(phaseFor(k).status).toBe("indicated-frozen");
     }
-    // Outside it the band does clear, so the module is not merely always-null:
-    // only a deep-cold or reliably-warm month earns an indication.
-    expect(phaseFor(254).status).toBe("indicated-frozen");
-    expect(phaseFor(293).status).toBe("indicated-liquid");
+    expect(phaseFor(273).status).toBe("unresolved-band-straddles-freezing");
+    for (let k = 274; k <= 291; k += 1) {
+      expect(phaseFor(k).status).toBe("indicated-liquid");
+    }
   });
 
   it("reuses the committed inversion figure rather than re-deriving one", () => {

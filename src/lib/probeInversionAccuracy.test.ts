@@ -16,21 +16,23 @@ describe("probeInversionAccuracy", () => {
     expect(a.status).toBe("characterized");
     expect(a.rmse).toBe(MEASURED_INVERSION.sst.rmse);
     expect(a.unit).toBe("°C");
-    expect(a.rejectedColours).toBe(85);
+    // Recalibrated 2026-08-11 (#736): the rebuilt legend reads the whole ramp.
+    expect(a.rejectedColours).toBe(0);
     expect(a.totalColours).toBe(213);
-    expect(a.rejectedFraction).toBeCloseTo(85 / 213, 6);
+    expect(a.rejectedFraction).toBe(0);
   });
 
   /**
    * The reason this module exists: the panel's quantization figure is a floor,
-   * not an error bar. If the two ever converge, the extra clause is noise and
-   * the wiring should be revisited — so pin the gap rather than assume it.
+   * not an error bar. Even after the SST recalibration the measured RMSE is
+   * an order of magnitude above the half-step, so the extra clause still
+   * carries information — pin the gap rather than assume it.
    */
   it("SST inversion error dwarfs the quantization step the panel quotes", () => {
     const half = quantizationStep(PROBE_SCALES.sst) / 2;
     const rmse = MEASURED_INVERSION.sst.rmse as number;
     expect(half).toBeCloseTo(0.0627, 3);
-    expect(rmse / half).toBeGreaterThan(50);
+    expect(rmse / half).toBeGreaterThan(10);
   });
 
   it("every calibrated layer resolves to a measured figure", () => {
@@ -42,9 +44,11 @@ describe("probeInversionAccuracy", () => {
   });
 
   it("never invents a figure for an unvalidated layer", () => {
-    // NDVI is a satellite-derived index, not one of the colormap-validated
-    // layers; absence of a measurement must not render as accuracy.
-    const a = probeInversionAccuracy("ndvi");
+    // EVI is read by inverting the display gradient like NDVI, but GIBS's
+    // MODIS_L3_EVI ramp contains pure black — also an undrawn tile pixel — so
+    // it cannot be calibrated; absence of a measurement must not render as
+    // accuracy.
+    const a = probeInversionAccuracy("evi");
     expect(a.status).toBe("uncharacterized");
     expect(a.rmse).toBeNull();
     expect(a.rejectedColours).toBeNull();
@@ -66,9 +70,25 @@ describe("probeInversionAccuracy", () => {
 });
 
 describe("inversionAccuracyClause", () => {
-  it("states the SST band and the unreadable share", () => {
+  it("states the SST band without an unreadable share now the ramp inverts", () => {
     const clause = inversionAccuracyClause(probeInversionAccuracy("sst"));
-    expect(clause).toBe("±5.1 °C vs GIBS colormap, 40% of ramp unreadable");
+    expect(clause).toBe("±1.0 °C vs GIBS colormap");
+    expect(clause).not.toContain("unreadable");
+  });
+
+  it("states the unreadable share when a ramp rejects colours", () => {
+    // Soil moisture inverted only 21 of 50 colours before its 2026-08-12
+    // recalibration; synthesize that state to keep the clause shape covered
+    // now that no live layer rejects a partial ramp.
+    const clause = inversionAccuracyClause({
+      status: "characterized",
+      rmse: 8.23,
+      unit: "kg/m²",
+      rejectedColours: 29,
+      totalColours: 50,
+      rejectedFraction: 29 / 50,
+    });
+    expect(clause).toBe("±8.2 kg/m² vs GIBS colormap, 58% of ramp unreadable");
   });
 
   it("omits the unreadable share when the ramp fully inverts", () => {
@@ -82,7 +102,7 @@ describe("inversionAccuracyClause", () => {
     // Precipitation's RMSE is already stored post-conversion (mm/day). A
     // second conversion here would scale the error twice.
     const a = probeInversionAccuracy("precip");
-    expect(a.rmse).toBe(20.36);
+    expect(a.rmse).toBe(0.27);
     expect(inversionAccuracyClause(a)).toContain("mm/day");
   });
 });
@@ -104,8 +124,8 @@ describe("inversionAccuracyCsvHeaders", () => {
   it("cites where the figure comes from and bounds what it covers", () => {
     const headers = inversionAccuracyCsvHeaders(probeInversionAccuracy("sst"));
     expect(headers).toHaveLength(2);
-    expect(headers[0]).toContain("RMSE ±5.1 °C");
-    expect(headers[0]).toContain("85 of 213 ramp colours rejected");
+    expect(headers[0]).toContain("RMSE ±1.0 °C");
+    expect(headers[0]).toContain("0 of 213 ramp colours rejected");
     expect(headers[0]).toContain("docs/validation.md");
     // The scope line is load-bearing: this is rendering-inversion error, not
     // the L3 product's accuracy against in-situ measurement.

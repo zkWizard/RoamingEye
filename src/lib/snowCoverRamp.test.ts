@@ -158,9 +158,9 @@ describe("snow-cover legend ↔ published ramp", () => {
     // beside them (legendTicks reads PROBE_SCALES): both ends say 0/100.
     expect(spec.minLabel).toBe("0%");
     expect(legendTicks("snow")).toEqual({
-      min: "0 %",
-      mid: "50 %",
-      max: "100 %",
+      min: "0.0 %",
+      mid: "50.0 %",
+      max: "100.0 %",
     });
     // The bar's leftmost colour is GIBS's 1%; 0% has no colour at all, and
     // the note — not a mislabelled end — is what carries that.
