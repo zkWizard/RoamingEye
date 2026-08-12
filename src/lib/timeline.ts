@@ -341,7 +341,12 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 1980, month: 1 },
     latest: { year: 2026, month: 3 },
-    description: "Aerosol optical thickness — dust, smoke, and air quality.",
+    // AOD is a whole-column optical thickness, so it cannot see the surface
+    // concentration an "air quality" caption used to promise here; and both
+    // sibling atmosphere captions name their production method (see
+    // lib/atmosphereLayerClaims.ts, which guards both points).
+    description:
+      "Aerosol optical thickness — dust, smoke (MERRA-2 reanalysis).",
   },
   landcover: {
     id: "landcover",
