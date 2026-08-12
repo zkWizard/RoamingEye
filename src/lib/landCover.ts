@@ -419,7 +419,16 @@ export interface LandCoverFormationSummary {
   /** Retains the upstream publication or sampling limitation unchanged. */
   unavailableReason: LandCoverContextSummary["unavailableReason"];
   formationCoverage: LandCoverFormationCoverage[];
-  /** Most common formation by sample count; null when no known class present. */
+  /** Whether the largest formation count is unique, tied, or absent. */
+  mostFrequentFormationStatus: "unique" | "tied" | "no-data";
+  /** Every formation sharing the largest sample count. */
+  mostFrequentFormations: LandCoverFormationCoverage[];
+  /**
+   * Unique most common formation by sample count; null for a tie or when no
+   * known class is present. Formations aggregate whole classes (forest sums
+   * codes 1-5, cropland sums 12 and 14), so equal totals are more likely here
+   * than at class level and must not be resolved by the display sort order.
+   */
   dominantFormation: LandCoverFormationCoverage | null;
   /**
    * Informative-class samples not mapped to any formation. Zero for the
@@ -441,6 +450,12 @@ const FORMATION_BY_CLASS = new Map<IgbpLandCoverClassCode, LandCoverFormation>(
  * {@link summarizeLandCoverContext}: no dataset reference is dropped and no
  * class code is re-parsed. Fractions share the same denominators as the class
  * coverage so callers can mix formation and class views without rescaling.
+ *
+ * Ties are reported, not broken. `formationCoverage` keeps a deterministic
+ * display order (count, then lowest class code), but that ordering is a
+ * presentation detail: reading its first entry as "the" dominant formation
+ * would assert a winner the sample counts do not support. This mirrors how
+ * {@link summarizeLandCoverContext} reports tied most-frequent classes.
  */
 export function summarizeLandCoverFormations(
   context: LandCoverContextSummary
@@ -487,6 +502,20 @@ export function summarizeLandCoverFormations(
         b.sampleCount - a.sampleCount || a.classCodes[0] - b.classCodes[0]
     );
 
+  const largestFormationCount = formationCoverage[0]?.sampleCount ?? null;
+  const mostFrequentFormations =
+    largestFormationCount === null
+      ? []
+      : formationCoverage.filter(
+          (entry) => entry.sampleCount === largestFormationCount
+        );
+  const mostFrequentFormationStatus =
+    mostFrequentFormations.length === 0
+      ? "no-data"
+      : mostFrequentFormations.length === 1
+        ? "unique"
+        : "tied";
+
   return {
     kind: "observed-land-cover-formation-groups",
     isForecast: false,
@@ -494,7 +523,12 @@ export function summarizeLandCoverFormations(
     observationStatus: context.observationStatus,
     unavailableReason: context.unavailableReason,
     formationCoverage,
-    dominantFormation: formationCoverage[0] ?? null,
+    mostFrequentFormationStatus,
+    mostFrequentFormations,
+    dominantFormation:
+      mostFrequentFormationStatus === "unique"
+        ? mostFrequentFormations[0]
+        : null,
     ungroupedKnownSampleCount,
   };
 }
