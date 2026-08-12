@@ -87,28 +87,29 @@ export function validateInversion(
 
 /**
  * The committed validation figures (measured 2026-07-09 against the live
- * colormaps). The contract test re-measures and asserts the live numbers
- * still match these within tolerance — so the published accuracy figures in
- * docs/validation.md and METHODS.md stay true, and any drift (a GIBS palette
- * change, a legend edit) fails CI naming the layer.
+ * colormaps; air temperature re-measured 2026-08-11). The contract test
+ * re-measures and asserts the live numbers still match these within tolerance
+ * — so the published accuracy figures in docs/validation.md and METHODS.md
+ * stay true, and any drift (a GIBS palette change, a legend edit) fails CI
+ * naming the layer.
  *
  * These are sobering by design, and they track how closely each layer's legend
  * follows the colormap GIBS actually renders with. Where the stops are taken
  * from that colormap the inversion is tight (precipitation, RMSE 0.27 mm/day
- * over the whole ramp; aerosol, 0.13); where the gradient is still a hand-drawn
- * approximation it is loose (air temperature, soil moisture) or fails outright
- * (LST's gradient misses GIBS's cold-end hues entirely, all-null). On the loose
- * layers the probe remains reliable for *relative* analysis (trends, anomalies,
- * seasonality — scale-monotone-robust), not absolute values. Rebuilding the
- * remaining gradients from the real GIBS colormaps is tracked as follow-up
- * (#170).
+ * over the whole ramp; 2 m air temperature, 0.51 K; aerosol, 0.13); where the
+ * gradient is still a hand-drawn approximation it is loose (SST, soil
+ * moisture) or fails outright (LST's gradient misses GIBS's cold-end hues
+ * entirely, all-null). On the loose layers the probe remains reliable for
+ * *relative* analysis (trends, anomalies, seasonality — scale-monotone-robust),
+ * not absolute values. Rebuilding the remaining gradients from the real GIBS
+ * colormaps is tracked as follow-up (#170).
  */
 export const MEASURED_INVERSION: Record<
   CalibratedLayerId,
   { rmse: number | null; nulls: number; total: number }
 > = {
   lst: { rmse: null, nulls: 250, total: 250 },
-  airtemp: { rmse: 18.95, nulls: 44, total: 90 },
+  airtemp: { rmse: 0.51, nulls: 0, total: 90 },
   sst: { rmse: 5.11, nulls: 85, total: 213 },
   // Re-measured 2026-08-11 after the precip legend was rebuilt from GIBS's own
   // ramp (was rmse 20.36 / nulls 23, when the hand-drawn tan → blue gradient
