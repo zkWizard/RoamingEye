@@ -10,8 +10,9 @@ import type { YearMonth } from "./timeline";
 /**
  * Month-over-month change between two supplied GLDAS soil-moisture observations.
  *
- * The soil layer renders GLDAS-Noah underground (root-zone) soil moisture as a
- * modeled column water content in kg/m². This helper describes only the
+ * The soil layer renders GLDAS-Noah *surface* (0-10 cm) soil moisture as a
+ * modeled column water content in kg/m² — not the 0-100 cm root zone (see
+ * ./soilMoistureDepth.ts). This helper describes only the
  * arithmetic difference between two directly supplied monthly values for the
  * *same place*: whether the modeled column got wetter or drier, and by how much
  * in native units. Two points are a difference, not a trend, rate, or anomaly.

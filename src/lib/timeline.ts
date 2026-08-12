@@ -238,7 +238,10 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 2000, month: 1 },
     latest: { year: 2026, month: 1 },
-    description: "Root-zone soil moisture (GLDAS) — drought & agriculture.",
+    // Depth is GIBS's own ("Soil Moisture (Monthly, 0-10 cm, Noah LSM,
+    // GLDAS)"), not the root zone. Kept literal to preserve this module's
+    // dependency-free contract; soilMoistureDepth.test.ts pins the two together.
+    description: "Surface soil moisture, 0-10 cm (GLDAS Noah) — not root zone.",
   },
   snow: {
     id: "snow",

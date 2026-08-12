@@ -358,6 +358,26 @@ that is the case in which reading the total alone inverts what the rain did. The
 mean daily rate is a total over its own month's length, not an observation of
 any individual day.
 
+**Soil-moisture sampling depth** (`src/lib/soilMoistureDepth.ts`). A column
+water content in kg/m² means nothing without the depth of the column it
+integrates, and GLDAS Noah carries several. GIBS publishes the layer
+RoamingEye renders, `GLDAS_Underground_Soil_Moisture_Monthly`, under the title
+"Soil Moisture (Monthly, **0-10 cm**, Noah LSM, GLDAS)" — the topmost soil
+layer. It is **not** the 0-100 cm root zone (`RootMoist`), which is the column
+agronomy and agricultural-drought monitoring are defined on. Two independent
+checks agree on the depth: NASA's own layer title, and the layer's GIBS
+colormap, which tops out at 50 kg/m² — about what a saturated 10 cm column
+holds (100 mm × ~0.45 volumetric ≈ 45 kg/m²) and roughly a tenth of a saturated
+root zone. The distinction changes what a reading supports: a near-surface
+column responds to individual rain events and to evaporative drying within
+days, whereas the root zone integrates weeks to months, so reading the surface
+value as root-zone water overstates both stored water and the persistence of a
+wet or dry signal. The depth string is defined once and imported by every soil
+surface (legend caption, layer picker, probe axis and CSV header, place-panel
+metric label) so they cannot drift apart, and
+`contract/soil-moisture-depth.contract.test.ts` re-checks the cited depth
+against the live GIBS title weekly.
+
 ## 9. What this tool does not do
 
 - It does **not** validate the GIBS L3 products against in-situ measurements —

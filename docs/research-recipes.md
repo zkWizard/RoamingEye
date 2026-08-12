@@ -30,8 +30,10 @@ _Hydrology / agriculture / ecology — "did the 2023–24 drought reach my site?
 
 1. Pick **Soil moisture** (or **Precipitation**) in the layer picker.
 2. Search your field site by name, or rotate/zoom to it.
-3. **Click the exact point.** The probe panel charts root-zone soil moisture
-   at that spot for every month since 2000.
+3. **Click the exact point.** The probe panel charts surface (0–10 cm) soil
+   moisture at that spot for every month since 2000. This is the top Noah soil
+   layer, not the 0–100 cm root zone — it dries and rewets within days, so read
+   a single month as a wetness snapshot, not as stored water.
 4. Drought years read directly off the chart as troughs that undercut the
    usual seasonal cycle. Hit **Download CSV**.
 5. Repeat the click on **Vegetation (NDVI)** — a lagging NDVI trough at the

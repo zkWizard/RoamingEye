@@ -5,6 +5,7 @@ import {
 import type { Bounds } from "./imagery";
 import type { LegendStop } from "./legend";
 import { makeNeumaierAcc } from "./numerics";
+import { SOIL_MOISTURE_DEPTH_LABEL } from "./soilMoistureDepth";
 import type { DatasetRef, LayerId, YearMonth } from "./timeline";
 import { trendSummary, trendCsvHeaders } from "./trend";
 
@@ -444,7 +445,9 @@ export const PROBE_SCALES: Record<LayerId, ProbeScale> = {
     calibrated: true,
   },
   soil: {
-    label: "Soil moisture (approx.)",
+    // Depth belongs in the label: it rides into the CSV's "# value:" header,
+    // where a downstream reader has nothing else to tell 0-10 cm from root zone.
+    label: `Soil moisture ${SOIL_MOISTURE_DEPTH_LABEL} (approx.)`,
     min: 0,
     max: 50,
     unit: "kg/m²",
