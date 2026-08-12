@@ -55,6 +55,10 @@ import {
   type PlaceMonthCard,
 } from "./lib/placeMonthAlignment";
 import {
+  describeMarineBoundarySstChange,
+  formatMarineBoundarySstChange,
+} from "./lib/marineBoundarySstChange";
+import {
   climateInsightText,
   climateMetricForLayer,
   exportObservationsFromRenderedClimateSample,
@@ -688,24 +692,28 @@ function runPlaceInsights(result: GeoResult): void {
     );
   }
 
-  // SST is a single, latest-observation card rather than a terrestrial
-  // month-over-month "condition". Sample the exact searched geometry through
-  // NASA GIBS's published physical colormap so the value remains in °C, with
-  // a tighter no-data threshold: this ramp's coldest colour is close enough
-  // to the JPEG black GIBS renders where the product holds no SST that the
-  // default would average land and ice in as ~0.08 °C water (lib/sstNoData).
-  const sstMonths = monthRangeForLayer(LAYERS.sst);
-  const sstMonth = sstMonths[sstMonths.length - 1];
+  // SST carries the latest observation plus, when the preceding month is also
+  // usable, the month-over-month change every terrestrial place metric already
+  // reports. Sample the exact searched geometry through NASA GIBS's published
+  // physical colormap so the values remain in °C, with a tighter no-data
+  // threshold: this ramp's coldest colour is close enough to the JPEG black
+  // GIBS renders where the product holds no SST that the default would
+  // average land and ice in as ~0.08 °C water (lib/sstNoData).
+  const sstPairMonths =
+    latestComparisonMonths("sst") ?? monthRangeForLayer(LAYERS.sst).slice(-1);
+  const sstMonth = sstPairMonths[sstPairMonths.length - 1];
   // Also sample the same calendar month one year earlier, so the card can
   // report a like-for-like difference instead of the seasonal cycle. Only when
   // the layer actually publishes that month — a nearby month is never
   // substituted for it.
-  const sstPriorYearMonth = sstMonths.find(
+  const sstPriorYearMonth = monthRangeForLayer(LAYERS.sst).find(
     (ym) => ym.year === sstMonth.year - 1 && ym.month === sstMonth.month
   );
   const sstSampleMonths = sstPriorYearMonth
-    ? [sstPriorYearMonth, sstMonth]
-    : [sstMonth];
+    ? [sstPriorYearMonth, ...sstPairMonths]
+    : [...sstPairMonths];
+  // Index where the consecutive pair (or lone latest month) begins.
+  const sstPairStart = sstPriorYearMonth ? 1 : 0;
   const sstTarget = sstSampleMonths.length - 1;
   monthCards.push({ label: MARINE_PLACE_METRIC.label, month: sstMonth });
   // Say which of these cards are contemporaneous before any sampling resolves:
@@ -739,23 +747,43 @@ function runPlaceInsights(result: GeoResult): void {
         }
       );
       if (abort.signal.aborted) return;
-      placeInsights.setReading(
+      const sstReadings = sstSampleMonths.slice(sstPairStart).map((month, i) =>
         marineBoundarySstReading({
           geographyLabel: result.name,
-          dataMonth: sstMonth,
-          observedValue: sample.values[sstTarget],
-          validFraction: sample.validFractions[sstTarget],
+          dataMonth: month,
+          observedValue: sample.values[sstPairStart + i],
+          validFraction: sample.validFractions[sstPairStart + i],
           sourceImageDimensions: sample.sourceImageDimensions,
           geography: { kind: "boundary", label: result.name },
-          priorYear: sstPriorYearMonth && {
-            dataMonth: sstPriorYearMonth,
-            observedValue: sample.values[0],
-            validFraction: sample.validFractions[0],
-          },
+          // The year-over-year comparison belongs to the latest month only —
+          // the preceding month is eleven months from the prior-year sample.
+          priorYear:
+            sstPairStart + i === sstTarget && sstPriorYearMonth
+              ? {
+                  dataMonth: sstPriorYearMonth,
+                  observedValue: sample.values[0],
+                  validFraction: sample.validFractions[0],
+                }
+              : undefined,
           // Extent of the searched boundary, so the reading can bound how many
           // native ~9 km source cells stand behind its "boundary-mean".
           bounds: geometryBounds(geometry),
         })
+      );
+      const latestSst = sstReadings[sstReadings.length - 1];
+      // Only explain the change once the latest month is itself a reading; an
+      // unusable latest month already says so and needs no second negative.
+      const sstChange =
+        sstReadings.length > 1 && latestSst.availability === "available"
+          ? describeMarineBoundarySstChange(sstReadings[0], latestSst)
+          : null;
+      placeInsights.setReading(
+        sstChange
+          ? {
+              ...latestSst,
+              detail: `${latestSst.detail}; ${formatMarineBoundarySstChange(sstChange)}`,
+            }
+          : latestSst
       );
       exportSamples.set("sst", {
         layerId: "sst",
@@ -763,7 +791,7 @@ function runPlaceInsights(result: GeoResult): void {
         samplingStrategy: sample.geometrySamplingStrategy,
         sourceImageDimensions: sample.sourceImageDimensions,
         colormapUrl: colormapUrl(PLACE_COLORMAP_DOCS.sst),
-        // Both sampled months are exported, so the difference shown on the
+        // Every sampled month is exported, so both differences shown on the
         // card can be recomputed from the record rather than trusted.
         observations: sstSampleMonths.map((dataMonth, index) =>
           sstPlaceObservationFromSample(
