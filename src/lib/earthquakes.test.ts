@@ -136,6 +136,10 @@ describe("parseEarthquakeFeed", () => {
             status: "reviewed",
             horizontalError: 4.2,
             depthError: 1.7,
+            nst: 54,
+            gap: 94,
+            dmin: 2.873,
+            rms: 0.8,
           },
           "us7000test"
         ),
@@ -150,6 +154,10 @@ describe("parseEarthquakeFeed", () => {
       reviewStatus: "reviewed",
       horizontalErrorKm: 4.2,
       depthErrorKm: 1.7,
+      stationCount: 54,
+      azimuthalGapDeg: 94,
+      nearestStationDeg: 2.873,
+      travelTimeResidualS: 0.8,
     });
   });
 
@@ -175,6 +183,10 @@ describe("parseEarthquakeFeed", () => {
       reviewStatus: null,
       horizontalErrorKm: null,
       depthErrorKm: null,
+      stationCount: null,
+      azimuthalGapDeg: null,
+      nearestStationDeg: null,
+      travelTimeResidualS: null,
     });
   });
 
