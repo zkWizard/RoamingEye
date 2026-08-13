@@ -6,6 +6,7 @@ import {
 } from "./landCover";
 import { LAYERS } from "./timeline";
 import {
+  NON_VEGETATING_TIER_IDS,
   VEGETATION_INDEX_LAYER_IDS,
   VEGETATION_INDEX_SOURCE,
   VEGETATION_INDEX_SUPPORT_TIERS,
@@ -145,6 +146,39 @@ describe("vegetation-index land-cover support partition", () => {
     expect(share.mixedSampleCount).toBe(2);
     expect(share.lowerBound).toBeCloseTo(3 / 8, 12);
     expect(share.upperBound).toBeCloseTo(5 / 8, 12);
+    expect(share.nonVegetatedSampleCount).toBe(3);
+    expect(share.nonVegetatedBound).toBeCloseTo(3 / 8, 12);
+  });
+
+  it("sums the non-vegetating share from its own tiers, not by subtraction", () => {
+    // Every informative IGBP class carries a tier, so the canopy, mixed, and
+    // non-vegetating shares do partition the classified sample — but the
+    // summary must reach that by counting, never by 1 - upperBound. An
+    // informative class carrying no tier lands in ungroupedKnownSampleCount,
+    // and subtraction would relabel it as barren, snow, ice, or water.
+    const context = summarizeLandCoverContext(
+      IGBP_LAND_COVER_CLASSES.filter(
+        (entry) => entry.isInformativeLandCover
+      ).map((entry, index) => ({
+        classCode: entry.code,
+        sampleCount: index + 1,
+      })),
+      2024
+    );
+
+    const support = summarizeVegetationIndexLandCoverSupport(context);
+    const share = support.plantCanopyShare;
+
+    expect(support.ungroupedKnownSampleCount).toBe(0);
+    expect(NON_VEGETATING_TIER_IDS).toEqual([
+      "sparsely-vegetated",
+      "non-vegetated",
+    ]);
+    expect(share.lowerBound! + share.nonVegetatedBound!).toBeCloseTo(
+      1 - share.mixedSampleCount / context.coverage.knownLandCoverSampleCount,
+      12
+    );
+    expect(share.upperBound! + share.nonVegetatedBound!).toBeCloseTo(1, 12);
   });
 
   it("reports a fully non-vegetated sample as a zero canopy share", () => {
@@ -163,6 +197,8 @@ describe("vegetation-index land-cover support partition", () => {
     expect(support.plantCanopyShare.lowerBound).toBe(0);
     expect(support.plantCanopyShare.upperBound).toBe(0);
     expect(support.plantCanopyShare.mixedSampleCount).toBe(0);
+    expect(support.plantCanopyShare.nonVegetatedSampleCount).toBe(6);
+    expect(support.plantCanopyShare.nonVegetatedBound).toBe(1);
   });
 
   it("marks a tie between tiers instead of naming a winner", () => {
@@ -228,7 +264,7 @@ describe("vegetation-index support note", () => {
       )
     );
 
-  it("states the required share and the mixed share separately", () => {
+  it("states the required, mixed, and non-vegetating shares separately", () => {
     const text = note([
       { classCode: 2, sampleCount: 3 }, // Vegetated
       { classCode: 11, sampleCount: 1 }, // Mixed: wetland
@@ -236,12 +272,16 @@ describe("vegetation-index support note", () => {
       { classCode: 16, sampleCount: 3 }, // Barren
     ]);
 
-    // 3/8 requires vegetation cover; 2/8 permits it without requiring it.
+    // 3/8 requires vegetation cover; 2/8 permits it without requiring it; 3/8
+    // is a surface whose definition leaves no room for a canopy at all. Those
+    // three round to 38 + 25 + 38 = 101, which is why each is introduced as "a
+    // further" and none of the copy claims the shares partition the sample.
     expect(text).toBe(
       "MOD13A3 v061 NDVI/EVI reads as plant greenness on 38% of classified " +
         "pixels, where the IGBP class definition requires vegetation cover; a " +
         "further 25% is wetland or built-up, which permit vegetation without " +
-        "requiring it."
+        "requiring it; a further 38% is barren sand, rock, or soil, where " +
+        "NDVI/EVI still returns a value that is not plant greenness."
     );
   });
 
@@ -253,9 +293,66 @@ describe("vegetation-index support note", () => {
 
     expect(text).toBe(
       "MOD13A3 v061 NDVI/EVI reads as plant greenness on 75% of classified " +
-        "pixels, where the IGBP class definition requires vegetation cover."
+        "pixels, where the IGBP class definition requires vegetation cover; a " +
+        "further 25% is barren sand, rock, or soil, where NDVI/EVI still " +
+        "returns a value that is not plant greenness."
     );
-    expect(text).not.toContain("further");
+    expect(text).not.toContain("wetland or built-up");
+  });
+
+  it("names only the non-vegetating surfaces the sample actually holds", () => {
+    // Snow and water without barren must not be described as barren ground,
+    // and barren without either must not be described as snow or water.
+    const frozen = note([
+      { classCode: 4, sampleCount: 2 }, // Deciduous broadleaf forest
+      { classCode: 15, sampleCount: 1 }, // Permanent snow & ice
+      { classCode: 17, sampleCount: 1 }, // Water
+    ]);
+    expect(frozen).toContain(
+      "a further 50% is permanent snow, ice, or water, where NDVI/EVI still " +
+        "returns a value that is not plant greenness"
+    );
+    expect(frozen).not.toContain("barren");
+
+    const barren = note([
+      { classCode: 4, sampleCount: 2 },
+      { classCode: 16, sampleCount: 2 }, // Barren
+    ]);
+    expect(barren).toContain("is barren sand, rock, or soil");
+    expect(barren).not.toContain("snow");
+
+    const both = note([
+      { classCode: 4, sampleCount: 2 },
+      { classCode: 15, sampleCount: 1 },
+      { classCode: 16, sampleCount: 1 },
+    ]);
+    expect(both).toContain("is barren, snow, ice, or permanent water");
+  });
+
+  it("omits the non-vegetating clause when every class supports a canopy", () => {
+    const text = note([
+      { classCode: 1, sampleCount: 4 }, // Evergreen needleleaf forest
+      { classCode: 11, sampleCount: 1 }, // Mixed: wetland
+    ]);
+
+    expect(text).toContain("wetland or built-up");
+    expect(text).not.toContain("is not plant greenness");
+  });
+
+  it("states the whole of a fully non-vegetated region as such", () => {
+    const text = note([
+      { classCode: 15, sampleCount: 4 }, // Permanent snow & ice
+      { classCode: 17, sampleCount: 2 }, // Water
+    ]);
+
+    // The bare "0%" the old copy stopped at said a canopy share was absent
+    // without saying what the pixels it excluded actually are.
+    expect(text).toBe(
+      "MOD13A3 v061 NDVI/EVI reads as plant greenness on 0% of classified " +
+        "pixels, where the IGBP class definition requires vegetation cover; a " +
+        "further 100% is permanent snow, ice, or water, where NDVI/EVI still " +
+        "returns a value that is not plant greenness."
+    );
   });
 
   it("reports a fully non-vegetated region as a plain zero, not a hedge", () => {
