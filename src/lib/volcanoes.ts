@@ -168,6 +168,38 @@ export function elevationRegimeLabel(elevationMeters: number | null): string {
 }
 
 /**
+ * Summit elevation in the hover readout's compact voice, decoding the sign GVP
+ * reports instead of leaving a bare negative number on screen.
+ *
+ * GVP supplies summit elevation as a signed height against the sea-level datum
+ * (see lib/volcanoElevationProfile.ts), and 110 of the 1196 bundled records sit
+ * below it — down to -5700 m. Rendered raw, a marker over open ocean reads
+ * "summit elevation -1410 m", which is a summit 1410 m under water, not a
+ * missing or erroneous height. A summit above the datum needs no qualifier and
+ * keeps its existing form, so the common marker gains no extra text.
+ *
+ * This reads the reported datum sign only. It is not a statement about whether
+ * the volcano erupts under water: GVP records where the summit sits, not the
+ * eruptive environment.
+ */
+export function summitElevationHoverLabel(
+  elevationMeters: number | null
+): string {
+  switch (elevationRegime(elevationMeters)) {
+    case "subaerial":
+      return `summit elevation ${elevationMeters} m`;
+    case "submarine":
+      return `summit elevation ${Math.abs(
+        elevationMeters as number
+      )} m below sea level`;
+    case "sea-level":
+      return "summit elevation 0 m (sea level)";
+    case "unknown":
+      return "summit elevation not recorded";
+  }
+}
+
+/**
  * Source-faithful tooltip text for a hovered marker. Country, summit
  * elevation, and the tectonic setting come directly from the bundled GVP
  * snapshot; missing values stay explicit instead of being mistaken for zero or
@@ -182,9 +214,7 @@ export function volcanoHoverLabel(volcano: Volcano): string {
       ? "volcano type not recorded"
       : canonicalVolcanoTypeLabel(morphology),
     volcano.country ?? "country/territory not recorded",
-    volcano.elevation === null
-      ? "summit elevation not recorded"
-      : `summit elevation ${volcano.elevation} m`,
+    summitElevationHoverLabel(volcano.elevation),
     lastEruptionLabel(volcano.lastEruptionYear),
     tectonicSettingLabel(
       parseVolcanoTectonicSetting(volcano.sourceRecord?.tectonicSetting)
