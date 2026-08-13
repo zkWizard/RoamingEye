@@ -439,4 +439,100 @@ describe("cryosphere coverage on the place panel", () => {
 
     expect(reading.detail).toContain("-25 pp");
   });
+
+  it("says a partly drawn vegetation mean is not a whole-boundary mean", () => {
+    // The excluded pixels are the boundary's lowest-index ones (GIBS draws no
+    // colour below the ramp start), so a bare "60% sampled coverage" understates
+    // what the shortfall does to the number printed beside it.
+    const vegetation = PLACE_METRICS.find(
+      (metric) => metric.id === "vegetation"
+    )!;
+    const months: [YearMonth, YearMonth] = [
+      { year: 2026, month: 1 },
+      { year: 2026, month: 2 },
+    ];
+
+    const partial = placeInsightReading(vegetation, months, [0.3, 0.4], {
+      validFractions: [1, 0.6],
+      sourceImageDimensions: { width: 512, height: 512 },
+    }).detail;
+    expect(partial).toContain("60% sampled coverage");
+    expect(partial).toContain("not a whole-boundary mean");
+
+    // Fully drawn: nothing was excluded, so the caveat would describe an
+    // exclusion that did not happen.
+    const complete = placeInsightReading(vegetation, months, [0.3, 0.4], {
+      validFractions: [1, 1],
+      sourceImageDimensions: { width: 512, height: 512 },
+    }).detail;
+    expect(complete).toContain("100% sampled coverage");
+    expect(complete).not.toContain("not a whole-boundary mean");
+  });
+
+  it("carries the drawn-coverage caveat on a single-month vegetation mean", () => {
+    const vegetation = PLACE_METRICS.find(
+      (metric) => metric.id === "vegetation"
+    )!;
+    // No previous value, so the card reports the current mean on its own; the
+    // bias in that mean is the same one.
+    const detail = placeInsightReading(
+      vegetation,
+      [
+        { year: 2026, month: 1 },
+        { year: 2026, month: 2 },
+      ],
+      [null, 0.4],
+      {
+        validFractions: [null as unknown as number, 0.42],
+        sourceImageDimensions: { width: 512, height: 512 },
+      }
+    ).detail;
+
+    expect(detail).toContain("Feb 2026 regional mean");
+    expect(detail).toContain("not a whole-boundary mean");
+  });
+
+  it("keeps the drawn-coverage caveat off non-vegetation cards", () => {
+    // Only NDVI's ramp leaves its lowest band undrawn; the other metrics'
+    // coverage shortfalls are described by their own copy.
+    const months: [YearMonth, YearMonth] = [
+      { year: 2026, month: 1 },
+      { year: 2026, month: 2 },
+    ];
+    for (const metric of PLACE_METRICS.filter(
+      (candidate) => candidate.id !== "vegetation"
+    )) {
+      const detail = placeInsightReading(metric, months, [10, 12], {
+        validFractions: [1, 0.6],
+        sourceImageDimensions: { width: 512, height: 512 },
+      }).detail;
+      expect(detail).not.toContain("not a whole-boundary mean");
+    }
+  });
+
+  it("does not present a single boundary point as a whole-boundary mean", () => {
+    const vegetation = PLACE_METRICS.find(
+      (metric) => metric.id === "vegetation"
+    )!;
+    const detail = placeInsightReading(
+      vegetation,
+      [
+        { year: 2026, month: 1 },
+        { year: 2026, month: 2 },
+      ],
+      [0.3, 0.4],
+      {
+        validFractions: [1, 0.6],
+        sourceImageDimensions: { width: 512, height: 512 },
+        geometrySamplingStrategy: "boundary-point",
+      }
+    ).detail;
+
+    // The suffix already refuses the regional-mean framing; a caveat about a
+    // whole-boundary mean would contradict it.
+    expect(detail).toContain(
+      "single boundary point estimate, not a regional mean"
+    );
+    expect(detail).not.toContain("not a whole-boundary mean");
+  });
 });
