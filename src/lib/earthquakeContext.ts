@@ -1,5 +1,5 @@
 import { greatCircleDistance } from "./geo";
-import { formatReportedMagnitude } from "./magnitudeScale";
+import { formatReportedMagnitude, magnitudeScale } from "./magnitudeScale";
 import { seismicFixedDepthCoverage } from "./seismicFixedDepth";
 import {
   DOCUMENTED_MAX_AZIMUTHAL_GAP_DEG,
@@ -307,12 +307,19 @@ export function reportedMagnitudeText(
     methodParts.push(`type not reported ×${unavailableCount}`);
   }
   // A single method is stated plainly; only a genuinely mixed set carries the
-  // comparability caveat, so a uniform set gains no noise.
+  // comparability caveat, so a uniform set gains no noise. Either way the code
+  // the feed reported is expanded to the method USGS names for it — the tally
+  // keeps the feed's own spelling, and the expansion says what it measures.
+  const soleScale =
+    reportedTypes.length === 1 ? magnitudeScale(reportedTypes[0][0]) : null;
   const methods =
     methodParts.length > 1
-      ? ` Matched events mix magnitude methods (${methodParts.join(", ")}), which are not directly comparable.`
+      ? ` Matched events mix magnitude methods (${methodParts.join(", ")}), which are not directly comparable.` +
+        methodGlossaryClause(reportedTypes.map(([type]) => type))
       : reportedTypes.length === 1
-        ? ` Every matched event was reported as ${reportedTypes[0][0]}.`
+        ? ` Every matched event was reported as ${reportedTypes[0][0]}${
+            soleScale === null ? "" : `, ${soleScale.method}`
+          }.`
         : " No matched event carried a reported magnitude method.";
 
   return (
@@ -321,6 +328,57 @@ export function reportedMagnitudeText(
     `${formatDistanceKm(largest.distanceKm)} km away.${methods}` +
     " This is a maximum over reported values, not a ranking of earthquake size and not a hazard statement."
   );
+}
+
+/**
+ * Expand the magnitude codes behind a mixed set to the methods USGS names for
+ * them, as a trailing clause (empty when nothing can be named).
+ *
+ * The tally the clause follows prints the feed's own spelling — "mb ×104,
+ * mww ×14" — which states that the set mixes methods without saying what
+ * either method measures. The published vocabulary is already in the bundle
+ * (lib/magnitudeScale.ts), so the expansion costs no new data.
+ *
+ * Codes outside the published vocabulary are skipped rather than guessed: they
+ * remain in the tally verbatim, and attributing one to a method USGS never
+ * named would fabricate provenance. When no code resolves there is nothing to
+ * expand and the clause is empty.
+ *
+ * Entries are keyed by canonical label because distinct feed spellings can
+ * decode to one scale — USGS lists "ms", "ms20" and "ms_20" as the same
+ * 20-second surface-wave method — and naming one method twice would read as
+ * two methods.
+ *
+ * This names what a value measures; it never converts between scales and makes
+ * no claim that the values are comparable.
+ */
+function methodGlossaryClause(codes: readonly string[]): string {
+  const named = new Map<string, string>();
+  for (const code of codes) {
+    const scale = magnitudeScale(code);
+    if (scale === null) continue;
+    named.set(scale.label, scale.method);
+  }
+  if (named.size === 0) return "";
+
+  // Entries keep the tally's own order — `summarizeEarthquakes` sorts the codes
+  // alphabetically — so the two lists correspond term for term and a reader can
+  // scan from "mww ×14" to the method that produced it. That correspondence is
+  // worth more than naming the most frequent methods first, because the cap
+  // below needs five distinct methods before it can hide anything and no
+  // matched extent has yet reached four.
+  const entries = [...named.entries()];
+  // Name up to three, but name all four when there are exactly four, so the
+  // unnamed remainder is either zero or at least two. "1 further method" is
+  // therefore unreachable and needs no singular branch.
+  const shown = entries.slice(0, entries.length === 4 ? 4 : 3);
+  const clause = shown
+    .map(([label, method]) => `${label} is ${method}`)
+    .join("; ");
+  const unnamed = entries.length - shown.length;
+  return unnamed === 0
+    ? ` Reported methods: ${clause}.`
+    : ` Reported methods: ${clause}; ${unnamed} further methods not named.`;
 }
 
 /**
