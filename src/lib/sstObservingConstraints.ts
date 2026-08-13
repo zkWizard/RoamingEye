@@ -1,4 +1,4 @@
-import { LAYERS, type DatasetRef } from "./timeline";
+import { LAYERS, type DatasetRef, type LayerId } from "./timeline";
 
 /**
  * Provenance-first observing-constraint descriptor for the cited MODIS/Aqua
@@ -47,7 +47,10 @@ import { LAYERS, type DatasetRef } from "./timeline";
  *    thermal stress, causation, or any future value.
  */
 
-const sstSource = LAYERS.sst.dataset;
+/** The one layer these constraints are asserted for, and only it. */
+export const SST_OBSERVING_CONSTRAINT_LAYER_ID = "sst" as const;
+
+const sstSource = LAYERS[SST_OBSERVING_CONSTRAINT_LAYER_ID].dataset;
 if (!sstSource) {
   throw new Error("RoamingEye: the SST layer must retain a cited dataset");
 }
@@ -181,3 +184,30 @@ function sstObservingConstraintStatement(): string {
  */
 export const SST_SAMPLING_GATE_NOTE =
   "daytime clear-sky monthly composite, not a full-diurnal mean";
+
+/**
+ * The sampling gate as a probe status-line clause, or `""` when it does not
+ * apply.
+ *
+ * The probe summarizes a sampled record as `min · mean · max · trend`. Every one
+ * of those statistics is computed from daytime, cloud-screened retrievals alone,
+ * so a reader who takes the mean for "the mean sea-surface temperature over this
+ * record" has a different quantity than the one that was sampled — and unlike
+ * the ramp censoring reported beside it, nothing in the values themselves hints
+ * at the gate. The place panel already states this for its single-month boundary
+ * reading (see marinePlaceInsight); a multi-year mean and a fitted trend inherit
+ * the same gate and were saying nothing about it.
+ *
+ * This is the product's observing system, not a property of the sampled months,
+ * so it is not derived from them: `hasReportedStatistics` only asks whether a
+ * statistic is on screen for the note to qualify. Returns `""` for every layer
+ * but SST and for a record that reported none, leaving an ordinary readout — and
+ * every other layer's — byte-identical.
+ */
+export function probeSstSamplingGateClause(
+  layerId: LayerId | undefined,
+  hasReportedStatistics: boolean
+): string {
+  if (layerId !== SST_OBSERVING_CONSTRAINT_LAYER_ID) return "";
+  return hasReportedStatistics ? SST_SAMPLING_GATE_NOTE : "";
+}

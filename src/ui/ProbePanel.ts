@@ -26,6 +26,7 @@ import {
   sstExtremeCensoringClause,
 } from "../lib/probeSstExtremeCensoring";
 import { probeRecordGaps, probeRecordGapsClause } from "../lib/probeRecordGaps";
+import { probeSstSamplingGateClause } from "../lib/sstObservingConstraints";
 import { ICONS } from "./icons";
 
 /** What the current series is: which layer, and where it was sampled. */
@@ -316,6 +317,17 @@ export class ProbePanel {
       physical
     );
     const sstCensoringClause = sstExtremeCensoringClause(sstCensoring);
+    // Ramp censoring says which of these statistics are bounds; it does not say
+    // which water, or which moments, they describe. The cited SST product
+    // composites Aqua's daytime overpass on cloud-screened days only, so the
+    // mean beside it is not a monthly-mean sea-surface temperature and the trend
+    // is fitted through daytime clear-sky values — neither recoverable from the
+    // numbers. The place panel already states this for a single month; the
+    // series surface did not. Silent for every other layer.
+    const sstSamplingGate = probeSstSamplingGateClause(
+      this.context?.layerId,
+      stats.count > 0
+    );
     // The denominator above is the *distributed* record, not the calendar span:
     // monthRangeForLayer drops each layer's declared distribution gaps, so for
     // SST, snow, NDVI and EVI a full read prints "M of M months" while months
@@ -335,6 +347,7 @@ export class ProbePanel {
       ` · ${trendClause(trend)}` +
       (seasonal ? ` · ${seasonal}` : "") +
       (sstCensoringClause ? ` · ${sstCensoringClause}` : "") +
+      (sstSamplingGate ? ` · ${sstSamplingGate}` : "") +
       (spatialSupportNote ? ` · ${spatialSupportNote}` : "");
     this.setStatus(stat);
     this.appendPeakGreenness(stat, physical);
