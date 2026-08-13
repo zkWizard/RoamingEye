@@ -23,6 +23,7 @@ import {
   type PrecipitationRatePlausibilityStatus,
 } from "./precipitationRatePlausibility";
 import { precipitationAccumulation } from "./precipitationAccumulation";
+import { describePrecipitationAccumulationChange } from "./precipitationAccumulationChange";
 import { monthOverMonthCoverageSupport } from "./climateChangeSupport";
 import type { GeometrySamplingStrategy } from "./geojson";
 import type {
@@ -431,12 +432,22 @@ export function climateInsightText(
         accumulated.totalMm
       )} mm water-equivalent (mean rate integrated over the calendar month)`
     : "";
+  // The rate difference above answers "did it rain harder?"; on its own it
+  // cannot answer "did more water fall?", because each month's total integrates
+  // the rate over that month's own calendar length. The two questions can
+  // disagree in sign — 31 days at 3 mm/day delivers more water than a following
+  // 28 days at 3.2 mm/day — so the change in total depth is stated rather than
+  // left for the reader to reconstruct from two differently-long months.
+  const accumulationChange =
+    nativeDelta !== null && previous
+      ? accumulationChangeClause(previous, current)
+      : "";
   // The coverage percentage alone cannot say whether the missing area was
   // unpublished or merely unrepresentable, and only the latter biases the mean.
   const rampShortfall = rampShortfallCaveat(current, conventional);
   return {
     value,
-    detail: `${month} ${modality.field}${comparison}${accumulation}${nativeProvenance}; ${coverage}${rampShortfall}; ${provenance}; ${sampling}; ${modality.limit}; ${sourceVariable}; source ${source}`,
+    detail: `${month} ${modality.field}${comparison}${accumulation}${accumulationChange}${nativeProvenance}; ${coverage}${rampShortfall}; ${provenance}; ${sampling}; ${modality.limit}; ${sourceVariable}; source ${source}`,
   };
 }
 
@@ -526,6 +537,54 @@ function rampShortfallCaveat(
           caps.atOrAboveNative
         )} range`;
   return `; the shortfall can include ground ${where}, which GIBS renders in an open end cap this probe reads as no-data, so the value is a mean over representable ground only`;
+}
+
+/**
+ * State how the month's total accumulated depth compares with the month before.
+ *
+ * The readout already carries a mean-rate difference and this month's total, but
+ * a reader cannot combine them: the totals integrate over calendar months of
+ * different lengths, so a rate that rose can still deliver less water, and a
+ * rate that fell can deliver more. This clause reports that comparison directly,
+ * in the same mm water-equivalent the total beside it is stated in, naming the
+ * earlier month's own day count so both lengths are visible on the line.
+ *
+ * Delegates every admissibility rule to
+ * {@link describePrecipitationAccumulationChange}, which withholds a difference
+ * across non-consecutive months or mixed provenance rather than inventing one.
+ * The caller additionally reaches this only when the rate comparison itself was
+ * permitted, so a month the gross-error band rejected never gains a total here.
+ *
+ * Silent — never "no change" — whenever no difference can be stated, and for
+ * every metric that is not a precipitation rate.
+ */
+function accumulationChangeClause(
+  previous: MonthlyClimateSummary,
+  current: MonthlyClimateSummary
+): string {
+  const change = describePrecipitationAccumulationChange(previous, current);
+  if (
+    change.status !== "available" ||
+    change.changeMm === null ||
+    change.earlier === null
+  ) {
+    return "";
+  }
+
+  const against = `${formatMonth(change.earlier.dataMonth)}'s ${
+    change.earlier.monthDays
+  }-day total`;
+  // Both months' day counts are already on the line, so the caveat only has to
+  // say that the difference is not attributable to rate alone.
+  const lengthCaveat = "part of any difference is month length, not rate";
+  if (change.trend === "little-change") {
+    return `; within ${formatNumber(
+      change.thresholdMm
+    )} mm of ${against} (${lengthCaveat})`;
+  }
+  return `; ${formatNumber(Math.abs(change.changeMm))} mm ${
+    change.trend === "wetter" ? "more" : "less"
+  } than ${against} (${lengthCaveat})`;
 }
 
 function samplingText(strategy: GeometrySamplingStrategy | null): string {

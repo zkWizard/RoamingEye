@@ -213,7 +213,7 @@ describe("rendered monthly meteorology", () => {
     expect(climateInsightText(precipitation[0], precipitation[1])).toEqual({
       value: "8.64 mm/day",
       detail:
-        "2026-02 land-surface-model field; +4.32 mm/day vs 2026-01 (at least 70% and at most 80% of the sampled area is common to both months); 28-day total 241.92 mm water-equivalent (mean rate integrated over the calendar month); native source value 0.0001 kg/m²/s (1 kg/m² of liquid water ≡ 1 mm depth; × 86,400 s/day); 90% sampled coverage; the shortfall can include ground at or above the legend's 43.2 mm/day ceiling, which GIBS renders in an open end cap this probe reads as no-data, so the value is a mean over representable ground only; rendered source image dimensions not supplied; sampling strategy not supplied; model-derived, not a direct measurement; GIBS layer GLDAS_Surface_Total_Precipitation_Rate_Monthly; source GLDAS_NOAH025_M v2.1",
+        "2026-02 land-surface-model field; +4.32 mm/day vs 2026-01 (at least 70% and at most 80% of the sampled area is common to both months); 28-day total 241.92 mm water-equivalent (mean rate integrated over the calendar month); 108 mm more than 2026-01's 31-day total (part of any difference is month length, not rate); native source value 0.0001 kg/m²/s (1 kg/m² of liquid water ≡ 1 mm depth; × 86,400 s/day); 90% sampled coverage; the shortfall can include ground at or above the legend's 43.2 mm/day ceiling, which GIBS renders in an open end cap this probe reads as no-data, so the value is a mean over representable ground only; rendered source image dimensions not supplied; sampling strategy not supplied; model-derived, not a direct measurement; GIBS layer GLDAS_Surface_Total_Precipitation_Rate_Monthly; source GLDAS_NOAH025_M v2.1",
     });
     expect(
       climateInsightText(airTemperature[0], airTemperature[1])
@@ -695,6 +695,108 @@ describe("place readout monthly precipitation accumulation", () => {
     expect(climateInsightText(undefined, unpublished).detail).not.toContain(
       "water-equivalent"
     );
+  });
+});
+
+/**
+ * The readout's rate difference and its monthly total answer different
+ * questions, and a reader cannot bridge them without knowing both months'
+ * calendar lengths. These cover the case that makes the gap consequential: a
+ * mean rate that rose over a month that delivered less water.
+ */
+describe("place readout month-over-month precipitation accumulation change", () => {
+  const ratePair = (
+    months: readonly { year: number; month: number }[],
+    mmPerDay: readonly number[]
+  ) =>
+    summarizeRenderedClimateSample(
+      {
+        metricId: "precipitation-rate",
+        months,
+        sampledValues: mmPerDay,
+        nativeToSampledValueFactor: 86_400,
+        validFractions: months.map(() => 1),
+        geometrySamplingStrategy: "boundary-grid",
+      },
+      months[months.length - 1]
+    );
+
+  it("reports less water over a shorter month whose mean rate rose", () => {
+    // 2026-01 at 3 mm/day over 31 days is 93 mm; 2026-02 at 3.2 mm/day over 28
+    // days is 89.6 mm. The rate rose while 3.4 mm less water fell — the two
+    // readings disagree in sign purely because February is shorter.
+    const [january, february] = ratePair(
+      [
+        { year: 2026, month: 1 },
+        { year: 2026, month: 2 },
+      ],
+      [3, 3.2]
+    );
+
+    const detail = climateInsightText(january, february).detail;
+    expect(detail).toContain("+0.2 mm/day vs 2026-01");
+    expect(detail).toContain("28-day total 89.6 mm water-equivalent");
+    expect(detail).toContain(
+      "3.4 mm less than 2026-01's 31-day total (part of any difference is month length, not rate)"
+    );
+  });
+
+  it("reports a total held level by month length as little change", () => {
+    // 2026-03 at 3 mm/day over 31 days and 2026-04 at 3.1 mm/day over 30 days
+    // both total 93 mm: the higher rate bought exactly the day that was lost.
+    const [march, april] = ratePair(
+      [
+        { year: 2026, month: 3 },
+        { year: 2026, month: 4 },
+      ],
+      [3, 3.1]
+    );
+
+    const detail = climateInsightText(march, april).detail;
+    expect(detail).toContain("+0.1 mm/day vs 2026-03");
+    expect(detail).toContain("within 1 mm of 2026-03's 31-day total");
+  });
+
+  it("withholds a total difference across non-consecutive months", () => {
+    // A gap month is not summed over or interpolated; the rate comparison the
+    // readout already permits does not license a total difference.
+    const [january, march] = ratePair(
+      [
+        { year: 2026, month: 1 },
+        { year: 2026, month: 3 },
+      ],
+      [3, 3.2]
+    );
+
+    const detail = climateInsightText(january, march).detail;
+    expect(detail).toContain("31-day total");
+    expect(detail).not.toContain("-day total (part of any difference");
+    expect(detail).not.toContain("mm less than");
+    expect(detail).not.toContain("mm more than");
+  });
+
+  it("adds no total difference for a single month or a non-rate metric", () => {
+    const [onlyMonth] = ratePair([{ year: 2026, month: 1 }], [3]);
+    expect(climateInsightText(undefined, onlyMonth).detail).not.toContain(
+      "than 2026"
+    );
+
+    const airTemperature = summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [
+          { year: 2026, month: 1 },
+          { year: 2026, month: 2 },
+        ],
+        sampledValues: [273.15, 274.15],
+        nativeToSampledValueFactor: 1,
+        validFractions: [1, 1],
+      },
+      { year: 2026, month: 2 }
+    );
+    expect(
+      climateInsightText(airTemperature[0], airTemperature[1]).detail
+    ).not.toContain("-day total");
   });
 });
 
