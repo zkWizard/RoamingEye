@@ -296,7 +296,9 @@ export class ProbePanel {
 
   /**
    * Append the vegetation-index calendar-timing clause: which month held each
-   * year's highest NDVI, and how tightly that recurs. The NDVI phenology
+   * year's highest NDVI, how tightly that recurs, and — only when it is not
+   * true of every year — how often that peak was actually flanked by observed
+   * months rather than by a MOD13A3 gap. The NDVI phenology
    * helpers pull in per-year summarization and circular statistics, so they
    * load on demand rather than riding in the entry chunk; the clause lands a
    * moment after the stats, which the status line already fills in
@@ -311,13 +313,34 @@ export class ProbePanel {
     const months = this.months;
     const token = this.seriesToken;
     void import("../lib/probePeakGreenness")
-      .then(({ peakGreennessClause, probePeakGreennessTiming }) => {
-        if (token !== this.seriesToken) return; // superseded by a newer probe
-        const clause = peakGreennessClause(
-          probePeakGreennessTiming(context.layerId, months, physical, latitude)
-        );
-        if (clause) this.setStatus(`${stat} · ${clause}`);
-      })
+      .then(
+        ({
+          peakGreennessClause,
+          peakSupportClause,
+          probePeakGreennessTiming,
+          probePeakSupport,
+        }) => {
+          if (token !== this.seriesToken) return; // superseded by a newer probe
+          const timing = probePeakGreennessTiming(
+            context.layerId,
+            months,
+            physical,
+            latitude
+          );
+          const clause = peakGreennessClause(timing);
+          if (!clause) return;
+          // How firmly the sampled months stand behind that modal peak month.
+          // Silent unless some year's peak sits beside a gap or on the
+          // calendar-year edge, so a clean record adds no status-line text.
+          const support = peakSupportClause(
+            timing,
+            probePeakSupport(context.layerId, months, physical, latitude)
+          );
+          this.setStatus(
+            support ? `${stat} · ${clause} · ${support}` : `${stat} · ${clause}`
+          );
+        }
+      )
       .catch(() => {
         // A failed chunk load must leave the stats already on screen intact.
       });
