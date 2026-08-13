@@ -45,6 +45,7 @@ import { vegetationAveragedSupportNote } from "./lib/vegetationAveragedSupport";
 import { snowAveragedSupportNote } from "./lib/snowAveragedSupport";
 import { emptyMarineProbeNote } from "./lib/marineProbeDomain";
 import { emptySnowProbeNote } from "./lib/snowProbeAbsence";
+import { emptyVegetationProbeNote } from "./lib/vegetationProbeAbsence";
 import {
   seasonalSamplingBalance,
   seasonalSamplingCsvHeaders,
@@ -1054,9 +1055,13 @@ if (probeEl) {
           // Snow empties for the opposite reason — GIBS draws no colour for
           // percent 0 — and a POINT probe carries no shares, so the averaged
           // clause above cannot speak for it. This is that mode's only note.
+          // The vegetation indices empty the same way, below their ramp start
+          // rather than at zero, and were the last domain still reporting that
+          // as "no data at this point".
           emptyAtmosphereProbeNote(layer.id, values) ??
             emptyMarineProbeNote(layer.id, values, sstSupportNote) ??
-            emptySnowProbeNote(layer.id, values, snowSupportNote),
+            emptySnowProbeNote(layer.id, values, snowSupportNote) ??
+            emptyVegetationProbeNote(layer.id, values, vegetationSupportNote),
           // Each note is gated on its own layer, so at most one is ever a
           // string — the fallback picks the one that spoke.
           sstSupportNote ?? vegetationSupportNote ?? snowSupportNote,
@@ -1250,11 +1255,15 @@ if (probeEl) {
             ),
           `roamingeye_region_${layer.id}_${bounds.south.toFixed(2)}_${normalizeLon(bounds.west).toFixed(2)}_${bounds.north.toFixed(2)}_${normalizeLon(bounds.east).toFixed(2)}.csv`,
           // A drawn region that returned nothing is normally explained by the
-          // support clause; the marine and snow notes only speak when it did
-          // not — a region always supplies shares, so the snow one defers here.
+          // support clause; the marine, snow and vegetation notes only speak
+          // when it did not — a region always supplies shares, so those three
+          // defer here. They are passed anyway so the chain stays the same on
+          // both paths and a region that ever loses its shares is still
+          // explained rather than falling back to "no data at this point".
           emptyAtmosphereProbeNote(layer.id, values) ??
             emptyMarineProbeNote(layer.id, values, sstSupportNote) ??
-            emptySnowProbeNote(layer.id, values, snowSupportNote),
+            emptySnowProbeNote(layer.id, values, snowSupportNote) ??
+            emptyVegetationProbeNote(layer.id, values, vegetationSupportNote),
           // Each note is gated on its own layer, so at most one is ever a
           // string — the fallback picks the one that spoke.
           sstSupportNote ?? vegetationSupportNote ?? snowSupportNote,
