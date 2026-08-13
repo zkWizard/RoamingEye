@@ -30,11 +30,13 @@ import { SST_MAX_INVERSION_DISTANCE } from "../lib/sstNoData";
 import {
   aerosolBoundaryLoadingReading,
   unavailableAerosolBoundaryReading,
+  type AerosolBoundaryUnavailableReason,
 } from "../lib/aerosolPlaceInsight";
 import {
   LST_PLACE_METRIC,
   lstBoundaryTemperatureReading,
   unavailableLstBoundaryReading,
+  type LstBoundaryUnavailableReason,
 } from "../lib/lstPlaceInsight";
 import {
   summarizePlaceMonthAlignment,
@@ -463,12 +465,18 @@ export function runPlaceInsights(result: GeoResult): void {
   if (lstMonths) {
     monthCards.push({ label: LST_PLACE_METRIC.label, month: lstMonths[1] });
     exportSamples.set("lst", environmentUnavailableSample("lst", lstMonths));
+    // Attribute a failure to the step that actually failed. Everything after
+    // the colormap resolves is this app's sampling of the searched boundary,
+    // not the published document (see `LstBoundaryUnavailableReason`).
+    let lstFailureReason: LstBoundaryUnavailableReason =
+      "source-colormap-unavailable";
     samplingTasks.push(
       (async () => {
         const colormap = await loadPlaceColormap("lst");
         if (!colormap) {
           throw new Error("RoamingEye: LST physical colormap is unavailable");
         }
+        lstFailureReason = "boundary-sampling-failed";
         const sample = await placeSampler.sampleGeometryPhysical(
           LAYERS.lst,
           lstMonths,
@@ -505,7 +513,9 @@ export function runPlaceInsights(result: GeoResult): void {
       })().catch((error: unknown) => {
         if (isAbortError(error) || abort.signal.aborted) return;
         console.warn("RoamingEye: LST place insight sampling failed", error);
-        placeInsights.setReading(unavailableLstBoundaryReading(lstMonths[1]));
+        placeInsights.setReading(
+          unavailableLstBoundaryReading(lstMonths[1], lstFailureReason)
+        );
       })
     );
   }
@@ -646,6 +656,10 @@ export function runPlaceInsights(result: GeoResult): void {
       "aerosol",
       environmentUnavailableSample("aerosol", aerosolMonths)
     );
+    // Same attribution rule as the LST card above: once the published colormap
+    // has parsed, a later failure is this app's boundary sampling.
+    let aerosolFailureReason: AerosolBoundaryUnavailableReason =
+      "source-colormap-unavailable";
     samplingTasks.push(
       (async () => {
         const colormap = await loadPlaceColormap("aerosol");
@@ -654,6 +668,7 @@ export function runPlaceInsights(result: GeoResult): void {
             "RoamingEye: aerosol physical colormap is unavailable"
           );
         }
+        aerosolFailureReason = "boundary-sampling-failed";
         const sample = await placeSampler.sampleGeometryPhysical(
           LAYERS.aerosol,
           aerosolMonths,
@@ -694,7 +709,10 @@ export function runPlaceInsights(result: GeoResult): void {
           error
         );
         placeInsights.setReading(
-          unavailableAerosolBoundaryReading(aerosolMonths[1])
+          unavailableAerosolBoundaryReading(
+            aerosolMonths[1],
+            aerosolFailureReason
+          )
         );
       })
     );

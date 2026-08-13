@@ -164,6 +164,35 @@ describe("land-surface-temperature place-panel reading", () => {
     expect(reading.detail).toContain("could not be sampled");
   });
 
+  it("blames the published colormap only when the colormap is what failed", () => {
+    // A failure after the colormap parsed is this app's boundary sampling —
+    // tile retrieval, an unsampleable footprint, canvas decoding. Attributing
+    // it to NASA's published document would misstate a cited source.
+    const sampling = unavailableLstBoundaryReading(
+      MONTHS[1],
+      "boundary-sampling-failed"
+    );
+
+    expect(sampling.value).toBe("Unavailable");
+    expect(sampling.detail).toContain("could not be sampled for the searched");
+    expect(sampling.detail).not.toContain("source colormap");
+    // The source is still cited — only the blame for the failure moves.
+    expect(sampling.detail).toContain("source MOD11C3 v061");
+
+    const colormap = unavailableLstBoundaryReading(
+      MONTHS[1],
+      "source-colormap-unavailable"
+    );
+
+    expect(colormap.detail).toContain(
+      "could not be sampled from the published source colormap"
+    );
+    // Unspecified reason keeps the conservative existing wording.
+    expect(unavailableLstBoundaryReading(MONTHS[1]).detail).toBe(
+      colormap.detail
+    );
+  });
+
   it("carries the layer's own dataset citation rather than a copy", () => {
     // A literal here would silently diverge from the layer's citation.
     expect(LAND_SURFACE_TEMPERATURE_SOURCE).toBe(LAYERS.lst.dataset);

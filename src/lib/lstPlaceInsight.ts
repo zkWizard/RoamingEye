@@ -155,17 +155,36 @@ export function lstBoundaryTemperatureReading(
 }
 
 /**
+ * Which step failed, so the card attributes the failure where it belongs.
+ *
+ * The two are not interchangeable: only `source-colormap-unavailable` is a
+ * statement about the published GIBS colormap document. Once that document has
+ * loaded and parsed, a later failure lies in this app's sampling of the searched
+ * boundary — tile retrieval, the boundary having no sampleable footprint, or
+ * canvas decoding — and saying "the source colormap" then misattributes an
+ * app-side or transport failure to the cited dataset. This repo cites its
+ * sources; blaming one for a failure it did not cause is a provenance error.
+ */
+export type LstBoundaryUnavailableReason =
+  "source-colormap-unavailable" | "boundary-sampling-failed";
+
+/**
  * Surface a sampling or source-mapping failure without relabeling it as an
  * observation of a cool surface. The card must never present "could not sample"
  * and "no heat" as the same thing.
  */
 export function unavailableLstBoundaryReading(
-  dataMonth: YearMonth
+  dataMonth: YearMonth,
+  reason: LstBoundaryUnavailableReason = "source-colormap-unavailable"
 ): LstPlaceInsightReading {
+  const unavailableDetail =
+    reason === "source-colormap-unavailable"
+      ? "could not be sampled from the published source colormap"
+      : "could not be sampled for the searched boundary";
   return {
     id: LST_PLACE_METRIC.id,
     value: "Unavailable",
-    detail: `${formatYm(dataMonth)} daytime land-surface temperature could not be sampled from the published source colormap; source ${sourceText()}; ${LST_CARD_SCOPE}`,
+    detail: `${formatYm(dataMonth)} daytime land-surface temperature ${unavailableDetail}; source ${sourceText()}; ${LST_CARD_SCOPE}`,
     kind: "observed-boundary-daytime-land-surface-temperature",
     isForecast: false,
     airTemperatureObservation: false,
