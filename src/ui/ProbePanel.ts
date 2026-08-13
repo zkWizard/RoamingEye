@@ -332,9 +332,10 @@ export class ProbePanel {
 
   /**
    * Append the vegetation-index calendar-timing clause: which month held each
-   * year's highest NDVI, how tightly that recurs, and — only when it is not
-   * true of every year — how often that peak was actually flanked by observed
-   * months rather than by a MOD13A3 gap. The NDVI phenology
+   * year's highest NDVI, how tightly that recurs, and — each only when it is
+   * not true of every year — how often that peak was actually flanked by
+   * observed months rather than by a MOD13A3 gap, and how often it was tied
+   * with another month rather than held alone. The NDVI phenology
    * helpers pull in per-year summarization and circular statistics, so they
    * load on demand rather than riding in the entry chunk; the clause lands a
    * moment after the stats, which the status line already fills in
@@ -353,6 +354,7 @@ export class ProbePanel {
         ({
           peakGreennessClause,
           peakSupportClause,
+          peakTieClause,
           probePeakGreennessTiming,
           probePeakSupport,
         }) => {
@@ -372,8 +374,12 @@ export class ProbePanel {
             timing,
             probePeakSupport(context.layerId, months, physical, latitude)
           );
+          // Whether the named month was the year's peak on its own. Also
+          // silent by default, so only a record that actually plateaued pays
+          // for the qualification.
+          const tied = peakTieClause(timing);
           this.setStatus(
-            support ? `${stat} · ${clause} · ${support}` : `${stat} · ${clause}`
+            [stat, clause, support, tied].filter(Boolean).join(" · ")
           );
         }
       )
