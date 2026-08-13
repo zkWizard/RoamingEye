@@ -37,6 +37,10 @@ import { emptyAtmosphereProbeNote } from "./lib/atmosphereProbeDomain";
 import { marineAveragedSstCensoringCsvHeaders } from "./lib/marineAveragedSstCensoring";
 import { averagedSstSupportNote } from "./lib/marineAveragedSstSupport";
 import { emptyMarineProbeNote } from "./lib/marineProbeDomain";
+import {
+  seasonalSamplingBalance,
+  seasonalSamplingCsvHeaders,
+} from "./lib/seasonalSamplingBalance";
 import { sstSamplingIdentityCsvHeaders } from "./lib/seaSurfaceTemperatureSamplingIdentity";
 import { snowIlluminationNote } from "./lib/snowCoverIllumination";
 import type { GeoResult } from "./lib/geocoding";
@@ -925,12 +929,12 @@ if (probeEl) {
         // median, so only the area footprint carries censoring the end-cap
         // screen cannot see. Shared by the status line and the export.
         const averagedFootprint = mode === "area" ? "sampled-area" : null;
-        // Judged on the physical series the file writes, not the 0..1 gradient
-        // positions held here.
-        const sstCensoring = probeSstExtremeCensoring(
-          layer.id,
-          values.map((v) => (v === null ? null : scaleValue(v, scale)))
+        // The physical series the file writes, not the 0..1 gradient positions
+        // held here — every screen below judges the record as exported.
+        const physical = values.map((v) =>
+          v === null ? null : scaleValue(v, scale)
         );
+        const sstCensoring = probeSstExtremeCensoring(layer.id, physical);
         panel.finish(
           () =>
             buildProbeCsv(
@@ -979,6 +983,15 @@ if (probeEl) {
                 averagedCensoringHeaders: marineAveragedSstCensoringCsvHeaders(
                   averagedFootprint,
                   sstCensoring
+                ),
+                // And the same for the record's calendar composition: the panel
+                // says a mean over 11 of 12 calendar months is not an annual
+                // mean, then hands over a value column with nothing on it to
+                // stop the next reader averaging all of it. Silent for a record
+                // spread evenly across the calendar.
+                seasonalSamplingHeaders: seasonalSamplingCsvHeaders(
+                  seasonalSamplingBalance(probeMonths, physical),
+                  scale
                 ),
               },
               probeMonths,
@@ -1076,12 +1089,12 @@ if (probeEl) {
           "drawn-region",
           validFractions
         );
-        // Judged on the physical series the file writes, not the 0..1 gradient
-        // positions held here. Shared by the status line and the export.
-        const sstCensoring = probeSstExtremeCensoring(
-          layer.id,
-          values.map((v) => (v === null ? null : scaleValue(v, scale)))
+        // The physical series the file writes, not the 0..1 gradient positions
+        // held here. Shared by the status line and the export.
+        const physical = values.map((v) =>
+          v === null ? null : scaleValue(v, scale)
         );
+        const sstCensoring = probeSstExtremeCensoring(layer.id, physical);
         panel.finish(
           () =>
             buildProbeCsv(
@@ -1129,6 +1142,15 @@ if (probeEl) {
                 averagedCensoringHeaders: marineAveragedSstCensoringCsvHeaders(
                   "drawn-region",
                   sstCensoring
+                ),
+                // A drawn box spans latitudes and can straddle hemispheres, so
+                // the balance is measured on the region's own charted series
+                // and given no location context — it describes which calendar
+                // months this file holds, and claims nothing about their
+                // seasons.
+                seasonalSamplingHeaders: seasonalSamplingCsvHeaders(
+                  seasonalSamplingBalance(probeMonths, physical),
+                  scale
                 ),
               },
               probeMonths,
