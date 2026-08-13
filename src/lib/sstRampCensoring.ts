@@ -134,6 +134,110 @@ export function summarizeSstRampCensoring(
   };
 }
 
+/**
+ * Which side of the true difference a computed difference sits on, once the
+ * censoring of both endpoints is accounted for.
+ */
+export type SstDifferenceBound =
+  /** Neither endpoint is censored; the computed difference stands as computed. */
+  | "none"
+  /** True difference is at least the computed one (computed is a lower bound). */
+  | "lower"
+  /** True difference is at most the computed one (computed is an upper bound). */
+  | "upper"
+  /**
+   * The two censored endpoints bound the difference in OPPOSITE directions, so
+   * the true difference is unbounded on both sides and cannot be stated at all.
+   */
+  | "indeterminate";
+
+export interface SstDifferenceCensoring {
+  kind: "sea-surface-temperature-difference-censoring";
+  /** A colour-ramp statement, never a biological one. */
+  marineBiologyObservation: false;
+  isForecast: false;
+  earlier: SstRampCensoringSummary;
+  later: SstRampCensoringSummary;
+  /** True when either endpoint sits in a terminal, open-capped ramp bin. */
+  eitherCensored: boolean;
+  bound: SstDifferenceBound;
+  /** "≥ " / "≤ " prefix for a bounded difference; "" when unbounded. */
+  boundPrefix: string;
+  /** One sentence naming the consequence, or null when there is none. */
+  qualifier: string | null;
+}
+
+/**
+ * Combine the censoring of two SST endpoints into a statement about their
+ * DIFFERENCE (later minus earlier).
+ *
+ * Subtraction flips the earlier endpoint's bound: if the true earlier value can
+ * only be COLDER than decoded (floor bin, an upper bound on the observation),
+ * then the true difference can only be LARGER than computed. The later endpoint
+ * enters with its own direction. When the two surviving directions agree — or
+ * only one endpoint is censored — the computed difference is a genuine one-sided
+ * bound. When they disagree (both endpoints at the same cap, the common case for
+ * a warm pool or a polar boundary sampled twice) the difference is unbounded in
+ * both directions and MUST be withheld: two censored endpoints that decode to
+ * the same value say nothing whatsoever about whether the water changed, and
+ * reporting that as "no change" or "unchanged" would invent an observation the
+ * colormap destroyed.
+ */
+export function describeSstDifferenceCensoring(
+  earlierValue: number | null | undefined,
+  laterValue: number | null | undefined
+): SstDifferenceCensoring {
+  const earlier = summarizeSstRampCensoring(earlierValue);
+  const later = summarizeSstRampCensoring(laterValue);
+  // The earlier endpoint is subtracted, so its bound direction inverts.
+  const fromEarlier = invertBound(earlier.boundDirection);
+  const fromLater = later.boundDirection;
+
+  const bound: SstDifferenceBound =
+    fromEarlier === null && fromLater === null
+      ? "none"
+      : fromEarlier === null
+        ? (fromLater as "upper" | "lower")
+        : fromLater === null
+          ? fromEarlier
+          : fromEarlier === fromLater
+            ? fromEarlier
+            : "indeterminate";
+
+  return {
+    kind: "sea-surface-temperature-difference-censoring",
+    marineBiologyObservation: false,
+    isForecast: false,
+    earlier,
+    later,
+    eitherCensored: earlier.possiblyCensored || later.possiblyCensored,
+    bound,
+    boundPrefix: bound === "lower" ? "≥ " : bound === "upper" ? "≤ " : "",
+    qualifier: differenceQualifierFor(bound),
+  };
+}
+
+function invertBound(
+  direction: "upper" | "lower" | null
+): "upper" | "lower" | null {
+  if (direction === "upper") return "lower";
+  if (direction === "lower") return "upper";
+  return null;
+}
+
+function differenceQualifierFor(bound: SstDifferenceBound): string | null {
+  if (bound === "indeterminate") {
+    return "both endpoints sit in a terminal bin of the published colormap, which collapses every colder (or warmer) observation into one colour — the true difference is unbounded in both directions, so none is stated";
+  }
+  if (bound === "lower") {
+    return "one endpoint sits in a terminal bin of the published colormap, so the true difference can only be larger than the one computed";
+  }
+  if (bound === "upper") {
+    return "one endpoint sits in a terminal bin of the published colormap, so the true difference can only be smaller than the one computed";
+  }
+  return null;
+}
+
 function rampStatus(value: number | null): SstRampCensoringStatus {
   if (value === null) return "no-value";
   const { floorBin, ceilingBin } = SST_PUBLISHED_RAMP;
