@@ -20,6 +20,7 @@ import {
   type VolcanoExtentContext,
 } from "../lib/volcanoExtent";
 import {
+  reportedDepthBasisText,
   reportedMagnitudeText,
   USGS_M45_MONTH_SOURCE,
   type EarthquakePlaceContext,
@@ -69,6 +70,7 @@ export class PlaceInsights {
   private readonly seismicityValue: HTMLElement;
   private readonly seismicityDetail: HTMLElement;
   private readonly seismicityMagnitude: HTMLElement;
+  private readonly seismicityDepthBasis: HTMLElement;
   private readonly seismicityRecords: HTMLUListElement;
   private readonly note: HTMLElement;
 
@@ -169,6 +171,11 @@ export class PlaceInsights {
     // the values shown — get their own line.
     this.seismicityMagnitude = document.createElement("p");
     this.seismicityMagnitude.className = "place-insights__detail";
+    // Record rows print the feed's depth verbatim. The globe hover qualifies a
+    // depth that sits on an operator default; without the same disclosure here
+    // a fixed 10 km would read as a resolved hypocentre, so it gets a line.
+    this.seismicityDepthBasis = document.createElement("p");
+    this.seismicityDepthBasis.className = "place-insights__detail";
     this.seismicityRecords = document.createElement("ul");
     this.seismicityRecords.className = "place-insights__record-list";
     const seismicitySource = document.createElement("a");
@@ -182,6 +189,7 @@ export class PlaceInsights {
       this.seismicityValue,
       this.seismicityDetail,
       this.seismicityMagnitude,
+      this.seismicityDepthBasis,
       this.seismicityRecords,
       seismicitySource
     );
@@ -380,6 +388,7 @@ export class PlaceInsights {
     this.seismicityDetail.textContent =
       "Checking the live USGS M4.5+ 30-day feed against this search extent";
     this.seismicityMagnitude.textContent = "";
+    this.seismicityDepthBasis.textContent = "";
     this.seismicityRecords.replaceChildren();
   }
 
@@ -394,6 +403,9 @@ export class PlaceInsights {
     // Silent unless events matched, so a no-event or unusable-query result
     // gains no line.
     this.seismicityMagnitude.textContent = reportedMagnitudeText(context) ?? "";
+    // Likewise silent unless a matched depth sits on a conventional default.
+    this.seismicityDepthBasis.textContent =
+      reportedDepthBasisText(context) ?? "";
     const { coverage, query } = context;
 
     if (coverage.status === "invalid-query") {
@@ -436,6 +448,7 @@ export class PlaceInsights {
   setSeismicityUnavailable(): void {
     this.seismicityRecords.replaceChildren();
     this.seismicityMagnitude.textContent = "";
+    this.seismicityDepthBasis.textContent = "";
     this.seismicityValue.textContent = "Events unavailable";
     this.seismicityDetail.textContent =
       "The live USGS M4.5+ feed could not be loaded for this search.";
