@@ -982,7 +982,10 @@ if (probeEl) {
           // support clause above whenever that already explained the absence.
           emptyAtmosphereProbeNote(layer.id, values) ??
             emptyMarineProbeNote(layer.id, values, sstSupportNote),
-          sstSupportNote
+          sstSupportNote,
+          // Area mode charts a weighted mean of per-pixel decodes; point mode
+          // charts a median, which the SST end-cap screen already catches.
+          mode === "area" ? "sampled-area" : null
         );
       })
       .catch((err) => {
@@ -1122,7 +1125,9 @@ if (probeEl) {
           // support clause; the marine note only speaks when it did not.
           emptyAtmosphereProbeNote(layer.id, values) ??
             emptyMarineProbeNote(layer.id, values, sstSupportNote),
-          sstSupportNote
+          sstSupportNote,
+          // Every drawn-region value is a weighted mean of per-pixel decodes.
+          "drawn-region"
         );
       })
       .catch((err) => {

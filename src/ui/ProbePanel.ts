@@ -29,6 +29,8 @@ import {
   probeSstTrendCensoring,
   sstTrendCensoringClause,
 } from "../lib/probeSstTrendCensoring";
+import { averagedSstCensoringNote } from "../lib/marineAveragedSstCensoring";
+import type { MarineAveragedSstFootprint } from "../lib/marineAveragedSstSupport";
 import { probeRecordGaps, probeRecordGapsClause } from "../lib/probeRecordGaps";
 import { probeSstSamplingGateClause } from "../lib/sstObservingConstraints";
 import { ICONS } from "./icons";
@@ -256,12 +258,20 @@ export class ProbePanel {
    * inside it that carried a value, and those are not the same thing whenever
    * the footprint straddles the product's domain. Callers pass null for the
    * ordinary case, so a fully sampled footprint reads exactly as before.
+   *
+   * `averagedFootprint` names which averaged footprint produced the series, or
+   * null for a point probe. It is passed explicitly rather than read from
+   * `mode` because a drawn region hides the Point/Area toggle, so the panel's
+   * own mode does not describe how a region series was combined. See
+   * lib/marineAveragedSstCensoring.ts: the SST end-cap screen is exact over a
+   * point probe's median but blind inside an averaged mean.
    */
   finish(
     csv: () => string,
     filename: string,
     emptySeriesNote?: string | null,
-    spatialSupportNote?: string | null
+    spatialSupportNote?: string | null,
+    averagedFootprint?: MarineAveragedSstFootprint | null
   ): void {
     this.csv = csv;
     this.csvFilename = filename;
@@ -338,6 +348,19 @@ export class ProbePanel {
     const sstTrendCensoring = sstTrendCensoringClause(
       probeSstTrendCensoring(sstCensoring, trend)
     );
+    // Both clauses above screen the CHARTED values. That is exact for a point
+    // probe, whose value is a median of a tight pixel block and so is one of
+    // the decoded pixels. An area or drawn-region value is a weighted mean of
+    // per-pixel decodes instead, and a mean is not one of its members: a
+    // footprint holding both capped and resolved pixels averages to a number
+    // inside the finite ramp while still carrying the cap's one-sided error.
+    // Nothing the sampler returns can reveal that, so no direction is claimed
+    // — only that an unmarked averaged value is not an uncensored one. Silent
+    // for the point probe, for every other layer, and for an empty record.
+    const sstAveragedCensoring = averagedSstCensoringNote(
+      averagedFootprint,
+      sstCensoring
+    );
     // Ramp censoring says which of these statistics are bounds; it does not say
     // which water, or which moments, they describe. The cited SST product
     // composites Aqua's daytime overpass on cloud-screened days only, so the
@@ -369,6 +392,7 @@ export class ProbePanel {
       (seasonal ? ` · ${seasonal}` : "") +
       (sstCensoringClause ? ` · ${sstCensoringClause}` : "") +
       (sstTrendCensoring ? ` · ${sstTrendCensoring}` : "") +
+      (sstAveragedCensoring ? ` · ${sstAveragedCensoring}` : "") +
       (sstSamplingGate ? ` · ${sstSamplingGate}` : "") +
       (spatialSupportNote ? ` · ${spatialSupportNote}` : "");
     this.setStatus(stat);
