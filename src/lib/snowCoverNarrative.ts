@@ -1,7 +1,10 @@
 import { doiResolverUrl } from "./doiLink";
 import type { YearMonth } from "./timeline";
 import {
+  SNOW_COVER_DATASET,
   SNOW_COVER_LIMITATIONS,
+  SNOW_COVER_SOURCE_RESOLUTION,
+  describeSnowSeasonChange,
   type SnowCoverSummary,
   type SnowSeasonChange,
   type SnowSeasonTrend,
@@ -273,3 +276,137 @@ function lowerFirst(text: string): string {
 
 /** Re-exported so callers can show the shared caveats without a second import. */
 export { SNOW_COVER_LIMITATIONS };
+
+/** A place-panel card's two rendered strings. */
+export interface SnowCoverInsightText {
+  value: string;
+  detail: string;
+}
+
+/** Sampling context the place panel already carries for every other card. */
+export interface SnowCoverInsightProvenance {
+  validFractions?: readonly (number | null)[];
+  sourceImageDimensions?: { width: number; height: number };
+}
+
+/**
+ * Why the place panel's snow value is a mean over the *drawn* part of a
+ * boundary rather than over the boundary.
+ *
+ * GIBS renders percent 0 transparent (see snowCoverRamp.ts), so snow-free
+ * ground is not drawn at all and never enters the sampled mean. A rendered
+ * tile therefore cannot separate "no snow" from "not observed": both are
+ * absent pixels. The consequence is directional and must be stated, because
+ * the number reads like a share of the place and is not one — it is the
+ * average cover *where cover was drawn*, which is biased high exactly where
+ * snow is patchy. The undrawn share is reported as sampled coverage instead.
+ */
+const DRAWN_FRACTION_CAVEAT =
+  "GIBS draws no colour for 0% snow, so snow-free and unobserved ground are " +
+  "indistinguishable and excluded; this is the mean where snow was drawn, " +
+  "not the snow-covered share of the place";
+
+/**
+ * Turn the place panel's two-month sample into a snow-cover card.
+ *
+ * The panel samples a month pair, which is exactly the window
+ * `describeSnowSeasonChange` is defined over — no multi-year baseline is
+ * implied or required. Values arrive already scaled to whole percent
+ * (PROBE_SCALES.snow, 0–100); this function adds no inference beyond the
+ * descriptors those modules already established, and withholds a number
+ * whenever the later month is unpublished, unusable, or out of range.
+ */
+export function placeSnowCoverInsight(
+  months: [YearMonth, YearMonth],
+  snowCoveredPercents: readonly (number | null)[],
+  availableThrough: YearMonth,
+  provenance: SnowCoverInsightProvenance = {}
+): SnowCoverInsightText {
+  const [earlierMonth, laterMonth] = months;
+  const change = describeSnowSeasonChange(
+    {
+      dataMonth: earlierMonth,
+      snowCoveredPercent: plausiblePercent(snowCoveredPercents[0] ?? null),
+      ...fractionFor(provenance, 0),
+    },
+    {
+      dataMonth: laterMonth,
+      snowCoveredPercent: plausiblePercent(snowCoveredPercents[1] ?? null),
+      ...fractionFor(provenance, 1),
+    },
+    availableThrough
+  );
+  const narrative = describeSnowSeasonChangeNarrative(change);
+  const later = change.later;
+  const source = `${SNOW_COVER_DATASET.shortName} v${SNOW_COVER_DATASET.version}`;
+  const context = [
+    DRAWN_FRACTION_CAVEAT,
+    imageProvenance(provenance.sourceImageDimensions),
+    `${SNOW_COVER_SOURCE_RESOLUTION} source grid`,
+    `source ${source}`,
+  ].join("; ");
+
+  if (
+    later.publicationStatus !== "published" ||
+    later.coverage.status !== "available" ||
+    later.snowCoveredPercent === null
+  ) {
+    // The unusable-month detail already reports coverage itself.
+    return {
+      value: "Unavailable",
+      detail: `${narrative.later.detail} ${context}`,
+    };
+  }
+  // The change sentence describes only the movement between two months, so the
+  // usable share of the footprint has to be added here. Every other place card
+  // states its sampled coverage, and for this layer that share is also what the
+  // caveat above is quantifying.
+  return {
+    value: formatPercent(later.snowCoveredPercent),
+    detail: `${narrative.detail} ${coverageSentence(later.coverage.validFraction)} ${context}`,
+  };
+}
+
+function coverageSentence(validFraction: number | null): string {
+  return validFraction === null
+    ? "Usable area coverage was not supplied."
+    : `Usable area coverage was ${formatPercent(validFraction * 100)}.`;
+}
+
+/**
+ * A snow-covered *area* percentage is bounded by its own definition. Anything
+ * outside 0–100 is a decode or scaling failure, not a wider snowpack, so it is
+ * rejected as no data rather than shown or clamped into a plausible-looking
+ * reading.
+ */
+function plausiblePercent(value: number | null): number | null {
+  if (value === null || !Number.isFinite(value)) return null;
+  return value < 0 || value > 100 ? null : value;
+}
+
+function fractionFor(
+  provenance: SnowCoverInsightProvenance,
+  index: number
+): { validFraction?: number } {
+  const fraction = provenance.validFractions?.[index];
+  return fraction !== null &&
+    fraction !== undefined &&
+    Number.isFinite(fraction) &&
+    fraction >= 0 &&
+    fraction <= 1
+    ? { validFraction: fraction }
+    : {};
+}
+
+function imageProvenance(dimensions?: {
+  width: number;
+  height: number;
+}): string {
+  return dimensions &&
+    Number.isInteger(dimensions.width) &&
+    Number.isInteger(dimensions.height) &&
+    dimensions.width > 0 &&
+    dimensions.height > 0
+    ? `rendered source image ${dimensions.width} x ${dimensions.height} px`
+    : "rendered source image dimensions not supplied";
+}
