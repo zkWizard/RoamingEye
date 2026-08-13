@@ -211,3 +211,89 @@ export function probeSstSamplingGateClause(
   if (layerId !== SST_OBSERVING_CONSTRAINT_LAYER_ID) return "";
   return hasReportedStatistics ? SST_SAMPLING_GATE_NOTE : "";
 }
+
+/**
+ * Surface forms that count as stating a constraint in the rendered caption, or
+ * `null` for a constraint the caption is not required to carry.
+ *
+ * Only the two *sampling gates* are required. They are the constraints that
+ * decide which moments of the month contribute at all, so a caption that omits
+ * one describes a mean over days that never entered the composite. The third
+ * constraint is about what the instrument senses rather than when, the caption
+ * already names the retrieval as thermal, and it is stated in full on the probe
+ * status line, the place card and the exported CSV — a one-sentence caption has
+ * no room for every qualifier, and pretending otherwise would push the useful
+ * ones out.
+ *
+ * Keyed by `SstObservingConstraintId` on purpose: adding a fourth constraint
+ * fails to compile until someone decides whether the caption must carry it.
+ */
+const SST_CAPTION_CONSTRAINT_PHRASES: Record<
+  SstObservingConstraintId,
+  readonly string[] | null
+> = {
+  "daytime-overpass-only": ["daytime", "day-time", "daylight"],
+  "clear-sky-retrieval-only": [
+    "clear-sky",
+    "clear sky",
+    "cloud-free",
+    "cloud free",
+    "cloud-screened",
+  ],
+  "near-surface-radiometric": null,
+};
+
+/** A sampling gate the rendered caption fails to state. */
+export interface SstCaptionOmission {
+  layerId: typeof SST_OBSERVING_CONSTRAINT_LAYER_ID;
+  constraintId: SstObservingConstraintId;
+  /** The product property the caption left out, verbatim from the table. */
+  constraint: string;
+  /** What omitting it lets a reader assume, verbatim from the table. */
+  implication: string;
+  reason: string;
+}
+
+/**
+ * Report every sampling gate the SST caption fails to state.
+ *
+ * `Legend` renders `LAYERS.sst.description` verbatim under the globe and
+ * `LayerSelector` uses it as the option tooltip, so that one sentence is the
+ * most-read claim the app makes about this layer — and for most readers the
+ * only one, since the probe and place surfaces need a gesture to reach. The
+ * caption named the daytime overpass and stopped there, while the constraint
+ * table beside it, `SST_SAMPLING_GATE_NOTE`, the place card, the probe status
+ * line and the exported CSV all carry the clear-sky gate too. A caption that
+ * states one of two co-equal gates reads as the complete qualification, which
+ * is why this is a check and not a comment.
+ *
+ * Limits of the check (it is a copy audit, nothing more):
+ *  - It matches declared surface forms. A clean audit means the caption states
+ *    the *checked* gates; it is not evidence the caption is complete or that
+ *    any other wording in it is accurate.
+ *  - It reads only the caption. It cannot confirm what the layer renders, and
+ *    it asserts no magnitude or direction for either gate — those stay where
+ *    `SST_OBSERVING_CONSTRAINTS` puts them.
+ *  - Nothing biological follows from a stated or an omitted gate.
+ */
+export function sstCaptionConstraintOmissions(
+  caption: string = LAYERS[SST_OBSERVING_CONSTRAINT_LAYER_ID].description
+): SstCaptionOmission[] {
+  const haystack = caption.toLowerCase();
+  return SST_OBSERVING_CONSTRAINTS.filter((entry) => {
+    const phrases = SST_CAPTION_CONSTRAINT_PHRASES[entry.id];
+    return phrases !== null && !phrases.some((p) => haystack.includes(p));
+  }).map((entry) => ({
+    layerId: SST_OBSERVING_CONSTRAINT_LAYER_ID,
+    constraintId: entry.id,
+    constraint: entry.constraint,
+    implication: entry.implication,
+    reason:
+      "The caption is the most-read claim the app makes about this layer, and it is the only SST surface a reader meets without a gesture; a sampling gate left out of it reads as a gate that does not apply.",
+  }));
+}
+
+/** One-line rendering of an omission, for a test failure message. */
+export function formatSstCaptionOmission(omission: SstCaptionOmission): string {
+  return `${omission.layerId}: caption omits ${omission.constraintId} — the product is ${omission.constraint}, so ${omission.implication}; ${omission.reason}`;
+}
