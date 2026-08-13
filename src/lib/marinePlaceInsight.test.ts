@@ -608,3 +608,73 @@ describe("year-over-year SST differences respect the colormap's open end caps", 
     expect(reading.detail).not.toContain("≥");
   });
 });
+
+describe("marine boundary SST native-grid support on the card", () => {
+  /** A harbour-sized boundary: ~5.6 km x ~4.3 km, well inside one 9 km cell. */
+  const HARBOUR = { south: 40, north: 40.05, west: -70.05, east: -70 };
+  /** A sea-sized boundary, spanning many native cells in both directions. */
+  const SEA = { south: 30, north: 40, west: -20, east: -10 };
+
+  function reading(
+    bounds: typeof HARBOUR | null | undefined,
+    observedValue: number | null = 18.375
+  ) {
+    return marineBoundarySstReading({
+      geographyLabel: "Monterey Bay",
+      dataMonth: { year: 2026, month: 3 },
+      observedValue,
+      validFraction: 0.94,
+      sourceImageDimensions: { width: 512, height: 512 },
+      bounds,
+    });
+  }
+
+  it("says a high sampled share can still rest on a single source cell", () => {
+    const card = reading(HARBOUR);
+
+    // The two clauses answer different questions and must sit together: the
+    // share is 94%, which on its own reads as a well-sampled mean.
+    expect(card.detail).toContain(
+      "usable SST over 94% of the searched boundary (substantial); mean covers only those pixels; searched boundary is narrower than one 9km source cell, whose footprint extends beyond it — the mean rests on a single source cell; rendered source image"
+    );
+    expect(card.nativeSupport.meanBoundedBySingleCell).toBe(true);
+  });
+
+  it("leaves the clause off a boundary that resolves many native cells", () => {
+    const card = reading(SEA);
+
+    expect(card.nativeSupport.supportClass).toBe("many-cells");
+    expect(card.detail).not.toContain("source cell");
+    // The coverage clause is unaffected either way.
+    expect(card.detail).toContain(
+      "usable SST over 94% of the searched boundary"
+    );
+  });
+
+  it("stays silent when the workflow supplied no boundary extent", () => {
+    for (const card of [reading(null), reading(undefined)]) {
+      expect(card.nativeSupport.status).toBe("invalid-bounds");
+      expect(card.detail).not.toContain("source cell");
+    }
+  });
+
+  it("does not qualify a mean the reading never reported", () => {
+    // No usable value means there is no mean for a native-cell bound to
+    // describe; the card already says the observation is missing.
+    const card = reading(HARBOUR, null);
+
+    expect(card.availability).toBe("no-usable-sst");
+    expect(card.detail).not.toContain("source cell");
+    // The bound is still computed for structured consumers.
+    expect(card.nativeSupport.supportClass).toBe("sub-cell");
+  });
+
+  it("keeps the clause out of an unavailable reading", () => {
+    const card = unavailableMarineBoundarySstReading(
+      { year: 2026, month: 3 },
+      "Monterey Bay"
+    );
+
+    expect(card.detail).not.toContain("source cell");
+  });
+});

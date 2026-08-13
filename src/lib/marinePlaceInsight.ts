@@ -19,6 +19,7 @@ import {
 } from "./sstRampCensoring";
 import { SST_SAMPLING_GATE_NOTE } from "./sstObservingConstraints";
 import {
+  qualifyingSstNativeSupportNote,
   summarizeSstNativeSupport,
   type SstNativeSupportSummary,
 } from "./sstNativeSupport";
@@ -250,6 +251,18 @@ export function marineBoundarySstReading(
   // reporting it as "not supplied" would hide which of the two happened.
   const spatialSupport = summarizeMarineBoundarySstSupport(input.validFraction);
 
+  // Coverage grades what SHARE of the boundary returned pixels; it cannot say
+  // how many independent source values those pixels carry. A searched town is
+  // routinely smaller than one ~9 km L3 cell, so a card can print "94% sampled
+  // coverage" over a mean that rests on a single retrieval whose footprint
+  // extends outside the boundary. The note speaks only in the two cases where
+  // that changes how the printed mean may be read, and only beside a value
+  // there is a mean to qualify.
+  const nativeSupport = summarizeSstNativeSupport(input.bounds ?? null);
+  const nativeSupportNote = usable
+    ? qualifyingSstNativeSupportNote(nativeSupport)
+    : null;
+
   return {
     id: MARINE_PLACE_METRIC.id,
     value:
@@ -261,7 +274,7 @@ export function marineBoundarySstReading(
     // is reported. See sstObservingConstraints for what the note stands in for:
     // the cited product composites Aqua's daytime overpass on cloud-screened
     // days only, so this mean is not a full-diurnal, all-weather monthly mean.
-    detail: `${month} approximate mean SST observation sampled within ${geographyLabel}; ${describeMarineBoundarySstSupport(spatialSupport)}; ${image}; source ${source}${describeYearOverYear(yearOverYear)}${rampCensoring?.qualifier ? `; ${rampCensoring.qualifier}` : ""}${
+    detail: `${month} approximate mean SST observation sampled within ${geographyLabel}; ${describeMarineBoundarySstSupport(spatialSupport)}${nativeSupportNote ? `; ${nativeSupportNote}` : ""}; ${image}; source ${source}${describeYearOverYear(yearOverYear)}${rampCensoring?.qualifier ? `; ${rampCensoring.qualifier}` : ""}${
       usable ? `; ${SST_SAMPLING_GATE_NOTE}` : ""
     }; not a marine-biology observation`,
     kind: "observed-boundary-sea-surface-temperature",
@@ -282,7 +295,7 @@ export function marineBoundarySstReading(
     yearOverYear,
     rampCensoring,
     spatialSupport,
-    nativeSupport: summarizeSstNativeSupport(input.bounds ?? null),
+    nativeSupport,
     observationStatus: usable
       ? "observed"
       : coverage.coverage.status === "no-sst-coverage"
