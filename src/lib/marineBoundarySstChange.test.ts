@@ -223,10 +223,69 @@ describe("the one-line readout", () => {
         reading(FEB, 14.1, 0.14)
       )
     );
+    // The reader is told which rule the pair failed and how far apart the two
+    // sampled shares were, in the same terms the card's year-over-year sibling
+    // already uses — not the machine `reason` slug.
     expect(line).toBe(
-      "no month-over-month SST change stated for Feb 2026 vs Jan 2026 (coverage-disparity)"
+      "no month-over-month SST change stated for Feb 2026 vs Jan 2026 — Jan 2026 sampled 82% of the boundary and Feb 2026 sampled 14%, 68 points apart, so the two means may differ in which water was sampled rather than in temperature"
     );
     expect(line).not.toMatch(/[0-9]+\.[0-9]\s*°C/);
+  });
+
+  it("never prints a machine reason slug to the reader", () => {
+    const pairs: [number, number, number | null, number][] = [
+      // coverage disparity, both endpoints censored, and an unusable endpoint.
+      [12.4, 0.82, 14.1, 0.14],
+      [31.9, 0.8, 31.9, 0.8],
+      [12.4, 0.8, null, 0.8],
+    ];
+    for (const [earlierValue, earlierShare, laterValue, laterShare] of pairs) {
+      const line = formatMarineBoundarySstChange(
+        describeMarineBoundarySstChange(
+          reading(JAN, earlierValue, earlierShare),
+          reading(FEB, laterValue, laterShare)
+        )
+      );
+      expect(line).toContain("no month-over-month SST change stated");
+      expect(line).not.toMatch(
+        /coverage-disparity|coverage-not-supplied|both-endpoints-censored|endpoint-not-available|invalid-convention|geography-mismatch|months-not-consecutive/
+      );
+    }
+  });
+
+  it("explains a censored pair as destroyed information, not missing data", () => {
+    const line = formatMarineBoundarySstChange(
+      describeMarineBoundarySstChange(
+        reading(JAN, 31.9, 0.8),
+        reading(FEB, 31.9, 0.8)
+      )
+    );
+    expect(line).toContain("open end caps");
+    expect(line).toContain("unbounded both ways");
+    // Never rendered as an observed absence of change.
+    expect(line).not.toMatch(/little change|unchanged|no change occurred/i);
+  });
+
+  it("names an unusable endpoint without blaming coverage", () => {
+    const line = formatMarineBoundarySstChange(
+      describeMarineBoundarySstChange(
+        reading(JAN, 12.4, 0.8),
+        reading(FEB, null, 0.8)
+      )
+    );
+    expect(line).toBe(
+      "no month-over-month SST change stated for Feb 2026 vs Jan 2026 — one of the two months carries no usable boundary-mean SST observation"
+    );
+  });
+
+  it("says non-consecutive months are not a month-over-month pair", () => {
+    const line = formatMarineBoundarySstChange(
+      describeMarineBoundarySstChange(
+        reading({ year: 2025, month: 11 }, 12.4, 0.8),
+        reading(FEB, 14.1, 0.8)
+      )
+    );
+    expect(line).toContain("not consecutive");
   });
 
   it("reads as a difference, never as a forecast or an ecosystem claim", () => {
