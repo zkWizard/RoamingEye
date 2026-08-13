@@ -1,6 +1,7 @@
 import { summarizeLandCoverContext } from "../lib/landCover";
 import { decodeRenderedLandCoverPixel } from "../lib/landCoverPalette";
 import { describeLandCoverPointReading } from "../lib/landCoverPointReading";
+import { vegetationIndexSupportClassNote } from "../lib/vegetationIndexLandCoverSupport";
 import type { RenderedPixel } from "./ProbeSampler";
 
 /**
@@ -20,7 +21,15 @@ export function readLandCoverClassText(
       classCode: decoded.status === "classified" ? decoded.classCode : null,
     };
   });
-  return describeLandCoverPointReading(
-    summarizeLandCoverContext(observations, dataYear)
-  ).text;
+  const context = summarizeLandCoverContext(observations, dataYear);
+  const reading = describeLandCoverPointReading(context);
+  // A class label alone does not say whether the vegetation-index layers can
+  // be read as plant greenness at this point: MOD13A3 retrieves NDVI and EVI
+  // over snow, water, and barren ground just as it does over canopy. The
+  // drawn-region read states that share; state the point's tier here so the
+  // two land-cover surfaces disclose the same thing.
+  const support = vegetationIndexSupportClassNote(
+    context.mostFrequentClasses.map((entry) => entry.classCode)
+  );
+  return `${reading.text}${support === null ? "" : ` ${support}`}`;
 }
