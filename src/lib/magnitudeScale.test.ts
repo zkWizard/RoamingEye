@@ -6,6 +6,7 @@ import {
   MAGNITUDE_SCALES,
   MAGNITUDE_SCALE_LIMITATIONS,
   MAGNITUDE_SCALE_SOURCE,
+  reportedMagnitudeRangeNote,
 } from "./magnitudeScale";
 
 describe("magnitudeScale", () => {
@@ -151,5 +152,82 @@ describe("formatReportedMagnitude", () => {
   it("falls back to the bare reported value when the scale is unavailable", () => {
     expect(formatReportedMagnitude(4.8, null)).toBe("M 4.8 (reported)");
     expect(formatReportedMagnitude(4.8, "mystery")).toBe("M 4.8 (reported)");
+  });
+});
+
+describe("reportedMagnitudeRangeNote", () => {
+  it("names the published floor a value falls below", () => {
+    // The live M4.5+ feed's most common out-of-range case: USGS documents Mww
+    // as applicable at M 5.0 and above but publishes Mww values beneath it.
+    expect(reportedMagnitudeRangeNote(4.7, "mww")).toBe(
+      "below the M 5.0 minimum USGS publishes for this method"
+    );
+  });
+
+  it("names the published ceiling a value rises above", () => {
+    // mwb: range top 7.0, applicability limit 7.5 — between them the value is
+    // merely outside the calibrated range.
+    expect(reportedMagnitudeRangeNote(7.2, "mwb")).toBe(
+      "above the M 7.0 maximum USGS publishes for this method"
+    );
+  });
+
+  it("reports saturation as a lower bound, the one state with a direction", () => {
+    expect(reportedMagnitudeRangeNote(6.7, "mb")).toBe(
+      "USGS states this method saturates at M 6.5, so the reported value is a lower bound"
+    );
+  });
+
+  it("reports an applicability limit without claiming a direction of error", () => {
+    const note = reportedMagnitudeRangeNote(7.6, "mwb");
+    expect(note).toBe(
+      "at or above M 7.5, where USGS states this method becomes unsuitable"
+    );
+    expect(note).not.toContain("lower bound");
+  });
+
+  it("stays silent for a value inside the published range", () => {
+    // Silence rather than a reassurance: in-range is not a claim of accuracy.
+    expect(reportedMagnitudeRangeNote(5.2, "mww")).toBeNull();
+    expect(reportedMagnitudeRangeNote(5.0, "mww")).toBeNull();
+  });
+
+  it("stays silent when the scale publishes no bounds at all", () => {
+    expect(reportedMagnitudeRangeNote(6.0, "mw")).toBeNull();
+  });
+
+  it("stays silent for an absent or unrecognized method", () => {
+    expect(reportedMagnitudeRangeNote(4.8, null)).toBeNull();
+    expect(reportedMagnitudeRangeNote(4.8, "mystery")).toBeNull();
+    expect(reportedMagnitudeRangeNote(Number.NaN, "mww")).toBeNull();
+  });
+
+  it("resolves a method through its feed aliases", () => {
+    // "ms20" and "ms_20" are USGS spellings of the same 20-second method, so
+    // all three must produce the same note rather than one falling silent.
+    const note = reportedMagnitudeRangeNote(8.3, "ms");
+    expect(note).toContain("saturates");
+    expect(reportedMagnitudeRangeNote(8.3, "ms20")).toBe(note);
+    expect(reportedMagnitudeRangeNote(8.3, "ms_20")).toBe(note);
+  });
+
+  it("cites a whole-number threshold to a tenth, as USGS publishes it", () => {
+    // 5 would misread as a coarser bound than the published 5.0.
+    expect(reportedMagnitudeRangeNote(4.7, "mww")).toContain("M 5.0");
+  });
+
+  it("never names the method, which the row already prints", () => {
+    for (const [magnitude, type] of [
+      [4.7, "mww"],
+      [7.2, "mwb"],
+      [6.7, "mb"],
+      [7.6, "mwb"],
+    ] as const) {
+      const note = reportedMagnitudeRangeNote(magnitude, type);
+      expect(note).not.toBeNull();
+      const scale = magnitudeScale(type);
+      if (scale === null) throw new Error(`unresolved scale for ${type}`);
+      expect(note).not.toContain(scale.label);
+    }
   });
 });
