@@ -60,8 +60,26 @@ export interface PeakMonthTally {
 }
 
 export interface PeakGreennessTimingCoverage {
-  /** Years contributing a usable, unique annual peak month. */
+  /** Years contributing a usable annual peak month. */
   contributingYearCount: number;
+  /**
+   * Contributing years whose annual peak was *tied* — more than one supplied
+   * month held that year's highest NDVI exactly (`NdviExtremum.status`).
+   *
+   * Such a year still contributes, at the earliest of its tied months, because
+   * that month genuinely held the year's highest supplied observation. But the
+   * choice among equals is a convention, not a measurement, and it is not
+   * neutral: resolving every tie to the earliest month pulls tied years toward
+   * one side of the calendar, which can only tighten the apparent clustering
+   * that `meanResultantLength` reports. Counting the ties keeps that visible
+   * instead of letting a plateau read as a sharply dated peak.
+   *
+   * A subset of `contributingYearCount`, never subtracted from it. Ties are
+   * ordinary here rather than pathological: MOD13A3 composites a month to a
+   * single value and probe observations are decoded from a quantised colour
+   * ramp, so two months landing on the identical value is expected.
+   */
+  tiedPeakYearCount: number;
   /** Years excluded because the annual peak was null (sparse or no-data). */
   sparseYearCount: number;
   /** Years excluded for an invalid peak month or a repeated calendar year. */
@@ -122,6 +140,7 @@ export function summarizePeakGreennessTiming(
   const seenYears = new Set<number>();
   let sparseYearCount = 0;
   let invalidYearCount = 0;
+  let tiedPeakYearCount = 0;
 
   for (const summary of annualSummaries) {
     if (summary.peak === null) {
@@ -140,12 +159,16 @@ export function summarizePeakGreennessTiming(
       continue;
     }
     seenYears.add(summary.year);
+    // Counted only once the year is known to contribute, so the tally is
+    // always a subset of the contributing years it qualifies.
+    if (summary.peak.status === "tied") tiedPeakYearCount += 1;
     contributing.push({ year: summary.year, month: peakMonth });
   }
 
   const contributingYears = contributing.map(({ year }) => year);
   const coverage: PeakGreennessTimingCoverage = {
     contributingYearCount: contributing.length,
+    tiedPeakYearCount,
     sparseYearCount,
     invalidYearCount,
     requiredYearCount,

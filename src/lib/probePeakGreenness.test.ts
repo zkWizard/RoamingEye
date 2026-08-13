@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   peakGreennessClause,
   peakSupportClause,
+  peakTieClause,
   probePeakGreennessTiming,
   probePeakSupport,
 } from "./probePeakGreenness";
@@ -275,5 +276,84 @@ describe("peakSupportClause", () => {
 
     expect(clause).not.toMatch(/0\.\d/);
     expect(clause).not.toMatch(/health|biomass|productiv|greener|degrad/i);
+  });
+});
+
+describe("peakTieClause", () => {
+  /**
+   * A probe series whose peak month is exactly matched by the month after it in
+   * `tiedYears`. The plateau uses the identical float in both months, which is
+   * what a quantised ramp and MOD13A3 monthly compositing actually produce.
+   */
+  function plateau(
+    monthList: readonly YearMonth[],
+    peakMonth: number,
+    tiedYears: readonly number[]
+  ): number[] {
+    return monthList.map((ym) => {
+      const separation = Math.abs(ym.month - peakMonth) % 12;
+      const circular = Math.min(separation, 12 - separation);
+      const base = 0.55 - 0.05 * circular;
+      const isSecondPeak =
+        tiedYears.includes(ym.year) && ym.month === peakMonth + 1;
+      return isSecondPeak ? 0.55 : base;
+    });
+  }
+
+  it("says how many years shared their peak across months", () => {
+    const range = months(2001, 12 * 5);
+    const values = plateau(range, 7, [2002, 2004]);
+    const timing = probePeakGreennessTiming("ndvi", range, values, 52);
+
+    // The plateaued years still contribute at July, the earliest tied month.
+    expect(timing?.dominantPeakMonth).toMatchObject({ month: 7, count: 5 });
+    expect(peakTieClause(timing)).toBe(
+      "annual peak tied across months in 2/5 yr (earliest counted)"
+    );
+  });
+
+  it("stays silent when every year held its peak in one month", () => {
+    const range = months(2001, 12 * 5);
+    const timing = probePeakGreennessTiming("ndvi", range, cycle(range, 7), 52);
+
+    // A cleanly dated record must not grow the status line at all.
+    expect(timing?.coverage.tiedPeakYearCount).toBe(0);
+    expect(peakTieClause(timing)).toBeNull();
+  });
+
+  it("stays silent when the timing clause named no month", () => {
+    const range = months(2001, 24); // under the three-year timing minimum
+    const timing = probePeakGreennessTiming(
+      "ndvi",
+      range,
+      plateau(range, 7, [2001, 2002]),
+      52
+    );
+
+    expect(timing?.status).toBe("insufficient-years");
+    expect(peakTieClause(timing)).toBeNull();
+  });
+
+  it("stays silent for a layer that is not NDVI", () => {
+    expect(peakTieClause(null)).toBeNull();
+  });
+
+  it("never states an NDVI value or an ecological conclusion", () => {
+    const range = months(2001, 12 * 5);
+    const clause =
+      peakTieClause(
+        probePeakGreennessTiming(
+          "ndvi",
+          range,
+          plateau(range, 7, [2002, 2003]),
+          52
+        )
+      ) ?? "";
+
+    expect(clause).not.toBe("");
+    expect(clause).not.toMatch(/0\.\d/);
+    expect(clause).not.toMatch(
+      /health|biomass|productiv|greener|degrad|season/i
+    );
   });
 });

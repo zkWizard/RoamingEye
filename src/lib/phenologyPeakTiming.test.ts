@@ -29,6 +29,99 @@ function yearWithPeak(
   return summary;
 }
 
+/**
+ * A year whose highest NDVI is held by two months at *exactly* the same value.
+ * MOD13A3 composites a month to a single value and probe observations are
+ * decoded from a quantised colour ramp, so an exact plateau is ordinary here
+ * rather than contrived.
+ */
+function yearWithTiedPeak(
+  year: number,
+  firstPeakMonth: number,
+  secondPeakMonth: number,
+  latitude: number
+): NdviAnnualPhenology {
+  const months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((month) => {
+    const isPeak = month === firstPeakMonth || month === secondPeakMonth;
+    return {
+      month: { year, month },
+      ndvi: isPeak ? 0.8 : 0.3,
+      validFraction: 0.9,
+    } satisfies NdviMonthlyObservation;
+  });
+  const [summary] = summarizeAnnualNdviPhenology(months, latitude);
+  return summary;
+}
+
+describe("NDVI peak greenness tie coverage", () => {
+  it("counts a year whose peak is shared by two months", () => {
+    const summaries = [
+      yearWithTiedPeak(2019, 7, 8, 45),
+      yearWithPeak(2020, 7, 45),
+      yearWithPeak(2021, 7, 45),
+      yearWithTiedPeak(2022, 7, 8, 45),
+    ];
+
+    const timing = summarizePeakGreennessTiming(summaries);
+
+    // Tied years still contribute — at the earliest of their tied months —
+    // so the tally qualifies the sample rather than shrinking it.
+    expect(timing.coverage.contributingYearCount).toBe(4);
+    expect(timing.coverage.tiedPeakYearCount).toBe(2);
+    expect(timing.dominantPeakMonth).toMatchObject({ month: 7, count: 4 });
+  });
+
+  it("counts no ties when every year holds its peak in one month", () => {
+    const summaries = [2019, 2020, 2021].map((year) =>
+      yearWithPeak(year, 6, 45)
+    );
+
+    expect(
+      summarizePeakGreennessTiming(summaries).coverage.tiedPeakYearCount
+    ).toBe(0);
+  });
+
+  it("counts ties only among years that actually contribute", () => {
+    const tied = yearWithTiedPeak(2019, 4, 5, 45);
+    const summaries = [
+      tied,
+      // Same calendar year again: excluded as a duplicate, so its tie must not
+      // be counted against a contributing-year denominator it is absent from.
+      tied,
+      yearWithPeak(2020, 4, 45),
+      yearWithPeak(2021, 4, 45),
+    ];
+
+    const timing = summarizePeakGreennessTiming(summaries);
+
+    expect(timing.coverage.contributingYearCount).toBe(3);
+    expect(timing.coverage.invalidYearCount).toBe(1);
+    expect(timing.coverage.tiedPeakYearCount).toBe(1);
+  });
+
+  it("summarizes a tied record identically in either input order", () => {
+    const summaries = [
+      yearWithTiedPeak(2019, 7, 8, 45),
+      yearWithPeak(2020, 7, 45),
+      yearWithTiedPeak(2021, 7, 8, 45),
+    ];
+
+    // An exact tie is the classic place for an extremum picker to depend on
+    // input order; the summary must not.
+    const forward = summarizePeakGreennessTiming(summaries);
+    const reversed = summarizePeakGreennessTiming([...summaries].reverse());
+
+    expect(reversed.coverage).toEqual(forward.coverage);
+    expect(reversed.dominantPeakMonth).toEqual(forward.dominantPeakMonth);
+    expect(reversed.peakMonthCounts).toEqual(forward.peakMonthCounts);
+    expect(reversed.circularMeanMonth).toBe(forward.circularMeanMonth);
+    expect(reversed.meanResultantLength).toBeCloseTo(
+      forward.meanResultantLength ?? -1,
+      12
+    );
+  });
+});
+
 describe("NDVI peak greenness timing", () => {
   it("reports a July circular mean and tight clustering for stable peaks", () => {
     const summaries = [2019, 2020, 2021, 2022].map((year) =>

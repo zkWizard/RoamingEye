@@ -155,3 +155,40 @@ export function peakSupportClause(
 
   return `peak bracketed by observed neighbours in ${bracketed}/${total} yr`;
 }
+
+/**
+ * Second qualifier for {@link peakGreennessClause}: in how many contributing
+ * years more than one month held that year's highest NDVI *exactly*, so the
+ * named month is the earliest of several equals rather than a dated peak.
+ *
+ * `phenology.ts` records this per year (`NdviExtremum.status` / `tiedMonths`)
+ * precisely because "naming one of them the peak would over-claim". But the
+ * timing summary must reduce each year to a single month to place it on the
+ * calendar circle, and does so by taking the earliest; nothing downstream
+ * re-exposed the tie, so a plateaued year read exactly like a sharply dated
+ * one. It matters twice over: the month is a convention among equals, and
+ * because every tie resolves in the same direction the reduction can only
+ * tighten the R the clause quotes — never loosen it.
+ *
+ * Ties are ordinary rather than pathological in this record: MOD13A3 composites
+ * a month to one value, and probe observations are decoded from a quantised
+ * colour ramp, so two months landing on the identical value is expected. This
+ * reports the record's resolution, never vegetation — a tied peak is still the
+ * highest greenness observed that year, and this infers no phenophase,
+ * growing-season length, productivity, biomass, or ecosystem condition.
+ *
+ * Silent when no contributing year was tied — so a cleanly dated record adds no
+ * status-line text — and when the timing clause named no month to qualify.
+ */
+export function peakTieClause(
+  timing: PeakGreennessTiming | null
+): string | null {
+  if (!timing) return null;
+  if (timing.status !== "available" || !timing.dominantPeakMonth) return null;
+
+  const total = timing.coverage.contributingYearCount;
+  const tied = timing.coverage.tiedPeakYearCount;
+  if (total === 0 || tied === 0) return null;
+
+  return `annual peak tied across months in ${tied}/${total} yr (earliest counted)`;
+}
