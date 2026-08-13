@@ -4,6 +4,7 @@ import { ERUPTION_CLASS_COLORS, ERUPTION_CLASS_LABELS } from "./volcanoes";
 import { PROBE_SCALES, formatProbeValue, scaleValue } from "./probe";
 import { IGBP_LAND_COVER_CLASSES } from "./landCover";
 import { IGBP_RENDERED_PALETTE } from "./landCoverPalette";
+import { landCoverLegendNote } from "./landCoverLegendNote";
 import { vegetationIndexLegendNote } from "./vegetationIndexRenderedRange";
 
 /**
@@ -283,6 +284,10 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
   landcover: {
     kind: "classes",
     measures: "Land-cover class (IGBP)",
+    // The app's one categorical layer: its swatches are names, not a scale, so
+    // it needs a guardrail at least as much as the gradient layers do (see
+    // lib/landCoverLegendNote.ts).
+    interpretationNote: landCoverLegendNote(),
     // The 17 IGBP classes + Unclassified, colored exactly as GIBS renders
     // them (colormaps/v1.3/MODIS_IGBP_Land_Cover_Type.xml).
     classes: IGBP_LAND_COVER_CLASSES.map(({ code, label }) => ({

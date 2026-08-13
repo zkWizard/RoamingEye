@@ -213,8 +213,11 @@ describe("legend dataset provenance", () => {
   });
 
   it("covers the layers that carry no interpretation note", () => {
-    // These five rendered a calibrated colour scale with no stated source.
-    for (const id of ["lst", "sst", "soil", "aerosol", "landcover"] as const) {
+    // These rendered a calibrated colour scale with no stated source. Land
+    // cover was a fifth until it gained a categorical guardrail of its own
+    // (lib/landCoverLegendNote.ts); the invariant here is unchanged — a layer
+    // carrying no note is still cited.
+    for (const id of ["lst", "sst", "soil", "aerosol"] as const) {
       expect(LEGENDS[id].interpretationNote).toBeUndefined();
       const provenance = legendProvenance(id);
       expect(provenance).not.toBeNull();
