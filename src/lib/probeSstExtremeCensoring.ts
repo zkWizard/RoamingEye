@@ -146,15 +146,28 @@ export function probeSstExtremeCensoring(
 }
 
 /**
- * The inequality to render in front of a reported extreme, or "" when the
- * statistic is a two-sided estimate. Kept separate from the clause so the
- * number itself can never be shown bare once it is known to be a bound.
+ * The inequality to render in front of a reported statistic, or "" when it is a
+ * two-sided estimate. Kept separate from the clause so the number itself can
+ * never be shown bare once it is known to be a bound.
+ *
+ * `mean` is covered as well as the two extremes: a mean containing a censored
+ * month inherits that month's one-sided error (see `meanBound`), so rendering it
+ * bare beside a `≤`-marked minimum reports as a point estimate the one statistic
+ * a reader is most likely to carry away. "indeterminate" is the sole case with
+ * no prefix — both caps were hit, the two biases oppose, and no inequality is
+ * true of the mean; the clause states that in prose instead of implying a
+ * direction the data cannot support.
  */
 export function sstExtremeBoundPrefix(
   censoring: ProbeSstExtremeCensoring,
-  statistic: "min" | "max"
+  statistic: "min" | "mean" | "max"
 ): string {
-  const bound = statistic === "min" ? censoring.minBound : censoring.maxBound;
+  const bound =
+    statistic === "min"
+      ? censoring.minBound
+      : statistic === "max"
+        ? censoring.maxBound
+        : censoring.meanBound;
   if (bound === "upper") return "≤ ";
   if (bound === "lower") return "≥ ";
   return "";
