@@ -50,6 +50,13 @@ import {
   exportObservationsFromRenderedClimateSample,
   summarizeRenderedClimateSample,
 } from "../lib/meteorology";
+import {
+  classifyGldasRampSample,
+  gldasRampSaturationNote,
+  summarizeGldasRampSaturation,
+  type GldasRampLayerId,
+  type GldasRampSamplePosition,
+} from "../lib/gldasRampSaturation";
 import { volcanoesInSearchExtent } from "../lib/volcanoExtent";
 import {
   nearbyEarthquakeContext,
@@ -93,6 +100,20 @@ function exportableLayerId(
   layerId: PlaceMetricLayerId
 ): Exclude<PlaceMetricLayerId, "snow"> | null {
   return layerId === "snow" ? null : layerId;
+}
+
+/**
+ * Attach a ramp-saturation clause to a rendered card without touching its
+ * value. An empty note leaves the reading byte-identical, which is the normal
+ * case: the GLDAS caps sit at the wet extreme and most footprints never reach
+ * them. The clause qualifies how the stated number was formed, so it is
+ * appended to the detail and never allowed to alter the value itself.
+ */
+function withRampSaturationNote<T extends { detail: string }>(
+  text: T,
+  note: string
+): T {
+  return note === "" ? text : { ...text, detail: `${text.detail}${note}` };
 }
 
 const placeInsightsEl = document.querySelector<HTMLElement>("#place-insights");
@@ -243,6 +264,21 @@ export function runPlaceInsights(result: GeoResult): void {
     samplingTasks.push(
       (async () => {
         const colormap = await loadPlaceColormap(metric.layerId);
+        // Both GLDAS water-cycle ramps end in an open "≥" cap that carries no
+        // finite range, so `parseColormapEntries` drops it and the inversion
+        // resolves a capped pixel to null — indistinguishable from cloud or
+        // ocean in `validFraction`. Those pixels are a footprint's *wettest*
+        // ones, so the surviving mean is dry-biased by an unstated amount.
+        // Classify the colours as they are read (the caps' RGBs are pinned in
+        // lib/gldasRampSaturation) so the card can say so instead.
+        const rampLayerId: GldasRampLayerId | null =
+          metric.layerId === "precip" || metric.layerId === "soil"
+            ? metric.layerId
+            : null;
+        // Only the month whose value the card reports; the previous month is
+        // sampled too, and its saturation would not describe the stated mean.
+        const currentMonthIndex = months.length - 1;
+        let rampPositions: GldasRampSamplePosition[] | null = null;
         const sample = colormap
           ? placeSampler.sampleGeometryPhysical(
               LAYERS[metric.layerId],
@@ -253,6 +289,19 @@ export function runPlaceInsights(result: GeoResult): void {
               colormap.factor,
               {
                 signal: abort.signal,
+                onSampledColors:
+                  rampLayerId === null
+                    ? undefined
+                    : (index, colors) => {
+                        if (index !== currentMonthIndex) return;
+                        rampPositions = colors.map((rgb) =>
+                          classifyGldasRampSample(
+                            rampLayerId,
+                            rgb,
+                            colormap.entries
+                          )
+                        );
+                      },
                 // NDVI's ramp runs to near-black, close enough to the JPEG
                 // black GIBS renders where it draws no index that the default
                 // would average undrawn water, snow, and cloud into the
@@ -313,13 +362,25 @@ export function runPlaceInsights(result: GeoResult): void {
                 { validFractions, sourceImageDimensions }
               )
             : null;
+        // Silent unless the cap actually took samples, so an ordinary reading
+        // is unchanged. It is appended here rather than inside the shared
+        // climate formatter because the saturation is a property of this
+        // layer's ramp, not of the climate summary.
+        const rampSaturationNote = gldasRampSaturationNote(
+          rampLayerId !== null && rampPositions !== null
+            ? summarizeGldasRampSaturation(rampLayerId, rampPositions)
+            : null
+        );
         placeInsights.setReading(
           snowReading
             ? { id: metric.id, ...snowReading }
             : climateReading
               ? {
                   id: metric.id,
-                  ...climateInsightText(climateReading[0], climateReading[1]),
+                  ...withRampSaturationNote(
+                    climateInsightText(climateReading[0], climateReading[1]),
+                    rampSaturationNote
+                  ),
                 }
               : colormap
                 ? placeInsightPhysicalReading(metric, months, values, {

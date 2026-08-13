@@ -284,6 +284,33 @@ export function summarizeGldasRampSaturation(
   };
 }
 
+/**
+ * The place panel's clause for a saturated footprint — silent by default.
+ *
+ * Returns "" whenever nothing saturated, so an ordinary reading is unchanged
+ * and the card gains a sentence only where one is load-bearing. Where the cap
+ * did take samples it states the three things the card cannot otherwise carry:
+ * how many cells were dropped, that the cap is a one-sided bound, and that the
+ * mean shown is therefore a floor rather than an estimate. It names no
+ * condition — a saturated cell is ground wetter than the ramp can resolve, not
+ * a flood, and this never says otherwise.
+ *
+ * `null`/`undefined` means the caller had no colours to classify at all (a
+ * month whose imagery never loaded), which is not "nothing saturated"; it gets
+ * no clause rather than a reassuring one.
+ */
+export function gldasRampSaturationNote(
+  summary: GldasRampSaturationSummary | null | undefined
+): string {
+  if (!summary || summary.ceilingCount === 0) return "";
+  const bound = `${summary.ceilingBoundReported} ${summary.reportedUnit}`;
+  const mean =
+    summary.interiorCount === 0
+      ? "no unsaturated cell remained to average"
+      : `the mean over the remaining ${summary.interiorCount} is a lower bound, not an estimate`;
+  return `; ${summary.ceilingCount} of ${summary.consideredSamples} sampled cells sat at the ${bound} legend cap, where the value is known only to be at or above the cap, so ${mean}`;
+}
+
 function saturationStatement(
   facts: GldasRampSaturationFacts,
   considered: number,
