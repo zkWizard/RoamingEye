@@ -4,6 +4,7 @@ import { parseEarthquakeFeed, type Earthquake } from "./earthquakes";
 import {
   EARTHQUAKE_PLACE_CONTEXT_UNITS,
   USGS_M45_MONTH_SOURCE,
+  epicenterConstraintText,
   largestReportedMagnitudeObservation,
   listedSeismicityOrderNote,
   nearbyEarthquakeContext,
@@ -540,5 +541,114 @@ describe("listedSeismicityOrderNote", () => {
     expect(listedSeismicityOrderNote(context, 5)).toContain(
       "ordered nearest first, not by magnitude"
     );
+  });
+});
+
+describe("epicenterConstraintText", () => {
+  const query = { latitude: 0, longitude: 0, radiusKm: 500 };
+  const withGap = (
+    lat: number,
+    azimuthalGapDeg: number | null
+  ): Earthquake => ({
+    ...earthquake({ lat }),
+    sourceRecord: {
+      id: null,
+      url: null,
+      updatedTime: null,
+      magnitudeType: null,
+      reviewStatus: null,
+      horizontalErrorKm: null,
+      depthErrorKm: null,
+      stationCount: null,
+      azimuthalGapDeg,
+      nearestStationDeg: null,
+      travelTimeResidualS: null,
+    },
+  });
+
+  it("counts the matched events exceeding the documented gap and names the widest", () => {
+    const text = epicenterConstraintText(
+      nearbyEarthquakeContext(
+        [
+          withGap(0.1, 256),
+          withGap(0.2, 90),
+          withGap(0.3, 188),
+          withGap(0.4, 120),
+        ],
+        query
+      )
+    );
+
+    expect(text).toContain(
+      "Azimuthal station gap exceeds 180° for 2 of 4 matched events that reported a gap"
+    );
+    // Largest first, so the worst-constrained location is the visible one.
+    expect(text).toContain("(largest 256°, 188°)");
+    expect(text).toContain("large location and depth uncertainties");
+    // Never a hazard or quality rating, and never a claim about the rest.
+    expect(text).toContain("not a certificate of accuracy");
+  });
+
+  it("names the reason this is the only location-quality signal available", () => {
+    const text = epicenterConstraintText(
+      nearbyEarthquakeContext([withGap(0.1, 200)], query)
+    );
+
+    expect(text).toContain("for 1 of 1 matched event that reported a gap");
+    expect(text).toContain("publishes no location-uncertainty values");
+    // A lone value states no ordering: "largest 200°" would imply a comparison
+    // against gaps this sentence never mentions.
+    expect(text).toContain("(200°)");
+    expect(text).not.toContain("largest");
+  });
+
+  it("caps the named gaps and counts the rest", () => {
+    const text = epicenterConstraintText(
+      nearbyEarthquakeContext(
+        [
+          withGap(0.1, 190),
+          withGap(0.2, 280),
+          withGap(0.3, 210),
+          withGap(0.4, 260),
+          withGap(0.5, 185),
+        ],
+        query
+      )
+    );
+
+    expect(text).toContain("(largest 280°, 260°, 210° and 2 more)");
+  });
+
+  it("counts only events that reported a gap, so an absent gap is not coverage", () => {
+    const text = epicenterConstraintText(
+      nearbyEarthquakeContext(
+        [withGap(0.1, 240), withGap(0.2, null), earthquake({ lat: 0.3 })],
+        query
+      )
+    );
+
+    expect(text).toContain("for 1 of 1 matched event that reported a gap");
+  });
+
+  it("stays silent when every reported gap is within the documented range", () => {
+    expect(
+      epicenterConstraintText(
+        nearbyEarthquakeContext([withGap(0.1, 179), withGap(0.2, 90)], query)
+      )
+    ).toBeNull();
+  });
+
+  it("treats a gap of exactly 180° as within the documented range", () => {
+    expect(
+      epicenterConstraintText(
+        nearbyEarthquakeContext([withGap(0.1, 180)], query)
+      )
+    ).toBeNull();
+  });
+
+  it("stays silent when nothing matched", () => {
+    expect(
+      epicenterConstraintText(nearbyEarthquakeContext([], query))
+    ).toBeNull();
   });
 });
