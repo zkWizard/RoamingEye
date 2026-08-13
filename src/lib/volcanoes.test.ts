@@ -7,6 +7,7 @@ import {
   elevationRegime,
   elevationRegimeLabel,
   lastEruptionLabel,
+  summitElevationHoverLabel,
   volcanoHoverLabel,
 } from "./volcanoes";
 
@@ -179,6 +180,51 @@ describe("elevationRegimeLabel", () => {
   });
 });
 
+describe("summitElevationHoverLabel", () => {
+  it("leaves a summit above the datum in its bare native form", () => {
+    expect(summitElevationHoverLabel(3357)).toBe("summit elevation 3357 m");
+    expect(summitElevationHoverLabel(1)).toBe("summit elevation 1 m");
+  });
+
+  it("reads a negative GVP height as a summit below sea level", () => {
+    // Axial Seamount, the bundled snapshot's rift-zone case.
+    expect(summitElevationHoverLabel(-1410)).toBe(
+      "summit elevation 1410 m below sea level"
+    );
+    // Udintsev Transform, the deepest summit GVP supplies.
+    expect(summitElevationHoverLabel(-5700)).toBe(
+      "summit elevation 5700 m below sea level"
+    );
+    // Kuwae: a shallow negative is the value most easily misread as a typo.
+    expect(summitElevationHoverLabel(-2)).toBe(
+      "summit elevation 2 m below sea level"
+    );
+  });
+
+  it("never renders the minus sign it decoded", () => {
+    expect(summitElevationHoverLabel(-1410)).not.toContain("-");
+  });
+
+  it("marks an exact zero as the datum, not as a missing value", () => {
+    // Zealandia Bank is the one bundled record reported at 0 m.
+    expect(summitElevationHoverLabel(0)).toBe(
+      "summit elevation 0 m (sea level)"
+    );
+    expect(summitElevationHoverLabel(0)).not.toBe(
+      summitElevationHoverLabel(null)
+    );
+  });
+
+  it("is honest about missing or non-finite elevation", () => {
+    expect(summitElevationHoverLabel(null)).toBe(
+      "summit elevation not recorded"
+    );
+    expect(summitElevationHoverLabel(Number.NaN)).toBe(
+      "summit elevation not recorded"
+    );
+  });
+});
+
 describe("lastEruptionLabel", () => {
   it("states CE years plainly", () => {
     expect(lastEruptionLabel(2025)).toBe("last erupted 2025");
@@ -207,6 +253,18 @@ describe("volcanoHoverLabel", () => {
     expect(volcanoHoverLabel(parseVolcanoList([volcano()])[0])).toBe(
       "Etna · Stratovolcano · Italy · summit elevation 3357 m · last erupted 2025 · tectonic setting not recorded"
     );
+  });
+
+  it("decodes a submarine summit rather than showing a negative height", () => {
+    // Ahyi: a subduction-zone volcano that erupted in the instrumental era with
+    // its summit under water, so the marker is both prominent and misreadable.
+    const label = volcanoHoverLabel(
+      parseVolcanoList([
+        volcano({ name: "Ahyi", elevation: -55, lastEruptionYear: 2026 }),
+      ])[0]
+    );
+    expect(label).toContain("summit elevation 55 m below sea level");
+    expect(label).not.toContain("-55");
   });
 
   it("names the GVP tectonic setting recorded for the site", () => {
@@ -263,11 +321,14 @@ describe("volcanoHoverLabel", () => {
         parseVolcanoList([volcano({ elevation: 0, country: "Tonga" })])[0]
       )
     ).toContain("summit elevation 0 m");
+    // The magnitude is still GVP's native metres and is neither dropped nor
+    // clamped to zero; only the datum sign is spelled out instead of being left
+    // as a bare minus for the reader to interpret.
     expect(
       volcanoHoverLabel(
         parseVolcanoList([volcano({ elevation: -55, country: "Tonga" })])[0]
       )
-    ).toContain("summit elevation -55 m");
+    ).toContain("55 m below sea level");
   });
 });
 
