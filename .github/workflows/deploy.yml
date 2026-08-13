@@ -1,0 +1,50 @@
+name: Deploy
+
+# Publishes the built site to the gh-pages branch, which GitHub Pages serves
+# directly (legacy Pages mode, custom domain roamingeye.org). Runs on every
+# push to main: branch protection already required the full check suite on an
+# up-to-date branch before the merge, so this workflow only rebuilds and
+# publishes — re-running e2e here would let an upstream GIBS outage strand an
+# already-validated merge undeployed.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Unlike CI, never cancel an in-flight publish: under rapid merges the group
+# collapses to "finish the current publish, then run the newest queued one",
+# so the site always converges on the latest main instead of deploying never.
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build & publish to gh-pages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Publish dist/ to gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # CNAME attaches the custom domain — deleting it detaches roamingeye.org.
+          echo roamingeye.org > dist/CNAME
+          touch dist/.nojekyll
+          git -C dist init -b gh-pages
+          git -C dist config user.name "github-actions[bot]"
+          git -C dist config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C dist add -A
+          git -C dist commit -m "Deploy ${GITHUB_SHA:0:7} (auto-publish on push to main)"
+          git -C dist push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
