@@ -114,6 +114,17 @@ function rangeFor(values: readonly number[]): EruptionYearRange {
  * list ordered by name says nothing about how many records carry an
  * instrumental-era eruption.
  *
+ * The third class is reported as its two evidence states rather than under one
+ * label, because {@link eruptionClass} puts two different observations in it: a
+ * record dated BCE (a known eruption, GVP source year < 0) and a record with no
+ * dated eruption at all. Calling the whole bucket "Holocene evidence only" —
+ * which reads as "no dated eruption" — misdescribes the BCE-dated records, and
+ * it contradicts the per-record rows a place panel prints beside this sentence,
+ * where the same volcano reads "last erupted 6850 BCE". In the bundled GVP
+ * snapshot 169 of the 533 records in this class carry a dated BCE year, so this
+ * is the ordinary case, not an edge case. The class counts themselves are
+ * unchanged; only the wording separates what the class cannot.
+ *
  * Returns null for an empty set: there is no composition to report, and a row
  * of zeroes would read as a finding.
  */
@@ -123,6 +134,19 @@ export function eruptionRecencyText(
   if (summary.volcanoCount === 0) return null;
   const { recent, historic, holocene } = summary.recencyClassCounts;
   const { min, max } = summary.lastEruptionYear;
+  // Every undated record is classed "holocene" and no dated record outside the
+  // BCE years is, so the class count less the undated count is exactly the
+  // BCE-dated remainder — no second pass over the records is needed.
+  const bceDatedCount = holocene - summary.undatedCount;
+  const undated = `${summary.undatedCount} with no dated eruption (Holocene evidence only)`;
+  // Only name a state the set actually contains: "0 dated BCE" alongside the
+  // undated count reads as a finding about the place rather than as an absence.
+  const holoceneStates =
+    bceDatedCount === 0
+      ? `${holocene} with Holocene evidence only`
+      : summary.undatedCount === 0
+        ? `${bceDatedCount} dated BCE`
+        : `${bceDatedCount} dated BCE, ${undated}`;
   const span =
     min === null || max === null
       ? ""
@@ -130,7 +154,7 @@ export function eruptionRecencyText(
   return (
     `Recorded eruption recency across all ${summary.volcanoCount} matched ${summary.volcanoCount === 1 ? "record" : "records"}: ` +
     `${recent} dated 1900 or later, ${historic} dated between source year 0 and 1899, ` +
-    `${holocene} with Holocene evidence only.${span} These are counts of recorded eruption years, ` +
+    `${holoceneStates}.${span} These are counts of recorded eruption years, ` +
     `not a measure of current activity, and not a hazard ranking.`
   );
 }
