@@ -81,9 +81,31 @@ const AEROSOL_CARD_SCOPE =
  *
  * The `very-high` loading tier (AOD >= 1) is therefore unreachable through this
  * rendering path; a saturated sample reads as at most `high`.
+ *
+ * This is deliberately the *decode* ceiling, one quantization step below
+ * `AEROSOL_RENDERED_RAMP_MAX` (0.9), and the two are not interchangeable.
+ * `parseColormapEntries` drops the open-ended `≥ 0.900` cap and keeps only the
+ * finite bins, whose topmost value is 0.8975, so a boundary sample recovered
+ * through `sampleGeometryPhysical` can never reach 0.9. `describeAerosolCensoring`
+ * tests `value < 0.9`, which means `AerosolLoadingChange.changeBound` stays
+ * `"exact"` for every value this path can produce — its censoring flags never
+ * fire here. Saturation is therefore screened at this consumer, against the
+ * ceiling the imagery actually decodes to, rather than by weakening the shared
+ * value-admission contract in `aerosolLoading` (which the multi-year judgment
+ * modules also read, and whose 0.9 is correct for a native-value caller).
  */
 const AEROSOL_RAMP_CEILING =
   PROBE_SCALES.aerosol.max - quantizationStep(PROBE_SCALES.aerosol);
+
+/**
+ * Whether a usable endpoint value rests on the rendered ramp's open-ended top
+ * bin, and so reads as "at least this much" rather than as a measurement.
+ */
+function isRampSaturated(value: number | null): boolean {
+  return (
+    value !== null && Number.isFinite(value) && value >= AEROSOL_RAMP_CEILING
+  );
+}
 
 /**
  * Format a boundary column-AOD pair for the place panel.
@@ -173,6 +195,9 @@ function detailFor(
     `${month} boundary-mean column AOD at ${AEROSOL_WAVELENGTH_NM} nm`,
   ];
 
+  const laterSaturated = isRampSaturated(observedValue);
+  const earlierSaturated = isRampSaturated(usableValue(change.earlier));
+
   if (observedValue === null) {
     parts.push(`no usable value (${unusableReason(later)})`);
   } else if (later.loading) {
@@ -181,15 +206,21 @@ function detailFor(
     const marginal = later.tierProximity?.marginal
       ? `, close to the ${formatAod(later.tierProximity.nearestBoundary)} tier edge`
       : "";
-    parts.push(`${later.loading.label} (descriptive tier${marginal})`);
-    if (observedValue >= AEROSOL_RAMP_CEILING) {
+    // A saturated sample bounds the tier from below as well as the value:
+    // `AerosolCensoring.lowestPossibleCategory` is the *lowest* tier consistent
+    // with the reading, so naming it alone would present a floor as the finding.
+    const tier = laterSaturated
+      ? `${later.loading.label} or heavier`
+      : later.loading.label;
+    parts.push(`${tier} (descriptive tier${marginal})`);
+    if (laterSaturated) {
       parts.push(
         `at the top of the rendered colour ramp — the true column value may be higher`
       );
     }
   }
 
-  parts.push(comparisonText(change));
+  parts.push(comparisonText(change, earlierSaturated, laterSaturated));
   parts.push(coverageText(later.coverage.validFraction));
   parts.push(imageProvenance(later.sourceImageDimensions));
   parts.push(`source ${sourceText()}`);
@@ -201,12 +232,41 @@ function detailFor(
  * The month-over-month sentence. A withheld comparison is stated with its
  * machine-readable reason rather than omitted, so the reader can tell "no
  * change" from "not compared".
+ *
+ * A value resting on the ramp's open-ended top bin is a lower bound, so any
+ * difference built from it is a bound too — the rule
+ * `AerosolLoadingChange.changeBound` states and this card must honour. Because
+ * that field cannot fire on the boundary-sampling path (see
+ * `AEROSOL_RAMP_CEILING`), saturation is supplied by the caller here instead of
+ * read off the change.
  */
-function comparisonText(change: AerosolLoadingChange): string {
+function comparisonText(
+  change: AerosolLoadingChange,
+  earlierSaturated: boolean,
+  laterSaturated: boolean
+): string {
   const earlierMonth = formatYm(change.earlier.dataMonth);
+  const laterMonth = formatYm(change.later.dataMonth);
+
+  // Both months rest on the open-ended top bin, so both are lower bounds and
+  // their difference constrains neither the sign nor the size of the true
+  // change: two readings of 0.90 could truly be 0.90 and 3.0, in either order.
+  // Subtracting here would assert a stability the imagery cannot support, so no
+  // number is shown at all — the same rule `describeAerosolLoadingChange`
+  // applies as "both-endpoints-censored".
+  if (
+    earlierSaturated &&
+    laterSaturated &&
+    change.status === "available" &&
+    change.changeValue !== null
+  ) {
+    return `no comparison with ${earlierMonth} (both months rest on the rendered ramp's open-ended top bin, so neither the direction nor the size of the change is recoverable)`;
+  }
+
   if (change.status !== "available" || change.changeValue === null) {
     return `no comparison with ${earlierMonth} (${change.reason ?? "unavailable"})`;
   }
+
   const signed = `${change.changeValue >= 0 ? "+" : "-"}${formatAod(
     Math.abs(change.changeValue)
   )}`;
@@ -216,7 +276,28 @@ function comparisonText(change: AerosolLoadingChange): string {
     change.trend === "little-change"
       ? `little change, within ±${formatAod(change.threshold)}`
       : `${change.trend ?? "unavailable"}`;
-  return `${signed} vs ${earlierMonth} (${trend}); a difference between two modelled monthly means, not a trend`;
+
+  if (!earlierSaturated && !laterSaturated) {
+    return `${signed} vs ${earlierMonth} (${trend}); a difference between two modelled monthly means, not a trend`;
+  }
+
+  // Exactly one endpoint saturated: the true difference is bounded on one side.
+  // A censored later month can only be higher, so the true change is at least
+  // the computed one; a censored earlier month can only be higher, so the true
+  // change is at most the computed one.
+  const bound = laterSaturated
+    ? { phrase: "at least", month: laterMonth, side: "a lower bound" }
+    : { phrase: "at most", month: earlierMonth, side: "an upper bound" };
+  // The direction only survives when the computed difference already runs the
+  // way the bound can still travel. With the later month censored the true
+  // change lies in [change, +INF), so a computed "little change" of +0.01 is
+  // equally consistent with a true jump of +2 — naming a trend there would
+  // assert stability the imagery cannot support.
+  const directionSurvives = laterSaturated
+    ? change.trend === "increasing"
+    : change.trend === "decreasing";
+  const direction = directionSurvives ? `${trend}, ` : "";
+  return `${bound.phrase} ${signed} vs ${earlierMonth} (${direction}${bound.month} rests on the rendered ramp's open-ended top bin, so this is ${bound.side} on the change, not a measured difference); a difference between two modelled monthly means, not a trend`;
 }
 
 function usableValue(summary: AerosolLoadingSummary): number | null {

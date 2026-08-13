@@ -11,6 +11,7 @@ import {
   VEGETATION_INDEX_SUPPORT_TIERS,
   summarizeVegetationIndexLandCoverSupport,
   vegetationIndexSupportForClass,
+  vegetationIndexSupportNote,
 } from "./vegetationIndexLandCoverSupport";
 
 describe("vegetation-index land-cover support partition", () => {
@@ -212,5 +213,83 @@ describe("vegetation-index land-cover support partition", () => {
     expect(support.unavailableReason).toBe("no-known-land-cover");
     expect(support.plantCanopyShare.lowerBound).toBeNull();
     expect(support.plantCanopyShare.upperBound).toBeNull();
+  });
+});
+
+describe("vegetation-index support note", () => {
+  const note = (
+    observations: { classCode: number | null; sampleCount: number }[],
+    year = 2024
+  ) =>
+    vegetationIndexSupportNote(
+      summarizeVegetationIndexLandCoverSupport(
+        summarizeLandCoverContext(observations, year)
+      )
+    );
+
+  it("states the required share and the mixed share separately", () => {
+    const text = note([
+      { classCode: 2, sampleCount: 3 }, // Vegetated
+      { classCode: 11, sampleCount: 1 }, // Mixed: wetland
+      { classCode: 13, sampleCount: 1 }, // Mixed: built-up
+      { classCode: 16, sampleCount: 3 }, // Barren
+    ]);
+
+    // 3/8 requires vegetation cover; 2/8 permits it without requiring it.
+    expect(text).toBe(
+      "MOD13A3 v061 NDVI/EVI reads as plant greenness on 38% of classified " +
+        "pixels, where the IGBP class definition requires vegetation cover; a " +
+        "further 25% is wetland or built-up, which permit vegetation without " +
+        "requiring it."
+    );
+  });
+
+  it("omits the mixed clause when no mixed class was sampled", () => {
+    const text = note([
+      { classCode: 10, sampleCount: 6 }, // Grassland
+      { classCode: 16, sampleCount: 2 }, // Barren
+    ]);
+
+    expect(text).toBe(
+      "MOD13A3 v061 NDVI/EVI reads as plant greenness on 75% of classified " +
+        "pixels, where the IGBP class definition requires vegetation cover."
+    );
+    expect(text).not.toContain("further");
+  });
+
+  it("reports a fully non-vegetated region as a plain zero, not a hedge", () => {
+    const text = note([
+      { classCode: 15, sampleCount: 4 }, // Permanent snow & ice
+      { classCode: 17, sampleCount: 2 }, // Water
+    ]);
+
+    expect(text).toContain("on 0% of classified pixels");
+  });
+
+  // Rounding must not report a present share as absent, nor a partial share as
+  // the whole: both would state something the samples do not show.
+  it("never rounds a present share to 0% or a partial share to 100%", () => {
+    const text = note([
+      { classCode: 2, sampleCount: 999 }, // Vegetated
+      { classCode: 11, sampleCount: 1 }, // Mixed: wetland
+    ]);
+
+    expect(text).toContain("on >99% of classified pixels");
+    expect(text).toContain("a further <1% is wetland or built-up");
+    expect(text).not.toContain("100%");
+    expect(text).not.toContain(" 0%");
+  });
+
+  it("reports an exactly whole canopy share as 100%", () => {
+    const text = note([{ classCode: 5, sampleCount: 7 }]); // Mixed forest only
+
+    expect(text).toContain("on 100% of classified pixels");
+  });
+
+  it("says nothing when there is no informative land cover to qualify", () => {
+    expect(note([{ classCode: 255, sampleCount: 4 }])).toBeNull();
+    expect(note([{ classCode: null, sampleCount: 4 }])).toBeNull();
+    // An unpublished year carries no classes to partition either.
+    expect(note([{ classCode: 4, sampleCount: 3 }], 1999)).toBeNull();
   });
 });
