@@ -20,6 +20,8 @@ import {
   type VolcanoExtentContext,
 } from "../lib/volcanoExtent";
 import {
+  reportedDepthBasisText,
+  reportedMagnitudeText,
   USGS_M45_MONTH_SOURCE,
   type EarthquakePlaceContext,
   type NearbyEarthquakeObservation,
@@ -28,7 +30,13 @@ import {
   nearestVolcanoStatement,
   type VolcanoProximityContext,
 } from "../lib/volcanoProximityContext";
+import {
+  BIRD_2003_PLATE_BOUNDARY_SOURCE,
+  type PlateBoundaryExtentContext,
+} from "../lib/plateBoundaryContext";
+import { plateBoundaryPairLabel } from "../lib/plateBoundaryHover";
 import { eruptionRecencyText } from "../lib/volcanoRecency";
+import { qualifiedVolcanoTypeLabel } from "../lib/volcanoMorphology";
 import { elevationRegimeLabel } from "../lib/volcanoes";
 import {
   summitDatumText,
@@ -67,7 +75,12 @@ export class PlaceInsights {
   private readonly volcanoSource: HTMLAnchorElement;
   private readonly seismicityValue: HTMLElement;
   private readonly seismicityDetail: HTMLElement;
+  private readonly seismicityMagnitude: HTMLElement;
+  private readonly seismicityDepthBasis: HTMLElement;
   private readonly seismicityRecords: HTMLUListElement;
+  private readonly plateValue: HTMLElement;
+  private readonly plateDetail: HTMLElement;
+  private readonly plateRecords: HTMLUListElement;
   private readonly note: HTMLElement;
 
   constructor(
@@ -162,6 +175,16 @@ export class PlaceInsights {
     this.seismicityValue.setAttribute("aria-live", "polite");
     this.seismicityDetail = document.createElement("p");
     this.seismicityDetail.className = "place-insights__detail";
+    // The record list below is truncated and ordered nearest first, so the
+    // largest value the feed reported near this place — and the methods behind
+    // the values shown — get their own line.
+    this.seismicityMagnitude = document.createElement("p");
+    this.seismicityMagnitude.className = "place-insights__detail";
+    // Record rows print the feed's depth verbatim. The globe hover qualifies a
+    // depth that sits on an operator default; without the same disclosure here
+    // a fixed 10 km would read as a resolved hypocentre, so it gets a line.
+    this.seismicityDepthBasis = document.createElement("p");
+    this.seismicityDepthBasis.className = "place-insights__detail";
     this.seismicityRecords = document.createElement("ul");
     this.seismicityRecords.className = "place-insights__record-list";
     const seismicitySource = document.createElement("a");
@@ -174,8 +197,36 @@ export class PlaceInsights {
       seismicityTitle,
       this.seismicityValue,
       this.seismicityDetail,
+      this.seismicityMagnitude,
+      this.seismicityDepthBasis,
       this.seismicityRecords,
       seismicitySource
+    );
+
+    const plates = document.createElement("section");
+    plates.className = "place-insights__geology";
+    plates.setAttribute("aria-label", "Plate boundaries in search extent");
+    const plateTitle = document.createElement("h3");
+    plateTitle.textContent = "Plate boundaries";
+    this.plateValue = document.createElement("p");
+    this.plateValue.className = "place-insights__value";
+    this.plateValue.setAttribute("aria-live", "polite");
+    this.plateDetail = document.createElement("p");
+    this.plateDetail.className = "place-insights__detail";
+    this.plateRecords = document.createElement("ul");
+    this.plateRecords.className = "place-insights__record-list";
+    const plateSource = document.createElement("a");
+    plateSource.className = "place-insights__source";
+    plateSource.href = BIRD_2003_PLATE_BOUNDARY_SOURCE.url;
+    plateSource.target = "_blank";
+    plateSource.rel = "noopener";
+    plateSource.textContent = `Source: ${BIRD_2003_PLATE_BOUNDARY_SOURCE.name} (${BIRD_2003_PLATE_BOUNDARY_SOURCE.digitization})`;
+    plates.append(
+      plateTitle,
+      this.plateValue,
+      this.plateDetail,
+      this.plateRecords,
+      plateSource
     );
 
     const note = document.createElement("p");
@@ -199,7 +250,15 @@ export class PlaceInsights {
       "Includes the selected boundary, cited products, native units, data months, and sampling coverage.";
     exportControls.append(this.downloadButton, exportNote);
 
-    container.append(header, grid, volcanoes, seismicity, exportControls, note);
+    container.append(
+      header,
+      grid,
+      volcanoes,
+      seismicity,
+      plates,
+      exportControls,
+      note
+    );
   }
 
   open(name: string): void {
@@ -213,6 +272,7 @@ export class PlaceInsights {
     }
     this.setVolcanoLoading();
     this.setSeismicityLoading();
+    this.setPlateBoundaryLoading();
     this.root.classList.add("is-open");
     this.root.setAttribute("aria-hidden", "false");
   }
@@ -324,7 +384,11 @@ export class PlaceInsights {
         record.country,
         record.subregion ?? record.region,
         volcanoCoordinateLabel(record),
-        record.primaryType ?? "primary type not supplied",
+        // GVP encodes qualifiers in the type string itself: "(s)"/"(es)" for a
+        // record covering multiple landforms and "?" for an uncertain
+        // assignment. Spell them out as the globe's hover label already does.
+        qualifiedVolcanoTypeLabel(record.primaryType) ??
+          "primary type not supplied",
         // Reads the datum sign GVP reports: a negative summit elevation is a
         // summit below sea level, not a missing or erroneous height.
         elevationRegimeLabel(record.elevationMeters),
@@ -371,6 +435,8 @@ export class PlaceInsights {
     this.seismicityValue.textContent = "Loading USGS events";
     this.seismicityDetail.textContent =
       "Checking the live USGS M4.5+ 30-day feed against this search extent";
+    this.seismicityMagnitude.textContent = "";
+    this.seismicityDepthBasis.textContent = "";
     this.seismicityRecords.replaceChildren();
   }
 
@@ -382,6 +448,12 @@ export class PlaceInsights {
    */
   setSeismicityContext(context: EarthquakePlaceContext): void {
     this.seismicityRecords.replaceChildren();
+    // Silent unless events matched, so a no-event or unusable-query result
+    // gains no line.
+    this.seismicityMagnitude.textContent = reportedMagnitudeText(context) ?? "";
+    // Likewise silent unless a matched depth sits on a conventional default.
+    this.seismicityDepthBasis.textContent =
+      reportedDepthBasisText(context) ?? "";
     const { coverage, query } = context;
 
     if (coverage.status === "invalid-query") {
@@ -423,9 +495,81 @@ export class PlaceInsights {
 
   setSeismicityUnavailable(): void {
     this.seismicityRecords.replaceChildren();
+    this.seismicityMagnitude.textContent = "";
+    this.seismicityDepthBasis.textContent = "";
     this.seismicityValue.textContent = "Events unavailable";
     this.seismicityDetail.textContent =
       "The live USGS M4.5+ feed could not be loaded for this search.";
+  }
+
+  setPlateBoundaryLoading(): void {
+    this.plateValue.textContent = "Loading plate linework";
+    this.plateDetail.textContent =
+      "Checking the bundled Bird (2003) boundary polylines against the search bounding box";
+    this.plateRecords.replaceChildren();
+  }
+
+  /**
+   * Render which Bird (2003) boundary polylines cross this search extent.
+   *
+   * Strictly descriptive map context. The bundled model supplies linework and a
+   * plate-pair label per step — not plate polygons, relative motion, slip rate,
+   * deformation, or activity — so a crossing is never reported as a boundary
+   * type, and an empty result is "no supplied linework crosses this extent",
+   * never a claim that the place is tectonically stable.
+   */
+  setPlateBoundaryContext(context: PlateBoundaryExtentContext): void {
+    this.plateRecords.replaceChildren();
+    const { coverage } = context;
+
+    if (coverage.status === "invalid-bounds") {
+      this.plateValue.textContent = "Search extent unavailable";
+      this.plateDetail.textContent = context.geographicCoverage;
+      return;
+    }
+    if (coverage.status === "no-usable-boundaries") {
+      this.plateValue.textContent = "Bundled linework unavailable";
+      this.plateDetail.textContent =
+        "The bundled Bird (2003) file supplied no usable polylines, so no geographic comparison was made.";
+      return;
+    }
+
+    const count = coverage.matchedBoundaryCount;
+    this.plateValue.textContent =
+      count === 0
+        ? "No boundaries in extent"
+        : `${count} ${count === 1 ? "boundary" : "boundaries"}`;
+    // The overlay draws the same linework, so the panel says plainly what a
+    // match is and is not, rather than letting a crossing imply tectonic
+    // setting, seismicity, volcanism, or hazard.
+    const caveat =
+      "A crossing is descriptive map context: the supplied model carries a plate-pair label per step but no boundary type, motion, deformation, activity, or hazard.";
+    const segments = coverage.matchedSegmentCount;
+    this.plateDetail.textContent =
+      count === 0
+        ? `No bundled Bird (2003) boundary polylines intersect this search bounding box; that does not establish the place sits away from a plate boundary. Compared against ${coverage.usableBoundaryCount} usable supplied ${coverage.usableBoundaryCount === 1 ? "polyline" : "polylines"}.`
+        : `${context.geographicCoverage} ${segments} supplied ${segments === 1 ? "segment" : "segments"} intersect, from ${coverage.usableBoundaryCount} usable supplied ${coverage.usableBoundaryCount === 1 ? "polyline" : "polylines"}. ${caveat}`;
+
+    for (const boundary of context.matchingBoundaries.slice(0, 5)) {
+      const item = document.createElement("li");
+      const segmentCount = boundary.matchedSegmentCount;
+      item.textContent = `${plateBoundaryPairLabel(boundary.name)}: ${segmentCount} ${segmentCount === 1 ? "segment" : "segments"} in extent`;
+      this.plateRecords.appendChild(item);
+    }
+    if (count > 5) {
+      const item = document.createElement("li");
+      // Say how the shown boundaries were chosen: alphabetically by plate-pair
+      // label, not by length, segment count, or proximity.
+      item.textContent = `${count - 5} additional boundaries not listed; the list is ordered by plate-pair label`;
+      this.plateRecords.appendChild(item);
+    }
+  }
+
+  setPlateBoundaryUnavailable(): void {
+    this.plateRecords.replaceChildren();
+    this.plateValue.textContent = "Linework unavailable";
+    this.plateDetail.textContent =
+      "The bundled Bird (2003) plate-boundary linework could not be loaded for this search.";
   }
 }
 

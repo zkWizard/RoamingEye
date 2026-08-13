@@ -28,16 +28,28 @@ function plateText(plate: PlateIdentity): string {
 }
 
 /**
- * Describe a single boundary polyline. Returns the unlabeled text for a
- * polyline whose label is not a two-code PB2002 pair.
+ * Describe a PB2002 plate-pair label on its own, without a polyline.
+ *
+ * Shared by the globe tooltip and the place panel's plate-boundary list so a
+ * boundary is named identically wherever it appears. A null label is the
+ * source's own absence (an unlabeled supplied feature), reported as unlabeled
+ * rather than guessed at.
  */
-export function plateBoundaryHoverLabel(boundary: PlateBoundary): string {
-  const decoded = decodePlatePair(boundary.name);
+export function plateBoundaryPairLabel(name: string | null): string {
+  const decoded = name === null ? null : decodePlatePair(name);
   if (!decoded) return UNLABELED_PLATE_BOUNDARY_TEXT;
   const [first, second] = decoded.plates;
   return `${plateText(first)}–${plateText(
     second
   )} plate boundary · PB2002 ${decoded.label}`;
+}
+
+/**
+ * Describe a single boundary polyline. Returns the unlabeled text for a
+ * polyline whose label is not a two-code PB2002 pair.
+ */
+export function plateBoundaryHoverLabel(boundary: PlateBoundary): string {
+  return plateBoundaryPairLabel(boundary.name);
 }
 
 /**

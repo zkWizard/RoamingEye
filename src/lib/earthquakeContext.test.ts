@@ -4,7 +4,10 @@ import { parseEarthquakeFeed, type Earthquake } from "./earthquakes";
 import {
   EARTHQUAKE_PLACE_CONTEXT_UNITS,
   USGS_M45_MONTH_SOURCE,
+  largestReportedMagnitudeObservation,
   nearbyEarthquakeContext,
+  reportedDepthBasisText,
+  reportedMagnitudeText,
   searchExtentEarthquakeQuery,
 } from "./earthquakeContext";
 
@@ -320,5 +323,148 @@ describe("searchExtentEarthquakeQuery", () => {
       nearbyEarthquakeContext([earthquake({ lat: 12, lon: 34 })], query)
         .coverage.status
     ).toBe("available");
+  });
+});
+
+describe("largestReportedMagnitudeObservation", () => {
+  // Reported magnitudes are quantised to a tenth, so two matched events sharing
+  // a maximum is ordinary; the pick must not depend on which order the caller
+  // supplied them in.
+  const tied = [
+    earthquake({ lat: 1, magnitude: 6.1, place: "Farther", time: 5_000 }),
+    earthquake({ lat: 0.1, magnitude: 6.1, place: "Nearer", time: 1_000 }),
+    earthquake({ lat: 0.2, magnitude: 5.4, place: "Smaller", time: 9_000 }),
+  ];
+
+  it("picks the same tied event whichever order the events arrive in", () => {
+    const query = { latitude: 0, longitude: 0, radiusKm: 500 };
+    const forward = largestReportedMagnitudeObservation(
+      nearbyEarthquakeContext(tied, query).observations
+    );
+    const reversed = largestReportedMagnitudeObservation(
+      nearbyEarthquakeContext([...tied].reverse(), query).observations
+    );
+
+    expect(forward?.place).toBe("Nearer");
+    expect(reversed?.place).toBe("Nearer");
+  });
+
+  it("reports no observation for an empty matched set", () => {
+    expect(largestReportedMagnitudeObservation([])).toBeNull();
+  });
+});
+
+describe("reportedMagnitudeText", () => {
+  const query = { latitude: 0, longitude: 0, radiusKm: 500 };
+
+  it("names the largest reported value, its method, and the mix behind the set", () => {
+    const text = reportedMagnitudeText(
+      nearbyEarthquakeContext(
+        [
+          earthquake({ lat: 0.1, magnitude: 4.8, magnitudeType: "mb" }),
+          earthquake({ lat: 0.2, magnitude: 6.4, magnitudeType: "mww" }),
+          earthquake({ lat: 0.3, magnitude: 5.1, magnitudeType: "mb" }),
+        ],
+        query
+      )
+    );
+
+    expect(text).toContain(
+      "Largest reported value across all 3 matched events"
+    );
+    expect(text).toContain("M 6.4 (Mww, reported)");
+    expect(text).toContain("mb ×2, mww ×1");
+    expect(text).toContain("not directly comparable");
+    // The value the feed reported is never presented as a size ranking.
+    expect(text).toContain("not a ranking of earthquake size");
+  });
+
+  it("carries the saturation caveat when the largest value came from a saturating scale", () => {
+    const text = reportedMagnitudeText(
+      nearbyEarthquakeContext(
+        [earthquake({ lat: 0.1, magnitude: 6.9, magnitudeType: "mb" })],
+        query
+      )
+    );
+
+    expect(text).toContain("saturates at this size");
+    // A single-method set states the method plainly and gains no mixing caveat.
+    expect(text).toContain("Every matched event was reported as mb");
+    expect(text).not.toContain("mix magnitude methods");
+  });
+
+  it("says so plainly when no matched event carried a reported method", () => {
+    const text = reportedMagnitudeText(
+      nearbyEarthquakeContext(
+        [earthquake({ lat: 0.1, magnitude: 5.5, magnitudeType: null })],
+        query
+      )
+    );
+
+    expect(text).toContain("M 5.5 (reported)");
+    expect(text).toContain(
+      "No matched event carried a reported magnitude method"
+    );
+  });
+
+  it("stays silent when nothing matched", () => {
+    expect(
+      reportedMagnitudeText(nearbyEarthquakeContext([], query))
+    ).toBeNull();
+  });
+});
+
+describe("reportedDepthBasisText", () => {
+  const query = { latitude: 0, longitude: 0, radiusKm: 500 };
+
+  it("counts the matched depths sitting on a conventional default and names the values", () => {
+    const text = reportedDepthBasisText(
+      nearbyEarthquakeContext(
+        [
+          earthquake({ lat: 0.1, depthKm: 10 }),
+          earthquake({ lat: 0.2, depthKm: 35 }),
+          earthquake({ lat: 0.3, depthKm: 10 }),
+          earthquake({ lat: 0.4, depthKm: 12.4 }),
+        ],
+        query
+      )
+    );
+
+    expect(text).toContain(
+      "Reported depth sits exactly on a conventional default value for 3 of 4 matched events"
+    );
+    // Ascending by depth, so a reader can match the values against the rows.
+    expect(text).toContain("(10 km ×2, 35 km ×1)");
+    // A quantization tell is never presented as a location-quality rating.
+    expect(text).toContain("no fixed-depth flag");
+    expect(text).toContain("it does not rate the locations");
+  });
+
+  it("agrees in number when a single matched event carries a default depth", () => {
+    const text = reportedDepthBasisText(
+      nearbyEarthquakeContext([earthquake({ lat: 0.1, depthKm: 0 })], query)
+    );
+
+    expect(text).toContain("for 1 of 1 matched event (0 km ×1)");
+  });
+
+  it("stays silent when every matched depth is a free value", () => {
+    expect(
+      reportedDepthBasisText(
+        nearbyEarthquakeContext(
+          [
+            earthquake({ lat: 0.1, depthKm: 9.9 }),
+            earthquake({ lat: 0.2, depthKm: 34.8 }),
+          ],
+          query
+        )
+      )
+    ).toBeNull();
+  });
+
+  it("stays silent when nothing matched", () => {
+    expect(
+      reportedDepthBasisText(nearbyEarthquakeContext([], query))
+    ).toBeNull();
   });
 });

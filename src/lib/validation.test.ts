@@ -108,9 +108,17 @@ describe("MEASURED_INVERSION reference figures", () => {
     }
   });
 
-  it("records aerosol as the tight one and LST as all-null (honest limits)", () => {
+  it("records aerosol as the tight one and every ramp as fully inverting", () => {
     expect(MEASURED_INVERSION.aerosol.rmse).toBeLessThan(0.2);
-    expect(MEASURED_INVERSION.lst.rmse).toBeNull();
-    expect(MEASURED_INVERSION.lst.nulls).toBe(MEASURED_INVERSION.lst.total);
+    // LST was the last all-null layer (0 of 250 colours recovered) until its
+    // legend was rebuilt from GIBS's own rainbow on 2026-08-13. No calibrated
+    // layer rejects a colour now; a regression here means a legend edit
+    // reintroduced a blind spot.
+    for (const [layer, m] of Object.entries(MEASURED_INVERSION)) {
+      expect(m.nulls, `${layer} rejects ramp colours`).toBe(0);
+      expect(m.rmse, `${layer} has no measured RMSE`).not.toBeNull();
+    }
+    expect(MEASURED_INVERSION.lst.rmse).toBeCloseTo(0.3174, 3);
+    expect(MEASURED_INVERSION.lst.total).toBe(250);
   });
 });

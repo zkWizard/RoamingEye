@@ -8,7 +8,10 @@ import {
 import { SCALE_CONVERSIONS } from "./colormap";
 import { classifyModality } from "./observationModality";
 import { compareYm, type LayerId, type YearMonth } from "./timeline";
-import { toConventionalClimateValue } from "./climateConventionalUnits";
+import {
+  toConventionalClimateValue,
+  type ConventionalClimateValue,
+} from "./climateConventionalUnits";
 import {
   airTemperaturePlausibility,
   formatAirTemperaturePlausibility,
@@ -428,10 +431,101 @@ export function climateInsightText(
         accumulated.totalMm
       )} mm water-equivalent (mean rate integrated over the calendar month)`
     : "";
+  // The coverage percentage alone cannot say whether the missing area was
+  // unpublished or merely unrepresentable, and only the latter biases the mean.
+  const rampShortfall = rampShortfallCaveat(current, conventional);
   return {
     value,
-    detail: `${month} ${modality.field}${comparison}${accumulation}${nativeProvenance}; ${coverage}; ${provenance}; ${sampling}; ${modality.limit}; ${sourceVariable}; source ${source}`,
+    detail: `${month} ${modality.field}${comparison}${accumulation}${nativeProvenance}; ${coverage}${rampShortfall}; ${provenance}; ${sampling}; ${modality.limit}; ${sourceVariable}; source ${source}`,
   };
+}
+
+/**
+ * The open, unbounded end caps each climate layer's published GIBS colormap
+ * carries beyond its finite ramp, in the metric's native unit.
+ *
+ * Read from the colormap documents these layers are sampled through
+ * (`COLORMAP_DOCS`) on 2026-08-13. `parseColormapEntries` keeps only the finite
+ * bins, so a cap has no entry to invert against, and the cap colours sit 71–77
+ * Euclidean RGB units from the nearest finite ramp colour — well beyond
+ * `NO_DATA_DISTANCE` (60). A pixel painted with a cap colour is therefore
+ * *rejected as no-data*, not clipped to the ramp end: it never enters the
+ * area-weighted regional mean, and its area lands in the coverage shortfall.
+ *
+ * That is what makes a shortfall on these layers ambiguous in a way the bare
+ * percentage cannot show. It is the reason for the caveat below, and it is a
+ * statement about the rendered colour ramp only — never a claim that any
+ * particular place actually had out-of-range ground.
+ *
+ * Only caps a real observation can reach are listed. GLDAS publishes a
+ * `[-INF, 0)` cap for both precipitation rate and soil moisture; neither is
+ * reachable for a non-negative quantity, so recording them would invent a
+ * shortfall explanation that cannot occur.
+ */
+const RAMP_END_CAPS: Record<
+  ClimateMetricId,
+  { belowNative: number | null; atOrAboveNative: number }
+> = {
+  // MERRA2_2m_Air_Temperature_Monthly: "[-INF,220)" and "≥ 310" (K). Both are
+  // reachable by a real monthly mean — the East Antarctic plateau runs below
+  // 220 K in winter, and the Sahara and Arabian Peninsula approach 310 K in
+  // July — so this ramp is capped at both ends.
+  "air-temperature-2m": { belowNative: 220, atOrAboveNative: 310 },
+  // GLDAS_Surface_Total_Precipitation_Rate_Monthly: "[5.0e-04,+INF)" kg/m²/s,
+  // i.e. 43.2 mm/day, which monsoon-core monthly means exceed.
+  "precipitation-rate": { belowNative: null, atOrAboveNative: 5.0e-4 },
+  // GLDAS_Underground_Soil_Moisture_Monthly: "[50.0,+INF)" kg/m².
+  "soil-moisture": { belowNative: null, atOrAboveNative: 50 },
+};
+
+/**
+ * Qualify a coverage shortfall that may not be absent data at all.
+ *
+ * The percentage beside a place reading says how much of the sampled area
+ * yielded a value, and a reader reasonably takes the rest to be ground the
+ * source never published — ocean fill, a missing granule, cloud. On these three
+ * layers it can instead be ground whose true value the legend cannot represent
+ * (see {@link RAMP_END_CAPS}), and that difference matters: dropped out-of-range
+ * pixels are not a random sample of the place, they are its extreme tail, so the
+ * mean of what remains is pulled toward the ramp's interior.
+ *
+ * The caveat therefore names the possibility and says what the reported value
+ * is a mean *over*. It never estimates the dropped area, attributes the
+ * shortfall to any cause, or corrects the value — the pixel masks are gone by
+ * this point and the discarded colours carry no recoverable magnitude.
+ *
+ * Silent when coverage is complete (every sampled pixel inverted, so there is
+ * no dropped area to attribute) or unsupplied (no shortfall to qualify).
+ */
+function rampShortfallCaveat(
+  summary: MonthlyClimateSummary,
+  conventional: ConventionalClimateValue | null
+): string {
+  const validFraction = summary.coverage.validFraction;
+  if (validFraction === null || validFraction >= 1) return "";
+  const caps = RAMP_END_CAPS[summary.metric.id];
+  if (!caps) return "";
+
+  // Express the caps in whatever unit the card actually shows, using the same
+  // exact conversion the displayed value used, so a bound is never stated
+  // against a scale the reader is not looking at.
+  const unit = conventional?.conventionalUnit ?? summary.metric.nativeUnit;
+  const shown = (native: number): string =>
+    formatNativeValue(
+      conventional
+        ? native * conventional.conversion.scale +
+            conventional.conversion.offset
+        : native,
+      unit
+    );
+
+  const where =
+    caps.belowNative === null
+      ? `at or above the legend's ${shown(caps.atOrAboveNative)} ceiling`
+      : `outside the legend's ${shown(caps.belowNative)} to ${shown(
+          caps.atOrAboveNative
+        )} range`;
+  return `; the shortfall can include ground ${where}, which GIBS renders in an open end cap this probe reads as no-data, so the value is a mean over representable ground only`;
 }
 
 function samplingText(strategy: GeometrySamplingStrategy | null): string {

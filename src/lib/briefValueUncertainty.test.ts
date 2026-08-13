@@ -68,14 +68,15 @@ describe("calibratedLayerWithRmse", () => {
     expect(calibratedLayerWithRmse("precip")).toBe("precip");
   });
 
-  it("returns null for uncharacterized or all-null layers", () => {
+  it("returns null for uncharacterized layers", () => {
     // EVI has no measured inversion RMSE: GIBS's MODIS_L3_EVI ramp contains
     // pure black, which is also an undrawn tile pixel, so the ramp cannot be
     // calibrated the way NDVI's was.
     expect(calibratedLayerWithRmse("evi")).toBeNull();
-    // LST inverts to no value at all (rmse === null), so it bounds nothing.
-    expect(MEASURED_INVERSION.lst.rmse).toBeNull();
-    expect(calibratedLayerWithRmse("lst")).toBeNull();
+    // LST used to be the all-null case here; since its legend was rebuilt from
+    // GIBS's own ramp (2026-08-13) it bounds values like any calibrated layer.
+    expect(MEASURED_INVERSION.lst.rmse).not.toBeNull();
+    expect(calibratedLayerWithRmse("lst")).toBe("lst");
   });
 });
 
@@ -95,13 +96,15 @@ describe("characterizeLayerInversion", () => {
     }
   });
 
-  it("separates a measured-but-unrecoverable layer from an unmeasured one", () => {
-    // The defect this guards: LST and EVI are epistemically opposite yet both
-    // came out simply "uncharacterized" with the evidence discarded.
+  it("separates a measured layer from an unmeasured one", () => {
+    // The defect this guards: a measured-but-unrecoverable layer and a never
+    // measured one are epistemically opposite yet both used to come out simply
+    // "uncharacterized" with the evidence discarded. LST was the worked example
+    // until its 2026-08-13 recalibration; it is now fully characterized, and
+    // the `inversion-recovers-nothing` branch is retained for a regression.
     const lst = characterizeLayerInversion("lst");
-    expect(lst.reason).toBe("inversion-recovers-nothing");
-    // The finding is retained rather than nulled out: 0 of 250 steps recovered.
-    expect(lst.recoveredSteps).toBe(0);
+    expect(lst.status).toBe("characterized");
+    expect(lst.reason).toBeNull();
     expect(lst.totalSteps).toBe(250);
 
     const evi = characterizeLayerInversion("evi");
@@ -295,28 +298,27 @@ describe("summarizeBriefValueUncertainty", () => {
     expect(summary.characterizedCount).toBe(1);
     expect(summary.unquantifiedInversionCount).toBe(1);
     expect(summary.statement).toContain("not a sign of greater precision");
-    // The corrected limits must retire the "derived index" exemption wording and
-    // keep the LST all-null finding on the record.
+    // The corrected limits must retire the "derived index" exemption wording.
     const limits = summary.limits.join(" ");
     expect(limits).toContain("not exempt by virtue of being a derived index");
-    expect(limits).toContain("0 of 250 colormap steps");
   });
 
-  it("reports a measured-but-unrecoverable layer with its recovery counts", () => {
-    // LST is the other unbounded reason, and the one whose evidence must survive:
-    // "0 of 250 recovered" is a finding, so it is carried into the signal rather
-    // than nulled out alongside the missing band.
+  it("bounds LST now that its ramp inverts", () => {
+    // LST used to be the worked example of a measured-but-unrecoverable layer
+    // ("0/250 colormap steps recovered"). Its legend was rebuilt from GIBS's own
+    // rainbow on 2026-08-13, so it now carries a band like any bounded signal —
+    // the observable payoff of the recalibration, guarded here.
     const summary = summarizeBriefValueUncertainty(
       unmeasuredSignal(obs(0.6), "lst")
     );
     const signal = summary.signals[0];
 
-    expect(signal.uncharacterizedReason).toBe("inversion-recovers-nothing");
-    expect(signal.recoveredSteps).toBe(0);
+    expect(signal.uncharacterizedReason).toBeNull();
     expect(signal.totalSteps).toBe(250);
-    expect(signal.lower).toBeNull();
-    expect(signal.statement).toContain("0/250 colormap steps recovered");
-    expect(summary.unquantifiedInversionCount).toBe(1);
+    // The recovery count is now a positive disclosure, not a finding of loss.
+    expect(signal.statement).toContain("250/250 colormap steps recovered");
+    expect(signal.recoveredSteps).toBe(250);
+    expect(summary.unquantifiedInversionCount).toBe(0);
   });
 
   it("keeps a characterized signal's reason null", () => {

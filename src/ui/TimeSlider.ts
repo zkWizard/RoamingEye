@@ -50,7 +50,10 @@ export class TimeSlider {
     this.track.className = "timeline__track";
     this.track.tabIndex = 0;
     this.track.setAttribute("role", "slider");
-    this.track.setAttribute("aria-label", "Month");
+    this.track.setAttribute(
+      "aria-label",
+      stepUnit === "year" ? "Year" : "Month"
+    );
     this.track.setAttribute("aria-valuemin", "0");
     this.track.setAttribute("aria-valuemax", String(months.length - 1));
     container.appendChild(this.track);

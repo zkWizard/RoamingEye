@@ -1,4 +1,6 @@
 import { greatCircleDistance } from "./geo";
+import { formatReportedMagnitude } from "./magnitudeScale";
+import { seismicFixedDepthCoverage } from "./seismicFixedDepth";
 import {
   depthClass,
   SEISMICITY_SOURCE,
@@ -227,6 +229,136 @@ function matchingObservations(
     }))
     .filter((earthquake) => earthquake.distanceKm <= query.radiusKm)
     .sort(compareObservations);
+}
+
+/**
+ * The matched observation carrying the largest reported magnitude value.
+ *
+ * "Largest reported value", not "largest earthquake": the feed mixes magnitude
+ * methods and no exact conversion between them is published (see
+ * lib/magnitudeScale.ts), so this is a maximum over reported numbers rather
+ * than a ranking of event size.
+ *
+ * Reported magnitudes are quantised to a tenth of a magnitude unit, so exact
+ * ties between two matched events are ordinary rather than rare. The comparator
+ * is therefore total and independent of input order — nearest epicentre first,
+ * then most recent, then source-reported place — so this picker cannot change
+ * its answer if the presentation ordering of `observations` changes.
+ *
+ * Returns null for an empty set: there is no observation to report, and naming
+ * a placeholder would read as a finding.
+ */
+export function largestReportedMagnitudeObservation(
+  observations: readonly NearbyEarthquakeObservation[]
+): NearbyEarthquakeObservation | null {
+  let largest: NearbyEarthquakeObservation | null = null;
+  for (const observation of observations) {
+    if (
+      largest === null ||
+      compareByReportedMagnitude(observation, largest) < 0
+    ) {
+      largest = observation;
+    }
+  }
+  return largest;
+}
+
+function compareByReportedMagnitude(
+  first: NearbyEarthquakeObservation,
+  second: NearbyEarthquakeObservation
+): number {
+  return (
+    second.magnitude - first.magnitude ||
+    first.distanceKm - second.distanceKm ||
+    second.time - first.time ||
+    compareNullablePlace(first.place, second.place)
+  );
+}
+
+/**
+ * One-sentence magnitude composition for the whole matched set, phrased so the
+ * mixing of magnitude methods is visible rather than implied.
+ *
+ * It characterises every matched event, which matters where a UI can only list
+ * part of the set: the nearby-seismicity list is ordered nearest first and
+ * truncated, so the largest value the feed reported near a place is routinely
+ * absent from it, and nothing else in the section names the methods behind the
+ * values shown.
+ *
+ * Returns null for an empty matched set — there is no composition to report,
+ * and an absence of matched events is already stated by the section itself.
+ */
+export function reportedMagnitudeText(
+  context: EarthquakePlaceContext
+): string | null {
+  const largest = largestReportedMagnitudeObservation(context.observations);
+  if (largest === null) return null;
+
+  const eventCount = context.coverage.matchedEventCount;
+  const { reportedCounts, unavailableCount } = context.summary.magnitudeTypes;
+  const reportedTypes = Object.entries(reportedCounts);
+  const methodParts = reportedTypes.map(([type, count]) => `${type} ×${count}`);
+  if (unavailableCount > 0) {
+    methodParts.push(`type not reported ×${unavailableCount}`);
+  }
+  // A single method is stated plainly; only a genuinely mixed set carries the
+  // comparability caveat, so a uniform set gains no noise.
+  const methods =
+    methodParts.length > 1
+      ? ` Matched events mix magnitude methods (${methodParts.join(", ")}), which are not directly comparable.`
+      : reportedTypes.length === 1
+        ? ` Every matched event was reported as ${reportedTypes[0][0]}.`
+        : " No matched event carried a reported magnitude method.";
+
+  return (
+    `Largest reported value across all ${eventCount} matched ${eventCount === 1 ? "event" : "events"}: ` +
+    `${formatReportedMagnitude(largest.magnitude, largest.magnitudeType)}, ` +
+    `${formatDistanceKm(largest.distanceKm)} km away.${methods}` +
+    " This is a maximum over reported values, not a ranking of earthquake size and not a hazard statement."
+  );
+}
+
+/**
+ * One-sentence qualifier for the matched set's reported hypocentral depths,
+ * emitted only when at least one matched event reports a depth sitting exactly
+ * on a conventional operator-assigned default value.
+ *
+ * The globe's earthquake hover already qualifies such a depth marker by marker
+ * (see overlays/EarthquakesOverlay). A place panel that reprints the same
+ * numbers without that qualifier presents a 10 km default as an independently
+ * resolved hypocentre — so the disclosure is restored here at set level, which
+ * also covers the matched events a truncated record list never shows.
+ *
+ * Counts are stated over events carrying a usable depth, and the observed
+ * default values are named so a reader can recognise them in the listed rows.
+ *
+ * Returns null when no matched depth lands on a default value: there is nothing
+ * to qualify, and announcing the absence would read as a location-quality
+ * finding, which this cannot support.
+ */
+export function reportedDepthBasisText(
+  context: EarthquakePlaceContext
+): string | null {
+  const coverage = seismicFixedDepthCoverage(context.observations);
+  if (coverage.conventionalDefaultValueCount === 0) return null;
+
+  const tally = coverage.byDefaultDepth
+    .map(({ depthKm, eventCount }) => `${depthKm} km ×${eventCount}`)
+    .join(", ");
+  const events = coverage.usableEventCount === 1 ? "event" : "events";
+  return (
+    "Reported depth sits exactly on a conventional default value for " +
+    `${coverage.conventionalDefaultValueCount} of ${coverage.usableEventCount} matched ${events} (${tally}). ` +
+    "Analysts fix depth at such values when the phase data cannot resolve it, but the feed publishes no fixed-depth flag " +
+    "and a resolved hypocentre can land on the same number — this qualifies the depths shown, it does not rate the locations."
+  );
+}
+
+/** Distances span city blocks to whole countries; keep both legible. */
+function formatDistanceKm(distanceKm: number): string {
+  return distanceKm >= 10
+    ? String(Math.round(distanceKm))
+    : distanceKm.toFixed(1);
 }
 
 function compareObservations(
