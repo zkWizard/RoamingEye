@@ -16,6 +16,7 @@ import {
 } from "./colormap";
 import { fetchWithRetry } from "./net";
 import type { GeometrySamplingStrategy } from "./geojson";
+import { vegetationDrawnCoverageCaveat } from "./vegetationDrawnCoverage";
 import {
   isPlausibleNdvi,
   placeVegetationComparison,
@@ -257,10 +258,10 @@ function makePlaceInsightReading(
     return {
       id: metric.id,
       value: formatPlaceValue(metric.id, current),
-      detail: withSamplingProvenance(
-        `${currentLabel} regional mean`,
-        provenance,
-        1
+      detail: withDrawnCoverageCaveat(
+        withSamplingProvenance(`${currentLabel} regional mean`, provenance, 1),
+        metric,
+        provenance
       ),
     };
   }
@@ -268,16 +269,20 @@ function makePlaceInsightReading(
     return {
       id: metric.id,
       value: formatPlaceValue(metric.id, current),
-      detail: vegetationDetail(
-        placeVegetationComparison(
-          [previousMonth, currentMonth],
-          [previous, current]
+      detail: withDrawnCoverageCaveat(
+        vegetationDetail(
+          placeVegetationComparison(
+            [previousMonth, currentMonth],
+            [previous, current]
+          ),
+          {
+            currentLabel,
+            previousMonthLabel: formatMonth(previousMonth),
+            suffix: samplingSuffix(provenance, currentLabel, 1),
+          }
         ),
-        {
-          currentLabel,
-          previousMonthLabel: formatMonth(previousMonth),
-          suffix: samplingSuffix(provenance, currentLabel, 1),
-        }
+        metric,
+        provenance
       ),
     };
   }
@@ -349,6 +354,33 @@ function vegetationDetail(
       ? `Little change (${delta} NDVI, within the ${comparison.stabilityThreshold} stability band)`
       : `${comparison.direction === "greening" ? "Greening" : "Browning"} ${delta} NDVI`;
   return `${statement} vs ${labels.previousMonthLabel}${labels.suffix} · ${labels.currentLabel} · annual cycle not removed`;
+}
+
+/**
+ * Append the vegetation drawn-coverage caveat to a card that reports a number.
+ *
+ * Vegetation only: NDVI is the sole place metric whose ramp leaves its lowest
+ * band undrawn, so its coverage shortfall is a signed bias on the value rather
+ * than incidental missingness (see vegetationDrawnCoverage.ts). The other
+ * metrics' shortfalls are already described by their own copy.
+ *
+ * A card with no sampling provenance at all makes no coverage claim to qualify
+ * — `samplingSuffix` stays silent there too — so this does as well, rather than
+ * attaching a caveat about a sampled fraction the caller never reported.
+ */
+function withDrawnCoverageCaveat(
+  detail: string,
+  metric: PlaceMetric,
+  provenance: PlaceSamplingProvenance | undefined
+): string {
+  if (metric.id !== "vegetation" || !provenance) return detail;
+  const caveat = vegetationDrawnCoverageCaveat(
+    provenance?.validFractions?.[1],
+    {
+      isRegionalMean: provenance?.geometrySamplingStrategy !== "boundary-point",
+    }
+  );
+  return caveat === null ? detail : `${detail}; ${caveat}`;
 }
 
 function withSamplingProvenance(
