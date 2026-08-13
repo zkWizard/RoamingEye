@@ -1,4 +1,5 @@
 import type { Position } from "./geojson";
+import { distinctPlateBoundaries } from "./plateBoundaryDuplication";
 import { plateBoundaryClass, type PlateBoundary } from "./plates";
 import type { PlateBoundaryClass } from "./plates";
 import type { SearchBoundingBox } from "./volcanoExtent";
@@ -74,6 +75,15 @@ export interface PlateBoundaryExtentCoverage {
   distinctSourceCitationCount: number;
   /** Matched boundaries whose supplied feature carried no `Source` credit. */
   matchedUncreditedBoundaryCount: number;
+  /**
+   * Supplied features that crossed the extent but repeat a trace already
+   * counted, verbatim. These are excluded from `matchedBoundaryCount`,
+   * `matchedSegmentCount`, and `matchingBoundaries`: the bundled file's
+   * antimeridian split supplies a few steps twice, which is a redundancy in the
+   * data rather than a second boundary. `suppliedBoundaryCount` and
+   * `usableBoundaryCount` stay per-feature and are unaffected.
+   */
+  repeatedMatchedFeatureCount: number;
   /** True only when the supplied polylines were compared with valid bounds. */
   boundsTested: boolean;
 }
@@ -120,10 +130,57 @@ export function plateBoundariesInSearchExtent(
   }
 
   const [, , west, east] = bounds;
-  const matchingBoundaries = usable
+  const matched = usable
     .map((boundary) => ({
-      name: boundary.name.trim() || null,
+      boundary,
       matchedSegmentCount: matchingSegmentCount(boundary.points, bounds),
+    }))
+    .filter((entry) => entry.matchedSegmentCount > 0);
+
+  // The bundled GeoJSON supplies six antimeridian-crossing steps twice, byte
+  // for byte (see plateBoundaryDuplication.ts). Both copies match whatever the
+  // first one matches, so counting per supplied feature listed one mapped trace
+  // as two boundaries and doubled its segment total. Count each distinct trace
+  // once; the supplied and usable totals below stay per-feature, because those
+  // describe the file rather than the geology.
+  //
+  // Geometry alone is not enough to call two features one trace. PB2002's own
+  // attributes match across all six bundled repeats, but a copy filed under a
+  // different plate pair or credited to a different survey is a source-labelling
+  // question, not a redundancy — collapsing it would silently drop a credit the
+  // panel is meant to show. Such a pair is kept as two, exactly as before.
+  //
+  // distinctPlateBoundaries keeps first occurrences in supply order, so walking
+  // it with a cursor identifies the repeats without relying on object identity
+  // being unique across the supplied array.
+  const distinct = distinctPlateBoundaries(
+    matched.map((entry) => entry.boundary)
+  );
+  let cursor = 0;
+  let repeatedMatchedFeatureCount = 0;
+  const distinctMatches: typeof matched = [];
+  for (const entry of matched) {
+    if (cursor < distinct.length && entry.boundary === distinct[cursor]) {
+      cursor += 1;
+      distinctMatches.push(entry);
+      continue;
+    }
+    const twin = distinctMatches.find(
+      (candidate) =>
+        isSameTrace(candidate.boundary, entry.boundary) &&
+        isSameAttribution(candidate.boundary, entry.boundary)
+    );
+    if (twin) {
+      repeatedMatchedFeatureCount += 1;
+      continue;
+    }
+    distinctMatches.push(entry);
+  }
+
+  const matchingBoundaries = distinctMatches
+    .map(({ boundary, matchedSegmentCount }) => ({
+      name: boundary.name.trim() || null,
+      matchedSegmentCount,
       // Carried through from the supplied step rather than recomputed: the
       // marking is the source's, and the extent test must not appear to have
       // classified anything.
@@ -132,7 +189,6 @@ export function plateBoundariesInSearchExtent(
       // so the credit belongs to the step, not to the compilation.
       sourceCitation: boundary.step?.sourceCitation ?? null,
     }))
-    .filter((boundary) => boundary.matchedSegmentCount > 0)
     .sort(
       (first, second) =>
         (first.name ?? "").localeCompare(second.name ?? "", "en-US") ||
@@ -145,7 +201,35 @@ export function plateBoundariesInSearchExtent(
     bounds,
     west > east,
     matchingBoundaries,
-    usable.length === 0 ? "no-usable-boundaries" : "available"
+    usable.length === 0 ? "no-usable-boundaries" : "available",
+    repeatedMatchedFeatureCount
+  );
+}
+
+/**
+ * Whether two supplied features carry the same vertex sequence, in either
+ * direction. Delegates to the duplication helper so there is one definition of
+ * trace identity in the codebase rather than a second, drifting copy.
+ */
+function isSameTrace(first: PlateBoundary, second: PlateBoundary): boolean {
+  return distinctPlateBoundaries([first, second]).length === 1;
+}
+
+/**
+ * Whether the source filed two features identically in everything this panel
+ * renders: the plate-pair label, the `Type` marking, and the `Source` credit.
+ * Only then is a shared trace a redundancy in the distribution rather than a
+ * disagreement in the source worth showing.
+ */
+function isSameAttribution(
+  first: PlateBoundary,
+  second: PlateBoundary
+): boolean {
+  return (
+    first.name.trim() === second.name.trim() &&
+    plateBoundaryClass(first) === plateBoundaryClass(second) &&
+    (first.step?.sourceCitation ?? null) ===
+      (second.step?.sourceCitation ?? null)
   );
 }
 
@@ -228,6 +312,42 @@ export function digitizationCreditText(
 }
 
 /**
+ * Say when the bundled file supplied a crossing trace more than once.
+ *
+ * PB2002 is distributed here as GeoJSON, and that conversion splits every
+ * boundary step that crosses the antimeridian into an eastern and a western
+ * half. For six steps it emits a second, byte-identical copy of the western
+ * half; all of the source's own attributes match across the copies, so these
+ * are one mapped trace supplied twice rather than two digitizations of the same
+ * margin (see plateBoundaryDuplication.ts). The extent match now collapses
+ * them, which is why a reader is told: the counts above would otherwise differ
+ * from the boundaries actually drawn on the globe, and the difference belongs
+ * to the file rather than to the geology.
+ *
+ * Reported as a supplied-data observation only. It says nothing about boundary
+ * type, motion, deformation, activity, or hazard, and a repeat is not an error
+ * in the PB2002 model — the redundancy is in this distribution of it.
+ *
+ * Returns null when nothing repeated, so the common extent stays silent.
+ */
+export function suppliedRepeatText(
+  context: PlateBoundaryExtentContext
+): string | null {
+  const { coverage } = context;
+  if (coverage.status !== "available") return null;
+  const repeats = coverage.repeatedMatchedFeatureCount;
+  if (repeats === 0) return null;
+  // Names what was set aside rather than only that something was: a bare
+  // "duplicates were removed" leaves a reader unable to tell whether the trace
+  // itself was dropped.
+  const features =
+    repeats === 1
+      ? "1 supplied feature here repeats"
+      : `${repeats} supplied features here repeat`;
+  return `The bundled GeoJSON splits antimeridian-crossing steps and supplies a few of the halves twice: ${features} a trace already listed, verbatim, and ${repeats === 1 ? "was" : "were"} counted once rather than twice.`;
+}
+
+/**
  * Distinct `Source` credits among matched boundaries, most-used first with
  * alphabetical ties, so the order never depends on input order.
  */
@@ -254,7 +374,8 @@ function contextFor(
   bounds: SearchBoundingBox | null,
   crossesAntimeridian: boolean,
   matchingBoundaries: MatchedPlateBoundary[],
-  status: PlateBoundaryExtentStatus
+  status: PlateBoundaryExtentStatus,
+  repeatedMatchedFeatureCount = 0
 ): PlateBoundaryExtentContext {
   const matchedSegmentCount = matchingBoundaries.reduce(
     (total, boundary) => total + boundary.matchedSegmentCount,
@@ -279,6 +400,7 @@ function contextFor(
       matchedUncreditedBoundaryCount: matchingBoundaries.filter(
         ({ sourceCitation }) => !sourceCitation
       ).length,
+      repeatedMatchedFeatureCount,
       boundsTested: status !== "invalid-bounds",
     },
     geographicCoverage:
