@@ -792,6 +792,16 @@ body {
   border: 1px solid var(--control-border);
   border-radius: 12px;
   backdrop-filter: blur(10px);
+  /* The label is the tap target (see SearchBox), so advertise it as one. */
+  cursor: text;
+}
+
+/* Focus lives on the nested input, but the ring reads better around the whole
+   field — it is what the user aimed at. */
+.search__field:focus-within {
+  border-color: var(--control-border-hover);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .search__icon {
