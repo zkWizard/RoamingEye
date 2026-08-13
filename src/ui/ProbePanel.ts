@@ -25,6 +25,10 @@ import {
   sstExtremeBoundPrefix,
   sstExtremeCensoringClause,
 } from "../lib/probeSstExtremeCensoring";
+import {
+  probeSstTrendCensoring,
+  sstTrendCensoringClause,
+} from "../lib/probeSstTrendCensoring";
 import { probeRecordGaps, probeRecordGapsClause } from "../lib/probeRecordGaps";
 import { probeSstSamplingGateClause } from "../lib/sstObservingConstraints";
 import { ICONS } from "./icons";
@@ -321,6 +325,19 @@ export class ProbePanel {
       physical
     );
     const sstCensoringClause = sstExtremeCensoringClause(sstCensoring);
+    // That clause names min, mean and max — and stops there, while the trend
+    // reported a few fields earlier is fitted over the very same series. An
+    // enumeration that lists which statistics are bounds reads as a claim that
+    // the ones it omits are not, so say the trend inherits the censoring too.
+    // Unlike the mean it gets no direction: a capped month sits in some
+    // within-season pairs as the earlier member and in others as the later
+    // one, so correcting it moves Sen's median whichever way the record's
+    // shape decides — which is what the cap destroyed. Silent for every other
+    // layer, for a record inside the finite ramp, and for one too short to
+    // report a trend at all.
+    const sstTrendCensoring = sstTrendCensoringClause(
+      probeSstTrendCensoring(sstCensoring, trend)
+    );
     // Ramp censoring says which of these statistics are bounds; it does not say
     // which water, or which moments, they describe. The cited SST product
     // composites Aqua's daytime overpass on cloud-screened days only, so the
@@ -351,6 +368,7 @@ export class ProbePanel {
       ` · ${trendClause(trend)}` +
       (seasonal ? ` · ${seasonal}` : "") +
       (sstCensoringClause ? ` · ${sstCensoringClause}` : "") +
+      (sstTrendCensoring ? ` · ${sstTrendCensoring}` : "") +
       (sstSamplingGate ? ` · ${sstSamplingGate}` : "") +
       (spatialSupportNote ? ` · ${spatialSupportNote}` : "");
     this.setStatus(stat);
