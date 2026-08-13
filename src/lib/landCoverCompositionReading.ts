@@ -172,8 +172,23 @@ function reading(
   };
 }
 
+/**
+ * The most frequent class's share, rounded, but never rounded up to "100%".
+ *
+ * This formats a share only in the "composed" branch, which a single-class
+ * sample never reaches — so a share reaching 100% here is always a partial one
+ * that the very next clause contradicts by naming the other classes present. A
+ * large drawn region makes that ordinary rather than rare: the sampling grid
+ * runs up to 28x28, so one stray class among ~780 classified pixels rounds to
+ * 100%. Rendered as ">99%" instead, matching how the vegetation-index support
+ * note formats a share in the same status line.
+ *
+ * No "<1%" guard is paired with it: this only ever formats the LARGEST of at
+ * most 17 informative IGBP class shares, which cannot fall below 1/17.
+ */
 function percent(fraction: number): string {
-  return `${Math.round(fraction * 100)}%`;
+  const rounded = Math.round(fraction * 100);
+  return rounded === 100 && fraction < 1 ? ">99%" : `${rounded}%`;
 }
 
 function index(value: number): string {
