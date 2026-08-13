@@ -217,6 +217,11 @@ export const PLACE_OBSERVATION_NATIVE_UNITS = {
   precip: "kg/m²/s",
   soil: "kg/m²",
   airtemp: "K",
+  // MOD11C3 stores land-surface temperature in kelvin. The panel card shows °C
+  // for legibility, but the export keeps the product's own unit — the card's
+  // Celsius is an exact −273.15 offset applied at render time, not a stored
+  // value, and this record is the native-unit one.
+  lst: "K",
   sst: "°C",
   // Column aerosol optical thickness at 550 nm is an optical property with no
   // physical unit; "dimensionless" is the product's own unit, not a placeholder
