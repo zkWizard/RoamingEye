@@ -2041,6 +2041,39 @@ body {
     border-radius: 14px 14px 0 0;
     border-bottom: none;
     overflow-x: auto;
+    /* A sideways swipe on the bar must not chain into the browser's
+       back-navigation gesture and leave the app. */
+    overscroll-behavior-x: contain;
+    /* Nine toggles need ~516px; a 390px phone shows six. Fade whichever edge
+       still has items behind it so the strip reads as scrollable instead of
+       finished — Toolbar.ts keeps `data-overflow` in step with the real
+       scroll position, so the fade is gone once you reach the end. */
+    --toolbar-fade-start: 0px;
+    --toolbar-fade-end: 0px;
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 var(--toolbar-fade-start),
+      #000 calc(100% - var(--toolbar-fade-end)),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 var(--toolbar-fade-start),
+      #000 calc(100% - var(--toolbar-fade-end)),
+      transparent 100%
+    );
+  }
+
+  .toolbar[data-overflow="end"],
+  .toolbar[data-overflow="both"] {
+    --toolbar-fade-end: 2rem;
+  }
+
+  .toolbar[data-overflow="start"],
+  .toolbar[data-overflow="both"] {
+    --toolbar-fade-start: 2rem;
   }
 
   .toolbar__item {
