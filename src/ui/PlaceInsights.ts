@@ -52,6 +52,7 @@ import {
 } from "../lib/plateProximity";
 import { eruptionRecencyText } from "../lib/volcanoRecency";
 import { qualifiedVolcanoTypeLabel } from "../lib/volcanoMorphology";
+import { crustalThicknessBasisText } from "../lib/volcanoTectonicSetting";
 import { volcanoTypeCompositionText } from "../lib/volcanoType";
 import { elevationRegimeLabel } from "../lib/volcanoes";
 import {
@@ -94,6 +95,7 @@ export class PlaceInsights {
   private readonly volcanoValue: HTMLElement;
   private readonly volcanoDetail: HTMLElement;
   private readonly volcanoRecency: HTMLElement;
+  private readonly volcanoCrust: HTMLElement;
   private readonly volcanoTypes: HTMLElement;
   private readonly volcanoRecords: HTMLUListElement;
   private readonly volcanoSource: HTMLAnchorElement;
@@ -179,6 +181,12 @@ export class PlaceInsights {
     // order surfaced, not the composition of the matched set.
     this.volcanoTypes = document.createElement("p");
     this.volcanoTypes.className = "place-insights__detail";
+    // Each row prints GVP's tectonic-setting label verbatim, kilometre bounds
+    // and all, next to a summit elevation that is a real measurement. The globe
+    // hover drops those bounds; here they need saying, or "(> 25 km)" reads as
+    // a crustal thickness measured beneath that volcano.
+    this.volcanoCrust = document.createElement("p");
+    this.volcanoCrust.className = "place-insights__detail";
     this.volcanoRecords = document.createElement("ul");
     this.volcanoRecords.className = "place-insights__volcano-list";
     this.volcanoSource = document.createElement("a");
@@ -193,6 +201,7 @@ export class PlaceInsights {
       this.volcanoDetail,
       this.volcanoRecency,
       this.volcanoTypes,
+      this.volcanoCrust,
       this.volcanoRecords,
       this.volcanoSource
     );
@@ -368,6 +377,7 @@ export class PlaceInsights {
       "Checking the bundled Smithsonian volcano dataset against the search bounding box";
     this.volcanoRecency.textContent = "";
     this.volcanoTypes.textContent = "";
+    this.volcanoCrust.textContent = "";
     this.volcanoRecords.replaceChildren();
   }
 
@@ -387,6 +397,12 @@ export class PlaceInsights {
       eruptionRecencyText(context.eruptionRecency) ?? "";
     this.volcanoTypes.textContent =
       volcanoTypeCompositionText(context.typeComposition) ?? "";
+    // Silent unless a matched record carries a printed kilometre band, so an
+    // empty or unbanded extent gains no line.
+    this.volcanoCrust.textContent =
+      crustalThicknessBasisText(
+        context.records.map((record) => record.tectonicSetting)
+      ) ?? "";
     if (context.status === "invalid-bounds") {
       this.volcanoValue.textContent = "Search extent unavailable";
       this.volcanoDetail.textContent = context.geographicCoverage;
@@ -471,6 +487,7 @@ export class PlaceInsights {
     this.volcanoRecords.replaceChildren();
     this.volcanoRecency.textContent = "";
     this.volcanoTypes.textContent = "";
+    this.volcanoCrust.textContent = "";
     this.volcanoValue.textContent = "Records unavailable";
     this.volcanoDetail.textContent =
       "The bundled GVP-derived volcano data could not be loaded for this search.";
