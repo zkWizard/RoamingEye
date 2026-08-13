@@ -2,7 +2,9 @@ name: Catalog agent fleet
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    # Daily: verification evidence is date-granular (verifiedAt), so more
+    # frequent runs only churn timestamps and review bandwidth.
+    - cron: "23 5 * * *"
   workflow_dispatch:
 
 permissions:
@@ -29,26 +31,40 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run agents:run
+        env:
+          # Unauthenticated GitHub API calls share the runner IP's 60/hour
+          # budget; the token keeps scout/verifier lookups reliable.
+          GITHUB_TOKEN: ${{ github.token }}
       - run: npm run verify
       - name: Install Playwright (Chromium)
         run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - name: Open a draft catalog review
+        # Creating the draft PR needs "Allow GitHub Actions to create and
+        # approve pull requests" enabled under Settings -> Actions -> General;
+        # without it, `gh pr create` fails with "not permitted".
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if git diff --quiet; then
-            echo "No catalog changes to review."
+          # Status, history, QA-report, and review-queue files re-stamp
+          # timestamps on every run; only the curated records decide whether
+          # there is anything for a human to review.
+          if git diff --quiet -- catalog/inbox.json catalog/verified-tools.json catalog/mapped-tools.json catalog/edited-tools.json; then
+            echo "No reviewable catalog changes."
             exit 0
           fi
 
-          branch="agents/catalog-refresh-${GITHUB_RUN_ID}"
+          branch="agents/catalog-refresh"
           git config user.name "roamingeye-catalog-bot[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$branch"
+          git checkout -B "$branch"
           git add catalog public/data
           git commit -s -m "chore: refresh reviewed software catalog"
-          git push origin "$branch"
-          gh pr create --draft --base main --head "$branch" \
-            --title "chore: review catalog agent refresh" \
-            --body "Automated catalog refresh. Review catalog/review-queue.json and the generated public/data/software-catalog.json before approving."
+          git push --force origin "$branch"
+          if [ -z "$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')" ]; then
+            gh pr create --draft --base main --head "$branch" \
+              --title "chore: review catalog agent refresh" \
+              --body "Automated catalog refresh. Review catalog/review-queue.json and the generated public/data/software-catalog.json before approving."
+          else
+            echo "Standing draft review updated with a force-push."
+          fi
