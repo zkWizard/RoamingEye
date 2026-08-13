@@ -36,6 +36,7 @@ import {
 import { emptyAtmosphereProbeNote } from "./lib/atmosphereProbeDomain";
 import { marineAveragedSstCensoringCsvHeaders } from "./lib/marineAveragedSstCensoring";
 import { averagedSstSupportNote } from "./lib/marineAveragedSstSupport";
+import { vegetationAveragedSupportNote } from "./lib/vegetationAveragedSupport";
 import { emptyMarineProbeNote } from "./lib/marineProbeDomain";
 import {
   seasonalSamplingBalance,
@@ -925,6 +926,16 @@ if (probeEl) {
           "sampled-area",
           mode === "area" ? validFractions : null
         );
+        // The same question for the vegetation indices, whose undrawn pixels
+        // are their lowest-index ones rather than a domain boundary — so the
+        // share qualifies the direction of the mean, not just its extent.
+        // Both layers pass through the same gate: no shares, no clause.
+        const vegetationSupportNote = vegetationAveragedSupportNote(
+          layer.id,
+          "sampled-area",
+          values,
+          mode === "area" ? validFractions : null
+        );
         // An area value is a mean of per-pixel decodes and a point value a
         // median, so only the area footprint carries censoring the end-cap
         // screen cannot see. Shared by the status line and the export.
@@ -1006,7 +1017,9 @@ if (probeEl) {
           // support clause above whenever that already explained the absence.
           emptyAtmosphereProbeNote(layer.id, values) ??
             emptyMarineProbeNote(layer.id, values, sstSupportNote),
-          sstSupportNote,
+          // Each note is gated on its own layer, so at most one is ever a
+          // string — the fallback picks the one that spoke.
+          sstSupportNote ?? vegetationSupportNote,
           // Area mode charts a weighted mean of per-pixel decodes; point mode
           // charts a median, which the SST end-cap screen already catches.
           averagedFootprint
@@ -1089,6 +1102,18 @@ if (probeEl) {
           "drawn-region",
           validFractions
         );
+        // And the same for the vegetation indices. GIBS leaves every value
+        // below the ramp start undrawn, so a box's water, snow, ice and cloud
+        // pixels are rejected rather than averaged in — and those are exactly
+        // its lowest-index ones, which the CSV's per-month share records but
+        // the panel did not. The place panel already states this for a single
+        // month; the series surface did not.
+        const vegetationSupportNote = vegetationAveragedSupportNote(
+          layer.id,
+          "drawn-region",
+          values,
+          validFractions
+        );
         // The physical series the file writes, not the 0..1 gradient positions
         // held here. Shared by the status line and the export.
         const physical = values.map((v) =>
@@ -1163,7 +1188,9 @@ if (probeEl) {
           // support clause; the marine note only speaks when it did not.
           emptyAtmosphereProbeNote(layer.id, values) ??
             emptyMarineProbeNote(layer.id, values, sstSupportNote),
-          sstSupportNote,
+          // Each note is gated on its own layer, so at most one is ever a
+          // string — the fallback picks the one that spoke.
+          sstSupportNote ?? vegetationSupportNote,
           // Every drawn-region value is a weighted mean of per-pixel decodes.
           "drawn-region"
         );
