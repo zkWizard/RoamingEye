@@ -1104,4 +1104,92 @@ describe("coverage shortfall against the legend's open end caps", () => {
       detail.indexOf("the shortfall can include ground")
     );
   });
+
+  describe("unavailable months distinguish thin coverage from absent data", () => {
+    const withCoverage = (validFraction: number) =>
+      summarizeRenderedClimateSample(
+        {
+          metricId: "precipitation-rate",
+          months: [
+            { year: 2026, month: 2 },
+            { year: 2026, month: 3 },
+          ],
+          sampledValues: [4.32, null],
+          nativeToSampledValueFactor: 86_400,
+          validFractions: [0.9, validFraction],
+          sourceImageDimensions: { width: 512, height: 512 },
+          geometrySamplingStrategy: "boundary-grid",
+        },
+        { year: 2026, month: 3 }
+      );
+
+    it("blames the sampler's admission rule, not the source, for a thinly covered month", () => {
+      // `weightedMeanValid` withholds the region mean below its usable-share
+      // threshold, so a mostly-marine boundary yields no value beside a real,
+      // positive coverage share. Saying "missing-value" there would report the
+      // source as having published nothing for ground it did publish.
+      const summaries = withCoverage(0.18);
+
+      expect(summaries[1].coverage.reason).toBe("missing-value");
+      const { value, detail } = climateInsightText(summaries[0], summaries[1]);
+      expect(value).toBe("Unavailable");
+      expect(detail).toContain("(insufficient-valid-coverage)");
+      expect(detail).not.toContain("missing-value");
+      // The share that made it insufficient stays on the line beside the reason.
+      expect(detail).toContain("18% sampled coverage");
+    });
+
+    it("agrees with the exported record on the same month", () => {
+      const summaries = withCoverage(0.18);
+      const exported = exportObservationsFromRenderedClimateSample(
+        {
+          metricId: "precipitation-rate",
+          months: [
+            { year: 2026, month: 2 },
+            { year: 2026, month: 3 },
+          ],
+          sampledValues: [4.32, null],
+          nativeToSampledValueFactor: 86_400,
+          validFractions: [0.9, 0.18],
+        },
+        { year: 2026, month: 3 }
+      );
+
+      expect(exported[1].unavailableReason).toBe("insufficient-valid-coverage");
+      expect(climateInsightText(summaries[0], summaries[1]).detail).toContain(
+        `(${exported[1].unavailableReason})`
+      );
+    });
+
+    it("keeps the contract's own wording when no ground was covered at all", () => {
+      // Zero coverage is genuinely "nothing came back"; it gains no sharper
+      // reason than the climate contract already supplies.
+      const summaries = withCoverage(0);
+      const { detail } = climateInsightText(summaries[0], summaries[1]);
+      expect(detail).toContain("(missing-value)");
+      expect(detail).toContain("0% sampled coverage");
+    });
+
+    it("keeps the contract's own wording when coverage was never supplied", () => {
+      // No share means no evidence either way, so the card must not claim the
+      // shortfall was thin coverage.
+      const summaries = summarizeRenderedClimateSample(
+        {
+          metricId: "precipitation-rate",
+          months: [
+            { year: 2026, month: 2 },
+            { year: 2026, month: 3 },
+          ],
+          sampledValues: [4.32, null],
+          nativeToSampledValueFactor: 86_400,
+          geometrySamplingStrategy: "boundary-grid",
+        },
+        { year: 2026, month: 3 }
+      );
+
+      const { detail } = climateInsightText(summaries[0], summaries[1]);
+      expect(detail).toContain("(missing-value)");
+      expect(detail).toContain("sampled coverage not supplied");
+    });
+  });
 });
