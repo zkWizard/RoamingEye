@@ -47,6 +47,42 @@ test("toolbar exposes overlay toggles and flips their state", async ({
   );
 });
 
+test("phone toolbar advertises the toggles hidden past its edge", async ({
+  page,
+}) => {
+  // At 390px the bottom bar shows six of the nine toggles and scrolls for the
+  // rest. Tab reaches the hidden ones (focus scrolls them in); a thumb needs
+  // to be told they exist, so each edge with items behind it gets a fade.
+  await page.setViewportSize({ width: 390, height: 844 });
+  const toolbar = page.locator(".toolbar");
+  await expect(toolbar).toHaveAttribute("data-overflow", "end");
+
+  const last = page.locator(".toolbar .toolbar__item").last();
+  await expect(last).toHaveAttribute("title", "My location");
+  await last.scrollIntoViewIfNeeded();
+
+  // Scrolled to the far end: nothing left to the right, so that fade goes.
+  await expect(toolbar).toHaveAttribute("data-overflow", "start");
+
+  // The fade is paint-only — the item it sat over is still clickable, and a
+  // tap must reach the button rather than a decoration above it.
+  const box = await last.boundingBox();
+  if (!box) throw new Error("last toolbar item has no bounding box");
+  const hit = await page.evaluate(
+    ([x, y]) =>
+      document
+        .elementFromPoint(x, y)
+        ?.closest(".toolbar__item")
+        ?.getAttribute("title") ?? null,
+    [box.x + box.width / 2, box.y + box.height / 2] as [number, number]
+  );
+  expect(hit).toBe("My location");
+
+  // Desktop keeps the vertical bar, which never overflows: no fade at all.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(toolbar).toHaveAttribute("data-overflow", "none");
+});
+
 test("geology overlays load their bundled datasets on first enable", async ({
   page,
 }) => {
