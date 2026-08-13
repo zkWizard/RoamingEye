@@ -5,6 +5,7 @@ import {
   unavailableMarineBoundarySstReading,
 } from "./marinePlaceInsight";
 import { SST_SAMPLING_GATE_NOTE } from "./sstObservingConstraints";
+import { MARINE_BOUNDARY_SST_COVERAGE_DISPARITY_LIMIT } from "./marineBoundarySstChange";
 
 describe("marine boundary SST insights", () => {
   it("keeps the source-month SST value and boundary coverage distinct from biology", () => {
@@ -606,6 +607,87 @@ describe("year-over-year SST differences respect the colormap's open end caps", 
     expect(reading.yearOverYear.differenceBound).toBeNull();
     expect(reading.yearOverYear.direction).toBe("warmer");
     expect(reading.detail).not.toContain("≥");
+  });
+});
+
+describe("marine boundary SST year-over-year coverage comparability", () => {
+  const base = {
+    geographyLabel: "Monterey Bay",
+    dataMonth: { year: 2026, month: 3 } as const,
+    observedValue: 18.375,
+    sourceImageDimensions: { width: 512, height: 512 },
+  };
+
+  function withCoverages(targetFraction: number, priorFraction: number) {
+    return marineBoundarySstReading({
+      ...base,
+      validFraction: targetFraction,
+      priorYear: {
+        dataMonth: { year: 2025, month: 3 },
+        observedValue: 17.5,
+        validFraction: priorFraction,
+      },
+    });
+  }
+
+  it("withholds the difference when the two months' usable shares differ grossly", () => {
+    // A cloudy prior March cleared over a third of the bay; this March cleared
+    // nearly all of it. Their arithmetic difference may record which water was
+    // visible rather than how much the water warmed.
+    const reading = withCoverages(0.94, 0.35);
+
+    expect(reading.yearOverYear.status).toBe("incomparable-coverage");
+    expect(reading.yearOverYear.difference).toBeNull();
+    expect(reading.yearOverYear.direction).toBeNull();
+    expect(reading.yearOverYear.priorObservedValue).toBeNull();
+    expect(reading.yearOverYear.reason).toBe("coverage-disparity");
+  });
+
+  it("keeps the two support figures that justify withholding, and names them", () => {
+    const reading = withCoverages(0.94, 0.35);
+
+    expect(reading.yearOverYear.minValidFraction).toBeCloseTo(0.35, 10);
+    expect(reading.yearOverYear.validFractionDelta).toBeCloseTo(0.59, 10);
+    expect(reading.detail).toContain("no year-over-year difference stated");
+    expect(reading.detail).toContain("Mar 2025 sampled 35% of the boundary");
+    expect(reading.detail).toContain("59 points");
+    // Nothing that could be read back as a stated difference survives.
+    expect(reading.detail).not.toMatch(/°C vs Mar 2025/);
+  });
+
+  it("applies the same disparity convention as the month-over-month change", () => {
+    // Exactly at the limit still compares, matching the sibling's inclusive
+    // test; both operands are binary-exact so the boundary is unambiguous.
+    const atLimit = withCoverages(0.5, 0.25);
+    const pastLimit = withCoverages(0.5, 0.2);
+
+    expect(MARINE_BOUNDARY_SST_COVERAGE_DISPARITY_LIMIT).toBe(0.25);
+    expect(atLimit.yearOverYear.status).toBe("available");
+    expect(pastLimit.yearOverYear.status).toBe("incomparable-coverage");
+  });
+
+  it("screens coverage before censoring so a doubly capped pair still names the support failure", () => {
+    const reading = marineBoundarySstReading({
+      ...base,
+      observedValue: 31.9,
+      validFraction: 0.94,
+      priorYear: {
+        dataMonth: { year: 2025, month: 3 },
+        observedValue: 31.9,
+        validFraction: 0.35,
+      },
+    });
+
+    expect(reading.yearOverYear.status).toBe("incomparable-coverage");
+    expect(reading.detail).not.toMatch(/unchanged/i);
+  });
+
+  it("leaves like-for-like coverage reporting a plain difference", () => {
+    const reading = withCoverages(0.62, 0.58);
+
+    expect(reading.yearOverYear.status).toBe("available");
+    expect(reading.detail).toContain("+0.9 °C vs Mar 2025");
+    expect(reading.detail).not.toContain("points from this month");
   });
 });
 
