@@ -124,6 +124,16 @@ export const VEGETATION_INDEX_SUPPORT_TIERS: readonly VegetationIndexSupportTier
     },
   ];
 
+/**
+ * The tiers whose class definitions neither require nor permit a substantial
+ * plant canopy. MOD13A3 still retrieves NDVI and EVI over them, so a value
+ * exists there that describes the background surface rather than plants.
+ */
+export const NON_VEGETATING_TIER_IDS: readonly VegetationIndexSupportId[] =
+  VEGETATION_INDEX_SUPPORT_TIERS.filter(
+    (tier) => !tier.permitsVegetationCover
+  ).map((tier) => tier.id);
+
 export const VEGETATION_INDEX_SUPPORT_LIMITATIONS = [
   "Tiers restate MCD12Q1 v061 IGBP class definitions; they report what a class permits or requires, not how much vegetation a sample holds.",
   "Land cover is an annual MCD12Q1 classification and the vegetation index is a monthly MOD13A3 composite: the two describe the same place at different times, from different products.",
@@ -158,6 +168,21 @@ export interface PlantCanopyShare {
   upperBound: number | null;
   /** Informative samples in classes that permit but do not require vegetation. */
   mixedSampleCount: number;
+  /**
+   * Share of informative land cover in classes whose definition neither
+   * requires nor permits a substantial plant canopy — barren, permanent snow
+   * and ice, and permanent water. Null when no informative land cover was
+   * observed.
+   *
+   * Summed from those tiers' own counts rather than taken as `1 - upperBound`:
+   * an informative class carrying no tier lands in
+   * `ungroupedKnownSampleCount`, and subtraction would silently relabel it as
+   * one of these surfaces. The complete IGBP contract never produces one, but
+   * an unmapped class code would.
+   */
+  nonVegetatedBound: number | null;
+  /** Informative samples in classes that neither require nor permit vegetation. */
+  nonVegetatedSampleCount: number;
 }
 
 export interface VegetationIndexLandCoverSupportSummary {
@@ -202,24 +227,72 @@ export interface VegetationIndexLandCoverSupportSummary {
  * count does not carry. Both shares are shares of CLASSIFIED sampled image
  * pixels, never of ground area.
  *
+ * The barren and snow/ice/water share is stated too, and it is the reason the
+ * clause exists: MOD13A3 retrieves a value over those surfaces exactly as it
+ * does over canopy, so a region's greenness there tracks the background
+ * surface rather than plants. Naming only the required and mixed shares left
+ * that case to subtraction — and subtraction gives a number, not the fact that
+ * what it counts is a surface the index cannot be read as vegetation on at
+ * all. The point reading already says this for a single class
+ * ({@link vegetationIndexSupportClassNote}); this says it for a drawn region,
+ * from the same definitional tiers, so the two surfaces do not disagree.
+ *
+ * Each share is rounded on its own and joined with "a further", which claims
+ * no partition: three independently rounded shares need not total 100%, and
+ * `shareText` deliberately reports a present share as "<1%" rather than "0%".
+ * Only the surfaces actually sampled are named, so a snow-and-water region is
+ * never told it contains barren ground.
+ *
  * Returns null when no informative class was observed — the composition copy
  * already states that, and a second empty statement would only add width.
  */
 export function vegetationIndexSupportNote(
   summary: VegetationIndexLandCoverSupportSummary
 ): string | null {
-  const { lowerBound, upperBound, mixedSampleCount } = summary.plantCanopyShare;
+  const { lowerBound, upperBound, mixedSampleCount, nonVegetatedBound } =
+    summary.plantCanopyShare;
   if (summary.status !== "available") return null;
   if (lowerBound === null || upperBound === null) return null;
 
   const source = `${summary.vegetationIndexSource.shortName} v${summary.vegetationIndexSource.version}`;
-  const required = `${source} NDVI/EVI reads as plant greenness on ${shareText(
-    lowerBound
-  )} of classified pixels, where the IGBP class definition requires vegetation cover`;
-  if (mixedSampleCount === 0) return `${required}.`;
-  return `${required}; a further ${shareText(
-    upperBound - lowerBound
-  )} is wetland or built-up, which permit vegetation without requiring it.`;
+  const clauses = [
+    `${source} NDVI/EVI reads as plant greenness on ${shareText(
+      lowerBound
+    )} of classified pixels, where the IGBP class definition requires vegetation cover`,
+  ];
+  if (mixedSampleCount > 0) {
+    clauses.push(
+      `a further ${shareText(
+        upperBound - lowerBound
+      )} is wetland or built-up, which permit vegetation without requiring it`
+    );
+  }
+  const nonVegetatedSurfaces = sampledNonVegetatingSurfaces(summary);
+  if (nonVegetatedBound !== null && nonVegetatedSurfaces) {
+    clauses.push(
+      `a further ${shareText(
+        nonVegetatedBound
+      )} is ${nonVegetatedSurfaces}, where NDVI/EVI still returns a value that is not plant greenness`
+    );
+  }
+  return `${clauses.join("; ")}.`;
+}
+
+/** Prose for the non-vegetating tiers this sample actually holds; null for none. */
+function sampledNonVegetatingSurfaces(
+  summary: VegetationIndexLandCoverSupportSummary
+): string | null {
+  const sampled = new Set(
+    summary.tierCoverage
+      .filter((tier) => tier.sampleCount > 0)
+      .map((tier) => tier.id)
+  );
+  const barren = sampled.has("sparsely-vegetated");
+  const frozenOrWater = sampled.has("non-vegetated");
+  if (barren && frozenOrWater) return "barren, snow, ice, or permanent water";
+  if (barren) return "barren sand, rock, or soil";
+  if (frozenOrWater) return "permanent snow, ice, or water";
+  return null;
 }
 
 /**
@@ -321,6 +394,8 @@ export function summarizeVegetationIndexLandCoverSupport(
         lowerBound: null,
         upperBound: null,
         mixedSampleCount: 0,
+        nonVegetatedBound: null,
+        nonVegetatedSampleCount: 0,
       },
       dominantTier: null,
       dominantTierStatus: "no-data",
@@ -372,6 +447,10 @@ export function summarizeVegetationIndexLandCoverSupport(
   const canopySampleCount = tierCounts.get("vegetated") ?? 0;
   const mixedSampleCount =
     (tierCounts.get("mixed-water") ?? 0) + (tierCounts.get("mixed-built") ?? 0);
+  const nonVegetatedSampleCount = NON_VEGETATING_TIER_IDS.reduce(
+    (total, id) => total + (tierCounts.get(id) ?? 0),
+    0
+  );
   const plantCanopyShare: PlantCanopyShare = {
     lowerBound:
       knownLandCoverSampleCount === 0
@@ -382,6 +461,11 @@ export function summarizeVegetationIndexLandCoverSupport(
         ? null
         : (canopySampleCount + mixedSampleCount) / knownLandCoverSampleCount,
     mixedSampleCount,
+    nonVegetatedBound:
+      knownLandCoverSampleCount === 0
+        ? null
+        : nonVegetatedSampleCount / knownLandCoverSampleCount,
+    nonVegetatedSampleCount,
   };
 
   const dominantTier = tierCoverage[0] ?? null;
