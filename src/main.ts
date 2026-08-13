@@ -21,6 +21,7 @@ import {
   probeInversionAccuracy,
 } from "./lib/probeInversionAccuracy";
 import { emptyAtmosphereProbeNote } from "./lib/atmosphereProbeDomain";
+import { averagedSstSupportNote } from "./lib/marineAveragedSstSupport";
 import { snowIlluminationNote } from "./lib/snowCoverIllumination";
 import type { GeoResult } from "./lib/geocoding";
 import { refreshDataLatest } from "./lib/freshness";
@@ -924,7 +925,15 @@ if (probeEl) {
               validFractions
             ),
           `roamingeye_probe_${mode}_${layer.id}_${lat.toFixed(3)}_${lon.toFixed(3)}.csv`,
-          emptyAtmosphereProbeNote(layer.id, values)
+          emptyAtmosphereProbeNote(layer.id, values),
+          // An area mean over a coastal box averages only the pixels that
+          // carried SST; say what share of the box those were. A point probe
+          // has no share to report, so it passes none and stays silent.
+          averagedSstSupportNote(
+            layer.id,
+            "sampled-area",
+            mode === "area" ? validFractions : null
+          )
         );
       })
       .catch((err) => {
@@ -1023,7 +1032,12 @@ if (probeEl) {
               validFractions
             ),
           `roamingeye_region_${layer.id}_${bounds.south.toFixed(2)}_${normalizeLon(bounds.west).toFixed(2)}_${bounds.north.toFixed(2)}_${normalizeLon(bounds.east).toFixed(2)}.csv`,
-          emptyAtmosphereProbeNote(layer.id, values)
+          emptyAtmosphereProbeNote(layer.id, values),
+          // The header names the drawn box, but SST is undefined over land and
+          // those pixels are rejected rather than averaged in — so a coastal
+          // box charts the water it found, not the box. The CSV already
+          // carries this share per month; state it on the panel too.
+          averagedSstSupportNote(layer.id, "drawn-region", validFractions)
         );
       })
       .catch((err) => {
