@@ -356,10 +356,11 @@ export class ProbePanel {
   /**
    * Append the vegetation-index calendar-timing clause: which month held each
    * year's highest NDVI, how tightly that recurs, and — each only when it is
-   * not true of every year — how often that peak was actually flanked by
-   * observed months rather than by a MOD13A3 gap, how often it was tied
-   * with another month rather than held alone, and whether the year's greenness
-   * massed near one month at all. The NDVI phenology
+   * not already true of the whole record — whether that month led the tally
+   * outright or shared the lead with another, how often that peak was actually
+   * flanked by observed months rather than by a MOD13A3 gap, how often it was
+   * tied with another month rather than held alone, and whether the year's
+   * greenness massed near one month at all. The NDVI phenology
    * helpers pull in per-year summarization and circular statistics, so they
    * load on demand rather than riding in the entry chunk; the clause lands a
    * moment after the stats, which the status line already fills in
@@ -376,6 +377,7 @@ export class ProbePanel {
     void import("../lib/probePeakGreenness")
       .then(
         ({
+          dominantMonthTieClause,
           peakGreennessClause,
           peakSupportClause,
           peakTieClause,
@@ -393,6 +395,11 @@ export class ProbePanel {
           );
           const clause = peakGreennessClause(timing);
           if (!clause) return;
+          // Whether the named month leads the tally outright or merely shares
+          // the lead — the count beside it cannot say which, since it never
+          // reports whether another month reached the same total. Silent for a
+          // decisive record, so only a shared lead pays for the qualification.
+          const modalTie = dominantMonthTieClause(timing);
           // How firmly the sampled months stand behind that modal peak month.
           // Silent unless some year's peak sits beside a gap or on the
           // calendar-year edge, so a clean record adds no status-line text.
@@ -417,7 +424,7 @@ export class ProbePanel {
             )
           );
           this.setStatus(
-            [stat, clause, support, tied, concentration]
+            [stat, clause, modalTie, support, tied, concentration]
               .filter(Boolean)
               .join(" · ")
           );

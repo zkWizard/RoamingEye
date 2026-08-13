@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  dominantMonthTieClause,
   peakGreennessClause,
   peakSupportClause,
   peakTieClause,
@@ -356,6 +357,146 @@ describe("peakTieClause", () => {
     expect(clause).not.toMatch(/0\.\d/);
     expect(clause).not.toMatch(
       /health|biomass|productiv|greener|degrad|season/i
+    );
+  });
+});
+
+describe("dominantMonthTieClause", () => {
+  /**
+   * A record whose annual peak follows `peakMonths` year by year, so a tally
+   * where two months hold the annual peak in exactly as many years can be built
+   * deliberately. Shares `cycle`'s tiny month-proportional tie-break term, which
+   * is far smaller than the 0.05 step per month of circular distance and so can
+   * never move a year's peak off its assigned month.
+   */
+  function cycleByYear(
+    monthList: readonly YearMonth[],
+    startYear: number,
+    peakMonths: readonly number[]
+  ): number[] {
+    return monthList.map((ym) => {
+      const peakMonth = peakMonths[ym.year - startYear] ?? peakMonths[0];
+      const separation = Math.abs(ym.month - peakMonth) % 12;
+      const circular = Math.min(separation, 12 - separation);
+      return 0.55 - 0.05 * circular + 0.002 * ym.month;
+    });
+  }
+
+  it("names the month that reached the same tally as the one reported", () => {
+    const range = months(2001, 12 * 5);
+    // Two Junes, two Julys, one August: July and June lead the tally equally.
+    const values = cycleByYear(range, 2001, [6, 6, 7, 7, 8]);
+    const timing = probePeakGreennessTiming("ndvi", range, values, 52);
+
+    expect(timing?.peakMonthCounts).toEqual([
+      expect.objectContaining({ month: 6, count: 2 }),
+      expect.objectContaining({ month: 7, count: 2 }),
+      expect.objectContaining({ month: 8, count: 1 }),
+    ]);
+    // The timing clause names one of the two equal leaders and quotes a count
+    // that cannot reveal the other reached it — which is what this qualifies.
+    expect(timing?.dominantPeakMonth).toMatchObject({ month: 7, count: 2 });
+    expect(peakGreennessClause(timing)).toContain("usually Jul (2/5 yr");
+    expect(dominantMonthTieClause(timing)).toBe(
+      "modal peak month tied with Jun (nearest the circular mean named)"
+    );
+  });
+
+  it("names the earliest-month fallback when no circular mean exists", () => {
+    const range = months(2001, 12 * 4);
+    // Two Januarys and two Julys sit opposite each other on the calendar
+    // circle, so the resultant vector collapses and no mean direction is
+    // defined. `dominantMonth` then falls back to the smaller month number, and
+    // the clause must not claim a circular-mean tie-break it did not use.
+    const values = cycleByYear(range, 2001, [1, 1, 7, 7]);
+    const timing = probePeakGreennessTiming("ndvi", range, values, 52);
+
+    expect(timing?.status).toBe("available");
+    expect(timing?.circularMeanMonth).toBeNull();
+    expect(timing?.dominantPeakMonth).toMatchObject({ month: 1, count: 2 });
+    expect(dominantMonthTieClause(timing)).toBe(
+      "modal peak month tied with Jul (earliest named)"
+    );
+  });
+
+  it("lists every co-leader, in calendar order", () => {
+    const range = months(2001, 12 * 3);
+    const values = cycleByYear(range, 2001, [4, 6, 9]);
+    const timing = probePeakGreennessTiming("ndvi", range, values, 52);
+
+    // Three single-peak years tie at one apiece. June sits nearest the circular
+    // mean of the three, so it is reported and the other two are the rivals —
+    // listed by month rather than in tally order.
+    expect(timing?.dominantPeakMonth).toMatchObject({ month: 6, count: 1 });
+    expect(dominantMonthTieClause(timing)).toBe(
+      "modal peak month tied with Apr, Sep (nearest the circular mean named)"
+    );
+  });
+
+  it("stays silent when the named month leads the tally outright", () => {
+    const range = months(2001, 12 * 5);
+    const timing = probePeakGreennessTiming("ndvi", range, cycle(range, 7), 52);
+
+    // A decisive record must not grow the status line at all.
+    expect(timing?.dominantPeakMonth).toMatchObject({ month: 7, count: 5 });
+    expect(dominantMonthTieClause(timing)).toBeNull();
+  });
+
+  it("stays silent when the timing clause named no month", () => {
+    const range = months(2001, 24); // under the three-year timing minimum
+    const timing = probePeakGreennessTiming(
+      "ndvi",
+      range,
+      cycleByYear(range, 2001, [6, 7]),
+      52
+    );
+
+    expect(timing?.status).toBe("insufficient-years");
+    expect(dominantMonthTieClause(timing)).toBeNull();
+  });
+
+  it("stays silent for a layer that is not NDVI", () => {
+    expect(dominantMonthTieClause(null)).toBeNull();
+  });
+
+  it("reports the same tie whichever order the months arrive in", () => {
+    const range = months(2001, 12 * 5);
+    const values = cycleByYear(range, 2001, [6, 6, 7, 7, 8]);
+    const forward = probePeakGreennessTiming("ndvi", range, values, 52);
+    const reversed = probePeakGreennessTiming(
+      "ndvi",
+      [...range].reverse(),
+      [...values].reverse(),
+      52
+    );
+
+    // An exact tally tie is the input-order trap: the reduction must not hand
+    // the lead to whichever equal month the supply order happened to visit
+    // first.
+    expect(dominantMonthTieClause(reversed)).toBe(
+      dominantMonthTieClause(forward)
+    );
+    expect(reversed?.dominantPeakMonth?.month).toBe(
+      forward?.dominantPeakMonth?.month
+    );
+  });
+
+  it("states no NDVI value and no ecological conclusion", () => {
+    const range = months(2001, 12 * 5);
+    const clause =
+      dominantMonthTieClause(
+        probePeakGreennessTiming(
+          "ndvi",
+          range,
+          cycleByYear(range, 2001, [6, 6, 7, 7, 8]),
+          52
+        )
+      ) ?? "";
+
+    expect(clause).not.toBe("");
+    expect(clause).not.toMatch(/0\.\d/);
+    expect(clause).not.toMatch(
+      /health|biomass|productiv|greener|degrad|season|amplitude/i
     );
   });
 });

@@ -288,6 +288,64 @@ export function seasonalConcentrationClause(
 }
 
 /**
+ * Fourth qualifier for {@link peakGreennessClause}: whether the named month was
+ * the most frequent peak month on its own, or merely one of several that held
+ * the annual peak in exactly as many years.
+ *
+ * The clause says the peak lands there "usually", but the underlying pick is an
+ * argmax over the per-month tally, and `phenologyPeakTiming.ts` documents that
+ * it resolves an exact tally tie by convention — toward the circular mean, then
+ * toward the smaller month number. A record that peaked twice in June and twice
+ * in July therefore reads exactly like one that peaked twice in July and once
+ * each in two scattered months: both print a 2-of-5 count beside a single named
+ * month. The count alone cannot distinguish them, because it never says whether
+ * any other month reached it.
+ *
+ * That tie is ordinary rather than pathological here, for the same reason the
+ * per-year tie in {@link peakTieClause} is: with a decade or two of MOD13A3 and
+ * one integer peak month per year, the tally is a small histogram over 12 bins,
+ * so two bins sharing the lead is a routine outcome — not a numerical accident.
+ *
+ * The tie-break basis is named honestly, because it is not always the same one.
+ * `dominantMonth` steers toward the circular mean only when that direction is
+ * defined; when the peaks balance around the calendar the resultant vector
+ * collapses, no mean direction exists, and the pick falls back to the earliest
+ * month. `circularMeanMonth` is null in exactly that case, so it selects the
+ * wording.
+ *
+ * Silent when the named month leads the tally outright — so a decisive record
+ * adds no status-line text — and when the timing clause named no month. Like
+ * every clause here this reports the record's resolution, never vegetation: a
+ * shared lead still means those months held the highest greenness observed, and
+ * it infers no phenophase, growing-season length, productivity, biomass, canopy,
+ * land cover, cause, or forecast.
+ */
+export function dominantMonthTieClause(
+  timing: PeakGreennessTiming | null
+): string | null {
+  if (!timing) return null;
+  if (timing.status !== "available") return null;
+
+  const dominant = timing.dominantPeakMonth;
+  if (!dominant) return null;
+
+  // `dominant.count` is the tally maximum by construction, so an equal count in
+  // any other month is a co-leader. `peakMonthCounts` is ordered by month, so
+  // the rivals are listed in calendar order rather than in tally order.
+  const rivals = timing.peakMonthCounts.filter(
+    (tally) => tally.count === dominant.count && tally.month !== dominant.month
+  );
+  if (rivals.length === 0) return null;
+
+  const names = rivals.map((tally) => MONTH_NAMES[tally.month - 1]).join(", ");
+  const basis =
+    timing.circularMeanMonth === null
+      ? "earliest named"
+      : "nearest the circular mean named";
+  return `modal peak month tied with ${names} (${basis})`;
+}
+
+/**
  * Median of a non-empty list of concentrations. These are continuous
  * measurements on [0, 1], so averaging the two middle values of an even-length
  * list is meaningful — unlike a class code, which is never averaged anywhere in
