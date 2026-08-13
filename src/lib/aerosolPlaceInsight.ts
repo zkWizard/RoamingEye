@@ -163,17 +163,36 @@ export function aerosolBoundaryLoadingReading(
 }
 
 /**
+ * Which step failed, so the card attributes the failure where it belongs.
+ *
+ * The two are not interchangeable: only `source-colormap-unavailable` is a
+ * statement about the published GIBS colormap document. Once that document has
+ * loaded and parsed, a later failure lies in this app's sampling of the searched
+ * boundary — tile retrieval, the boundary having no sampleable footprint, or
+ * canvas decoding — and saying "the source colormap" then misattributes an
+ * app-side or transport failure to the cited dataset. This repo cites its
+ * sources; blaming one for a failure it did not cause is a provenance error.
+ */
+export type AerosolBoundaryUnavailableReason =
+  "source-colormap-unavailable" | "boundary-sampling-failed";
+
+/**
  * Surface a sampling or source-mapping failure without relabeling it as an
  * observation of clean air. The card must never present "could not sample" and
  * "no aerosol" as the same thing.
  */
 export function unavailableAerosolBoundaryReading(
-  dataMonth: YearMonth
+  dataMonth: YearMonth,
+  reason: AerosolBoundaryUnavailableReason = "source-colormap-unavailable"
 ): AerosolPlaceInsightReading {
+  const unavailableDetail =
+    reason === "source-colormap-unavailable"
+      ? "could not be sampled from the published source colormap"
+      : "could not be sampled for the searched boundary";
   return {
     id: AEROSOL_PLACE_METRIC.id,
     value: "Unavailable",
-    detail: `${formatYm(dataMonth)} column AOD could not be sampled from the published source colormap; source ${sourceText()}; ${AEROSOL_CARD_SCOPE}`,
+    detail: `${formatYm(dataMonth)} column AOD ${unavailableDetail}; source ${sourceText()}; ${AEROSOL_CARD_SCOPE}`,
     kind: "observed-boundary-column-aerosol-optical-depth",
     isForecast: false,
     surfaceAirQualityObservation: false,
