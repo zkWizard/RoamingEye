@@ -445,9 +445,13 @@ export function climateInsightText(
   // The coverage percentage alone cannot say whether the missing area was
   // unpublished or merely unrepresentable, and only the latter biases the mean.
   const rampShortfall = rampShortfallCaveat(current, conventional);
+  // The caveat above qualifies this month's mean. A difference is taken against
+  // an earlier mean that was censored to its own, different degree.
+  const comparisonShortfall =
+    nativeDelta !== null && previous ? comparisonShortfallCaveat(previous) : "";
   return {
     value,
-    detail: `${month} ${modality.field}${comparison}${accumulation}${accumulationChange}${nativeProvenance}; ${coverage}${rampShortfall}; ${provenance}; ${sampling}; ${modality.limit}; ${sourceVariable}; source ${source}`,
+    detail: `${month} ${modality.field}${comparison}${accumulation}${accumulationChange}${nativeProvenance}; ${coverage}${rampShortfall}${comparisonShortfall}; ${provenance}; ${sampling}; ${modality.limit}; ${sourceVariable}; source ${source}`,
   };
 }
 
@@ -576,6 +580,44 @@ function rampShortfallCaveat(
           caps.atOrAboveNative
         )} range`;
   return `; the shortfall can include ground ${where}, which GIBS renders in an open end cap this probe reads as no-data, so the value is a mean over representable ground only`;
+}
+
+/**
+ * Qualify a month-over-month difference taken between two differently censored
+ * means.
+ *
+ * {@link rampShortfallCaveat} qualifies the *displayed* month's own shortfall,
+ * but the card also reports a difference against an earlier month, and that
+ * month carries a shortfall of its own. Dropped end-capped pixels are the
+ * place's extreme tail rather than a random sample of it, so each month's mean
+ * is pulled toward the ramp's interior by however much of its own area the
+ * legend could not represent — and a difference between two such means carries
+ * the change in that pull as well as any change in the field.
+ *
+ * The gap this closes is an asymmetry, and it is widest in the case that reads
+ * most confidently: when the displayed month is fully covered,
+ * `rampShortfallCaveat` is silent, so the reader sees a bare difference against
+ * an earlier mean that quietly omitted its own extreme tail, with nothing on
+ * the card to suggest it. `monthOverMonthCoverageSupport` does not cover this —
+ * it bounds *how much ground* the two months share and says so explicitly for
+ * spatial sampling only, never that the unshared ground is the tail rather than
+ * an arbitrary part of the place.
+ *
+ * This states the possibility and stops. It never estimates the omitted area on
+ * either side, signs the resulting bias — air temperature's ramp is capped at
+ * both ends, so its pull can go either way — or corrects the difference.
+ *
+ * Silent when no difference is reported, when the earlier month's coverage is
+ * complete (nothing was dropped) or unsupplied (no shortfall to qualify), and
+ * when the metric's legend has no reachable cap (see {@link RAMP_END_CAPS}).
+ */
+function comparisonShortfallCaveat(previous: MonthlyClimateSummary): string {
+  const validFraction = previous.coverage.validFraction;
+  if (validFraction === null || validFraction >= 1) return "";
+  if (!RAMP_END_CAPS[previous.metric.id]) return "";
+  return `; the ${formatMonth(
+    previous.dataMonth
+  )} mean it is differenced against is itself a mean over representable ground only, so part of the difference can be a change in what the legend could represent rather than in the field`;
 }
 
 /**
