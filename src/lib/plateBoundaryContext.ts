@@ -1,5 +1,6 @@
 import type { Position } from "./geojson";
-import type { PlateBoundary } from "./plates";
+import { plateBoundaryClass, type PlateBoundary } from "./plates";
+import type { PlateBoundaryClass } from "./plates";
 import type { SearchBoundingBox } from "./volcanoExtent";
 
 /**
@@ -36,6 +37,13 @@ export interface MatchedPlateBoundary {
   name: string | null;
   /** Number of source segments that intersect the search bounding box. */
   matchedSegmentCount: number;
+  /**
+   * The source's own boundary-type marking for this step, passed through from
+   * PB2002's `Type` field. Never derived from geometry: "not-marked" is the
+   * source leaving the field blank, and "unavailable" is a supplied feature
+   * that carried no step attributes at all.
+   */
+  sourceClass: PlateBoundaryClass;
 }
 
 export interface PlateBoundaryExtentCoverage {
@@ -44,6 +52,13 @@ export interface PlateBoundaryExtentCoverage {
   usableBoundaryCount: number;
   matchedBoundaryCount: number;
   matchedSegmentCount: number;
+  /**
+   * Matched boundaries the source itself marked as subduction steps. PB2002
+   * marks subduction only and leaves the field blank on every other step, so
+   * the remainder is "not marked by the source", never "measured as
+   * non-subduction".
+   */
+  matchedSubductionBoundaryCount: number;
   /** True only when the supplied polylines were compared with valid bounds. */
   boundsTested: boolean;
 }
@@ -64,7 +79,7 @@ export interface PlateBoundaryExtentContext {
 const LIMITATIONS = [
   "Uses the search result bounding box, not the exact selected boundary.",
   "Reports only intersections with the supplied Bird (2003) digitized polyline segments; it does not identify a nearest boundary or calculate distance.",
-  "The configured linework does not supply plate polygons, boundary types, motion, deformation, activity, or a data month.",
+  "The configured linework marks subduction steps only and leaves that field blank elsewhere; it supplies no further boundary type, and no plate polygons, motion, deformation, activity, or a data month.",
   "A match is descriptive map context only and does not infer tectonic setting, seismicity, volcanism, hazard, risk, cause, or a forecast.",
 ] as const;
 
@@ -94,6 +109,10 @@ export function plateBoundariesInSearchExtent(
     .map((boundary) => ({
       name: boundary.name.trim() || null,
       matchedSegmentCount: matchingSegmentCount(boundary.points, bounds),
+      // Carried through from the supplied step rather than recomputed: the
+      // marking is the source's, and the extent test must not appear to have
+      // classified anything.
+      sourceClass: plateBoundaryClass(boundary),
     }))
     .filter((boundary) => boundary.matchedSegmentCount > 0)
     .sort(
@@ -110,6 +129,37 @@ export function plateBoundariesInSearchExtent(
     matchingBoundaries,
     usable.length === 0 ? "no-usable-boundaries" : "available"
   );
+}
+
+/**
+ * Say how many matched boundaries carry the source's own subduction marking.
+ *
+ * PB2002 sets its `Type` field to "subduction" on subduction steps and leaves
+ * it blank on every other step, so the blank is the absence of a marking, not
+ * a measurement of a non-subduction boundary. The sentence states that second
+ * half explicitly: a reader given only "2 of 5" would otherwise complete the
+ * dichotomy themselves and read the other three as divergent or transform,
+ * which the supplied model does not say.
+ *
+ * Returns null when no boundary matched, or when every matched feature carried
+ * no step attributes at all (a hand-built or older file), so the panel never
+ * reports a marking tally it has no field to support.
+ */
+export function subductionMarkingText(
+  context: PlateBoundaryExtentContext
+): string | null {
+  const { coverage, matchingBoundaries } = context;
+  if (coverage.status !== "available" || coverage.matchedBoundaryCount === 0) {
+    return null;
+  }
+  if (
+    matchingBoundaries.every(({ sourceClass }) => sourceClass === "unavailable")
+  ) {
+    return null;
+  }
+  const total = coverage.matchedBoundaryCount;
+  const noun = total === 1 ? "boundary" : "boundaries";
+  return `Bird (2003) applies its subduction marking to ${coverage.matchedSubductionBoundaryCount} of ${total} matched ${noun}; PB2002 marks subduction steps only and leaves the field blank elsewhere, so an unmarked boundary records no assignment rather than a non-subduction boundary.`;
 }
 
 function contextFor(
@@ -136,6 +186,9 @@ function contextFor(
       usableBoundaryCount,
       matchedBoundaryCount: matchingBoundaries.length,
       matchedSegmentCount,
+      matchedSubductionBoundaryCount: matchingBoundaries.filter(
+        ({ sourceClass }) => sourceClass === "subduction"
+      ).length,
       boundsTested: status !== "invalid-bounds",
     },
     geographicCoverage:

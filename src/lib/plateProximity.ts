@@ -72,7 +72,7 @@ export interface PlateProximityContext {
 
 const LIMITATIONS = [
   "Distance is to the nearest supplied Bird (2003) digitized polyline segment, not to a true plate-margin position; digitization and sampling density bound the accuracy.",
-  "The configured linework supplies no plate polygons, boundary type, motion, deformation, activity, or data month.",
+  "The configured linework marks subduction steps only; apart from that marking it supplies no boundary type, and no plate polygons, motion, deformation, activity, or data month.",
   "Proximity is descriptive geometry only; it does not classify tectonic setting or infer seismicity, volcanism, hazard, risk, cause, or a forecast. A short distance does not imply an active or dangerous boundary.",
   "Reports the nearest segment among the supplied boundaries only; an empty or partial overlay yields no or incomplete nearest-boundary context.",
 ] as const;
@@ -166,7 +166,7 @@ export function nearestPlateBoundaryStatement(
   }
   if (context.nearest === null) return null;
   const { name, distanceKm } = context.nearest;
-  return `Nearest supplied boundary polyline: ${plateBoundaryPairLabel(name)}, ${formatDistanceKm(distanceKm)} km from the search centre. Great-circle distance to Bird (2003) digitized linework, not to a mapped plate margin; the model carries no boundary type, motion, activity, or hazard.`;
+  return `Nearest supplied boundary polyline: ${plateBoundaryPairLabel(name)}, ${formatDistanceKm(distanceKm)} km from the search centre. Great-circle distance to Bird (2003) digitized linework, not to a mapped plate margin; apart from the source's own subduction marking, the model carries no boundary type, motion, activity, or hazard.`;
 }
 
 /**

@@ -37,6 +37,7 @@ import {
 } from "../lib/volcanoProximityContext";
 import {
   BIRD_2003_PLATE_BOUNDARY_SOURCE,
+  subductionMarkingText,
   type PlateBoundaryExtentContext,
 } from "../lib/plateBoundaryContext";
 import { plateBoundaryPairLabel } from "../lib/plateBoundaryHover";
@@ -574,9 +575,11 @@ export class PlaceInsights {
         : `${count} ${count === 1 ? "boundary" : "boundaries"}`;
     // The overlay draws the same linework, so the panel says plainly what a
     // match is and is not, rather than letting a crossing imply tectonic
-    // setting, seismicity, volcanism, or hazard.
+    // setting, seismicity, volcanism, or hazard. The one thing the source DOES
+    // classify is subduction, reported on its own line below.
     const caveat =
-      "A crossing is descriptive map context: the supplied model carries a plate-pair label per step but no boundary type, motion, deformation, activity, or hazard.";
+      "A crossing is descriptive map context: apart from the source's own subduction marking, the supplied model carries no boundary type, motion, deformation, activity, or hazard.";
+    const marking = subductionMarkingText(context);
     const segments = coverage.matchedSegmentCount;
     const nearest =
       count === 0 && proximity
@@ -585,7 +588,7 @@ export class PlaceInsights {
     this.plateDetail.textContent =
       count === 0
         ? `No bundled Bird (2003) boundary polylines intersect this search bounding box; that does not establish the place sits away from a plate boundary.${nearest ? ` ${nearest}` : ""} Compared against ${coverage.usableBoundaryCount} usable supplied ${coverage.usableBoundaryCount === 1 ? "polyline" : "polylines"}.`
-        : `${context.geographicCoverage} ${segments} supplied ${segments === 1 ? "segment" : "segments"} intersect, from ${coverage.usableBoundaryCount} usable supplied ${coverage.usableBoundaryCount === 1 ? "polyline" : "polylines"}. ${caveat}`;
+        : `${context.geographicCoverage} ${segments} supplied ${segments === 1 ? "segment" : "segments"} intersect, from ${coverage.usableBoundaryCount} usable supplied ${coverage.usableBoundaryCount === 1 ? "polyline" : "polylines"}.${marking ? ` ${marking}` : ""} ${caveat}`;
 
     for (const boundary of context.matchingBoundaries.slice(0, 5)) {
       const item = document.createElement("li");
