@@ -5,6 +5,8 @@ import {
   peakTieClause,
   probePeakGreennessTiming,
   probePeakSupport,
+  probeSeasonalConcentration,
+  seasonalConcentrationClause,
 } from "./probePeakGreenness";
 import type { YearMonth } from "./timeline";
 
@@ -354,6 +356,124 @@ describe("peakTieClause", () => {
     expect(clause).not.toMatch(/0\.\d/);
     expect(clause).not.toMatch(
       /health|biomass|productiv|greener|degrad|season/i
+    );
+  });
+});
+
+describe("seasonalConcentrationClause", () => {
+  /**
+   * A year with two comparable greenness maxima half a year apart, which is
+   * what a bimodal humid-tropical record looks like. January edges July out, so
+   * the timing clause still names a month — but the year's above-minimum
+   * greenness is split between opposite points of the calendar circle, so the
+   * resultant very nearly cancels and R lands near zero.
+   */
+  function bimodal(monthList: readonly YearMonth[]): number[] {
+    return monthList.map((ym) => {
+      if (ym.month === 1) return 0.6;
+      if (ym.month === 7) return 0.59;
+      return 0.2;
+    });
+  }
+
+  it("qualifies a peak month that tops a year with no single centre", () => {
+    const range = months(2001, 12 * 5);
+    const values = bimodal(range);
+    const timing = probePeakGreennessTiming("ndvi", range, values, 8);
+
+    // The argmax is January every year, so the timing clause reads confidently.
+    expect(timing?.dominantPeakMonth).toMatchObject({ month: 1, count: 5 });
+    expect(peakGreennessClause(timing)).toContain(
+      "peak NDVI month usually Jan"
+    );
+
+    const concentrations = probeSeasonalConcentration("ndvi", range, values, 8);
+    expect(seasonalConcentrationClause(timing, concentrations)).toBe(
+      "within-year greenness near-aseasonal (median 0.01 over 5 yr)"
+    );
+  });
+
+  it("stays silent for a record that peaks on one season", () => {
+    const range = months(2001, 12 * 5);
+    const values = cycle(range, 7);
+    const timing = probePeakGreennessTiming("ndvi", range, values, 52);
+    const concentrations = probeSeasonalConcentration(
+      "ndvi",
+      range,
+      values,
+      52
+    );
+
+    // A single-crested year sits in the "seasonal" bin, so a normal
+    // mid-latitude record must not grow the status line at all.
+    expect(concentrations?.[0]?.seasonalityClass).toBe("seasonal");
+    expect(seasonalConcentrationClause(timing, concentrations)).toBeNull();
+  });
+
+  it("stays silent when the timing clause named no month", () => {
+    const range = months(2001, 24); // under the three-year timing minimum
+    const values = bimodal(range);
+    const timing = probePeakGreennessTiming("ndvi", range, values, 8);
+
+    expect(timing?.status).toBe("insufficient-years");
+    expect(
+      seasonalConcentrationClause(
+        timing,
+        probeSeasonalConcentration("ndvi", range, values, 8)
+      )
+    ).toBeNull();
+  });
+
+  it("returns null for layers that are not MOD13A3 NDVI", () => {
+    const range = months(2001, 12 * 5);
+    expect(
+      probeSeasonalConcentration("evi", range, bimodal(range), 8)
+    ).toBeNull();
+    expect(seasonalConcentrationClause(null, null)).toBeNull();
+  });
+
+  it("does not depend on the order the months arrive in", () => {
+    const range = months(2001, 12 * 5);
+    const values = bimodal(range);
+    // An exact tie between two months is ordinary here: MOD13A3 composites a
+    // month to one value and the probe decodes a quantised ramp.
+    const forward = probeSeasonalConcentration("ndvi", range, values, 8);
+    const reversedRange = [...range].reverse();
+    const reversed = probeSeasonalConcentration(
+      "ndvi",
+      reversedRange,
+      [...values].reverse(),
+      8
+    );
+
+    expect(reversed?.map((year) => year.year)).toEqual(
+      forward?.map((year) => year.year)
+    );
+    forward?.forEach((year, index) => {
+      expect(reversed?.[index]?.centroidMonth).toBe(year.centroidMonth);
+      expect(reversed?.[index]?.status).toBe(year.status);
+      // Compensated summation is not guaranteed bit-identical across orders.
+      expect(reversed?.[index]?.concentration ?? 0).toBeCloseTo(
+        year.concentration ?? 0,
+        12
+      );
+    });
+  });
+
+  it("states no NDVI amplitude and no ecological conclusion", () => {
+    const range = months(2001, 12 * 5);
+    const values = bimodal(range);
+    const clause =
+      seasonalConcentrationClause(
+        probePeakGreennessTiming("ndvi", range, values, 8),
+        probeSeasonalConcentration("ndvi", range, values, 8)
+      ) ?? "";
+
+    expect(clause).not.toBe("");
+    // R is scale-invariant, so the copy must never suggest a swing size.
+    expect(clause).not.toMatch(/amplitude|swing|range|variation|flat/i);
+    expect(clause).not.toMatch(
+      /health|biomass|productiv|degrad|evergreen|growing|phenophase/i
     );
   });
 });
