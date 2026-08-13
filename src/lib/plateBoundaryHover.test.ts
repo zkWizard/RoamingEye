@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { latLngToVector3 } from "./geo";
 import {
   plateBoundaryHoverLabel,
+  plateBoundaryPairLabel,
   plateBoundarySegmentHoverLabel,
   UNLABELED_PLATE_BOUNDARY_TEXT,
 } from "./plateBoundaryHover";
@@ -56,6 +57,29 @@ describe("plateBoundaryHoverLabel", () => {
     ]) {
       expect(label.toLowerCase()).not.toContain(forbidden);
     }
+  });
+});
+
+describe("plateBoundaryPairLabel", () => {
+  it("names both plates from a label alone, matching the hover readout", () => {
+    // The place panel matches boundaries by name only, so the label-only path
+    // must stay identical to what the globe tooltip shows for that boundary.
+    expect(plateBoundaryPairLabel("AF-AN")).toBe(
+      plateBoundaryHoverLabel(boundary("AF-AN", []))
+    );
+    expect(plateBoundaryPairLabel("AF-AN")).toBe(
+      "Africa–Antarctica plate boundary · PB2002 AF-AN"
+    );
+  });
+
+  it("preserves the source delimiter that encodes subduction polarity", () => {
+    expect(plateBoundaryPairLabel("NZ\\SA")).toContain("PB2002 NZ\\SA");
+  });
+
+  it("reports a source-unlabeled feature as unlabeled rather than guessing", () => {
+    // null is the extent matcher's own "the supplied feature carried no label".
+    expect(plateBoundaryPairLabel(null)).toBe(UNLABELED_PLATE_BOUNDARY_TEXT);
+    expect(plateBoundaryPairLabel("")).toBe(UNLABELED_PLATE_BOUNDARY_TEXT);
   });
 });
 
