@@ -1,4 +1,4 @@
-import { MONTH_NAMES, type DatasetRef } from "./timeline";
+import { MONTH_NAMES, type DatasetRef, type YearMonth } from "./timeline";
 import { SNOW_COVER_DATASET, SNOW_COVER_LIMITATIONS } from "./snowCover";
 
 /**
@@ -250,6 +250,93 @@ export function snowIlluminationNote(latitude: number): string | null {
     `At ${formatLatitude(latitude)} MOD10CM is too dark to observe snow in ` +
     `${clauses.join(" or ")} — readings there are not measurements of those months.`
   );
+}
+
+/**
+ * The latitude of a footprint's *equatorward* edge, where the sun climbs
+ * highest — or null when the span is not a usable pair of bounds.
+ *
+ * Returns 0 for a footprint straddling the equator: some of it is then fully
+ * sunlit whatever the month, which is all the caller needs to know.
+ */
+function equatorwardLatitude(south: number, north: number): number | null {
+  if (!Number.isFinite(south) || !Number.isFinite(north)) return null;
+  if (south > north || Math.abs(south) > 90 || Math.abs(north) > 90)
+    return null;
+  if (south <= 0 && north >= 0) return 0;
+  return Math.abs(south) < Math.abs(north) ? south : north;
+}
+
+/**
+ * One sentence naming which months of a *reported pair* MOD10CM could not have
+ * observed anywhere over a footprint, or null when it could see both.
+ *
+ * `snowIlluminationNote` answers "which months of the year are dark here",
+ * which suits the point probe: it charts the whole record at one coordinate, so
+ * every month is on screen and the latitude is exact. The place panel is the
+ * other shape twice over — it reports one month's value plus the change from
+ * the month before it, and it reports them as a mean over an *area*. Both
+ * differences are handled here.
+ *
+ * Judged at the footprint's equatorward edge, never its centre. Darkness varies
+ * across a span — Antarctica as a whole reaches to 60°S, which is sunlit in May
+ * even while the plateau is in full night — so a centre latitude would disown a
+ * mean that partly *was* observed. Taking the edge where the sun climbs highest
+ * makes the note a one-sided guarantee: it fires only when no part of the place
+ * could be seen, and stays silent when any part could. It therefore
+ * under-reports a mostly-dark span rather than overclaiming, which is the right
+ * direction for a caveat attached to a number the reader can already see.
+ *
+ * Both consequences are stated because the panel shows both numbers. A dark
+ * month is not reliably blank (see the module note above), so a value present
+ * for one is not a measurement of it; and a difference is only a measurement of
+ * change when *both* endpoints were observed, so one dark endpoint is enough to
+ * disqualify the change. No adjacency is assumed — MOD10CM has interior
+ * distribution gaps, so a "consecutive" published pair can straddle one.
+ *
+ * Silent for every footprint whose reported months are both sunlit, which is
+ * the whole globe equatorward of 63.3° and most of the year beyond it. Walks
+ * the months directly, like `snowIlluminationNote`, to keep the cited-profile
+ * machinery and the ./snowCover limitation catalogue out of the shipped chunk.
+ */
+export function snowIlluminationPairNote(
+  footprint: { south: number; north: number },
+  earlier: YearMonth,
+  later: YearMonth
+): string | null {
+  const latitude = equatorwardLatitude(footprint.south, footprint.north);
+  if (latitude === null) return null;
+
+  const described = [earlier, later].map((ym) =>
+    describeMonthIllumination(latitude, ym.month)
+  );
+  if (described.some((month) => month === null)) return null;
+
+  const dark = (described as SnowIlluminationMonth[]).filter(
+    (month) => month.class !== "sunlit"
+  );
+  if (dark.length === 0) return null;
+
+  // A pair can name the same calendar month twice (a year-apart comparison is
+  // not this panel's shape today, but nothing here requires adjacency), and
+  // saying "May and May" would read as two findings rather than one.
+  const unique = dark.filter(
+    (month, index) => dark.findIndex((m) => m.month === month.month) === index
+  );
+  const plural = unique.length > 1;
+  return (
+    `No part of this place is lit enough for MOD10CM to observe snow in ` +
+    `${unique.map(darkMonthClause).join(" and ")} — its equatorward edge is ` +
+    `${formatLatitude(latitude)} — so a value present for ` +
+    `${plural ? "those months is not a measurement of them" : "that month is not a measurement of it"}, ` +
+    `and the month-over-month change is not a measurement of change.`
+  );
+}
+
+function darkMonthClause(month: SnowIlluminationMonth): string {
+  return month.class === "polar-night"
+    ? `${month.label} (sun never rises)`
+    : `${month.label} (noon sun under ${SNOW_RETRIEVAL_MIN_NOON_ELEVATION_DEG}°)`;
 }
 
 function formatLatitude(latitude: number): string {
