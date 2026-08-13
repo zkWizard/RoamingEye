@@ -151,9 +151,11 @@ export const MONTH_NAMES = [
  * is not an observation. Offering the month anyway would put the absence into
  * a vegetation series as a failed retrieval, where a reader would credit it to
  * cloud, snow, or the quality screen — a statement about a surface nobody
- * measured that month. Other layers advertise interior gaps too (snow, SST and
- * air temperature each split into several ranges upstream); those belong to
- * their own product catalogs and are not asserted here.
+ * measured that month. Other layers advertise interior gaps too; those belong
+ * to their own product catalogs and are not asserted here — see
+ * MODIS_AQUA_SST_DAY_UNPUBLISHED_MONTHS and MOD10CM_UNPUBLISHED_MONTHS. Air
+ * temperature also splits into several ranges upstream and is not yet
+ * catalogued.
  */
 const MOD13A3_UNPUBLISHED_MONTHS: readonly YearMonth[] = [
   { year: 2025, month: 4 },
@@ -192,6 +194,40 @@ const MODIS_AQUA_SST_DAY_UNPUBLISHED_MONTHS: readonly YearMonth[] = [
   { year: 2023, month: 6 },
   { year: 2023, month: 10 },
   { year: 2025, month: 12 },
+];
+
+/**
+ * Months MOD10CM never distributed, inside its own record.
+ *
+ * GIBS advertises the snow layer's time dimension as *seven* disjoint ranges —
+ * 2000-03/2000-07, 2000-09/2001-05, 2001-07/2002-02, 2002-04/2003-11,
+ * 2004-01/2016-01, 2016-03/2022-09 and 2022-11/2026-07, all P1M (WMTS
+ * GetCapabilities, verified 2026-08-13). Each of the six months below sits
+ * between two of them and answers HTTP 404 at the tile endpoint, while every
+ * month on either side of every gap serves normally.
+ *
+ * A missing month is especially misleading in a snow record. Absent or *low*
+ * covered-area values here are routine and informative — cloud and polar
+ * darkness both withhold an optical retrieval, and monthly averaging over the
+ * cloud-free days is exactly what MOD10CM reports. Offering an undistributed
+ * month anyway would put a failed retrieval into a cryosphere series where a
+ * reader would credit it to cloud, darkness, or genuine melt-out: an implied
+ * statement about a snowpack nobody imaged. Four of the six (2001-06, 2002-03,
+ * 2003-12, 2016-02) fall inside a hemispheric snow season, so they would also
+ * silently shorten any season or same-month baseline built across them.
+ *
+ * The same six months are recorded, with their consequences for the summary
+ * layer, as SNOW_COVER_UNDISTRIBUTED_MONTHS in lib/snowCover.ts; the two are
+ * pinned together by snowCover.test.ts. They are restated here rather than
+ * imported to keep this catalog module dependency-free.
+ */
+const MOD10CM_UNPUBLISHED_MONTHS: readonly YearMonth[] = [
+  { year: 2000, month: 8 },
+  { year: 2001, month: 6 },
+  { year: 2002, month: 3 },
+  { year: 2003, month: 12 },
+  { year: 2016, month: 2 },
+  { year: 2022, month: 10 },
 ];
 
 export const LAYERS: Record<LayerId, LayerConfig> = {
@@ -324,6 +360,7 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     },
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 2000, month: 3 },
+    unpublished: MOD10CM_UNPUBLISHED_MONTHS,
     description:
       "Average snow-cover percentage — watch winter advance/retreat.",
   },

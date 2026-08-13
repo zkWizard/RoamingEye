@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LAYERS } from "./timeline";
+import { LAYERS, isAvailable } from "./timeline";
 import {
   SNOW_COVER_DATASET,
   SNOW_COVER_EXTENT_BINS,
@@ -65,6 +65,20 @@ describe("undistributed months", () => {
     expect(isSnowCoverMonthDistributed({ year: 2016, month: 3 })).toBe(true);
     // Same calendar month, a different year: never generalised across years.
     expect(isSnowCoverMonthDistributed({ year: 2017, month: 2 })).toBe(true);
+  });
+
+  it("agrees with the timeline catalog the scrubber enumerates from", () => {
+    // Two catalogs record the same six months: this one, which explains a
+    // month the summary layer must report as `not-distributed`, and
+    // LAYERS.snow.unpublished, which keeps the scrubber from offering it at
+    // all. timeline.ts restates them rather than importing this module so it
+    // stays dependency-free, so pin the two together here — a gap fixed in
+    // one place and not the other would put a 404 month back on the slider.
+    expect(LAYERS.snow.unpublished).toEqual(SNOW_COVER_UNDISTRIBUTED_MONTHS);
+    for (const month of SNOW_COVER_UNDISTRIBUTED_MONTHS) {
+      expect(isSnowCoverMonthDistributed(month)).toBe(false);
+      expect(isAvailable(LAYERS.snow, month)).toBe(false);
+    }
   });
 });
 
