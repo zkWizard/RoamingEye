@@ -132,7 +132,7 @@ describe("rendered monthly meteorology", () => {
     expect(climateInsightText(summaries[0], summaries[1])).toEqual({
       value: "7.8 kg/m\u00b2",
       detail:
-        "2026-02 land-surface-model field; +0.6 kg/m\u00b2 vs 2026-01 (at least 70% and at most 80% of the sampled area is common to both months); 90% sampled coverage; rendered source image dimensions not supplied; single in-boundary image sample, not a regional mean; model-derived, not a direct measurement; GIBS layer GLDAS_Underground_Soil_Moisture_Monthly; source GLDAS_NOAH025_M v2.1",
+        "2026-02 land-surface-model field; +0.6 kg/m\u00b2 vs 2026-01 (at least 70% and at most 80% of the sampled area is common to both months); 90% sampled coverage; the shortfall can include ground at or above the legend's 50 kg/m\u00b2 ceiling, which GIBS renders in an open end cap this probe reads as no-data, so the value is a mean over representable ground only; rendered source image dimensions not supplied; single in-boundary image sample, not a regional mean; model-derived, not a direct measurement; GIBS layer GLDAS_Underground_Soil_Moisture_Monthly; source GLDAS_NOAH025_M v2.1",
     });
   });
 
@@ -213,7 +213,7 @@ describe("rendered monthly meteorology", () => {
     expect(climateInsightText(precipitation[0], precipitation[1])).toEqual({
       value: "8.64 mm/day",
       detail:
-        "2026-02 land-surface-model field; +4.32 mm/day vs 2026-01 (at least 70% and at most 80% of the sampled area is common to both months); 28-day total 241.92 mm water-equivalent (mean rate integrated over the calendar month); native source value 0.0001 kg/m²/s (1 kg/m² of liquid water ≡ 1 mm depth; × 86,400 s/day); 90% sampled coverage; rendered source image dimensions not supplied; sampling strategy not supplied; model-derived, not a direct measurement; GIBS layer GLDAS_Surface_Total_Precipitation_Rate_Monthly; source GLDAS_NOAH025_M v2.1",
+        "2026-02 land-surface-model field; +4.32 mm/day vs 2026-01 (at least 70% and at most 80% of the sampled area is common to both months); 28-day total 241.92 mm water-equivalent (mean rate integrated over the calendar month); native source value 0.0001 kg/m²/s (1 kg/m² of liquid water ≡ 1 mm depth; × 86,400 s/day); 90% sampled coverage; the shortfall can include ground at or above the legend's 43.2 mm/day ceiling, which GIBS renders in an open end cap this probe reads as no-data, so the value is a mean over representable ground only; rendered source image dimensions not supplied; sampling strategy not supplied; model-derived, not a direct measurement; GIBS layer GLDAS_Surface_Total_Precipitation_Rate_Monthly; source GLDAS_NOAH025_M v2.1",
     });
     expect(
       climateInsightText(airTemperature[0], airTemperature[1])
@@ -886,5 +886,120 @@ describe("gross-error plausibility screening of reported atmosphere values", () 
     )[0];
 
     expect(climateInsightText(undefined, soil).value).not.toBe("Unavailable");
+  });
+});
+
+describe("coverage shortfall against the legend's open end caps", () => {
+  const summaryFor = (
+    metricId: Parameters<typeof summarizeRenderedClimateSample>[0]["metricId"],
+    sampledValue: number,
+    validFraction: number,
+    factor = 1
+  ) =>
+    summarizeRenderedClimateSample(
+      {
+        metricId,
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [sampledValue],
+        nativeToSampledValueFactor: factor,
+        validFractions: [validFraction],
+      },
+      { year: 2026, month: 1 }
+    )[0];
+
+  it("names both caps for air temperature, in the unit the card shows", () => {
+    // MERRA2_2m_Air_Temperature_Monthly caps at "[-INF,220)" and "≥ 310" K.
+    // The card reports °C, so the bounds are stated on that same scale via the
+    // exact −273.15 offset rather than in the native kelvin the reader is not
+    // looking at.
+    const detail = climateInsightText(
+      undefined,
+      summaryFor("air-temperature-2m", 288.15, 0.62)
+    ).detail;
+
+    expect(detail).toContain("62% sampled coverage");
+    expect(detail).toContain(
+      "the shortfall can include ground outside the legend's -53.15 °C to 36.85 °C range"
+    );
+    expect(detail).toContain("a mean over representable ground only");
+  });
+
+  it("names only the reachable ceiling for the GLDAS layers", () => {
+    // Both GLDAS ramps also publish a "[-INF,0)" cap, but neither precipitation
+    // rate nor soil moisture can be negative, so quoting a floor would invent a
+    // shortfall explanation that cannot occur.
+    const precip = climateInsightText(
+      undefined,
+      summaryFor("precipitation-rate", 8.64, 0.9, 86_400)
+    ).detail;
+    expect(precip).toContain(
+      "the shortfall can include ground at or above the legend's 43.2 mm/day ceiling"
+    );
+    expect(precip).not.toContain("range");
+
+    const soil = climateInsightText(
+      undefined,
+      summaryFor("soil-moisture", 7.8, 0.9)
+    ).detail;
+    expect(soil).toContain(
+      "the shortfall can include ground at or above the legend's 50 kg/m² ceiling"
+    );
+  });
+
+  it("stays silent when every sampled pixel inverted", () => {
+    // With complete coverage no area was dropped, so there is nothing to
+    // attribute and the caveat would be noise.
+    const detail = climateInsightText(
+      undefined,
+      summaryFor("air-temperature-2m", 288.15, 1)
+    ).detail;
+
+    expect(detail).toContain("100% sampled coverage");
+    expect(detail).not.toContain("the shortfall can include ground");
+  });
+
+  it("stays silent when the sampler supplied no coverage figure", () => {
+    // No percentage means no shortfall to qualify; claiming one would assert a
+    // gap the sampler never reported.
+    const detail = climateInsightText(
+      undefined,
+      summarizeRenderedClimateSample(
+        {
+          metricId: "air-temperature-2m",
+          months: [{ year: 2026, month: 1 }],
+          sampledValues: [288.15],
+          nativeToSampledValueFactor: 1,
+        },
+        { year: 2026, month: 1 }
+      )[0]
+    ).detail;
+
+    expect(detail).toContain("sampled coverage not supplied");
+    expect(detail).not.toContain("the shortfall can include ground");
+  });
+
+  it("qualifies the coverage figure rather than the reported difference", () => {
+    // The caveat is about which ground the mean covers. It must not be read as
+    // a bound on the month-over-month change, which keeps its own coverage
+    // statement.
+    const months = summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [
+          { year: 2025, month: 12 },
+          { year: 2026, month: 1 },
+        ],
+        sampledValues: [286.15, 288.15],
+        nativeToSampledValueFactor: 1,
+        validFractions: [0.8, 0.62],
+      },
+      { year: 2026, month: 1 }
+    );
+    const detail = climateInsightText(months[0], months[1]).detail;
+
+    expect(detail).toContain("+2 °C vs 2025-12");
+    expect(detail.indexOf("62% sampled coverage")).toBeLessThan(
+      detail.indexOf("the shortfall can include ground")
+    );
   });
 });
