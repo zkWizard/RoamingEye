@@ -38,6 +38,7 @@ import { averagedSstCensoringNote } from "../lib/marineAveragedSstCensoring";
 import type { MarineAveragedSstFootprint } from "../lib/marineAveragedSstSupport";
 import { probeRecordGaps, probeRecordGapsClause } from "../lib/probeRecordGaps";
 import { probeSstSamplingGateClause } from "../lib/sstObservingConstraints";
+import { probeLstSamplingGateClause } from "../lib/lstObservingConstraints";
 import { ICONS } from "./icons";
 
 /** What the current series is: which layer, and where it was sampled. */
@@ -399,6 +400,19 @@ export class ProbePanel {
     );
     const aerosolCensoringClause =
       aerosolCeilingCensoringClause(aerosolCensoring);
+    // SST is likewise not the only layer whose statistics are gated by when and
+    // through what the instrument looked. The land-surface-temperature layer
+    // renders MODIS/Terra's DAYTIME monthly composite: mid-morning overpass,
+    // clear-sky days only, and a radiometric skin temperature rather than the
+    // 2 m air temperature the app offers as a sibling layer in the same
+    // category. So the same point can be probed on both and the two series set
+    // side by side, and neither the numbers nor the panel's title says they are
+    // different quantities. The place panel's LST card states all three limits;
+    // the series surface stated none. Silent for every other layer.
+    const lstSamplingGate = probeLstSamplingGateClause(
+      this.context?.layerId,
+      stats.count > 0
+    );
     // At most one of the two ramps can apply — a series belongs to one layer —
     // so the first non-empty prefix is the whole answer.
     const boundPrefix = (statistic: "min" | "mean" | "max"): string =>
@@ -418,6 +432,7 @@ export class ProbePanel {
       (sstTrendCensoring ? ` · ${sstTrendCensoring}` : "") +
       (sstAveragedCensoring ? ` · ${sstAveragedCensoring}` : "") +
       (sstSamplingGate ? ` · ${sstSamplingGate}` : "") +
+      (lstSamplingGate ? ` · ${lstSamplingGate}` : "") +
       (aerosolCensoringClause ? ` · ${aerosolCensoringClause}` : "") +
       (spatialSupportNote ? ` · ${spatialSupportNote}` : "");
     this.setStatus(stat);
