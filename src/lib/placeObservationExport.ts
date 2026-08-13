@@ -271,9 +271,24 @@ export function sstPlaceObservationFromSample(
     dataMonth,
     value: null,
     validFraction,
-    unavailableReason:
-      validFraction > 0 ? "insufficient-valid-coverage" : "source-no-data",
+    unavailableReason: coverageUnavailableReason(validFraction),
   };
+}
+
+/**
+ * What a recorded coverage share says about why a month carries no value.
+ *
+ * A positive share is direct evidence the source published over part of the
+ * boundary and this probe declined to average what it got — `weightedMeanValid`
+ * withholds a region mean below its admission threshold while
+ * `weightedValidFraction` still reports the share it saw. Only a zero share is
+ * evidence the source had nothing here. Reporting the first case as
+ * `source-no-data` blames the source for our own admission rule.
+ */
+function coverageUnavailableReason(
+  validFraction: number
+): PlaceObservationUnavailableReason {
+  return validFraction > 0 ? "insufficient-valid-coverage" : "source-no-data";
 }
 
 const EXCLUDED_FIELDS = [
@@ -380,6 +395,23 @@ export function serializePlaceObservationExport(
  * This intentionally supports only the independent place-insight signals;
  * no composite condition or derived score is introduced here. SST remains a
  * physical ocean observation and is never biological evidence.
+ *
+ * A null value whose sample recorded a coverage share gains the reason that
+ * share implies ({@link coverageUnavailableReason}). Without this, a builder
+ * that supplies coverage but no reason produces a record the unexplained-null
+ * rule rejects, and because that rule is enforced during serialization the
+ * rejection discards the *entire* export — every other product with it — rather
+ * than the one month that lacked a reason. The two sampling paths that record
+ * coverage without a reason are `lst` and `aerosol`, whose boundary means are
+ * withheld below the sampler's admission threshold often enough (cloud on
+ * MOD11C3, thin boundaries on either) that the download went missing whenever
+ * sampling *succeeded* with a thin month, while a sampling *failure* kept it —
+ * the placeholder path in `environmentUnavailableSample` always states a reason.
+ *
+ * A null value with no recorded coverage is left alone: there is no evidence to
+ * read, and inventing `source-no-data` would assert the source published
+ * nothing. Such a record still fails validation, which is the correct outcome
+ * for a genuinely unexplained null.
  */
 export function placeObservationProductFromSample(
   sample: PlaceObservationExportSample
@@ -430,6 +462,20 @@ export function placeObservationProductFromSample(
         observation.value === null
           ? null
           : observation.value / sourceValueFactor,
+      // A sample builder that recorded the month's coverage has already stated
+      // why the value is absent; the reason is a reading of that share, not
+      // extra knowledge. Deriving it here keeps a builder that supplies
+      // coverage without a reason from failing the unexplained-null rule and
+      // discarding the whole export — see the note on this function.
+      ...(observation.value === null &&
+      observation.unavailableReason === undefined &&
+      observation.validFraction !== undefined
+        ? {
+            unavailableReason: coverageUnavailableReason(
+              observation.validFraction
+            ),
+          }
+        : {}),
     })),
   };
 }
