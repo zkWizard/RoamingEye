@@ -186,6 +186,138 @@ describe("land-cover region composition copy", () => {
     );
   });
 
+  it("names the one reason a composition's unclassified remainder is unclassified", () => {
+    const reading = describeLandCoverComposition(
+      summarizeLandCoverContext(
+        [
+          { classCode: 1, sampleCount: 6 },
+          { classCode: 10, sampleCount: 4 },
+          { classCode: 255, sampleCount: 5 }, // source-unclassified only
+        ],
+        2024
+      )
+    );
+
+    expect(reading.status).toBe("composed");
+    // One reason accounts for the whole remainder, so the count is stated once.
+    expect(reading.detail).toContain(
+      "10 classified of 15 sampled image pixels (the other 5 pixels source-unclassified)"
+    );
+  });
+
+  it("breaks the remainder down when more than one reason took pixels", () => {
+    const reading = describeLandCoverComposition(
+      summarizeLandCoverContext(
+        [
+          { classCode: 1, sampleCount: 6 },
+          { classCode: 10, sampleCount: 4 },
+          { classCode: 255, sampleCount: 5 },
+          { classCode: null, sampleCount: 3 },
+          { classCode: 42, sampleCount: 2 }, // outside the IGBP contract
+        ],
+        2024
+      )
+    );
+
+    expect(reading.detail).toContain(
+      "10 classified of 20 sampled image pixels (the other 10 pixels: 5 source-unclassified, 3 with no usable colour, 2 outside the IGBP class contract)"
+    );
+  });
+
+  it("sums the remainder from the reasons it prints, so the two cannot disagree", () => {
+    // The four buckets partition every counted sample, so the stated remainder
+    // must equal total-minus-classified as well as the sum of its own parts.
+    const reading = describeLandCoverComposition(
+      summarizeLandCoverContext(
+        [
+          { classCode: 16, sampleCount: 700 },
+          { classCode: 10, sampleCount: 41 },
+          { classCode: 255, sampleCount: 30 },
+          { classCode: null, sampleCount: 13 },
+        ],
+        2024
+      )
+    );
+
+    expect(reading.detail).toContain(
+      "741 classified of 784 sampled image pixels (the other 43 pixels: 30 source-unclassified, 13 with no usable colour)"
+    );
+    expect(30 + 13).toBe(784 - 741);
+  });
+
+  it("says nothing about a remainder when every sampled pixel was classified", () => {
+    const reading = describeLandCoverComposition(
+      summarizeLandCoverContext(
+        [
+          { classCode: 1, sampleCount: 6 },
+          { classCode: 10, sampleCount: 4 },
+        ],
+        2024
+      )
+    );
+
+    expect(reading.detail).toContain(
+      "10 classified of 10 sampled image pixels"
+    );
+    expect(reading.detail).not.toContain("the other");
+  });
+
+  it("names the remainder on a single-class region too", () => {
+    // Evenness is undefined here, but the denominator behind "all" is not.
+    const reading = describeLandCoverComposition(
+      summarizeLandCoverContext(
+        [
+          { classCode: 16, sampleCount: 9 },
+          { classCode: null, sampleCount: 4 },
+        ],
+        2024
+      )
+    );
+
+    expect(reading.status).toBe("single-class");
+    expect(reading.detail).toContain(
+      "in all 9 classified of 13 sampled image pixels (the other 4 pixels with no usable colour)"
+    );
+  });
+
+  it("names the remainder on a tied region too", () => {
+    const reading = describeLandCoverComposition(
+      summarizeLandCoverContext(
+        [
+          { classCode: 10, sampleCount: 4 },
+          { classCode: 12, sampleCount: 4 },
+          { classCode: 255, sampleCount: 2 },
+        ],
+        2024
+      )
+    );
+
+    expect(reading.status).toBe("tied");
+    expect(reading.detail).toContain(
+      "8 classified of 10 sampled image pixels (the other 2 pixels source-unclassified)"
+    );
+  });
+
+  it("keeps the unavailable branch's wording unchanged", () => {
+    // Both branches read the same reason list; the withheld one still prints
+    // its own sentence form, with no "the other" remainder clause.
+    const reading = describeLandCoverComposition(
+      summarizeLandCoverContext(
+        [
+          { classCode: 255, sampleCount: 4 },
+          { classCode: 99, sampleCount: 1 },
+        ],
+        2024
+      )
+    );
+
+    expect(reading.status).toBe("unavailable");
+    expect(reading.detail).toContain(
+      "Of 5 sampled image pixels: 4 pixels source-unclassified, 1 pixel outside the IGBP class contract"
+    );
+    expect(reading.detail).not.toContain("the other");
+  });
+
   it("reports an empty sample as no pixels rather than an empty composition", () => {
     const reading = describeLandCoverComposition(
       summarizeLandCoverContext([], 2024)
