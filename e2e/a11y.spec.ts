@@ -159,3 +159,69 @@ test("comparison mode is axe-clean", async ({ page }) => {
   await expect(page.locator(".compare-divider")).toBeVisible();
   await scan(page, "compare");
 });
+
+/**
+ * Every keyboard stop must show the app's own focus ring (WCAG 2.4.7).
+ *
+ * Controls that declare no `:focus-visible` outline inherit the browser
+ * default, which resolves to a ~1px near-black ring in BOTH themes because the
+ * page declares no `color-scheme`. On the dark glass panels that ring is
+ * effectively invisible, so a keyboard user loses their place. axe cannot see
+ * this — it does not evaluate rendered focus indicators — hence the explicit
+ * walk. Accepts an outline on the stop itself or on the ancestor that carries
+ * it via :focus-within (the search field wraps its input in a <label>).
+ */
+test("every keyboard stop paints an app-authored focus ring", async ({
+  page,
+}) => {
+  const weak: string[] = [];
+  const seen = new Set<string>();
+
+  for (let i = 0; i < 40; i += 1) {
+    await page.keyboard.press("Tab");
+    const stop = await page.evaluate(() => {
+      const ringed = (el: Element): boolean => {
+        const cs = getComputedStyle(el);
+        return (
+          (cs.outlineStyle !== "none" &&
+            cs.outlineStyle !== "auto" &&
+            parseFloat(cs.outlineWidth) >= 2) ||
+          (cs.boxShadow !== "none" && /\d/.test(cs.boxShadow))
+        );
+      };
+      const el = document.activeElement;
+      if (!el || el === document.body) return null;
+      let node: Element | null = el;
+      let hasRing = false;
+      for (let up = 0; node && up < 3; up += 1) {
+        if (ringed(node)) {
+          hasRing = true;
+          break;
+        }
+        node = node.parentElement;
+      }
+      const label =
+        el.getAttribute("aria-label") ?? el.textContent?.trim().slice(0, 30);
+      return {
+        id: `${el.tagName.toLowerCase()}.${String(el.className).split(" ")[0]}`,
+        label: label ?? "",
+        hasRing,
+      };
+    });
+
+    if (!stop) break;
+    const key = `${stop.id}|${stop.label}`;
+    if (seen.has(key)) break;
+    seen.add(key);
+    if (!stop.hasRing) weak.push(`${stop.id} "${stop.label}"`);
+  }
+
+  expect(
+    seen.size,
+    "expected the tab order to reach the app controls"
+  ).toBeGreaterThan(10);
+  expect(
+    weak,
+    `keyboard stops falling back to the browser default focus ring:\n  ${weak.join("\n  ")}`
+  ).toEqual([]);
+});
