@@ -191,7 +191,7 @@ describe("MOD13A3 distribution gap (NDVI/EVI, April 2025)", () => {
     const alsoDeclaring = Object.values(LAYERS)
       .filter((layer) => layer.unpublished?.length)
       .filter((layer) => layer.id !== "ndvi" && layer.id !== "evi");
-    expect(alsoDeclaring.map((layer) => layer.id)).toEqual(["sst"]);
+    expect(alsoDeclaring.map((layer) => layer.id)).toEqual(["sst", "snow"]);
     for (const layer of alsoDeclaring) {
       expect(isUnpublished(layer, GAP)).toBe(false);
     }
@@ -338,6 +338,106 @@ describe("MODIS/Aqua SST distribution gaps (daytime monthly composite)", () => {
     for (const gap of GAPS) {
       expect(isUnpublished(LAYERS.lst, gap)).toBe(false);
       expect(isAvailable(LAYERS.airtemp, gap)).toBe(true);
+    }
+  });
+});
+
+describe("MOD10CM distribution gaps (monthly snow cover)", () => {
+  // GIBS advertises the snow layer's time dimension as seven disjoint ranges,
+  // so six months inside the record were never distributed and their tiles
+  // 404. Unlike a *low* covered-area value — cloud and polar darkness both
+  // withhold an optical retrieval, and the monthly average over the cloud-free
+  // days is what MOD10CM reports — these months carry no observation at all.
+  const GAPS = [
+    { year: 2000, month: 8 },
+    { year: 2001, month: 6 },
+    { year: 2002, month: 3 },
+    { year: 2003, month: 12 },
+    { year: 2016, month: 2 },
+    { year: 2022, month: 10 },
+  ];
+  const snowLatest = LAYERS.snow.latest ?? DATA_LATEST;
+
+  it("declares exactly the six months GIBS omits, in order", () => {
+    expect(LAYERS.snow.unpublished).toEqual(GAPS);
+  });
+
+  it("reports every gap as unavailable but interior to the record", () => {
+    for (const gap of GAPS) {
+      expect(isUnpublished(LAYERS.snow, gap)).toBe(true);
+      expect(isAvailable(LAYERS.snow, gap)).toBe(false);
+      expect(compareYm(gap, LAYERS.snow.start)).toBeGreaterThan(0);
+      expect(compareYm(gap, snowLatest)).toBeLessThan(0);
+    }
+  });
+
+  it("keeps the month on each side of every gap available", () => {
+    // No two MOD10CM gaps are adjacent, so every neighbour must be published.
+    for (const gap of GAPS) {
+      expect(isAvailable(LAYERS.snow, addMonths(gap, -1))).toBe(true);
+      expect(isAvailable(LAYERS.snow, addMonths(gap, 1))).toBe(true);
+    }
+  });
+
+  it("drops the gaps from the enumerated record and nothing else", () => {
+    const range = monthRangeForLayer(LAYERS.snow);
+    for (const gap of GAPS) {
+      expect(range.some((ym) => ymEqual(ym, gap))).toBe(false);
+    }
+    expect(range[0]).toEqual({ year: 2000, month: 3 });
+    expect(range[range.length - 1]).toEqual(snowLatest);
+    const span = ymToIndex(snowLatest) - ymToIndex(LAYERS.snow.start) + 1;
+    expect(range.length).toBe(span - GAPS.length);
+  });
+
+  it("leaves discontinuities only where a gap was declared", () => {
+    const range = monthRangeForLayer(LAYERS.snow);
+    const resumesAfterBreak = range
+      .slice(1)
+      .filter((ym, i) => ymToIndex(ym) !== ymToIndex(range[i]) + 1);
+    // Six separate one-month gaps, so six breaks — the months that resume
+    // each of GIBS's seven advertised ranges after the first.
+    expect(resumesAfterBreak).toEqual([
+      { year: 2000, month: 9 },
+      { year: 2001, month: 7 },
+      { year: 2002, month: 4 },
+      { year: 2004, month: 1 },
+      { year: 2016, month: 3 },
+      { year: 2022, month: 11 },
+    ]);
+  });
+
+  it("thins the snow-season baselines four of the gaps fall in", () => {
+    // The scientific cost: 2001-06, 2002-03, 2003-12 and 2016-02 all sit
+    // inside a hemispheric snow season, so a same-calendar-month baseline for
+    // those months spans one fewer year than the record's length implies.
+    const range = monthRangeForLayer(LAYERS.snow);
+    for (const gap of GAPS) {
+      const sameMonth = range.filter((ym) => ym.month === gap.month);
+      expect(sameMonth.some((ym) => ym.year === gap.year)).toBe(false);
+    }
+    // February 2016 is gone, so the Februaries run 2001…2026 less that one.
+    const februaries = range.filter((ym) => ym.month === 2);
+    expect(februaries.some((ym) => ym.year === 2016)).toBe(false);
+    expect(februaries.length).toBe(snowLatest.year - 2001 + 1 - 1);
+  });
+
+  it("snaps the scrubber to a published month instead of into a gap", () => {
+    const range = monthRangeForLayer(LAYERS.snow);
+    for (const gap of GAPS) {
+      const nearest = range[nearestMonthIndex(range, gap)];
+      expect(isUnpublished(LAYERS.snow, nearest)).toBe(false);
+      expect(isAvailable(LAYERS.snow, nearest)).toBe(true);
+      expect(Math.abs(ymToIndex(nearest) - ymToIndex(gap))).toBe(1);
+    }
+  });
+
+  it("does not leak the snow gaps onto another product's layer", () => {
+    // MOD10CM is its own product; nothing else in the catalog shares its
+    // record, so no other layer may lose these months.
+    for (const gap of GAPS) {
+      expect(isUnpublished(LAYERS.lst, gap)).toBe(false);
+      expect(isAvailable(LAYERS.lst, gap)).toBe(true);
     }
   });
 });
