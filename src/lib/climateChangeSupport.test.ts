@@ -84,6 +84,80 @@ describe("monthOverMonthCoverageSupport", () => {
     );
   });
 
+  it("never rounds a guarantee up into a claim of complete common ground", () => {
+    // 0.998 + 0.998 − 1 = 0.996. Rounded to the nearest percent both bounds
+    // read "100%", stating the complete overlap this module exists to refuse.
+    const support = monthOverMonthCoverageSupport(
+      month(1, 286.2, 0.998),
+      month(2, 287.4, 0.998)
+    );
+
+    expect(support.guaranteedSharedFraction).toBeCloseTo(0.996, 9);
+    expect(support.statement).toBe(
+      "at least 99% and at most 100% of the sampled area is common to both months"
+    );
+  });
+
+  it("keeps a bracketed overlap from collapsing onto a single percent", () => {
+    // 0.897 guaranteed under a 0.9 ceiling: a real interval that nearest-percent
+    // rounding flattens to "at least 90% and at most 90%", and whose lower bound
+    // it inflates past what the coverage guarantees.
+    const support = monthOverMonthCoverageSupport(
+      month(1, 286.2, 0.9),
+      month(2, 287.4, 0.997)
+    );
+
+    expect(support.guaranteedSharedFraction).toBeCloseTo(0.897, 9);
+    expect(support.statement).toBe(
+      "at least 89% and at most 90% of the sampled area is common to both months"
+    );
+  });
+
+  it("does not inflate a sub-one-percent guarantee to a whole percent", () => {
+    // 0.505 + 0.502 − 1 = 0.007. Nearest-percent rounding reported "at least
+    // 1%", overstating the guarantee by nearly half, and capped the overlap at
+    // "50%" when 50.2% is reachable.
+    const support = monthOverMonthCoverageSupport(
+      month(1, 286.2, 0.505),
+      month(2, 287.4, 0.502)
+    );
+
+    expect(support.status).toBe("bounded");
+    expect(support.statement).toBe(
+      "under 1% of the sampled area is guaranteed common to both months; at most 51% can overlap"
+    );
+  });
+
+  it("keeps the guarantee at or below the ceiling it sits under", () => {
+    // 0.834 + 1 − 1 evaluates to 0.8340000000000001, floating just past the
+    // min() ceiling. Unclamped, the bounds describe an empty interval and the
+    // tight-bound wording never fires.
+    const support = monthOverMonthCoverageSupport(
+      month(1, 286.2, 0.834),
+      month(2, 287.4, 1)
+    );
+
+    expect(support.guaranteedSharedFraction).toBe(0.834);
+    expect(support.maximumSharedFraction).toBe(0.834);
+    expect(support.statement).toBe(
+      "exactly 83% of the sampled area is common to both months"
+    );
+  });
+
+  it("does not state an incomplete tight bound as a flat 100%", () => {
+    // One month fully covered, the other at 99.6%: the shared area is known
+    // exactly, but it is not all of the sampled area.
+    const support = monthOverMonthCoverageSupport(
+      month(1, 286.2, 0.996),
+      month(2, 287.4, 1)
+    );
+
+    expect(support.guaranteedSharedFraction).toBeCloseTo(0.996, 9);
+    expect(support.statement).toBe(
+      "all but under 1% of the sampled area is common to both months"
+    );
+  });
+
   it("states an exact overlap when both months are fully covered", () => {
     const support = monthOverMonthCoverageSupport(
       month(1, 286.2, 1),
