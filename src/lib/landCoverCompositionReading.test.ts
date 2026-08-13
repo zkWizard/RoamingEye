@@ -110,6 +110,49 @@ describe("land-cover region composition copy", () => {
     );
   });
 
+  it("never rounds a dominant-but-partial share up to a flat 100%", () => {
+    // A large drawn region samples up to a 28x28 grid, so a near-uniform box
+    // with a few stray pixels is ordinary. 781/784 = 99.6% rounds to 100%,
+    // which would claim a totality the same sentence goes on to contradict.
+    const reading = describeLandCoverComposition(
+      summarizeLandCoverContext(
+        [
+          { classCode: 16, sampleCount: 781 }, // Barren
+          { classCode: 10, sampleCount: 3 }, // Grassland
+        ],
+        2024
+      )
+    );
+
+    expect(reading.status).toBe("composed");
+    expect(reading.headline).toBe(
+      "Barren (IGBP class 16) most frequent — >99% of classified pixels"
+    );
+    // The copy must not state a totality alongside a second class.
+    expect(reading.headline).not.toContain("100%");
+    expect(reading.detail).toContain("2 IGBP classes");
+    // The underlying share is untouched — only its rendering is guarded.
+    expect(reading.composition.metrics?.dominantClassFraction).toBeCloseTo(
+      781 / 784,
+      10
+    );
+  });
+
+  it("still prints a plain percentage for a share that is not near the ceiling", () => {
+    const reading = describeLandCoverComposition(
+      summarizeLandCoverContext(
+        [
+          { classCode: 16, sampleCount: 3 },
+          { classCode: 10, sampleCount: 1 },
+        ],
+        2024
+      )
+    );
+
+    expect(reading.headline).toContain("75% of classified pixels");
+    expect(reading.headline).not.toContain(">99%");
+  });
+
   it("withholds composition for a year the annual series does not publish", () => {
     const reading = describeLandCoverComposition(
       summarizeLandCoverContext([{ classCode: 1, sampleCount: 4 }], 1998)

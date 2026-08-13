@@ -25,6 +25,7 @@ import {
   sstExtremeBoundPrefix,
   sstExtremeCensoringClause,
 } from "../lib/probeSstExtremeCensoring";
+import { probeRecordGaps, probeRecordGapsClause } from "../lib/probeRecordGaps";
 import { ICONS } from "./icons";
 
 /** What the current series is: which layer, and where it was sampled. */
@@ -315,9 +316,18 @@ export class ProbePanel {
       physical
     );
     const sstCensoringClause = sstExtremeCensoringClause(sstCensoring);
+    // The denominator above is the *distributed* record, not the calendar span:
+    // monthRangeForLayer drops each layer's declared distribution gaps, so for
+    // SST, snow, NDVI and EVI a full read prints "M of M months" while months
+    // inside the span carry no composite at all. Name them, or the fraction
+    // reads as complete coverage. Silent for every layer with no pinned gap.
+    const recordGapsClause = probeRecordGapsClause(
+      probeRecordGaps(this.context?.layerId, this.months)
+    );
     const stat =
-      `${stats.count} of ${this.months.length} months · ` +
-      `min ${sstExtremeBoundPrefix(sstCensoring, "min")}${fmt(stats.min)}` +
+      `${stats.count} of ${this.months.length} months` +
+      (recordGapsClause ? ` · ${recordGapsClause}` : "") +
+      ` · min ${sstExtremeBoundPrefix(sstCensoring, "min")}${fmt(stats.min)}` +
       ` · mean ${fmt(stats.mean)}` +
       ` · max ${sstExtremeBoundPrefix(sstCensoring, "max")}${fmt(stats.max)}` +
       ` · ${uncertaintyText(s)} per value` +
