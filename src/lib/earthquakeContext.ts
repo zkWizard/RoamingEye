@@ -325,7 +325,7 @@ export function reportedMagnitudeText(
   return (
     `Largest reported value across all ${eventCount} matched ${eventCount === 1 ? "event" : "events"}: ` +
     `${formatReportedMagnitude(largest.magnitude, largest.magnitudeType)}, ` +
-    `${formatDistanceKm(largest.distanceKm)} km away.${methods}` +
+    `${epicentralDistanceText(largest.distanceKm)}.${methods}` +
     " This is a maximum over reported values, not a ranking of earthquake size and not a hazard statement."
   );
 }
@@ -518,6 +518,26 @@ export function epicenterConstraintText(
     "This feed publishes no location-uncertainty values, leaving station geometry as its only " +
     "location-quality signal; a gap within that range is not a certificate of accuracy."
   );
+}
+
+/**
+ * An epicentral distance with the point it was measured from named.
+ *
+ * The anchor has to be stated because the feed's own `place` string carries a
+ * distance to a *different* anchor: USGS writes "67 km E of
+ * Petropavlovsk-Kamchatsky, Russia", measured from that settlement, while this
+ * distance is measured from the query point — which `searchExtentEarthquakeQuery`
+ * places at the centre of the circle circumscribing the search extent. Rendered
+ * side by side as a bare "111 km away", the two figures read as one quantity
+ * disagreeing with itself; an event can sit 3 km from a town and 370 km from the
+ * centre of the searched extent, and both numbers are correct.
+ *
+ * The wording matches the scope sentence the panel prints above the list
+ * ("Epicentres within N km of the search-extent centre"), so a reader can see
+ * that a listed distance and the stated radius are on the same axis.
+ */
+export function epicentralDistanceText(distanceKm: number): string {
+  return `${formatDistanceKm(distanceKm)} km from the search-extent centre`;
 }
 
 /** Distances span city blocks to whole countries; keep both legible. */
