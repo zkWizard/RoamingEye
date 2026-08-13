@@ -1,4 +1,4 @@
-import { LAYERS, monthRangeForLayer } from "../lib/timeline";
+import { LAYERS, monthRangeForLayer, type YearMonth } from "../lib/timeline";
 import { geometryBounds, isAreaGeometry } from "../lib/geojson";
 import {
   PLACE_OBSERVATION_NATIVE_UNITS,
@@ -6,6 +6,7 @@ import {
   serializePlaceObservationExport,
   sstPlaceObservationFromSample,
   type PlaceObservationExportSample,
+  type PlaceObservationLegendCapCensoringInput,
 } from "../lib/placeObservationExport";
 import { SCALE_CONVERSIONS, colormapUrl } from "../lib/colormap";
 import { environmentUnavailableSample } from "../lib/environmentUnavailableSample";
@@ -59,8 +60,10 @@ import {
   classifyGldasRampSample,
   gldasRampSaturationNote,
   summarizeGldasRampSaturation,
+  GLDAS_RAMP_SATURATION,
   type GldasRampLayerId,
   type GldasRampSamplePosition,
+  type GldasRampSaturationSummary,
 } from "../lib/gldasRampSaturation";
 import { volcanoesInSearchExtent } from "../lib/volcanoExtent";
 import {
@@ -114,6 +117,30 @@ function exportableLayerId(
  * them. The clause qualifies how the stated number was formed, so it is
  * appended to the detail and never allowed to alter the value itself.
  */
+/**
+ * Carry the same saturation finding the card states into the downloadable
+ * record. The card's clause is prose a person reads once; the export is what a
+ * consumer computes on, and a dry-biased mean handed over as a plain number is
+ * the more consequential omission of the two. Bounds are taken in the layer's
+ * *native* unit, which is the unit the export stores values in.
+ */
+function exportedRampCensoring(
+  summary: GldasRampSaturationSummary | null,
+  assessedDataMonth: YearMonth
+): PlaceObservationLegendCapCensoringInput | undefined {
+  if (!summary) return undefined;
+  const ceiling = GLDAS_RAMP_SATURATION[summary.layerId].ceiling;
+  return {
+    assessedDataMonth,
+    censoredSampleCount: summary.ceilingCount,
+    valuedSampleCount: summary.interiorCount + summary.ceilingCount,
+    bound: ceiling.boundNative,
+    boundRelation: "at-or-above",
+    publishedLabel: ceiling.publishedLabel,
+    colormapDocument: summary.colormapDocument,
+  };
+}
+
 function withRampSaturationNote<T extends { detail: string }>(
   text: T,
   note: string
@@ -393,11 +420,11 @@ export function runPlaceInsights(result: GeoResult): void {
         // is unchanged. It is appended here rather than inside the shared
         // climate formatter because the saturation is a property of this
         // layer's ramp, not of the climate summary.
-        const rampSaturationNote = gldasRampSaturationNote(
+        const rampSaturation =
           rampLayerId !== null && rampPositions !== null
             ? summarizeGldasRampSaturation(rampLayerId, rampPositions)
-            : null
-        );
+            : null;
+        const rampSaturationNote = gldasRampSaturationNote(rampSaturation);
         placeInsights.setReading(
           snowReading
             ? {
@@ -440,6 +467,10 @@ export function runPlaceInsights(result: GeoResult): void {
             samplingSupport: geometrySampling,
             samplingStrategy: geometrySamplingStrategy,
             sourceImageDimensions,
+            legendCapCensoring: exportedRampCensoring(
+              rampSaturation,
+              months[currentMonthIndex]
+            ),
             observations:
               colormap && climateMetricId
                 ? exportObservationsFromRenderedClimateSample(

@@ -21,7 +21,7 @@ import {
  */
 
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
-  "roamingeye-place-observation-export/v4" as const;
+  "roamingeye-place-observation-export/v5" as const;
 
 export const PLACE_OBSERVATION_GEOGRAPHY = {
   coordinateReferenceSystem: "OGC:CRS84",
@@ -63,7 +63,58 @@ export interface PlaceObservationProductInput {
   sourceImageDimensions?: { width: number; height: number };
   /** Exact rendered-value mapping used, or why it was unavailable. */
   valueMapping?: PlaceObservationValueMapping;
+  /** Open-ended legend-bin censoring measured on the sampled colours. */
+  legendCapCensoring?: PlaceObservationLegendCapCensoringInput;
   observations: readonly PlaceObservationInput[];
+}
+
+/**
+ * Censoring by an open-ended terminal legend bin, as measured on the colours a
+ * product was sampled from.
+ *
+ * A rendered ramp that ends in an open "≥" catch-all cannot resolve a value in
+ * that bin: the pixel is known only to be at or above the bin's one finite
+ * edge. The inversion drops such a pixel, so it leaves the same trace in
+ * `validFraction` as cloud, ocean, or an unpublished month — and because the
+ * dropped pixels sit at one end of the ramp, dropping them biases the mean over
+ * the survivors *away* from that end by an amount the image cannot resolve.
+ * Recording the tally is what lets a consumer of this file tell a two-sided
+ * measurement from a one-sided bound.
+ *
+ * This is representability structure only. It never estimates how far past the
+ * edge a censored value lies, never infers a condition or cause, and makes no
+ * claim about months it does not name.
+ */
+export interface PlaceObservationLegendCapCensoringInput {
+  /**
+   * The single data month the tally was measured for. Other months of the same
+   * product are unassessed, which is not the same as uncensored.
+   */
+  assessedDataMonth: YearMonth;
+  /** Sampled cells that fell in the open-ended bin. */
+  censoredSampleCount: number;
+  /** Sampled cells carrying any value at all (censored plus resolved). */
+  valuedSampleCount: number;
+  /** The bin's one finite edge, in the product's `nativeUnit`. */
+  bound: number;
+  boundRelation: "at-or-above";
+  /** The bin's label, verbatim from the source colormap document. */
+  publishedLabel: string;
+  /** Colormap document the bin structure was read from. */
+  colormapDocument: string;
+}
+
+export interface PlaceObservationLegendCapCensoring extends Omit<
+  PlaceObservationLegendCapCensoringInput,
+  "assessedDataMonth"
+> {
+  assessedDataMonth: string;
+  /**
+   * True when the open-ended bin actually took samples, so the assessed
+   * month's value is a one-sided bound rather than an estimate. This is the
+   * one bit a consumer needs before treating the value as a measurement.
+   */
+  valueIsOneSidedBound: boolean;
 }
 
 export type PlaceObservationValueMapping =
@@ -155,6 +206,7 @@ export interface PlaceObservationExport {
     "This export does not infer conditions, causes, risks, or future values.",
     "Coverage status describes the sampling result, not environmental condition or source-product availability.",
     "Data-month record states do not make values across products interchangeable or describe environmental condition.",
+    "A legend-cap censoring record marks the month it names as a one-sided bound rather than a measurement; where no record is supplied, none was assessed, which is not evidence that no censoring occurred.",
   ];
 }
 
@@ -171,6 +223,7 @@ export interface PlaceObservationExportProduct {
   samplingStrategy: GeometrySamplingStrategy | "unavailable";
   sourceImage: { width: number; height: number } | null;
   valueMapping: PlaceObservationValueMapping;
+  legendCapCensoring: PlaceObservationLegendCapCensoring | null;
   observations: {
     dataMonth: string;
     value: number | null;
@@ -248,6 +301,8 @@ export interface PlaceObservationExportSample {
   samplingSupport?: PlaceObservationSamplingSupport;
   colormapUrl?: string | null;
   usedUiLegendApproximation?: boolean;
+  /** Open-ended legend-bin tally, when the sampler classified the colours. */
+  legendCapCensoring?: PlaceObservationLegendCapCensoringInput;
 }
 
 /**
@@ -306,6 +361,7 @@ const LIMITATIONS = [
   "This export does not infer conditions, causes, risks, or future values.",
   "Coverage status describes the sampling result, not environmental condition or source-product availability.",
   "Data-month record states do not make values across products interchangeable or describe environmental condition.",
+  "A legend-cap censoring record marks the month it names as a one-sided bound rather than a measurement; where no record is supplied, none was assessed, which is not evidence that no censoring occurred.",
 ] as const;
 
 /** Create a JSON-ready, whitelist-only reproducibility record. */
@@ -456,6 +512,7 @@ export function placeObservationProductFromSample(
       : sample.usedUiLegendApproximation
         ? { status: "ui-legend-approximation", url: null }
         : { status: "not-available", url: null },
+    legendCapCensoring: sample.legendCapCensoring,
     observations: sample.observations.map((observation) => ({
       ...observation,
       value:
@@ -650,6 +707,65 @@ function validateInput(input: PlaceObservationExportInput): void {
         );
       }
     }
+    if (product.legendCapCensoring) {
+      validateLegendCapCensoring(
+        product.layerId,
+        product.legendCapCensoring,
+        months
+      );
+    }
+  }
+}
+
+/**
+ * A censoring tally that cannot be checked against the months it ships beside
+ * is worse than none: it would qualify a value this file does not contain.
+ * Validated after the month loop so the assessed month is compared against the
+ * product's actual record.
+ */
+function validateLegendCapCensoring(
+  layerId: LayerId,
+  censoring: PlaceObservationLegendCapCensoringInput,
+  months: ReadonlySet<string>
+): void {
+  if (!isYearMonth(censoring.assessedDataMonth)) {
+    throw new Error(
+      `Product ${layerId} has an invalid legend-cap censoring month.`
+    );
+  }
+  if (!months.has(formatYearMonth(censoring.assessedDataMonth))) {
+    throw new Error(
+      `Product ${layerId} records legend-cap censoring for a month it does not export.`
+    );
+  }
+  if (
+    !isNonNegativeInteger(censoring.censoredSampleCount) ||
+    !isNonNegativeInteger(censoring.valuedSampleCount)
+  ) {
+    throw new Error(
+      `Product ${layerId} has invalid legend-cap censoring sample counts.`
+    );
+  }
+  if (censoring.censoredSampleCount > censoring.valuedSampleCount) {
+    throw new Error(
+      `Product ${layerId} counts more censored cells than valued cells.`
+    );
+  }
+  if (censoring.boundRelation !== "at-or-above") {
+    throw new Error(
+      `Product ${layerId} has an unsupported legend-cap bound relation.`
+    );
+  }
+  if (!Number.isFinite(censoring.bound)) {
+    throw new Error(`Product ${layerId} has a non-finite legend-cap bound.`);
+  }
+  if (
+    censoring.publishedLabel.trim() === "" ||
+    censoring.colormapDocument.trim() === ""
+  ) {
+    throw new Error(
+      `Product ${layerId} must cite the published legend bin it was capped by.`
+    );
   }
 }
 
@@ -758,6 +874,7 @@ function exportProducts(
         ? { ...product.sourceImageDimensions }
         : null,
       valueMapping: exportValueMapping(product.valueMapping),
+      legendCapCensoring: exportLegendCapCensoring(product.legendCapCensoring),
       observations: product.observations
         .map((observation) => ({
           dataMonth: formatYearMonth(observation.dataMonth),
@@ -775,6 +892,29 @@ function exportValueMapping(
   mapping: PlaceObservationValueMapping | undefined
 ): PlaceObservationValueMapping {
   return mapping ? { ...mapping } : { status: "not-available", url: null };
+}
+
+/**
+ * Emit the censoring tally in contract order, with the one derived bit stated
+ * rather than left for a consumer to infer from the counts. `null` records
+ * that no assessment was supplied — deliberately not a zeroed tally, which
+ * would assert an uncensored footprint nobody measured.
+ */
+function exportLegendCapCensoring(
+  censoring: PlaceObservationLegendCapCensoringInput | undefined
+): PlaceObservationLegendCapCensoring | null {
+  return censoring
+    ? {
+        assessedDataMonth: formatYearMonth(censoring.assessedDataMonth),
+        censoredSampleCount: censoring.censoredSampleCount,
+        valuedSampleCount: censoring.valuedSampleCount,
+        bound: censoring.bound,
+        boundRelation: censoring.boundRelation,
+        publishedLabel: censoring.publishedLabel,
+        colormapDocument: censoring.colormapDocument,
+        valueIsOneSidedBound: censoring.censoredSampleCount > 0,
+      }
+    : null;
 }
 
 function validateValueMapping(
@@ -903,6 +1043,10 @@ function canonicalDatasetRef(source: DatasetRef): DatasetRef {
     doi: source.doi,
     title: source.title,
   };
+}
+
+function isNonNegativeInteger(value: number): boolean {
+  return Number.isInteger(value) && value >= 0;
 }
 
 function isPositiveInteger(value: number): boolean {
