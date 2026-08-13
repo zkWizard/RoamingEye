@@ -61,3 +61,22 @@ export function canonicalVolcanoTypeLabel(
     ? canonical.base
     : `${canonical.base} (${qualifiers.join("; ")})`;
 }
+
+/**
+ * Spelled-out label for a supplied GVP primary type, or null when the record
+ * carries no usable type so each caller keeps its own absence wording.
+ *
+ * Printing the source string verbatim leaves GVP's own qualifiers unreadable:
+ * a trailing "?" looks like a typo or a decoding fault rather than the
+ * catalog's explicit uncertainty flag, and "(es)" reads as a plural spelling
+ * rather than a record covering multiple landforms. Both markers already reach
+ * the globe's hover label through canonicalVolcanoTypeLabel, so routing the
+ * panel and proximity copy through the same function keeps one interpretation
+ * of a qualifier instead of two.
+ */
+export function qualifiedVolcanoTypeLabel(
+  type: string | null | undefined
+): string | null {
+  const canonical = canonicalVolcanoType(type);
+  return canonical.base === null ? null : canonicalVolcanoTypeLabel(canonical);
+}
