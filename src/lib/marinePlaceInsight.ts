@@ -18,6 +18,7 @@ import {
   type SstRampCensoringSummary,
 } from "./sstRampCensoring";
 import { SST_SAMPLING_GATE_NOTE } from "./sstObservingConstraints";
+import { marineBoundaryMeanSstCensoringNote } from "./marineAveragedSstCensoring";
 import {
   qualifyingSstNativeSupportNote,
   summarizeSstNativeSupport,
@@ -256,6 +257,15 @@ export function marineBoundarySstReading(
     ? summarizeSstRampCensoring(input.observedValue)
     : null;
 
+  // That screen reads the boundary MEAN, and a mean of capped and resolved
+  // pixels lands inside the finite ramp — so an unmarked card is not evidence of
+  // an uncensored boundary. The probe already states this for its own averaged
+  // footprints, which are combined by the very same weighted mean; without it
+  // here the identical combiner is qualified on one surface and silent on the
+  // other. See marineAveragedSstCensoring for why presence is unrecoverable.
+  const averagedCensoringNote =
+    marineBoundaryMeanSstCensoringNote(rampCensoring);
+
   // Grade the share as the sampler supplied it, not as `summarizeMarineCoverage`
   // nulls it out on rejection: an invalid fraction was still supplied, and
   // reporting it as "not supplied" would hide which of the two happened.
@@ -285,8 +295,8 @@ export function marineBoundarySstReading(
     // the cited product composites Aqua's daytime overpass on cloud-screened
     // days only, so this mean is not a full-diurnal, all-weather monthly mean.
     detail: `${month} approximate mean SST observation sampled within ${geographyLabel}; ${describeMarineBoundarySstSupport(spatialSupport)}${nativeSupportNote ? `; ${nativeSupportNote}` : ""}; ${image}; source ${source}${describeYearOverYear(yearOverYear)}${rampCensoring?.qualifier ? `; ${rampCensoring.qualifier}` : ""}${
-      usable ? `; ${SST_SAMPLING_GATE_NOTE}` : ""
-    }; not a marine-biology observation`,
+      averagedCensoringNote ? `; ${averagedCensoringNote}` : ""
+    }${usable ? `; ${SST_SAMPLING_GATE_NOTE}` : ""}; not a marine-biology observation`,
     kind: "observed-boundary-sea-surface-temperature",
     availability: usable ? "available" : "no-usable-sst",
     marineBiologyObservation: false,
