@@ -3,12 +3,13 @@ import {
   LEGENDS,
   OVERLAY_KEYS,
   gradientCss,
+  legendProvenance,
   legendTicks,
   overlayKeyFor,
 } from "./legend";
 import { vegetationIndexLegendNote } from "./vegetationIndexRenderedRange";
 import { PROBE_SCALES } from "./probe";
-import { LAYER_ORDER } from "./timeline";
+import { LAYERS, LAYER_ORDER } from "./timeline";
 import { DEPTH_CLASS_COLORS } from "./earthquakes";
 import { ERUPTION_CLASS_COLORS, ERUPTION_CLASS_LABELS } from "./volcanoes";
 
@@ -197,5 +198,48 @@ describe("gradientCss", () => {
       { color: "#333333", at: 1 },
     ]);
     expect(css).toContain("#222222 33%");
+  });
+});
+
+describe("legend dataset provenance", () => {
+  // The invariant this exists to hold: a rendered dataset stays cited. Before
+  // `legendProvenance`, the source line rode on `interpretationNote`, so a
+  // layer without a colour caveat silently showed no citation at all.
+  it("cites every layer that names a source product", () => {
+    const uncited = LAYER_ORDER.filter(
+      (id) => LAYERS[id].dataset && legendProvenance(id) === null
+    );
+    expect(uncited).toEqual([]);
+  });
+
+  it("covers the layers that carry no interpretation note", () => {
+    // These five rendered a calibrated colour scale with no stated source.
+    for (const id of ["lst", "sst", "soil", "aerosol", "landcover"] as const) {
+      expect(LEGENDS[id].interpretationNote).toBeUndefined();
+      const provenance = legendProvenance(id);
+      expect(provenance).not.toBeNull();
+      expect(provenance!.note).toBeUndefined();
+      expect(provenance!.label).toBe(
+        `${LAYERS[id].dataset!.shortName} v${LAYERS[id].dataset!.version}`
+      );
+      expect(provenance!.doi).toBe(LAYERS[id].dataset!.doi);
+    }
+  });
+
+  it("keeps the interpretation note alongside the citation", () => {
+    const ndvi = legendProvenance("ndvi");
+    expect(ndvi?.note).toBe(LEGENDS.ndvi.interpretationNote);
+    expect(ndvi?.label).toBe("MOD13A3 v061");
+  });
+
+  it("transcribes the DOI rather than resolving or reformatting it", () => {
+    // The caller builds the resolver URL, so a legend citation and the
+    // providers page cannot disagree about the link for one product.
+    for (const id of LAYER_ORDER) {
+      const provenance = legendProvenance(id);
+      if (!provenance) continue;
+      expect(provenance.doi).toBe(LAYERS[id].dataset!.doi);
+      expect(provenance.doi).not.toContain("https://");
+    }
   });
 });

@@ -1,4 +1,4 @@
-import type { LayerId } from "./timeline";
+import { LAYERS, type LayerId } from "./timeline";
 import { DEPTH_CLASS_COLORS } from "./earthquakes";
 import { ERUPTION_CLASS_COLORS, ERUPTION_CLASS_LABELS } from "./volcanoes";
 import { PROBE_SCALES, formatProbeValue, scaleValue } from "./probe";
@@ -383,4 +383,48 @@ export function overlayKeyFor(id: string): OverlayKeySpec | undefined {
   return id in OVERLAY_KEYS
     ? OVERLAY_KEYS[id as keyof typeof OVERLAY_KEYS]
     : undefined;
+}
+
+/**
+ * The dataset citation the legend must show for a layer, with the layer's
+ * interpretation guardrail when it has one.
+ *
+ * RoamingEye is provenance-first: every rendered dataset stays cited (METHODS.md,
+ * and the providers page's "Citing the data" list). The legend honoured that only
+ * where a layer happened to carry an `interpretationNote` — the note was what
+ * made the source line render at all, so the DOI rode along as a side effect of
+ * an unrelated field. Six layers had one (or are terrain, which builds its note
+ * from `terrainContext`); the other five rendered no citation whatsoever, so a
+ * reader looking at land-surface temperature, sea-surface temperature, soil
+ * moisture, aerosol, or land cover was shown a calibrated colour scale with no
+ * statement of which product it came from.
+ *
+ * Provenance is a property of the layer, not of whether its colours happen to
+ * need a caveat, so this derives the citation from `LAYERS[id].dataset` and
+ * treats the note as the optional part. Terrain is deliberately excluded: its
+ * note is composed by `terrainLayerContext()` from the same `DatasetRef` plus
+ * live tile-coverage state the legend owns, and duplicating it here would give
+ * that layer two sources of truth.
+ *
+ * Returns null only for a layer carrying no `DatasetRef` at all — the app cites
+ * what it has and never invents an identifier for a product it cannot name.
+ */
+export interface LegendProvenance {
+  /** Link text: the product handle a citation is looked up by. */
+  label: string;
+  /** DOI, verbatim from the layer's `DatasetRef`; the caller resolves it. */
+  doi: string;
+  /** The layer's colour guardrail, when it has one. */
+  note?: string;
+}
+
+export function legendProvenance(id: LayerId): LegendProvenance | null {
+  const dataset = LAYERS[id].dataset;
+  if (!dataset) return null;
+  const note = LEGENDS[id].interpretationNote;
+  return {
+    label: `${dataset.shortName} v${dataset.version}`,
+    doi: dataset.doi,
+    ...(note ? { note } : {}),
+  };
 }
