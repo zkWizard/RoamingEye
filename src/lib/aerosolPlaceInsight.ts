@@ -307,9 +307,48 @@ function usableValue(summary: AerosolLoadingSummary): number | null {
   return value !== null && Number.isFinite(value) ? value : null;
 }
 
+/** Whether the sampler recorded any usable share of the searched boundary. */
+function hasPartialCoverage(summary: AerosolLoadingSummary): boolean {
+  return (summary.coverage.validFraction ?? 0) > 0;
+}
+
+/**
+ * Why no usable value can be reported for this month.
+ *
+ * `aerosolLoading` labels an absent value `missing-value` whichever way it went
+ * absent, because that contract sees only that the caller supplied null. On the
+ * boundary-sampling path the two ways are not the same claim: `weightedMeanValid`
+ * withholds the region mean when the usable share falls under its admission
+ * threshold, so a boundary the source *did* cover — thinly — arrives here as a
+ * null value beside a positive coverage share.
+ *
+ * On this layer that is not a rare corner. As {@link AEROSOL_RAMP_CEILING}
+ * records, `parseColormapEntries` drops the open-ended `>= 0.900` bin, so the
+ * heaviest pixels decode as no-data. A boundary under a dust outbreak or a smoke
+ * plume therefore loses precisely its heaviest pixels and can fall under the
+ * admission threshold — the reading is thin *because* the column was heavy.
+ * Printing `missing-value` there tells the reader MERRA-2 had nothing for the
+ * place, when what happened is the opposite, and it contradicts the coverage
+ * share printed in the same sentence.
+ *
+ * `placeObservationExport` already derives `insufficient-valid-coverage` from
+ * that same positive share for the same month, so this card is restated in the
+ * download contract's vocabulary and the two surfaces never disagree about why a
+ * month is blank.
+ *
+ * Only the positive-coverage case is re-labelled. A zero or unsupplied share
+ * carries no evidence either way and keeps the contract's own wording rather
+ * than gaining a sharper reason than the summary can support.
+ */
 function unusableReason(summary: AerosolLoadingSummary): string {
   if (summary.publicationStatus !== "published") {
     return summary.publicationStatus;
+  }
+  if (
+    summary.coverage.reason === "missing-value" &&
+    hasPartialCoverage(summary)
+  ) {
+    return "insufficient-valid-coverage";
   }
   return summary.coverage.reason ?? "unspecified";
 }

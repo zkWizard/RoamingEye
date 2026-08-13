@@ -235,6 +235,47 @@ describe("aerosol place-panel reading", () => {
     }
   });
 
+  it("blames the admission threshold, not the source, for a thinly covered month", () => {
+    // The heaviest pixels decode as no-data on this layer, so a boundary under
+    // heavy loading routinely clears zero coverage without clearing the mean's
+    // admission threshold. Reporting that as `missing-value` would say MERRA-2
+    // had nothing here, beside a printed share saying it had 12% of it.
+    const reading = aerosolBoundaryLoadingReading(
+      sample({ observedValues: [0.18, null], validFractions: [0.82, 0.12] })
+    );
+
+    expect(reading.detail).toContain(
+      "no usable value (insufficient-valid-coverage)"
+    );
+    expect(reading.detail).not.toContain("missing-value");
+    expect(reading.detail).toContain("12% sampled boundary coverage");
+  });
+
+  it("keeps the contract's wording when no coverage was recorded", () => {
+    // A zero share carries no evidence that the source covered the boundary, so
+    // the sharper reason is not available and must not be invented.
+    const reading = aerosolBoundaryLoadingReading(
+      sample({ observedValues: [0.18, null], validFractions: [0.82, 0] })
+    );
+
+    expect(reading.detail).toContain("no usable value (missing-value)");
+    expect(reading.detail).not.toContain("insufficient-valid-coverage");
+  });
+
+  it("does not relabel a month whose value was rejected as invalid", () => {
+    for (const values of [
+      [0.18, Number.NaN],
+      [0.18, -0.1],
+    ] as const) {
+      const reading = aerosolBoundaryLoadingReading(
+        sample({ observedValues: values, validFractions: [0.82, 0.12] })
+      );
+
+      expect(reading.detail).toContain("no usable value (invalid-value)");
+      expect(reading.detail).not.toContain("insufficient-valid-coverage");
+    }
+  });
+
   it("treats zero sampled coverage as no data, not as clean air", () => {
     const reading = aerosolBoundaryLoadingReading(
       sample({ validFractions: [0.82, 0] })
