@@ -403,10 +403,11 @@ export class ProbePanel {
    * Append the vegetation-index calendar-timing clause: which month held each
    * year's highest NDVI, how tightly that recurs, and — each only when it is
    * not already true of the whole record — whether that month led the tally
-   * outright or shared the lead with another, how often that peak was actually
-   * flanked by observed months rather than by a MOD13A3 gap, how often it was
-   * tied with another month rather than held alone, and whether the year's
-   * greenness massed near one month at all. The NDVI phenology
+   * outright or shared the lead with another, how many of the probed years
+   * actually summarized rather than dropping out, how often that peak was
+   * actually flanked by observed months rather than by a MOD13A3 gap, how
+   * often it was tied with another month rather than held alone, and whether
+   * the year's greenness massed near one month at all. The NDVI phenology
    * helpers pull in per-year summarization and circular statistics, so they
    * load on demand rather than riding in the entry chunk; the clause lands a
    * moment after the stats, which the status line already fills in
@@ -427,6 +428,7 @@ export class ProbePanel {
           peakGreennessClause,
           peakSupportClause,
           peakTieClause,
+          peakYearCoverageClause,
           probePeakGreennessTiming,
           probePeakSupport,
           probeSeasonalConcentration,
@@ -446,6 +448,12 @@ export class ProbePanel {
           // reports whether another month reached the same total. Silent for a
           // decisive record, so only a shared lead pays for the qualification.
           const modalTie = dominantMonthTieClause(timing);
+          // How much of the probed record stood behind that month, and over
+          // which years: the clause's own denominator counts only the years
+          // that summarized, so a record that mostly dropped out reads like a
+          // short but complete one. Silent when every supplied year
+          // contributed, so a full record adds no status-line text.
+          const yearCoverage = peakYearCoverageClause(timing);
           // How firmly the sampled months stand behind that modal peak month.
           // Silent unless some year's peak sits beside a gap or on the
           // calendar-year edge, so a clean record adds no status-line text.
@@ -470,7 +478,7 @@ export class ProbePanel {
             )
           );
           this.setStatus(
-            [stat, clause, modalTie, support, tied, concentration]
+            [stat, clause, modalTie, yearCoverage, support, tied, concentration]
               .filter(Boolean)
               .join(" · ")
           );
