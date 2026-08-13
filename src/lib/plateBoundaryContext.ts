@@ -1,5 +1,6 @@
 import type { Position } from "./geojson";
 import { distinctPlateBoundaries } from "./plateBoundaryDuplication";
+import { decodePlatePair, subductionSummary } from "./platePairs";
 import { plateBoundaryClass, type PlateBoundary } from "./plates";
 import type { PlateBoundaryClass } from "./plates";
 import type { SearchBoundingBox } from "./volcanoExtent";
@@ -262,6 +263,93 @@ export function subductionMarkingText(
   const total = coverage.matchedBoundaryCount;
   const noun = total === 1 ? "boundary" : "boundaries";
   return `Bird (2003) applies its subduction marking to ${coverage.matchedSubductionBoundaryCount} of ${total} matched ${noun}; PB2002 marks subduction steps only and leaves the field blank elsewhere, so an unmarked boundary records no assignment rather than a non-subduction boundary.`;
+}
+
+/**
+ * Read out which plate descends, for the matched labels that encode it.
+ *
+ * PB2002 writes subduction polarity into byte 3 of a boundary label, between
+ * the two plate codes: "/" means the right-hand plate subducts under the
+ * left-hand one, "\" is the opposite polarity, and "-" is a non-subducting
+ * segment (Bird 2003 electronic supplement readme, quoted in full at
+ * PB2002_LABEL_CONVENTION in platePairs.ts). The list below this paragraph and
+ * the globe tooltip both print that delimiter verbatim inside the label
+ * ("PB2002 PA\OK"), so without this line a reader is shown the glyph and never
+ * told it carries the model's own reading of which plate goes down.
+ *
+ * The codes alone cannot be read for polarity, which is why the descent is
+ * spelled out rather than left implied by the label: a whole-Japan extent
+ * matches both "OK/PA" and "PA\OK", two differently written labels recording
+ * the SAME descent (Pacific beneath Okhotsk), while a Caribbean extent matches
+ * "CA/SA" and "CA\ND", where the shared leading code plays opposite roles.
+ *
+ * Readings are deduplicated for that reason, and the matched-segment totals of
+ * the labels behind one reading are summed, so naming the largest first tracks
+ * how much of the matched linework each descent accounts for.
+ *
+ * This is a categorical passthrough of what the model wrote in the label. It
+ * measures nothing and adds no convergence rate, slab depth, deformation,
+ * activity, or hazard, and it is deliberately independent of the `Type` field
+ * reported by subductionMarkingText above: the two agree throughout the bundled
+ * file, but this line reports only the polarity it can actually read.
+ *
+ * Returns null when no matched label encodes a polarity — the common case for a
+ * city-sized extent, which usually matches no boundary at all.
+ */
+export function subductionPolarityText(
+  context: PlateBoundaryExtentContext
+): string | null {
+  const { coverage, matchingBoundaries } = context;
+  if (coverage.status !== "available" || coverage.matchedBoundaryCount === 0) {
+    return null;
+  }
+
+  const segmentsByReading = new Map<string, number>();
+  for (const { name, matchedSegmentCount } of matchingBoundaries) {
+    const decoded = name === null ? null : decodePlatePair(name);
+    const reading = decoded === null ? null : subductionSummary(decoded);
+    if (reading === null) continue;
+    segmentsByReading.set(
+      reading,
+      (segmentsByReading.get(reading) ?? 0) + matchedSegmentCount
+    );
+  }
+  if (segmentsByReading.size === 0) return null;
+
+  // Most matched segments first, alphabetical on a tie, so the order never
+  // depends on the order the features were supplied in.
+  const ranked = [...segmentsByReading.entries()]
+    .sort(
+      (first, second) =>
+        second[1] - first[1] || first[0].localeCompare(second[0], "en-US")
+    )
+    .map(([reading]) => reading);
+
+  // Name up to two, but name all three when there are exactly three, so the
+  // unnamed remainder is never exactly one: "1 further descent" is unreachable
+  // and needs no singular branch. A wide Indonesian extent records twelve.
+  const namedCount = ranked.length === 3 ? 3 : Math.min(2, ranked.length);
+  const named = ranked.slice(0, namedCount);
+  // Each reading already contains "subducts beneath", so a three-item list runs
+  // long enough that the serial comma is doing real work, matching how
+  // placeMonthAlignment and volcanoElevationProfile join their lists. Two items
+  // take a bare "and": "A, and B" would be wrong.
+  const list =
+    named.length === 1
+      ? named[0]
+      : named.length === 2
+        ? `${named[0]} and ${named[1]}`
+        : `${named.slice(0, -1).join(", ")}, and ${named[named.length - 1]}`;
+  // Only disclosed when something was left out; with every descent named there
+  // is no selection for a reader to second-guess.
+  const selection =
+    ranked.length > namedCount
+      ? ` Those are the ${namedCount} covering the most matched segments here, of ${ranked.length} distinct descents these labels record.`
+      : "";
+  // "the matched labels carrying one record which plate descends" garden-paths
+  // on "one record" as a noun phrase; splitting the clause keeps "record" a
+  // verb no matter how the sentence is scanned.
+  return `PB2002 also encodes subduction polarity in the delimiter between a label's two plate codes; where the matched labels carry it, they name which plate descends: ${list}.${selection} That is read back from the label as the model wrote it, not measured, and adds no convergence rate, slab depth, or activity.`;
 }
 
 /**

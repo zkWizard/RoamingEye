@@ -12,9 +12,20 @@ import type { PlateBoundary } from "./plates";
  * This states only the plate-pair identity the source label already carries.
  * PB2002 boundary-step labels do not encode boundary TYPE (spreading,
  * convergent, transform), relative motion, slip rate, deformation, or activity,
- * so the label never names one — and the code order and delimiter reflect the
- * digitization's step orientation, not which plate subducts. Unknown codes are
- * surfaced rather than dropped so the readout stays honest about the source.
+ * so the label never names one.
+ *
+ * The code order and the delimiter are not incidental, though. PB2002 lists the
+ * left-hand plate first and writes subduction polarity into byte 3 — "/" for
+ * the right-hand plate descending, "\" for the left — so the delimiter does say
+ * which plate subducts, read from the label alone rather than from the drawn
+ * polyline's traversal direction (Bird 2003 electronic supplement readme,
+ * quoted at PB2002_LABEL_CONVENTION in platePairs.ts). That is why the label is
+ * kept verbatim here instead of being normalized to a canonical pair, and the
+ * place panel spells the polarity out in prose (subductionPolarityText in
+ * plateBoundaryContext.ts) rather than leaving a reader to interpret the glyph.
+ *
+ * Unknown codes are surfaced rather than dropped so the readout stays honest
+ * about the source.
  */
 
 /** Shown when a polyline carries no decodable PB2002 plate-pair label. */
