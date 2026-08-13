@@ -255,6 +255,54 @@ describe("aerosol place-panel reading", () => {
     ).toContain("rendered source image dimensions not supplied");
   });
 
+  it("never rounds an incomplete sampled share up to full coverage", () => {
+    for (const fraction of [0.996, 0.9949999, 0.995, 0.999]) {
+      const detail = aerosolBoundaryLoadingReading(
+        sample({ validFractions: [0.82, fraction] })
+      ).detail;
+
+      expect(detail).not.toContain("100% sampled boundary coverage");
+      expect(detail).toContain(
+        fraction < 0.995
+          ? "99% sampled boundary coverage"
+          : ">99% sampled boundary coverage"
+      );
+    }
+
+    expect(
+      aerosolBoundaryLoadingReading(sample({ validFractions: [0.82, 1] }))
+        .detail
+    ).toContain("100% sampled boundary coverage");
+  });
+
+  it("never rounds a positive sampled share down to no coverage", () => {
+    const detail = aerosolBoundaryLoadingReading(
+      sample({ validFractions: [0.82, 0.004] })
+    ).detail;
+
+    expect(detail).toContain("<1% sampled boundary coverage");
+    expect(detail).not.toContain("0% sampled boundary coverage");
+    // The value the share qualifies is still shown; only its share was wrong.
+    expect(detail).toContain("boundary-mean column AOD");
+  });
+
+  it("keeps 0% for a genuinely empty sample", () => {
+    expect(
+      aerosolBoundaryLoadingReading(sample({ validFractions: [0.82, 0] }))
+        .detail
+    ).toContain("0% sampled boundary coverage");
+  });
+
+  it("keeps complete coverage at 100% through summation rounding", () => {
+    // Coverage is a ratio of two compensated area sums, so a complete sample can
+    // land just short of one; that is float noise, not an unobserved gap.
+    expect(
+      aerosolBoundaryLoadingReading(
+        sample({ validFractions: [0.82, 1 - 1e-12] })
+      ).detail
+    ).toContain("100% sampled boundary coverage");
+  });
+
   it("distinguishes a failed sample from an absence of aerosol", () => {
     const reading = unavailableAerosolBoundaryReading(MONTHS[1]);
 
