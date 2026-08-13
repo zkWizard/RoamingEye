@@ -50,6 +50,7 @@ import {
 } from "../lib/plateProximity";
 import { eruptionRecencyText } from "../lib/volcanoRecency";
 import { qualifiedVolcanoTypeLabel } from "../lib/volcanoMorphology";
+import { volcanoTypeCompositionText } from "../lib/volcanoType";
 import { elevationRegimeLabel } from "../lib/volcanoes";
 import {
   summitDatumText,
@@ -91,6 +92,7 @@ export class PlaceInsights {
   private readonly volcanoValue: HTMLElement;
   private readonly volcanoDetail: HTMLElement;
   private readonly volcanoRecency: HTMLElement;
+  private readonly volcanoTypes: HTMLElement;
   private readonly volcanoRecords: HTMLUListElement;
   private readonly volcanoSource: HTMLAnchorElement;
   private readonly seismicityValue: HTMLElement;
@@ -170,6 +172,11 @@ export class PlaceInsights {
     // composition of the full matched set gets its own line.
     this.volcanoRecency = document.createElement("p");
     this.volcanoRecency.className = "place-insights__detail";
+    // Same reason as the recency line: the rows print one landform label each,
+    // so for a wide extent the visible types are whichever the alphabetical
+    // order surfaced, not the composition of the matched set.
+    this.volcanoTypes = document.createElement("p");
+    this.volcanoTypes.className = "place-insights__detail";
     this.volcanoRecords = document.createElement("ul");
     this.volcanoRecords.className = "place-insights__volcano-list";
     this.volcanoSource = document.createElement("a");
@@ -183,6 +190,7 @@ export class PlaceInsights {
       this.volcanoValue,
       this.volcanoDetail,
       this.volcanoRecency,
+      this.volcanoTypes,
       this.volcanoRecords,
       this.volcanoSource
     );
@@ -357,6 +365,7 @@ export class PlaceInsights {
     this.volcanoDetail.textContent =
       "Checking the bundled Smithsonian volcano dataset against the search bounding box";
     this.volcanoRecency.textContent = "";
+    this.volcanoTypes.textContent = "";
     this.volcanoRecords.replaceChildren();
   }
 
@@ -374,6 +383,8 @@ export class PlaceInsights {
     this.volcanoRecords.replaceChildren();
     this.volcanoRecency.textContent =
       eruptionRecencyText(context.eruptionRecency) ?? "";
+    this.volcanoTypes.textContent =
+      volcanoTypeCompositionText(context.typeComposition) ?? "";
     if (context.status === "invalid-bounds") {
       this.volcanoValue.textContent = "Search extent unavailable";
       this.volcanoDetail.textContent = context.geographicCoverage;
@@ -457,6 +468,7 @@ export class PlaceInsights {
   setVolcanoUnavailable(): void {
     this.volcanoRecords.replaceChildren();
     this.volcanoRecency.textContent = "";
+    this.volcanoTypes.textContent = "";
     this.volcanoValue.textContent = "Records unavailable";
     this.volcanoDetail.textContent =
       "The bundled GVP-derived volcano data could not be loaded for this search.";
