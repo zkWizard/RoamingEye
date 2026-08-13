@@ -117,6 +117,82 @@ describe("aerosol place-panel reading", () => {
     expect(interior.detail).not.toContain("rendered colour ramp");
   });
 
+  // The rendered ramp's top bin is open-ended, so a saturated month is a lower
+  // bound rather than a measurement. `AerosolLoadingChange.changeBound` states
+  // the rule a caller must honour, but it cannot fire on this path: the finite
+  // colormap entries stop at 0.8975 while `describeAerosolCensoring` only
+  // censors at 0.9, so the card screens saturation itself. Without that, a
+  // bounded difference was printed as a plain measured one.
+  it("reports a difference against a saturated later month as a lower bound", () => {
+    const reading = aerosolBoundaryLoadingReading(
+      sample({ observedValues: [0.7, 0.8975] })
+    );
+
+    // The true later value can only be higher, so the true change can only be
+    // larger than the computed +0.20.
+    expect(reading.detail).toContain("at least +0.20 vs Feb 2026");
+    expect(reading.detail).toContain("a lower bound on the change");
+    expect(reading.detail).toContain("not a measured difference");
+    // The direction survives here: a censored later month can only push an
+    // already-increasing difference further up.
+    expect(reading.detail).toContain("increasing");
+  });
+
+  it("reports a difference against a saturated earlier month as an upper bound", () => {
+    const reading = aerosolBoundaryLoadingReading(
+      sample({ observedValues: [0.8975, 0.7] })
+    );
+
+    expect(reading.detail).toContain("at most -0.20 vs Feb 2026");
+    expect(reading.detail).toContain("an upper bound on the change");
+    expect(reading.detail).toContain("decreasing");
+  });
+
+  it("does not name a direction the bound cannot support", () => {
+    // Later month censored and the computed difference sits inside the
+    // little-change band. The true later value can only be higher, so a computed
+    // +0.00 is equally consistent with a true jump of +2 — "little change" would
+    // assert a stability the imagery cannot support, so no direction is printed.
+    const reading = aerosolBoundaryLoadingReading(
+      sample({ observedValues: [0.8964, 0.8975] })
+    );
+
+    expect(reading.detail).toContain("at least +0.00 vs Feb 2026");
+    expect(reading.detail).toContain("a lower bound on the change");
+    expect(reading.detail).not.toContain("little change, within");
+    expect(reading.detail).not.toContain("increasing");
+  });
+
+  it("withholds the difference entirely when both months saturate the ramp", () => {
+    // Two readings at the ceiling could truly be 0.90 and 3.0, in either order,
+    // so neither the sign nor the size of the change survives. Printing the
+    // arithmetic difference would assert a stability the imagery cannot support.
+    const reading = aerosolBoundaryLoadingReading(
+      sample({ observedValues: [0.8975, 0.8975] })
+    );
+
+    // The later month's own value still shows; only the comparison is refused.
+    expect(reading.value).toBe("0.90");
+    expect(reading.detail).toContain("no comparison with Feb 2026");
+    expect(reading.detail).toContain("open-ended top bin");
+    expect(reading.detail).not.toContain("+0.00 vs Feb 2026");
+    expect(reading.detail).not.toContain("little change");
+  });
+
+  it("bounds the descriptive tier from below when the sample saturates", () => {
+    // `lowestPossibleCategory` is the lowest tier consistent with a censored
+    // reading, so naming it alone would present a floor as the finding.
+    const saturated = aerosolBoundaryLoadingReading(
+      sample({ observedValues: [0.7, 0.8975] })
+    );
+    expect(saturated.detail).toContain("or heavier (descriptive tier");
+
+    const interior = aerosolBoundaryLoadingReading(
+      sample({ observedValues: [0.3, 0.35] })
+    );
+    expect(interior.detail).not.toContain("or heavier");
+  });
+
   it("withholds a comparison across non-consecutive months and says why", () => {
     const reading = aerosolBoundaryLoadingReading(
       sample({
