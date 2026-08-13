@@ -20,6 +20,10 @@ import {
   inversionAccuracyCsvHeaders,
   probeInversionAccuracy,
 } from "./lib/probeInversionAccuracy";
+import {
+  probeRecordGaps,
+  probeRecordGapsCsvHeaders,
+} from "./lib/probeRecordGaps";
 import { emptyAtmosphereProbeNote } from "./lib/atmosphereProbeDomain";
 import { averagedSstSupportNote } from "./lib/marineAveragedSstSupport";
 import { emptyMarineProbeNote } from "./lib/marineProbeDomain";
@@ -927,6 +931,12 @@ if (probeEl) {
                 inversionAccuracyHeaders: inversionAccuracyCsvHeaders(
                   probeInversionAccuracy(layer.id, scale)
                 ),
+                // The status line already qualifies the on-screen month
+                // count; the exported file outlives the session, so it
+                // carries the same correction.
+                recordGapHeaders: probeRecordGapsCsvHeaders(
+                  probeRecordGaps(layer.id, probeMonths)
+                ),
               },
               probeMonths,
               values,
@@ -1040,6 +1050,12 @@ if (probeEl) {
                 viewUrl: currentShareUrl(),
                 inversionAccuracyHeaders: inversionAccuracyCsvHeaders(
                   probeInversionAccuracy(layer.id, scale)
+                ),
+                // The status line already qualifies the on-screen month
+                // count; the exported file outlives the session, so it
+                // carries the same correction.
+                recordGapHeaders: probeRecordGapsCsvHeaders(
+                  probeRecordGaps(layer.id, probeMonths)
                 ),
               },
               probeMonths,

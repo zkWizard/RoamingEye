@@ -3,6 +3,7 @@ import {
   PROBE_RECORD_GAPS_LIMITATIONS,
   probeRecordGaps,
   probeRecordGapsClause,
+  probeRecordGapsCsvHeaders,
 } from "./probeRecordGaps";
 import { LAYERS, monthRangeForLayer, type YearMonth } from "./timeline";
 
@@ -114,5 +115,72 @@ describe("probeRecordGapsClause", () => {
       ) ?? "";
     expect(clause).not.toMatch(/no data|missing observation|forecast|expect/i);
     expect(clause).toContain("never distributed");
+  });
+});
+
+describe("probeRecordGapsCsvHeaders", () => {
+  it("names every gap month in the CSV's own year_month format", () => {
+    const headers = probeRecordGapsCsvHeaders(
+      probeRecordGaps("ndvi", monthRangeForLayer(LAYERS.ndvi))
+    );
+    expect(headers).toHaveLength(2);
+    expect(headers[0]).toContain("(2025-04)");
+    // A single gap has to read as one: "1 month ... carry" shipped once.
+    expect(headers[0]).toContain("1 month inside this file's span carries");
+    expect(headers[0]).toContain("has no row below");
+  });
+
+  it("lists ALL gap months rather than truncating the way the panel does", () => {
+    const months = monthRangeForLayer(LAYERS.snow);
+    const pinned = LAYERS.snow.unpublished ?? [];
+    // The status line caps its list at three and tallies the rest; an archived
+    // file has no display budget, so a partial list would be the same defect.
+    expect(pinned.length).toBeGreaterThan(3);
+    expect(probeRecordGapsClause(probeRecordGaps("snow", months))).toContain(
+      "more"
+    );
+    const header = probeRecordGapsCsvHeaders(
+      probeRecordGaps("snow", months)
+    )[0];
+    for (const gap of pinned) {
+      expect(header).toContain(
+        `${gap.year}-${String(gap.month).padStart(2, "0")}`
+      );
+    }
+    expect(header).not.toContain("more");
+  });
+
+  it("stays silent for a layer that pins no gaps, keeping its CSV unchanged", () => {
+    expect(
+      probeRecordGapsCsvHeaders(
+        probeRecordGaps("precip", monthRangeForLayer(LAYERS.precip))
+      )
+    ).toEqual([]);
+    expect(probeRecordGapsCsvHeaders(probeRecordGaps(undefined, []))).toEqual(
+      []
+    );
+  });
+
+  it("never puts a comma in a `#` line — the CSV header contract", () => {
+    for (const id of ["sst", "snow", "ndvi", "evi"] as const) {
+      for (const line of probeRecordGapsCsvHeaders(
+        probeRecordGaps(id, monthRangeForLayer(LAYERS[id]))
+      )) {
+        expect(line.startsWith("# "), line).toBe(true);
+        expect(line, `comma would tear this header: ${line}`).not.toContain(
+          ","
+        );
+        expect(line).not.toMatch(/[\r\n"]/);
+      }
+    }
+  });
+
+  it("reports distribution and never claims what happened those months", () => {
+    const headers = probeRecordGapsCsvHeaders(
+      probeRecordGaps("sst", monthRangeForLayer(LAYERS.sst))
+    ).join(" ");
+    expect(headers).toContain("not an observation that came back empty");
+    expect(headers).toContain("says nothing about conditions");
+    expect(headers).not.toMatch(/forecast|expected|anomalous|warmer|cooler/i);
   });
 });

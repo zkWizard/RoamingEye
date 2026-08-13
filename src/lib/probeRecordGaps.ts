@@ -149,3 +149,41 @@ export function probeRecordGapsClause(gaps: ProbeRecordGaps): string | null {
     `the chart and the CSV`
   );
 }
+
+/** `YYYY-MM`, matching the CSV's own `year_month` column. */
+function csvYm(ym: YearMonth): string {
+  return `${ym.year}-${String(ym.month).padStart(2, "0")}`;
+}
+
+/**
+ * Provenance headers naming the undistributed months for the exported CSV, or
+ * an empty list when the charted span clears every pinned gap.
+ *
+ * The status-line clause tells a reader looking at the app; this tells the
+ * reader who opened the download six months later, and it is the more load-
+ * bearing of the two. The CSV writes one row per *distributed* month and uses
+ * an empty value cell for "sampled, nothing there" — so an undistributed month
+ * is not an empty cell, it has no row at all. Nothing in the file distinguishes
+ * that from a month the app declined to sample, and a downstream reader who
+ * reindexes the series onto a monthly calendar will silently interpolate across
+ * a gap the source never observed. Naming the months is what makes the file
+ * self-describing once it has left the app.
+ *
+ * All gap months in span are listed rather than truncated the way the status
+ * line truncates: an archived file has no display budget, and a partial list
+ * would be the same defect one level down. The dataset is deliberately NOT
+ * interpolated here — `# data_product` already cites it, and upstream titles
+ * carry commas that would tear the header into ragged cells.
+ */
+export function probeRecordGapsCsvHeaders(gaps: ProbeRecordGaps): string[] {
+  if (!gaps.applicable || gaps.months.length === 0) return [];
+  const count = gaps.months.length;
+  // No commas anywhere below: a `#` line must never contain a CSV delimiter
+  // (see the header discipline documented on `csvHeaderText` in probe.ts).
+  const named = gaps.months.map(csvYm).join(" ");
+  const one = count === 1;
+  return [
+    `# undistributed_months: ${count} ${one ? "month" : "months"} inside this file's span ${one ? "carries" : "carry"} no source composite and ${one ? "has" : "have"} no row below (${named}) — a gap in distribution; not an observation that came back empty`,
+    `# undistributed_months_scope: pinned from the source's advertised time dimension on a stated catalog date — says nothing about conditions during those months; the month count anomaly baseline and trend above are computed over the distributed months alone`,
+  ];
+}
