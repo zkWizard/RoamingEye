@@ -58,14 +58,36 @@ describe("probeInversionAccuracy", () => {
   });
 
   it("reports an all-rejected ramp as its own state, not a small error", () => {
-    // LST's display gradient misses GIBS's cold-end hues entirely, so no
-    // colour inverts. "No RMSE" must never be shown as "RMSE 0".
-    const a = probeInversionAccuracy("lst");
-    expect(a.status).toBe("all-colours-rejected");
-    expect(a.rmse).toBeNull();
+    // LST held this state — its hand-drawn gradient missed GIBS's rainbow so
+    // completely that none of the 250 colours inverted — until the legend was
+    // rebuilt on 2026-08-13. No live layer rejects a ramp now, so synthesize
+    // the state to keep the "no RMSE is not RMSE 0" contract covered.
+    const a = {
+      layerId: "lst" as const,
+      status: "all-colours-rejected" as const,
+      rmse: null,
+      unit: "K",
+      rejectedColours: 250,
+      totalColours: 250,
+      rejectedFraction: 1,
+      quantizationText: "",
+    };
     expect(inversionAccuracyClause(a)).toContain("unvalidated");
     expect(inversionAccuracyClause(a)).not.toMatch(/±/);
     expect(inversionAccuracyCsvHeaders(a).join(" ")).not.toMatch(/RMSE ±/);
+  });
+
+  it("reports LST's rebuilt ramp as a measured figure in kelvin", () => {
+    // The regression guard for the 2026-08-13 recalibration: LST is the layer
+    // that used to recover nothing, so a silent revert would show up here.
+    const a = probeInversionAccuracy("lst");
+    expect(a.status).toBe("characterized");
+    expect(a.rmse).toBe(MEASURED_INVERSION.lst.rmse);
+    expect(a.unit).toBe("K");
+    expect(a.rejectedColours).toBe(0);
+    expect(a.totalColours).toBe(250);
+    expect(inversionAccuracyClause(a)).toContain("K");
+    expect(inversionAccuracyClause(a)).not.toContain("unreadable");
   });
 });
 

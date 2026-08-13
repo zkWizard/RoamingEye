@@ -74,21 +74,21 @@ Two sources, both stated in every export:
   | Snow cover            | 0.62 (of 0–100%) | 100 / 100 |
   | Sea surface temp      | 1.0 °C           | 213 / 213 |
   | Soil moisture         | 0.23 kg/m²       | 50 / 50   |
-  | Land surface temp     | no-data (all)    | 0 / 250   |
+  | Land surface temp     | 0.32 K           | 250 / 250 |
 
   The spread is not about the layers — it is about how closely each legend
-  follows the colormap GIBS renders with. Precipitation, air temperature, sea
-  surface temperature, soil moisture, and aerosol take their stops from that
-  colormap and invert tightly across the whole ramp. Only land-surface
-  temperature is still a hand-drawn approximation, and the cost shows up in
-  the "Recovered" column: colours the gradient cannot place are rejected as
-  no-data, which for LST is the entire ramp. **Every probed value remains an
+  follows the colormap GIBS renders with. Every dynamic layer now takes its
+  stops from that colormap and inverts tightly across the whole ramp, so no
+  layer rejects a colour. Land-surface temperature was the last hand-drawn
+  approximation and the starkest: its blue → red gradient missed GIBS's
+  full-spectrum rainbow so completely that all 250 ramp colours were rejected
+  as no-data — the probe recovered nothing, for every land pixel, at every
+  date. Rebuilding it from `MODIS_Land_Surface_Temp` (2026-08-13) took it to
+  0.32 K over the whole ramp. **Every probed value remains an
   approximation of rendered imagery — relative and temporal analysis is the
   probe's most robust use.** The full
   method and framing is in
-  [docs/validation.md](docs/validation.md); rebuilding the remaining gradients
-  from the real GIBS colormaps is tracked as
-  [#170](https://github.com/zkWizard/RoamingEye/issues/170).
+  [docs/validation.md](docs/validation.md).
 
 ### Gross-error plausibility bands (atmosphere)
 
@@ -164,19 +164,21 @@ Three further limits of the rendered product that no inversion can remove:
   derived from the survivors is conditioned on a censored sample. Measured
   against the same colormaps (`src/lib/inversionBlindSpots.ts`):
 
-  | Layer                 | Blind-spot shape | Widest unreadable span         |
-  | --------------------- | ---------------- | ------------------------------ |
-  | Aerosol optical depth | none             | —                              |
-  | Sea surface temp      | none             | —                              |
-  | Air temperature (2 m) | none             | —                              |
-  | Precipitation         | none             | —                              |
-  | Soil moisture         | none             | —                              |
-  | Land surface temp     | total            | 200.3–349.7 K (the whole ramp) |
+  | Layer                 | Blind-spot shape | Widest unreadable span |
+  | --------------------- | ---------------- | ---------------------- |
+  | Aerosol optical depth | none             | —                      |
+  | Sea surface temp      | none             | —                      |
+  | Air temperature (2 m) | none             | —                      |
+  | Precipitation         | none             | —                      |
+  | Soil moisture         | none             | —                      |
+  | Land surface temp     | none             | —                      |
 
   Air temperature, precipitation, sea surface temperature, and soil moisture
   each carried a wide blind spot until their legends were rebuilt from GIBS's
   own ramps (#717, #713, #736, #753); re-measured after those recalibrations,
-  all four read the whole ramp. A layer whose shape is not `none` has a
+  all four read the whole ramp. Land surface temperature carried a `total`
+  blind spot — the entire 200.3–349.7 K ramp — until the same rebuild was
+  applied to it on 2026-08-13. No calibrated layer has a blind spot left. A layer whose shape is not `none` has a
   _survivor-only_ RMSE, measured on the colours that happened to invert, and
   an observed extreme inside a blind run that reaches a ramp end is a
   censoring artefact of our gradient rather than an observation — today that
