@@ -315,6 +315,79 @@ export function formatReportedMagnitude(
   return `M ${magnitude} (${scale.label}, reported)`;
 }
 
+/**
+ * Where a reported value sits against its own method's published limits, as a
+ * short clause for a per-event readout — or null when there is nothing to say.
+ *
+ * `formatReportedMagnitude` labels one headline value and so flags only
+ * saturation, the single state with a published direction of error. A list that
+ * prints a row per matched event has room for the rest of what
+ * `magnitudeRangeState` classifies, and those states are not rare: the USGS
+ * M4.5+ feed publishes Mww values down to M 4.5 while USGS documents Mww as
+ * applicable at M 5.0 and above, so a fifth of the Mww events in a month sit
+ * below their own method's published floor.
+ *
+ * The clause reports the value's position relative to what USGS publishes for
+ * the method. It is not a correction, not an uncertainty, and says nothing
+ * about the earthquake — only the saturation branch has a published direction
+ * of error, and only it names one. A value inside the published range returns
+ * null rather than a reassurance: being in range is not a statement of
+ * accuracy, and USGS publishes no accuracy claim to pass on.
+ *
+ * The method is deliberately not named again. This is written for a readout
+ * that has already printed the code the feed reported beside the value, and
+ * repeating it in the scale's conventional casing — "Mww" against the feed's
+ * own "mww" — would read as a second method rather than the same one.
+ */
+export function reportedMagnitudeRangeNote(
+  magnitude: number,
+  magnitudeType: string | null | undefined
+): string | null {
+  const scale = magnitudeScale(magnitudeType);
+  const state = magnitudeRangeState(magnitude, scale);
+  if (scale === null || state === null) return null;
+
+  // `magnitudeRangeState` only reaches a state when the threshold behind it is
+  // published, so every branch below has a value to cite. Reading the threshold
+  // back through a guard keeps that invariant checked rather than asserted, and
+  // a citation is rendered to a tenth because that is the precision USGS
+  // publishes the table in — 5 would misread as a coarser bound than 5.0.
+  const cite = (
+    threshold: number | null,
+    clause: (bound: string) => string
+  ): string | null =>
+    threshold === null ? null : clause(threshold.toFixed(1));
+  const { min, max } = scale.applicableRange;
+
+  switch (state) {
+    case "at-or-above-saturation":
+      return cite(
+        scale.saturationMagnitude,
+        (bound) =>
+          `USGS states this method saturates at M ${bound}, so the reported value is a lower bound`
+      );
+    case "above-published-applicability":
+      return cite(
+        scale.applicabilityLimitMagnitude,
+        (bound) =>
+          `at or above M ${bound}, where USGS states this method becomes unsuitable`
+      );
+    case "above-published-range":
+      return cite(
+        max,
+        (bound) => `above the M ${bound} maximum USGS publishes for this method`
+      );
+    case "below-published-range":
+      return cite(
+        min,
+        (bound) => `below the M ${bound} minimum USGS publishes for this method`
+      );
+    case "within-published-range":
+    case "no-published-range":
+      return null;
+  }
+}
+
 /** Limits that travel with any summary built on this vocabulary. */
 export const MAGNITUDE_SCALE_LIMITATIONS = [
   "Names the magnitude method a value was reported on; magnitudes from different methods are not directly comparable.",

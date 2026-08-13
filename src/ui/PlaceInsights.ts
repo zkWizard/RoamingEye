@@ -32,6 +32,7 @@ import {
   type EarthquakePlaceContext,
   type NearbyEarthquakeObservation,
 } from "../lib/earthquakeContext";
+import { reportedMagnitudeRangeNote } from "../lib/magnitudeScale";
 import {
   nearestVolcanoStatement,
   type VolcanoProximityContext,
@@ -661,6 +662,11 @@ export class PlaceInsights {
  * One matched event: magnitude with its reported scale, epicentral distance,
  * hypocentre depth and class, and the source-reported place. Links to the USGS
  * event page when the feed supplied one so the record stays traceable.
+ *
+ * A row whose value falls outside the range USGS publishes for the method that
+ * measured it carries that as a trailing clause. The rows are ordered nearest
+ * first rather than largest first, so an out-of-range value routinely appears
+ * here while the section's largest-value sentence names a different event.
  */
 function seismicityListItem(
   observation: NearbyEarthquakeObservation
@@ -675,6 +681,14 @@ function seismicityListItem(
     `${observation.depthKm} km deep (${observation.depthClass})`,
     `${new Date(observation.time).toISOString().slice(0, 10)} UTC`,
   ];
+  // Trails the record so the row still leads with what the feed reported; a
+  // value inside the published range adds nothing, which keeps most rows as
+  // they were.
+  const rangeNote = reportedMagnitudeRangeNote(
+    observation.magnitude,
+    observation.magnitudeType
+  );
+  if (rangeNote !== null) details.push(rangeNote);
   const url = observation.sourceRecord?.url;
   if (url) {
     const link = document.createElement("a");
