@@ -1,5 +1,6 @@
 import { greatCircleDistance } from "./geo";
 import { GVP_VOLCANO_SOURCE, VOLCANO_CONTEXT_UNITS } from "./volcanoContext";
+import { qualifiedVolcanoTypeLabel } from "./volcanoMorphology";
 import {
   eruptionClass,
   lastEruptionLabel,
@@ -228,7 +229,7 @@ export function nearestVolcanoStatement(
     return `No catalogued Holocene volcano lies within ${radius} km of the search centre; absence from the GVP inventory does not establish that a place is volcanically inactive.`;
   }
   const { name, distanceKm, primaryType, lastEruptionText } = context.nearest;
-  return `Nearest catalogued Holocene volcano within ${radius} km: ${name}, ${formatDistanceKm(distanceKm)} km from the search centre (${primaryType ?? "primary type not supplied"}; ${lastEruptionText}). Summit great-circle distance, not a hazard footprint.`;
+  return `Nearest catalogued Holocene volcano within ${radius} km: ${name}, ${formatDistanceKm(distanceKm)} km from the search centre (${qualifiedVolcanoTypeLabel(primaryType) ?? "primary type not supplied"}; ${lastEruptionText}). Summit great-circle distance, not a hazard footprint.`;
 }
 
 /**
