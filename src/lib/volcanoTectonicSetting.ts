@@ -195,6 +195,93 @@ const CRUST_TEXT: Record<
   unknown: "crustal thickness unknown",
 };
 
+/**
+ * GVP's printed label for each class that carries kilometre bounds, in the
+ * catalog's own wording so a reader can match it against a record row.
+ */
+const CRUST_BAND_TEXT: Record<
+  "oceanic" | "intermediate" | "continental",
+  string
+> = {
+  oceanic: "oceanic crust (< 15 km)",
+  intermediate: "intermediate crust (15-25 km)",
+  continental: "continental crust (> 25 km)",
+};
+
+/** Classes carrying printed bounds, thin to thick. Order is stable, not ranked. */
+const BANDED_CLASSES = ["oceanic", "intermediate", "continental"] as const;
+
+/**
+ * Qualify the kilometre figures a record list prints inside GVP's compound
+ * tectonic-setting label.
+ *
+ * A record row shows the label verbatim — "Subduction zone / Continental crust
+ * (> 25 km)" — beside a summit elevation and coordinates, which *are* per-volcano
+ * measurements. The parenthetical reads like a third one. It is not: it is the
+ * printed bound of the crustal-thickness class GVP assigned, so every record in
+ * that class carries the identical figure. The globe's volcano hover sidesteps
+ * this by dropping the bounds (see tectonicSettingLabel), which leaves the place
+ * panel as the only surface showing a number nothing explains.
+ *
+ * Counts are stated over the whole matched set, not the truncated visible rows,
+ * and records carrying no kilometre figure are counted separately rather than
+ * folded into a class they were never assigned.
+ *
+ * Returns null when no supplied record carries a printed band: there is then no
+ * figure on screen to qualify, and saying so would read as a statement about the
+ * crust beneath these volcanoes, which this cannot support.
+ */
+export function crustalThicknessBasisText(
+  labels: readonly (string | null | undefined)[]
+): string | null {
+  const total = labels.length;
+  if (total === 0) return null;
+
+  const counts = new Map<string, number>();
+  let bandedCount = 0;
+  for (const label of labels) {
+    const parsed = parseVolcanoTectonicSetting(label);
+    if (parsed.crustalThicknessBandKm === null) continue;
+    bandedCount += 1;
+    counts.set(parsed.crust, (counts.get(parsed.crust) ?? 0) + 1);
+  }
+  if (bandedCount === 0) return null;
+
+  const records = (count: number) => (count === 1 ? "record" : "records");
+  const read = (count: number) => (count === 1 ? "reads" : "read");
+  // Keyed by class, not by the verbatim source text: two spellings of one class
+  // must not tally as two classes.
+  const present = BANDED_CLASSES.filter((cls) => counts.has(cls));
+  // One class covering every matched record is the common case, and saying so
+  // states the uniformity the per-class counts only imply. A lone record has no
+  // uniformity to report, so it is named rather than counted.
+  const tallied =
+    present.length === 1 && bandedCount === total
+      ? total === 1
+        ? `the matched record reads ${CRUST_BAND_TEXT[present[0]]}`
+        : `all ${total} matched records read ${CRUST_BAND_TEXT[present[0]]}`
+      : `of ${total} matched ${records(total)}, ` +
+        present
+          .map((cls) => {
+            const count = counts.get(cls) ?? 0;
+            return `${count} ${read(count)} ${CRUST_BAND_TEXT[cls]}`;
+          })
+          .join("; ");
+  const unbanded = total - bandedCount;
+  const remainder =
+    unbanded === 0
+      ? ""
+      : ` ${unbanded} matched ${records(unbanded)} ` +
+        `${unbanded === 1 ? "carries" : "carry"} no kilometre figure.`;
+
+  return (
+    "Crustal thickness here is a class GVP assigns, not a measurement at each " +
+    `volcano: ${tallied}. The kilometre figures are the printed bounds of that ` +
+    "class, so every record sharing a class carries the same figure whatever " +
+    `lies beneath each summit.${remainder}`
+  );
+}
+
 function normalize(value: string): string {
   return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("en-US");
 }
