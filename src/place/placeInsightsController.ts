@@ -50,7 +50,9 @@ import {
   climateInsightText,
   climateMetricForLayer,
   exportObservationsFromRenderedClimateSample,
+  placeMetricUnavailableDetail,
   summarizeRenderedClimateSample,
+  type PlaceMetricUnavailableReason,
 } from "../lib/meteorology";
 import {
   classifyGldasRampSample,
@@ -263,9 +265,16 @@ export function runPlaceInsights(result: GeoResult): void {
         environmentUnavailableSample(exportLayerId, months)
       );
     }
+    // Attribute a failure to the step that actually failed. `loadPlaceColormap`
+    // rethrows when the published document cannot be fetched or parsed;
+    // everything after it resolves is this app's sampling of the searched
+    // boundary (see `PlaceMetricUnavailableReason`).
+    let metricFailureReason: PlaceMetricUnavailableReason =
+      "source-colormap-unavailable";
     samplingTasks.push(
       (async () => {
         const colormap = await loadPlaceColormap(metric.layerId);
+        metricFailureReason = "boundary-sampling-failed";
         // Both GLDAS water-cycle ramps end in an open "≥" cap that carries no
         // finite range, so `parseColormapEntries` drops it and the inversion
         // resolves a capped pixel to null — indistinguishable from cloud or
@@ -448,8 +457,7 @@ export function runPlaceInsights(result: GeoResult): void {
         placeInsights.setReading({
           id: metric.id,
           value: "Unavailable",
-          detail:
-            "Boundary could not be represented by the bounded sample grid",
+          detail: placeMetricUnavailableDetail(metricFailureReason),
         });
       })
     );
