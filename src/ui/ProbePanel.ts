@@ -238,11 +238,19 @@ export class ProbePanel {
    * record that came back empty — see lib/atmosphereProbeDomain.ts. A product
    * defined over land only has no value over open water by construction, and
    * saying "no data" there reports a domain boundary as a retrieval failure.
+   *
+   * `spatialSupportNote`, when supplied, says what share of an averaged
+   * footprint actually returned data — see lib/marineAveragedSstSupport.ts.
+   * The header names the box that was drawn; the mean covers only the pixels
+   * inside it that carried a value, and those are not the same thing whenever
+   * the footprint straddles the product's domain. Callers pass null for the
+   * ordinary case, so a fully sampled footprint reads exactly as before.
    */
   finish(
     csv: () => string,
     filename: string,
-    emptySeriesNote?: string | null
+    emptySeriesNote?: string | null,
+    spatialSupportNote?: string | null
   ): void {
     this.csv = csv;
     this.csvFilename = filename;
@@ -252,10 +260,18 @@ export class ProbePanel {
 
     const stats = seriesStats(this.values);
     if (!stats || !this.scale) {
+      // An averaged footprint that returned nothing is not "no data at this
+      // point" — there was no point. Prefer the support note's own wording
+      // when it has one, so the sentence matches what was actually sampled.
       this.setStatus(
-        emptySeriesNote
-          ? `No data at this point for this layer. ${emptySeriesNote}`
-          : "No data at this point for this layer."
+        [
+          spatialSupportNote
+            ? asSentence(spatialSupportNote)
+            : "No data at this point for this layer.",
+          emptySeriesNote,
+        ]
+          .filter(Boolean)
+          .join(" ")
       );
       return;
     }
@@ -289,7 +305,8 @@ export class ProbePanel {
       ` · ${uncertaintyText(s)} per value` +
       (accuracy ? ` · ${accuracy}` : "") +
       ` · ${trendClause(trend)}` +
-      (seasonal ? ` · ${seasonal}` : "");
+      (seasonal ? ` · ${seasonal}` : "") +
+      (spatialSupportNote ? ` · ${spatialSupportNote}` : "");
     this.setStatus(stat);
     this.appendPeakGreenness(stat, physical);
   }
@@ -617,4 +634,13 @@ export class ProbePanel {
     ctx.restore();
     ctx.globalAlpha = 1;
   }
+}
+
+/**
+ * Render a lower-case clause as a standalone sentence, so a support note can
+ * carry the whole status line when there are no stats to lead with.
+ */
+function asSentence(clause: string): string {
+  const text = `${clause.charAt(0).toUpperCase()}${clause.slice(1)}`;
+  return /[.!?]$/.test(text) ? text : `${text}.`;
 }
