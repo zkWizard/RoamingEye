@@ -6,6 +6,7 @@ import { parsePlateBoundaries } from "./plates";
 import {
   BIRD_2003_PLATE_BOUNDARY_SOURCE,
   PLATE_BOUNDARY_CONTEXT_UNITS,
+  digitizationCreditText,
   plateBoundariesInSearchExtent,
   subductionMarkingText,
 } from "./plateBoundaryContext";
@@ -83,7 +84,12 @@ describe("plateBoundariesInSearchExtent", () => {
     );
 
     expect(context.matchingBoundaries).toEqual([
-      { name: "PA-NA", matchedSegmentCount: 1, sourceClass: "unavailable" },
+      {
+        name: "PA-NA",
+        matchedSegmentCount: 1,
+        sourceClass: "unavailable",
+        sourceCitation: null,
+      },
     ]);
   });
 
@@ -114,6 +120,7 @@ describe("plateBoundariesInSearchExtent", () => {
         name: "Crosses date line",
         matchedSegmentCount: 1,
         sourceClass: "unavailable",
+        sourceCitation: null,
       },
     ]);
   });
@@ -286,6 +293,118 @@ describe("subductionMarkingText", () => {
       "subduction marking to " +
         `${context.coverage.matchedSubductionBoundaryCount} of ` +
         `${context.coverage.matchedBoundaryCount} matched boundaries`
+    );
+  });
+});
+
+describe("digitizationCreditText", () => {
+  const matched = (
+    ...citations: (string | null)[]
+  ): ReturnType<typeof plateBoundariesInSearchExtent> =>
+    plateBoundariesInSearchExtent(
+      citations.map((sourceCitation, index) =>
+        boundary({ name: `X${index}`, step: step({ sourceCitation }) })
+      ),
+      [39, 42, -126, -123]
+    );
+
+  it("names the credit and denies the Bird-alone reading", () => {
+    const text = digitizationCreditText(matched("Mueller et al. [1987]"));
+
+    expect(text).toContain(
+      'the matched linework here is credited to "Mueller et al. [1987]"'
+    );
+    // The whole point of the line: the compilation credit is not the survey.
+    expect(text).toContain(
+      "compiles separately sourced digitizations rather than one uniform survey"
+    );
+    // Half the steps are credited to Bird's own earlier digitizing, so the line
+    // must never append a clause that contradicts the credit it just named.
+    expect(
+      digitizationCreditText(matched("by Peter Bird, 1999"))
+    ).not.toContain("not Bird (2003) alone");
+  });
+
+  it("names both credits when a match spans two digitizations", () => {
+    expect(
+      digitizationCreditText(matched("Lonsdale [1988]", "Rangin et al. [1999]"))
+    ).toContain('credited to "Lonsdale [1988]" and "Rangin et al. [1999]"');
+  });
+
+  it("counts the credits and names the most used when more than two", () => {
+    const text = digitizationCreditText(
+      matched("A [1990]", "B [1991]", "B [1991]", "C [1992]", "C [1992]")
+    );
+
+    // Most-used first, so the two named really are the bulk of the linework.
+    expect(text).toContain(
+      'carries 3 distinct source credits, most often "B [1991]" and "C [1992]"'
+    );
+  });
+
+  it("orders equal counts alphabetically so input order never decides", () => {
+    const forward = digitizationCreditText(matched("Zed [1990]", "Abe [1991]"));
+    const reversed = digitizationCreditText(
+      matched("Abe [1991]", "Zed [1990]")
+    );
+
+    expect(forward).toContain('credited to "Abe [1991]" and "Zed [1990]"');
+    expect(forward).toBe(reversed);
+  });
+
+  it("reports matched boundaries the source left uncredited", () => {
+    const text = digitizationCreditText(matched("Mueller et al. [1987]", null));
+
+    expect(text).toContain("1 matched boundary carries no source credit");
+    expect(digitizationCreditText(matched("A [1990]", null, null))).toContain(
+      "2 matched boundaries carry no source credit"
+    );
+  });
+
+  it("stays silent when nothing matched or no credit was supplied", () => {
+    const noMatch = plateBoundariesInSearchExtent(
+      [boundary({ step: step() })],
+      [0, 1, 0, 1]
+    );
+
+    expect(noMatch.coverage.matchedBoundaryCount).toBe(0);
+    expect(digitizationCreditText(noMatch)).toBeNull();
+    // Every matched feature uncredited: report no shortfall, report nothing.
+    expect(digitizationCreditText(matched(null, null))).toBeNull();
+    expect(
+      digitizationCreditText(
+        plateBoundariesInSearchExtent([boundary()], [39, 42, -126, -123])
+      )
+    ).toBeNull();
+    expect(
+      digitizationCreditText(plateBoundariesInSearchExtent([boundary()], null))
+    ).toBeNull();
+  });
+
+  it("credits the configured Bird overlay's own separately sourced steps", () => {
+    const data = JSON.parse(
+      readFileSync(
+        join(
+          __dirname,
+          "..",
+          "..",
+          "public",
+          "data",
+          "plate-boundaries.geojson"
+        ),
+        "utf8"
+      )
+    );
+    // The shipped file really is a compilation: assert it carries many distinct
+    // credits, so the panel's claim is grounded in the bundled data.
+    const context = plateBoundariesInSearchExtent(
+      parsePlateBoundaries(data),
+      [-90, 90, -180, 180]
+    );
+
+    expect(context.coverage.distinctSourceCitationCount).toBeGreaterThan(1);
+    expect(digitizationCreditText(context)).toContain(
+      `carries ${context.coverage.distinctSourceCitationCount} distinct source credits`
     );
   });
 });
