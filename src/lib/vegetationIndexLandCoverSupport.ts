@@ -192,6 +192,48 @@ export interface VegetationIndexLandCoverSupportSummary {
   limitations: readonly string[];
 }
 
+/**
+ * One-sentence probe-panel clause for how much of a region's classified land
+ * cover is a surface a vegetation index can be read as plant greenness on.
+ *
+ * Reports the two bounds of {@link PlantCanopyShare} as separate rounded
+ * shares rather than as a range: rounding a range collapses distinct bounds
+ * into an identical pair ("72-72%"), which reads as a precision the sample
+ * count does not carry. Both shares are shares of CLASSIFIED sampled image
+ * pixels, never of ground area.
+ *
+ * Returns null when no informative class was observed — the composition copy
+ * already states that, and a second empty statement would only add width.
+ */
+export function vegetationIndexSupportNote(
+  summary: VegetationIndexLandCoverSupportSummary
+): string | null {
+  const { lowerBound, upperBound, mixedSampleCount } = summary.plantCanopyShare;
+  if (summary.status !== "available") return null;
+  if (lowerBound === null || upperBound === null) return null;
+
+  const source = `${summary.vegetationIndexSource.shortName} v${summary.vegetationIndexSource.version}`;
+  const required = `${source} NDVI/EVI reads as plant greenness on ${shareText(
+    lowerBound
+  )} of classified pixels, where the IGBP class definition requires vegetation cover`;
+  if (mixedSampleCount === 0) return `${required}.`;
+  return `${required}; a further ${shareText(
+    upperBound - lowerBound
+  )} is wetland or built-up, which permit vegetation without requiring it.`;
+}
+
+/**
+ * A rounded percentage that never rounds a present share away to "0%" or a
+ * partial share up to "100%" — either would state an absence or a totality the
+ * samples do not show.
+ */
+function shareText(fraction: number): string {
+  const percent = Math.round(fraction * 100);
+  if (percent === 0 && fraction > 0) return "<1%";
+  if (percent === 100 && fraction < 1) return ">99%";
+  return `${percent}%`;
+}
+
 const TIER_BY_CLASS = new Map<
   IgbpLandCoverClassCode,
   VegetationIndexSupportTier

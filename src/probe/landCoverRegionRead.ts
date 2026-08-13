@@ -1,6 +1,10 @@
 import { summarizeLandCoverContext } from "../lib/landCover";
 import { decodeRenderedLandCoverPixel } from "../lib/landCoverPalette";
 import { describeLandCoverComposition } from "../lib/landCoverCompositionReading";
+import {
+  summarizeVegetationIndexLandCoverSupport,
+  vegetationIndexSupportNote,
+} from "../lib/vegetationIndexLandCoverSupport";
 import type { RenderedPixel } from "./ProbeSampler";
 
 /**
@@ -30,8 +34,14 @@ export function readLandCoverRegionText(
       classCode: decoded.status === "classified" ? decoded.classCode : null,
     };
   });
-  const reading = describeLandCoverComposition(
-    summarizeLandCoverContext(observations, dataYear)
+  const context = summarizeLandCoverContext(observations, dataYear);
+  const reading = describeLandCoverComposition(context);
+  // The class mix alone does not say whether the region is a surface the
+  // vegetation-index layers can be read on at all: MOD13A3 retrieves NDVI and
+  // EVI over barren, snow, ice, and water just as it does over canopy. State
+  // that share here, where the user has the class composition in front of them.
+  const support = vegetationIndexSupportNote(
+    summarizeVegetationIndexLandCoverSupport(context)
   );
-  return `${reading.text} Sampled on a ${sampling.latitudeGridSize}×${sampling.longitudeGridSize} grid over the drawn box, resolving to ${sampling.sourcePixelCount} distinct source pixels.`;
+  return `${reading.text}${support === null ? "" : ` ${support}`} Sampled on a ${sampling.latitudeGridSize}×${sampling.longitudeGridSize} grid over the drawn box, resolving to ${sampling.sourcePixelCount} distinct source pixels.`;
 }
