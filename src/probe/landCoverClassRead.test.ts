@@ -83,3 +83,57 @@ describe("readLandCoverClassText", () => {
     expect(text).toContain("2001 annual IGBP map");
   });
 });
+
+describe("vegetation-index support on the point reading", () => {
+  it("says a greenness value over water is not plant greenness", () => {
+    const text = readLandCoverClassText(
+      Array.from({ length: 9 }, () => pixel(17)),
+      2024
+    );
+
+    expect(text).toContain("Water (IGBP class 17)");
+    expect(text).toContain(
+      "MOD13A3 v061 still retrieves NDVI/EVI here, but it does not describe plant cover"
+    );
+  });
+
+  it("qualifies a vegetated class as readable greenness", () => {
+    const text = readLandCoverClassText(
+      Array.from({ length: 9 }, () => pixel(2)),
+      2024
+    );
+
+    expect(text).toContain("MOD13A3 v061 NDVI/EVI reads as plant greenness");
+  });
+
+  it("leaves a tie across tiers unresolved", () => {
+    // Four cropland and four water pixels: the tie is real and the support
+    // statement must not pick a side.
+    const text = readLandCoverClassText(
+      [
+        pixel(12),
+        pixel(12),
+        pixel(12),
+        pixel(12),
+        pixel(17),
+        pixel(17),
+        pixel(17),
+        pixel(17),
+      ],
+      2024
+    );
+
+    expect(text).toContain("Tied:");
+    expect(text).toContain("not read the same way on the tied classes");
+  });
+
+  it("adds no support clause when no class was decoded", () => {
+    const text = readLandCoverClassText(
+      Array.from({ length: 9 }, () => pixel(255)),
+      2024
+    );
+
+    expect(text).toContain("No IGBP land-cover class here");
+    expect(text).not.toContain("MOD13A3");
+  });
+});

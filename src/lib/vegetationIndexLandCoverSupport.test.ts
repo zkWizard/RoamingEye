@@ -10,6 +10,7 @@ import {
   VEGETATION_INDEX_SOURCE,
   VEGETATION_INDEX_SUPPORT_TIERS,
   summarizeVegetationIndexLandCoverSupport,
+  vegetationIndexSupportClassNote,
   vegetationIndexSupportForClass,
   vegetationIndexSupportNote,
 } from "./vegetationIndexLandCoverSupport";
@@ -291,5 +292,83 @@ describe("vegetation-index support note", () => {
     expect(note([{ classCode: null, sampleCount: 4 }])).toBeNull();
     // An unpublished year carries no classes to partition either.
     expect(note([{ classCode: 4, sampleCount: 3 }], 1999)).toBeNull();
+  });
+});
+
+describe("vegetationIndexSupportClassNote", () => {
+  it("names the vegetated tier's own definition as the reason it reads as greenness", () => {
+    const text = vegetationIndexSupportClassNote([12]); // Cropland
+
+    expect(text).toContain("MOD13A3 v061 NDVI/EVI reads as plant greenness");
+    expect(text).toContain("the class definition requires vegetation cover");
+  });
+
+  it("says a mixed class permits vegetation without requiring it", () => {
+    const wetland = vegetationIndexSupportClassNote([11]);
+    const built = vegetationIndexSupportClassNote([13]);
+
+    expect(wetland).toContain("mixes plants with another surface");
+    expect(wetland).toContain("30-60% water cover");
+    expect(built).toContain("mixes plants with another surface");
+    expect(built).toContain("30% impervious surface");
+  });
+
+  it("withholds greenness on classes whose definition caps or excludes vegetation", () => {
+    // A value still exists over snow, water, and barren ground: the honest
+    // statement is that it is retrieved but does not describe plant cover.
+    for (const classCode of [15, 16, 17]) {
+      const text = vegetationIndexSupportClassNote([classCode]);
+      expect(text).toContain("still retrieves NDVI/EVI here");
+      expect(text).toContain("does not describe plant cover");
+      expect(text).not.toContain("reads as plant greenness");
+    }
+  });
+
+  it("reads a tie within one tier as that tier, without pluralising", () => {
+    // Grassland and savanna are both vegetated: the tie does not change which
+    // statement is true, so it is stated rather than withheld.
+    const text = vegetationIndexSupportClassNote([9, 10]);
+
+    expect(text).toContain("reads as plant greenness here");
+    expect(text).not.toContain("tied classes");
+  });
+
+  it("refuses to resolve a tie that spans tiers", () => {
+    // Water and cropland carry no ordering, so neither tier's statement may be
+    // promoted to the answer.
+    const text = vegetationIndexSupportClassNote([12, 17]);
+
+    expect(text).toContain("not read the same way on the tied classes");
+    expect(text).not.toContain("reads as plant greenness here");
+    expect(text).not.toContain("does not describe plant cover");
+  });
+
+  it("is order-independent across the tied classes", () => {
+    expect(vegetationIndexSupportClassNote([12, 17])).toBe(
+      vegetationIndexSupportClassNote([17, 12])
+    );
+    expect(vegetationIndexSupportClassNote([9, 10])).toBe(
+      vegetationIndexSupportClassNote([10, 9])
+    );
+  });
+
+  it("says nothing when there is no class, or a class carrying no tier", () => {
+    expect(vegetationIndexSupportClassNote([])).toBeNull();
+    expect(vegetationIndexSupportClassNote([255])).toBeNull();
+    expect(vegetationIndexSupportClassNote([12, 255])).toBeNull();
+  });
+
+  it("agrees with the region note on which tier a class sits in", () => {
+    // The two surfaces must not disagree: every informative class the region
+    // share counts as canopy is a class the point note calls plant greenness.
+    for (const tier of VEGETATION_INDEX_SUPPORT_TIERS) {
+      for (const classCode of tier.classCodes) {
+        const text = vegetationIndexSupportClassNote([classCode]);
+        expect(text).not.toBeNull();
+        expect(text!.includes("reads as plant greenness here")).toBe(
+          tier.requiresVegetationCover
+        );
+      }
+    }
   });
 });
