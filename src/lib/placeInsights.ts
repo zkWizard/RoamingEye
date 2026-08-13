@@ -26,8 +26,9 @@ import {
   rainfallMonthLengthNote,
 } from "./placeRainfallMonthLength";
 
-export type PlaceMetricId = "vegetation" | "rainfall" | "soil" | "air";
-export type PlaceMetricLayerId = "ndvi" | "precip" | "soil" | "airtemp";
+export type PlaceMetricId = "vegetation" | "rainfall" | "soil" | "air" | "snow";
+export type PlaceMetricLayerId =
+  "ndvi" | "precip" | "soil" | "airtemp" | "snow";
 
 export interface PlaceMetric {
   id: PlaceMetricId;
@@ -45,6 +46,13 @@ export const PLACE_METRICS: readonly PlaceMetric[] = [
   { id: "rainfall", layerId: "precip", label: "Precipitation" },
   { id: "soil", layerId: "soil", label: "Soil moisture" },
   { id: "air", layerId: "airtemp", label: "Air temperature" },
+  // The cryosphere layer GIBS renders (MOD10CM monthly-average percent) had no
+  // place-panel card, so the only calibrated cryosphere reading in the app was
+  // reachable by probing a pixel. Its card is written by lib/snowCoverNarrative
+  // rather than the shared formatters below, because percent 0 is drawn
+  // transparent and the resulting drawn-fraction bias has to be stated with the
+  // number, not inferred from sampled coverage alone.
+  { id: "snow", layerId: "snow", label: "Snow cover" },
 ];
 
 export interface PlaceInsightReading {
@@ -378,6 +386,8 @@ function placeValue(
       return scaleValue(value, PROBE_SCALES.soil);
     case "air":
       return scaleValue(value, PROBE_SCALES.airtemp) - 273.15;
+    case "snow":
+      return scaleValue(value, PROBE_SCALES.snow);
   }
 }
 
@@ -396,6 +406,8 @@ function physicalPlaceValue(
       return value;
     case "air":
       return value - 273.15;
+    case "snow":
+      return value;
   }
 }
 
@@ -409,6 +421,8 @@ function formatPlaceValue(metricId: PlaceMetricId, value: number): string {
       return `${Math.round(value)} kg/m2`;
     case "air":
       return `${value.toFixed(1)} C`;
+    case "snow":
+      return `${Math.round(value)}%`;
   }
 }
 
@@ -423,6 +437,10 @@ function formatDelta(metricId: PlaceMetricId, value: number): string {
       return `${sign}${Math.round(value)} kg/m2`;
     case "air":
       return `${sign}${value.toFixed(1)} C`;
+    // Percentage points, not percent: the difference of two area percentages
+    // is not a relative change in cover.
+    case "snow":
+      return `${sign}${Math.round(value)} pp`;
   }
 }
 
