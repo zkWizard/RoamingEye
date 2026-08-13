@@ -24,6 +24,7 @@ import {
   type VolcanoExtentContext,
 } from "../lib/volcanoExtent";
 import {
+  listedSeismicityOrderNote,
   reportedDepthBasisText,
   reportedMagnitudeText,
   USGS_M45_MONTH_SOURCE,
@@ -63,6 +64,12 @@ const SAMPLING_NOTE =
 /** Stands in until the panel's actual card months have been resolved. */
 const UNRESOLVED_MONTHS_NOTE =
   "Products may publish on different monthly schedules.";
+/**
+ * Matched events shown as rows before the list is truncated. Shared with the
+ * ordering note so the count it reports as hidden can never drift from the
+ * number of rows actually rendered.
+ */
+const SEISMICITY_LIST_LIMIT = 5;
 
 /** A compact month-over-month readout for the exact boundary selected in search. */
 export class PlaceInsights {
@@ -494,12 +501,18 @@ export class PlaceInsights {
         ? `${scope} No M4.5+ events recorded in the feed window; that does not establish the area is seismically quiet.`
         : `${scope} Counted from ${coverage.validEventCount} valid events in the global feed.`;
 
-    for (const observation of context.observations.slice(0, 5)) {
+    for (const observation of context.observations.slice(
+      0,
+      SEISMICITY_LIST_LIMIT
+    )) {
       this.seismicityRecords.appendChild(seismicityListItem(observation));
     }
-    if (count > 5) {
+    // Say how the shown events were chosen, as the volcano and plate lists do:
+    // nearest first, so these are the closest events and not the largest.
+    const orderNote = listedSeismicityOrderNote(context, SEISMICITY_LIST_LIMIT);
+    if (orderNote) {
       const item = document.createElement("li");
-      item.textContent = `${count - 5} additional events not listed`;
+      item.textContent = orderNote;
       this.seismicityRecords.appendChild(item);
     }
   }
