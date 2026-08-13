@@ -319,6 +319,38 @@ export function reportedMagnitudeText(
 }
 
 /**
+ * How a truncated nearby-seismicity record list chose the events it shows.
+ *
+ * `matchingObservations` orders matched events nearest epicentre first (ties
+ * broken by most recent), so a list cut to its first few rows shows the closest
+ * events, not the largest. That distinction is not self-evident: a reader
+ * meeting a short list of earthquakes reasonably assumes it is ranked by size,
+ * and this section states the largest reported value for the whole matched set
+ * (see `reportedMagnitudeText`), which is routinely absent from the rows. Left
+ * unsaid, the truncation reads as "these are the biggest earthquakes near here".
+ *
+ * The ordering contract lives in this module, so the sentence describing it
+ * does too — a UI that hard-codes a claim about an ordering it does not own is
+ * how the claim silently goes stale.
+ *
+ * Returns null when nothing is hidden: with every matched event on screen there
+ * is no selection to disclose.
+ */
+export function listedSeismicityOrderNote(
+  context: EarthquakePlaceContext,
+  listedCount: number
+): string | null {
+  const hidden = context.coverage.matchedEventCount - listedCount;
+  if (!Number.isFinite(listedCount) || listedCount < 0 || hidden <= 0) {
+    return null;
+  }
+  return (
+    `${hidden} additional ${hidden === 1 ? "event" : "events"} not listed; ` +
+    "the list is ordered nearest first, not by magnitude"
+  );
+}
+
+/**
  * One-sentence qualifier for the matched set's reported hypocentral depths,
  * emitted only when at least one matched event reports a depth sitting exactly
  * on a conventional operator-assigned default value.

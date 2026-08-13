@@ -5,6 +5,7 @@ import {
   EARTHQUAKE_PLACE_CONTEXT_UNITS,
   USGS_M45_MONTH_SOURCE,
   largestReportedMagnitudeObservation,
+  listedSeismicityOrderNote,
   nearbyEarthquakeContext,
   reportedDepthBasisText,
   reportedMagnitudeText,
@@ -466,5 +467,78 @@ describe("reportedDepthBasisText", () => {
     expect(
       reportedDepthBasisText(nearbyEarthquakeContext([], query))
     ).toBeNull();
+  });
+});
+
+describe("listedSeismicityOrderNote", () => {
+  const query = { latitude: 0, longitude: 0, radiusKm: 500 };
+  const spread = (count: number): Earthquake[] =>
+    Array.from({ length: count }, (_, index) =>
+      earthquake({ lat: 0.1 * (index + 1), place: `Event ${index + 1}` })
+    );
+
+  it("counts the hidden events and names the ordering the rows were cut by", () => {
+    expect(
+      listedSeismicityOrderNote(nearbyEarthquakeContext(spread(8), query), 5)
+    ).toBe(
+      "3 additional events not listed; the list is ordered nearest first, not by magnitude"
+    );
+  });
+
+  it("agrees in number when a single event is hidden", () => {
+    expect(
+      listedSeismicityOrderNote(nearbyEarthquakeContext(spread(6), query), 5)
+    ).toBe(
+      "1 additional event not listed; the list is ordered nearest first, not by magnitude"
+    );
+  });
+
+  it("stays silent when every matched event is on screen", () => {
+    const context = nearbyEarthquakeContext(spread(5), query);
+    expect(listedSeismicityOrderNote(context, 5)).toBeNull();
+    // A limit above the matched count must not report a negative remainder.
+    expect(listedSeismicityOrderNote(context, 20)).toBeNull();
+  });
+
+  it("stays silent when nothing matched", () => {
+    expect(
+      listedSeismicityOrderNote(nearbyEarthquakeContext([], query), 5)
+    ).toBeNull();
+  });
+
+  it("reports the hidden count against the rows actually shown, not a fixed limit", () => {
+    // The disclosure is derived from the caller's row count, so a UI that shows
+    // a different number of rows cannot silently misstate how many are hidden.
+    const context = nearbyEarthquakeContext(spread(8), query);
+    expect(listedSeismicityOrderNote(context, 2)).toContain(
+      "6 additional events not listed"
+    );
+    expect(listedSeismicityOrderNote(context, 0)).toContain(
+      "8 additional events not listed"
+    );
+  });
+
+  it("refuses an unusable row count rather than inventing a remainder", () => {
+    const context = nearbyEarthquakeContext(spread(8), query);
+    expect(listedSeismicityOrderNote(context, -1)).toBeNull();
+    expect(listedSeismicityOrderNote(context, Number.NaN)).toBeNull();
+  });
+
+  it("names an ordering that matches how the context actually orders events", () => {
+    // Guards the sentence against the contract drifting: the first observation
+    // must really be the nearest, not the largest.
+    const context = nearbyEarthquakeContext(
+      [
+        earthquake({ lat: 0.8, magnitude: 7.4, place: "Far but largest" }),
+        earthquake({ lat: 0.05, magnitude: 4.6, place: "Nearest" }),
+        ...spread(6),
+      ],
+      query
+    );
+
+    expect(context.observations[0].place).toBe("Nearest");
+    expect(listedSeismicityOrderNote(context, 5)).toContain(
+      "ordered nearest first, not by magnitude"
+    );
   });
 });
