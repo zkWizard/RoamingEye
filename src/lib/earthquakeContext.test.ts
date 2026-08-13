@@ -6,6 +6,7 @@ import {
   USGS_M45_MONTH_SOURCE,
   largestReportedMagnitudeObservation,
   nearbyEarthquakeContext,
+  reportedDepthBasisText,
   reportedMagnitudeText,
   searchExtentEarthquakeQuery,
 } from "./earthquakeContext";
@@ -409,6 +410,61 @@ describe("reportedMagnitudeText", () => {
   it("stays silent when nothing matched", () => {
     expect(
       reportedMagnitudeText(nearbyEarthquakeContext([], query))
+    ).toBeNull();
+  });
+});
+
+describe("reportedDepthBasisText", () => {
+  const query = { latitude: 0, longitude: 0, radiusKm: 500 };
+
+  it("counts the matched depths sitting on a conventional default and names the values", () => {
+    const text = reportedDepthBasisText(
+      nearbyEarthquakeContext(
+        [
+          earthquake({ lat: 0.1, depthKm: 10 }),
+          earthquake({ lat: 0.2, depthKm: 35 }),
+          earthquake({ lat: 0.3, depthKm: 10 }),
+          earthquake({ lat: 0.4, depthKm: 12.4 }),
+        ],
+        query
+      )
+    );
+
+    expect(text).toContain(
+      "Reported depth sits exactly on a conventional default value for 3 of 4 matched events"
+    );
+    // Ascending by depth, so a reader can match the values against the rows.
+    expect(text).toContain("(10 km ×2, 35 km ×1)");
+    // A quantization tell is never presented as a location-quality rating.
+    expect(text).toContain("no fixed-depth flag");
+    expect(text).toContain("it does not rate the locations");
+  });
+
+  it("agrees in number when a single matched event carries a default depth", () => {
+    const text = reportedDepthBasisText(
+      nearbyEarthquakeContext([earthquake({ lat: 0.1, depthKm: 0 })], query)
+    );
+
+    expect(text).toContain("for 1 of 1 matched event (0 km ×1)");
+  });
+
+  it("stays silent when every matched depth is a free value", () => {
+    expect(
+      reportedDepthBasisText(
+        nearbyEarthquakeContext(
+          [
+            earthquake({ lat: 0.1, depthKm: 9.9 }),
+            earthquake({ lat: 0.2, depthKm: 34.8 }),
+          ],
+          query
+        )
+      )
+    ).toBeNull();
+  });
+
+  it("stays silent when nothing matched", () => {
+    expect(
+      reportedDepthBasisText(nearbyEarthquakeContext([], query))
     ).toBeNull();
   });
 });

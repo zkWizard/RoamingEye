@@ -1,5 +1,6 @@
 import { greatCircleDistance } from "./geo";
 import { formatReportedMagnitude } from "./magnitudeScale";
+import { seismicFixedDepthCoverage } from "./seismicFixedDepth";
 import {
   depthClass,
   SEISMICITY_SOURCE,
@@ -314,6 +315,42 @@ export function reportedMagnitudeText(
     `${formatReportedMagnitude(largest.magnitude, largest.magnitudeType)}, ` +
     `${formatDistanceKm(largest.distanceKm)} km away.${methods}` +
     " This is a maximum over reported values, not a ranking of earthquake size and not a hazard statement."
+  );
+}
+
+/**
+ * One-sentence qualifier for the matched set's reported hypocentral depths,
+ * emitted only when at least one matched event reports a depth sitting exactly
+ * on a conventional operator-assigned default value.
+ *
+ * The globe's earthquake hover already qualifies such a depth marker by marker
+ * (see overlays/EarthquakesOverlay). A place panel that reprints the same
+ * numbers without that qualifier presents a 10 km default as an independently
+ * resolved hypocentre — so the disclosure is restored here at set level, which
+ * also covers the matched events a truncated record list never shows.
+ *
+ * Counts are stated over events carrying a usable depth, and the observed
+ * default values are named so a reader can recognise them in the listed rows.
+ *
+ * Returns null when no matched depth lands on a default value: there is nothing
+ * to qualify, and announcing the absence would read as a location-quality
+ * finding, which this cannot support.
+ */
+export function reportedDepthBasisText(
+  context: EarthquakePlaceContext
+): string | null {
+  const coverage = seismicFixedDepthCoverage(context.observations);
+  if (coverage.conventionalDefaultValueCount === 0) return null;
+
+  const tally = coverage.byDefaultDepth
+    .map(({ depthKm, eventCount }) => `${depthKm} km ×${eventCount}`)
+    .join(", ");
+  const events = coverage.usableEventCount === 1 ? "event" : "events";
+  return (
+    "Reported depth sits exactly on a conventional default value for " +
+    `${coverage.conventionalDefaultValueCount} of ${coverage.usableEventCount} matched ${events} (${tally}). ` +
+    "Analysts fix depth at such values when the phase data cannot resolve it, but the feed publishes no fixed-depth flag " +
+    "and a resolved hypocentre can land on the same number — this qualifies the depths shown, it does not rate the locations."
   );
 }
 
