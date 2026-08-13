@@ -5,6 +5,7 @@ import {
   EARTHQUAKE_PLACE_CONTEXT_UNITS,
   USGS_M45_MONTH_SOURCE,
   epicenterConstraintText,
+  epicentralDistanceText,
   largestReportedMagnitudeObservation,
   listedSeismicityOrderNote,
   nearbyEarthquakeContext,
@@ -778,5 +779,62 @@ describe("epicenterConstraintText", () => {
     expect(
       epicenterConstraintText(nearbyEarthquakeContext([], query))
     ).toBeNull();
+  });
+});
+
+describe("epicentralDistanceText", () => {
+  it("names the point the distance was measured from", () => {
+    expect(epicentralDistanceText(143)).toBe(
+      "143 km from the search-extent centre"
+    );
+  });
+
+  it("uses the same anchor wording as the panel's scope sentence", () => {
+    // The list sits under "Epicentres within N km of the search-extent centre";
+    // reusing that exact term is what lets a reader see that a row's distance
+    // and the stated radius are measured on the same axis.
+    expect(epicentralDistanceText(12)).toContain("search-extent centre");
+  });
+
+  it("does not leave the distance unattributed", () => {
+    // A bare "143 km away" is the defect this replaces: the feed's own place
+    // string already states a distance from a settlement, so a second,
+    // unlabelled figure beside it reads as the same quantity disagreeing with
+    // itself.
+    expect(epicentralDistanceText(143)).not.toContain("km away");
+  });
+
+  it("keeps the existing legibility rule on both sides of the threshold", () => {
+    // Sub-10 km distances keep a decimal; larger ones round, so a whole-country
+    // radius does not print spurious precision.
+    expect(epicentralDistanceText(9.44)).toBe(
+      "9.4 km from the search-extent centre"
+    );
+    expect(epicentralDistanceText(10)).toBe(
+      "10 km from the search-extent centre"
+    );
+    expect(epicentralDistanceText(370.4)).toBe(
+      "370 km from the search-extent centre"
+    );
+  });
+
+  it("reports a coincident epicentre as zero rather than omitting it", () => {
+    expect(epicentralDistanceText(0)).toBe(
+      "0.0 km from the search-extent centre"
+    );
+  });
+
+  it("names the anchor in the largest-reported-value sentence too", () => {
+    // Both renderers of this distance in the seismicity section share one
+    // formatter, so the rows and the summary sentence cannot drift apart.
+    const text = reportedMagnitudeText(
+      nearbyEarthquakeContext(
+        [earthquake({ lat: 0.2, magnitude: 6.4, magnitudeType: "mww" })],
+        { latitude: 0, longitude: 0, radiusKm: 500 }
+      )
+    );
+
+    expect(text).toContain("km from the search-extent centre.");
+    expect(text).not.toContain("km away");
   });
 });
