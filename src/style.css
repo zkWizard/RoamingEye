@@ -227,6 +227,31 @@ body {
   pointer-events: auto; /* keep the link clickable */
 }
 
+/* --- Focus ring parity ------------------------------------------------------
+ * Most controls declare `outline: 2px solid var(--accent)` on :focus-visible,
+ * but these ones never did and fell back to the browser's default ring. That
+ * default resolves to a 1px near-black outline in BOTH themes (we declare no
+ * `color-scheme`), so on the dark glass panels it is all but invisible — the
+ * layer picker and the nine overlay toggles are the worst hit. Same ring, same
+ * offsets as everywhere else; outlines don't participate in layout, so the HUD
+ * stack is untouched.
+ */
+.hint__shortcuts:focus-visible,
+.toolbar__item:focus-visible,
+.layer-selector__trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Inline text links sit inside running copy — a tighter offset keeps adjacent
+ * rings from colliding with their neighbours. */
+.attribution__link:focus-visible,
+.attribution a:focus-visible,
+.legend__source-note a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* --- Loading state --- */
 .loader {
   position: absolute;
