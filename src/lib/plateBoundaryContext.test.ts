@@ -9,6 +9,7 @@ import {
   digitizationCreditText,
   plateBoundariesInSearchExtent,
   subductionMarkingText,
+  subductionPolarityText,
   suppliedRepeatText,
 } from "./plateBoundaryContext";
 
@@ -664,5 +665,167 @@ describe("repeats the source filed differently", () => {
 
     expect(context.coverage.matchedBoundaryCount).toBe(1);
     expect(context.coverage.repeatedMatchedFeatureCount).toBe(1);
+  });
+});
+
+describe("subductionPolarityText", () => {
+  /** Matched boundaries built straight from PB2002-shaped labels. */
+  const matchedLabels = (
+    ...labels: string[]
+  ): ReturnType<typeof plateBoundariesInSearchExtent> =>
+    plateBoundariesInSearchExtent(
+      labels.map((name, index) =>
+        boundary({
+          name,
+          // Distinct geometry per feature so the duplicate collapse never
+          // merges two labels meant to stay separate boundaries.
+          points: [
+            [-125, 40 + index * 0.01],
+            [-124, 41 + index * 0.01],
+          ],
+        })
+      ),
+      [39, 42, -126, -123]
+    );
+
+  it("reads the descending plate out of the label's delimiter", () => {
+    const text = subductionPolarityText(matchedLabels("NZ\\SA"));
+
+    expect(text).toContain("Nazca subducts beneath South America");
+    // The point of the line: the glyph the panel already prints is the model's
+    // own polarity, not an artefact of the digitized step direction.
+    expect(text).toContain("read back from the label as the model wrote it");
+  });
+
+  it("resolves both delimiters to the plate the model sends down", () => {
+    // "/" sends the right-hand plate down and "\" the left, over the same two
+    // plates — so only the delimiter can account for opposite readings.
+    expect(subductionPolarityText(matchedLabels("CO/NA"))).toContain(
+      "North America subducts beneath Cocos"
+    );
+    expect(subductionPolarityText(matchedLabels("CO\\NA"))).toContain(
+      "Cocos subducts beneath North America"
+    );
+  });
+
+  it("collapses two labels that record one descent", () => {
+    // A whole-Japan extent really does match both spellings. They are one
+    // geological statement written twice, so the sentence must not list it
+    // twice or count it as two distinct descents.
+    const text = subductionPolarityText(matchedLabels("OK/PA", "PA\\OK"));
+
+    expect(text).toContain("Pacific subducts beneath Okhotsk");
+    expect(text?.match(/Pacific subducts beneath Okhotsk/g)).toHaveLength(1);
+    expect(text).not.toContain("distinct descents");
+  });
+
+  it("stays silent when no matched label encodes a polarity", () => {
+    // A hyphen is PB2002's non-subducting segment, so there is nothing to read.
+    expect(subductionPolarityText(matchedLabels("EU-NA"))).toBeNull();
+    // An unlabeled feature decodes to nothing rather than being guessed at.
+    expect(subductionPolarityText(matchedLabels(""))).toBeNull();
+    expect(
+      subductionPolarityText(
+        plateBoundariesInSearchExtent(
+          [boundary({ name: "NZ\\SA" })],
+          [0, 1, 0, 1]
+        )
+      )
+    ).toBeNull();
+    expect(
+      subductionPolarityText(
+        plateBoundariesInSearchExtent([boundary({ name: "NZ\\SA" })], null)
+      )
+    ).toBeNull();
+  });
+
+  it("names a single descent with no list joiner and no selection clause", () => {
+    const text = subductionPolarityText(matchedLabels("NZ\\SA", "EU-NA"));
+
+    expect(text).toContain("descends: Nazca subducts beneath South America.");
+    expect(text).not.toContain("covering the most matched segments");
+  });
+
+  it("joins two readings without a serial comma and three with one", () => {
+    // Both fixtures match one segment each, so the segment counts tie and the
+    // alphabetical tie-break decides — Cocos leads despite being supplied
+    // second. Exact ties are ordinary here, which is why the comparator has a
+    // tie-break at all rather than leaving supply order to decide.
+    expect(subductionPolarityText(matchedLabels("NZ\\SA", "CO\\NA"))).toContain(
+      "Cocos subducts beneath North America and Nazca subducts beneath South America"
+    );
+
+    const three = subductionPolarityText(
+      matchedLabels("AS/AF", "AT/AF", "EU/AF")
+    );
+    expect(three).toContain(
+      "Africa subducts beneath Aegean Sea, Africa subducts beneath Anatolia, and Africa subducts beneath Eurasia"
+    );
+    // Exactly three are all named, so nothing was left out to disclose.
+    expect(three).not.toContain("distinct descents");
+  });
+
+  it("names the two largest and counts the rest beyond three readings", () => {
+    const text = subductionPolarityText(
+      matchedLabels("AS/AF", "AT/AF", "EU/AF", "NZ\\SA")
+    );
+
+    expect(text).toContain(
+      "Those are the 2 covering the most matched segments here, of 4 distinct descents these labels record"
+    );
+    // The unnamed remainder is never exactly one: three readings are all named,
+    // so "1 further descent" is unreachable and needs no singular branch.
+    expect(text).not.toMatch(/of 3 distinct descents/);
+  });
+
+  it("orders readings by matched segments, not by supply order", () => {
+    const wide = boundary({
+      name: "NZ\\SA",
+      points: [
+        [-125.5, 40],
+        [-125, 40.5],
+        [-124.5, 41],
+      ],
+    });
+    const narrow = boundary({
+      name: "CO\\NA",
+      points: [
+        [-124, 41.2],
+        [-123.5, 41.4],
+      ],
+    });
+
+    // Supplied narrow-first; the wider trace must still lead the sentence.
+    expect(
+      subductionPolarityText(
+        plateBoundariesInSearchExtent([narrow, wide], [39, 42, -126, -123])
+      )
+    ).toContain("descends: Nazca subducts beneath South America and");
+  });
+
+  it("reads the shipped Bird overlay's own polarity labels", () => {
+    const data = JSON.parse(
+      readFileSync(
+        join(
+          __dirname,
+          "..",
+          "..",
+          "public",
+          "data",
+          "plate-boundaries.geojson"
+        ),
+        "utf8"
+      )
+    );
+    // A whole-Chile extent: the shipped file really does encode a polarity the
+    // panel can read, so this line never describes a field the data lacks.
+    const context = plateBoundariesInSearchExtent(
+      parsePlateBoundaries(data),
+      [-56, -17.5, -76, -66]
+    );
+
+    expect(subductionPolarityText(context)).toContain(
+      "Nazca subducts beneath South America"
+    );
   });
 });
