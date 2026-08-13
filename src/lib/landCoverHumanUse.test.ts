@@ -6,6 +6,7 @@ import {
 } from "./landCover";
 import {
   LAND_COVER_HUMAN_USE_CATEGORIES,
+  landCoverHumanUseNote,
   summarizeLandCoverHumanUse,
 } from "./landCoverHumanUse";
 
@@ -182,4 +183,112 @@ describe("land-cover human-use partition", () => {
       expect(humanUse.ungroupedKnownSampleCount).toBe(0);
     }
   );
+});
+
+describe("landCoverHumanUseNote", () => {
+  const note = (
+    observations: Parameters<typeof summarizeLandCoverContext>[0],
+    dataYear = 2024
+  ) =>
+    landCoverHumanUseNote(
+      summarizeLandCoverHumanUse(
+        summarizeLandCoverContext(observations, dataYear)
+      )
+    );
+
+  it("reports the two bounds as separate shares, never as a range", () => {
+    // Cropland 4 + urban 2 of 10 informative = 60%; mosaic 1 of 10 = 10%.
+    const text = note([
+      { classCode: 12, sampleCount: 4 },
+      { classCode: 13, sampleCount: 2 },
+      { classCode: 14, sampleCount: 1 },
+      { classCode: 1, sampleCount: 3 },
+    ]);
+
+    expect(text).toBe(
+      "Cropland or urban & built-up on 60% of classified pixels — the IGBP classes that record direct human land use; a further 10% of classified pixels is the cropland/natural vegetation mosaic, 40-60% cultivation mixed with natural cover."
+    );
+    // A rounded range would collapse two distinct bounds into "60-70%".
+    expect(text).not.toContain("60-70%");
+  });
+
+  it("states one share when no ambiguous mosaic was sampled", () => {
+    const text = note([
+      { classCode: 12, sampleCount: 3 },
+      { classCode: 10, sampleCount: 1 },
+    ]);
+
+    expect(text).toBe(
+      "Cropland or urban & built-up on 75% of classified pixels — the IGBP classes that record direct human land use."
+    );
+    expect(text).not.toContain("mosaic");
+  });
+
+  it("leads on the mosaic when no wholly cultivated or built-up class was sampled", () => {
+    const text = note([
+      { classCode: 14, sampleCount: 1 },
+      { classCode: 10, sampleCount: 3 },
+    ]);
+
+    // "0% of classified pixels" would put an absence where the informative
+    // statement is the ambiguous class itself.
+    expect(text).toBe(
+      "No wholly cultivated or built-up class was sampled; 25% of classified pixels is the cropland/natural vegetation mosaic, 40-60% cultivation mixed with natural cover."
+    );
+    expect(text).not.toContain("on 0% of classified pixels");
+  });
+
+  it("stays silent when the classes record no human land use at all", () => {
+    // Unbroken forest over water: every class falls in other-land-cover, so a
+    // clause here would only add width to the status line.
+    expect(
+      note([
+        { classCode: 1, sampleCount: 5 },
+        { classCode: 17, sampleCount: 4 },
+      ])
+    ).toBeNull();
+  });
+
+  it("stays silent when no informative land cover was observed", () => {
+    expect(
+      note([
+        { classCode: 255, sampleCount: 3 },
+        { classCode: null, sampleCount: 2 },
+      ])
+    ).toBeNull();
+    // The composition copy already states an unpublished year.
+    expect(note([{ classCode: 12, sampleCount: 4 }], 2030)).toBeNull();
+  });
+
+  it("never rounds a present share away to 0% or a partial share up to 100%", () => {
+    // The region grid runs up to 28x28, so one cultivated pixel among ~780
+    // classified ones is an ordinary sample, not a rare one.
+    expect(
+      note([
+        { classCode: 12, sampleCount: 1 },
+        { classCode: 10, sampleCount: 999 },
+      ])
+    ).toContain("on <1% of classified pixels");
+    expect(
+      note([
+        { classCode: 12, sampleCount: 999 },
+        { classCode: 10, sampleCount: 1 },
+      ])
+    ).toContain("on >99% of classified pixels");
+  });
+
+  it("does not depend on the order the observations arrive in", () => {
+    // An exact four-way tie: colormap-quantised class counts make exact ties
+    // ordinary, and a count-ordered summary must not leak into the shares.
+    const observations = [
+      { classCode: 12, sampleCount: 4 },
+      { classCode: 13, sampleCount: 4 },
+      { classCode: 14, sampleCount: 4 },
+      { classCode: 10, sampleCount: 4 },
+    ];
+
+    expect(note([...observations].reverse())).toBe(note(observations));
+    expect(note(observations)).toContain("on 50% of classified pixels");
+    expect(note(observations)).toContain("a further 25%");
+  });
 });
