@@ -116,6 +116,67 @@ export interface LandCoverHumanUseSummary {
   ungroupedKnownSampleCount: number;
 }
 
+/**
+ * One-sentence probe-panel clause for how much of a drawn region's classified
+ * land cover the IGBP class definitions record as direct human land use.
+ *
+ * Reports the two bounds of {@link LandCoverAnthropogenicShare} as separate
+ * rounded shares rather than as a range, matching how the vegetation-index
+ * support clause in the same status line formats its bounds: rounding a range
+ * collapses distinct bounds into an identical pair ("31-31%"), which reads as a
+ * precision the sample count does not carry. Both shares are shares of
+ * CLASSIFIED sampled image pixels, never of ground area. The mosaic share is
+ * taken as the difference of the two bounds, which share one denominator.
+ *
+ * States only what the class definitions record. Cropland and urban & built-up
+ * are human land use by definition; nothing here infers land-use intensity,
+ * degradation, conversion, ecological health, or any cause, and no categorical
+ * class identifier is averaged.
+ *
+ * Returns null when the classes record no human land use at all — a region of
+ * ocean or unbroken forest gains no clause — and when no informative class was
+ * observed, which the composition copy already states.
+ */
+export function landCoverHumanUseNote(
+  summary: LandCoverHumanUseSummary
+): string | null {
+  const { lowerBound, upperBound, mosaicSampleCount } =
+    summary.anthropogenicShare;
+  if (summary.status !== "available") return null;
+  if (lowerBound === null || upperBound === null) return null;
+  if (upperBound === 0) return null;
+
+  const mosaic = `${shareText(
+    upperBound - lowerBound
+  )} of classified pixels is the cropland/natural vegetation mosaic, 40-60% cultivation mixed with natural cover`;
+
+  // Zero unambiguous human land use with mosaic present: leading on "0%" would
+  // put an absence where the informative statement is the ambiguous class.
+  if (lowerBound === 0) {
+    return `No wholly cultivated or built-up class was sampled; ${mosaic}.`;
+  }
+
+  const unambiguous = `Cropland or urban & built-up on ${shareText(
+    lowerBound
+  )} of classified pixels — the IGBP classes that record direct human land use`;
+  if (mosaicSampleCount === 0) return `${unambiguous}.`;
+  return `${unambiguous}; a further ${mosaic}.`;
+}
+
+/**
+ * A rounded percentage that never rounds a present share away to "0%" or a
+ * partial share up to "100%" — either would state an absence or a totality the
+ * samples do not show. The sampling grid runs up to 28x28, so a single
+ * cultivated pixel among ~780 classified ones is an ordinary case, not a rare
+ * one.
+ */
+function shareText(fraction: number): string {
+  const percent = Math.round(fraction * 100);
+  if (percent === 0 && fraction > 0) return "<1%";
+  if (percent === 100 && fraction < 1) return ">99%";
+  return `${percent}%`;
+}
+
 const CATEGORY_BY_CLASS = new Map<
   IgbpLandCoverClassCode,
   LandCoverHumanUseCategory
