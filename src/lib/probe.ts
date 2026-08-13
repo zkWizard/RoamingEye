@@ -641,6 +641,14 @@ export interface ProbeCsvMeta {
    * ramp has no open end cap and for any record that stayed inside it.
    */
   censoringHeaders?: string[];
+  /**
+   * Provenance lines saying that the block above cannot see censoring inside an
+   * AVERAGED value, built by
+   * `marineAveragedSstCensoring.marineAveragedSstCensoringCsvHeaders`. Passed in
+   * for the same reason as the four above. Empty in point mode, whose median is
+   * screened exactly, and for every layer with no capped ramp.
+   */
+  averagedCensoringHeaders?: string[];
 }
 
 /**
@@ -754,6 +762,11 @@ export function buildProbeCsv(
     // in prose still beats one disclosed nowhere, which is where the export
     // stood while the status line already marked every affected statistic.
     ...(meta.censoringHeaders ?? []),
+    // Immediately after, because it qualifies exactly those lines: the bin rule
+    // they state is applied to values this file combined by averaging, and a
+    // mean is not one of the pixels it averaged. Silent in point mode, where
+    // the charted median is a member of its block and the screen is exact.
+    ...(meta.averagedCensoringHeaders ?? []),
     // Last of the series-describing block, and deliberately after it: the
     // scope line qualifies the month count, the anomaly baseline and the
     // trend, so it reads as the correction to statistics already stated.

@@ -157,6 +157,50 @@ export function averagedSstCensoringNote(
   );
 }
 
+/**
+ * Provenance lines carrying the same qualification into the exported CSV, or
+ * an empty list for a point probe, a non-SST layer, and a footprint that
+ * returned nothing — those files stay byte-identical.
+ *
+ * The export needs this MORE than the status line does, and in the one case
+ * the status line handles by staying quiet. `sstExtremeCensoringCsvHeaders`
+ * writes nothing at all when no charted month landed in a terminal bin, which
+ * is the ordinary outcome for an averaged footprint precisely because a mean of
+ * capped and resolved pixels lands inside the finite ramp. So the download most
+ * likely to hide censoring is the one that ships with no mention of it, read
+ * later by someone who no longer has the panel to consult.
+ *
+ * When that block IS present it states a bin rule — mark a value under the
+ * floor bin's top, or at or above the ceiling bin's base — which is exact for a
+ * point probe's median and incomplete here: it screens the footprint's monthly
+ * means, not the pixels behind them, so the rows it leaves unmarked are not
+ * established as uncensored. The wording splits on that, because a rule the
+ * reader can apply is corrected differently from a silence.
+ *
+ * Claims no presence, direction, or magnitude, for the reason given at the top
+ * of this file, and supports no sea-ice, marine-biology, ecosystem, habitat,
+ * hazard, causal, or forecast statement.
+ */
+export function marineAveragedSstCensoringCsvHeaders(
+  footprint: MarineAveragedSstFootprint | null | undefined,
+  censoring: ProbeSstExtremeCensoring
+): string[] {
+  const summary = summarizeMarineAveragedSstCensoring(footprint, censoring);
+  if (!summary.applicable || summary.footprint === null) return [];
+  const label = footprintLabel(summary.footprint);
+
+  // No commas anywhere below: a `#` line must never contain a CSV delimiter
+  // (see the header discipline documented on `csvHeaderText` in probe.ts).
+  const scope =
+    summary.markedMonthCount > 0
+      ? `# sst_ramp_censoring_averaged: the bin rule above screens this ${label}'s monthly means and not the pixels behind them — a mean of capped and resolved pixels lands inside the finite ramp — so rows it does not mark are not established as uncensored`
+      : `# sst_ramp_censoring_averaged: every value below is an area-weighted mean of per-pixel decodes over the ${label} — a pixel the published ${censoring.ramp.colormapDoc} colormap capped averages in with resolved ones and the mean lands inside the finite ramp — so no row is flagged as a bound and that silence is not evidence the ${label} held no censored pixel`;
+  return [
+    scope,
+    `# sst_ramp_censoring_averaged_detection: telling which months held a capped pixel would take a per-pixel tally of terminal-bin decodes that the sampler does not report — so no presence and no direction and no magnitude is stated for this ${label}`,
+  ];
+}
+
 function footprintLabel(footprint: MarineAveragedSstFootprint): string {
   return footprint === "drawn-region" ? "drawn region" : "sampled area";
 }

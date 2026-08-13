@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   averagedSstCensoringNote,
+  marineAveragedSstCensoringCsvHeaders,
   summarizeMarineAveragedSstCensoring,
 } from "./marineAveragedSstCensoring";
 import { probeSstExtremeCensoring } from "./probeSstExtremeCensoring";
@@ -103,5 +104,82 @@ describe("averagedSstCensoringNote", () => {
     expect(averagedSstCensoringNote("drawn-region", uncensored)).toContain(
       "drawn region"
     );
+  });
+});
+
+describe("marineAveragedSstCensoringCsvHeaders", () => {
+  it("writes nothing for a point probe, so those files stay byte-identical", () => {
+    expect(marineAveragedSstCensoringCsvHeaders(null, bothCensored)).toEqual(
+      []
+    );
+    expect(marineAveragedSstCensoringCsvHeaders(undefined, uncensored)).toEqual(
+      []
+    );
+  });
+
+  it("writes nothing for every layer but SST", () => {
+    for (const id of LAYER_ORDER) {
+      if (id === "sst") continue;
+      const censoring = probeSstExtremeCensoring(id, [INTERIOR, FLOOR]);
+      expect(
+        marineAveragedSstCensoringCsvHeaders("drawn-region", censoring)
+      ).toEqual([]);
+    }
+  });
+
+  it("writes nothing when the footprint returned no usable value", () => {
+    const empty = probeSstExtremeCensoring("sst", [null, null]);
+    expect(marineAveragedSstCensoringCsvHeaders("sampled-area", empty)).toEqual(
+      []
+    );
+  });
+
+  it("speaks for an averaged series the end-cap block left unflagged", () => {
+    const [scope, detection] = marineAveragedSstCensoringCsvHeaders(
+      "sampled-area",
+      uncensored
+    );
+    // The case the export otherwise ships with no mention of censoring at all.
+    expect(scope).toContain("# sst_ramp_censoring_averaged:");
+    expect(scope).toContain("sampled area");
+    expect(scope).toContain("not evidence");
+    expect(scope).toContain(uncensored.ramp.colormapDoc);
+    expect(detection).toContain("# sst_ramp_censoring_averaged_detection:");
+  });
+
+  it("corrects the bin rule instead when some rows were flagged", () => {
+    const [scope] = marineAveragedSstCensoringCsvHeaders(
+      "drawn-region",
+      floorCensored
+    );
+    expect(scope).toContain("drawn region");
+    expect(scope).toContain("not established as uncensored");
+    // No silence to explain once the block above is present.
+    expect(scope).not.toContain("not evidence");
+  });
+
+  it("keeps every header line free of CSV delimiters and breaks", () => {
+    for (const footprint of ["sampled-area", "drawn-region"] as const) {
+      for (const censoring of [uncensored, floorCensored, bothCensored]) {
+        for (const line of marineAveragedSstCensoringCsvHeaders(
+          footprint,
+          censoring
+        )) {
+          expect(line.startsWith("# ")).toBe(true);
+          expect(line).not.toMatch(/[,"\r\n]/);
+        }
+      }
+    }
+  });
+
+  it("claims no presence direction or magnitude in either wording", () => {
+    for (const censoring of [uncensored, floorCensored, bothCensored]) {
+      for (const line of marineAveragedSstCensoringCsvHeaders(
+        "drawn-region",
+        censoring
+      )) {
+        expect(line).not.toMatch(/warmer|colder|≤|≥|upper bound|lower bound/);
+      }
+    }
   });
 });
