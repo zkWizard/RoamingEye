@@ -203,6 +203,60 @@ export function sstExtremeCensoringClause(
   return `${tally} land in the SST colormap's open high cap (${ceilingCap}), so max and mean are lower bounds on possibly warmer water (${source})`;
 }
 
+/**
+ * Provenance lines disclosing the ramp's open end caps in the exported CSV, or
+ * an empty list for every layer but SST and for any SST record that stayed
+ * inside the finite ramp — those files stay byte-identical.
+ *
+ * The status line marks each censored statistic with an inequality the moment
+ * it is rendered. The CSV cannot: it writes one row per month under a column
+ * headed `value`, and a capped month's cell is an ordinary decimal. Nothing in
+ * the file separates it from a month the ramp actually resolved, so the reader
+ * who opens the download later gets a bound presented as a measurement — the
+ * same defect `probeRecordGapsCsvHeaders` fixed for months that have no row at
+ * all, one level down in the same file.
+ *
+ * Two of the header lines already above are actively misleading over those
+ * months and are corrected by name rather than left to be inferred. The
+ * `# uncertainty` line states a symmetric quantization figure, which is a
+ * two-sided claim and false at a cap; and the trend and the anomaly column are
+ * computed from this very series, so they inherit the censoring exactly as the
+ * status line's trend clause says (see probeSstTrendCensoring — no direction is
+ * claimable for a seasonal median, permanently).
+ *
+ * The bin edges are quoted rather than the count alone, because they are what
+ * makes the file self-describing: a reader can apply them to the `value` column
+ * and mark the affected rows without the app. They are the *detection* edges
+ * (the lowest and highest finite bins) and are deliberately distinct from the
+ * caps themselves — the cap is what the colormap collapses, the bin is what a
+ * decoded number lands in.
+ *
+ * Recovers nothing and estimates nothing behind a cap; no sea-ice,
+ * marine-biology, ecosystem, habitat, hazard, causal or forecast claim follows.
+ */
+export function sstExtremeCensoringCsvHeaders(
+  censoring: ProbeSstExtremeCensoring
+): string[] {
+  if (!censoring.applicable) return [];
+  const { floorMonthCount, ceilingMonthCount, observedMonthCount, ramp, min } =
+    censoring;
+  const capped = floorMonthCount + ceilingMonthCount;
+  if (capped === 0 || min === null) return [];
+
+  const unit = ramp.unit;
+  // No commas anywhere below: a `#` line must never contain a CSV delimiter
+  // (see the header discipline documented on `csvHeaderText` in probe.ts).
+  return [
+    `# sst_ramp_censoring: ${capped} of ${observedMonthCount} sampled ${
+      observedMonthCount === 1 ? "month" : "months"
+    } (${floorMonthCount} at the ramp floor; ${ceilingMonthCount} at its ceiling) decode into the published SST colormap's open end caps — those values are one-sided bounds and not measurements`,
+    `# sst_ramp_censoring_rows: mark them in the value column below — a value under ${ramp.floorBin.hi.toFixed(2)} ${unit} sits in the ramp's lowest bin where every SST below ${ramp.floorBin.lo.toFixed(1)} ${unit} shares one colour (an upper bound on possibly colder water) and a value at or above ${ramp.ceilingBin.lo.toFixed(2)} ${unit} sits in its highest where every SST at or above ${ramp.ceilingBin.hi.toFixed(1)} ${unit} shares one colour (a lower bound on possibly warmer water)`,
+    `# sst_ramp_censoring_uncertainty: the quantization figure on the uncertainty line above is two-sided and does not describe those months — on the capped side their true value is unbounded and none is estimated here`,
+    `# sst_ramp_censoring_derived: the anomaly column and any trend stated above are computed over this same series so they inherit the censoring; no bias direction is claimed for the trend because a substituted cap moves a seasonal median whichever way the record's shape decides`,
+    `# sst_ramp_censoring_source: ${ramp.colormapDoc} colormap — ${min.colormapUrl}`,
+  ];
+}
+
 function meanBoundFor(
   floorMonthCount: number,
   ceilingMonthCount: number

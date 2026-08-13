@@ -632,6 +632,15 @@ export interface ProbeCsvMeta {
    * value needs no such qualifier.
    */
   samplingIdentityHeaders?: string[];
+  /**
+   * Provenance lines disclosing that some rows below are one-sided bounds
+   * rather than measurements, built by
+   * `probeSstExtremeCensoring.sstExtremeCensoringCsvHeaders`. Passed in for the
+   * same reason as the three above: this module stays a leaf and never reaches
+   * into the layer catalog or the colormap tables. Empty for every layer whose
+   * ramp has no open end cap and for any record that stayed inside it.
+   */
+  censoringHeaders?: string[];
 }
 
 /**
@@ -739,6 +748,12 @@ export function buildProbeCsv(
     // rather than staying in docs/validation.md (see probeInversionAccuracy).
     ...(meta.inversionAccuracyHeaders ?? []),
     ...trendCsvHeaders(trend),
+    // Directly after the statistics it qualifies: the uncertainty line above is
+    // two-sided and the trend is fitted over the same series, and both are
+    // wrong over a month the colormap capped. A row-level bound disclosed only
+    // in prose still beats one disclosed nowhere, which is where the export
+    // stood while the status line already marked every affected statistic.
+    ...(meta.censoringHeaders ?? []),
     // Last of the series-describing block, and deliberately after it: the
     // scope line qualifies the month count, the anomaly baseline and the
     // trend, so it reads as the correction to statistics already stated.

@@ -3,6 +3,7 @@ import {
   probeSstExtremeCensoring,
   sstExtremeBoundPrefix,
   sstExtremeCensoringClause,
+  sstExtremeCensoringCsvHeaders,
 } from "./probeSstExtremeCensoring";
 import { SST_PUBLISHED_RAMP } from "./sstRampCensoring";
 import { PROBE_SCALES } from "./probe";
@@ -169,5 +170,96 @@ describe("probeSstExtremeCensoring", () => {
       SST_PUBLISHED_RAMP.ceilingBin.lo,
     ]);
     expect(ceilingOnly.max?.boundDirection).toBe("lower");
+  });
+});
+
+describe("sstExtremeCensoringCsvHeaders", () => {
+  const headersFor = (values: readonly (number | null)[]): string[] =>
+    sstExtremeCensoringCsvHeaders(probeSstExtremeCensoring("sst", values));
+
+  // The export must stay byte-identical for every file that has nothing to
+  // disclose, or this becomes noise on ten other layers.
+  it("is silent for other layers and for a record inside the finite ramp", () => {
+    expect(headersFor([INTERIOR, 21.2, 5.5])).toEqual([]);
+    expect(
+      sstExtremeCensoringCsvHeaders(
+        probeSstExtremeCensoring("ndvi", [FLOOR, CEILING])
+      )
+    ).toEqual([]);
+    expect(
+      sstExtremeCensoringCsvHeaders(probeSstExtremeCensoring("sst", [null]))
+    ).toEqual([]);
+  });
+
+  // The defect being fixed: a capped month's value cell is an ordinary decimal,
+  // so the file must say those rows are bounds and how many there are.
+  it("counts the capped months and names them as bounds not measurements", () => {
+    const headers = headersFor([FLOOR, INTERIOR, CEILING, CEILING]);
+    const tally = headers.find((line) =>
+      line.startsWith("# sst_ramp_censoring:")
+    );
+    expect(tally).toContain("3 of 4 sampled months");
+    expect(tally).toContain("1 at the ramp floor");
+    expect(tally).toContain("2 at its ceiling");
+    expect(tally).toContain("one-sided bounds and not measurements");
+  });
+
+  // The point of quoting bin edges rather than only a count: a reader must be
+  // able to mark the affected rows from the value column alone.
+  it("quotes the detection edges a reader can apply to the value column", () => {
+    const rows = headersFor([FLOOR, INTERIOR])[1];
+    expect(rows).toContain(SST_PUBLISHED_RAMP.floorBin.hi.toFixed(2));
+    expect(rows).toContain(SST_PUBLISHED_RAMP.ceilingBin.lo.toFixed(2));
+    // Both directions are stated even when only one cap was reached: the reader
+    // is being handed a rule to apply, not a description of this file's rows.
+    expect(rows).toContain("upper bound on possibly colder water");
+    expect(rows).toContain("lower bound on possibly warmer water");
+  });
+
+  // Two header lines already in the file are wrong over these months. Leaving a
+  // reader to infer that is the same defect one level up.
+  it("corrects the two-sided uncertainty line and the derived statistics", () => {
+    const headers = headersFor([CEILING, INTERIOR]);
+    const uncertainty = headers.find((line) =>
+      line.startsWith("# sst_ramp_censoring_uncertainty:")
+    );
+    expect(uncertainty).toContain("two-sided");
+    expect(uncertainty).toContain("does not describe those months");
+    const derived = headers.find((line) =>
+      line.startsWith("# sst_ramp_censoring_derived:")
+    );
+    expect(derived).toContain("anomaly column");
+    expect(derived).toContain("trend");
+    // No direction is claimable for a seasonal median — permanently, per
+    // probeSstTrendCensoring. A "≤"/"≥" here would be an unearned claim.
+    expect(derived).toContain("no bias direction is claimed");
+    expect(derived).not.toMatch(/[≤≥]/);
+  });
+
+  it("cites the colormap the caps were read from", () => {
+    const source = headersFor([FLOOR])[4];
+    expect(source).toContain(SST_PUBLISHED_RAMP.colormapDoc);
+    expect(source).toMatch(/https:\/\//);
+  });
+
+  // Hard constraint of the CSV header format: a `#` line may never contain a
+  // delimiter, a quote or a line break, or naive consumers tear it into cells.
+  it("never emits a comma quote or line break in a header line", () => {
+    for (const values of [
+      [FLOOR, INTERIOR],
+      [INTERIOR, CEILING],
+      [FLOOR, CEILING],
+      [PROBE_SCALES.sst.min, PROBE_SCALES.sst.max],
+    ]) {
+      for (const line of headersFor(values)) {
+        expect(line.startsWith("# ")).toBe(true);
+        expect(line).not.toMatch(/[",\r\n]/);
+      }
+    }
+  });
+
+  // Singular/plural on the denominator, which the tally interpolates.
+  it("agrees in number for a single sampled month", () => {
+    expect(headersFor([FLOOR])[0]).toContain("1 of 1 sampled month");
   });
 });

@@ -15,11 +15,20 @@ import {
 } from "./lib/timeline";
 import { encodeViewState, decodeViewState } from "./lib/viewState";
 import { latLngToVector3, vector3ToLatLng, formatLatLng } from "./lib/geo";
-import { buildProbeCsv, normalizeLon, PROBE_SCALES } from "./lib/probe";
+import {
+  buildProbeCsv,
+  normalizeLon,
+  PROBE_SCALES,
+  scaleValue,
+} from "./lib/probe";
 import {
   inversionAccuracyCsvHeaders,
   probeInversionAccuracy,
 } from "./lib/probeInversionAccuracy";
+import {
+  probeSstExtremeCensoring,
+  sstExtremeCensoringCsvHeaders,
+} from "./lib/probeSstExtremeCensoring";
 import {
   probeRecordGaps,
   probeRecordGapsCsvHeaders,
@@ -946,6 +955,20 @@ if (probeEl) {
                 samplingIdentityHeaders: sstSamplingIdentityCsvHeaders(
                   layer.id
                 ),
+                // And the same for the rows themselves: the status line prints
+                // an inequality in front of every censored statistic, while a
+                // capped month's `value` cell is an ordinary decimal. Judged on
+                // the physical series the file writes, not the 0..1 gradient
+                // positions held here. Empty for every other layer and for an
+                // SST record that stayed inside the finite ramp.
+                censoringHeaders: sstExtremeCensoringCsvHeaders(
+                  probeSstExtremeCensoring(
+                    layer.id,
+                    values.map((v) =>
+                      v === null ? null : scaleValue(v, scale)
+                    )
+                  )
+                ),
               },
               probeMonths,
               values,
@@ -1073,6 +1096,20 @@ if (probeEl) {
                 // other layer.
                 samplingIdentityHeaders: sstSamplingIdentityCsvHeaders(
                   layer.id
+                ),
+                // And the same for the rows themselves: the status line prints
+                // an inequality in front of every censored statistic, while a
+                // capped month's `value` cell is an ordinary decimal. Judged on
+                // the physical series the file writes, not the 0..1 gradient
+                // positions held here. Empty for every other layer and for an
+                // SST record that stayed inside the finite ramp.
+                censoringHeaders: sstExtremeCensoringCsvHeaders(
+                  probeSstExtremeCensoring(
+                    layer.id,
+                    values.map((v) =>
+                      v === null ? null : scaleValue(v, scale)
+                    )
+                  )
                 ),
               },
               probeMonths,
