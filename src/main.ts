@@ -22,6 +22,7 @@ import {
 } from "./lib/probeInversionAccuracy";
 import { emptyAtmosphereProbeNote } from "./lib/atmosphereProbeDomain";
 import { averagedSstSupportNote } from "./lib/marineAveragedSstSupport";
+import { emptyMarineProbeNote } from "./lib/marineProbeDomain";
 import { snowIlluminationNote } from "./lib/snowCoverIllumination";
 import type { GeoResult } from "./lib/geocoding";
 import { refreshDataLatest } from "./lib/freshness";
@@ -897,6 +898,14 @@ if (probeEl) {
       })
       .then(({ values, validFractions }) => {
         if (abort.signal.aborted) return;
+        // An area mean over a coastal box averages only the pixels that
+        // carried SST; say what share of the box those were. A point probe
+        // has no share to report, so it passes none and stays silent.
+        const sstSupportNote = averagedSstSupportNote(
+          layer.id,
+          "sampled-area",
+          mode === "area" ? validFractions : null
+        );
         panel.finish(
           () =>
             buildProbeCsv(
@@ -925,15 +934,13 @@ if (probeEl) {
               validFractions
             ),
           `roamingeye_probe_${mode}_${layer.id}_${lat.toFixed(3)}_${lon.toFixed(3)}.csv`,
-          emptyAtmosphereProbeNote(layer.id, values),
-          // An area mean over a coastal box averages only the pixels that
-          // carried SST; say what share of the box those were. A point probe
-          // has no share to report, so it passes none and stays silent.
-          averagedSstSupportNote(
-            layer.id,
-            "sampled-area",
-            mode === "area" ? validFractions : null
-          )
+          // SST is an ocean product, so an inland point returns nothing by
+          // construction — "no data at this point" reports that domain
+          // boundary as a retrieval failure. The marine note defers to the
+          // support clause above whenever that already explained the absence.
+          emptyAtmosphereProbeNote(layer.id, values) ??
+            emptyMarineProbeNote(layer.id, values, sstSupportNote),
+          sstSupportNote
         );
       })
       .catch((err) => {
@@ -1004,6 +1011,15 @@ if (probeEl) {
       })
       .then(({ values, validFractions, regionSampling }) => {
         if (abort.signal.aborted) return;
+        // The header names the drawn box, but SST is undefined over land and
+        // those pixels are rejected rather than averaged in — so a coastal
+        // box charts the water it found, not the box. The CSV already
+        // carries this share per month; state it on the panel too.
+        const sstSupportNote = averagedSstSupportNote(
+          layer.id,
+          "drawn-region",
+          validFractions
+        );
         panel.finish(
           () =>
             buildProbeCsv(
@@ -1032,12 +1048,11 @@ if (probeEl) {
               validFractions
             ),
           `roamingeye_region_${layer.id}_${bounds.south.toFixed(2)}_${normalizeLon(bounds.west).toFixed(2)}_${bounds.north.toFixed(2)}_${normalizeLon(bounds.east).toFixed(2)}.csv`,
-          emptyAtmosphereProbeNote(layer.id, values),
-          // The header names the drawn box, but SST is undefined over land and
-          // those pixels are rejected rather than averaged in — so a coastal
-          // box charts the water it found, not the box. The CSV already
-          // carries this share per month; state it on the panel too.
-          averagedSstSupportNote(layer.id, "drawn-region", validFractions)
+          // A drawn region that returned nothing is normally explained by the
+          // support clause; the marine note only speaks when it did not.
+          emptyAtmosphereProbeNote(layer.id, values) ??
+            emptyMarineProbeNote(layer.id, values, sstSupportNote),
+          sstSupportNote
         );
       })
       .catch((err) => {
