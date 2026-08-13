@@ -124,8 +124,9 @@ test("land-cover layer steps by year with a class-swatch legend", async ({
     .locator(".layer-selector__option", { hasText: "Land cover" })
     .click();
 
-  // Annual cadence: the readout is a bare year, newest first.
+  // Annual cadence: the readout is a bare year and the control says "Year".
   await expect(page.locator(".timeline__readout")).toHaveText(/^\d{4}$/);
+  await expect(page.getByRole("slider", { name: "Year" })).toBeVisible();
 
   // Categorical legend: class swatches, no gradient bar.
   await expect(page.locator(".legend__scale")).toBeHidden();
@@ -149,6 +150,8 @@ test("land-cover layer steps by year with a class-swatch legend", async ({
 test("timeline stepper buttons move one month and disable at the ends", async ({
   page,
 }) => {
+  await expect(page.getByRole("slider", { name: "Month" })).toBeVisible();
+
   const readout = page.locator(".timeline__readout");
   const prev = page.locator('.timeline__step[aria-label^="Previous"]');
   const next = page.locator('.timeline__step[aria-label^="Next"]');
