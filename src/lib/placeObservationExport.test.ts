@@ -149,6 +149,106 @@ describe("place observation export", () => {
       },
     ]);
   });
+  it("keeps the whole export when a sampled aerosol month is too thin to average", () => {
+    // Shaped exactly as placeInsightsController builds an aerosol sample: the
+    // sampler records the coverage share it saw but states no reason, because
+    // the reason is a reading of that share. The earlier month cleared zero
+    // coverage without clearing the mean's admission threshold.
+    const aerosol = placeObservationProductFromSample({
+      layerId: "aerosol",
+      sourceValueFactor: 1,
+      samplingStrategy: "boundary-grid",
+      sourceImageDimensions: { width: 512, height: 512 },
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 5 },
+          value: null,
+          validFraction: 0.12,
+        },
+        {
+          dataMonth: { year: 2026, month: 6 },
+          value: 0.23,
+          validFraction: 0.98,
+        },
+      ],
+    });
+
+    expect(aerosol.observations[0]).toEqual({
+      dataMonth: { year: 2026, month: 5 },
+      value: null,
+      validFraction: 0.12,
+      unavailableReason: "insufficient-valid-coverage",
+    });
+    // A recorded value never gains a reason.
+    expect(aerosol.observations[1]).not.toHaveProperty("unavailableReason");
+
+    // The point of the derivation: the unexplained-null rule is enforced during
+    // serialization, so one reasonless month used to discard every product.
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [...input.products, aerosol],
+    });
+    expect(exported.products.map((product) => product.layerId)).toEqual([
+      "aerosol",
+      "ndvi",
+      "precip",
+    ]);
+  });
+
+  it("reads zero recorded coverage as the source having published nothing", () => {
+    const lst = placeObservationProductFromSample({
+      layerId: "lst",
+      sourceValueFactor: 1,
+      samplingStrategy: "boundary-grid",
+      observations: [
+        { dataMonth: { year: 2026, month: 5 }, value: null, validFraction: 0 },
+      ],
+    });
+
+    expect(lst.observations[0]).toEqual({
+      dataMonth: { year: 2026, month: 5 },
+      value: null,
+      validFraction: 0,
+      unavailableReason: "source-no-data",
+    });
+  });
+
+  it("never overrides a reason the sample builder stated itself", () => {
+    // A builder that knows sampling failed says so; positive coverage must not
+    // downgrade that to a coverage shortfall.
+    const product = placeObservationProductFromSample({
+      layerId: "aerosol",
+      sourceValueFactor: 1,
+      samplingStrategy: "boundary-grid",
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 5 },
+          value: null,
+          validFraction: 0.4,
+          unavailableReason: "sampling-failed",
+        },
+      ],
+    });
+
+    expect(product.observations[0].unavailableReason).toBe("sampling-failed");
+  });
+
+  it("still rejects a null month with no coverage evidence to read", () => {
+    // No recorded share means no basis for either reason; inventing
+    // "source-no-data" would blame the source without evidence, so the
+    // unexplained-null rule is left to fire.
+    const product = placeObservationProductFromSample({
+      layerId: "aerosol",
+      sourceValueFactor: 1,
+      observations: [{ dataMonth: { year: 2026, month: 5 }, value: null }],
+    });
+
+    expect(product.observations[0]).not.toHaveProperty("unavailableReason");
+    expect(() =>
+      createPlaceObservationExport({ ...input, products: [product] })
+    ).toThrow("Product aerosol must explain an unavailable value.");
+  });
+
   it("exports boundary SST in native °C with MODIS provenance and coverage", () => {
     const product = placeObservationProductFromSample({
       layerId: "sst",
