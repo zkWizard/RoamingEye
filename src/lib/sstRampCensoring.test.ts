@@ -3,6 +3,7 @@ import { invertColormapEntries } from "./probe";
 import {
   SEAWATER_FREEZING_POINT_C,
   SST_PUBLISHED_RAMP,
+  describeSstDifferenceCensoring,
   summarizeSstRampCensoring,
 } from "./sstRampCensoring";
 
@@ -107,6 +108,60 @@ describe("SST end-cap censoring", () => {
     expect(summary.isForecast).toBe(false);
     expect(summary.colormapUrl).toBe(
       "https://gibs.earthdata.nasa.gov/colormaps/v1.3/MODIS_Sea_Surface_Temperature.xml"
+    );
+  });
+});
+
+describe("censoring of a DIFFERENCE between two SST endpoints", () => {
+  it("leaves an uncensored pair unbounded", () => {
+    const censoring = describeSstDifferenceCensoring(12.4, 14.1);
+    expect(censoring.bound).toBe("none");
+    expect(censoring.eitherCensored).toBe(false);
+    expect(censoring.boundPrefix).toBe("");
+    expect(censoring.qualifier).toBeNull();
+  });
+
+  it("withholds any bound when BOTH endpoints saturate the warm cap", () => {
+    // A tropical warm pool sampled twice: both months decode to the ceiling bin,
+    // so the arithmetic difference is 0.0 °C while the true change is unknown.
+    const censoring = describeSstDifferenceCensoring(31.9, 31.9);
+    expect(censoring.bound).toBe("indeterminate");
+    expect(censoring.eitherCensored).toBe(true);
+    expect(censoring.qualifier).toMatch(/unbounded in both directions/);
+  });
+
+  it("withholds any bound when BOTH endpoints sit on the cold cap", () => {
+    const censoring = describeSstDifferenceCensoring(0.1, 0.05);
+    expect(censoring.bound).toBe("indeterminate");
+  });
+
+  it("treats a censored LATER ceiling endpoint as a lower bound on the change", () => {
+    // True later ≥ decoded later, so the true change can only be larger.
+    const censoring = describeSstDifferenceCensoring(20, 31.9);
+    expect(censoring.bound).toBe("lower");
+    expect(censoring.boundPrefix).toBe("≥ ");
+  });
+
+  it("inverts the EARLIER endpoint's bound, because it is subtracted", () => {
+    // Earlier sits on the cold cap (true ≤ decoded), so the true change is larger.
+    const censoring = describeSstDifferenceCensoring(0.1, 20);
+    expect(censoring.bound).toBe("lower");
+    // Earlier on the warm cap (true ≥ decoded) bounds the change from above.
+    expect(describeSstDifferenceCensoring(31.9, 20).bound).toBe("upper");
+  });
+
+  it("agrees on a bound when the two caps point the same way", () => {
+    // Cold month then warm month: both censorings say the change is understated.
+    expect(describeSstDifferenceCensoring(0.1, 31.9).bound).toBe("lower");
+    expect(describeSstDifferenceCensoring(31.9, 0.1).bound).toBe("upper");
+  });
+
+  it("never makes a biological or predictive claim", () => {
+    const censoring = describeSstDifferenceCensoring(31.9, 31.9);
+    expect(censoring.marineBiologyObservation).toBe(false);
+    expect(censoring.isForecast).toBe(false);
+    expect(censoring.qualifier).not.toMatch(
+      /habitat|species|bleach|heatwave|forecast|will/i
     );
   });
 });
