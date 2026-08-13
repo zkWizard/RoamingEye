@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   seasonalSamplingBalance,
   seasonalSamplingClause,
+  seasonalSamplingCsvHeaders,
 } from "./seasonalSamplingBalance";
 import { PROBE_SCALES, quantizationStep } from "./probe";
 import type { YearMonth } from "./timeline";
@@ -238,5 +239,138 @@ describe("seasonalSamplingClause", () => {
     expect(clause).toContain("(-");
     expect(clause).toContain(AIRTEMP.unit);
     expect(balance.seasonalSamplingBias!).toBeLessThan(0);
+  });
+});
+
+describe("seasonalSamplingCsvHeaders", () => {
+  it("stays silent for a record spread evenly across the calendar", () => {
+    const months = monthlyRecord(2001, 3);
+    const balance = seasonalSamplingBalance(
+      months,
+      seasonalCycle(months, 288, 10)
+    );
+
+    expect(seasonalSamplingCsvHeaders(balance, AIRTEMP)).toEqual([]);
+  });
+
+  it("stays silent for a sub-annual request", () => {
+    // Four consecutive months have no annual mean to be biased away from, so
+    // the export gains nothing by qualifying one.
+    const months: YearMonth[] = [
+      { year: 2001, month: 5 },
+      { year: 2001, month: 6 },
+      { year: 2001, month: 7 },
+      { year: 2001, month: 8 },
+    ];
+    const balance = seasonalSamplingBalance(months, [280, 285, 290, 288]);
+
+    expect(balance.coversFullYear).toBe(false);
+    expect(seasonalSamplingCsvHeaders(balance, AIRTEMP)).toEqual([]);
+  });
+
+  it("stays silent when the bias is finer than the colormap resolves", () => {
+    // A flat record: re-weighting the calendar cannot move a constant, so the
+    // bias is zero and printing it would imply the method saw something.
+    const months = monthlyRecord(2001, 3);
+    const values: (number | null)[] = months.map(() => 288);
+    values[0] = null;
+
+    const balance = seasonalSamplingBalance(months, values);
+    expect(Math.abs(balance.seasonalSamplingBias!)).toBeLessThan(
+      quantizationStep(AIRTEMP)
+    );
+    expect(seasonalSamplingCsvHeaders(balance, AIRTEMP)).toEqual([]);
+  });
+
+  it("names the absent calendar months and disclaims mean and extremes", () => {
+    const months = monthlyRecord(2001, 3);
+    const values: (number | null)[] = seasonalCycle(months, 288, 10);
+    months.forEach((ym, i) => {
+      if (ym.month === 1 || ym.month === 2) values[i] = null;
+    });
+
+    const headers = seasonalSamplingCsvHeaders(
+      seasonalSamplingBalance(months, values),
+      AIRTEMP
+    );
+    expect(headers).toHaveLength(2);
+    expect(headers[0]).toContain("2 of 12 calendar months return");
+    expect(headers[0]).toContain("(Jan Feb)");
+    expect(headers[0]).toContain("not an annual mean");
+    // The extremes are reduced from the very same surviving months, so an
+    // export that disclaimed only the mean would read as a claim that the
+    // lowest and highest rows survived the gap.
+    expect(headers[0]).toContain("not annual extremes");
+    expect(headers[1]).toContain("never estimated or gap-filled");
+  });
+
+  it("agrees with the singular when exactly one calendar month is absent", () => {
+    const months = monthlyRecord(2001, 3);
+    const values: (number | null)[] = seasonalCycle(months, 288, 10);
+    months.forEach((ym, i) => {
+      if (ym.month === 1) values[i] = null;
+    });
+
+    const headers = seasonalSamplingCsvHeaders(
+      seasonalSamplingBalance(months, values),
+      AIRTEMP
+    );
+    expect(headers[0]).toContain("1 of 12 calendar months returns");
+    expect(headers[0]).toContain("(Jan)");
+  });
+
+  it("quantifies a resolvable bias in the scale's own units", () => {
+    const months = monthlyRecord(2001, 3);
+    const values: (number | null)[] = seasonalCycle(months, 288, 10);
+    let droppedJan = 0;
+    months.forEach((ym, i) => {
+      if (ym.month === 1 && droppedJan++ < 2) values[i] = null;
+    });
+
+    const balance = seasonalSamplingBalance(months, values);
+    // Every calendar month still carries a sample, so this is the bias branch
+    // rather than the absent-months one.
+    expect(balance.absentCalendarMonths).toEqual([]);
+    const headers = seasonalSamplingCsvHeaders(balance, AIRTEMP);
+    expect(headers).toHaveLength(2);
+    expect(headers[0]).toContain("# seasonal_sampling_bias:");
+    expect(headers[0]).toContain(AIRTEMP.unit);
+    // The under-sampled months were the coldest, so equal weighting pulls the
+    // mean down and the offset is signed negative.
+    expect(headers[0]).toContain("(-");
+    expect(headers[1]).toContain("not a measurement");
+  });
+
+  it("keeps every line a single comma-free CSV field", () => {
+    const months = monthlyRecord(2001, 3);
+    const absent: (number | null)[] = seasonalCycle(months, 288, 10);
+    months.forEach((ym, i) => {
+      if (ym.month === 1 || ym.month === 11) absent[i] = null;
+    });
+    const uneven: (number | null)[] = seasonalCycle(months, 288, 10);
+    let droppedJan = 0;
+    months.forEach((ym, i) => {
+      if (ym.month === 1 && droppedJan++ < 2) uneven[i] = null;
+    });
+
+    const lines = [
+      ...seasonalSamplingCsvHeaders(
+        seasonalSamplingBalance(months, absent),
+        AIRTEMP
+      ),
+      ...seasonalSamplingCsvHeaders(
+        seasonalSamplingBalance(months, uneven),
+        AIRTEMP
+      ),
+    ];
+    expect(lines).toHaveLength(4);
+    for (const line of lines) {
+      // The header contract documented on csvHeaderText in probe.ts: a naive
+      // split(",") consumer must never tear one of these into ragged cells.
+      expect(line.startsWith("# ")).toBe(true);
+      expect(line).not.toContain(",");
+      expect(line).not.toContain('"');
+      expect(line).not.toMatch(/[\r\n]/);
+    }
   });
 });
