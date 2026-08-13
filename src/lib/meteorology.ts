@@ -452,6 +452,45 @@ export function climateInsightText(
 }
 
 /**
+ * Which step of a place-metric card's sampling failed.
+ *
+ * The shared terrestrial path resolves the layer's published GIBS colormap
+ * document before it touches the searched boundary, so a thrown failure belongs
+ * to exactly one of these two steps.
+ */
+export type PlaceMetricUnavailableReason =
+  "source-colormap-unavailable" | "boundary-sampling-failed";
+
+/**
+ * Detail line for a place-metric card whose value could not be sampled.
+ *
+ * Attribute the failure to the step that actually failed, never to a cause the
+ * caught error does not establish. Everything after the colormap resolves is
+ * this app's own sampling of the boundary, not the cited document — so a
+ * stalled GIBS tile request must not read as a fault in the published source,
+ * and a colormap that could not be read must not read as a fault in the place
+ * the reader searched.
+ *
+ * The sampling-step wording is deliberately broad: that step covers a boundary
+ * with no representable interior cells, an unavailable decode canvas, and a
+ * failed tile request alike (`ProbeSampler`), and the shared catch cannot tell
+ * them apart. Naming any single one of them would state a cause that has not
+ * been established. Neither branch reports a measurement.
+ *
+ * The wording matches the land-surface-temperature, aerosol, and marine cards,
+ * which sample through the same colormap-then-boundary sequence and fail
+ * together in one upstream stall — one event must not draw two different
+ * explanations from one panel.
+ */
+export function placeMetricUnavailableDetail(
+  reason: PlaceMetricUnavailableReason
+): string {
+  return reason === "source-colormap-unavailable"
+    ? "Metric could not be sampled from the published source colormap"
+    : "Metric could not be sampled for the searched boundary";
+}
+
+/**
  * The open, unbounded end caps each climate layer's published GIBS colormap
  * carries beyond its finite ramp, in the metric's native unit.
  *

@@ -5,6 +5,7 @@ import {
   climateObservationPlausibility,
   exportObservationsFromRenderedClimateSample,
   observationsFromRenderedClimateSample,
+  placeMetricUnavailableDetail,
   summarizeRenderedClimateSample,
 } from "./meteorology";
 
@@ -1191,5 +1192,42 @@ describe("coverage shortfall against the legend's open end caps", () => {
       expect(detail).toContain("(missing-value)");
       expect(detail).toContain("sampled coverage not supplied");
     });
+  });
+});
+
+describe("place metric unavailable attribution", () => {
+  it("blames the published document only when the colormap itself failed", () => {
+    expect(placeMetricUnavailableDetail("source-colormap-unavailable")).toBe(
+      "Metric could not be sampled from the published source colormap"
+    );
+  });
+
+  it("does not blame the published source for a failure after the colormap resolved", () => {
+    const detail = placeMetricUnavailableDetail("boundary-sampling-failed");
+    expect(detail).toBe(
+      "Metric could not be sampled for the searched boundary"
+    );
+    expect(detail).not.toContain("colormap");
+    expect(detail).not.toContain("source");
+  });
+
+  it("names no single cause for the sampling step, which covers several", () => {
+    // Geometry planning, the decode canvas, and tile transport all throw into
+    // one catch, so the card must not report an unrepresentable boundary as the
+    // established cause of a stalled tile request.
+    const detail = placeMetricUnavailableDetail("boundary-sampling-failed");
+    expect(detail).not.toContain("grid");
+    expect(detail).not.toContain("represented");
+  });
+
+  it("never reports either failure as a measured value", () => {
+    for (const reason of [
+      "source-colormap-unavailable",
+      "boundary-sampling-failed",
+    ] as const) {
+      expect(placeMetricUnavailableDetail(reason)).toMatch(
+        /^Metric could not be sampled /
+      );
+    }
   });
 });
