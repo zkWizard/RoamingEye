@@ -25,6 +25,9 @@ import {
 } from "./sstNativeSupport";
 import { formatYm, type YearMonth } from "./timeline";
 import type { Bounds } from "./imagery";
+// Value import, but no runtime cycle: marineBoundarySstChange imports this
+// module with `import type` only, which is erased at compile time.
+import { MARINE_BOUNDARY_SST_COVERAGE_DISPARITY_LIMIT } from "./marineBoundarySstChange";
 
 /**
  * A single, source-aware SST reading for the exact boundary returned by place
@@ -80,7 +83,12 @@ export type MarineBoundarySstYearComparisonStatus =
   | "target-not-usable"
   | "prior-year-not-usable"
   /** Both months sit in terminal ramp bins, so no difference can be bounded. */
-  | "censored-endpoints";
+  | "censored-endpoints"
+  /**
+   * The two months' usable boundary shares differ beyond the repo's stated
+   * comparability convention, so the means describe materially different water.
+   */
+  | "incomparable-coverage";
 
 export type MarineBoundarySstDifferenceDirection =
   "warmer" | "cooler" | "unchanged";
@@ -95,7 +103,9 @@ export type MarineBoundarySstDifferenceDirection =
  * left usable, so the two months can cover different parts of the same
  * boundary; `validFractionDelta` exposes exactly that, because a difference
  * between unequally covered means may reflect which water was sampled rather
- * than how warm it was.
+ * than how warm it was. Beyond
+ * `MARINE_BOUNDARY_SST_COVERAGE_DISPARITY_LIMIT` — the same convention the
+ * month-over-month comparison uses — no difference is stated at all.
  */
 export interface MarineBoundarySstYearComparison {
   kind: "same-calendar-month-boundary-sst-difference";
@@ -411,6 +421,43 @@ export function compareMarineBoundarySstToPriorYear(
     return unavailableYearComparison("prior-year-not-usable", priorYear);
   }
 
+  // A thermal-infrared retrieval only exists under cloud-free sky, so each month
+  // is a mean over whichever boundary cells happened to return a value. When
+  // those usable shares differ grossly the two means describe materially
+  // different water, and their arithmetic difference may record which water was
+  // sampled rather than how warm it was. The month-over-month sibling withholds
+  // a signed change on exactly this test, so the same convention is applied here
+  // — otherwise the card prints one screened difference beside one unscreened
+  // difference and gives the reader no way to tell them apart.
+  const validFractionDelta = Math.abs(
+    target.validFraction - priorYear.validFraction
+  );
+  const minValidFraction = Math.min(
+    target.validFraction,
+    priorYear.validFraction
+  );
+  if (validFractionDelta > MARINE_BOUNDARY_SST_COVERAGE_DISPARITY_LIMIT) {
+    return {
+      ...yearComparisonBase,
+      status: "incomparable-coverage",
+      priorDataMonth: priorYear.dataMonth,
+      // Withheld like every other non-available status: publishing both
+      // endpoints would hand back the very difference this branch refuses to
+      // state. Every sampled month still reaches the CSV export, so the record
+      // remains recomputable without the card asserting a comparison.
+      priorObservedValue: null,
+      priorValidFraction: priorYear.validFraction,
+      difference: null,
+      differenceBound: null,
+      direction: null,
+      // Retained rather than nulled: these two fields ARE the disclosure in
+      // this branch — they say how far apart the supports were.
+      minValidFraction,
+      validFractionDelta,
+      reason: "coverage-disparity",
+    };
+  }
+
   // The published ramp's end caps are open, so a month decoded inside one is a
   // bound, not a value. Two months censored in opposing directions leave the
   // difference unbounded both ways — and since both then typically decode to the
@@ -434,10 +481,8 @@ export function compareMarineBoundarySstToPriorYear(
     difference,
     differenceBound: censoring.bound === "none" ? null : censoring.bound,
     direction: yearDifferenceDirection(difference, censoring.bound),
-    minValidFraction: Math.min(target.validFraction, priorYear.validFraction),
-    validFractionDelta: Math.abs(
-      target.validFraction - priorYear.validFraction
-    ),
+    minValidFraction,
+    validFractionDelta,
     reason: null,
   };
 }
@@ -501,6 +546,15 @@ function describeYearOverYear(
 ): string {
   if (comparison.status === "censored-endpoints") {
     return "; no year-over-year difference stated — both months land in the published colormap's open end caps, which bound them in opposing directions";
+  }
+  if (comparison.status === "incomparable-coverage") {
+    return `; no year-over-year difference stated — ${formatYm(
+      comparison.priorDataMonth!
+    )} sampled ${Math.round(
+      comparison.priorValidFraction! * 100
+    )}% of the boundary, ${Math.round(
+      comparison.validFractionDelta! * 100
+    )} points from this month's usable share, so the two means may differ in which water was sampled rather than in temperature`;
   }
   if (comparison.status !== "available") return "";
   const sign = comparison.difference! > 0 ? "+" : "";
