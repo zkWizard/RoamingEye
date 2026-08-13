@@ -29,6 +29,11 @@ import {
   probeSstTrendCensoring,
   sstTrendCensoringClause,
 } from "../lib/probeSstTrendCensoring";
+import {
+  aerosolCeilingBoundPrefix,
+  aerosolCeilingCensoringClause,
+  probeAerosolCeilingCensoring,
+} from "../lib/probeAerosolCeilingCensoring";
 import { averagedSstCensoringNote } from "../lib/marineAveragedSstCensoring";
 import type { MarineAveragedSstFootprint } from "../lib/marineAveragedSstSupport";
 import { probeRecordGaps, probeRecordGapsClause } from "../lib/probeRecordGaps";
@@ -380,12 +385,31 @@ export class ProbePanel {
     const recordGapsClause = probeRecordGapsClause(
       probeRecordGaps(this.context?.layerId, this.months)
     );
+    // SST is not the only layer NASA renders with an open terminal bin. The
+    // aerosol colormap's final bin is `≥ 0.900`, and dust and smoke columns
+    // routinely sit above it, so this layer's max — and, because there is no
+    // opposing cap, its mean — are one-sided bounds whenever a sampled month
+    // lands there. Its min is genuinely two-sided (the ramp closes at 0 and
+    // AOD cannot be negative), which is why the prefix is asked for per
+    // statistic rather than applied to the group. Silent for every other layer
+    // and for any aerosol record that stays inside the finite ramp.
+    const aerosolCensoring = probeAerosolCeilingCensoring(
+      this.context?.layerId,
+      physical
+    );
+    const aerosolCensoringClause =
+      aerosolCeilingCensoringClause(aerosolCensoring);
+    // At most one of the two ramps can apply — a series belongs to one layer —
+    // so the first non-empty prefix is the whole answer.
+    const boundPrefix = (statistic: "min" | "mean" | "max"): string =>
+      sstExtremeBoundPrefix(sstCensoring, statistic) ||
+      aerosolCeilingBoundPrefix(aerosolCensoring, statistic);
     const stat =
       `${stats.count} of ${this.months.length} months` +
       (recordGapsClause ? ` · ${recordGapsClause}` : "") +
-      ` · min ${sstExtremeBoundPrefix(sstCensoring, "min")}${fmt(stats.min)}` +
-      ` · mean ${sstExtremeBoundPrefix(sstCensoring, "mean")}${fmt(stats.mean)}` +
-      ` · max ${sstExtremeBoundPrefix(sstCensoring, "max")}${fmt(stats.max)}` +
+      ` · min ${boundPrefix("min")}${fmt(stats.min)}` +
+      ` · mean ${boundPrefix("mean")}${fmt(stats.mean)}` +
+      ` · max ${boundPrefix("max")}${fmt(stats.max)}` +
       ` · ${uncertaintyText(s)} per value` +
       (accuracy ? ` · ${accuracy}` : "") +
       ` · ${trendClause(trend)}` +
@@ -394,6 +418,7 @@ export class ProbePanel {
       (sstTrendCensoring ? ` · ${sstTrendCensoring}` : "") +
       (sstAveragedCensoring ? ` · ${sstAveragedCensoring}` : "") +
       (sstSamplingGate ? ` · ${sstSamplingGate}` : "") +
+      (aerosolCensoringClause ? ` · ${aerosolCensoringClause}` : "") +
       (spatialSupportNote ? ` · ${spatialSupportNote}` : "");
     this.setStatus(stat);
     this.appendPeakGreenness(stat, physical);

@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   averagedSstCensoringNote,
   marineAveragedSstCensoringCsvHeaders,
+  marineBoundaryMeanSstCensoringNote,
   summarizeMarineAveragedSstCensoring,
 } from "./marineAveragedSstCensoring";
 import { probeSstExtremeCensoring } from "./probeSstExtremeCensoring";
+import { summarizeSstRampCensoring } from "./sstRampCensoring";
 import { LAYER_ORDER } from "./timeline";
 
 /** Decoded values the sibling censoring modules use as fixtures. */
@@ -180,6 +182,55 @@ describe("marineAveragedSstCensoringCsvHeaders", () => {
       )) {
         expect(line).not.toMatch(/warmer|colder|≤|≥|upper bound|lower bound/);
       }
+    }
+  });
+});
+
+describe("marineBoundaryMeanSstCensoringNote", () => {
+  it("qualifies an unmarked boundary mean as blind rather than uncensored", () => {
+    const note = marineBoundaryMeanSstCensoringNote(
+      summarizeSstRampCensoring(INTERIOR)
+    );
+    expect(note).toContain("area-weighted mean of per-pixel decodes");
+    expect(note).toContain("not evidence the boundary held no censored pixel");
+    // The colormap it is a statement about is named, as on every other surface.
+    expect(note).toContain("colormap");
+  });
+
+  it("corrects a marked boundary mean's bound instead of explaining a silence", () => {
+    for (const value of [FLOOR, CEILING]) {
+      const note = marineBoundaryMeanSstCensoringNote(
+        summarizeSstRampCensoring(value)
+      );
+      expect(note).toContain("screens the boundary mean and not the pixels");
+      expect(note).toContain("not established as uncensored");
+      // No silence to explain once a bound is printed beside it.
+      expect(note).not.toContain("not evidence");
+    }
+  });
+
+  it("says nothing without a value or outside the published ramp", () => {
+    // A value this ramp cannot have produced carries no statement about its
+    // caps, so it gets no clause rather than a misapplied one.
+    for (const censoring of [
+      null,
+      undefined,
+      summarizeSstRampCensoring(null),
+      summarizeSstRampCensoring(Number.NaN),
+      summarizeSstRampCensoring(-4),
+      summarizeSstRampCensoring(41),
+    ]) {
+      expect(marineBoundaryMeanSstCensoringNote(censoring)).toBeNull();
+    }
+  });
+
+  it("claims no presence direction or magnitude in either wording", () => {
+    for (const value of [FLOOR, INTERIOR, CEILING]) {
+      const note = marineBoundaryMeanSstCensoringNote(
+        summarizeSstRampCensoring(value)
+      );
+      expect(note).not.toMatch(/warmer|colder|≤|≥/);
+      expect(note).not.toMatch(/marine|biolog|ecosystem|habitat|sea-ice/i);
     }
   });
 });
