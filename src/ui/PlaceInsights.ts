@@ -37,6 +37,7 @@ import {
 } from "../lib/volcanoProximityContext";
 import {
   BIRD_2003_PLATE_BOUNDARY_SOURCE,
+  digitizationCreditText,
   subductionMarkingText,
   type PlateBoundaryExtentContext,
 } from "../lib/plateBoundaryContext";
@@ -580,6 +581,9 @@ export class PlaceInsights {
     const caveat =
       "A crossing is descriptive map context: apart from the source's own subduction marking, the supplied model carries no boundary type, motion, deformation, activity, or hazard.";
     const marking = subductionMarkingText(context);
+    // Named after the marking line so the paragraph moves from what the source
+    // says about these boundaries to who supplied them.
+    const credit = digitizationCreditText(context);
     const segments = coverage.matchedSegmentCount;
     const nearest =
       count === 0 && proximity
@@ -588,7 +592,7 @@ export class PlaceInsights {
     this.plateDetail.textContent =
       count === 0
         ? `No bundled Bird (2003) boundary polylines intersect this search bounding box; that does not establish the place sits away from a plate boundary.${nearest ? ` ${nearest}` : ""} Compared against ${coverage.usableBoundaryCount} usable supplied ${coverage.usableBoundaryCount === 1 ? "polyline" : "polylines"}.`
-        : `${context.geographicCoverage} ${segments} supplied ${segments === 1 ? "segment" : "segments"} intersect, from ${coverage.usableBoundaryCount} usable supplied ${coverage.usableBoundaryCount === 1 ? "polyline" : "polylines"}.${marking ? ` ${marking}` : ""} ${caveat}`;
+        : `${context.geographicCoverage} ${segments} supplied ${segments === 1 ? "segment" : "segments"} intersect, from ${coverage.usableBoundaryCount} usable supplied ${coverage.usableBoundaryCount === 1 ? "polyline" : "polylines"}.${marking ? ` ${marking}` : ""}${credit ? ` ${credit}` : ""} ${caveat}`;
 
     for (const boundary of context.matchingBoundaries.slice(0, 5)) {
       const item = document.createElement("li");

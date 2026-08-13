@@ -44,6 +44,13 @@ export interface MatchedPlateBoundary {
    * that carried no step attributes at all.
    */
   sourceClass: PlateBoundaryClass;
+  /**
+   * The digitization credited for this step, passed through verbatim from
+   * PB2002's `Source` field. Null when the supplied feature carried no credit,
+   * which is the absence of a credit rather than a claim that Bird digitized
+   * the step himself.
+   */
+  sourceCitation: string | null;
 }
 
 export interface PlateBoundaryExtentCoverage {
@@ -59,6 +66,14 @@ export interface PlateBoundaryExtentCoverage {
    * non-subduction".
    */
   matchedSubductionBoundaryCount: number;
+  /**
+   * Distinct `Source` credits carried by the matched boundaries. PB2002 is a
+   * compilation of separately sourced digitizations, so this counts the
+   * surveys behind the matched linework, not the boundaries themselves.
+   */
+  distinctSourceCitationCount: number;
+  /** Matched boundaries whose supplied feature carried no `Source` credit. */
+  matchedUncreditedBoundaryCount: number;
   /** True only when the supplied polylines were compared with valid bounds. */
   boundsTested: boolean;
 }
@@ -113,6 +128,9 @@ export function plateBoundariesInSearchExtent(
       // marking is the source's, and the extent test must not appear to have
       // classified anything.
       sourceClass: plateBoundaryClass(boundary),
+      // Also a passthrough: PB2002 compiles separately sourced digitizations,
+      // so the credit belongs to the step, not to the compilation.
+      sourceCitation: boundary.step?.sourceCitation ?? null,
     }))
     .filter((boundary) => boundary.matchedSegmentCount > 0)
     .sort(
@@ -162,6 +180,74 @@ export function subductionMarkingText(
   return `Bird (2003) applies its subduction marking to ${coverage.matchedSubductionBoundaryCount} of ${total} matched ${noun}; PB2002 marks subduction steps only and leaves the field blank elsewhere, so an unmarked boundary records no assignment rather than a non-subduction boundary.`;
 }
 
+/**
+ * Name the digitizations credited for the matched linework.
+ *
+ * PB2002 is a compilation: its `Source` field credits a different survey per
+ * step, and 129 of the 241 bundled features (53.5%) are credited to work other
+ * than Bird's own digitizing, spanning 1978-2002. Every other surface in the
+ * app cites Bird (2003), which is the compilation credit rather than the
+ * survey that drew the lines a reader is looking at, so this restores the
+ * per-step credit the parser already carries.
+ *
+ * Credits are listed most-used first (ties alphabetical) and quoted verbatim:
+ * they are source strings, not normalized names, and several embed their own
+ * punctuation. At most two are named, because a wide extent can match eleven.
+ *
+ * Returns null when nothing matched or when no matched boundary carried a
+ * credit at all, so the panel never implies a credit it was not given.
+ */
+export function digitizationCreditText(
+  context: PlateBoundaryExtentContext
+): string | null {
+  const { coverage, matchingBoundaries } = context;
+  if (coverage.status !== "available" || coverage.matchedBoundaryCount === 0) {
+    return null;
+  }
+  const tally = creditTally(matchingBoundaries);
+  if (tally.length === 0) return null;
+
+  const named = tally.slice(0, 2).map((entry) => `"${entry.citation}"`);
+  const credits = named.length === 1 ? named[0] : `${named[0]} and ${named[1]}`;
+  const attribution =
+    tally.length > 2
+      ? `the matched linework here carries ${tally.length} distinct source credits, most often ${credits}`
+      : `the matched linework here is credited to ${credits}`;
+  // Only stated when some matched boundary does carry a credit: an entirely
+  // uncredited match returns null above rather than reporting a shortfall.
+  const uncredited = coverage.matchedUncreditedBoundaryCount;
+  const shortfall =
+    uncredited > 0
+      ? ` ${uncredited} matched ${uncredited === 1 ? "boundary carries" : "boundaries carry"} no source credit.`
+      : "";
+  // No "not Bird (2003) alone" tail: roughly half the steps are credited to
+  // Bird's own earlier digitizing, where that clause reads as a contradiction
+  // ('credited to "by Peter Bird, 1999", not Bird (2003) alone'). Naming the
+  // credit already lets a reader see whose survey drew these lines.
+  return `Bird (2003) compiles separately sourced digitizations rather than one uniform survey; ${attribution}.${shortfall}`;
+}
+
+/**
+ * Distinct `Source` credits among matched boundaries, most-used first with
+ * alphabetical ties, so the order never depends on input order.
+ */
+function creditTally(
+  matchingBoundaries: readonly MatchedPlateBoundary[]
+): { citation: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const { sourceCitation } of matchingBoundaries) {
+    if (!sourceCitation) continue;
+    counts.set(sourceCitation, (counts.get(sourceCitation) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([citation, count]) => ({ citation, count }))
+    .sort(
+      (first, second) =>
+        second.count - first.count ||
+        first.citation.localeCompare(second.citation, "en-US")
+    );
+}
+
 function contextFor(
   suppliedBoundaryCount: number,
   usableBoundaryCount: number,
@@ -188,6 +274,10 @@ function contextFor(
       matchedSegmentCount,
       matchedSubductionBoundaryCount: matchingBoundaries.filter(
         ({ sourceClass }) => sourceClass === "subduction"
+      ).length,
+      distinctSourceCitationCount: creditTally(matchingBoundaries).length,
+      matchedUncreditedBoundaryCount: matchingBoundaries.filter(
+        ({ sourceCitation }) => !sourceCitation
       ).length,
       boundsTested: status !== "invalid-bounds",
     },
