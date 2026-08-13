@@ -37,6 +37,7 @@ import { emptyAtmosphereProbeNote } from "./lib/atmosphereProbeDomain";
 import { marineAveragedSstCensoringCsvHeaders } from "./lib/marineAveragedSstCensoring";
 import { averagedSstSupportNote } from "./lib/marineAveragedSstSupport";
 import { vegetationAveragedSupportNote } from "./lib/vegetationAveragedSupport";
+import { snowAveragedSupportNote } from "./lib/snowAveragedSupport";
 import { emptyMarineProbeNote } from "./lib/marineProbeDomain";
 import {
   seasonalSamplingBalance,
@@ -936,6 +937,18 @@ if (probeEl) {
           values,
           mode === "area" ? validFractions : null
         );
+        // And once more for snow, where the undrawn pixels are the percent-0
+        // ones GIBS leaves transparent — so an area mean is the mean where
+        // snow was drawn, and the undrawn share moves with the melt season
+        // rather than sitting still. The place panel states this for one
+        // month; the series did not. It also gives a snow-free box a reason
+        // for its empty chart instead of "no data at this point".
+        const snowSupportNote = snowAveragedSupportNote(
+          layer.id,
+          "sampled-area",
+          values,
+          mode === "area" ? validFractions : null
+        );
         // An area value is a mean of per-pixel decodes and a point value a
         // median, so only the area footprint carries censoring the end-cap
         // screen cannot see. Shared by the status line and the export.
@@ -1019,7 +1032,7 @@ if (probeEl) {
             emptyMarineProbeNote(layer.id, values, sstSupportNote),
           // Each note is gated on its own layer, so at most one is ever a
           // string — the fallback picks the one that spoke.
-          sstSupportNote ?? vegetationSupportNote,
+          sstSupportNote ?? vegetationSupportNote ?? snowSupportNote,
           // Area mode charts a weighted mean of per-pixel decodes; point mode
           // charts a median, which the SST end-cap screen already catches.
           averagedFootprint
@@ -1114,6 +1127,16 @@ if (probeEl) {
           values,
           validFractions
         );
+        // And the same for snow: GIBS leaves percent 0 transparent, so a box's
+        // snow-free ground is rejected rather than averaged in as 0% — the
+        // charted mean covers the drawn patches only, and the share it covers
+        // shrinks through the melt season, damping the swing the chart shows.
+        const snowSupportNote = snowAveragedSupportNote(
+          layer.id,
+          "drawn-region",
+          values,
+          validFractions
+        );
         // The physical series the file writes, not the 0..1 gradient positions
         // held here. Shared by the status line and the export.
         const physical = values.map((v) =>
@@ -1190,7 +1213,7 @@ if (probeEl) {
             emptyMarineProbeNote(layer.id, values, sstSupportNote),
           // Each note is gated on its own layer, so at most one is ever a
           // string — the fallback picks the one that spoke.
-          sstSupportNote ?? vegetationSupportNote,
+          sstSupportNote ?? vegetationSupportNote ?? snowSupportNote,
           // Every drawn-region value is a weighted mean of per-pixel decodes.
           "drawn-region"
         );
