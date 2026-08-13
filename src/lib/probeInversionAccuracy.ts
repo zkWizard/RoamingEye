@@ -40,9 +40,11 @@ import { MEASURED_INVERSION } from "./validation";
  *  - A layer with no measured figure (NDVI, EVI, snow — not colormap-inverted
  *    against a published GIBS ramp) is reported as uncharacterized. A band is
  *    never invented for it, and absence is never rendered as accuracy.
- *  - A layer whose gradient rejects the entire published ramp (LST) has no
- *    RMSE at all; that is reported as its own state rather than as a small
- *    error, because "no colour inverted" is not "the values are close".
+ *  - A layer whose gradient rejects the entire published ramp has no RMSE at
+ *    all; that is reported as its own state rather than as a small error,
+ *    because "no colour inverted" is not "the values are close". LST held that
+ *    state until its legend was rebuilt from GIBS's own ramp (2026-08-13); no
+ *    layer is in it now, but the state is kept for a legend regression.
  *  - This describes the *rendering-inversion* error only. It is not the
  *    accuracy of GIBS's underlying L3 product against in-situ measurement —
  *    that is the product teams' own published validation, which METHODS.md

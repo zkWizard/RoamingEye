@@ -88,7 +88,7 @@ export function validateInversion(
 /**
  * The committed validation figures (measured 2026-07-09 against the live
  * colormaps; precipitation, air temperature, and SST re-measured 2026-08-11,
- * soil moisture 2026-08-12).
+ * soil moisture 2026-08-12, land surface temperature 2026-08-13).
  * The contract test re-measures and asserts the live numbers still match these
  * within tolerance — so the published accuracy figures in docs/validation.md
  * and METHODS.md stay true, and any drift (a GIBS palette change, a legend
@@ -97,11 +97,18 @@ export function validateInversion(
  * These are sobering by design, and the spread tracks one thing: whether the
  * layer's legend was drawn from the colormap GIBS renders with. Every dynamic
  * layer's now is (precipitation, RMSE 0.27 mm/day over the whole ramp; 2 m air
- * temperature, 0.485 K; SST, 1.0 °C; soil moisture, 0.23 kg/m²; aerosol, 0.13);
- * only LST's gradient still misses GIBS's cold-end hues entirely (all-null).
+ * temperature, 0.485 K; SST, 1.0 °C; soil moisture, 0.23 kg/m²; aerosol, 0.13;
+ * land surface temperature, 0.3174 K), and every one of them now inverts its
+ * whole published ramp — no layer rejects a colour.
+ *
+ * LST was the last holdout and the starkest case. Its hand-drawn blue → red
+ * gradient missed GIBS's full-spectrum rainbow so completely that all 250
+ * published colours fell outside the no-data threshold: the probe recovered
+ * *nothing*, for every land pixel, at every date. Rebuilding the gradient from
+ * MODIS_Land_Surface_Temp (2026-08-13) took it from all-null to 0.3174 K over
+ * the whole ramp — the tightest absolute figure of any temperature layer here.
  * Relative analysis (trends, anomalies, seasonality — scale-monotone-robust)
- * was reliable even before the recalibrations; rebuilding LST's gradient from
- * the real GIBS colormap is tracked as follow-up (#170).
+ * was reliable even before the recalibrations.
  *
  * NDVI shows what a *banded* null-rate used to cost: its legend stops are now
  * sampled from MODIS_L3_NDVI instead of drawn by hand, and every one of GIBS's
@@ -123,7 +130,10 @@ export const MEASURED_INVERSION: Record<
   { rmse: number | null; nulls: number; total: number }
 > = {
   ndvi: { rmse: 0.0236, nulls: 0, total: 140 },
-  lst: { rmse: null, nulls: 250, total: 250 },
+  // Re-measured 2026-08-13 after the LST legend was rebuilt from GIBS's own
+  // MODIS_Land_Surface_Temp rainbow (was rmse null / nulls 250 of 250, when the
+  // hand-drawn blue → red gradient missed the rendered ramp entirely).
+  lst: { rmse: 0.3174, nulls: 0, total: 250 },
   // Re-measured against the parser-restored 180-entry ramp with the legend
   // rebuilt from GIBS's own stops (#717 + #758 combined).
   airtemp: { rmse: 0.485, nulls: 0, total: 180 },

@@ -39,7 +39,20 @@ This table is kept in sync with the measured figures by a CI drift-guard.
 | Aerosol optical depth | **0.13** (scale 0–0.9) | 180 / 180         | Good — usable for absolute values |
 | Sea surface temp      | **1.0** °C             | 213 / 213         | Good — usable for absolute values |
 | Soil moisture         | **0.23** kg/m²         | 50 / 50           | Good — usable for absolute values |
-| Land surface temp     | — (all no-data)        | 0 / 250           | Gradient misses GIBS's hues       |
+| Land surface temp     | **0.317** K            | 250 / 250         | Good — usable for absolute values |
+
+Land surface temperature was the last all-no-data layer: until 2026-08-13 its
+legend was a hand-drawn blue → green → yellow → red gradient, while GIBS renders
+`MODIS_Land_Surface_Temp` as a full-spectrum rainbow (magenta → violet → blue →
+cyan → green → yellow → orange → red) over 200.3–349.7 K. The two had so little
+in common that **all 250 published ramp colours** fell outside the no-data
+threshold: the probe returned no value at all for any land pixel, at any date,
+and the layer carried no RMSE to quote. Rebuilding the stops on that colormap's
+hue corners moved it from unreadable to the tightest temperature layer in the
+table. Note that the ramp's cold stop is GIBS's magenta with red pulled 197 →
+194 — pure magenta sits 58 units from the published colour, inside the 60-unit
+no-data threshold, so the unmodified hue would let an off-gradient magenta pixel
+read as a 200 K measurement.
 
 Precipitation was `20.4 mm/day` over `27 / 50` colours until 2026-08-11. Its
 legend was a hand-drawn tan → blue gradient, but GIBS renders the layer on a
