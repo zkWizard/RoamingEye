@@ -52,7 +52,7 @@ describe("place insights", () => {
     ).toEqual({
       id: "rainfall",
       value: "268 mm",
-      detail: "+134 mm vs Dec 2025 · Jan 2026",
+      detail: "+134 mm vs Dec 2025 · Jan 2026 · annual cycle not removed",
     });
   });
 
@@ -71,7 +71,7 @@ describe("place insights", () => {
     ).toEqual({
       id: "rainfall",
       value: "268 mm",
-      detail: "+134 mm vs Dec 2025 · Jan 2026",
+      detail: "+134 mm vs Dec 2025 · Jan 2026 · annual cycle not removed",
     });
   });
 
@@ -94,7 +94,7 @@ describe("place insights", () => {
       id: "rainfall",
       value: "87 mm",
       detail:
-        "+3 mm vs Feb 2026 · Mar 2026; +9 mm of that is 28 d → 31 d month length, and the daily rate moved the other way (3.0 → 2.8 mm/day)",
+        "+3 mm vs Feb 2026 · Mar 2026; +9 mm of that is 28 d → 31 d month length, and the daily rate moved the other way (3.0 → 2.8 mm/day) · annual cycle not removed",
     });
   });
 
@@ -110,7 +110,7 @@ describe("place insights", () => {
         ],
         [283.15, 285.15]
       ).detail
-    ).toBe("+2.0 C vs Feb 2026 · Mar 2026");
+    ).toBe("+2.0 C vs Feb 2026 · Mar 2026 · annual cycle not removed");
   });
 
   it("preserves native NDVI values decoded from NASA's colormap", () => {
@@ -150,7 +150,7 @@ describe("place insights", () => {
     ).toEqual({
       id: "air",
       value: "0.9 C",
-      detail: "+9.0 C vs Feb 2026 · Mar 2026",
+      detail: "+9.0 C vs Feb 2026 · Mar 2026 · annual cycle not removed",
     });
     expect(
       placeInsightReading(
@@ -289,21 +289,45 @@ describe("place insights", () => {
     ).toContain(suffix);
   });
 
-  it("leaves the other place metrics differencing unconditionally", () => {
-    // The stability band and adjacency rule are NDVI-specific; applying them to
-    // rainfall, soil moisture, or air temperature would be unfounded.
+  it("leaves the other place metrics free of the NDVI stability band", () => {
+    // The stability band is an NDVI-specific threshold from `phenologyChange`;
+    // applying it to rainfall, soil moisture, or air temperature would be
+    // unfounded, so a small adjacent-month step still reports a signed number
+    // rather than the vegetation card's "Little change" verdict.
     const air = PLACE_METRICS.find((metric) => metric.id === "air");
     if (!air) throw new Error("air metric missing");
     expect(
       placeInsightReading(
         air,
         [
-          { year: 2025, month: 2 },
+          { year: 2026, month: 1 },
           { year: 2026, month: 2 },
         ],
         [0.5, 0.501]
       ).detail
-    ).toBe("+0.1 C vs Feb 2025 · Feb 2026");
+    ).toBe("+0.1 C vs Jan 2026 · Feb 2026 · annual cycle not removed");
+  });
+
+  it("refuses a month-over-month label on a non-adjacent pair for every metric", () => {
+    // Unlike the stability band, adjacency is not NDVI-specific: "month over
+    // month" is a claim about the calendar. A twelve-month gap rendered in the
+    // one-month step's own format is the reading this guards against.
+    for (const id of ["air", "soil", "rainfall"] as const) {
+      const metric = PLACE_METRICS.find((m) => m.id === id);
+      if (!metric) throw new Error(`${id} metric missing`);
+      expect(
+        placeInsightReading(
+          metric,
+          [
+            { year: 2025, month: 2 },
+            { year: 2026, month: 2 },
+          ],
+          [0.5, 0.501]
+        ).detail
+      ).toBe(
+        "Feb 2026 regional mean; Feb 2025 is not the preceding month, so no month-over-month change is reported"
+      );
+    }
   });
 
   it("ties small and large regional means to coverage and rendered-image provenance", () => {

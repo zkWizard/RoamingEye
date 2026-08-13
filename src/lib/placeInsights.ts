@@ -25,6 +25,11 @@ import {
   placeRainfallMonthLengthSplit,
   rainfallMonthLengthNote,
 } from "./placeRainfallMonthLength";
+import {
+  placeMonthStep,
+  placeMonthStepNote,
+  placeMonthStepRefusal,
+} from "./placeMonthStep";
 
 export type PlaceMetricId = "vegetation" | "rainfall" | "soil" | "air" | "snow";
 export type PlaceMetricLayerId =
@@ -276,6 +281,23 @@ function makePlaceInsightReading(
       ),
     };
   }
+  // "Month over month" is only true for an adjacent pair, and these products'
+  // enumerated records have their declared gaps removed, so the last two
+  // entries are not guaranteed to be one. The vegetation card has always
+  // refused a non-adjacent pair; the other three subtracted regardless.
+  const step = placeMonthStep([previousMonth, currentMonth]);
+  const refusal = placeMonthStepRefusal(step, formatMonth(previousMonth));
+  if (refusal !== null) {
+    return {
+      id: metric.id,
+      value: formatPlaceValue(metric.id, current),
+      detail: `${currentLabel} regional mean${samplingSuffix(
+        provenance,
+        currentLabel,
+        1
+      )}; ${refusal}`,
+    };
+  }
   const delta = current - previous;
   // A rainfall total is a rate integrated over the month's own length, so part
   // of any month-over-month step is calendar rather than weather. Disclose that
@@ -289,10 +311,16 @@ function makePlaceInsightReading(
           )
         )
       : "";
+  // The panel attaches no climatological baseline, so this is a plain
+  // difference of two absolute observations. Air temperature, precipitation and
+  // soil moisture are more strongly seasonal at most latitudes than the NDVI
+  // step the vegetation card already qualifies — say so on every card.
   return {
     id: metric.id,
     value: formatPlaceValue(metric.id, current),
-    detail: `${formatDelta(metric.id, delta)} vs ${previousLabel} · ${currentLabel}${monthLength}`,
+    detail: `${formatDelta(metric.id, delta)} vs ${previousLabel} · ${currentLabel}${monthLength}${placeMonthStepNote(
+      step
+    )}`,
   };
 }
 
