@@ -4,6 +4,7 @@ import {
   type GeometrySamplingStrategy,
 } from "./geojson";
 import { NDVI_UNIT } from "./phenology";
+import { summarizeSstRampCensoring } from "./sstRampCensoring";
 import {
   LAYERS,
   type DatasetRef,
@@ -21,7 +22,7 @@ import {
  */
 
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
-  "roamingeye-place-observation-export/v5" as const;
+  "roamingeye-place-observation-export/v6" as const;
 
 export const PLACE_OBSERVATION_GEOGRAPHY = {
   coordinateReferenceSystem: "OGC:CRS84",
@@ -145,7 +146,36 @@ export interface PlaceObservationInput {
   unavailableReason?: PlaceObservationUnavailableReason;
   /** Supplied share of sampled area with a usable value. */
   validFraction?: number;
+  /**
+   * Set when this month's own value is a one-sided bound rather than a point
+   * estimate. Omitted means no bound was assessed for this observation, which
+   * is not the same as a value known to be resolved.
+   */
+  valueBound?: PlaceObservationValueBound;
 }
+
+/**
+ * Which side of the recorded value the true observation lies on, when the
+ * rendered ramp could bound it but not resolve it.
+ *
+ * This is a per-observation companion to {@link
+ * PlaceObservationLegendCapCensoringInput}, which counts how many *cells* a
+ * product's open-ended bin took. The two describe different mechanisms and are
+ * not interchangeable: a cap tally says pixels were rejected and how many,
+ * while a value bound says the recorded number itself — a single decoded value,
+ * or a mean of decoded values — came to rest in a terminal bin the ramp cannot
+ * see past. A product may supply either, both, or neither.
+ *
+ * `"at-or-below"` means the true value is no greater than the recorded one;
+ * `"at-or-above"` means it is no less. Neither states how far past the edge the
+ * true value lies, and neither is a condition, cause, or forecast claim.
+ */
+export type PlaceObservationValueBound = "at-or-below" | "at-or-above";
+
+const PLACE_OBSERVATION_VALUE_BOUNDS = [
+  "at-or-below",
+  "at-or-above",
+] as const satisfies readonly PlaceObservationValueBound[];
 
 export type PlaceObservationUnavailableReason =
   "source-no-data" | "insufficient-valid-coverage" | "sampling-failed";
@@ -207,6 +237,7 @@ export interface PlaceObservationExport {
     "Coverage status describes the sampling result, not environmental condition or source-product availability.",
     "Data-month record states do not make values across products interchangeable or describe environmental condition.",
     "A legend-cap censoring record marks the month it names as a one-sided bound rather than a measurement; where no record is supplied, none was assessed, which is not evidence that no censoring occurred.",
+    "An observation's valueBound marks that value as a bound the rendered ramp could not resolve past, never as a measurement; a null bound records that this observation was not assessed for one, which is not evidence its value was resolved.",
   ];
 }
 
@@ -230,6 +261,7 @@ export interface PlaceObservationExportProduct {
     validFraction: number | null;
     unavailableReason?: PlaceObservationUnavailableReason | null;
     coverageStatus: PlaceObservationCoverageStatus;
+    valueBound: PlaceObservationValueBound | null;
   }[];
 }
 
@@ -310,6 +342,17 @@ export interface PlaceObservationExportSample {
  * value is still a result: retain whether the rendered boundary had no usable
  * SST pixels or only partial coverage that could not support a value.
  *
+ * A recorded value carries the same terminal-bin judgement the place card
+ * renders it under. NASA's published SST ramp ends in two open caps, so a
+ * boundary mean landing in the lowest or highest finite bin cannot be told
+ * apart from one the ramp collapsed into a cap — the card states it as
+ * `≤ 0.1 °C` or `≥ 31.9 °C` for exactly that reason. Writing the bare number
+ * here would hand the downloaded record, the surface that outlives the panel,
+ * a bound presented as a measurement, and the file's own limitations would then
+ * read as though no censoring had been assessed when it had been, and found.
+ * The number itself is unchanged: this marks how to read it, never re-estimates
+ * it, and never guesses how far past the cap the true value lies.
+ *
  * This is physical ocean-temperature sampling metadata, never biological
  * evidence or an ecological interpretation.
  */
@@ -319,7 +362,17 @@ export function sstPlaceObservationFromSample(
   validFraction: number
 ): PlaceObservationInput {
   if (value !== null) {
-    return { dataMonth, value, validFraction };
+    const censoring = summarizeSstRampCensoring(value);
+    return {
+      dataMonth,
+      value,
+      validFraction,
+      // Only a terminal bin yields a direction; an interior value is returned
+      // unqualified so the record never carries doubt the ramp cannot justify.
+      ...(censoring.boundDirection
+        ? { valueBound: sstValueBound(censoring.boundDirection) }
+        : {}),
+    };
   }
 
   return {
@@ -328,6 +381,18 @@ export function sstPlaceObservationFromSample(
     validFraction,
     unavailableReason: coverageUnavailableReason(validFraction),
   };
+}
+
+/**
+ * Translate the ramp screen's bound direction into the export's contract
+ * vocabulary. `"upper"` there means the ramp bounds the true SST from above —
+ * the floor bin, where a censored colder pixel always decodes warmer than it
+ * is — so the recorded value is one the truth sits at or below.
+ */
+function sstValueBound(
+  boundDirection: "upper" | "lower"
+): PlaceObservationValueBound {
+  return boundDirection === "upper" ? "at-or-below" : "at-or-above";
 }
 
 /**
@@ -362,6 +427,7 @@ const LIMITATIONS = [
   "Coverage status describes the sampling result, not environmental condition or source-product availability.",
   "Data-month record states do not make values across products interchangeable or describe environmental condition.",
   "A legend-cap censoring record marks the month it names as a one-sided bound rather than a measurement; where no record is supplied, none was assessed, which is not evidence that no censoring occurred.",
+  "An observation's valueBound marks that value as a bound the rendered ramp could not resolve past, never as a measurement; a null bound records that this observation was not assessed for one, which is not evidence its value was resolved.",
 ] as const;
 
 /** Create a JSON-ready, whitelist-only reproducibility record. */
@@ -706,6 +772,22 @@ function validateInput(input: PlaceObservationExportInput): void {
           `Product ${product.layerId} has invalid sampled coverage.`
         );
       }
+      if (
+        observation.valueBound !== undefined &&
+        !isPlaceObservationValueBound(observation.valueBound)
+      ) {
+        throw new Error(
+          `Product ${product.layerId} has an unsupported value bound.`
+        );
+      }
+      // A bound describes which side of a recorded number the truth lies on.
+      // With no number there is nothing to bound, and emitting one would imply
+      // a value the export does not carry.
+      if (observation.value === null && observation.valueBound !== undefined) {
+        throw new Error(
+          `Product ${product.layerId} cannot bound an unavailable value.`
+        );
+      }
     }
     if (product.legendCapCensoring) {
       validateLegendCapCensoring(
@@ -882,6 +964,9 @@ function exportProducts(
           validFraction: observation.validFraction ?? null,
           unavailableReason: observation.unavailableReason ?? null,
           coverageStatus: coverageStatus(observation.validFraction),
+          // null records that this observation was not assessed for a bound —
+          // deliberately not a claim that its value was resolved.
+          valueBound: observation.valueBound ?? null,
         }))
         .sort((left, right) => compareText(left.dataMonth, right.dataMonth)),
     }))
@@ -1059,6 +1144,15 @@ function isPlaceObservationUnavailableReason(
   return (
     typeof value === "string" &&
     PLACE_OBSERVATION_UNAVAILABLE_REASONS.some((reason) => reason === value)
+  );
+}
+
+function isPlaceObservationValueBound(
+  value: unknown
+): value is PlaceObservationValueBound {
+  return (
+    typeof value === "string" &&
+    PLACE_OBSERVATION_VALUE_BOUNDS.some((bound) => bound === value)
   );
 }
 
