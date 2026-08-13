@@ -4,10 +4,11 @@ import {
   SST_OBSERVING_CONSTRAINT_LIMITS,
   SST_OBSERVING_CONSTRAINT_SOURCE,
   SST_SAMPLING_GATE_NOTE,
+  probeSstSamplingGateClause,
   summarizeSstObservingConstraints,
   type SstObservingConstraintId,
 } from "./sstObservingConstraints";
-import { LAYERS } from "./timeline";
+import { LAYERS, LAYER_ORDER } from "./timeline";
 
 describe("SST observing constraints", () => {
   it("cites the SST layer's own dataset, not a restated copy", () => {
@@ -137,5 +138,53 @@ describe("SST observing constraints", () => {
     expect(summarizeSstObservingConstraints()).toEqual(
       summarizeSstObservingConstraints()
     );
+  });
+});
+
+describe("probe sampling-gate clause", () => {
+  it("qualifies a sea-surface-temperature record that reported statistics", () => {
+    // The probe's min/mean/max/trend are all computed from daytime, cloud-
+    // screened retrievals; nothing in the values themselves says so.
+    expect(probeSstSamplingGateClause("sst", true)).toBe(
+      SST_SAMPLING_GATE_NOTE
+    );
+  });
+
+  it("stays silent for every layer but SST", () => {
+    // The constraints are asserted for one product only. A land or atmosphere
+    // record must not inherit an ocean product's sampling gate.
+    for (const layerId of LAYER_ORDER.filter((id) => id !== "sst")) {
+      expect(probeSstSamplingGateClause(layerId, true)).toBe("");
+    }
+  });
+
+  it("stays silent when no statistic was reported", () => {
+    // The note qualifies a displayed number. With none on screen there is
+    // nothing to qualify, and an empty record already states its own reason.
+    expect(probeSstSamplingGateClause("sst", false)).toBe("");
+  });
+
+  it("stays silent when the sampled layer is unknown", () => {
+    // The probe context is optional; an absent layer id must not be guessed
+    // into the one product these constraints hold for.
+    expect(probeSstSamplingGateClause(undefined, true)).toBe("");
+  });
+
+  it("claims nothing biological, and no magnitude or direction", () => {
+    // A sampling gate is a statement about an instrument and an orbit. The
+    // offset's size depends on wind, insolation and mixing this app never
+    // observes, so the clause names the sampling and stops.
+    const clause = probeSstSamplingGateClause("sst", true);
+    expect(clause).not.toMatch(
+      /species|habitat|ecosystem|biolog|bleach|heatwave|stress|warmer|cooler|°/i
+    );
+  });
+
+  it("reads as a clause, not a sentence, for the ` · ` status line", () => {
+    // It is joined into an existing line of statistics rather than appended
+    // as its own sentence.
+    const clause = probeSstSamplingGateClause("sst", true);
+    expect(clause).not.toMatch(/[.;]$/);
+    expect(clause[0]).toBe(clause[0].toLowerCase());
   });
 });
