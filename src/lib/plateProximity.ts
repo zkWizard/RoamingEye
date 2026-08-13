@@ -1,4 +1,5 @@
 import { BIRD_2003_PLATE_BOUNDARY_SOURCE } from "./plateBoundaryContext";
+import { plateBoundaryPairLabel } from "./plateBoundaryHover";
 import type { Position } from "./geojson";
 import type { PlateBoundary } from "./plates";
 
@@ -141,6 +142,42 @@ export function nearestPlateBoundary(
     evaluatedSegmentCount,
     invalidQueryFields,
   });
+}
+
+/**
+ * One-sentence nearest-boundary statement for a place panel.
+ *
+ * Returns null whenever the measurement was not made — an unusable query or an
+ * empty overlay — so a caller keeps its own wording for those cases rather than
+ * printing a distance that was never computed.
+ *
+ * The boundary is named through {@link plateBoundaryPairLabel}, the same helper
+ * the globe tooltip and the panel's crossing list use, so one boundary reads
+ * identically everywhere it appears. The sentence states what the distance is
+ * measured to — digitized linework — because a reader will otherwise take it for
+ * a distance to a mapped plate margin.
+ */
+export function nearestPlateBoundaryStatement(
+  context: PlateProximityContext
+): string | null {
+  const { status } = context.coverage;
+  if (status === "invalid-query" || status === "no-usable-boundaries") {
+    return null;
+  }
+  if (context.nearest === null) return null;
+  const { name, distanceKm } = context.nearest;
+  return `Nearest supplied boundary polyline: ${plateBoundaryPairLabel(name)}, ${formatDistanceKm(distanceKm)} km from the search centre. Great-circle distance to Bird (2003) digitized linework, not to a mapped plate margin; the model carries no boundary type, motion, activity, or hazard.`;
+}
+
+/**
+ * Whole kilometres from 10 km up, one decimal below. PB2002 is supplied as
+ * digitized steps sampled at a fraction of a degree, so finer precision would
+ * imply a positional accuracy the linework does not carry.
+ */
+function formatDistanceKm(distanceKm: number): string {
+  return distanceKm >= 10
+    ? String(Math.round(distanceKm))
+    : distanceKm.toFixed(1);
 }
 
 function contextFor(

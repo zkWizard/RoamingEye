@@ -62,6 +62,7 @@ import {
 } from "../lib/volcanoProximityContext";
 import { parseVolcanoDataset } from "../lib/volcanoes";
 import { plateBoundariesInSearchExtent } from "../lib/plateBoundaryContext";
+import { nearestPlateBoundary } from "../lib/plateProximity";
 import { parsePlateBoundaries } from "../lib/plates";
 import type { GeoResult } from "../lib/geocoding";
 import { fetchJson, isAbortError } from "../lib/net";
@@ -163,8 +164,23 @@ export function runPlaceInsights(result: GeoResult): void {
       .then(parsePlateBoundaries)
       .then((boundaries) => {
         if (abort.signal.aborted) return;
+        const extent = plateBoundariesInSearchExtent(
+          boundaries,
+          result.boundingBox
+        );
+        // Most places do not sit on a boundary, so an empty extent is the
+        // common case, not the exception — measure the nearest supplied
+        // polyline instead of leaving the section with only a disclaimer.
+        // Scanned only on that path; the crossing list already answers the
+        // question when something does intersect.
         placeInsights.setPlateBoundaryContext(
-          plateBoundariesInSearchExtent(boundaries, result.boundingBox)
+          extent,
+          extent.coverage.matchedBoundaryCount === 0
+            ? nearestPlateBoundary(boundaries, {
+                latitude: result.lat,
+                longitude: result.lon,
+              })
+            : null
         );
       })
       .catch((error: unknown) => {
