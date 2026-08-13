@@ -17,13 +17,18 @@ export class SearchBox {
     private readonly onSelect: (result: GeoResult) => void
   ) {
     container.classList.add("search");
+    // A <label>, not a <div>: the input is only ~20px tall, so on a phone the
+    // icon and the field's padding — roughly half its visible height — were
+    // dead pixels that swallowed the tap. Implicit label association makes the
+    // whole field focus the input, at no cost to the accessible name (the icon
+    // is aria-hidden, and the input's own aria-label still wins).
     container.innerHTML = `
-      <div class="search__field">
+      <label class="search__field">
         <span class="search__icon">${ICONS.search}</span>
         <input class="search__input" type="search" placeholder="Search a place…"
           autocomplete="off" autocapitalize="off" spellcheck="false"
           aria-label="Search for a place" />
-      </div>
+      </label>
       <ul class="search__results" role="listbox"></ul>`;
 
     this.input = container.querySelector(".search__input") as HTMLInputElement;

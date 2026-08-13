@@ -778,6 +778,41 @@ test("comparison mode pins a month and sweeps a divider", async ({ page }) => {
   await expect(divider).not.toHaveClass(/is-visible/);
 });
 
+test("the whole search field is a tap target, not just the input", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const field = page.locator(".search__field");
+  const input = page.locator(".search__input");
+
+  // Implicit label association is what makes the padding and the icon live.
+  await expect(field).toHaveJSProperty("tagName", "LABEL");
+  expect(await input.evaluate((el) => el.closest("label") !== null)).toBe(true);
+
+  const box = (await field.boundingBox())!;
+  // WCAG 2.2 AA 2.5.8 asks for 24x24 CSS px; the bare input was only 20 tall.
+  expect(box.height).toBeGreaterThanOrEqual(24);
+  expect(box.width).toBeGreaterThanOrEqual(24);
+
+  // Each dead zone the old <div> swallowed — top padding, bottom padding and
+  // the magnifier icon — must now land focus in the input.
+  const isFocused = () => input.evaluate((el) => el === document.activeElement);
+  const targets: [string, number, number][] = [
+    ["top padding", box.x + box.width / 2, box.y + 3],
+    ["bottom padding", box.x + box.width / 2, box.y + box.height - 3],
+    ["icon", box.x + 10, box.y + box.height / 2],
+  ];
+  for (const [name, x, y] of targets) {
+    await input.evaluate((el) => (el as HTMLInputElement).blur());
+    expect(await isFocused(), `before tapping ${name}`).toBe(false);
+    await page.mouse.click(x, y);
+    expect(await isFocused(), `after tapping ${name}`).toBe(true);
+  }
+
+  // Focus must be visible: the input itself paints no outline.
+  await expect(field).toHaveCSS("outline-style", "solid");
+});
+
 declare global {
   interface Window {
     __APP_READY__?: boolean;
