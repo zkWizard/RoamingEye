@@ -6,6 +6,7 @@ import {
   describeSnowIllumination,
   noonSolarElevationDeg,
   snowIlluminationNote,
+  snowIlluminationPairNote,
   solarDeclinationDeg,
 } from "./snowCoverIllumination";
 import { SNOW_COVER_DATASET } from "./snowCover";
@@ -214,5 +215,103 @@ describe("snowIlluminationNote", () => {
     expect(snowIlluminationNote(-78)!).toContain(
       "not measurements of those months"
     );
+  });
+});
+
+describe("snowIlluminationPairNote", () => {
+  // The place panel's own pair as the record stands: the last two published
+  // MOD10CM months. Classes below are the module's measured output, not
+  // estimates — April first fails the floor at about 81°S, May at about 71°S.
+  const APR = { year: 2026, month: 4 };
+  const MAY = { year: 2026, month: 5 };
+  const AUG = { year: 2026, month: 8 };
+  const span = (south: number, north: number) => ({ south, north });
+
+  it("says nothing when both reported months are observable", () => {
+    expect(snowIlluminationPairNote(span(-1, 1), APR, MAY)).toBeNull();
+    expect(snowIlluminationPairNote(span(47, 48), APR, MAY)).toBeNull();
+    // Northern spring is the *lit* half at high north latitudes, so Svalbard —
+    // dark four months of the year — still stays silent for this pair.
+    expect(snowIlluminationPairNote(span(78, 79), APR, MAY)).toBeNull();
+  });
+
+  it("disowns the value when only the reported month is dark", () => {
+    // McMurdo Station, ~77.9°S: April still clears the floor, May does not.
+    const note = snowIlluminationPairNote(span(-77.9, -77.8), APR, MAY)!;
+    expect(note).toContain("May (sun never rises)");
+    expect(note).not.toContain("Apr");
+    expect(note).toContain("77.8°S");
+    expect(note).toContain("that month is not a measurement of it");
+    expect(note).toContain(
+      "month-over-month change is not a measurement of change"
+    );
+  });
+
+  it("names both months when the whole pair falls in the dark season", () => {
+    // Amundsen-Scott, at the pole: April is dark outright by ~86°S, and only
+    // barely under the floor between there and ~81°S.
+    const note = snowIlluminationPairNote(span(-90, -89), APR, MAY)!;
+    expect(note).toContain("Apr (sun never rises)");
+    expect(note).toContain("May (sun never rises)");
+    expect(note).toContain("those months is not a measurement of them");
+  });
+
+  it("separates a barely-lit month from a fully dark one", () => {
+    // ~83°S: April's noon sun returns but stays under the retrieval floor.
+    const note = snowIlluminationPairNote(span(-83.5, -83), APR, MAY)!;
+    expect(note).toContain("Apr (noon sun under 5°)");
+    expect(note).toContain("May (sun never rises)");
+  });
+
+  it("still fires when only the earlier endpoint is dark", () => {
+    // The mirror case: August is observable at ~76°S but May was not, so the
+    // value stands while the change it is compared against does not.
+    const note = snowIlluminationPairNote(span(-76, -75.9), MAY, AUG)!;
+    expect(note).toContain("May (sun never rises)");
+    expect(note).not.toContain("Aug");
+    expect(note).toContain(
+      "month-over-month change is not a measurement of change"
+    );
+  });
+
+  it("judges the equatorward edge, not the centre", () => {
+    // Antarctica as a whole reaches 60°S, which is sunlit in May even while
+    // the plateau is in full night. A centre latitude would disown a mean that
+    // partly was observed, so the span has to stay silent.
+    expect(snowIlluminationPairNote(span(-90, -60), APR, MAY)).toBeNull();
+    // Trim the lit rim off and the same span reports.
+    expect(snowIlluminationPairNote(span(-90, -76), APR, MAY)).not.toBeNull();
+  });
+
+  it("stays silent for a footprint straddling the equator", () => {
+    expect(snowIlluminationPairNote(span(-80, 5), APR, MAY)).toBeNull();
+  });
+
+  it("does not report the same calendar month twice", () => {
+    const note = snowIlluminationPairNote(span(-80, -79), MAY, {
+      year: 2025,
+      month: 5,
+    })!;
+    expect(note.match(/May/g)).toHaveLength(1);
+    expect(note).toContain("that month is not a measurement of it");
+  });
+
+  it("returns null for bounds that are not a usable span", () => {
+    expect(
+      snowIlluminationPairNote(span(Number.NaN, -80), APR, MAY)
+    ).toBeNull();
+    expect(snowIlluminationPairNote(span(-80, -91), APR, MAY)).toBeNull();
+    // south above north is a malformed box, not an inverted one to repair.
+    expect(snowIlluminationPairNote(span(-70, -80), APR, MAY)).toBeNull();
+  });
+
+  it("returns null for a month outside 1-12 rather than guessing", () => {
+    const s = span(-90, -89);
+    expect(
+      snowIlluminationPairNote(s, { year: 2026, month: 0 }, MAY)
+    ).toBeNull();
+    expect(
+      snowIlluminationPairNote(s, APR, { year: 2026, month: 13 })
+    ).toBeNull();
   });
 });

@@ -19,6 +19,7 @@ import {
 } from "../lib/placeInsights";
 import { NDVI_MAX_INVERSION_DISTANCE } from "../lib/vegetationIndexNoData";
 import { placeSnowCoverInsight } from "../lib/snowCoverNarrative";
+import { snowIlluminationPairNote } from "../lib/snowCoverIllumination";
 import { PROBE_SCALES, scaleValue } from "../lib/probe";
 import type { PlaceMetricLayerId } from "../lib/placeInsights";
 import {
@@ -373,6 +374,21 @@ export function runPlaceInsights(result: GeoResult): void {
                 { validFractions, sourceImageDimensions }
               )
             : null;
+        // MOD10CM maps snow from reflected sunlight, so at a high-latitude
+        // place the two reported months can be ones MODIS could not see — and
+        // a dark month is not reliably blank: over the Antarctic plateau the
+        // product returns a filled value through full polar night
+        // (lib/snowCoverIllumination, measured against GIBS 2026-08-11). The
+        // point probe already names those months before its chart fills in;
+        // this card did not, so a filled dark-month value read here as a
+        // measurement of the place. Passed the sampled footprint rather than
+        // `result.lat`: the note is judged at the equatorward edge so it fires
+        // only when *no* part of the place could be seen. Null — and free —
+        // equatorward of 63.3°.
+        const snowFootprint = snowReading ? geometryBounds(geometry) : null;
+        const snowDarknessNote = snowFootprint
+          ? snowIlluminationPairNote(snowFootprint, months[0], months[1])
+          : null;
         // Silent unless the cap actually took samples, so an ordinary reading
         // is unchanged. It is appended here rather than inside the shared
         // climate formatter because the saturation is a property of this
@@ -384,7 +400,15 @@ export function runPlaceInsights(result: GeoResult): void {
         );
         placeInsights.setReading(
           snowReading
-            ? { id: metric.id, ...snowReading }
+            ? {
+                id: metric.id,
+                ...snowReading,
+                // Appended to the detail only: darkness qualifies how the
+                // number may be read, it never changes the number.
+                detail: snowDarknessNote
+                  ? `${snowReading.detail} ${snowDarknessNote}`
+                  : snowReading.detail,
+              }
             : climateReading
               ? {
                   id: metric.id,
