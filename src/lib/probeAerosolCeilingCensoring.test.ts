@@ -3,9 +3,11 @@ import {
   AEROSOL_PROBE_DECODE_CEILING,
   aerosolCeilingBoundPrefix,
   aerosolCeilingCensoringClause,
+  aerosolCeilingCensoringCsvHeaders,
   probeAerosolCeilingCensoring,
 } from "./probeAerosolCeilingCensoring";
 import { AEROSOL_RENDERED_RAMP_MAX } from "./aerosolLoading";
+import { COLORMAP_DOCS, colormapUrl } from "./colormap";
 import { PROBE_SCALES, quantizationStep } from "./probe";
 
 describe("AEROSOL_PROBE_DECODE_CEILING", () => {
@@ -167,6 +169,125 @@ describe("aerosolCeilingCensoringClause", () => {
       "unhealthy",
     ]) {
       expect(clause.toLowerCase()).not.toContain(forbidden);
+    }
+  });
+});
+
+describe("aerosolCeilingCensoringCsvHeaders", () => {
+  it("writes nothing for a non-aerosol layer or an empty record", () => {
+    expect(
+      aerosolCeilingCensoringCsvHeaders(
+        probeAerosolCeilingCensoring("sst", [0.95, 0.95])
+      )
+    ).toEqual([]);
+    expect(
+      aerosolCeilingCensoringCsvHeaders(
+        probeAerosolCeilingCensoring("aerosol", [null, null])
+      )
+    ).toEqual([]);
+  });
+
+  it("stays silent for a record that never reached the cap", () => {
+    // The ordinary clean-column export must remain byte-identical.
+    expect(
+      aerosolCeilingCensoringCsvHeaders(
+        probeAerosolCeilingCensoring("aerosol", [0.12, 0.31, 0.08])
+      )
+    ).toEqual([]);
+  });
+
+  it("tallies the capped months against the observed ones", () => {
+    const [scope] = aerosolCeilingCensoringCsvHeaders(
+      probeAerosolCeilingCensoring("aerosol", [
+        0.12,
+        null,
+        AEROSOL_PROBE_DECODE_CEILING,
+        0.9,
+      ])
+    );
+    expect(scope).toContain("2 of 3 sampled months");
+    expect(scope).toContain("lower bounds and not measurements");
+  });
+
+  it("agrees in singular for a one-month record", () => {
+    const [scope] = aerosolCeilingCensoringCsvHeaders(
+      probeAerosolCeilingCensoring("aerosol", [AEROSOL_PROBE_DECODE_CEILING])
+    );
+    expect(scope).toContain("1 of 1 sampled month ");
+  });
+
+  it("states a bin rule the reader can apply to the value column", () => {
+    const [, rows] = aerosolCeilingCensoringCsvHeaders(
+      probeAerosolCeilingCensoring("aerosol", [AEROSOL_PROBE_DECODE_CEILING])
+    );
+    // The decode ceiling, not the rendered 0.9 cap: parseColormapEntries drops
+    // the open bin, so no exported value can ever reach 0.9.
+    expect(rows).toContain(AEROSOL_PROBE_DECODE_CEILING.toFixed(4));
+    expect(rows).toContain(AEROSOL_RENDERED_RAMP_MAX.toFixed(3));
+    expect(rows).toContain("550 nm");
+  });
+
+  it("marks one arm only, because the ramp's low end is closed at 0", () => {
+    const headers = aerosolCeilingCensoringCsvHeaders(
+      probeAerosolCeilingCensoring("aerosol", [AEROSOL_PROBE_DECODE_CEILING])
+    );
+    const [, rows] = headers;
+    expect(rows).toContain("closed at 0");
+    // No upper-bound language anywhere: only the top of this ramp censors.
+    for (const line of headers) {
+      expect(line).not.toContain("upper bound");
+    }
+  });
+
+  it("bounds a mean over the rows but claims no direction for the trend", () => {
+    const derived = aerosolCeilingCensoringCsvHeaders(
+      probeAerosolCeilingCensoring("aerosol", [
+        0.2,
+        AEROSOL_PROBE_DECODE_CEILING,
+      ])
+    ).find((line) => line.startsWith("# aerosol_ramp_censoring_derived:"));
+    expect(derived).toBeDefined();
+    expect(derived).toContain("lower bound");
+    expect(derived).toContain("no direction is claimed for the trend");
+  });
+
+  it("cites the published colormap it read the cap from", () => {
+    const source = aerosolCeilingCensoringCsvHeaders(
+      probeAerosolCeilingCensoring("aerosol", [AEROSOL_PROBE_DECODE_CEILING])
+    ).at(-1);
+    expect(source).toContain(COLORMAP_DOCS.aerosol);
+    expect(source).toContain(colormapUrl(COLORMAP_DOCS.aerosol));
+  });
+
+  it("keeps every line a single comma-free CSV comment", () => {
+    for (const line of aerosolCeilingCensoringCsvHeaders(
+      probeAerosolCeilingCensoring("aerosol", [
+        0.2,
+        AEROSOL_PROBE_DECODE_CEILING,
+      ])
+    )) {
+      expect(line.startsWith("# ")).toBe(true);
+      expect(line).not.toContain(",");
+      expect(line).not.toContain("\n");
+      expect(line).not.toContain('"');
+    }
+  });
+
+  it("claims no air-quality, health or forecast meaning", () => {
+    for (const line of aerosolCeilingCensoringCsvHeaders(
+      probeAerosolCeilingCensoring("aerosol", [
+        0.2,
+        AEROSOL_PROBE_DECODE_CEILING,
+      ])
+    )) {
+      for (const forbidden of [
+        "air quality",
+        "health",
+        "forecast",
+        "exposure",
+      ]) {
+        expect(line.toLowerCase()).not.toContain(forbidden);
+      }
     }
   });
 });

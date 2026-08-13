@@ -202,6 +202,55 @@ export function averagedAerosolCensoringNote(
   );
 }
 
+/**
+ * The same qualification carried into the exported CSV, or an empty list for a
+ * point probe, a non-aerosol layer, and a footprint that returned nothing —
+ * those files stay byte-identical.
+ *
+ * The export needs this more than the status line does, and most in the case the
+ * status line handles by staying quiet. `aerosolCeilingCensoringCsvHeaders`
+ * writes nothing at all when no charted month reached the cap, which is the
+ * ordinary outcome for an averaged footprint precisely because a mean of capped
+ * and resolved pixels lands inside the finite ramp. So the download most likely
+ * to hide censoring is the one that ships with no mention of it, opened later by
+ * someone who no longer has the panel to consult.
+ *
+ * When that block IS present it states a bin rule — mark a value at or above the
+ * decode ceiling — which is exact for a point probe's median and incomplete
+ * here: it screens the footprint's monthly means, not the pixels behind them, so
+ * the rows it leaves unmarked are not established as uncensored. The wording
+ * splits on that, because a rule the reader can apply is corrected differently
+ * from a silence.
+ *
+ * Claims no presence and no magnitude, for the reason given at the top of this
+ * file. Direction alone is stated, and only conditionally: this ramp is open at
+ * one end, so a capped pixel can only have averaged in below its true loading.
+ * That licenses no inequality on any printed number, and supports no surface
+ * air-quality, health, exposure, hazard, causal, or forecast claim.
+ */
+export function averagedAerosolCensoringCsvHeaders(
+  footprint: AerosolAveragedFootprint | null | undefined,
+  censoring: ProbeAerosolCeilingCensoring
+): string[] {
+  const summary = summarizeProbeAerosolAveragedCensoring(footprint, censoring);
+  if (!summary.applicable || summary.footprint === null) return [];
+  const label = footprintLabel(summary.footprint);
+  const doc = COLORMAP_DOCS.aerosol;
+
+  // No commas anywhere below: a `#` line must never contain a CSV delimiter
+  // (see the header discipline documented on `csvHeaderText` in probe.ts).
+  const scope =
+    summary.markedMonthCount > 0
+      ? `# aerosol_ramp_censoring_averaged: the bin rule above screens this ${label}'s monthly means and not the pixels behind them — a plume narrower than the ${label} averages below the cap while its own pixels stay capped — so rows it does not mark are not established as uncensored`
+      : `# aerosol_ramp_censoring_averaged: every value below is an area-weighted mean of per-pixel decodes over the ${label} — a pixel the published ${doc} colormap capped at AOD ${censoring.rampMax.toFixed(
+          3
+        )} at ${censoring.wavelengthNm} nm averages in with resolved ones and the mean lands inside the finite ramp — so no row is flagged as a bound and that silence is not evidence the ${label} held no capped pixel`;
+  return [
+    scope,
+    `# aerosol_ramp_censoring_averaged_detection: telling which months held a capped pixel would take a per-pixel tally of top-bin decodes that the sampler does not report — so no presence and no magnitude is stated for this ${label}; were a capped pixel present the mean would understate the true loading because this ramp is open at its top only`,
+  ];
+}
+
 function footprintLabel(footprint: AerosolAveragedFootprint): string {
   return footprint === "drawn-region" ? "drawn region" : "sampled area";
 }

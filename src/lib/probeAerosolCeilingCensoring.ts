@@ -3,7 +3,7 @@ import {
   AEROSOL_SOURCE,
   AEROSOL_WAVELENGTH_NM,
 } from "./aerosolLoading";
-import { COLORMAP_DOCS } from "./colormap";
+import { COLORMAP_DOCS, colormapUrl } from "./colormap";
 import { PROBE_SCALES, quantizationStep } from "./probe";
 import type { DatasetRef, LayerId } from "./timeline";
 
@@ -187,4 +187,60 @@ export function aerosolCeilingCensoringClause(
     `and the trend fitted over the same series inherits that censoring; min is unaffected because the ramp's low end is closed at 0 ` +
     `(source ${COLORMAP_DOCS.aerosol} colormap)`
   );
+}
+
+/**
+ * The same disclosure carried into the exported CSV, or an empty list for every
+ * layer but aerosol and for a record no month of which reached the cap — those
+ * files stay byte-identical.
+ *
+ * The export needs this at least as much as the status line does. On screen the
+ * inequality is printed in front of the affected statistic, so a bound can never
+ * be read as a measurement; in the file a capped month's `value` cell is an
+ * ordinary decimal indistinguishable from a resolved one, and the download
+ * outlives the session that explained it. That is the same gap
+ * `sstExtremeCensoringCsvHeaders` closed for the marine ramp, left open here
+ * because the aerosol screen was built for the panel only.
+ *
+ * The wording departs from the marine block wherever the two ramps differ. This
+ * one is open at its top only, so the rule the reader applies has a single arm,
+ * there is no upper-bound mark to look for, and the mean the file's rows support
+ * is itself a lower bound — which the marine block cannot say, its two opposing
+ * caps leaving the mean bounded in neither direction. The trend still gets no
+ * direction: where the capped months sit in the record decides which way a
+ * resolved cap would tilt a slope.
+ *
+ * Recovers nothing. States which rows are bounds and in which direction, and
+ * supports no surface air-quality, health, exposure, hazard, causal, or forecast
+ * claim.
+ */
+export function aerosolCeilingCensoringCsvHeaders(
+  censoring: ProbeAerosolCeilingCensoring
+): string[] {
+  if (!censoring.applicable) return [];
+  const {
+    ceilingMonthCount,
+    observedMonthCount,
+    rampMax,
+    decodeCeiling,
+    wavelengthNm,
+  } = censoring;
+  if (ceilingMonthCount === 0) return [];
+
+  const doc = COLORMAP_DOCS.aerosol;
+  // No commas anywhere below: a `#` line must never contain a CSV delimiter
+  // (see the header discipline documented on `csvHeaderText` in probe.ts).
+  return [
+    `# aerosol_ramp_censoring: ${ceilingMonthCount} of ${observedMonthCount} sampled ${
+      observedMonthCount === 1 ? "month" : "months"
+    } decode into the published aerosol colormap's open top bin — those values are lower bounds and not measurements`,
+    `# aerosol_ramp_censoring_rows: mark them in the value column below — a value at or above ${decodeCeiling.toFixed(
+      4
+    )} sits in that bin where every column AOD at or above ${rampMax.toFixed(
+      3
+    )} at ${wavelengthNm} nm shares one colour (a lower bound on possibly heavier loading); no row carries an opposing mark because the ramp's low end is closed at 0 and column AOD cannot be negative`,
+    `# aerosol_ramp_censoring_uncertainty: the quantization figure on the uncertainty line above is two-sided and does not describe those months — above the cap their true loading is unbounded and none is estimated here`,
+    `# aerosol_ramp_censoring_derived: the anomaly column and any trend stated above are computed over this same series so they inherit the censoring; a mean taken over these rows is a lower bound for the same reason because one open cap can bias it only downward — but no direction is claimed for the trend since a resolved cap tilts a slope whichever way the record's shape decides`,
+    `# aerosol_ramp_censoring_source: ${doc} colormap — ${colormapUrl(doc)}`,
+  ];
 }

@@ -635,18 +635,23 @@ export interface ProbeCsvMeta {
   /**
    * Provenance lines disclosing that some rows below are one-sided bounds
    * rather than measurements, built by
-   * `probeSstExtremeCensoring.sstExtremeCensoringCsvHeaders`. Passed in for the
-   * same reason as the three above: this module stays a leaf and never reaches
-   * into the layer catalog or the colormap tables. Empty for every layer whose
-   * ramp has no open end cap and for any record that stayed inside it.
+   * `probeSstExtremeCensoring.sstExtremeCensoringCsvHeaders` and its atmosphere
+   * counterpart `probeAerosolCeilingCensoring.aerosolCeilingCensoringCsvHeaders`
+   * — a record is decoded through one capped ramp or the other or neither, so
+   * the caller concatenates and at most one of them contributes. Passed in for
+   * the same reason as the three above: this module stays a leaf and never
+   * reaches into the layer catalog or the colormap tables. Empty for every layer
+   * whose ramp has no open end cap and for any record that stayed inside it.
    */
   censoringHeaders?: string[];
   /**
    * Provenance lines saying that the block above cannot see censoring inside an
    * AVERAGED value, built by
-   * `marineAveragedSstCensoring.marineAveragedSstCensoringCsvHeaders`. Passed in
-   * for the same reason as the four above. Empty in point mode, whose median is
-   * screened exactly, and for every layer with no capped ramp.
+   * `marineAveragedSstCensoring.marineAveragedSstCensoringCsvHeaders` and
+   * `probeAerosolAveragedCensoring.averagedAerosolCensoringCsvHeaders`,
+   * concatenated by the caller on the same one-ramp-or-the-other reasoning.
+   * Passed in for the same reason as the four above. Empty in point mode, whose
+   * median is screened exactly, and for every layer with no capped ramp.
    */
   averagedCensoringHeaders?: string[];
   /**

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   aerosolAveragedCensoringClause,
+  averagedAerosolCensoringCsvHeaders,
   averagedAerosolCensoringNote,
   summarizeProbeAerosolAveragedCensoring,
 } from "./probeAerosolAveragedCensoring";
@@ -146,5 +147,111 @@ describe("averagedAerosolCensoringNote", () => {
     expect(aerosolAveragedCensoringClause(summary, censored)).toBe(
       averagedAerosolCensoringNote("drawn-region", censored)
     );
+  });
+});
+
+describe("averagedAerosolCensoringCsvHeaders", () => {
+  it("writes nothing for a point probe or a footprint that returned nothing", () => {
+    expect(averagedAerosolCensoringCsvHeaders(null, censored)).toEqual([]);
+    expect(averagedAerosolCensoringCsvHeaders(undefined, uncensored)).toEqual(
+      []
+    );
+    expect(averagedAerosolCensoringCsvHeaders("sampled-area", empty)).toEqual(
+      []
+    );
+  });
+
+  it("writes nothing for every other layer", () => {
+    for (const id of LAYER_ORDER) {
+      if (id === "aerosol") continue;
+      expect(
+        averagedAerosolCensoringCsvHeaders(
+          "drawn-region",
+          probeAerosolCeilingCensoring(id, [0.2, CAPPED])
+        )
+      ).toEqual([]);
+    }
+  });
+
+  it("corrects a silent screen differently from a stated bin rule", () => {
+    const [silent] = averagedAerosolCensoringCsvHeaders(
+      "drawn-region",
+      uncensored
+    );
+    const [marked] = averagedAerosolCensoringCsvHeaders(
+      "drawn-region",
+      censored
+    );
+    // No mark: the whole series reads as uncensored, so name the cap itself —
+    // the sibling block wrote nothing and "capped" would have no referent.
+    expect(silent).toContain("area-weighted mean of per-pixel decodes");
+    expect(silent).toContain("not evidence");
+    // Marks present: the sibling stated a rule, so correct the rule's reach.
+    expect(marked).toContain("the bin rule above");
+    expect(marked).toContain("not established as uncensored");
+  });
+
+  it("states the conditional direction without rendering an inequality", () => {
+    for (const censoring of [uncensored, censored]) {
+      const lines = averagedAerosolCensoringCsvHeaders(
+        "sampled-area",
+        censoring
+      );
+      expect(lines.join(" ")).toContain("understate");
+      // Direction is conditional on a presence that stays undetectable, so it
+      // licenses no bound on any printed number.
+      for (const line of lines) {
+        expect(line).not.toContain("≥");
+        expect(line).not.toContain("≤");
+      }
+    }
+  });
+
+  it("never claims presence or magnitude", () => {
+    const [, detection] = averagedAerosolCensoringCsvHeaders(
+      "drawn-region",
+      uncensored
+    );
+    expect(detection).toContain("no presence and no magnitude");
+    expect(detection).toContain("the sampler does not report");
+  });
+
+  it("labels the footprint the user actually chose", () => {
+    expect(
+      averagedAerosolCensoringCsvHeaders("drawn-region", censored).join(" ")
+    ).toContain("drawn region");
+    expect(
+      averagedAerosolCensoringCsvHeaders("sampled-area", censored).join(" ")
+    ).toContain("sampled area");
+  });
+
+  it("keeps every line a single comma-free CSV comment", () => {
+    for (const censoring of [uncensored, censored]) {
+      for (const line of averagedAerosolCensoringCsvHeaders(
+        "drawn-region",
+        censoring
+      )) {
+        expect(line.startsWith("# aerosol_ramp_censoring_averaged")).toBe(true);
+        expect(line).not.toContain(",");
+        expect(line).not.toContain("\n");
+        expect(line).not.toContain('"');
+      }
+    }
+  });
+
+  it("claims no air-quality, health or forecast meaning", () => {
+    for (const line of averagedAerosolCensoringCsvHeaders(
+      "drawn-region",
+      uncensored
+    )) {
+      for (const forbidden of [
+        "air quality",
+        "health",
+        "forecast",
+        "exposure",
+      ]) {
+        expect(line.toLowerCase()).not.toContain(forbidden);
+      }
+    }
   });
 });
