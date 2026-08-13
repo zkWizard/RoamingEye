@@ -20,6 +20,11 @@ import {
   inversionAccuracyClause,
   probeInversionAccuracy,
 } from "../lib/probeInversionAccuracy";
+import {
+  probeSstExtremeCensoring,
+  sstExtremeBoundPrefix,
+  sstExtremeCensoringClause,
+} from "../lib/probeSstExtremeCensoring";
 import { ICONS } from "./icons";
 
 /** What the current series is: which layer, and where it was sampled. */
@@ -299,13 +304,27 @@ export class ProbePanel {
       seasonalSamplingBalance(this.months, physical),
       s
     );
+    // NASA's published SST colormap ends in two OPEN caps, and the months that
+    // land in them are exactly the ones that set the extremes — so for this one
+    // layer `min` and `max` can be one-sided bounds rather than estimates. Show
+    // the inequality with the number and say which statistics it applies to.
+    // Silent for every other layer and for any SST record that stays inside the
+    // finite ramp, so an ordinary readout is unchanged.
+    const sstCensoring = probeSstExtremeCensoring(
+      this.context?.layerId,
+      physical
+    );
+    const sstCensoringClause = sstExtremeCensoringClause(sstCensoring);
     const stat =
       `${stats.count} of ${this.months.length} months · ` +
-      `min ${fmt(stats.min)} · mean ${fmt(stats.mean)} · max ${fmt(stats.max)}` +
+      `min ${sstExtremeBoundPrefix(sstCensoring, "min")}${fmt(stats.min)}` +
+      ` · mean ${fmt(stats.mean)}` +
+      ` · max ${sstExtremeBoundPrefix(sstCensoring, "max")}${fmt(stats.max)}` +
       ` · ${uncertaintyText(s)} per value` +
       (accuracy ? ` · ${accuracy}` : "") +
       ` · ${trendClause(trend)}` +
       (seasonal ? ` · ${seasonal}` : "") +
+      (sstCensoringClause ? ` · ${sstCensoringClause}` : "") +
       (spatialSupportNote ? ` · ${spatialSupportNote}` : "");
     this.setStatus(stat);
     this.appendPeakGreenness(stat, physical);
