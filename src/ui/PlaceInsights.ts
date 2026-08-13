@@ -40,6 +40,7 @@ import {
   BIRD_2003_PLATE_BOUNDARY_SOURCE,
   digitizationCreditText,
   subductionMarkingText,
+  suppliedRepeatText,
   type PlateBoundaryExtentContext,
 } from "../lib/plateBoundaryContext";
 import { plateBoundaryPairLabel } from "../lib/plateBoundaryHover";
@@ -447,7 +448,8 @@ export class PlaceInsights {
       const item = document.createElement("li");
       // Say how the shown records were chosen: they are the alphabetically
       // first five, not the largest, highest, or most recently active.
-      item.textContent = `${count - 5} additional records not listed; the list is ordered by name`;
+      const hidden = count - 5;
+      item.textContent = `${hidden} additional ${hidden === 1 ? "record" : "records"} not listed; the list is ordered by name`;
       this.volcanoRecords.appendChild(item);
     }
   }
@@ -595,6 +597,10 @@ export class PlaceInsights {
     // classify is subduction, reported on its own line below.
     const caveat =
       "A crossing is descriptive map context: apart from the source's own subduction marking, the supplied model carries no boundary type, motion, deformation, activity, or hazard.";
+    // Named first among the derived clauses because it explains the counts in
+    // the sentence it follows; the marking and credit clauses then describe the
+    // boundaries those counts refer to.
+    const repeats = suppliedRepeatText(context);
     const marking = subductionMarkingText(context);
     // Named after the marking line so the paragraph moves from what the source
     // says about these boundaries to who supplied them.
@@ -607,7 +613,7 @@ export class PlaceInsights {
     this.plateDetail.textContent =
       count === 0
         ? `No bundled Bird (2003) boundary polylines intersect this search bounding box; that does not establish the place sits away from a plate boundary.${nearest ? ` ${nearest}` : ""} Compared against ${coverage.usableBoundaryCount} usable supplied ${coverage.usableBoundaryCount === 1 ? "polyline" : "polylines"}.`
-        : `${context.geographicCoverage} ${segments} supplied ${segments === 1 ? "segment" : "segments"} intersect, from ${coverage.usableBoundaryCount} usable supplied ${coverage.usableBoundaryCount === 1 ? "polyline" : "polylines"}.${marking ? ` ${marking}` : ""}${credit ? ` ${credit}` : ""} ${caveat}`;
+        : `${context.geographicCoverage} ${segments} supplied ${segments === 1 ? "segment intersects" : "segments intersect"}, from ${coverage.usableBoundaryCount} usable supplied ${coverage.usableBoundaryCount === 1 ? "polyline" : "polylines"}.${repeats ? ` ${repeats}` : ""}${marking ? ` ${marking}` : ""}${credit ? ` ${credit}` : ""} ${caveat}`;
 
     for (const boundary of context.matchingBoundaries.slice(0, 5)) {
       const item = document.createElement("li");
@@ -619,7 +625,8 @@ export class PlaceInsights {
       const item = document.createElement("li");
       // Say how the shown boundaries were chosen: alphabetically by plate-pair
       // label, not by length, segment count, or proximity.
-      item.textContent = `${count - 5} additional boundaries not listed; the list is ordered by plate-pair label`;
+      const hidden = count - 5;
+      item.textContent = `${hidden} additional ${hidden === 1 ? "boundary" : "boundaries"} not listed; the list is ordered by plate-pair label`;
       this.plateRecords.appendChild(item);
     }
   }
