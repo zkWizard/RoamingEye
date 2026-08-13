@@ -1,9 +1,11 @@
 import type { MarineAveragedSstFootprint } from "./marineAveragedSstSupport";
 import type { ProbeSstExtremeCensoring } from "./probeSstExtremeCensoring";
+import type { SstRampCensoringSummary } from "./sstRampCensoring";
 
 /**
- * Why the probe's SST end-cap marks cannot see censoring in an AVERAGED
- * footprint — a drawn study region, or the ~1° area around a probed point.
+ * Why the SST end-cap marks cannot see censoring in an AVERAGED footprint — a
+ * drawn study region, the ~1° area around a probed point, or the searched
+ * boundary behind a place card's mean.
  *
  * `probeSstExtremeCensoring` screens the charted series: a month whose value
  * lands in the published colormap's lowest or highest finite bin is rendered
@@ -12,9 +14,12 @@ import type { ProbeSstExtremeCensoring } from "./probeSstExtremeCensoring";
  * MEDIAN of a tight pixel block — a median returns one of the decoded pixel
  * values, so a censored result is itself in a terminal bin and is caught.
  *
- * Area and region mode combine differently. `ProbeSampler` inverts every
- * sampled pixel on its own and then takes a cos(lat)-weighted MEAN of the
- * usable ones (`weightedMeanValid`). A mean is not one of its members. A
+ * Area and region mode combine differently, and so does the place card, whose
+ * "approximate mean SST observation sampled within <place>" comes from
+ * `ProbeSampler.sampleGeometryPhysical` over the searched boundary — the same
+ * combiner as a drawn region. `ProbeSampler` inverts every sampled pixel on its
+ * own and then takes a cos(lat)-weighted MEAN of the usable ones
+ * (`weightedMeanValid`). A mean is not one of its members. A
  * footprint holding both capped pixels and pixels the ramp resolved therefore
  * averages to a value that can sit anywhere inside the finite ramp, while
  * still carrying the cap's one-sided error: the capped pixels entered the
@@ -155,6 +160,48 @@ export function averagedSstCensoringNote(
     summarizeMarineAveragedSstCensoring(footprint, censoring),
     censoring
   );
+}
+
+/**
+ * The same qualification for a SINGLE averaged value — the place card's
+ * boundary mean — where there is no charted series to summarize.
+ *
+ * The card already reports a mean that lands in a terminal bin as a bound, and
+ * `summarizeSstRampCensoring` notes that the DIRECTION of that bound is safe for
+ * a mean as well as for a pixel. What neither can do is see the other way round:
+ * a boundary holding both capped and resolved pixels averages to a value inside
+ * the finite ramp, so the screen marks nothing and the card's silence reads as a
+ * two-sided estimate. The probe already says this for its own averaged
+ * footprints on both the status line and the exported CSV; the place card samples
+ * the searched boundary through the same weighted mean and said nothing, so the
+ * same reader met the same combiner with and without the caveat depending only on
+ * which surface they opened.
+ *
+ * Null — no clause at all — in the three cases where the statement would not be
+ * true of the printed value: no usable value to qualify, and a value outside the
+ * published ramp, which was not decoded from this ramp and so carries no
+ * statement about its caps.
+ *
+ * Claims no presence, direction, or magnitude, for the reason given at the top of
+ * this file, and supports no sea-ice, marine-biology, ecosystem, habitat, hazard,
+ * causal, or forecast statement.
+ */
+export function marineBoundaryMeanSstCensoringNote(
+  censoring: SstRampCensoringSummary | null | undefined
+): string | null {
+  if (!censoring) return null;
+  const { status, ramp } = censoring;
+
+  if (status === "at-ramp-floor" || status === "at-ramp-ceiling") {
+    // The bound printed just before this clause was read off the MEAN, so it
+    // says nothing about the pixels averaged into it — and in particular does
+    // not establish that an unmarked mean held none of them.
+    return `that bound screens the boundary mean and not the pixels behind it — a mean of capped and resolved pixels lands inside the finite ramp, so an unmarked mean is not established as uncensored`;
+  }
+  if (status === "within-published-ramp") {
+    return `this boundary mean is an area-weighted mean of per-pixel decodes, so a pixel the published ${ramp.colormapDoc} colormap capped averages in with resolved ones and the mean lands inside the finite ramp — no bound is marked here, but that is not evidence the boundary held no censored pixel`;
+  }
+  return null;
 }
 
 /**
