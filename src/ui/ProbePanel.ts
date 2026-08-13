@@ -35,6 +35,7 @@ import {
   probeAerosolCeilingCensoring,
 } from "../lib/probeAerosolCeilingCensoring";
 import { averagedSstCensoringNote } from "../lib/marineAveragedSstCensoring";
+import { averagedAerosolCensoringNote } from "../lib/probeAerosolAveragedCensoring";
 import type { MarineAveragedSstFootprint } from "../lib/marineAveragedSstSupport";
 import { probeRecordGaps, probeRecordGapsClause } from "../lib/probeRecordGaps";
 import { probeSstSamplingGateClause } from "../lib/sstObservingConstraints";
@@ -400,6 +401,21 @@ export class ProbePanel {
     );
     const aerosolCensoringClause =
       aerosolCeilingCensoringClause(aerosolCensoring);
+    // And that screen has the same blind spot on an averaged footprint that the
+    // SST one does, for the same reason: it reads the region's monthly MEANS,
+    // and a mean of capped and resolved pixels lands inside the finite ramp.
+    // Two things make it worse here. Averaging dilutes exactly the signal the
+    // cap marks — the columns reaching 0.9 are dust and smoke plumes, routinely
+    // narrower than a drawn box — so a surviving mark means the whole footprint
+    // averaged past the ceiling, and its absence says less the bigger the box.
+    // But the DIRECTION is knowable, unlike SST's: this ramp is open at one end
+    // only, so a capped pixel always averages in below the loading it had. Say
+    // both, and still render no inequality — presence stays undetectable.
+    // Silent for the point probe, for every other layer, and for an empty record.
+    const aerosolAveragedCensoring = averagedAerosolCensoringNote(
+      averagedFootprint,
+      aerosolCensoring
+    );
     // SST is likewise not the only layer whose statistics are gated by when and
     // through what the instrument looked. The land-surface-temperature layer
     // renders MODIS/Terra's DAYTIME monthly composite: mid-morning overpass,
@@ -434,6 +450,7 @@ export class ProbePanel {
       (sstSamplingGate ? ` · ${sstSamplingGate}` : "") +
       (lstSamplingGate ? ` · ${lstSamplingGate}` : "") +
       (aerosolCensoringClause ? ` · ${aerosolCensoringClause}` : "") +
+      (aerosolAveragedCensoring ? ` · ${aerosolAveragedCensoring}` : "") +
       (spatialSupportNote ? ` · ${spatialSupportNote}` : "");
     this.setStatus(stat);
     this.appendPeakGreenness(stat, physical);
