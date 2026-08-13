@@ -2,6 +2,10 @@ import { summarizeLandCoverContext } from "../lib/landCover";
 import { decodeRenderedLandCoverPixel } from "../lib/landCoverPalette";
 import { describeLandCoverComposition } from "../lib/landCoverCompositionReading";
 import {
+  landCoverHumanUseNote,
+  summarizeLandCoverHumanUse,
+} from "../lib/landCoverHumanUse";
+import {
   summarizeVegetationIndexLandCoverSupport,
   vegetationIndexSupportNote,
 } from "../lib/vegetationIndexLandCoverSupport";
@@ -36,6 +40,12 @@ export function readLandCoverRegionText(
   });
   const context = summarizeLandCoverContext(observations, dataYear);
   const reading = describeLandCoverComposition(context);
+  // The composition copy names only the MOST FREQUENT class, so a region whose
+  // cultivated and built-up classes together outweigh the leader still reads as
+  // that leader alone: 45% forest, 30% cropland, 25% urban says "forest most
+  // frequent" and never that most of the classified mix is human land use.
+  // Re-bucketing the same class counts states it, on the same denominator.
+  const humanUse = landCoverHumanUseNote(summarizeLandCoverHumanUse(context));
   // The class mix alone does not say whether the region is a surface the
   // vegetation-index layers can be read on at all: MOD13A3 retrieves NDVI and
   // EVI over barren, snow, ice, and water just as it does over canopy. State
@@ -43,5 +53,5 @@ export function readLandCoverRegionText(
   const support = vegetationIndexSupportNote(
     summarizeVegetationIndexLandCoverSupport(context)
   );
-  return `${reading.text}${support === null ? "" : ` ${support}`} Sampled on a ${sampling.latitudeGridSize}×${sampling.longitudeGridSize} grid over the drawn box, resolving to ${sampling.sourcePixelCount} distinct source pixels.`;
+  return `${reading.text}${humanUse === null ? "" : ` ${humanUse}`}${support === null ? "" : ` ${support}`} Sampled on a ${sampling.latitudeGridSize}×${sampling.longitudeGridSize} grid over the drawn box, resolving to ${sampling.sourcePixelCount} distinct source pixels.`;
 }
