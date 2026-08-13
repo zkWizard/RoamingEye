@@ -3,6 +3,7 @@ import {
   GLDAS_RAMP_SATURATION,
   GLDAS_RAMP_SATURATION_LIMITATIONS,
   classifyGldasRampSample,
+  gldasRampSaturationNote,
   summarizeGldasRampSaturation,
   type GldasRampLayerId,
   type GldasRampSamplePosition,
@@ -317,5 +318,78 @@ describe("summarizeGldasRampSaturation", () => {
     expect(joined).toContain("GIBS colormap document");
     expect(joined).toContain("lower bound");
     expect(joined).toContain("never infers");
+  });
+});
+
+describe("gldasRampSaturationNote", () => {
+  const positions = (
+    ceiling: number,
+    interior: number,
+    offRamp = 0
+  ): GldasRampSamplePosition[] => [
+    ...Array<GldasRampSamplePosition>(ceiling).fill("at-or-above-ceiling"),
+    ...Array<GldasRampSamplePosition>(interior).fill("interior"),
+    ...Array<GldasRampSamplePosition>(offRamp).fill("off-ramp"),
+  ];
+
+  it("stays silent when nothing saturated, so ordinary cards are unchanged", () => {
+    expect(
+      gldasRampSaturationNote(
+        summarizeGldasRampSaturation("soil", positions(0, 40, 5))
+      )
+    ).toBe("");
+  });
+
+  it("stays silent when there were no colours to classify at all", () => {
+    // A month whose imagery never loaded is not a month that saturated
+    // nothing; neither case may produce a reassuring sentence.
+    expect(gldasRampSaturationNote(null)).toBe("");
+    expect(gldasRampSaturationNote(undefined)).toBe("");
+    expect(
+      gldasRampSaturationNote(summarizeGldasRampSaturation("precip", []))
+    ).toBe("");
+  });
+
+  it("counts the dropped cells and calls the surviving mean a lower bound", () => {
+    const note = gldasRampSaturationNote(
+      summarizeGldasRampSaturation("soil", positions(12, 28))
+    );
+    expect(note.startsWith("; ")).toBe(true);
+    expect(note).toContain("12 of 40 sampled cells");
+    expect(note).toContain("50 kg/m²");
+    expect(note).toContain("at or above the cap");
+    expect(note).toContain("remaining 28 is a lower bound");
+  });
+
+  it("cites the layer's own bound and unit", () => {
+    const note = gldasRampSaturationNote(
+      summarizeGldasRampSaturation("precip", positions(1, 9))
+    );
+    expect(note).toContain("43.2 mm/day");
+    expect(note).not.toContain("kg/m²");
+  });
+
+  it("does not claim a mean when every valued cell saturated", () => {
+    const note = gldasRampSaturationNote(
+      summarizeGldasRampSaturation("soil", positions(6, 0))
+    );
+    expect(note).toContain("no unsaturated cell remained to average");
+    expect(note).not.toContain("lower bound, not an estimate");
+  });
+
+  it("names no hydrologic condition", () => {
+    const note = gldasRampSaturationNote(
+      summarizeGldasRampSaturation("precip", positions(3, 7))
+    ).toLowerCase();
+    for (const word of [
+      "flood",
+      "drought",
+      "runoff",
+      "saturated soil",
+      "will ",
+      "expect",
+    ]) {
+      expect(note).not.toContain(word);
+    }
   });
 });
