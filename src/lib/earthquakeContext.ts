@@ -1,4 +1,5 @@
 import { greatCircleDistance } from "./geo";
+import { formatReportedMagnitude } from "./magnitudeScale";
 import {
   depthClass,
   SEISMICITY_SOURCE,
@@ -227,6 +228,100 @@ function matchingObservations(
     }))
     .filter((earthquake) => earthquake.distanceKm <= query.radiusKm)
     .sort(compareObservations);
+}
+
+/**
+ * The matched observation carrying the largest reported magnitude value.
+ *
+ * "Largest reported value", not "largest earthquake": the feed mixes magnitude
+ * methods and no exact conversion between them is published (see
+ * lib/magnitudeScale.ts), so this is a maximum over reported numbers rather
+ * than a ranking of event size.
+ *
+ * Reported magnitudes are quantised to a tenth of a magnitude unit, so exact
+ * ties between two matched events are ordinary rather than rare. The comparator
+ * is therefore total and independent of input order — nearest epicentre first,
+ * then most recent, then source-reported place — so this picker cannot change
+ * its answer if the presentation ordering of `observations` changes.
+ *
+ * Returns null for an empty set: there is no observation to report, and naming
+ * a placeholder would read as a finding.
+ */
+export function largestReportedMagnitudeObservation(
+  observations: readonly NearbyEarthquakeObservation[]
+): NearbyEarthquakeObservation | null {
+  let largest: NearbyEarthquakeObservation | null = null;
+  for (const observation of observations) {
+    if (
+      largest === null ||
+      compareByReportedMagnitude(observation, largest) < 0
+    ) {
+      largest = observation;
+    }
+  }
+  return largest;
+}
+
+function compareByReportedMagnitude(
+  first: NearbyEarthquakeObservation,
+  second: NearbyEarthquakeObservation
+): number {
+  return (
+    second.magnitude - first.magnitude ||
+    first.distanceKm - second.distanceKm ||
+    second.time - first.time ||
+    compareNullablePlace(first.place, second.place)
+  );
+}
+
+/**
+ * One-sentence magnitude composition for the whole matched set, phrased so the
+ * mixing of magnitude methods is visible rather than implied.
+ *
+ * It characterises every matched event, which matters where a UI can only list
+ * part of the set: the nearby-seismicity list is ordered nearest first and
+ * truncated, so the largest value the feed reported near a place is routinely
+ * absent from it, and nothing else in the section names the methods behind the
+ * values shown.
+ *
+ * Returns null for an empty matched set — there is no composition to report,
+ * and an absence of matched events is already stated by the section itself.
+ */
+export function reportedMagnitudeText(
+  context: EarthquakePlaceContext
+): string | null {
+  const largest = largestReportedMagnitudeObservation(context.observations);
+  if (largest === null) return null;
+
+  const eventCount = context.coverage.matchedEventCount;
+  const { reportedCounts, unavailableCount } = context.summary.magnitudeTypes;
+  const reportedTypes = Object.entries(reportedCounts);
+  const methodParts = reportedTypes.map(([type, count]) => `${type} ×${count}`);
+  if (unavailableCount > 0) {
+    methodParts.push(`type not reported ×${unavailableCount}`);
+  }
+  // A single method is stated plainly; only a genuinely mixed set carries the
+  // comparability caveat, so a uniform set gains no noise.
+  const methods =
+    methodParts.length > 1
+      ? ` Matched events mix magnitude methods (${methodParts.join(", ")}), which are not directly comparable.`
+      : reportedTypes.length === 1
+        ? ` Every matched event was reported as ${reportedTypes[0][0]}.`
+        : " No matched event carried a reported magnitude method.";
+
+  return (
+    `Largest reported value across all ${eventCount} matched ${eventCount === 1 ? "event" : "events"}: ` +
+    `${formatReportedMagnitude(largest.magnitude, largest.magnitudeType)}, ` +
+    `${formatDistanceKm(largest.distanceKm)} km away.${methods}` +
+    " This is a maximum over reported values, not a ranking of earthquake size and not a hazard statement."
+  );
+}
+
+/** Distances span city blocks to whole countries; keep both legible. */
+function formatDistanceKm(distanceKm: number): string {
+  return distanceKm >= 10
+    ? String(Math.round(distanceKm))
+    : distanceKm.toFixed(1);
 }
 
 function compareObservations(

@@ -4,7 +4,9 @@ import { parseEarthquakeFeed, type Earthquake } from "./earthquakes";
 import {
   EARTHQUAKE_PLACE_CONTEXT_UNITS,
   USGS_M45_MONTH_SOURCE,
+  largestReportedMagnitudeObservation,
   nearbyEarthquakeContext,
+  reportedMagnitudeText,
   searchExtentEarthquakeQuery,
 } from "./earthquakeContext";
 
@@ -320,5 +322,93 @@ describe("searchExtentEarthquakeQuery", () => {
       nearbyEarthquakeContext([earthquake({ lat: 12, lon: 34 })], query)
         .coverage.status
     ).toBe("available");
+  });
+});
+
+describe("largestReportedMagnitudeObservation", () => {
+  // Reported magnitudes are quantised to a tenth, so two matched events sharing
+  // a maximum is ordinary; the pick must not depend on which order the caller
+  // supplied them in.
+  const tied = [
+    earthquake({ lat: 1, magnitude: 6.1, place: "Farther", time: 5_000 }),
+    earthquake({ lat: 0.1, magnitude: 6.1, place: "Nearer", time: 1_000 }),
+    earthquake({ lat: 0.2, magnitude: 5.4, place: "Smaller", time: 9_000 }),
+  ];
+
+  it("picks the same tied event whichever order the events arrive in", () => {
+    const query = { latitude: 0, longitude: 0, radiusKm: 500 };
+    const forward = largestReportedMagnitudeObservation(
+      nearbyEarthquakeContext(tied, query).observations
+    );
+    const reversed = largestReportedMagnitudeObservation(
+      nearbyEarthquakeContext([...tied].reverse(), query).observations
+    );
+
+    expect(forward?.place).toBe("Nearer");
+    expect(reversed?.place).toBe("Nearer");
+  });
+
+  it("reports no observation for an empty matched set", () => {
+    expect(largestReportedMagnitudeObservation([])).toBeNull();
+  });
+});
+
+describe("reportedMagnitudeText", () => {
+  const query = { latitude: 0, longitude: 0, radiusKm: 500 };
+
+  it("names the largest reported value, its method, and the mix behind the set", () => {
+    const text = reportedMagnitudeText(
+      nearbyEarthquakeContext(
+        [
+          earthquake({ lat: 0.1, magnitude: 4.8, magnitudeType: "mb" }),
+          earthquake({ lat: 0.2, magnitude: 6.4, magnitudeType: "mww" }),
+          earthquake({ lat: 0.3, magnitude: 5.1, magnitudeType: "mb" }),
+        ],
+        query
+      )
+    );
+
+    expect(text).toContain(
+      "Largest reported value across all 3 matched events"
+    );
+    expect(text).toContain("M 6.4 (Mww, reported)");
+    expect(text).toContain("mb ×2, mww ×1");
+    expect(text).toContain("not directly comparable");
+    // The value the feed reported is never presented as a size ranking.
+    expect(text).toContain("not a ranking of earthquake size");
+  });
+
+  it("carries the saturation caveat when the largest value came from a saturating scale", () => {
+    const text = reportedMagnitudeText(
+      nearbyEarthquakeContext(
+        [earthquake({ lat: 0.1, magnitude: 6.9, magnitudeType: "mb" })],
+        query
+      )
+    );
+
+    expect(text).toContain("saturates at this size");
+    // A single-method set states the method plainly and gains no mixing caveat.
+    expect(text).toContain("Every matched event was reported as mb");
+    expect(text).not.toContain("mix magnitude methods");
+  });
+
+  it("says so plainly when no matched event carried a reported method", () => {
+    const text = reportedMagnitudeText(
+      nearbyEarthquakeContext(
+        [earthquake({ lat: 0.1, magnitude: 5.5, magnitudeType: null })],
+        query
+      )
+    );
+
+    expect(text).toContain("M 5.5 (reported)");
+    expect(text).toContain(
+      "No matched event carried a reported magnitude method"
+    );
+  });
+
+  it("stays silent when nothing matched", () => {
+    expect(
+      reportedMagnitudeText(nearbyEarthquakeContext([], query))
+    ).toBeNull();
   });
 });
