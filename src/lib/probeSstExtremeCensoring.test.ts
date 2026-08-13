@@ -45,6 +45,7 @@ describe("probeSstExtremeCensoring", () => {
     expect(censoring.ceilingMonthCount).toBe(0);
     expect(sstExtremeCensoringClause(censoring)).toBeNull();
     expect(sstExtremeBoundPrefix(censoring, "min")).toBe("");
+    expect(sstExtremeBoundPrefix(censoring, "mean")).toBe("");
     expect(sstExtremeBoundPrefix(censoring, "max")).toBe("");
   });
 
@@ -56,6 +57,7 @@ describe("probeSstExtremeCensoring", () => {
     expect(censoring.floorMonthCount).toBe(1);
     expect(censoring.observedMonthCount).toBe(3);
     expect(sstExtremeBoundPrefix(censoring, "min")).toBe("≤ ");
+    expect(sstExtremeBoundPrefix(censoring, "mean")).toBe("≤ ");
     expect(sstExtremeBoundPrefix(censoring, "max")).toBe("");
     const clause = sstExtremeCensoringClause(censoring);
     expect(clause).toContain("1 of 3 sampled months");
@@ -70,10 +72,28 @@ describe("probeSstExtremeCensoring", () => {
     expect(censoring.maxBound).toBe("lower");
     expect(censoring.meanBound).toBe("lower");
     expect(censoring.ceilingMonthCount).toBe(1);
+    expect(sstExtremeBoundPrefix(censoring, "mean")).toBe("≥ ");
     expect(sstExtremeBoundPrefix(censoring, "max")).toBe("≥ ");
     const clause = sstExtremeCensoringClause(censoring);
     expect(clause).toContain("open high cap");
     expect(clause).toContain("lower bounds on possibly warmer water");
+  });
+
+  // The clause claims "min and mean are upper bounds" / "max and mean are lower
+  // bounds" in prose. A renderer that marks only the extremes contradicts the
+  // sentence beside it and reports the mean — the number a reader carries away —
+  // as the one two-sided estimate on the line. Pin the prefix to the direction
+  // the clause asserts, for both one-sided caps.
+  it("marks the mean in the same direction the clause claims for it", () => {
+    for (const [values, prefix, claim] of [
+      [[FLOOR, 4.5, INTERIOR], "≤ ", "upper bounds on possibly colder water"],
+      [[INTERIOR, CEILING], "≥ ", "lower bounds on possibly warmer water"],
+    ] as const) {
+      const censoring = probeSstExtremeCensoring("sst", values);
+      expect(sstExtremeCensoringClause(censoring)).toContain(claim);
+      expect(sstExtremeCensoringClause(censoring)).toContain("mean");
+      expect(sstExtremeBoundPrefix(censoring, "mean")).toBe(prefix);
+    }
   });
 
   // The failure this guards against is a doubly censored record reading as an
@@ -96,6 +116,12 @@ describe("probeSstExtremeCensoring", () => {
     expect(clause).toContain("open end caps");
     expect(clause).toContain("bounded in neither direction");
     expect(clause).not.toContain("little change");
+    // No inequality is true of a doubly censored mean, so the prefix withholds
+    // one rather than picking a direction the record cannot support — the two
+    // marked extremes plus the clause carry the disclosure instead.
+    expect(sstExtremeBoundPrefix(censoring, "mean")).toBe("");
+    expect(sstExtremeBoundPrefix(censoring, "min")).toBe("≤ ");
+    expect(sstExtremeBoundPrefix(censoring, "max")).toBe("≥ ");
   });
 
   it("counts a single sampled month in the singular", () => {
