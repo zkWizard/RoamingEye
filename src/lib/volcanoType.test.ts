@@ -3,6 +3,7 @@ import {
   canonicalVolcanoType,
   canonicalVolcanoTypeLabel,
   summarizeVolcanoTypes,
+  volcanoTypeCompositionText,
 } from "./volcanoType";
 import { GVP_VOLCANO_SOURCE } from "./volcanoContext";
 import type { Volcano } from "./volcanoes";
@@ -166,5 +167,122 @@ describe("summarizeVolcanoTypes", () => {
     expect(summary.totalCount).toBe(0);
     expect(summary.tallies).toEqual([]);
     expect(summary.recordsWithoutType).toBe(0);
+  });
+});
+
+describe("volcanoTypeCompositionText", () => {
+  const types = (list: readonly (string | null)[]) =>
+    summarizeVolcanoTypes(list.map((type) => volcano({ type })));
+
+  it("returns null when nothing matched, so the line stays hidden", () => {
+    expect(volcanoTypeCompositionText(types([]))).toBeNull();
+  });
+
+  it("names every landform and the total when the set is small", () => {
+    const text = volcanoTypeCompositionText(
+      types(["Caldera", "Complex", "Stratovolcano"])
+    );
+    expect(text).toContain("across all 3 matched records");
+    expect(text).toContain("Caldera 1, Complex 1, Stratovolcano 1");
+    expect(text).not.toContain("further landform");
+  });
+
+  it("names four landforms rather than three and a remainder of one", () => {
+    const text = volcanoTypeCompositionText(
+      types(["Shield", "Shield", "Caldera", "Maar", "Complex"])
+    );
+    expect(text).toContain("Shield 2, Caldera 1, Complex 1, Maar 1");
+    expect(text).not.toContain("further landform");
+  });
+
+  it("names the three largest and counts the rest beyond four landforms", () => {
+    const text = volcanoTypeCompositionText(
+      types([
+        "Stratovolcano",
+        "Stratovolcano",
+        "Stratovolcano",
+        "Shield",
+        "Shield",
+        "Caldera",
+        "Maar",
+        "Complex",
+      ])
+    );
+    expect(text).toContain(
+      "Stratovolcano 3, Shield 2, Caldera 1, and 2 further landform types"
+    );
+  });
+
+  it("describes the order by count, never as a superlative", () => {
+    // Counts tie constantly in a small extent and the tie-break is
+    // alphabetical, so "most common first" would misdescribe this set.
+    const text = volcanoTypeCompositionText(
+      types(["Caldera", "Complex", "Stratovolcano"])
+    );
+    expect(text).toContain("ordered by count");
+    expect(text).not.toContain("most common");
+    expect(text).not.toContain("largest");
+  });
+
+  it("omits the ordering clause for a single landform", () => {
+    const text = volcanoTypeCompositionText(types(["Shield", "Shield"]));
+    expect(text).toContain("across all 2 matched records: Shield 2");
+    expect(text).not.toContain("ordered by count");
+  });
+
+  it("uses the singular for one matched record", () => {
+    const text = volcanoTypeCompositionText(types(["Volcanic field"]));
+    expect(text).toContain("across all 1 matched record");
+    expect(text).not.toContain("matched records");
+  });
+
+  it("discloses folded qualifier markers only when the set carries them", () => {
+    expect(
+      volcanoTypeCompositionText(types(["Shield", "Caldera"]))
+    ).not.toContain("marker");
+    expect(
+      volcanoTypeCompositionText(types(["Shield(s)", "Caldera?", "Maar"]))
+    ).toContain(
+      "2 of the tallied records carry GVP's multiplicity or uncertainty marker"
+    );
+  });
+
+  it("reports records that supplied no landform label", () => {
+    const text = volcanoTypeCompositionText(types(["Shield", null]));
+    expect(text).toContain("1 matched record supplied no landform label");
+    expect(text).toContain("Shield 1");
+  });
+
+  it("says so plainly when no record supplied a landform label", () => {
+    expect(volcanoTypeCompositionText(types([null, "  ", "?"]))).toBe(
+      "No landform label is recorded for the 3 matched records."
+    );
+  });
+
+  it("never reports morphology as activity, size, or hazard", () => {
+    expect(volcanoTypeCompositionText(types(["Stratovolcano"]))).toContain(
+      "These are catalogued morphology labels, not a measure of size, activity, or hazard."
+    );
+  });
+});
+
+describe("summarizeVolcanoTypes qualifier folding", () => {
+  it("counts only tallied records as folded", () => {
+    // "?" alone yields no base landform, so it is reported as an absent label
+    // rather than as a record whose landform was reinterpreted.
+    const summary = summarizeVolcanoTypes([
+      volcano({ type: "Shield(s)" }),
+      volcano({ type: "Caldera?" }),
+      volcano({ type: "Maar" }),
+      volcano({ type: "?" }),
+    ]);
+    expect(summary.foldedRecordCount).toBe(2);
+    expect(summary.recordsWithoutType).toBe(1);
+  });
+
+  it("reports zero folding for plain landform labels", () => {
+    expect(
+      summarizeVolcanoTypes([volcano({ type: "Shield" })]).foldedRecordCount
+    ).toBe(0);
   });
 });

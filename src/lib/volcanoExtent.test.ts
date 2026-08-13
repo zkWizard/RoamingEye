@@ -261,4 +261,33 @@ describe("volcanoesInSearchExtent", () => {
       max: null,
     });
   });
+
+  it("tallies landforms across every matched record, not only the listed ones", () => {
+    const context = volcanoesInSearchExtent(
+      [
+        volcano({ name: "A", type: "Stratovolcano" }),
+        volcano({ name: "B", type: "Stratovolcano(es)" }),
+        volcano({ name: "C", type: "Shield" }),
+        volcano({ name: "D", type: null }),
+        // Outside the box: it must not reach the tally.
+        volcano({ name: "E", lat: -40, lon: -70, type: "Caldera" }),
+      ],
+      [37, 38, 14, 16]
+    );
+
+    expect(context.typeComposition.totalCount).toBe(4);
+    expect(context.typeComposition.tallies).toEqual([
+      { base: "Stratovolcano", count: 2 },
+      { base: "Shield", count: 1 },
+    ]);
+    expect(context.typeComposition.recordsWithoutType).toBe(1);
+    expect(context.typeComposition.foldedRecordCount).toBe(1);
+  });
+
+  it("reports an empty landform tally rather than omitting it when nothing matched", () => {
+    const context = volcanoesInSearchExtent([volcano()], null);
+
+    expect(context.typeComposition.totalCount).toBe(0);
+    expect(context.typeComposition.tallies).toEqual([]);
+  });
 });

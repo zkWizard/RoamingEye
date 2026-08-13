@@ -4,6 +4,7 @@ import {
   summarizeEruptionRecency,
   type EruptionRecencySummary,
 } from "./volcanoRecency";
+import { summarizeVolcanoTypes, type VolcanoTypeSummary } from "./volcanoType";
 
 /**
  * Descriptive GVP volcano records whose coordinates fall in a searched
@@ -59,6 +60,14 @@ export interface VolcanoExtentContext {
    * is not evidence of dormancy).
    */
   eruptionRecency: EruptionRecencySummary;
+  /**
+   * Landform composition of every matched record, for the same reason the
+   * recency summary exists: the record list a caller renders is truncated and
+   * ordered by name, so the landforms it happens to show are not a fair sample
+   * of the matched set. Carries its own limitations because a morphology label
+   * disclaims things the extent inventory does not.
+   */
+  typeComposition: VolcanoTypeSummary;
   bounds: SearchBoundingBox | null;
   crossesAntimeridian: boolean;
   geographicCoverage: string;
@@ -153,6 +162,11 @@ function contextFor(
     },
     records,
     eruptionRecency: summarizeEruptionRecency(records),
+    // The extent record renames the source field, so the tally reads it back
+    // out rather than the summary learning a second field name.
+    typeComposition: summarizeVolcanoTypes(
+      records.map(({ primaryType }) => ({ type: primaryType }))
+    ),
     bounds,
     crossesAntimeridian,
     geographicCoverage:
