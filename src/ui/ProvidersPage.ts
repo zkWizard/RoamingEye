@@ -6,6 +6,7 @@ import {
   type ProviderUse,
 } from "../lib/providers";
 import { citationBundle, type CitationFormat } from "../lib/citation";
+import { datasetArchive } from "../lib/datasetArchives";
 import { citedVectorSources } from "../lib/citedVectorSources";
 import { doiResolverUrl } from "../lib/doiLink";
 import { FocusTrap } from "./modal";
@@ -82,7 +83,14 @@ export class ProvidersPage {
       link.rel = "noopener";
       link.textContent = `${dataset.shortName} v${dataset.version}`;
       const rest = document.createElement("span");
-      rest.textContent = ` — ${dataset.title} (${usedBy.join(", ")})`;
+      // The publishing archive, so this list names a publisher like the vector
+      // list below it does. It is the DAAC that issued the DOI — not GIBS, the
+      // service the pictures are streamed from, which is acknowledged
+      // separately just below. A dataset with no verified archive shows none
+      // rather than borrowing one (see datasetArchives.ts).
+      const archive = datasetArchive(dataset.doi);
+      const publisher = archive ? ` · ${archive.abbreviation}` : "";
+      rest.textContent = ` — ${dataset.title}${publisher} (${usedBy.join(", ")})`;
       item.append(link, rest);
       list.appendChild(item);
     }
