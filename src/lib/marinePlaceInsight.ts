@@ -12,7 +12,9 @@ import {
 } from "./marineBoundarySstSupport";
 import { PROBE_SCALES } from "./probe";
 import {
+  describeSstDifferenceCensoring,
   summarizeSstRampCensoring,
+  type SstDifferenceBound,
   type SstRampCensoringSummary,
 } from "./sstRampCensoring";
 import { SST_SAMPLING_GATE_NOTE } from "./sstObservingConstraints";
@@ -75,7 +77,9 @@ export type MarineBoundarySstYearComparisonStatus =
   | "not-supplied"
   | "not-same-calendar-month-one-year-earlier"
   | "target-not-usable"
-  | "prior-year-not-usable";
+  | "prior-year-not-usable"
+  /** Both months sit in terminal ramp bins, so no difference can be bounded. */
+  | "censored-endpoints";
 
 export type MarineBoundarySstDifferenceDirection =
   "warmer" | "cooler" | "unchanged";
@@ -102,9 +106,23 @@ export interface MarineBoundarySstYearComparison {
   priorDataMonth: YearMonth | null;
   priorObservedValue: number | null;
   priorValidFraction: number | null;
-  /** Target SST minus prior-year SST, in `source.sourceUnit`. */
+  /**
+   * Target SST minus prior-year SST, in `source.sourceUnit`. A ONE-SIDED BOUND
+   * rather than the difference itself when `differenceBound` is set.
+   */
   difference: number | null;
   differenceUnit: string;
+  /**
+   * How the published colormap's open end caps constrain the difference:
+   * "lower" → the true difference is at least `difference`, "upper" → at most,
+   * null → neither endpoint is censored. Two endpoints censored in opposing
+   * directions yield no difference at all (status `censored-endpoints`).
+   */
+  differenceBound: "upper" | "lower" | null;
+  /**
+   * Null when a censored endpoint leaves the direction unestablished. That is
+   * NOT `unchanged`, which asserts the two months matched.
+   */
   direction: MarineBoundarySstDifferenceDirection | null;
   /** Weakest sampled coverage across the two months; never the mean of them. */
   minValidFraction: number | null;
@@ -380,6 +398,19 @@ export function compareMarineBoundarySstToPriorYear(
     return unavailableYearComparison("prior-year-not-usable", priorYear);
   }
 
+  // The published ramp's end caps are open, so a month decoded inside one is a
+  // bound, not a value. Two months censored in opposing directions leave the
+  // difference unbounded both ways — and since both then typically decode to the
+  // SAME capped value, the arithmetic would read "unchanged" for water whose
+  // year-over-year change is entirely unknown.
+  const censoring = describeSstDifferenceCensoring(
+    priorYear.observedValue,
+    target.observedValue
+  );
+  if (censoring.bound === "indeterminate") {
+    return unavailableYearComparison("censored-endpoints", priorYear);
+  }
+
   const difference = target.observedValue - priorYear.observedValue;
   return {
     ...yearComparisonBase,
@@ -388,14 +419,31 @@ export function compareMarineBoundarySstToPriorYear(
     priorObservedValue: priorYear.observedValue,
     priorValidFraction: priorYear.validFraction,
     difference,
-    direction:
-      difference > 0 ? "warmer" : difference < 0 ? "cooler" : "unchanged",
+    differenceBound: censoring.bound === "none" ? null : censoring.bound,
+    direction: yearDifferenceDirection(difference, censoring.bound),
     minValidFraction: Math.min(target.validFraction, priorYear.validFraction),
     validFractionDelta: Math.abs(
       target.validFraction - priorYear.validFraction
     ),
     reason: null,
   };
+}
+
+/**
+ * Direction of a year-over-year difference, honouring what a censored endpoint
+ * permits. A one-sided bound can only prove the direction it already points in;
+ * `unchanged` asserts both sides at once and so needs an uncensored pair.
+ */
+function yearDifferenceDirection(
+  difference: number,
+  bound: SstDifferenceBound
+): MarineBoundarySstDifferenceDirection | null {
+  if (bound === "none") {
+    return difference > 0 ? "warmer" : difference < 0 ? "cooler" : "unchanged";
+  }
+  if (bound === "lower") return difference > 0 ? "warmer" : null;
+  if (bound === "upper") return difference < 0 ? "cooler" : null;
+  return null;
 }
 
 const yearComparisonBase = {
@@ -422,6 +470,7 @@ function unavailableYearComparison(
     priorObservedValue: null,
     priorValidFraction: null,
     difference: null,
+    differenceBound: null,
     direction: null,
     minValidFraction: null,
     validFractionDelta: null,
@@ -437,13 +486,30 @@ function unavailableYearComparison(
 function describeYearOverYear(
   comparison: MarineBoundarySstYearComparison
 ): string {
+  if (comparison.status === "censored-endpoints") {
+    return "; no year-over-year difference stated — both months land in the published colormap's open end caps, which bound them in opposing directions";
+  }
   if (comparison.status !== "available") return "";
   const sign = comparison.difference! > 0 ? "+" : "";
-  return `; ${sign}${comparison.difference!.toFixed(1)} ${comparison.differenceUnit} vs ${formatYm(
+  // A bounded difference is rendered with its inequality so it can never be
+  // read as a point value, and says outright that the direction is open.
+  const prefix =
+    comparison.differenceBound === "lower"
+      ? "≥ "
+      : comparison.differenceBound === "upper"
+        ? "≤ "
+        : "";
+  const bounded =
+    comparison.differenceBound === null
+      ? ""
+      : comparison.direction === null
+        ? " (a censored endpoint bounds this difference on one side only, so no direction is stated)"
+        : " (a censored endpoint bounds this difference on one side only)";
+  return `; ${prefix}${sign}${comparison.difference!.toFixed(1)} ${comparison.differenceUnit} vs ${formatYm(
     comparison.priorDataMonth!
   )} for the same boundary (${Math.round(
     comparison.priorValidFraction! * 100
-  )}% sampled coverage that month) — a difference between two observations, not a trend`;
+  )}% sampled coverage that month)${bounded} — a difference between two observations, not a trend`;
 }
 
 function isCoverage(validFraction: number | null): validFraction is number {
