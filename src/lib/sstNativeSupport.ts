@@ -211,6 +211,49 @@ export function describeSstNativeSupport(
   return summary.statement;
 }
 
+/**
+ * The clause a place readout should carry, or null when this bound corrects
+ * nothing the reading already says.
+ *
+ * Only two graded states change how the printed "mean" may be read:
+ *  - the extent is narrower than one native cell in some direction, so that
+ *    cell's ~9 km footprint necessarily spills outside the searched boundary
+ *    and the value partly describes water the user did not ask about; and
+ *  - the extent bounds fewer than two cells, so the "mean" cannot rest on more
+ *    than one independent source measurement.
+ * A boundary spanning many cells is left unstated: "mean" is then an ordinary
+ * word for what happened, and a clause on every card would bury the two cases
+ * that actually qualify the number beside them.
+ *
+ * An ungraded summary also stays silent. An unstated grid and an unusable
+ * extent are properties of the citation and the workflow, not of the value, and
+ * the readings that hit them already say what went wrong.
+ *
+ * The citation is deliberately not repeated here: this is a fragment for a line
+ * that already names the cited product, and `statedGrid` is read from that same
+ * title. The full `DatasetRef` stays on the summary for structured consumers.
+ */
+export function qualifyingSstNativeSupportNote(
+  summary: SstNativeSupportSummary
+): string | null {
+  if (summary.status !== "graded") return null;
+  const { nativeCellExceedsBoundary, meanBoundedBySingleCell } = summary;
+  if (!nativeCellExceedsBoundary && !meanBoundedBySingleCell) return null;
+
+  // `statedGrid` is non-null for every graded summary — the grade is derived
+  // from the parsed grid — but the fallback keeps the sentence honest rather
+  // than asserting a token that was never read from the citation.
+  const grid = summary.statedGrid ?? "native";
+  if (nativeCellExceedsBoundary) {
+    return meanBoundedBySingleCell
+      ? `searched boundary is narrower than one ${grid} source cell, whose footprint extends beyond it — the mean rests on a single source cell`
+      : `searched boundary is narrower than one ${grid} source cell in one direction, so that cell's footprint extends beyond it`;
+  }
+  return `searched boundary bounds at most ${formatCellBound(
+    summary.boundedCellCount!
+  )} ${grid} source cells — the mean cannot rest on more than one independent source measurement`;
+}
+
 function classifySupport(
   boundedCellCount: number,
   cellsNorthSouth: number,
