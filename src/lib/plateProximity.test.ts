@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { parsePlateBoundaries, type PlateBoundary } from "./plates";
 import { BIRD_2003_PLATE_BOUNDARY_SOURCE } from "./plateBoundaryContext";
-import { nearestPlateBoundary, PLATE_PROXIMITY_UNITS } from "./plateProximity";
+import {
+  nearestPlateBoundary,
+  nearestPlateBoundaryStatement,
+  PLATE_PROXIMITY_UNITS,
+} from "./plateProximity";
+import {
+  plateBoundaryPairLabel,
+  UNLABELED_PLATE_BOUNDARY_TEXT,
+} from "./plateBoundaryHover";
 
 const DEG_KM = (6_371 * Math.PI) / 180; // km per degree of great-circle arc
 
@@ -178,5 +186,76 @@ describe("nearestPlateBoundary", () => {
 
     expect(context.nearest?.name).toBe("AN-AU");
     expect(context.nearest?.distanceKm).toBeCloseTo(DEG_KM, 2);
+  });
+});
+
+describe("nearestPlateBoundaryStatement", () => {
+  it("names the boundary exactly as the globe tooltip does, with a distance", () => {
+    const context = nearestPlateBoundary([boundary()], {
+      latitude: 1,
+      longitude: 5,
+    });
+
+    const statement = nearestPlateBoundaryStatement(context);
+    // One boundary must read identically wherever it appears, so the sentence
+    // is built from the same decoder the hover label uses.
+    expect(statement).toContain(plateBoundaryPairLabel("PA-NA"));
+    expect(statement).toContain(`${Math.round(DEG_KM)} km from the search`);
+  });
+
+  it("says the distance is to digitized linework, not a mapped margin", () => {
+    const statement = nearestPlateBoundaryStatement(
+      nearestPlateBoundary([boundary()], { latitude: 1, longitude: 5 })
+    );
+
+    expect(statement).toContain("digitized linework");
+    expect(statement).toContain("not to a mapped plate margin");
+    // Never a hazard, activity, or boundary-type claim.
+    expect(statement).toMatch(/no boundary type, motion, activity, or hazard/);
+  });
+
+  it("reports an unlabeled supplied boundary as unlabeled rather than guessing", () => {
+    const context = nearestPlateBoundary([boundary({ name: "  " })], {
+      latitude: 1,
+      longitude: 5,
+    });
+
+    expect(nearestPlateBoundaryStatement(context)).toContain(
+      UNLABELED_PLATE_BOUNDARY_TEXT
+    );
+  });
+
+  it("keeps one decimal under 10 km and whole kilometres above it", () => {
+    // 0.05° north of the equatorial segment ≈ 5.6 km.
+    const close = nearestPlateBoundary([boundary()], {
+      latitude: 0.05,
+      longitude: 5,
+    });
+    expect(nearestPlateBoundaryStatement(close)).toContain(
+      `${(DEG_KM * 0.05).toFixed(1)} km`
+    );
+
+    const far = nearestPlateBoundary([boundary()], {
+      latitude: 5,
+      longitude: 5,
+    });
+    expect(nearestPlateBoundaryStatement(far)).toContain(
+      `${Math.round(DEG_KM * 5)} km`
+    );
+  });
+
+  it("returns null when no distance was measured", () => {
+    // An unusable query and an empty overlay are both "not measured"; the
+    // caller keeps its own wording instead of printing a fabricated distance.
+    expect(
+      nearestPlateBoundaryStatement(
+        nearestPlateBoundary([boundary()], { latitude: 91, longitude: 5 })
+      )
+    ).toBeNull();
+    expect(
+      nearestPlateBoundaryStatement(
+        nearestPlateBoundary([], { latitude: 1, longitude: 5 })
+      )
+    ).toBeNull();
   });
 });

@@ -39,6 +39,10 @@ import {
   type PlateBoundaryExtentContext,
 } from "../lib/plateBoundaryContext";
 import { plateBoundaryPairLabel } from "../lib/plateBoundaryHover";
+import {
+  nearestPlateBoundaryStatement,
+  type PlateProximityContext,
+} from "../lib/plateProximity";
 import { eruptionRecencyText } from "../lib/volcanoRecency";
 import { qualifiedVolcanoTypeLabel } from "../lib/volcanoMorphology";
 import { elevationRegimeLabel } from "../lib/volcanoes";
@@ -524,8 +528,17 @@ export class PlaceInsights {
    * deformation, or activity — so a crossing is never reported as a boundary
    * type, and an empty result is "no supplied linework crosses this extent",
    * never a claim that the place is tectonically stable.
+   *
+   * When nothing crosses the extent, `proximity` supplies the nearest supplied
+   * polyline instead. Most searched places do not sit on a boundary, so without
+   * it the common case renders only a disclaimer — and the disclaimer's own
+   * point ("this does not establish the place sits away from a plate boundary")
+   * is exactly the question a measured distance answers.
    */
-  setPlateBoundaryContext(context: PlateBoundaryExtentContext): void {
+  setPlateBoundaryContext(
+    context: PlateBoundaryExtentContext,
+    proximity: PlateProximityContext | null = null
+  ): void {
     this.plateRecords.replaceChildren();
     const { coverage } = context;
 
@@ -552,9 +565,13 @@ export class PlaceInsights {
     const caveat =
       "A crossing is descriptive map context: the supplied model carries a plate-pair label per step but no boundary type, motion, deformation, activity, or hazard.";
     const segments = coverage.matchedSegmentCount;
+    const nearest =
+      count === 0 && proximity
+        ? nearestPlateBoundaryStatement(proximity)
+        : null;
     this.plateDetail.textContent =
       count === 0
-        ? `No bundled Bird (2003) boundary polylines intersect this search bounding box; that does not establish the place sits away from a plate boundary. Compared against ${coverage.usableBoundaryCount} usable supplied ${coverage.usableBoundaryCount === 1 ? "polyline" : "polylines"}.`
+        ? `No bundled Bird (2003) boundary polylines intersect this search bounding box; that does not establish the place sits away from a plate boundary.${nearest ? ` ${nearest}` : ""} Compared against ${coverage.usableBoundaryCount} usable supplied ${coverage.usableBoundaryCount === 1 ? "polyline" : "polylines"}.`
         : `${context.geographicCoverage} ${segments} supplied ${segments === 1 ? "segment" : "segments"} intersect, from ${coverage.usableBoundaryCount} usable supplied ${coverage.usableBoundaryCount === 1 ? "polyline" : "polylines"}. ${caveat}`;
 
     for (const boundary of context.matchingBoundaries.slice(0, 5)) {
