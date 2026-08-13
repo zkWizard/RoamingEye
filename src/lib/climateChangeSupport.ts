@@ -48,10 +48,19 @@ export type ClimateChangeSupportStatus =
  */
 const SHARED_AREA_EPSILON = 1e-9;
 
+/**
+ * How close a scaled fraction must sit to a whole percent to be treated as
+ * exactly that percent before a bound is rounded. Binary representation error
+ * puts 0.29 × 100 at 28.999…, and directed rounding would otherwise push an
+ * exact 29% share onto the neighbouring percent.
+ */
+const PERCENT_SNAP_EPSILON = 1e-9;
+
 export const CLIMATE_CHANGE_SUPPORT_LIMITATIONS = [
   "The bound is derived from the two months' scalar coverage fractions alone; the per-month pixel masks are not carried, so the true common area is unknown within these bounds.",
   "Coverage is spatial-sampling completeness, not value accuracy: a fully covered month can still carry the source product's bias.",
   "A guaranteed common area does not make the difference an anomaly, trend, cause, or forecast — it remains the plain difference of two monthly values.",
+  "Bounds are stated to the whole percent and rounded outward — the guarantee down, the ceiling up — so the printed interval can be up to a percent wider than the coverage fractions require, never narrower.",
 ] as const;
 
 export interface ClimateChangeSupport {
@@ -106,7 +115,13 @@ export function monthOverMonthCoverageSupport(
 
   const maximumSharedFraction = Math.min(earlierFraction, laterFraction);
   const raw = earlierFraction + laterFraction - 1;
-  const guaranteedSharedFraction = raw > SHARED_AREA_EPSILON ? raw : 0;
+  // The lower bound can float above the upper one when a month is fully
+  // covered: 0.834 + 1 − 1 evaluates to 0.8340000000000001, just past the
+  // min() ceiling of 0.834. A guarantee larger than the maximum it sits under
+  // is not a bound at all — it describes an empty interval to any consumer
+  // comparing the two — so it is clamped to the ceiling it can never exceed.
+  const guaranteedSharedFraction =
+    raw > SHARED_AREA_EPSILON ? Math.min(raw, maximumSharedFraction) : 0;
 
   return {
     kind: "month-over-month-shared-coverage-bound",
@@ -124,23 +139,32 @@ export function monthOverMonthCoverageSupport(
 
 function statementFor(guaranteed: number, maximum: number): string {
   if (guaranteed === 0) {
-    return `the two months may share no common sampled area; at most ${formatPercent(
+    return `the two months may share no common sampled area; at most ${formatAtMost(
       maximum
     )} can overlap`;
   }
-  if (Math.round(guaranteed * 100) === 0) {
+  if (wholePercent(guaranteed, "down") === 0) {
     // A real but sub-percent guarantee is not the disjoint case, and "at least
     // 0%" would read as exactly that. State the guarantee in its own words.
-    return `under 1% of the sampled area is guaranteed common to both months; at most ${formatPercent(
+    // The floor is what decides this: a 0.7% guarantee rounds to the nearest
+    // "1%", and printing "at least 1%" would inflate it by nearly half.
+    return `under 1% of the sampled area is guaranteed common to both months; at most ${formatAtMost(
       maximum
     )} can overlap`;
   }
   if (guaranteed === maximum) {
-    return `exactly ${formatPercent(
-      guaranteed
-    )} of the sampled area is common to both months`;
+    // The bounds coincide, so the common area is known rather than bracketed;
+    // nearest-percent rounding is right for a point value. The one exception is
+    // an incomplete share that rounds to a flat "100%" — that would state the
+    // complete-overlap case this bound exists to distinguish.
+    if (guaranteed < 1 && Math.round(guaranteed * 100) >= 100) {
+      return "all but under 1% of the sampled area is common to both months";
+    }
+    return `exactly ${Math.round(
+      guaranteed * 100
+    )}% of the sampled area is common to both months`;
   }
-  return `at least ${formatPercent(guaranteed)} and at most ${formatPercent(
+  return `at least ${formatAtLeast(guaranteed)} and at most ${formatAtMost(
     maximum
   )} of the sampled area is common to both months`;
 }
@@ -177,12 +201,32 @@ function isFraction(value: number): boolean {
 }
 
 /**
- * Percentages are rounded for reading, but a positive share must never round
- * down to a flat "0%" — that would restate a real overlap as the disjoint case
- * the status deliberately distinguishes.
+ * Round a bound to a whole percent in the direction that keeps it true.
+ *
+ * Percentages are rounded for reading, but a bound rounded to the nearest
+ * percent stops being a bound: two months each covering 99.8% guarantee 99.6%
+ * common ground, and "at least 100%" claims the complete overlap the coverage
+ * never established — the very reading this module exists to refuse. Rounding a
+ * lower bound down and an upper bound up keeps both sides honest, at the cost of
+ * an interval up to a percent wider than the fractions strictly require.
+ *
+ * A fraction already sitting on a whole percent is snapped to it first, so
+ * representation error never widens an exact share (see
+ * {@link PERCENT_SNAP_EPSILON}).
  */
-function formatPercent(fraction: number): string {
-  const rounded = Math.round(fraction * 100);
-  if (rounded === 0 && fraction > 0) return "<1%";
-  return `${rounded}%`;
+function wholePercent(fraction: number, direction: "down" | "up"): number {
+  const scaled = fraction * 100;
+  const nearest = Math.round(scaled);
+  if (Math.abs(scaled - nearest) < PERCENT_SNAP_EPSILON) return nearest;
+  return direction === "down" ? Math.floor(scaled) : Math.ceil(scaled);
+}
+
+/** A guaranteed share never rounds up: "at least" has to stay true. */
+function formatAtLeast(fraction: number): string {
+  return `${wholePercent(fraction, "down")}%`;
+}
+
+/** A ceiling never rounds down: "at most" has to stay true. */
+function formatAtMost(fraction: number): string {
+  return `${wholePercent(fraction, "up")}%`;
 }
