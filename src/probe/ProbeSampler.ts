@@ -181,7 +181,60 @@ export class ProbeSampler {
     lon: number,
     options: { mode?: "point" | "area"; signal?: AbortSignal } = {}
   ): Promise<RenderedPixel[]> {
-    const pixels = this.pixelsFor(options.mode ?? "point", lat, lon);
+    return this.readRenderedPixels(
+      layer,
+      ym,
+      this.pixelsFor(options.mode ?? "point", lat, lon),
+      options.signal
+    );
+  }
+
+  /**
+   * Read the rendered pixels covering a drawn region, without inverting them
+   * through a colormap. Uses the same adaptive geographic grid and pixel dedup
+   * as {@link sampleRegion}, so a class composition and a numeric region mean
+   * describe the same sampled pixels and the reported grid is reproducible.
+   *
+   * Dedup matters more here than for a mean: on the coarse global preview many
+   * grid points collapse onto one source pixel, and counting that pixel once
+   * per grid point would inflate its class's share of the sample.
+   */
+  async sampleRenderedRegionPixels(
+    layer: LayerConfig,
+    ym: YearMonth,
+    bounds: Bounds,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<{
+    pixels: RenderedPixel[];
+    sampling: NonNullable<SampleResult["regionSampling"]>;
+  }> {
+    const grid = regionGridDimensions(bounds);
+    const points = gridPoints(bounds, grid.latitude, grid.longitude);
+    const sourcePixels = this.dedupedPixels(points);
+    const pixels = await this.readRenderedPixels(
+      layer,
+      ym,
+      sourcePixels,
+      options.signal
+    );
+    return {
+      pixels,
+      sampling: {
+        latitudeGridSize: grid.latitude,
+        longitudeGridSize: grid.longitude,
+        candidatePointCount: points.length,
+        sourcePixelCount: sourcePixels.length,
+      },
+    };
+  }
+
+  /** Fetch one PNG month and read the given source pixels out of it. */
+  private async readRenderedPixels(
+    layer: LayerConfig,
+    ym: YearMonth,
+    pixels: WeightedPixel[],
+    signal?: AbortSignal
+  ): Promise<RenderedPixel[]> {
     const canvas = document.createElement("canvas");
     canvas.width = pixels.length;
     canvas.height = 1;
@@ -190,7 +243,7 @@ export class ProbeSampler {
 
     const blob = await fetchBlob(
       gibsWmsUrl(layer, ym, { ...this.imageSize, format: "image/png" }),
-      { signal: options.signal, retries: 1 }
+      { signal, retries: 1 }
     );
     const image = await createImageBitmap(blob);
     for (let i = 0; i < pixels.length; i++) {
