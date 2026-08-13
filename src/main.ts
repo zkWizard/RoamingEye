@@ -34,6 +34,7 @@ import {
   probeRecordGapsCsvHeaders,
 } from "./lib/probeRecordGaps";
 import { emptyAtmosphereProbeNote } from "./lib/atmosphereProbeDomain";
+import { marineAveragedSstCensoringCsvHeaders } from "./lib/marineAveragedSstCensoring";
 import { averagedSstSupportNote } from "./lib/marineAveragedSstSupport";
 import { emptyMarineProbeNote } from "./lib/marineProbeDomain";
 import { sstSamplingIdentityCsvHeaders } from "./lib/seaSurfaceTemperatureSamplingIdentity";
@@ -920,6 +921,16 @@ if (probeEl) {
           "sampled-area",
           mode === "area" ? validFractions : null
         );
+        // An area value is a mean of per-pixel decodes and a point value a
+        // median, so only the area footprint carries censoring the end-cap
+        // screen cannot see. Shared by the status line and the export.
+        const averagedFootprint = mode === "area" ? "sampled-area" : null;
+        // Judged on the physical series the file writes, not the 0..1 gradient
+        // positions held here.
+        const sstCensoring = probeSstExtremeCensoring(
+          layer.id,
+          values.map((v) => (v === null ? null : scaleValue(v, scale)))
+        );
         panel.finish(
           () =>
             buildProbeCsv(
@@ -961,13 +972,13 @@ if (probeEl) {
                 // the physical series the file writes, not the 0..1 gradient
                 // positions held here. Empty for every other layer and for an
                 // SST record that stayed inside the finite ramp.
-                censoringHeaders: sstExtremeCensoringCsvHeaders(
-                  probeSstExtremeCensoring(
-                    layer.id,
-                    values.map((v) =>
-                      v === null ? null : scaleValue(v, scale)
-                    )
-                  )
+                censoringHeaders: sstExtremeCensoringCsvHeaders(sstCensoring),
+                // And that screen reads the area mean, not the pixels it
+                // averaged, so an unflagged row is not an uncensored one. A
+                // point probe's median needs no such correction.
+                averagedCensoringHeaders: marineAveragedSstCensoringCsvHeaders(
+                  averagedFootprint,
+                  sstCensoring
                 ),
               },
               probeMonths,
@@ -985,7 +996,7 @@ if (probeEl) {
           sstSupportNote,
           // Area mode charts a weighted mean of per-pixel decodes; point mode
           // charts a median, which the SST end-cap screen already catches.
-          mode === "area" ? "sampled-area" : null
+          averagedFootprint
         );
       })
       .catch((err) => {
@@ -1065,6 +1076,12 @@ if (probeEl) {
           "drawn-region",
           validFractions
         );
+        // Judged on the physical series the file writes, not the 0..1 gradient
+        // positions held here. Shared by the status line and the export.
+        const sstCensoring = probeSstExtremeCensoring(
+          layer.id,
+          values.map((v) => (v === null ? null : scaleValue(v, scale)))
+        );
         panel.finish(
           () =>
             buildProbeCsv(
@@ -1106,13 +1123,12 @@ if (probeEl) {
                 // the physical series the file writes, not the 0..1 gradient
                 // positions held here. Empty for every other layer and for an
                 // SST record that stayed inside the finite ramp.
-                censoringHeaders: sstExtremeCensoringCsvHeaders(
-                  probeSstExtremeCensoring(
-                    layer.id,
-                    values.map((v) =>
-                      v === null ? null : scaleValue(v, scale)
-                    )
-                  )
+                censoringHeaders: sstExtremeCensoringCsvHeaders(sstCensoring),
+                // And that screen reads the region mean, not the pixels it
+                // averaged, so an unflagged row is not an uncensored one.
+                averagedCensoringHeaders: marineAveragedSstCensoringCsvHeaders(
+                  "drawn-region",
+                  sstCensoring
                 ),
               },
               probeMonths,
