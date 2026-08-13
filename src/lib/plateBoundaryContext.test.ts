@@ -9,6 +9,7 @@ import {
   digitizationCreditText,
   plateBoundariesInSearchExtent,
   subductionMarkingText,
+  suppliedRepeatText,
 } from "./plateBoundaryContext";
 
 const boundary = (overrides: Partial<PlateBoundary> = {}): PlateBoundary => ({
@@ -406,5 +407,262 @@ describe("digitizationCreditText", () => {
     expect(digitizationCreditText(context)).toContain(
       `carries ${context.coverage.distinctSourceCitationCount} distinct source credits`
     );
+  });
+});
+
+describe("verbatim repeats in the supplied linework", () => {
+  const shipped = () =>
+    parsePlateBoundaries(
+      JSON.parse(
+        readFileSync(
+          join(
+            __dirname,
+            "..",
+            "..",
+            "public",
+            "data",
+            "plate-boundaries.geojson"
+          ),
+          "utf8"
+        )
+      )
+    );
+
+  it("counts a trace supplied twice as one boundary, not two", () => {
+    const trace: PlateBoundary["points"] = [
+      [-125, 40],
+      [-124, 41],
+    ];
+    const context = plateBoundariesInSearchExtent(
+      [
+        boundary({ name: "PA-NA", points: trace }),
+        boundary({ name: "PA-NA", points: trace }),
+      ],
+      [39, 42, -126, -123]
+    );
+
+    expect(context.matchingBoundaries).toEqual([
+      {
+        name: "PA-NA",
+        matchedSegmentCount: 1,
+        sourceClass: "unavailable",
+        sourceCitation: null,
+      },
+    ]);
+    expect(context.coverage).toMatchObject({
+      matchedBoundaryCount: 1,
+      matchedSegmentCount: 1,
+      repeatedMatchedFeatureCount: 1,
+      // The file-level totals describe what was supplied, so they still count
+      // both features.
+      suppliedBoundaryCount: 2,
+      usableBoundaryCount: 2,
+    });
+  });
+
+  it("matches a trace supplied in reverse as the same trace", () => {
+    const context = plateBoundariesInSearchExtent(
+      [
+        boundary({
+          points: [
+            [-125, 40],
+            [-124, 41],
+          ],
+        }),
+        boundary({
+          points: [
+            [-124, 41],
+            [-125, 40],
+          ],
+        }),
+      ],
+      [39, 42, -126, -123]
+    );
+
+    expect(context.coverage.matchedBoundaryCount).toBe(1);
+    expect(context.coverage.repeatedMatchedFeatureCount).toBe(1);
+  });
+
+  it("keeps distinct traces that share a plate-pair label", () => {
+    const context = plateBoundariesInSearchExtent(
+      [
+        boundary({
+          points: [
+            [-125, 40],
+            [-124, 41],
+          ],
+        }),
+        boundary({
+          points: [
+            [-124, 40],
+            [-123.5, 41],
+          ],
+        }),
+      ],
+      [39, 42, -126, -123]
+    );
+
+    // PB2002 supplies one margin as many separately digitized steps sharing a
+    // label, so a repeated label is ordinary and must not be collapsed.
+    expect(context.coverage.matchedBoundaryCount).toBe(2);
+    expect(context.coverage.repeatedMatchedFeatureCount).toBe(0);
+  });
+
+  it("stays silent when nothing repeated", () => {
+    const context = plateBoundariesInSearchExtent(
+      [boundary()],
+      [39, 42, -126, -123]
+    );
+
+    expect(context.coverage.repeatedMatchedFeatureCount).toBe(0);
+    expect(suppliedRepeatText(context)).toBeNull();
+  });
+
+  it("says nothing for an empty or invalid extent", () => {
+    expect(
+      suppliedRepeatText(plateBoundariesInSearchExtent([boundary()], null))
+    ).toBeNull();
+    expect(
+      suppliedRepeatText(
+        plateBoundariesInSearchExtent([boundary()], [0, 1, 0, 1])
+      )
+    ).toBeNull();
+  });
+
+  it("reports one repeat in the singular and agrees its verb", () => {
+    const trace: PlateBoundary["points"] = [
+      [-125, 40],
+      [-124, 41],
+    ];
+    const text = suppliedRepeatText(
+      plateBoundariesInSearchExtent(
+        [boundary({ points: trace }), boundary({ points: trace })],
+        [39, 42, -126, -123]
+      )
+    );
+
+    expect(text).toContain("1 supplied feature here repeats a trace");
+    expect(text).toContain("was counted once rather than twice");
+    expect(text).not.toContain("features here repeat");
+  });
+
+  it("reports several repeats in the plural", () => {
+    const first: PlateBoundary["points"] = [
+      [-125, 40],
+      [-124, 41],
+    ];
+    const second: PlateBoundary["points"] = [
+      [-124, 40],
+      [-123.5, 41],
+    ];
+    const text = suppliedRepeatText(
+      plateBoundariesInSearchExtent(
+        [
+          boundary({ points: first }),
+          boundary({ points: first }),
+          boundary({ points: second }),
+          boundary({ points: second }),
+        ],
+        [39, 42, -126, -123]
+      )
+    );
+
+    expect(text).toContain("2 supplied features here repeat a trace");
+    expect(text).toContain("were counted once rather than twice");
+  });
+
+  it("collapses the shipped file's antimeridian repeats over a whole-globe extent", () => {
+    const context = plateBoundariesInSearchExtent(
+      shipped(),
+      [-90, 90, -180, 180]
+    );
+
+    // The bundled GeoJSON supplies 241 features but only 235 distinct traces:
+    // six antimeridian-crossing western halves are emitted twice, verbatim.
+    expect(context.coverage.suppliedBoundaryCount).toBe(241);
+    expect(context.coverage.usableBoundaryCount).toBe(241);
+    expect(context.coverage.repeatedMatchedFeatureCount).toBe(6);
+    expect(context.coverage.matchedBoundaryCount).toBe(235);
+  });
+
+  it("no longer lists one Aleutian trace twice for a Kodiak-sized extent", () => {
+    const context = plateBoundariesInSearchExtent(
+      shipped(),
+      // Kodiak Island Borough, Alaska.
+      [56.0, 58.9, -155.0, -151.0]
+    );
+
+    expect(context.matchingBoundaries).toHaveLength(1);
+    expect(context.matchingBoundaries[0]).toMatchObject({
+      name: "NA/PA",
+      matchedSegmentCount: 3,
+    });
+    expect(context.coverage.matchedSegmentCount).toBe(3);
+    expect(context.coverage.repeatedMatchedFeatureCount).toBe(1);
+    expect(suppliedRepeatText(context)).toContain("1 supplied feature here");
+  });
+});
+
+describe("repeats the source filed differently", () => {
+  const trace: PlateBoundary["points"] = [
+    [-125, 40],
+    [-124, 41],
+  ];
+  const extent = [39, 42, -126, -123] as const;
+
+  it("keeps a shared trace credited to two different surveys", () => {
+    const context = plateBoundariesInSearchExtent(
+      [
+        boundary({ points: trace, step: step({ sourceCitation: "A [1990]" }) }),
+        boundary({ points: trace, step: step({ sourceCitation: "B [1995]" }) }),
+      ],
+      extent
+    );
+
+    // Collapsing these would drop a credit the panel is meant to show, and the
+    // disagreement is a source-labelling question this app does not resolve.
+    expect(context.coverage.matchedBoundaryCount).toBe(2);
+    expect(context.coverage.repeatedMatchedFeatureCount).toBe(0);
+    expect(context.coverage.distinctSourceCitationCount).toBe(2);
+  });
+
+  it("keeps a shared trace filed under two plate pairs", () => {
+    const context = plateBoundariesInSearchExtent(
+      [
+        boundary({ name: "PA-NA", points: trace }),
+        boundary({ name: "PA-JF", points: trace }),
+      ],
+      extent
+    );
+
+    expect(context.coverage.matchedBoundaryCount).toBe(2);
+    expect(context.coverage.repeatedMatchedFeatureCount).toBe(0);
+  });
+
+  it("keeps a shared trace the source marked differently", () => {
+    const context = plateBoundariesInSearchExtent(
+      [
+        boundary({
+          points: trace,
+          step: step({ boundaryType: "subduction" }),
+        }),
+        boundary({ points: trace, step: step({ boundaryType: null }) }),
+      ],
+      extent
+    );
+
+    expect(context.coverage.matchedBoundaryCount).toBe(2);
+    expect(context.coverage.repeatedMatchedFeatureCount).toBe(0);
+  });
+
+  it("collapses a shared trace the source filed identically", () => {
+    const filed = { points: trace, step: step({ sourceCitation: "A [1990]" }) };
+    const context = plateBoundariesInSearchExtent(
+      [boundary(filed), boundary(filed)],
+      extent
+    );
+
+    expect(context.coverage.matchedBoundaryCount).toBe(1);
+    expect(context.coverage.repeatedMatchedFeatureCount).toBe(1);
   });
 });
