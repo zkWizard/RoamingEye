@@ -154,7 +154,7 @@ describe("place observation environmental brief", () => {
 
     expect(result.kind).toBe("place-observation-environment-brief");
     expect(result.provenance).toEqual({
-      exportSchema: "roamingeye-place-observation-export/v5",
+      exportSchema: "roamingeye-place-observation-export/v6",
       boundary: record.boundary,
       sampling: "area-weighted-grid-mean",
       imagery: record.method.imagery,
@@ -424,6 +424,7 @@ describe("place observation environmental brief", () => {
         validFraction: 0,
         unavailableReason: reason,
         coverageStatus: "no-valid-samples",
+        valueBound: null,
       },
     ];
 
@@ -493,6 +494,7 @@ describe("place observation environmental brief", () => {
           value: 0.99,
           validFraction: 1,
           coverageStatus: "fraction-recorded",
+          valueBound: null,
         },
       ],
     });
@@ -515,6 +517,7 @@ describe("place observation environmental brief", () => {
         value: 0.45,
         validFraction: 0.8,
         coverageStatus: "fraction-recorded",
+        valueBound: null,
       },
     ];
 
@@ -536,12 +539,14 @@ describe("place observation environmental brief", () => {
         value: 0.45,
         validFraction: 0.8,
         coverageStatus: "fraction-recorded",
+        valueBound: null,
       },
       {
         dataMonth: "2026-13",
         value: 0.72,
         validFraction: 0.9,
         coverageStatus: "fraction-recorded",
+        valueBound: null,
       },
     ];
 
@@ -570,12 +575,14 @@ describe("place observation environmental brief", () => {
         value: 0.45,
         validFraction: null,
         coverageStatus: "not-supplied",
+        valueBound: null,
       },
       {
         dataMonth: "2026-01",
         value: 0.72,
         validFraction: null,
         coverageStatus: "not-supplied",
+        valueBound: null,
       },
     ];
 
@@ -597,6 +604,7 @@ describe("place observation environmental brief", () => {
       validFraction: 0.85,
       unavailableReason: null,
       coverageStatus: "fraction-recorded",
+      valueBound: null,
     });
 
     const result = composePlaceObservationBrief(record);
@@ -674,6 +682,7 @@ describe("place observation environmental brief", () => {
         validFraction: 0.8,
         unavailableReason: null,
         coverageStatus: "fraction-recorded",
+        valueBound: null,
       },
     ];
 

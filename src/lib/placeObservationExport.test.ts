@@ -130,6 +130,111 @@ describe("place observation export", () => {
     });
   });
 
+  it("records an SST value in a terminal ramp bin as a bound, not a measurement", () => {
+    const dataMonth = { year: 2026, month: 5 };
+
+    // NASA's published SST ramp ends in two open caps, so a boundary mean in
+    // the lowest finite bin cannot be told from one the cold cap collapsed —
+    // a censored cold pixel always decodes warmer than it is, so the truth
+    // sits at or below the recorded number. The card renders this "≤ 0.1 °C".
+    expect(sstPlaceObservationFromSample(dataMonth, 0.075, 0.42)).toEqual({
+      dataMonth,
+      value: 0.075,
+      validFraction: 0.42,
+      valueBound: "at-or-below",
+    });
+    // The warm cap censors the other way, in the tropical warm pool.
+    expect(sstPlaceObservationFromSample(dataMonth, 31.9, 0.42)).toEqual({
+      dataMonth,
+      value: 31.9,
+      validFraction: 0.42,
+      valueBound: "at-or-above",
+    });
+    // An interior value is returned unqualified: the record never carries
+    // doubt the published ramp does not justify.
+    expect(
+      sstPlaceObservationFromSample(dataMonth, 18.4, 0.42)
+    ).not.toHaveProperty("valueBound");
+  });
+
+  it("carries the SST bound into the serialized record and states how to read it", () => {
+    const sst = placeObservationProductFromSample({
+      layerId: "sst",
+      sourceValueFactor: 1,
+      samplingStrategy: "boundary-grid",
+      sourceImageDimensions: { width: 512, height: 256 },
+      observations: [
+        sstPlaceObservationFromSample({ year: 2026, month: 4 }, 31.9, 0.42),
+        sstPlaceObservationFromSample({ year: 2026, month: 5 }, 18.4, 0.37),
+      ],
+    });
+
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [sst],
+    });
+
+    expect(
+      exported.products[0].observations.map((observation) => [
+        observation.dataMonth,
+        observation.value,
+        observation.valueBound,
+      ])
+    ).toEqual([
+      ["2026-04", 31.9, "at-or-above"],
+      // Assessed and found unbounded — null here is "not assessed for a
+      // bound", and the limitations line says so rather than leaving a
+      // consumer to read it as "known to be resolved".
+      ["2026-05", 18.4, null],
+    ]);
+    expect(exported.limitations).toContain(
+      "An observation's valueBound marks that value as a bound the rendered ramp could not resolve past, never as a measurement; a null bound records that this observation was not assessed for one, which is not evidence its value was resolved."
+    );
+  });
+
+  it("rejects a bound that names no value or an unsupported side", () => {
+    const month = { year: 2026, month: 5 };
+
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            observations: [
+              {
+                dataMonth: month,
+                value: null,
+                validFraction: 0,
+                unavailableReason: "source-no-data",
+                valueBound: "at-or-below",
+              },
+            ],
+          },
+        ],
+      })
+    ).toThrow(/cannot bound an unavailable value/);
+
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          {
+            ...input.products[0],
+            observations: [
+              {
+                dataMonth: month,
+                value: 4.2,
+                validFraction: 0.5,
+                valueBound: "roughly" as never,
+              },
+            ],
+          },
+        ],
+      })
+    ).toThrow(/unsupported value bound/);
+  });
+
   it("serializes unavailable SST without dropping the place export", () => {
     const sst = placeObservationProductFromSample({
       layerId: "sst",
@@ -150,6 +255,7 @@ describe("place observation export", () => {
         validFraction: 0.18,
         unavailableReason: "insufficient-valid-coverage",
         coverageStatus: "fraction-recorded",
+        valueBound: null,
       },
     ]);
     expect(exported.reproducibility.dataMonthMatrix).toEqual([
@@ -295,7 +401,7 @@ describe("place observation export", () => {
     const exported = createPlaceObservationExport(input);
 
     expect(exported).toMatchObject({
-      schema: "roamingeye-place-observation-export/v5",
+      schema: "roamingeye-place-observation-export/v6",
       kind: "place-observation-export",
       boundary,
       geography: PLACE_OBSERVATION_GEOGRAPHY,
@@ -330,6 +436,7 @@ describe("place observation export", () => {
               validFraction: 0.82,
               unavailableReason: null,
               coverageStatus: "fraction-recorded",
+              valueBound: null,
             },
             {
               dataMonth: "2026-05",
@@ -337,6 +444,7 @@ describe("place observation export", () => {
               validFraction: null,
               unavailableReason: "source-no-data",
               coverageStatus: "not-supplied",
+              valueBound: null,
             },
           ],
         },
@@ -362,6 +470,7 @@ describe("place observation export", () => {
               validFraction: 0.61,
               unavailableReason: null,
               coverageStatus: "fraction-recorded",
+              valueBound: null,
             },
           ],
         },
@@ -453,6 +562,7 @@ describe("place observation export", () => {
         validFraction: 0,
         unavailableReason: "source-no-data",
         coverageStatus: "no-valid-samples",
+        valueBound: null,
       },
       {
         dataMonth: "2026-05",
@@ -460,6 +570,7 @@ describe("place observation export", () => {
         validFraction: null,
         unavailableReason: "source-no-data",
         coverageStatus: "not-supplied",
+        valueBound: null,
       },
     ]);
     expect(exported.reproducibility.dataMonthMatrix).toEqual([
