@@ -125,7 +125,10 @@ describe("plain text", () => {
       "MODIS/Terra Vegetation Indices Monthly L3 Global 1km (MOD13A3 v061)"
     );
     expect(text).toContain("[Data set]");
-    expect(text).toContain("NASA Global Imagery Browse Services (GIBS)");
+    // The publisher is the archive that issued the DOI, not the imagery
+    // service the app streams the pictures through.
+    expect(text).toContain("Land Processes Distributed Active Archive Center");
+    expect(text).not.toContain("Global Imagery Browse Services");
     expect(text).toContain("https://doi.org/10.5067/MODIS/MOD13A3.061");
   });
 
@@ -155,7 +158,9 @@ describe("CSL-JSON", () => {
     const item = cslDataset(ndvi);
     expect(item.type).toBe("dataset");
     expect(item.title).toContain("MOD13A3 v061");
-    expect(item.publisher).toBe("NASA Global Imagery Browse Services (GIBS)");
+    expect(item.publisher).toBe(
+      "NASA Land Processes Distributed Active Archive Center (LP DAAC)"
+    );
     expect(item.version).toBe("061");
     expect(item.DOI).toBe("10.5067/MODIS/MOD13A3.061");
     expect(item.URL).toBe("https://doi.org/10.5067/MODIS/MOD13A3.061");

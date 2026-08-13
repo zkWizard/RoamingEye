@@ -2,6 +2,7 @@ import {
   citedVectorSources,
   type VectorSourceCitation,
 } from "./citedVectorSources";
+import { datasetArchive } from "./datasetArchives";
 import { doiResolverUrl } from "./doiLink";
 import { citedDatasets } from "./providers";
 import type { DatasetRef } from "./timeline";
@@ -87,10 +88,11 @@ function datasetKey(ref: DatasetRef): string {
 
 /** BibTeX @misc entry for a source dataset, with its DOI. */
 export function bibtexDataset(ref: DatasetRef): string {
+  const archive = datasetArchive(ref.doi);
   return [
     `@misc{${datasetKey(ref)},`,
     `  title = {${bibtexEscape(ref.title)} (${ref.shortName} v${ref.version})},`,
-    `  howpublished = {NASA Global Imagery Browse Services (GIBS)},`,
+    ...(archive ? [`  publisher = {${bibtexEscape(archive.name)}},`] : []),
     `  doi = {${ref.doi}},`,
     `  url = {${doiResolverUrl(ref.doi)}}`,
     `}`,
@@ -113,10 +115,11 @@ export function risTool(): string {
 
 /** RIS entry for a source dataset (TY=DATA), with its DOI. */
 export function risDataset(ref: DatasetRef): string {
+  const archive = datasetArchive(ref.doi);
   return [
     `TY  - DATA`,
     `TI  - ${ref.title} (${ref.shortName} v${ref.version})`,
-    `PB  - NASA Global Imagery Browse Services (GIBS)`,
+    ...(archive ? [`PB  - ${archive.name}`] : []),
     `DO  - ${ref.doi}`,
     `UR  - ${doiResolverUrl(ref.doi)}`,
     `ER  - `,
@@ -137,12 +140,16 @@ export function textTool(): string {
 /**
  * Human-readable formatted-text citation for a source dataset. Built only from
  * the provenance fields we actually hold (title, short name, version, DOI) and
- * the known publisher — no author or release date is invented, so the string
- * never over-claims metadata the DatasetRef does not carry. The DOI is rendered
- * as a resolvable link, per the ESIP data-citation guidelines.
+ * the archive that published the DOI — no author or release date is invented, so
+ * the string never over-claims metadata the DatasetRef does not carry. A dataset
+ * with no verified archive names none rather than borrowing one (see
+ * datasetArchives.ts). The DOI is rendered as a resolvable link, per the ESIP
+ * data-citation guidelines.
  */
 export function textDataset(ref: DatasetRef): string {
-  return `${ref.title} (${ref.shortName} v${ref.version}) [Data set]. NASA Global Imagery Browse Services (GIBS). ${doiResolverUrl(ref.doi)}`;
+  const archive = datasetArchive(ref.doi);
+  const publisher = archive ? `${archive.name}. ` : "";
+  return `${ref.title} (${ref.shortName} v${ref.version}) [Data set]. ${publisher}${doiResolverUrl(ref.doi)}`;
 }
 
 /**
@@ -205,17 +212,20 @@ export function cslTool(): CslItem {
 /**
  * CSL-JSON item for a source dataset (type "dataset"), carrying its DOI as both
  * the bare `DOI` variable and a resolvable `URL`. Built only from the provenance
- * fields the DatasetRef holds and the known publisher — no author or release
- * date is invented. The `URL` goes through `doiResolverUrl` like every other
+ * fields the DatasetRef holds and the archive that published the DOI — no author
+ * or release date is invented, and a dataset with no verified archive omits
+ * `publisher` entirely rather than being attributed to a plausible one (see
+ * datasetArchives.ts). The `URL` goes through `doiResolverUrl` like every other
  * format's link; CSL's `DOI` variable is specified as the bare DOI name, so it
  * is the one field that must stay unencoded.
  */
 export function cslDataset(ref: DatasetRef): CslItem {
+  const archive = datasetArchive(ref.doi);
   return {
     id: datasetKey(ref),
     type: "dataset",
     title: `${ref.title} (${ref.shortName} v${ref.version})`,
-    publisher: "NASA Global Imagery Browse Services (GIBS)",
+    ...(archive ? { publisher: archive.name } : {}),
     version: ref.version,
     DOI: ref.doi,
     URL: doiResolverUrl(ref.doi),
@@ -231,11 +241,13 @@ export function cslJson(items: readonly CslItem[]): string {
 }
 
 /**
- * The formatters above are specific to a CMR `DatasetRef`: they hard-code NASA
- * GIBS as the publisher and assume a short name, a version, and a DOI. The
- * globe also renders three vector datasets that are none of those things (see
- * citedVectorSources.ts), so they get their own formatters rather than being
- * squeezed into a shape that would misattribute them to GIBS.
+ * The formatters above are specific to a CMR `DatasetRef`: they look the
+ * publisher up by DOI in the NASA archive registry (datasetArchives.ts) and
+ * assume a short name, a version, and a DOI. The globe also renders three
+ * vector datasets that are none of those things (see citedVectorSources.ts),
+ * and none of them is archived by a NASA DAAC, so they get their own formatters
+ * carrying their own publishers rather than being squeezed into a shape built
+ * for NASA products.
  *
  * Each formatter emits only the fields the source actually holds. A source with
  * no DOI is located by its URL alone — no DOI field is emitted empty, and none
