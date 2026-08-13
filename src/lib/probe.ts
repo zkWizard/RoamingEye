@@ -615,6 +615,14 @@ export interface ProbeCsvMeta {
    * committed measurement — never replaced with a hedged placeholder.
    */
   inversionAccuracyHeaders?: string[];
+  /**
+   * Provenance lines naming months inside this file's span that the source
+   * never distributed, built by `probeRecordGaps.probeRecordGapsCsvHeaders`.
+   * Passed in for the same reason as `inversionAccuracyHeaders`: this module
+   * stays a leaf and never reaches into the layer catalog. Empty for the
+   * layers whose charted span clears every pinned gap.
+   */
+  recordGapHeaders?: string[];
 }
 
 /**
@@ -717,6 +725,10 @@ export function buildProbeCsv(
     // rather than staying in docs/validation.md (see probeInversionAccuracy).
     ...(meta.inversionAccuracyHeaders ?? []),
     ...trendCsvHeaders(trend),
+    // Last of the series-describing block, and deliberately after it: the
+    // scope line qualifies the month count, the anomaly baseline and the
+    // trend, so it reads as the correction to statistics already stated.
+    ...(meta.recordGapHeaders ?? []),
     ...(fractions
       ? [
           `# valid_fraction: share of the sampled area that held data that month (area-weighted)`,
