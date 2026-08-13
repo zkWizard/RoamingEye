@@ -32,6 +32,11 @@ import {
   unavailableAerosolBoundaryReading,
 } from "../lib/aerosolPlaceInsight";
 import {
+  LST_PLACE_METRIC,
+  lstBoundaryTemperatureReading,
+  unavailableLstBoundaryReading,
+} from "../lib/lstPlaceInsight";
+import {
   summarizePlaceMonthAlignment,
   type PlaceMonthCard,
 } from "../lib/placeMonthAlignment";
@@ -367,6 +372,63 @@ export function runPlaceInsights(result: GeoResult): void {
           detail:
             "Boundary could not be represented by the bounded sample grid",
         });
+      })
+    );
+  }
+
+  // Daytime land-surface temperature gets its own card and formatter. It is a
+  // terrestrial surface quantity, but not one the shared formatters can carry:
+  // MOD11C3 is an optical clear-sky retrieval of the surface's radiometric skin
+  // temperature at Terra's daytime overpass, so it needs limits the
+  // model-continuous GLDAS/MERRA-2 cards do not state — above all that it is
+  // not the 2 m air temperature the neighbouring card reports.
+  const lstMonths = latestComparisonMonths("lst");
+  if (lstMonths) {
+    monthCards.push({ label: LST_PLACE_METRIC.label, month: lstMonths[1] });
+    exportSamples.set("lst", environmentUnavailableSample("lst", lstMonths));
+    samplingTasks.push(
+      (async () => {
+        const colormap = await loadPlaceColormap("lst");
+        if (!colormap) {
+          throw new Error("RoamingEye: LST physical colormap is unavailable");
+        }
+        const sample = await placeSampler.sampleGeometryPhysical(
+          LAYERS.lst,
+          lstMonths,
+          geometry,
+          { lat: result.lat, lon: result.lon },
+          colormap.entries,
+          colormap.factor,
+          { signal: abort.signal }
+        );
+        if (abort.signal.aborted) return;
+        placeInsights.setReading(
+          lstBoundaryTemperatureReading({
+            months: lstMonths,
+            observedValues: [sample.values[0], sample.values[1]],
+            validFractions: [
+              sample.validFractions[0],
+              sample.validFractions[1],
+            ],
+            sourceImageDimensions: sample.sourceImageDimensions,
+          })
+        );
+        exportSamples.set("lst", {
+          layerId: "lst",
+          sourceValueFactor: colormap.factor,
+          samplingStrategy: sample.geometrySamplingStrategy,
+          sourceImageDimensions: sample.sourceImageDimensions,
+          colormapUrl: colormapUrl(PLACE_COLORMAP_DOCS.lst),
+          observations: lstMonths.map((dataMonth, index) => ({
+            dataMonth,
+            value: sample.values[index] ?? null,
+            validFraction: sample.validFractions[index],
+          })),
+        });
+      })().catch((error: unknown) => {
+        if (isAbortError(error) || abort.signal.aborted) return;
+        console.warn("RoamingEye: LST place insight sampling failed", error);
+        placeInsights.setReading(unavailableLstBoundaryReading(lstMonths[1]));
       })
     );
   }
