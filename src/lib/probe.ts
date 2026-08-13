@@ -623,6 +623,15 @@ export interface ProbeCsvMeta {
    * layers whose charted span clears every pinned gap.
    */
   recordGapHeaders?: string[];
+  /**
+   * Provenance lines naming *which* moments and which water the sampled
+   * quantity represents, built by
+   * `seaSurfaceTemperatureSamplingIdentity.sstSamplingIdentityCsvHeaders`.
+   * Passed in for the same reason as the two above: this module stays a leaf
+   * and never reaches into the layer catalog. Empty for every layer whose
+   * value needs no such qualifier.
+   */
+  samplingIdentityHeaders?: string[];
 }
 
 /**
@@ -699,6 +708,11 @@ export function buildProbeCsv(
           `# data_doi: ${csvHeaderText(doiResolverUrl(meta.dataset.doi))}`,
         ]
       : []),
+    // Directly under the citation, because it decodes it: the short name above
+    // states the sampled half of the diurnal cycle only as a suffix nobody
+    // reads. A qualifier on what `value` means belongs with the product it
+    // qualifies, not down in the series-describing block.
+    ...(meta.samplingIdentityHeaders ?? []),
     `# lat: ${meta.lat.toFixed(4)}`,
     `# lon: ${meta.lon.toFixed(4)}`,
     ...(region ? [`# region: ${region}`] : []),

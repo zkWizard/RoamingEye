@@ -27,6 +27,7 @@ import {
 import { emptyAtmosphereProbeNote } from "./lib/atmosphereProbeDomain";
 import { averagedSstSupportNote } from "./lib/marineAveragedSstSupport";
 import { emptyMarineProbeNote } from "./lib/marineProbeDomain";
+import { sstSamplingIdentityCsvHeaders } from "./lib/seaSurfaceTemperatureSamplingIdentity";
 import { snowIlluminationNote } from "./lib/snowCoverIllumination";
 import type { GeoResult } from "./lib/geocoding";
 import { refreshDataLatest } from "./lib/freshness";
@@ -937,6 +938,14 @@ if (probeEl) {
                 recordGapHeaders: probeRecordGapsCsvHeaders(
                   probeRecordGaps(layer.id, probeMonths)
                 ),
+                // Same reasoning for *which* moments the values sample: the
+                // probe states the SST sampling gate on screen, and the
+                // download needs it more — nothing in a column of degrees
+                // says it is a daytime skin composite. Empty for every
+                // other layer.
+                samplingIdentityHeaders: sstSamplingIdentityCsvHeaders(
+                  layer.id
+                ),
               },
               probeMonths,
               values,
@@ -1056,6 +1065,14 @@ if (probeEl) {
                 // carries the same correction.
                 recordGapHeaders: probeRecordGapsCsvHeaders(
                   probeRecordGaps(layer.id, probeMonths)
+                ),
+                // Same reasoning for *which* moments the values sample: the
+                // probe states the SST sampling gate on screen, and the
+                // download needs it more — nothing in a column of degrees
+                // says it is a daytime skin composite. Empty for every
+                // other layer.
+                samplingIdentityHeaders: sstSamplingIdentityCsvHeaders(
+                  layer.id
                 ),
               },
               probeMonths,

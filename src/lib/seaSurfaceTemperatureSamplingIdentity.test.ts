@@ -3,10 +3,11 @@ import {
   describeSstSamplingIdentity,
   SEA_SURFACE_TEMPERATURE_SAMPLING_IDENTITY,
   SST_SAMPLING_IDENTITY_LIMITATIONS,
+  sstSamplingIdentityCsvHeaders,
   sstSamplingIdentityDrift,
   sstSamplingQualifier,
 } from "./seaSurfaceTemperatureSamplingIdentity";
-import { LAYERS, type LayerConfig } from "./timeline";
+import { LAYERS, LAYER_ORDER, type LayerConfig } from "./timeline";
 
 const SST_LAYER = LAYERS.sst;
 
@@ -130,5 +131,70 @@ describe("sstSamplingIdentityDrift", () => {
         layerWith({ description: "Ocean surface temperature, DAYTIME only." })
       )
     ).toEqual([]);
+  });
+});
+
+describe("sstSamplingIdentityCsvHeaders", () => {
+  const headers = sstSamplingIdentityCsvHeaders("sst");
+
+  it("states the daytime gate the dataset short name only implies", () => {
+    const text = headers.join("\n");
+    expect(text).toContain("daytime-only");
+    expect(text).toContain("13:30");
+    expect(text).toContain("not a day-and-night monthly mean");
+  });
+
+  it("separates the skin retrieval from a bulk temperature", () => {
+    const text = headers.join("\n");
+    expect(text).toContain("radiometric-skin");
+    expect(text).toContain("bulk temperature of the mixed layer");
+  });
+
+  it("names the unsampled nighttime counterpart without synthesizing it", () => {
+    const text = headers.join("\n");
+    expect(text).toContain(
+      SEA_SURFACE_TEMPERATURE_SAMPLING_IDENTITY.unsampledDiurnalCounterpartLayer
+    );
+    expect(text).toContain("none is synthesized");
+  });
+
+  it("says no bias correction was applied", () => {
+    expect(headers.join("\n")).toContain("# sst_bias_correction: none applied");
+  });
+
+  it("obeys the CSV header contract: no delimiter, quote, or line break", () => {
+    // A comma here would tear provenance into ragged cells for every reader
+    // (see csvHeaderText in probe.ts); these lines are not scrubbed on the way
+    // out, so the discipline has to hold at the source.
+    for (const line of headers) {
+      expect(line.startsWith("# ")).toBe(true);
+      expect(line).not.toMatch(/[,"\r\n]/);
+    }
+  });
+
+  it("is silent for every layer but SST", () => {
+    for (const id of LAYER_ORDER) {
+      if (id === "sst") continue;
+      expect(sstSamplingIdentityCsvHeaders(id)).toEqual([]);
+    }
+    expect(sstSamplingIdentityCsvHeaders(undefined)).toEqual([]);
+  });
+
+  it("asserts no magnitude and nothing biological", () => {
+    const text = headers.join("\n").toLowerCase();
+    for (const forbidden of [
+      "warmer",
+      "cooler",
+      "°c",
+      "heatwave",
+      "habitat",
+      "species",
+      "ecosystem",
+      "stress",
+      "coral",
+      "bleach",
+    ]) {
+      expect(text).not.toContain(forbidden);
+    }
   });
 });
