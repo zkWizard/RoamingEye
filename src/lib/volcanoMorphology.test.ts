@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canonicalVolcanoType,
   canonicalVolcanoTypeLabel,
+  qualifiedVolcanoTypeLabel,
 } from "./volcanoMorphology";
 
 /**
@@ -129,5 +130,32 @@ describe("canonicalVolcanoTypeLabel", () => {
     expect(canonicalVolcanoTypeLabel(canonicalVolcanoType(null))).toBe(
       "Volcano type not recorded"
     );
+  });
+});
+
+describe("qualifiedVolcanoTypeLabel", () => {
+  it("spells out the qualifiers a raw GVP type string only punctuates", () => {
+    expect(qualifiedVolcanoTypeLabel("Pyroclastic cone(s)")).toBe(
+      "Pyroclastic cone (multiple landforms)"
+    );
+    expect(qualifiedVolcanoTypeLabel("Stratovolcano?")).toBe(
+      "Stratovolcano (type uncertain)"
+    );
+  });
+
+  it("leaves an unqualified type exactly as the catalog supplies it", () => {
+    expect(qualifiedVolcanoTypeLabel("Caldera")).toBe("Caldera");
+  });
+
+  it("returns null for an absent type so callers keep their own wording", () => {
+    expect(qualifiedVolcanoTypeLabel(null)).toBeNull();
+    expect(qualifiedVolcanoTypeLabel(undefined)).toBeNull();
+  });
+
+  it("treats a type that is only qualifiers as no usable landform", () => {
+    // "?" alone carries no morphology; printing it verbatim would show a bare
+    // question mark where a landform belongs.
+    expect(qualifiedVolcanoTypeLabel("?")).toBeNull();
+    expect(qualifiedVolcanoTypeLabel("   ")).toBeNull();
   });
 });

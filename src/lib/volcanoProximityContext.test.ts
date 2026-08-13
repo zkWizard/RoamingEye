@@ -192,6 +192,26 @@ describe("nearestVolcanoStatement", () => {
     );
   });
 
+  it("spells out a GVP type qualifier instead of printing its punctuation", () => {
+    // 221 of the 1196 bundled records carry "(s)"/"(es)"; leaving the marker
+    // raw here contradicted the same volcano's hover label on the globe.
+    const multiple = nearbyVolcanoContext(
+      [volcano({ name: "Cones", lon: 0.5, type: "Pyroclastic cone(s)" })],
+      query
+    );
+    expect(nearestVolcanoStatement(multiple)).toContain(
+      "(Pyroclastic cone (multiple landforms); last erupted 2000)"
+    );
+
+    const uncertain = nearbyVolcanoContext(
+      [volcano({ name: "Maybe", lon: 0.5, type: "Stratovolcano?" })],
+      query
+    );
+    expect(nearestVolcanoStatement(uncertain)).toContain(
+      "(Stratovolcano (type uncertain); last erupted 2000)"
+    );
+  });
+
   it("reports sub-10 km distances to one decimal", () => {
     const context = nearbyVolcanoContext(
       [volcano({ name: "Close", lon: 0.05 })],

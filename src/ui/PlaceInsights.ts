@@ -31,6 +31,7 @@ import {
   type VolcanoProximityContext,
 } from "../lib/volcanoProximityContext";
 import { eruptionRecencyText } from "../lib/volcanoRecency";
+import { qualifiedVolcanoTypeLabel } from "../lib/volcanoMorphology";
 import { elevationRegimeLabel } from "../lib/volcanoes";
 import {
   summitDatumText,
@@ -340,7 +341,11 @@ export class PlaceInsights {
         record.country,
         record.subregion ?? record.region,
         volcanoCoordinateLabel(record),
-        record.primaryType ?? "primary type not supplied",
+        // GVP encodes qualifiers in the type string itself: "(s)"/"(es)" for a
+        // record covering multiple landforms and "?" for an uncertain
+        // assignment. Spell them out as the globe's hover label already does.
+        qualifiedVolcanoTypeLabel(record.primaryType) ??
+          "primary type not supplied",
         // Reads the datum sign GVP reports: a negative summit elevation is a
         // summit below sea level, not a missing or erroneous height.
         elevationRegimeLabel(record.elevationMeters),
