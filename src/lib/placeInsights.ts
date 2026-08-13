@@ -409,7 +409,7 @@ function samplingSuffix(
         ? `${label ? `; ${label}: ` : "; "}single in-boundary image sample ${
             fraction === 1 ? "has data" : "has no data"
           }`
-        : `${label ? `; ${label}: ` : "; "}${Math.round(fraction * 100)}% sampled coverage`
+        : `${label ? `; ${label}: ` : "; "}${formatCoveragePercent(fraction)}% sampled coverage`
       : `${label ? `; ${label}: ` : "; "}${
           pointEstimate
             ? "single in-boundary image sample status not supplied"
@@ -429,6 +429,29 @@ function samplingSuffix(
       ? "single boundary point estimate, not a regional mean"
       : "approximate regional mean"
   }`;
+}
+
+/**
+ * Render a sampled-coverage fraction as a percentage without rounding a
+ * partial sample to "0%" or to "100%".
+ *
+ * A drawn boundary is sampled on a grid up to 28x28 (`regionGridSize`), so a
+ * handful of excluded pixels among ~780 is ordinary rather than rare — at
+ * whole-percent rounding one excluded pixel reads as "100% sampled coverage",
+ * which the vegetation card's own drawn-coverage caveat then contradicts by
+ * saying pixels were left out. The other direction is worse: a large boundary
+ * with a small usable sliver reports a regional mean beside "0% sampled
+ * coverage", the same text the card prints when there was genuinely nothing to
+ * sample.
+ *
+ * Five significant figures, matching how the climate cards in this same panel
+ * format the identical "N% sampled coverage" phrase (`meteorology.ts`
+ * `coverageText`), so two cards describing one boundary and month never round
+ * the same quantity differently. It also clears the float noise that makes
+ * `0.6 * 100` land at 60.000000000000006.
+ */
+function formatCoveragePercent(fraction: number): string {
+  return Number((fraction * 100).toPrecision(5)).toString();
 }
 
 function placeValue(
