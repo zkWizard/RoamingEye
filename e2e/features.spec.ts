@@ -175,6 +175,19 @@ test("land-cover layer steps by year with a class-swatch legend", async ({
     /MODIS_Combined_L3_IGBP_Land_Cover_Type_Annual · \d{4}$/
   );
 
+  // The legend cites the product on screen, with its categorical guardrail.
+  // Terrain tiles keep arriving while another layer is selected, and their
+  // coverage notice used to re-render the terrain note over whichever layer
+  // was showing — so every data layer cited ASTGTM v003 (ui/Legend
+  // setTerrainTileCoverage). Assert after a settle so a late tile batch that
+  // reintroduced the overwrite would fail here.
+  const sourceNote = page.locator(".legend__source-note");
+  await expect(sourceNote).toContainText("MCD12Q1 v061");
+  await expect(sourceNote).toContainText("Colours name a class");
+  await expect(sourceNote).toContainText("Barren still permits vegetation");
+  await page.waitForTimeout(2000);
+  await expect(sourceNote).not.toContainText("ASTGTM");
+
   // Stepping the timeline moves a whole year.
   const track = page.locator(".timeline__track");
   await track.focus();
