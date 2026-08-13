@@ -1,7 +1,12 @@
 import {
   summarizeAnnualNdviPhenology,
+  type NdviAnnualPhenology,
   type NdviMonthlyObservation,
 } from "./phenology";
+import {
+  summarizeNdviExtremumSupport,
+  type NdviExtremumSupportSummary,
+} from "./phenologyExtremumSupport";
 import {
   summarizePeakGreennessTiming,
   type PeakGreennessTiming,
@@ -49,6 +54,21 @@ export function probePeakGreennessTiming(
   values: readonly (number | null)[],
   latitude: number
 ): PeakGreennessTiming | null {
+  const annuals = probeNdviAnnualSummaries(layerId, months, values, latitude);
+  return annuals === null ? null : summarizePeakGreennessTiming(annuals);
+}
+
+/**
+ * Per-year NDVI summaries for a probe series, or null when the layer is not
+ * NDVI or the series carries no months. Shared by the timing and support
+ * summaries so both describe exactly the same retained observations.
+ */
+function probeNdviAnnualSummaries(
+  layerId: LayerId,
+  months: readonly YearMonth[],
+  values: readonly (number | null)[],
+  latitude: number
+): NdviAnnualPhenology[] | null {
   if (layerId !== NDVI_PROBE_LAYER) return null;
 
   const observations: NdviMonthlyObservation[] = [];
@@ -59,9 +79,22 @@ export function probePeakGreennessTiming(
   }
   if (observations.length === 0) return null;
 
-  return summarizePeakGreennessTiming(
-    summarizeAnnualNdviPhenology(observations, latitude)
-  );
+  return summarizeAnnualNdviPhenology(observations, latitude);
+}
+
+/**
+ * Assess how well the probe's own sampled months support each year's peak, or
+ * null when the layer is not NDVI. Consumes the same annual summaries the
+ * timing clause does, so the two can never describe different records.
+ */
+export function probePeakSupport(
+  layerId: LayerId,
+  months: readonly YearMonth[],
+  values: readonly (number | null)[],
+  latitude: number
+): NdviExtremumSupportSummary | null {
+  const annuals = probeNdviAnnualSummaries(layerId, months, values, latitude);
+  return annuals === null ? null : summarizeNdviExtremumSupport(annuals);
 }
 
 /**
@@ -87,4 +120,38 @@ export function peakGreennessClause(
     `peak NDVI month usually ${name} ` +
     `(${dominant.count}/${years} yr · R ${resultant.toFixed(2)})`
   );
+}
+
+/**
+ * Qualifier for {@link peakGreennessClause}: how many of the years behind that
+ * modal month actually had both neighbouring months observed. Without it the
+ * timing clause counts a peak flanked by a MOD13A3 data gap — or one sitting on
+ * the January/December cut, where the summary cannot see past the year edge —
+ * exactly as heavily as a fully bracketed one, which over-states how firmly the
+ * record establishes the month.
+ *
+ * Deliberately silent in two cases, so the status line only grows when the
+ * qualification changes the reading:
+ *  - every contributing peak is bracketed — there is nothing to caveat;
+ *  - the timing clause named no month, so there is nothing to qualify.
+ *
+ * The denominator is the support summary's own usable-year count rather than
+ * the timing summary's contributing-year count. The two agree for a probe
+ * series, but quoting the tally's own total keeps the fraction self-consistent
+ * if they ever diverge. This reports sampling, never vegetation: a gap-flanked
+ * peak is still the greenest month observed.
+ */
+export function peakSupportClause(
+  timing: PeakGreennessTiming | null,
+  support: NdviExtremumSupportSummary | null
+): string | null {
+  if (!timing || !support) return null;
+  if (timing.status !== "available" || !timing.dominantPeakMonth) return null;
+  if (support.status !== "available") return null;
+
+  const total = support.coverage.usableYearCount;
+  const bracketed = support.peakTally.bracketed;
+  if (total === 0 || bracketed === total) return null;
+
+  return `peak bracketed by observed neighbours in ${bracketed}/${total} yr`;
 }
