@@ -334,8 +334,9 @@ export class ProbePanel {
    * Append the vegetation-index calendar-timing clause: which month held each
    * year's highest NDVI, how tightly that recurs, and — each only when it is
    * not true of every year — how often that peak was actually flanked by
-   * observed months rather than by a MOD13A3 gap, and how often it was tied
-   * with another month rather than held alone. The NDVI phenology
+   * observed months rather than by a MOD13A3 gap, how often it was tied
+   * with another month rather than held alone, and whether the year's greenness
+   * massed near one month at all. The NDVI phenology
    * helpers pull in per-year summarization and circular statistics, so they
    * load on demand rather than riding in the entry chunk; the clause lands a
    * moment after the stats, which the status line already fills in
@@ -357,6 +358,8 @@ export class ProbePanel {
           peakTieClause,
           probePeakGreennessTiming,
           probePeakSupport,
+          probeSeasonalConcentration,
+          seasonalConcentrationClause,
         }) => {
           if (token !== this.seriesToken) return; // superseded by a newer probe
           const timing = probePeakGreennessTiming(
@@ -378,8 +381,22 @@ export class ProbePanel {
           // silent by default, so only a record that actually plateaued pays
           // for the qualification.
           const tied = peakTieClause(timing);
+          // Whether the year's greenness massed near one month or sat spread
+          // around the calendar with that month merely topping it. Silent for a
+          // firmly seasonal record, so only a diffuse one pays for the clause.
+          const concentration = seasonalConcentrationClause(
+            timing,
+            probeSeasonalConcentration(
+              context.layerId,
+              months,
+              physical,
+              latitude
+            )
+          );
           this.setStatus(
-            [stat, clause, support, tied].filter(Boolean).join(" · ")
+            [stat, clause, support, tied, concentration]
+              .filter(Boolean)
+              .join(" · ")
           );
         }
       )

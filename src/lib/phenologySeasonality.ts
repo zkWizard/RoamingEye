@@ -332,7 +332,9 @@ function concentrationForYear(
  * 0.15 / 0.35 / 0.60 are round reading aids, not calibrated thresholds; the
  * numeric `concentration` remains the authoritative value.
  */
-function seasonalityClassFor(concentration: number): NdviSeasonalityClass {
+export function seasonalityClassFor(
+  concentration: number
+): NdviSeasonalityClass {
   if (concentration < 0.15) return "aseasonal";
   if (concentration < 0.35) return "weakly-seasonal";
   if (concentration < 0.6) return "seasonal";

@@ -11,6 +11,11 @@ import {
   summarizePeakGreennessTiming,
   type PeakGreennessTiming,
 } from "./phenologyPeakTiming";
+import {
+  seasonalityClassFor,
+  summarizeNdviSeasonalConcentration,
+  type NdviSeasonalConcentration,
+} from "./phenologySeasonality";
 import { MONTH_NAMES, type LayerId, type YearMonth } from "./timeline";
 
 /**
@@ -69,6 +74,22 @@ function probeNdviAnnualSummaries(
   values: readonly (number | null)[],
   latitude: number
 ): NdviAnnualPhenology[] | null {
+  const observations = probeNdviObservations(layerId, months, values);
+  return observations === null
+    ? null
+    : summarizeAnnualNdviPhenology(observations, latitude);
+}
+
+/**
+ * The probe's sampled months as phenology observations, or null when the layer
+ * is not NDVI or the series carries no months. Shared by every summary below so
+ * they can never disagree about which months were observed.
+ */
+function probeNdviObservations(
+  layerId: LayerId,
+  months: readonly YearMonth[],
+  values: readonly (number | null)[]
+): NdviMonthlyObservation[] | null {
   if (layerId !== NDVI_PROBE_LAYER) return null;
 
   const observations: NdviMonthlyObservation[] = [];
@@ -77,9 +98,7 @@ function probeNdviAnnualSummaries(
     if (!month) continue;
     observations.push({ month, ndvi: values[index] ?? null });
   }
-  if (observations.length === 0) return null;
-
-  return summarizeAnnualNdviPhenology(observations, latitude);
+  return observations.length === 0 ? null : observations;
 }
 
 /**
@@ -191,4 +210,93 @@ export function peakTieClause(
   if (total === 0 || tied === 0) return null;
 
   return `annual peak tied across months in ${tied}/${total} yr (earliest counted)`;
+}
+
+/**
+ * Per-year within-year seasonality concentration for a probe series, or null
+ * when the layer is not NDVI. Consumes exactly the observations the timing
+ * clause does, so the two describe the same record.
+ */
+export function probeSeasonalConcentration(
+  layerId: LayerId,
+  months: readonly YearMonth[],
+  values: readonly (number | null)[],
+  latitude: number
+): NdviSeasonalConcentration[] | null {
+  const observations = probeNdviObservations(layerId, months, values);
+  return observations === null
+    ? null
+    : summarizeNdviSeasonalConcentration(observations, latitude);
+}
+
+/**
+ * Third qualifier for {@link peakGreennessClause}: whether the year's greenness
+ * actually massed near one month, or sat spread around the whole calendar with
+ * the named month merely topping it.
+ *
+ * The timing clause is an argmax, and an argmax is a weak summary of a year
+ * whose greenness has no single centre. A record peaking sharply each July and
+ * one carrying two comparable humid seasons half a year apart — or one whose
+ * above-minimum greenness is scattered more or less evenly around the calendar —
+ * produce the same "peak NDVI month usually Jul", and the second says far less
+ * about where the year's greenness sat than the first.
+ *
+ * `phenologySeasonality.ts` measures exactly that shape: the magnitude-weighted
+ * mean resultant length R of a year's monthly values on the circle of calendar
+ * months, weighted by greenness above that year's own minimum. R near 1 means
+ * the above-floor greenness is packed into a short stretch; R near 0 means it is
+ * spread around the calendar, so no month is a good centre. The median R across
+ * the years the probe could summarize is reported here, binned with that
+ * module's own {@link seasonalityClassFor} so the reading aid stays defined in
+ * one place.
+ *
+ * R is deliberately NOT an amplitude. It is invariant to scaling the weights, so
+ * it says nothing about how large the year's NDVI swing was and this clause
+ * never implies that it does — only how that swing, whatever its size, was
+ * arranged around the year.
+ *
+ * Silent unless the median lands in a weak bin, so a firmly seasonal record adds
+ * no status-line text. The bins are presentation aids, not thresholds from any
+ * published standard — the median is the measurement and is always printed.
+ *
+ * This describes the shape of a unitless index in time and nothing else. A low
+ * concentration is not degraded, unproductive, or unhealthy vegetation: an
+ * evergreen humid-tropical forest is legitimately near-aseasonal in NDVI, and
+ * this infers no phenophase, growing-season length, productivity, biomass,
+ * canopy, land cover, cause, or forecast.
+ */
+export function seasonalConcentrationClause(
+  timing: PeakGreennessTiming | null,
+  concentrations: readonly NdviSeasonalConcentration[] | null
+): string | null {
+  if (!timing || !concentrations) return null;
+  if (timing.status !== "available" || !timing.dominantPeakMonth) return null;
+
+  const measured = concentrations.flatMap((year) =>
+    year.status === "available" && year.concentration !== null
+      ? [year.concentration]
+      : []
+  );
+  if (measured.length === 0) return null;
+
+  const median = medianOf(measured);
+  const bin = seasonalityClassFor(median);
+  if (bin !== "aseasonal" && bin !== "weakly-seasonal") return null;
+
+  const label = bin === "aseasonal" ? "near-aseasonal" : "weakly seasonal";
+  return `within-year greenness ${label} (median ${median.toFixed(2)} over ${measured.length} yr)`;
+}
+
+/**
+ * Median of a non-empty list of concentrations. These are continuous
+ * measurements on [0, 1], so averaging the two middle values of an even-length
+ * list is meaningful — unlike a class code, which is never averaged anywhere in
+ * this codebase.
+ */
+function medianOf(values: readonly number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1
+    ? sorted[middle]
+    : (sorted[middle - 1] + sorted[middle]) / 2;
 }
