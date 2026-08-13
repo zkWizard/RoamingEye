@@ -10,6 +10,16 @@ import {
   sstPlaceObservationFromSample,
 } from "./placeObservationExport";
 
+const PRECIP_COLORMAP_URL =
+  "https://gibs.earthdata.nasa.gov/colormaps/v1.3/GLDAS_Surface_Total_Precipitation_Rate_Monthly.xml";
+const SOIL_COLORMAP_URL =
+  "https://gibs.earthdata.nasa.gov/colormaps/v1.3/GLDAS_Soil_Moisture_0_10_cm_Monthly.xml";
+
+/** The base fixture already carries a precipitation product; these cases supply
+ * their own, so they drop it rather than trip the duplicate-layer rule. */
+const nonPrecipProducts = () =>
+  input.products.filter((product) => product.layerId !== "precip");
+
 const boundary = {
   type: "Polygon",
   coordinates: [
@@ -285,7 +295,7 @@ describe("place observation export", () => {
     const exported = createPlaceObservationExport(input);
 
     expect(exported).toMatchObject({
-      schema: "roamingeye-place-observation-export/v4",
+      schema: "roamingeye-place-observation-export/v5",
       kind: "place-observation-export",
       boundary,
       geography: PLACE_OBSERVATION_GEOGRAPHY,
@@ -1213,5 +1223,208 @@ describe("place observation export", () => {
         },
       ],
     });
+  });
+
+  it("records open-ended legend-cap censoring and marks the value a bound", () => {
+    const precipitation = placeObservationProductFromSample({
+      layerId: "precip",
+      sampledUnit: "mm/day",
+      sourceValueFactor: 86_400,
+      colormapUrl: PRECIP_COLORMAP_URL,
+      samplingStrategy: "boundary-grid",
+      sourceImageDimensions: { width: 512, height: 512 },
+      legendCapCensoring: {
+        assessedDataMonth: { year: 2026, month: 5 },
+        censoredSampleCount: 31,
+        valuedSampleCount: 204,
+        bound: 5.0e-4,
+        boundRelation: "at-or-above",
+        publishedLabel: "≥ 5.0e-04",
+        colormapDocument: PRECIP_COLORMAP_URL,
+      },
+      observations: [
+        {
+          dataMonth: { year: 2026, month: 5 },
+          value: 8.64,
+          validFraction: 0.71,
+        },
+      ],
+    });
+
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [...nonPrecipProducts(), precipitation],
+    });
+
+    expect(
+      exported.products.find(({ layerId }) => layerId === "precip")
+        ?.legendCapCensoring
+    ).toEqual({
+      assessedDataMonth: "2026-05",
+      censoredSampleCount: 31,
+      valuedSampleCount: 204,
+      bound: 5.0e-4,
+      boundRelation: "at-or-above",
+      publishedLabel: "≥ 5.0e-04",
+      colormapDocument: PRECIP_COLORMAP_URL,
+      valueIsOneSidedBound: true,
+    });
+    expect(exported.limitations.join(" ")).toMatch(
+      /legend-cap censoring record marks the month it names as a one-sided bound/i
+    );
+  });
+
+  it("does not call an assessed footprint bounded when the cap took nothing", () => {
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [
+        ...nonPrecipProducts(),
+        placeObservationProductFromSample({
+          layerId: "soil",
+          sourceValueFactor: 1,
+          colormapUrl: SOIL_COLORMAP_URL,
+          samplingStrategy: "boundary-grid",
+          sourceImageDimensions: { width: 512, height: 512 },
+          legendCapCensoring: {
+            assessedDataMonth: { year: 2026, month: 5 },
+            censoredSampleCount: 0,
+            valuedSampleCount: 188,
+            bound: 50,
+            boundRelation: "at-or-above",
+            publishedLabel: "≥ 50.0",
+            colormapDocument: SOIL_COLORMAP_URL,
+          },
+          observations: [
+            {
+              dataMonth: { year: 2026, month: 5 },
+              value: 21.4,
+              validFraction: 0.93,
+            },
+          ],
+        }),
+      ],
+    });
+
+    expect(
+      exported.products.find(({ layerId }) => layerId === "soil")
+        ?.legendCapCensoring
+    ).toMatchObject({ censoredSampleCount: 0, valueIsOneSidedBound: false });
+  });
+
+  it("leaves censoring unassessed rather than reporting an uncensored tally", () => {
+    const exported = createPlaceObservationExport(input);
+
+    for (const product of exported.products) {
+      expect(product.legendCapCensoring).toBeNull();
+    }
+    expect(exported.limitations.join(" ")).toMatch(
+      /where no record is supplied, none was assessed, which is not evidence that no censoring occurred/i
+    );
+  });
+
+  it("rejects a censoring record for a month the product does not export", () => {
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          ...nonPrecipProducts(),
+          placeObservationProductFromSample({
+            layerId: "precip",
+            sourceValueFactor: 1,
+            colormapUrl: PRECIP_COLORMAP_URL,
+            samplingStrategy: "boundary-grid",
+            sourceImageDimensions: { width: 512, height: 512 },
+            legendCapCensoring: {
+              assessedDataMonth: { year: 2026, month: 3 },
+              censoredSampleCount: 4,
+              valuedSampleCount: 100,
+              bound: 5.0e-4,
+              boundRelation: "at-or-above",
+              publishedLabel: "≥ 5.0e-04",
+              colormapDocument: PRECIP_COLORMAP_URL,
+            },
+            observations: [
+              {
+                dataMonth: { year: 2026, month: 5 },
+                value: 1.0e-4,
+                validFraction: 0.6,
+              },
+            ],
+          }),
+        ],
+      })
+    ).toThrow(
+      "Product precip records legend-cap censoring for a month it does not export."
+    );
+  });
+
+  it("rejects a tally counting more censored cells than valued cells", () => {
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          ...nonPrecipProducts(),
+          placeObservationProductFromSample({
+            layerId: "precip",
+            sourceValueFactor: 1,
+            colormapUrl: PRECIP_COLORMAP_URL,
+            samplingStrategy: "boundary-grid",
+            sourceImageDimensions: { width: 512, height: 512 },
+            legendCapCensoring: {
+              assessedDataMonth: { year: 2026, month: 5 },
+              censoredSampleCount: 120,
+              valuedSampleCount: 100,
+              bound: 5.0e-4,
+              boundRelation: "at-or-above",
+              publishedLabel: "≥ 5.0e-04",
+              colormapDocument: PRECIP_COLORMAP_URL,
+            },
+            observations: [
+              {
+                dataMonth: { year: 2026, month: 5 },
+                value: 1.0e-4,
+                validFraction: 0.6,
+              },
+            ],
+          }),
+        ],
+      })
+    ).toThrow("Product precip counts more censored cells than valued cells.");
+  });
+
+  it("requires a censoring record to cite the published bin it read", () => {
+    expect(() =>
+      createPlaceObservationExport({
+        ...input,
+        products: [
+          ...nonPrecipProducts(),
+          placeObservationProductFromSample({
+            layerId: "precip",
+            sourceValueFactor: 1,
+            colormapUrl: PRECIP_COLORMAP_URL,
+            samplingStrategy: "boundary-grid",
+            sourceImageDimensions: { width: 512, height: 512 },
+            legendCapCensoring: {
+              assessedDataMonth: { year: 2026, month: 5 },
+              censoredSampleCount: 3,
+              valuedSampleCount: 100,
+              bound: 5.0e-4,
+              boundRelation: "at-or-above",
+              publishedLabel: "≥ 5.0e-04",
+              colormapDocument: "  ",
+            },
+            observations: [
+              {
+                dataMonth: { year: 2026, month: 5 },
+                value: 1.0e-4,
+                validFraction: 0.6,
+              },
+            ],
+          }),
+        ],
+      })
+    ).toThrow(
+      "Product precip must cite the published legend bin it was capped by."
+    );
   });
 });
