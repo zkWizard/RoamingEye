@@ -183,8 +183,43 @@ describe("seasonalSamplingClause", () => {
       AIRTEMP
     );
     expect(clause).toBe(
-      "mean covers 10 of 12 calendar months (no Jan, Dec), so it is not an annual mean"
+      "mean covers 10 of 12 calendar months (no Jan, Dec), so it is not an annual mean" +
+        "; min and max share those months and are not annual extremes"
     );
+  });
+
+  it("disclaims the extremes beside the mean, which are reduced from the same gapped months", () => {
+    const months = monthlyRecord(2001, 2);
+    const values: (number | null)[] = seasonalCycle(months, 288, 10);
+    // Lose every January: the coldest calendar month never enters the record,
+    // so the reported min is the coldest of the eleven that survived — not the
+    // coldest month of the year at this point.
+    months.forEach((ym, i) => {
+      if (ym.month === 1) values[i] = null;
+    });
+
+    const balance = seasonalSamplingBalance(months, values);
+    expect(balance.absentCalendarMonths).toEqual([1]);
+    const clause = seasonalSamplingClause(balance, AIRTEMP)!;
+    expect(clause).toContain("min and max");
+    expect(clause).toContain("not annual extremes");
+  });
+
+  it("leaves the extremes unqualified when every calendar month is sampled", () => {
+    // All twelve calendar months carry a sample, so the extremes are drawn from
+    // the full calendar and only the mean's weighting is uneven. Disclaiming
+    // them here would withhold a number the record actually supports.
+    const months = monthlyRecord(2001, 3);
+    const values: (number | null)[] = seasonalCycle(months, 288, 10);
+    let droppedJan = 0;
+    months.forEach((ym, i) => {
+      if (ym.month === 1 && droppedJan++ < 2) values[i] = null;
+    });
+
+    const balance = seasonalSamplingBalance(months, values);
+    expect(balance.absentCalendarMonths).toEqual([]);
+    const clause = seasonalSamplingClause(balance, AIRTEMP)!;
+    expect(clause).not.toContain("extremes");
   });
 
   it("quantifies a resolvable bias in the scale's own units", () => {

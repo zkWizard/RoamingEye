@@ -133,6 +133,18 @@ export function seasonalSamplingBalance(
  * colormap quantization step is below the resolution the inverted values
  * carry at all (see `quantizationStep`) — printing it would claim precision
  * the method does not have.
+ *
+ * When whole calendar months are missing the clause also disclaims the
+ * extremes, not only the mean. `min` and `max` sit on the same status line,
+ * are reduced from the very same usable months, and are equally not annual —
+ * a record that lost every January reports its coldest month from the eleven
+ * that remain. Naming only the mean reads as a claim that the numbers beside
+ * it survived the gap, which is the reverse of the truth: the mean can at
+ * least be re-weighted towards balance, while an extremum drawn from months
+ * that were never sampled cannot be recovered at all. The disclaimer is
+ * deliberately symmetric — which of the two is understated depends on where
+ * the absent months sit in the local seasonal cycle, and this module holds no
+ * climatology with which to say, so it states the shared limit and stops.
  */
 export function seasonalSamplingClause(
   balance: SeasonalSamplingBalance,
@@ -140,9 +152,12 @@ export function seasonalSamplingClause(
 ): string | null {
   if (!balance.coversFullYear || balance.recordMean === null) return null;
   if (balance.absentCalendarMonths.length > 0) {
-    return `mean covers ${12 - balance.absentCalendarMonths.length} of 12 calendar months (no ${balance.absentCalendarMonths
-      .map((m) => MONTH_NAMES[m - 1])
-      .join(", ")}), so it is not an annual mean`;
+    return (
+      `mean covers ${12 - balance.absentCalendarMonths.length} of 12 calendar months (no ${balance.absentCalendarMonths
+        .map((m) => MONTH_NAMES[m - 1])
+        .join(", ")}), so it is not an annual mean` +
+      `; min and max share those months and are not annual extremes`
+    );
   }
   const bias = balance.seasonalSamplingBias;
   if (bias === null || Math.abs(bias) < quantizationStep(scale)) return null;
