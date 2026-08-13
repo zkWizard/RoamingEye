@@ -121,6 +121,19 @@ export interface SampleOptions {
    * so the chart can fill in progressively.
    */
   onValue?: (index: number, value: number | null) => void;
+  /**
+   * Observes the raw colours read for a month, in the same pixel order the
+   * inversion saw them, indexed like `onValue`.
+   *
+   * The inversion is lossy in one direction that matters: every colour it
+   * cannot match — an open-ended ramp cap, ocean, cloud, an unpublished month
+   * — collapses to the same `null`, so `validFraction` alone cannot say which
+   * of those a missing sample was. A caller that needs to tell them apart
+   * classifies the colours itself (see lib/gldasRampSaturation). Supplying
+   * this is the only thing that makes the sampler retain them, so callers that
+   * do not ask pay neither the allocation nor any behaviour change.
+   */
+  onSampledColors?: (index: number, colors: readonly Rgb[]) => void;
 }
 
 type ColorInverter = (rgb: Rgb) => number | null;
@@ -488,7 +501,7 @@ export class ProbeSampler {
     regionBounds?: Bounds,
     geometrySamplingStrategy?: GeometrySamplingStrategy
   ): Promise<SampleResult> {
-    const { signal, onProgress, onValue } = options;
+    const { signal, onProgress, onValue, onSampledColors } = options;
     const values: (number | null)[] = new Array(months.length).fill(null);
     const validFractions: number[] = new Array(months.length).fill(0);
     if (months.length === 0) {
@@ -519,12 +532,17 @@ export class ProbeSampler {
           ctx,
           combine,
           signal,
-          regionBounds
+          regionBounds,
+          onSampledColors !== undefined
         );
         values[index] = month.value;
         validFractions[index] = month.validFraction;
         done++;
         onValue?.(index, values[index]);
+        // A month whose imagery failed to load read no colours at all, which
+        // is not the same as reading colours that carried no value; the
+        // observer is left uncalled rather than handed an empty footprint.
+        if (month.colors) onSampledColors?.(index, month.colors);
         onProgress?.(done, months.length);
       }
     };
@@ -587,8 +605,13 @@ export class ProbeSampler {
       weights: number[]
     ) => number | null,
     signal?: AbortSignal,
-    regionBounds?: Bounds
-  ): Promise<{ value: number | null; validFraction: number }> {
+    regionBounds?: Bounds,
+    collectColors = false
+  ): Promise<{
+    value: number | null;
+    validFraction: number;
+    colors?: Rgb[];
+  }> {
     let source: ImageSource;
     try {
       source = regionBounds
@@ -604,10 +627,15 @@ export class ProbeSampler {
     const data = readSourcePixels(source, pixels, ctx);
 
     const inversions: (number | null)[] = [];
+    const colors: Rgb[] | undefined = collectColors ? [] : undefined;
     for (let i = 0; i < pixels.length; i++) {
-      inversions.push(
-        invert({ r: data[i * 4], g: data[i * 4 + 1], b: data[i * 4 + 2] })
-      );
+      const rgb = {
+        r: data[i * 4],
+        g: data[i * 4 + 1],
+        b: data[i * 4 + 2],
+      };
+      colors?.push(rgb);
+      inversions.push(invert(rgb));
     }
     // Coverage alongside the statistic: the (area-weighted) share of the
     // sampled grid that held data — combine-independent, so point mode's
@@ -621,6 +649,7 @@ export class ProbeSampler {
         inversions,
         pixels.map((p) => p.weight)
       ),
+      colors,
     };
   }
 
