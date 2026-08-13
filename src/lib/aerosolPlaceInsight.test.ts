@@ -352,4 +352,33 @@ describe("aerosol place-panel reading", () => {
     expect(reading.detail).toContain("could not be sampled");
     expect(reading.detail).not.toContain("very low");
   });
+
+  it("blames the published colormap only when the colormap is what failed", () => {
+    // A failure after the colormap parsed is this app's boundary sampling —
+    // tile retrieval, an unsampleable footprint, canvas decoding. Attributing
+    // it to NASA's published document would misstate a cited source.
+    const sampling = unavailableAerosolBoundaryReading(
+      MONTHS[1],
+      "boundary-sampling-failed"
+    );
+
+    expect(sampling.value).toBe("Unavailable");
+    expect(sampling.detail).toContain("could not be sampled for the searched");
+    expect(sampling.detail).not.toContain("source colormap");
+    // The source is still cited — only the blame for the failure moves.
+    expect(sampling.detail).toContain(`source ${AEROSOL_SOURCE.shortName}`);
+
+    const colormap = unavailableAerosolBoundaryReading(
+      MONTHS[1],
+      "source-colormap-unavailable"
+    );
+
+    expect(colormap.detail).toContain(
+      "could not be sampled from the published source colormap"
+    );
+    // Unspecified reason keeps the conservative existing wording.
+    expect(unavailableAerosolBoundaryReading(MONTHS[1]).detail).toBe(
+      colormap.detail
+    );
+  });
 });
