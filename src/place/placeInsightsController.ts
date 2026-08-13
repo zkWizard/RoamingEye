@@ -18,6 +18,9 @@ import {
   placeInsightReading,
 } from "../lib/placeInsights";
 import { NDVI_MAX_INVERSION_DISTANCE } from "../lib/vegetationIndexNoData";
+import { placeSnowCoverInsight } from "../lib/snowCoverNarrative";
+import { PROBE_SCALES, scaleValue } from "../lib/probe";
+import type { PlaceMetricLayerId } from "../lib/placeInsights";
 import {
   MARINE_PLACE_METRIC,
   marineBoundarySstReading,
@@ -65,6 +68,24 @@ import { PlaceInsights } from "../ui/PlaceInsights";
  * each card — loads as its own chunk on first search instead of riding the
  * boot bundle (the same treatment the providers/software/fleet panels got).
  */
+
+/**
+ * Narrow a place metric to the layers whose sample may enter the native-unit
+ * observation export.
+ *
+ * Snow is deliberately excluded. GIBS renders it through a discrete NDSI
+ * legend rather than one of the authoritative physical colormaps, so there is
+ * no `PLACE_COLORMAP_DOCS` entry to cite as the value mapping and no native
+ * unit to promise — the export would have to assert a provenance that does not
+ * exist. That is the same rule `nativePlaceSampleValues` already applies to
+ * display-ramp values; withholding the layer keeps the exported contract
+ * honest instead of publishing a percentage under an invented mapping.
+ */
+function exportableLayerId(
+  layerId: PlaceMetricLayerId
+): Exclude<PlaceMetricLayerId, "snow"> | null {
+  return layerId === "snow" ? null : layerId;
+}
 
 const placeInsightsEl = document.querySelector<HTMLElement>("#place-insights");
 
@@ -157,14 +178,17 @@ export function runPlaceInsights(result: GeoResult): void {
     const months = latestComparisonMonths(metric.layerId);
     if (!months) continue;
     monthCards.push({ label: metric.label, month: months[1] });
+    const exportLayerId = exportableLayerId(metric.layerId);
     // Start with explicit no-data observations. A failed request or an
     // unavailable authoritative colormap must not be replaced with a
     // display-converted value labelled as a native-unit measurement. NDVI is
     // the exception: its 0..1 physical range is already its native unit.
-    exportSamples.set(
-      metric.layerId,
-      environmentUnavailableSample(metric.layerId, months)
-    );
+    if (exportLayerId) {
+      exportSamples.set(
+        exportLayerId,
+        environmentUnavailableSample(exportLayerId, months)
+      );
+    }
     samplingTasks.push(
       (async () => {
         const colormap = await loadPlaceColormap(metric.layerId);
@@ -219,33 +243,53 @@ export function runPlaceInsights(result: GeoResult): void {
                 months[1]
               )
             : null;
+        // Snow has no continuous GIBS ramp to decode against (its NDSI legend
+        // is discrete, so `loadPlaceColormap` returns null and the shared
+        // display-ramp path would apply here). That path is measured accurate
+        // for this layer — 0.62 percentage points RMSE over all 100 published
+        // colours, with every observation flag rejected outright
+        // (lib/snowCoverRamp MEASURED_SNOW_COVER_INVERSION) — but it cannot
+        // state the drawn-fraction bias that percent-0 transparency creates,
+        // so the card is written by the snow narrative instead.
+        const snowReading =
+          metric.layerId === "snow"
+            ? placeSnowCoverInsight(
+                months,
+                values.map((value) =>
+                  value === null ? null : scaleValue(value, PROBE_SCALES.snow)
+                ),
+                months[1],
+                { validFractions, sourceImageDimensions }
+              )
+            : null;
         placeInsights.setReading(
-          climateReading
-            ? {
-                id: metric.id,
-                ...climateInsightText(climateReading[0], climateReading[1]),
-              }
-            : colormap
-              ? placeInsightPhysicalReading(metric, months, values, {
-                  validFractions,
-                  sourceImageDimensions,
-                  geometrySamplingStrategy,
-                })
-              : placeInsightReading(metric, months, values, {
-                  validFractions,
-                  sourceImageDimensions,
-                  geometrySamplingStrategy,
-                })
+          snowReading
+            ? { id: metric.id, ...snowReading }
+            : climateReading
+              ? {
+                  id: metric.id,
+                  ...climateInsightText(climateReading[0], climateReading[1]),
+                }
+              : colormap
+                ? placeInsightPhysicalReading(metric, months, values, {
+                    validFractions,
+                    sourceImageDimensions,
+                    geometrySamplingStrategy,
+                  })
+                : placeInsightReading(metric, months, values, {
+                    validFractions,
+                    sourceImageDimensions,
+                    geometrySamplingStrategy,
+                  })
         );
-        if (colormap) {
-          exportSamples.set(metric.layerId, {
-            layerId: metric.layerId,
+        if (colormap && exportLayerId) {
+          exportSamples.set(exportLayerId, {
+            layerId: exportLayerId,
             sampledUnit:
-              SCALE_CONVERSIONS[
-                metric.layerId as keyof typeof SCALE_CONVERSIONS
-              ]?.unit ?? PLACE_OBSERVATION_NATIVE_UNITS[metric.layerId],
+              SCALE_CONVERSIONS[exportLayerId as keyof typeof SCALE_CONVERSIONS]
+                ?.unit ?? PLACE_OBSERVATION_NATIVE_UNITS[exportLayerId],
             sourceValueFactor: colormap?.factor ?? 1,
-            colormapUrl: colormapUrl(PLACE_COLORMAP_DOCS[metric.layerId]),
+            colormapUrl: colormapUrl(PLACE_COLORMAP_DOCS[exportLayerId]),
             samplingSupport: geometrySampling,
             samplingStrategy: geometrySamplingStrategy,
             sourceImageDimensions,

@@ -7,7 +7,9 @@ import {
 import {
   describeSnowCoverObservation,
   describeSnowSeasonChangeNarrative,
+  placeSnowCoverInsight,
 } from "./snowCoverNarrative";
+import type { YearMonth } from "./timeline";
 
 const AVAILABLE_THROUGH = { year: 2026, month: 1 };
 
@@ -185,5 +187,74 @@ describe("describeSnowSeasonChangeNarrative", () => {
 
     expect(narrative.headline).toContain("retreated");
     expect(narrative.detail).toContain("retreated by 25 percentage points");
+  });
+});
+
+describe("placeSnowCoverInsight", () => {
+  const months: [YearMonth, YearMonth] = [
+    { year: 2025, month: 2 },
+    { year: 2025, month: 3 },
+  ];
+
+  it("reports the later month's covered area and the month-over-month move", () => {
+    const insight = placeSnowCoverInsight(months, [80, 55], months[1], {
+      validFractions: [0.9, 0.85],
+      sourceImageDimensions: { width: 512, height: 256 },
+    });
+
+    expect(insight.value).toBe("55%");
+    expect(insight.detail).toContain("retreated by 25 percentage points");
+    expect(insight.detail).toContain("rendered source image 512 x 256 px");
+    expect(insight.detail).toContain("MOD10CM");
+  });
+
+  it("always states that snow-free ground is undrawn and excluded", () => {
+    const insight = placeSnowCoverInsight(months, [40, 45], months[1]);
+
+    // The number reads like a share of the place; without this it would be
+    // taken for one.
+    expect(insight.detail).toContain("GIBS draws no colour for 0% snow");
+    expect(insight.detail).toContain("not the snow-covered share of the place");
+  });
+
+  it("withholds a value when the later month has no usable observation", () => {
+    const insight = placeSnowCoverInsight(months, [80, null], months[1]);
+
+    expect(insight.value).toBe("Unavailable");
+    expect(insight.detail).toContain("No usable monthly-average value");
+    // The caveat still has to travel with the card.
+    expect(insight.detail).toContain("GIBS draws no colour for 0% snow");
+  });
+
+  it("rejects an out-of-range percentage as a decode failure, not a reading", () => {
+    // A covered-area percentage is bounded by its own definition; 128 is a
+    // scaling error, and clamping it to 100 would publish it as total cover.
+    const insight = placeSnowCoverInsight(months, [80, 128], months[1]);
+
+    expect(insight.value).toBe("Unavailable");
+    expect(insight.detail).not.toContain("128");
+  });
+
+  it("does not report a trend across non-adjacent months", () => {
+    const gapped: [YearMonth, YearMonth] = [
+      { year: 2025, month: 1 },
+      { year: 2025, month: 5 },
+    ];
+    const insight = placeSnowCoverInsight(gapped, [80, 55], gapped[1]);
+
+    expect(insight.value).toBe("55%");
+    expect(insight.detail).toContain("not exactly one calendar month apart");
+    expect(insight.detail).not.toContain("retreated by");
+  });
+
+  it("carries sampled coverage through to the rendered detail", () => {
+    const insight = placeSnowCoverInsight(months, [80, 55], months[1], {
+      validFractions: [0.9, 0.4],
+    });
+
+    expect(insight.detail).toContain("40%");
+    expect(insight.detail).toContain(
+      "rendered source image dimensions not supplied"
+    );
   });
 });
