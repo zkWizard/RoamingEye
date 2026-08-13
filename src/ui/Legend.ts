@@ -3,8 +3,10 @@ import { LAYERS, type LayerId } from "../lib/timeline";
 import {
   LEGENDS,
   gradientCss,
+  legendProvenance,
   legendTicks,
   overlayKeyFor,
+  type LegendProvenance,
 } from "../lib/legend";
 import {
   terrainLayerContext,
@@ -147,12 +149,15 @@ export class Legend {
     const spec = LEGENDS[id];
     this.measures.textContent = spec.measures;
     this.caption.textContent = LAYERS[id].description;
-    this.sourceNote.hidden = id !== "terrain" && !spec.interpretationNote;
+    // Every layer that names a source product cites it here, not only the ones
+    // whose colours also need a caveat (lib/legend legendProvenance).
+    const provenance = id === "terrain" ? null : legendProvenance(id);
+    this.sourceNote.hidden = id !== "terrain" && provenance === null;
     this.sourceNote.replaceChildren();
     if (id === "terrain") {
       this.renderTerrainSourceNote();
-    } else if (spec.interpretationNote) {
-      this.renderInterpretationNote(id, spec.interpretationNote);
+    } else if (provenance) {
+      this.renderSourceNote(provenance);
     }
 
     // Categorical layers get named class swatches instead of a gradient bar.
@@ -235,19 +240,19 @@ export class Legend {
     );
   }
 
-  private renderInterpretationNote(id: LayerId, note: string): void {
-    const dataset = LAYERS[id].dataset;
-    if (!dataset) {
-      this.sourceNote.textContent = note;
-      return;
-    }
-
+  private renderSourceNote(provenance: LegendProvenance): void {
     const source = document.createElement("a");
-    source.href = doiResolverUrl(dataset.doi);
+    source.href = doiResolverUrl(provenance.doi);
     source.target = "_blank";
     source.rel = "noreferrer";
-    source.textContent = `${dataset.shortName} v${dataset.version}`;
-    source.setAttribute("aria-label", `${dataset.shortName} dataset DOI`);
-    this.sourceNote.append("Source: ", source, `. ${note}`);
+    source.textContent = provenance.label;
+    source.setAttribute("aria-label", `${provenance.label} dataset DOI`);
+    // The guardrail follows the citation when the layer has one; a layer
+    // without one still states its source rather than staying silent.
+    this.sourceNote.append(
+      "Source: ",
+      source,
+      provenance.note ? `. ${provenance.note}` : "."
+    );
   }
 }

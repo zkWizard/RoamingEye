@@ -56,6 +56,8 @@ import {
   nearbyVolcanoContext,
 } from "../lib/volcanoProximityContext";
 import { parseVolcanoDataset } from "../lib/volcanoes";
+import { plateBoundariesInSearchExtent } from "../lib/plateBoundaryContext";
+import { parsePlateBoundaries } from "../lib/plates";
 import type { GeoResult } from "../lib/geocoding";
 import { fetchJson, isAbortError } from "../lib/net";
 import { ProbeSampler } from "../probe/ProbeSampler";
@@ -143,6 +145,34 @@ export function runPlaceInsights(result: GeoResult): void {
       });
   } else {
     placeInsights.setVolcanoContext(volcanoesInSearchExtent([], null));
+  }
+
+  // Which Bird (2003) boundary polylines cross the same extent. The plate
+  // overlay already reads this bundled file, so the panel reuses the identical
+  // URL and parser rather than introducing a second view of the linework.
+  if (result.boundingBox) {
+    void fetchJson<unknown>(
+      `${import.meta.env.BASE_URL}data/plate-boundaries.geojson`,
+      { signal: abort.signal }
+    )
+      .then(parsePlateBoundaries)
+      .then((boundaries) => {
+        if (abort.signal.aborted) return;
+        placeInsights.setPlateBoundaryContext(
+          plateBoundariesInSearchExtent(boundaries, result.boundingBox)
+        );
+      })
+      .catch((error: unknown) => {
+        if (isAbortError(error) || abort.signal.aborted) return;
+        console.warn("RoamingEye: place plate context failed to load", error);
+        placeInsights.setPlateBoundaryUnavailable();
+      });
+  } else {
+    // No usable extent means nothing to intersect; report that directly rather
+    // than spending a request on the bundled linework.
+    placeInsights.setPlateBoundaryContext(
+      plateBoundariesInSearchExtent([], null)
+    );
   }
 
   // Live seismicity for the same extent. The overlay already reads this feed,
