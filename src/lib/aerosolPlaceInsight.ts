@@ -314,10 +314,49 @@ function unusableReason(summary: AerosolLoadingSummary): string {
   return summary.coverage.reason ?? "unspecified";
 }
 
+/**
+ * Complete coverage is a ratio of two compensated area sums, so it can land a
+ * representation error below one rather than exactly on it. This snaps such a
+ * share back to `100%` instead of demoting it to the bounded wording below,
+ * which exists for genuinely incomplete samples.
+ */
+const PERCENT_SNAP_EPSILON = 1e-9;
+
 function coverageText(validFraction: number | null): string {
   return validFraction === null
     ? "sampled coverage not supplied"
-    : `${Math.round(validFraction * 100)}% sampled boundary coverage`;
+    : `${formatCoverageShare(validFraction)} sampled boundary coverage`;
+}
+
+/**
+ * Whole percent, except at the two endpoints where nearest rounding would state
+ * something the share does not say.
+ *
+ * Rounding an incomplete share to `100%` claims the boundary mean covers the
+ * whole searched area when part of it went unobserved — and on this layer the
+ * unobserved part is not a random scatter. As {@link AEROSOL_RAMP_CEILING}
+ * records, `parseColormapEntries` drops the open-ended `>= 0.900` bin, so the
+ * heaviest pixels decode as no-data: the missing share is drawn from the heavy
+ * tail, and its absence biases the mean low. Rounding it away removes the only
+ * cue on the card that this happened.
+ *
+ * The floor case is the mirror. A positive share below half a percent rounds to
+ * `0%`, which sits beside a printed AOD number and reads as a value derived
+ * from nothing; `marineBoundarySstSupport` states the same "<1%" rule for the
+ * same reason. A share of exactly zero keeps `0%` — there the card is reporting
+ * no data, not contradicting itself.
+ *
+ * Both endpoint cases are written as bounds because that is what they are.
+ * Shares away from the endpoints keep nearest rounding, which is the useful
+ * reading of a known share.
+ */
+function formatCoverageShare(fraction: number): string {
+  if (fraction <= 0) return "0%";
+  if (fraction >= 1 - PERCENT_SNAP_EPSILON) return "100%";
+  const percent = Math.round(fraction * 100);
+  if (percent >= 100) return ">99%";
+  if (percent <= 0) return "<1%";
+  return `${percent}%`;
 }
 
 function imageProvenance(
