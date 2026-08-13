@@ -7,7 +7,7 @@ import {
   placeInsightPhysicalReading,
   placeInsightReading,
 } from "./placeInsights";
-import type { YearMonth } from "./timeline";
+import { LAYERS, type YearMonth } from "./timeline";
 
 describe("place insights", () => {
   it("binds vegetation sampling to the MOD13A3 rendered colormap", () => {
@@ -409,5 +409,34 @@ describe("place insights", () => {
       "single boundary point estimate, not a regional mean"
     );
     expect(detail).not.toContain("100% sampled coverage");
+  });
+});
+
+describe("cryosphere coverage on the place panel", () => {
+  it("gives the rendered snow-cover layer a card", () => {
+    // A calibrated layer can be absent from the panel with nothing visibly
+    // broken — aerosol was, once. This asserts the LAYERS/PLACE_METRICS pair
+    // stays closed for the cryosphere.
+    const snow = PLACE_METRICS.find((metric) => metric.id === "snow");
+
+    expect(snow).toBeDefined();
+    expect(snow?.layerId).toBe("snow");
+    expect(LAYERS[snow!.layerId].category).toBe("Cryosphere");
+  });
+
+  it("labels a snow difference in percentage points, not percent", () => {
+    // Two area percentages differ by percentage points; "%" would read as a
+    // relative change in cover.
+    const snow = PLACE_METRICS.find((metric) => metric.id === "snow")!;
+    const reading = placeInsightPhysicalReading(
+      snow,
+      [
+        { year: 2025, month: 2 },
+        { year: 2025, month: 3 },
+      ],
+      [80, 55]
+    );
+
+    expect(reading.detail).toContain("-25 pp");
   });
 });
