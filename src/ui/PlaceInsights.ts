@@ -20,6 +20,7 @@ import {
   type VolcanoExtentContext,
 } from "../lib/volcanoExtent";
 import {
+  reportedMagnitudeText,
   USGS_M45_MONTH_SOURCE,
   type EarthquakePlaceContext,
   type NearbyEarthquakeObservation,
@@ -67,6 +68,7 @@ export class PlaceInsights {
   private readonly volcanoSource: HTMLAnchorElement;
   private readonly seismicityValue: HTMLElement;
   private readonly seismicityDetail: HTMLElement;
+  private readonly seismicityMagnitude: HTMLElement;
   private readonly seismicityRecords: HTMLUListElement;
   private readonly note: HTMLElement;
 
@@ -162,6 +164,11 @@ export class PlaceInsights {
     this.seismicityValue.setAttribute("aria-live", "polite");
     this.seismicityDetail = document.createElement("p");
     this.seismicityDetail.className = "place-insights__detail";
+    // The record list below is truncated and ordered nearest first, so the
+    // largest value the feed reported near this place — and the methods behind
+    // the values shown — get their own line.
+    this.seismicityMagnitude = document.createElement("p");
+    this.seismicityMagnitude.className = "place-insights__detail";
     this.seismicityRecords = document.createElement("ul");
     this.seismicityRecords.className = "place-insights__record-list";
     const seismicitySource = document.createElement("a");
@@ -174,6 +181,7 @@ export class PlaceInsights {
       seismicityTitle,
       this.seismicityValue,
       this.seismicityDetail,
+      this.seismicityMagnitude,
       this.seismicityRecords,
       seismicitySource
     );
@@ -371,6 +379,7 @@ export class PlaceInsights {
     this.seismicityValue.textContent = "Loading USGS events";
     this.seismicityDetail.textContent =
       "Checking the live USGS M4.5+ 30-day feed against this search extent";
+    this.seismicityMagnitude.textContent = "";
     this.seismicityRecords.replaceChildren();
   }
 
@@ -382,6 +391,9 @@ export class PlaceInsights {
    */
   setSeismicityContext(context: EarthquakePlaceContext): void {
     this.seismicityRecords.replaceChildren();
+    // Silent unless events matched, so a no-event or unusable-query result
+    // gains no line.
+    this.seismicityMagnitude.textContent = reportedMagnitudeText(context) ?? "";
     const { coverage, query } = context;
 
     if (coverage.status === "invalid-query") {
@@ -423,6 +435,7 @@ export class PlaceInsights {
 
   setSeismicityUnavailable(): void {
     this.seismicityRecords.replaceChildren();
+    this.seismicityMagnitude.textContent = "";
     this.seismicityValue.textContent = "Events unavailable";
     this.seismicityDetail.textContent =
       "The live USGS M4.5+ feed could not be loaded for this search.";
