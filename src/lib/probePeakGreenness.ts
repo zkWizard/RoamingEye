@@ -1,4 +1,5 @@
 import {
+  MINIMUM_MONTHS_FOR_ANNUAL_EXTREMA,
   summarizeAnnualNdviPhenology,
   type NdviAnnualPhenology,
   type NdviMonthlyObservation,
@@ -343,6 +344,74 @@ export function dominantMonthTieClause(
       ? "earliest named"
       : "nearest the circular mean named";
   return `modal peak month tied with ${names} (${basis})`;
+}
+
+/**
+ * Fifth qualifier for {@link peakGreennessClause}: how much of the probed
+ * record actually stood behind that modal month, and over which years.
+ *
+ * The clause prints its count against `contributingYearCount` — the years that
+ * yielded a usable annual peak — and nothing else names that denominator. So a
+ * record whose every year summarized and one whose years mostly dropped out
+ * print the same shape: "peak NDVI month usually Jul (5/14 yr)" is a complete
+ * 14-year record or a 26-year record with 12 years discarded, and the status
+ * line cannot tell them apart. The months fraction printed earlier does not
+ * recover it either — the same month count spread thinly across every year
+ * leaves no year summarizable, while massed into half the years it leaves half
+ * of them intact.
+ *
+ * `phenologyPeakTiming.ts` retains the exclusions deliberately, so that "the
+ * contributing sample is always reconstructable from the coverage tally". It is
+ * reconstructable in the summary and was discarded on the way to the panel;
+ * this puts it back. Two exclusion reasons exist and are reported separately
+ * because they mean different things: a year is *sparse* when fewer than
+ * {@link MINIMUM_MONTHS_FOR_ANNUAL_EXTREMA} of its months carried a usable
+ * observation, so no annual extremum was computed for it at all; a year is
+ * *unusable* when its peak month or calendar year failed validation, or the
+ * year repeated.
+ *
+ * The span names the first and last CONTRIBUTING years rather than the record's
+ * own bounds, because those are the years the month was actually counted over.
+ * It is a span, not a claim of continuity: an excluded year inside it stays
+ * inside it, which is exactly why the exclusion count is printed beside it.
+ *
+ * Silent when no supplied year was excluded — so a clean record adds no
+ * status-line text — and when the timing clause named no month to qualify.
+ * This reports record coverage only. A dropped year is a year MOD13A3 and the
+ * sampler between them could not fill, never a year without vegetation, and
+ * this infers no phenophase, growing-season length, productivity, biomass,
+ * canopy, land cover, cause, or forecast.
+ */
+export function peakYearCoverageClause(
+  timing: PeakGreennessTiming | null
+): string | null {
+  if (!timing) return null;
+  if (timing.status !== "available" || !timing.dominantPeakMonth) return null;
+
+  const { contributingYearCount, sparseYearCount, invalidYearCount } =
+    timing.coverage;
+  const excluded = sparseYearCount + invalidYearCount;
+  if (excluded === 0) return null;
+
+  const { firstYear, lastYear } = timing.coverage;
+  const supplied = contributingYearCount + excluded;
+  const reasons: string[] = [];
+  if (sparseYearCount > 0) {
+    reasons.push(
+      `${sparseYearCount} under ${MINIMUM_MONTHS_FOR_ANNUAL_EXTREMA} usable months`
+    );
+  }
+  if (invalidYearCount > 0) reasons.push(`${invalidYearCount} unusable`);
+
+  // firstYear/lastYear are non-null whenever a year contributed, which an
+  // "available" status guarantees; the guard keeps the copy honest rather than
+  // printing "null–null" if that ever changes.
+  const span =
+    firstYear === null || lastYear === null ? "" : `${firstYear}–${lastYear}; `;
+  return (
+    `peak timing from ${contributingYearCount}/${supplied} yr ` +
+    `(${span}${reasons.join(", ")})`
+  );
 }
 
 /**
