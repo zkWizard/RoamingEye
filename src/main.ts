@@ -802,6 +802,35 @@ if (probeEl) {
       });
   };
 
+  // Same on-demand class tables as the point read, over the drawn box: a
+  // region covers many source pixels, so the honest answer is the mix of
+  // classes rather than one label.
+  const readLandCoverRegion = (
+    layer: LayerConfig,
+    ym: YearMonth,
+    bounds: Bounds,
+    abort: AbortController
+  ): void => {
+    panel.setStatus("Reading land-cover classes…");
+    Promise.all([
+      sampler.sampleRenderedRegionPixels(layer, ym, bounds, {
+        signal: abort.signal,
+      }),
+      import("./probe/landCoverRegionRead"),
+    ])
+      .then(([{ pixels, sampling }, { readLandCoverRegionText }]) => {
+        if (abort.signal.aborted) return;
+        panel.setStatus(readLandCoverRegionText(pixels, ym.year, sampling));
+      })
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        console.warn("RoamingEye: land-cover region read failed", err);
+        panel.setStatus(
+          "Reading the land-cover classes failed — check the connection and retry."
+        );
+      });
+  };
+
   const runProbe = (lat: number, lon: number): void => {
     const layer = LAYERS[currentLayer];
     const mode = panel.mode;
@@ -927,6 +956,17 @@ if (probeEl) {
       return;
     }
     if (layer.categorical) {
+      // No numeric series to chart — but the class mix over the drawn box is a
+      // real, citable observation, so read it instead of dead-ending. Only the
+      // IGBP layer has a decodable palette here; any other class-coded layer
+      // keeps the honest "nothing to chart" message rather than being read
+      // through a palette that does not describe it.
+      if (layer.id === "landcover") {
+        probeAbort?.abort();
+        const abort = (probeAbort = new AbortController());
+        readLandCoverRegion(layer, months[currentIndex], bounds, abort);
+        return;
+      }
       panel.setStatus(
         "This layer shows classes, not a measurement — there is no numeric series to chart."
       );
