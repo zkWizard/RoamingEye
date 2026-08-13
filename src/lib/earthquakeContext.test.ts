@@ -377,8 +377,136 @@ describe("reportedMagnitudeText", () => {
     expect(text).toContain("M 6.4 (Mww, reported)");
     expect(text).toContain("mb ×2, mww ×1");
     expect(text).toContain("not directly comparable");
+    // The tally prints the feed's own codes; the glossary says what each one
+    // measures, in the same order, so the two lists correspond term for term.
+    expect(text).toContain(
+      "Reported methods: mb is short-period body-wave magnitude; " +
+        "Mww is moment magnitude (W-phase)."
+    );
     // The value the feed reported is never presented as a size ranking.
     expect(text).toContain("not a ranking of earthquake size");
+  });
+
+  it("expands the sole reported code inline for a single-method set", () => {
+    const text = reportedMagnitudeText(
+      nearbyEarthquakeContext(
+        [earthquake({ lat: 0.1, magnitude: 6.1, magnitudeType: "mww" })],
+        query
+      )
+    );
+
+    expect(text).toContain(
+      "Every matched event was reported as mww, moment magnitude (W-phase)."
+    );
+    // A uniform set gains no mixing caveat and no separate glossary sentence.
+    expect(text).not.toContain("Reported methods");
+    expect(text).not.toContain("mix magnitude methods");
+  });
+
+  it("names a scale once when distinct feed spellings decode to it", () => {
+    const text = reportedMagnitudeText(
+      nearbyEarthquakeContext(
+        [
+          // USGS lists "ms" and "ms_20" as spellings of one method, so the
+          // tally keeps both verbatim while the glossary names it once.
+          earthquake({ lat: 0.1, magnitude: 6.2, magnitudeType: "ms" }),
+          earthquake({ lat: 0.2, magnitude: 6.4, magnitudeType: "ms_20" }),
+        ],
+        query
+      )
+    );
+
+    expect(text).toContain("ms ×1, ms_20 ×1");
+    expect(text).toContain(
+      "Reported methods: Ms_20 is 20-second surface-wave magnitude."
+    );
+    expect(text?.match(/Ms_20 is /g)).toHaveLength(1);
+  });
+
+  it("skips codes outside the published vocabulary rather than guessing", () => {
+    const text = reportedMagnitudeText(
+      nearbyEarthquakeContext(
+        [
+          earthquake({ lat: 0.1, magnitude: 5.2, magnitudeType: "mystery" }),
+          earthquake({ lat: 0.2, magnitude: 6.1, magnitudeType: "mww" }),
+        ],
+        query
+      )
+    );
+
+    // The unrecognized code stays in the tally verbatim...
+    expect(text).toContain("mystery ×1");
+    // ...but is never attributed to a method USGS did not publish.
+    expect(text).toContain(
+      "Reported methods: Mww is moment magnitude (W-phase)."
+    );
+    expect(text).not.toContain("mystery is");
+  });
+
+  it("drops the glossary when no reported code resolves to a scale", () => {
+    const text = reportedMagnitudeText(
+      nearbyEarthquakeContext(
+        [
+          earthquake({ lat: 0.1, magnitude: 5.2, magnitudeType: "mystery" }),
+          earthquake({ lat: 0.2, magnitude: 6.1, magnitudeType: "odd" }),
+        ],
+        query
+      )
+    );
+
+    expect(text).toContain("mystery ×1, odd ×1");
+    expect(text).not.toContain("Reported methods");
+  });
+
+  it("leaves a lone reported code unexpanded when it is unrecognized", () => {
+    const text = reportedMagnitudeText(
+      nearbyEarthquakeContext(
+        [earthquake({ lat: 0.1, magnitude: 6.1, magnitudeType: "mystery" })],
+        query
+      )
+    );
+
+    expect(text).toContain("Every matched event was reported as mystery.");
+  });
+
+  it("names all four methods when there are exactly four", () => {
+    const text = reportedMagnitudeText(
+      nearbyEarthquakeContext(
+        [
+          earthquake({ lat: 0.1, magnitude: 5.2, magnitudeType: "mb" }),
+          earthquake({ lat: 0.2, magnitude: 6.1, magnitudeType: "mww" }),
+          earthquake({ lat: 0.3, magnitude: 4.9, magnitudeType: "ml" }),
+          earthquake({ lat: 0.4, magnitude: 5.5, magnitudeType: "mwr" }),
+        ],
+        query
+      )
+    );
+
+    expect(text).toContain(
+      "Reported methods: mb is short-period body-wave magnitude; " +
+        "ml is local magnitude; Mwr is moment magnitude (regional); " +
+        "Mww is moment magnitude (W-phase)."
+    );
+    expect(text).not.toContain("further methods");
+  });
+
+  it("counts the remainder when more than four methods are reported", () => {
+    const text = reportedMagnitudeText(
+      nearbyEarthquakeContext(
+        [
+          earthquake({ lat: 0.1, magnitude: 5.2, magnitudeType: "mb" }),
+          earthquake({ lat: 0.2, magnitude: 6.1, magnitudeType: "mww" }),
+          earthquake({ lat: 0.3, magnitude: 4.9, magnitudeType: "ml" }),
+          earthquake({ lat: 0.4, magnitude: 5.5, magnitudeType: "mwr" }),
+          earthquake({ lat: 0.5, magnitude: 5.0, magnitudeType: "mwp" }),
+        ],
+        query
+      )
+    );
+
+    // Naming three of five leaves two unnamed: the cap can never leave exactly
+    // one, so the plural reads correctly without a singular branch.
+    expect(text).toContain("2 further methods not named.");
   });
 
   it("carries the saturation caveat when the largest value came from a saturating scale", () => {
