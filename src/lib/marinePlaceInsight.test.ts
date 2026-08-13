@@ -299,7 +299,7 @@ describe("marine boundary SST insights", () => {
     expect(reading.detail).toContain("not a marine-biology observation");
   });
 
-  it("leaves an in-ramp boundary mean unqualified", () => {
+  it("claims no bound for an in-ramp boundary mean but says the screen is blind to the pixels", () => {
     const reading = marineBoundarySstReading({
       geographyLabel: "Monterey Bay",
       dataMonth: { year: 2026, month: 3 },
@@ -316,6 +316,47 @@ describe("marine boundary SST insights", () => {
     expect(reading.detail).not.toContain("upper bound");
     expect(reading.detail).not.toContain("lower bound");
     expect(reading.detail).not.toContain("published colormap");
+    // The mean is an area-weighted mean of per-pixel decodes, so its silence is
+    // not evidence of an uncensored boundary — the probe says this for its own
+    // averaged footprints and the place card samples through the same combiner.
+    expect(reading.detail).toContain(
+      "not evidence the boundary held no censored pixel"
+    );
+  });
+
+  it("says a marked boundary mean's bound was read off the mean not its pixels", () => {
+    const reading = marineBoundarySstReading({
+      geographyLabel: "Barents Sea",
+      dataMonth: { year: 2026, month: 3 },
+      observedValue: 0.075,
+      validFraction: 0.88,
+      sourceImageDimensions: { width: 512, height: 512 },
+    });
+
+    expect(reading.detail).toContain(
+      "that bound screens the boundary mean and not the pixels behind it"
+    );
+    // The two wordings are alternatives, never both: one explains a mark, the
+    // other a silence.
+    expect(reading.detail).not.toContain(
+      "not evidence the boundary held no censored pixel"
+    );
+  });
+
+  it("stays silent about averaged censoring with no usable observation", () => {
+    for (const reading of [
+      marineBoundarySstReading({
+        geographyLabel: "Nebraska",
+        dataMonth: { year: 2026, month: 3 },
+        observedValue: null,
+        validFraction: 0,
+        sourceImageDimensions: { width: 512, height: 512 },
+      }),
+      unavailableMarineBoundarySstReading({ year: 2026, month: 3 }, "Nebraska"),
+    ]) {
+      expect(reading.detail).not.toContain("censored pixel");
+      expect(reading.detail).not.toContain("per-pixel decodes");
+    }
   });
 
   it("does not judge ramp position when there is no usable observation", () => {
