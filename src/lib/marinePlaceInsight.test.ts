@@ -546,3 +546,65 @@ describe("same-calendar-month year-over-year boundary SST difference", () => {
     expect(unavailable.yearOverYear.status).toBe("target-not-usable");
   });
 });
+
+describe("year-over-year SST differences respect the colormap's open end caps", () => {
+  const IMAGE = { width: 512, height: 512 };
+
+  function withPriorYear(observedValue: number, priorObservedValue: number) {
+    return marineBoundarySstReading({
+      geographyLabel: "Persian Gulf",
+      dataMonth: { year: 2026, month: 8 },
+      observedValue,
+      validFraction: 0.7,
+      sourceImageDimensions: IMAGE,
+      priorYear: {
+        dataMonth: { year: 2025, month: 8 },
+        observedValue: priorObservedValue,
+        validFraction: 0.68,
+      },
+    });
+  }
+
+  it("never reports 'unchanged' when both months saturate the warm cap", () => {
+    // Both Augusts decode to the ceiling bin, so the difference is exactly 0 —
+    // which previously read as "unchanged" about an unknowable change.
+    const reading = withPriorYear(31.9, 31.9);
+    expect(reading.yearOverYear.status).toBe("censored-endpoints");
+    expect(reading.yearOverYear.direction).toBeNull();
+    expect(reading.yearOverYear.difference).toBeNull();
+    expect(reading.detail).not.toMatch(/unchanged/i);
+    expect(reading.detail).toContain("no year-over-year difference stated");
+  });
+
+  it("renders a one-sided bound with its inequality", () => {
+    const reading = withPriorYear(31.9, 24);
+    expect(reading.yearOverYear.status).toBe("available");
+    expect(reading.yearOverYear.differenceBound).toBe("lower");
+    expect(reading.yearOverYear.direction).toBe("warmer");
+    expect(reading.detail).toContain("≥ +7.9");
+    expect(reading.detail).toContain("bounds this difference on one side only");
+  });
+
+  it("withholds the difference when both months sit on the cold cap", () => {
+    // A sub-polar boundary sampled two Augusts apart: both decode into the floor
+    // bin, so the two caps bound the difference in opposing directions.
+    const reading = withPriorYear(0.05, 0.1);
+    expect(reading.yearOverYear.status).toBe("censored-endpoints");
+    expect(reading.yearOverYear.direction).toBeNull();
+  });
+
+  it("bounds the difference from above when the prior year is capped", () => {
+    const reading = withPriorYear(24, 31.9);
+    expect(reading.yearOverYear.differenceBound).toBe("upper");
+    expect(reading.yearOverYear.direction).toBe("cooler");
+    expect(reading.detail).toContain("≤ -7.9");
+  });
+
+  it("leaves an uncensored pair reporting a plain difference", () => {
+    const reading = withPriorYear(18.4, 17.5);
+    expect(reading.yearOverYear.status).toBe("available");
+    expect(reading.yearOverYear.differenceBound).toBeNull();
+    expect(reading.yearOverYear.direction).toBe("warmer");
+    expect(reading.detail).not.toContain("≥");
+  });
+});

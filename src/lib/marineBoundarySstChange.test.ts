@@ -239,3 +239,88 @@ describe("the one-line readout", () => {
     expect(line).not.toMatch(/forecast|expect|will|habitat|bleach|species/i);
   });
 });
+
+describe("open colormap end caps constrain the reported change", () => {
+  it("states no change when both months saturate the same cap", () => {
+    // Two months of a tropical warm pool both decode into the ceiling bin. The
+    // plain difference is 0.0 °C, which would read as "little change" about
+    // water whose true change the colormap destroyed.
+    const change = describeMarineBoundarySstChange(
+      reading(JAN, 31.9, 0.8),
+      reading(FEB, 31.9, 0.8)
+    );
+    expect(change.status).toBe("incomparable-censoring");
+    expect(change.reason).toBe("both-endpoints-censored");
+    expect(change.changeValue).toBeNull();
+    expect(change.trend).toBeNull();
+    expect(change.censoring.bound).toBe("indeterminate");
+    expect(formatMarineBoundarySstChange(change)).not.toMatch(/little change/i);
+  });
+
+  it("states no change when both months sit on the cold cap", () => {
+    const change = describeMarineBoundarySstChange(
+      reading(JAN, 0.1, 0.6),
+      reading(FEB, 0.05, 0.6)
+    );
+    expect(change.status).toBe("incomparable-censoring");
+    expect(change.trend).toBeNull();
+  });
+
+  it("reports a one-sided bound when only the later month is censored", () => {
+    const change = describeMarineBoundarySstChange(
+      reading(JAN, 20, 0.8),
+      reading(FEB, 31.9, 0.8)
+    );
+    expect(change.status).toBe("available");
+    expect(change.censoring.bound).toBe("lower");
+    expect(change.changeValue).toBeCloseTo(11.9, 6);
+    // The bound already clears the direction threshold, so warmer is certain.
+    expect(change.trend).toBe("warmer");
+    expect(formatMarineBoundarySstChange(change)).toContain("≥ +11.9 °C");
+  });
+
+  it("withholds the direction when a one-sided bound cannot prove it", () => {
+    // Earlier on the warm cap bounds the change from ABOVE: the true change is
+    // at most -0.2 °C... but -0.2 °C does not reach the 0.5 °C threshold, so
+    // "cooler" is unproven and "little change" is flatly unavailable.
+    const change = describeMarineBoundarySstChange(
+      reading(JAN, 31.9, 0.8),
+      reading(FEB, 31.7, 0.8)
+    );
+    expect(change.status).toBe("available");
+    expect(change.censoring.bound).toBe("upper");
+    expect(change.trend).toBeNull();
+    const line = formatMarineBoundarySstChange(change);
+    expect(line).toContain("direction not established");
+    expect(line).toContain("≤ -0.2 °C");
+    expect(line).not.toMatch(/little change/i);
+  });
+
+  it("still proves cooling when the upper bound clears the threshold", () => {
+    const change = describeMarineBoundarySstChange(
+      reading(JAN, 31.9, 0.8),
+      reading(FEB, 25, 0.8)
+    );
+    expect(change.censoring.bound).toBe("upper");
+    expect(change.trend).toBe("cooler");
+    expect(formatMarineBoundarySstChange(change)).toContain("≤ -6.9 °C");
+  });
+
+  it("leaves an uncensored pair reporting little change as before", () => {
+    const change = describeMarineBoundarySstChange(
+      reading(JAN, 12.4, 0.8),
+      reading(FEB, 12.6, 0.8)
+    );
+    expect(change.censoring.bound).toBe("none");
+    expect(change.trend).toBe("little-change");
+    expect(formatMarineBoundarySstChange(change)).toContain("little change");
+  });
+
+  it("discloses the censoring rule in its limitations", () => {
+    expect(
+      MARINE_BOUNDARY_SST_CHANGE_LIMITATIONS.some((l) =>
+        /terminal bins/i.test(l)
+      )
+    ).toBe(true);
+  });
+});
