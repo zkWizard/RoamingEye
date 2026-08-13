@@ -2,6 +2,11 @@ import { greatCircleDistance } from "./geo";
 import { formatReportedMagnitude } from "./magnitudeScale";
 import { seismicFixedDepthCoverage } from "./seismicFixedDepth";
 import {
+  DOCUMENTED_MAX_AZIMUTHAL_GAP_DEG,
+  seismicNetworkGeometry,
+  summarizeNetworkGeometryCoverage,
+} from "./seismicNetworkGeometry";
+import {
   depthClass,
   SEISMICITY_SOURCE,
   SEISMICITY_UNITS,
@@ -383,6 +388,77 @@ export function reportedDepthBasisText(
     `${coverage.conventionalDefaultValueCount} of ${coverage.usableEventCount} matched ${events} (${tally}). ` +
     "Analysts fix depth at such values when the phase data cannot resolve it, but the feed publishes no fixed-depth flag " +
     "and a resolved hypocentre can land on the same number — this qualifies the depths shown, it does not rate the locations."
+  );
+}
+
+/**
+ * At most this many gap values are named before the rest are counted. A place
+ * on a one-sided margin can put twenty exceeding events in one extent, and the
+ * sentence has to stay readable.
+ */
+const LISTED_AZIMUTHAL_GAP_LIMIT = 3;
+
+/**
+ * Say how many matched events USGS documents as weakly located, and by how far.
+ *
+ * The panel prints an epicentral distance and a hypocentre depth for each listed
+ * event, orders the list by that distance, and colours each row by depth class.
+ * All four rest on the location solution — and the feed reports how well the
+ * recording network constrained it. USGS documents exactly one threshold on
+ * these fields: above a 180° azimuthal station gap, locations "typically have
+ * large location and depth uncertainties". Events offshore of a coast routinely
+ * exceed it, because the stations sit on one side only.
+ *
+ * The M4.5+ summary feed publishes no horizontalError or depthError at all, so
+ * station geometry is the only location-quality information a reader can get
+ * here; without this line the distances and depths shown carry no qualifier of
+ * any kind. Gap values are named largest first so the worst case is visible, and
+ * the count is stated over events that reported a gap rather than over all
+ * matched events, so an unreported gap never reads as good coverage.
+ *
+ * Deliberately says nothing about the events within the threshold: a gap inside
+ * the documented range is not a certificate of accuracy, and this qualifies the
+ * numbers shown rather than rating the locations behind them.
+ *
+ * Returns null when no matched event exceeds the documented gap — there is
+ * nothing to qualify, and announcing the absence would read as a location-
+ * quality finding, which this cannot support.
+ */
+export function epicenterConstraintText(
+  context: EarthquakePlaceContext
+): string | null {
+  const coverage = summarizeNetworkGeometryCoverage(context.observations);
+  const exceedingCount = coverage.byConstraint["exceeds-documented-gap"];
+  if (exceedingCount === 0) return null;
+
+  const reportedCount =
+    coverage.suppliedEventCount - coverage.byConstraint.unavailable;
+  const gaps = context.observations
+    .map((observation) => seismicNetworkGeometry(observation))
+    .filter(
+      (geometry) => geometry.azimuthalConstraint === "exceeds-documented-gap"
+    )
+    .map((geometry) => geometry.azimuthalGapDeg)
+    .filter((gap): gap is number => gap !== null)
+    .sort((first, second) => second - first);
+  const named = gaps.slice(0, LISTED_AZIMUTHAL_GAP_LIMIT);
+  const unnamedCount = gaps.length - named.length;
+  const values = named.map((gap) => `${gap}°`).join(", ");
+  // Only name the ordering when there is an ordering to name: "largest 256°"
+  // for a lone value reads as a comparison the sentence never makes.
+  const tally =
+    gaps.length === 1
+      ? values
+      : `largest ${values}` +
+        (unnamedCount > 0 ? ` and ${unnamedCount} more` : "");
+  const events = reportedCount === 1 ? "event" : "events";
+  return (
+    `Azimuthal station gap exceeds ${DOCUMENTED_MAX_AZIMUTHAL_GAP_DEG}° for ` +
+    `${exceedingCount} of ${reportedCount} matched ${events} that reported a gap (${tally}). ` +
+    "USGS documents that such locations typically carry large location and depth uncertainties, " +
+    "so the distance and depth listed for them are less resolved than their digits suggest. " +
+    "This feed publishes no location-uncertainty values, leaving station geometry as its only " +
+    "location-quality signal; a gap within that range is not a certificate of accuracy."
   );
 }
 
