@@ -176,6 +176,28 @@ describe("eruptionRecencyText", () => {
     expect(text).not.toContain("-5600");
     // Year 0 must never be rendered as "0 BCE"; there is no such year.
     expect(text).not.toMatch(/(?<!\d)0 BCE/);
+    // The BCE record is a dated eruption, so it must not be reported under a
+    // label that reads as "no dated eruption".
+    expect(text).toContain("1 dated BCE");
+    expect(text).not.toContain("Holocene evidence only");
+  });
+
+  it("separates BCE-dated records from undated ones in the same class", () => {
+    // eruptionClass puts both in "holocene", but they are different
+    // observations: GVP dates the first eruption and records none for the
+    // second. One label for both would misdescribe one of them.
+    const text = eruptionRecencyText(
+      summarizeEruptionRecency([
+        volcano({ lastEruptionYear: -6850 }),
+        volcano({ lastEruptionYear: -50 }),
+        volcano({ lastEruptionYear: null }),
+      ])
+    );
+
+    expect(text).toContain(
+      "2 dated BCE, 1 with no dated eruption (Holocene evidence only)"
+    );
+    expect(text).toContain("Dated eruption years span 6850 BCE to 50 BCE.");
   });
 
   it("omits the year span when no matched record carries a dated eruption", () => {
@@ -185,6 +207,27 @@ describe("eruptionRecencyText", () => {
 
     expect(text).toContain("1 with Holocene evidence only.");
     expect(text).not.toMatch(/span/i);
+    // With nothing dated BCE, naming that state would read as a finding.
+    expect(text).not.toContain("dated BCE");
+  });
+
+  it("keeps the three class counts summing to the counted set", () => {
+    const records = [
+      volcano({ lastEruptionYear: 2025 }),
+      volcano({ lastEruptionYear: 1650 }),
+      volcano({ lastEruptionYear: -6850 }),
+      volcano({ lastEruptionYear: null }),
+    ];
+    const summary = summarizeEruptionRecency(records);
+    const text = eruptionRecencyText(summary) ?? "";
+    const counted = [...text.matchAll(/(\d+) (?:dated|with)/g)].reduce(
+      (total, [, value]) => total + Number(value),
+      0
+    );
+
+    // The reported states partition the set exactly once: splitting the third
+    // class in the wording must not double-count or drop a record.
+    expect(counted).toBe(records.length);
   });
 
   it("returns null for an empty set rather than a row of zeroes", () => {
