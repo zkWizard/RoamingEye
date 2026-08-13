@@ -184,6 +184,38 @@ describe("probe CSV under a strict RFC 4180 parser", () => {
     );
   });
 
+  it("record-gap provenance survives the parser as one untorn field", () => {
+    // Built by probeRecordGapsCsvHeaders; asserted here because a comma in
+    // that line would split provenance into ragged cells for every reader.
+    const csv = buildProbeCsv(
+      {
+        ...baseMeta,
+        recordGapHeaders: [
+          "# undistributed_months: 2 months inside this file's span carry no source composite and have no row below (2000-01 2000-02) — a gap in distribution; not an observation that came back empty",
+          "# undistributed_months_scope: pinned from the source's advertised time dimension",
+        ],
+      },
+      months,
+      [0.5, null]
+    );
+    const rows = parseRfc4180(csv.trimEnd());
+    const gapRows = rows.filter((r) =>
+      r[0].startsWith("# undistributed_months")
+    );
+    expect(gapRows).toHaveLength(2);
+    for (const r of gapRows) expect(r).toHaveLength(1);
+    expect(gapRows[0][0]).toContain("(2000-01 2000-02)");
+  });
+
+  it("omits the record-gap block entirely when a layer pins no gaps", () => {
+    const csv = buildProbeCsv({ ...baseMeta }, months, [0.5, null]);
+    expect(csv).not.toContain("undistributed_months");
+    // A gap-free export is byte-identical to one that passes an empty list.
+    expect(
+      buildProbeCsv({ ...baseMeta, recordGapHeaders: [] }, months, [0.5, null])
+    ).toBe(csv);
+  });
+
   it("view_url is the documented exception: byte-exact even with commas", () => {
     const url =
       "https://zkwizard.github.io/RoamingEye/#layer=ndvi&t=2026-05&probe=-3.4653,-62.2159";
