@@ -4,6 +4,7 @@ import {
   peakGreennessClause,
   peakSupportClause,
   peakTieClause,
+  peakYearCoverageClause,
   probePeakGreennessTiming,
   probePeakSupport,
   probeSeasonalConcentration,
@@ -616,5 +617,126 @@ describe("seasonalConcentrationClause", () => {
     expect(clause).not.toMatch(
       /health|biomass|productiv|degrad|evergreen|growing|phenophase/i
     );
+  });
+});
+
+/**
+ * Blank every month of `sparseYears` except `keep` of them, so those years fall
+ * below the six usable months an annual extremum needs and drop out of the
+ * timing summary. A null is the probe's own representation of an unsampled or
+ * no-data month, so this is the shape a patchy MOD13A3 read actually produces.
+ */
+function sparsifyYears(
+  monthList: readonly YearMonth[],
+  values: readonly number[],
+  sparseYears: readonly number[],
+  keep = 3
+): (number | null)[] {
+  const kept = new Map<number, number>();
+  return monthList.map((ym, index) => {
+    if (!sparseYears.includes(ym.year)) return values[index];
+    const takenSoFar = kept.get(ym.year) ?? 0;
+    if (takenSoFar >= keep) return null;
+    kept.set(ym.year, takenSoFar + 1);
+    return values[index];
+  });
+}
+
+describe("peakYearCoverageClause", () => {
+  it("is silent when every supplied year contributed a peak", () => {
+    const range = months(2001, 12 * 6);
+    const timing = probePeakGreennessTiming("ndvi", range, cycle(range, 8), 52);
+
+    expect(timing?.coverage.contributingYearCount).toBe(6);
+    expect(timing?.coverage.sparseYearCount).toBe(0);
+    expect(timing?.coverage.invalidYearCount).toBe(0);
+    // A clean record must add no width to the status line.
+    expect(peakYearCoverageClause(timing)).toBeNull();
+  });
+
+  it("names how many probed years dropped out, and why", () => {
+    const range = months(2001, 12 * 8);
+    const values = sparsifyYears(range, cycle(range, 8), [2001, 2002]);
+    const timing = probePeakGreennessTiming("ndvi", range, values, 52);
+
+    expect(timing?.status).toBe("available");
+    expect(timing?.coverage.contributingYearCount).toBe(6);
+    expect(timing?.coverage.sparseYearCount).toBe(2);
+    expect(peakYearCoverageClause(timing)).toBe(
+      "peak timing from 6/8 yr (2003–2008; 2 under 6 usable months)"
+    );
+  });
+
+  it("spans the contributing years, not the probed record", () => {
+    // 2001-2002 dropped out, so the span opens at 2003 even though the probe
+    // supplied months from 2001 onward. The exclusion count beside it is what
+    // says the span is not a claim of unbroken coverage.
+    const range = months(2001, 12 * 8);
+    const values = sparsifyYears(range, cycle(range, 8), [2001, 2002]);
+    const clause = peakYearCoverageClause(
+      probePeakGreennessTiming("ndvi", range, values, 52)
+    );
+
+    expect(clause).toContain("2003–2008");
+    expect(clause).not.toContain("2001");
+  });
+
+  it("keeps the same denominator the peak clause reports", () => {
+    const range = months(2001, 12 * 8);
+    const values = sparsifyYears(range, cycle(range, 8), [2004]);
+    const timing = probePeakGreennessTiming("ndvi", range, values, 52);
+
+    // The peak clause counts against the contributing years; this clause exists
+    // to say what that number is a fraction OF, so the two must agree on it.
+    expect(peakGreennessClause(timing)).toContain("7/7 yr");
+    expect(peakYearCoverageClause(timing)).toContain("from 7/8 yr");
+  });
+
+  it("is silent when the timing clause named no month to qualify", () => {
+    // Two years is below MINIMUM_YEARS_FOR_PEAK_TIMING, so the timing summary
+    // is "insufficient-years" and there is no modal month to qualify.
+    const range = months(2001, 12 * 2);
+    const values = sparsifyYears(range, cycle(range, 8), [2001]);
+    const timing = probePeakGreennessTiming("ndvi", range, values, 52);
+
+    expect(timing?.status).toBe("insufficient-years");
+    expect(peakYearCoverageClause(timing)).toBeNull();
+    expect(peakYearCoverageClause(null)).toBeNull();
+  });
+
+  it("does not depend on the order the months were supplied", () => {
+    const range = months(2001, 12 * 8);
+    const values = sparsifyYears(range, cycle(range, 8), [2001, 2005]);
+    const forward = peakYearCoverageClause(
+      probePeakGreennessTiming("ndvi", range, values, 52)
+    );
+    const reversed = peakYearCoverageClause(
+      probePeakGreennessTiming(
+        "ndvi",
+        [...range].reverse(),
+        [...values].reverse(),
+        52
+      )
+    );
+
+    expect(forward).not.toBeNull();
+    expect(reversed).toBe(forward);
+  });
+
+  it("reports record coverage only, never vegetation", () => {
+    const range = months(2001, 12 * 8);
+    const values = sparsifyYears(range, cycle(range, 8), [2001, 2002]);
+    const clause =
+      peakYearCoverageClause(
+        probePeakGreennessTiming("ndvi", range, values, 52)
+      ) ?? "";
+
+    expect(clause).not.toBe("");
+    // A dropped year is a coverage fact; it must not read as a year without
+    // vegetation, nor imply any ecological or causal conclusion.
+    expect(clause).not.toMatch(
+      /health|biomass|productiv|degrad|habitat|greenness|phenophase|growing/i
+    );
+    expect(clause).not.toMatch(/because|caused|driven|expect|forecast|trend/i);
   });
 });

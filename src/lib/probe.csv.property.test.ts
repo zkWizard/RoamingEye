@@ -217,6 +217,52 @@ describe("probe CSV under a strict RFC 4180 parser", () => {
     ).toBe(csv);
   });
 
+  it("seasonal-sampling provenance survives the parser as one untorn field", () => {
+    // Built by seasonalSamplingBalance.seasonalSamplingCsvHeaders, and asserted
+    // here for the same reason as the record-gap block above: the lines arrive
+    // pre-formatted, so one comma would tear provenance into ragged cells.
+    const csv = buildProbeCsv(
+      {
+        ...baseMeta,
+        recordGapHeaders: ["# undistributed_months: 1 month (2000-01)"],
+        seasonalSamplingHeaders: [
+          "# seasonal_sampling: 1 of 12 calendar months returns no usable value anywhere in this record (Jan) — a mean of the value column below is not an annual mean and its lowest and highest rows are not annual extremes",
+          "# seasonal_sampling_scope: the absent months are never estimated or gap-filled",
+        ],
+      },
+      months,
+      [0.5, null]
+    );
+    const rows = parseRfc4180(csv.trimEnd());
+    const seasonalRows = rows.filter((r) =>
+      r[0].startsWith("# seasonal_sampling")
+    );
+    expect(seasonalRows).toHaveLength(2);
+    for (const r of seasonalRows) expect(r).toHaveLength(1);
+    expect(seasonalRows[0][0]).toContain("(Jan)");
+    // Cause before consequence: the gap line says the source never published
+    // those months, this one says what their absence does to a mean over the
+    // rows. Reversed, "no January" reads as an observation that came back empty.
+    const lines = csv.split("\n");
+    expect(
+      lines.findIndex((l) => l.startsWith("# seasonal_sampling:"))
+    ).toBeGreaterThan(
+      lines.findIndex((l) => l.startsWith("# undistributed_months:"))
+    );
+  });
+
+  it("omits the seasonal-sampling block for an evenly sampled record", () => {
+    const csv = buildProbeCsv({ ...baseMeta }, months, [0.5, null]);
+    expect(csv).not.toContain("seasonal_sampling");
+    // A balanced export is byte-identical to one that passes an empty list.
+    expect(
+      buildProbeCsv({ ...baseMeta, seasonalSamplingHeaders: [] }, months, [
+        0.5,
+        null,
+      ])
+    ).toBe(csv);
+  });
+
   it("sampling-identity provenance survives the parser as one untorn field", () => {
     // Built by sstSamplingIdentityCsvHeaders. Asserted here for the same reason
     // as the record-gap block: those lines are handed in already formatted, so

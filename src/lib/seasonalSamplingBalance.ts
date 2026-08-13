@@ -1,6 +1,11 @@
 import { MONTH_NAMES, type YearMonth } from "./timeline";
 import { makeNeumaierAcc } from "./numerics";
-import { csvDecimals, quantizationStep, type ProbeScale } from "./probe";
+import {
+  csvDecimals,
+  csvHeaderText,
+  quantizationStep,
+  type ProbeScale,
+} from "./probe";
 
 /**
  * How the calendar-month composition of a probed record biases its mean.
@@ -166,4 +171,55 @@ export function seasonalSamplingClause(
   return `uneven calendar-month sampling: balanced mean ${balance.calendarBalancedMean!.toFixed(
     digits
   )}${unit} (${bias >= 0 ? "+" : "-"}${Math.abs(bias).toFixed(digits)}${unit} vs mean shown)`;
+}
+
+/**
+ * The same correction as `seasonalSamplingClause`, written for the export.
+ *
+ * The status line qualifies a mean the panel has already computed; the CSV
+ * computes none, so the caveat has to name the statistic the reader will
+ * derive. That is not a hypothetical: a monthly `value` column exists to be
+ * averaged, and the file outlives the session that explained it — the same
+ * reasoning that carried the record-gap and censoring corrections into the
+ * download while the status line already stated them.
+ *
+ * Silent in exactly the cases the status line is silent: a sub-annual request
+ * has no annual mean to be biased away from, a record with no usable value has
+ * no statistic to qualify, and a bias under one colormap quantization step is
+ * finer than the inverted values resolve.
+ *
+ * Comma-free by the header contract documented on `csvHeaderText` in probe.ts,
+ * so each line stays one untorn field for naive parsers: calendar months are
+ * space-separated and the interpolated unit is scrubbed.
+ */
+export function seasonalSamplingCsvHeaders(
+  balance: SeasonalSamplingBalance,
+  scale: ProbeScale
+): string[] {
+  if (!balance.coversFullYear || balance.recordMean === null) return [];
+  const digits = csvDecimals(scale);
+  const unit = scale.unit ? ` ${csvHeaderText(scale.unit)}` : "";
+
+  if (balance.absentCalendarMonths.length > 0) {
+    const absent = balance.absentCalendarMonths.length;
+    const named = balance.absentCalendarMonths
+      .map((m) => MONTH_NAMES[m - 1])
+      .join(" ");
+    const one = absent === 1;
+    return [
+      `# seasonal_sampling: ${absent} of 12 calendar months ${one ? "returns" : "return"} no usable value anywhere in this record (${named}) — a mean of the value column below is not an annual mean and its lowest and highest rows are not annual extremes`,
+      // Placed with the clause it qualifies rather than left implicit: the
+      // count above says which months are missing, not what their absence
+      // does, and a reader correcting for it will ask the direction first.
+      `# seasonal_sampling_scope: the absent months are never estimated or gap-filled; which way each statistic moves depends on where those months sit in the local seasonal cycle — a climatology this file does not carry`,
+    ];
+  }
+
+  const bias = balance.seasonalSamplingBias;
+  if (bias === null || Math.abs(bias) < quantizationStep(scale)) return [];
+  const sign = bias >= 0 ? "+" : "-";
+  return [
+    `# seasonal_sampling_bias: the value column averages ${balance.recordMean.toFixed(digits)}${unit}; weighting each of the 12 calendar months equally gives ${balance.calendarBalancedMean!.toFixed(digits)}${unit} (${sign}${Math.abs(bias).toFixed(digits)}${unit}) — this record samples the calendar unevenly`,
+    `# seasonal_sampling_bias_scope: a re-weighting of the rows below and not a measurement — it estimates no month and changes no exported value`,
+  ];
 }

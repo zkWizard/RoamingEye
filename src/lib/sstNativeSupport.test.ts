@@ -3,6 +3,7 @@ import { SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE } from "./marineCoverage";
 import {
   SST_NATIVE_SUPPORT_LIMITATIONS,
   describeSstNativeSupport,
+  qualifyingSstNativeSupportNote,
   summarizeSstNativeSupport,
 } from "./sstNativeSupport";
 import type { DatasetRef } from "./timeline";
@@ -240,6 +241,119 @@ describe("SST native-grid support", () => {
       expect(summary.statement).not.toMatch(
         /habitat|species|reliab|accurate|healthy|risk|will |expect/i
       );
+    }
+  });
+});
+
+describe("SST native-grid support place-card note", () => {
+  it("warns that one cell's footprint spills outside a harbour-sized boundary", () => {
+    // Same ~5.6 km x ~4.3 km bay as above: the card beside it can still print a
+    // high sampled-coverage share, which says nothing about how many source
+    // values that share carries.
+    const note = qualifyingSstNativeSupportNote(
+      summarizeSstNativeSupport({
+        south: 40,
+        north: 40.05,
+        west: -70.05,
+        east: -70,
+      })
+    );
+
+    expect(note).toBe(
+      "searched boundary is narrower than one 9km source cell, whose footprint extends beyond it — the mean rests on a single source cell"
+    );
+  });
+
+  it("reports only the spill for a sliver whose area bounds several cells", () => {
+    // Sub-cell north-south, but wide enough that the mean does rest on more
+    // than one source value — so the single-cell half of the sentence would be
+    // false and is left off.
+    const note = qualifyingSstNativeSupportNote(
+      summarizeSstNativeSupport({ south: 0, north: 0.01, west: 0, east: 5 })
+    );
+
+    expect(note).toBe(
+      "searched boundary is narrower than one 9km source cell in one direction, so that cell's footprint extends beyond it"
+    );
+  });
+
+  it("bounds the mean to one measurement when the extent clears a cell each way", () => {
+    const note = qualifyingSstNativeSupportNote(
+      summarizeSstNativeSupport({
+        south: 0,
+        north: latSpanForCells(1.2),
+        west: 0,
+        east: latSpanForCells(1.3),
+      })
+    );
+
+    // "at most" keeps the figure a bound on the extent, never a retrieval count.
+    expect(note).toBe(
+      "searched boundary bounds at most 1.6 9km source cells — the mean cannot rest on more than one independent source measurement"
+    );
+  });
+
+  it("stays silent when the extent resolves the grid it is read on", () => {
+    for (const bounds of [
+      {
+        south: 0,
+        north: latSpanForCells(1.5),
+        west: 0,
+        east: latSpanForCells(2),
+      },
+      { south: 0, north: 20, west: 0, east: 20 },
+    ]) {
+      const summary = summarizeSstNativeSupport(bounds);
+
+      expect(summary.meanBoundedBySingleCell).toBe(false);
+      expect(summary.nativeCellExceedsBoundary).toBe(false);
+      expect(qualifyingSstNativeSupportNote(summary)).toBeNull();
+    }
+  });
+
+  it("stays silent for an ungraded summary rather than guessing a bound", () => {
+    // An unusable extent and an unstated grid are properties of the workflow
+    // and the citation; the reading that hit them already says so.
+    expect(
+      qualifyingSstNativeSupportNote(summarizeSstNativeSupport(null))
+    ).toBeNull();
+
+    const noGrid: DatasetRef = {
+      ...SST_SOURCE,
+      title: "Monthly sea surface temperature with no stated grid",
+    };
+    const ungridded = summarizeSstNativeSupport(
+      { south: 40, north: 40.05, west: -70.05, east: -70 },
+      noGrid
+    );
+
+    expect(ungridded.status).toBe("unknown-native-grid");
+    expect(qualifyingSstNativeSupportNote(ungridded)).toBeNull();
+  });
+
+  it("keeps the note free of biology, fitness, and forecast claims", () => {
+    const notes = [
+      { south: 40, north: 40.05, west: -70.05, east: -70 },
+      { south: 0, north: 0.01, west: 0, east: 5 },
+      {
+        south: 0,
+        north: latSpanForCells(1.2),
+        west: 0,
+        east: latSpanForCells(1.3),
+      },
+    ].map((bounds) =>
+      qualifyingSstNativeSupportNote(summarizeSstNativeSupport(bounds))
+    );
+
+    for (const note of notes) {
+      expect(note).not.toBeNull();
+      expect(note).not.toMatch(
+        /habitat|species|reliab|accurate|healthy|risk|will |expect/i
+      );
+      // A fragment for a semicolon-joined card line, so it never opens a new
+      // sentence or repeats the citation the same line already carries.
+      expect(note![0]).toBe(note![0].toLowerCase());
+      expect(note).not.toContain(SST_SOURCE.shortName);
     }
   });
 });
