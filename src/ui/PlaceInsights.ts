@@ -40,6 +40,7 @@ import {
   BIRD_2003_PLATE_BOUNDARY_SOURCE,
   digitizationCreditText,
   subductionMarkingText,
+  subductionPolarityText,
   suppliedRepeatText,
   type PlateBoundaryExtentContext,
 } from "../lib/plateBoundaryContext";
@@ -614,7 +615,12 @@ export class PlaceInsights {
     // boundaries those counts refer to.
     const repeats = suppliedRepeatText(context);
     const marking = subductionMarkingText(context);
-    // Named after the marking line so the paragraph moves from what the source
+    // Directly after the marking line, which establishes that some of these
+    // boundaries are subduction steps; this then reads the polarity the label's
+    // own delimiter carries for those steps. Silent unless a matched label
+    // encodes one.
+    const polarity = subductionPolarityText(context);
+    // Named after the marking lines so the paragraph moves from what the source
     // says about these boundaries to who supplied them.
     const credit = digitizationCreditText(context);
     const segments = coverage.matchedSegmentCount;
@@ -625,7 +631,7 @@ export class PlaceInsights {
     this.plateDetail.textContent =
       count === 0
         ? `No bundled Bird (2003) boundary polylines intersect this search bounding box; that does not establish the place sits away from a plate boundary.${nearest ? ` ${nearest}` : ""} Compared against ${coverage.usableBoundaryCount} usable supplied ${coverage.usableBoundaryCount === 1 ? "polyline" : "polylines"}.`
-        : `${context.geographicCoverage} ${segments} supplied ${segments === 1 ? "segment intersects" : "segments intersect"}, from ${coverage.usableBoundaryCount} usable supplied ${coverage.usableBoundaryCount === 1 ? "polyline" : "polylines"}.${repeats ? ` ${repeats}` : ""}${marking ? ` ${marking}` : ""}${credit ? ` ${credit}` : ""} ${caveat}`;
+        : `${context.geographicCoverage} ${segments} supplied ${segments === 1 ? "segment intersects" : "segments intersect"}, from ${coverage.usableBoundaryCount} usable supplied ${coverage.usableBoundaryCount === 1 ? "polyline" : "polylines"}.${repeats ? ` ${repeats}` : ""}${marking ? ` ${marking}` : ""}${polarity ? ` ${polarity}` : ""}${credit ? ` ${credit}` : ""} ${caveat}`;
 
     for (const boundary of context.matchingBoundaries.slice(0, 5)) {
       const item = document.createElement("li");

@@ -649,6 +649,16 @@ export interface ProbeCsvMeta {
    * screened exactly, and for every layer with no capped ramp.
    */
   averagedCensoringHeaders?: string[];
+  /**
+   * Provenance lines saying how the record's calendar-month composition biases
+   * a mean taken over the rows below, built by
+   * `seasonalSamplingBalance.seasonalSamplingCsvHeaders`. Passed in for a
+   * stronger reason than the five above: that module imports this one for the
+   * scale helpers, so deriving these here would close an import cycle. Empty
+   * for a sub-annual request and for a record whose months are spread evenly
+   * enough that the imbalance falls below the inversion's own resolution.
+   */
+  seasonalSamplingHeaders?: string[];
 }
 
 /**
@@ -771,6 +781,12 @@ export function buildProbeCsv(
     // scope line qualifies the month count, the anomaly baseline and the
     // trend, so it reads as the correction to statistics already stated.
     ...(meta.recordGapHeaders ?? []),
+    // Last, and deliberately after the gap lines: those name the months the
+    // source never distributed, this names what the surviving months' calendar
+    // composition does to a mean taken over them. Cause before consequence —
+    // reversed, a reader meets "no January" before learning January was never
+    // published, and reads a distribution gap as an empty observation.
+    ...(meta.seasonalSamplingHeaders ?? []),
     ...(fractions
       ? [
           `# valid_fraction: share of the sampled area that held data that month (area-weighted)`,
