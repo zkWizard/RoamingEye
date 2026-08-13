@@ -272,7 +272,7 @@ export function formatMarineBoundarySstChange(
   const laterLabel = formatYm(change.laterMonth);
 
   if (change.status !== "available" || change.changeValue === null) {
-    return `no month-over-month SST change stated for ${laterLabel} vs ${earlierLabel} (${change.reason ?? change.status})`;
+    return `no month-over-month SST change stated for ${laterLabel} vs ${earlierLabel} — ${withholdingReason(change)}`;
   }
 
   const magnitude = `${change.censoring.boundPrefix}${formatSigned(change.changeValue)} °C`;
@@ -286,6 +286,67 @@ export function formatMarineBoundarySstChange(
     return `${laterLabel} vs ${earlierLabel}: little change (${magnitude})`;
   }
   return `${laterLabel} vs ${earlierLabel}: ${change.trend} (${magnitude})`;
+}
+
+/**
+ * Say in words why no change is stated, rather than emitting the machine
+ * `reason` slug to the reader.
+ *
+ * The place card already carries a year-over-year difference for the same
+ * boundary, and that sibling spells its withholdings out — "both months land in
+ * the published colormap's open end caps", or the two sampled shares and the gap
+ * between them. This line reached the same card with the same conditions and
+ * printed "(both-endpoints-censored)" or "(coverage-disparity)". Two readouts of
+ * the same kind, on one card, for the identical condition, and only one of them
+ * told the reader what happened.
+ *
+ * The distinction matters most for censoring, where the slug reads like a
+ * missing-data notice and the truth is the opposite: the months WERE observed,
+ * and the published colormap collapsed both into open end caps that bound them
+ * in opposing directions, so the true change is unbounded both ways. Nothing
+ * here claims a change, a direction, or a magnitude; each branch says only which
+ * rule the pair failed. The structured `reason` field is unchanged for
+ * machine consumers.
+ */
+function withholdingReason(change: MarineBoundarySstChange): string {
+  if (change.status === "incomparable-censoring") {
+    return "both months land in the published colormap's open end caps, which bound them in opposing directions, so the true change is unbounded both ways";
+  }
+  if (change.status === "different-geography") {
+    return "the two means were sampled for different geographies";
+  }
+  if (change.status === "non-adjacent-months") {
+    return "the two months are not consecutive, so their difference would not be a month-over-month one";
+  }
+  if (change.status === "incomparable-coverage") {
+    const { earlierValidFraction, laterValidFraction, disparity } =
+      change.spatialSupport;
+    if (
+      earlierValidFraction === null ||
+      laterValidFraction === null ||
+      disparity === null
+    ) {
+      return "the usable boundary share was not reported for both months, so the two means cannot be checked for like-for-like spatial support";
+    }
+    // Mirrors the year-over-year sibling: name both shares and the gap, so the
+    // reader can see how far apart the supports were rather than being told
+    // only that some threshold was crossed.
+    return `${formatYm(change.earlierMonth)} sampled ${sharePercent(
+      earlierValidFraction
+    )} of the boundary and ${formatYm(change.laterMonth)} sampled ${sharePercent(
+      laterValidFraction
+    )}, ${Math.round(
+      disparity * 100
+    )} points apart, so the two means may differ in which water was sampled rather than in temperature`;
+  }
+  if (change.reason === "invalid-convention") {
+    return "the reporting conventions supplied for this comparison were not usable numbers";
+  }
+  return "one of the two months carries no usable boundary-mean SST observation";
+}
+
+function sharePercent(fraction: number): string {
+  return `${Math.round(fraction * 100)}%`;
 }
 
 function spatialSupportFor(
