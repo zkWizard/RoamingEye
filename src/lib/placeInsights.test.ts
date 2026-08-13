@@ -469,6 +469,74 @@ describe("cryosphere coverage on the place panel", () => {
     expect(complete).not.toContain("not a whole-boundary mean");
   });
 
+  it("does not round a partial sampled coverage to zero or to complete", () => {
+    // A drawn boundary is sampled on a grid up to 28x28, so a few excluded
+    // pixels among ~780 is ordinary. Whole-percent rounding hid both ends.
+    const vegetation = PLACE_METRICS.find(
+      (metric) => metric.id === "vegetation"
+    )!;
+    const months: [YearMonth, YearMonth] = [
+      { year: 2026, month: 1 },
+      { year: 2026, month: 2 },
+    ];
+
+    // One excluded pixel of 780: a mean over almost-but-not-all of the
+    // boundary must not claim the whole of it.
+    const nearlyComplete = placeInsightReading(vegetation, months, [0.3, 0.4], {
+      validFractions: [1, 779 / 780],
+      sourceImageDimensions: { width: 512, height: 512 },
+    }).detail;
+    expect(nearlyComplete).toContain("99.872% sampled coverage");
+    expect(nearlyComplete).not.toContain("100% sampled coverage");
+    // The card still says the mean is not a whole-boundary one, and now the
+    // percentage agrees with it instead of reading as complete coverage.
+    expect(nearlyComplete).toContain("not a whole-boundary mean");
+
+    // A large boundary with a small usable sliver reports a mean; "0%" would
+    // be the same text the card prints when nothing was sampled at all.
+    const sliver = placeInsightReading(vegetation, months, [0.3, 0.4], {
+      validFractions: [1, 0.004],
+      sourceImageDimensions: { width: 512, height: 512 },
+    }).detail;
+    expect(sliver).toContain("0.4% sampled coverage");
+    expect(sliver).not.toContain("; 0% sampled coverage");
+  });
+
+  it("still prints whole percentages plainly, including the two endpoints", () => {
+    const vegetation = PLACE_METRICS.find(
+      (metric) => metric.id === "vegetation"
+    )!;
+    const months: [YearMonth, YearMonth] = [
+      { year: 2026, month: 1 },
+      { year: 2026, month: 2 },
+    ];
+
+    // 0.6 * 100 is 60.000000000000006 in binary floating point; the reader
+    // must not see that.
+    expect(
+      placeInsightReading(vegetation, months, [0.3, 0.4], {
+        validFractions: [1, 0.6],
+        sourceImageDimensions: { width: 512, height: 512 },
+      }).detail
+    ).toContain("60% sampled coverage");
+
+    // Exactly complete stays "100%" — the only fraction entitled to it.
+    expect(
+      placeInsightReading(vegetation, months, [0.3, 0.4], {
+        validFractions: [1, 1],
+        sourceImageDimensions: { width: 512, height: 512 },
+      }).detail
+    ).toContain("100% sampled coverage");
+
+    // Exactly zero stays "0%": there the card reports no value to qualify.
+    expect(
+      placeInsightReading(vegetation, months, [0.3, null], {
+        validFractions: [1, 0],
+        sourceImageDimensions: { width: 512, height: 512 },
+      }).detail
+    ).toContain("0% sampled coverage");
+  });
+
   it("carries the drawn-coverage caveat on a single-month vegetation mean", () => {
     const vegetation = PLACE_METRICS.find(
       (metric) => metric.id === "vegetation"
