@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
 import { buildProbeCsv, csvHeaderText, PROBE_SCALES } from "./probe";
+import { sstSamplingIdentityCsvHeaders } from "./seaSurfaceTemperatureSamplingIdentity";
 import type { YearMonth } from "./timeline";
 
 /**
@@ -213,6 +214,42 @@ describe("probe CSV under a strict RFC 4180 parser", () => {
     // A gap-free export is byte-identical to one that passes an empty list.
     expect(
       buildProbeCsv({ ...baseMeta, recordGapHeaders: [] }, months, [0.5, null])
+    ).toBe(csv);
+  });
+
+  it("sampling-identity provenance survives the parser as one untorn field", () => {
+    // Built by sstSamplingIdentityCsvHeaders. Asserted here for the same reason
+    // as the record-gap block: those lines are handed in already formatted, so
+    // a comma in one would split provenance into ragged cells for every reader.
+    const csv = buildProbeCsv(
+      {
+        ...baseMeta,
+        samplingIdentityHeaders: sstSamplingIdentityCsvHeaders("sst"),
+      },
+      months,
+      [0.5, null]
+    );
+    const rows = parseRfc4180(csv.trimEnd());
+    const identityRows = rows.filter((r) => r[0].startsWith("# sst_"));
+    expect(identityRows.length).toBeGreaterThan(0);
+    for (const r of identityRows) expect(r).toHaveLength(1);
+    expect(identityRows[0][0]).toContain("daytime-only");
+  });
+
+  it("omits the sampling-identity block entirely for a non-SST layer", () => {
+    const csv = buildProbeCsv({ ...baseMeta }, months, [0.5, null]);
+    expect(csv).not.toContain("sst_sampling");
+    // A layer that needs no qualifier exports byte-identically to one that
+    // passes the empty list every other layer produces.
+    expect(
+      buildProbeCsv(
+        {
+          ...baseMeta,
+          samplingIdentityHeaders: sstSamplingIdentityCsvHeaders("ndvi"),
+        },
+        months,
+        [0.5, null]
+      )
     ).toBe(csv);
   });
 

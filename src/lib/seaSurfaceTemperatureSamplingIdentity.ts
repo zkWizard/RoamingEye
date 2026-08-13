@@ -1,4 +1,4 @@
-import { LAYERS, type LayerConfig } from "./timeline";
+import { LAYERS, type LayerConfig, type LayerId } from "./timeline";
 
 /**
  * Name *which* sea-surface temperature the SST layer actually carries.
@@ -99,6 +99,48 @@ export function describeSstSamplingIdentity(): string {
     `day-and-night mean is available and none is synthesized. ` +
     `No diurnal or skin-to-bulk correction is applied.`
   );
+}
+
+/**
+ * Provenance headers naming the sampled quantity for the exported CSV, or an
+ * empty list for every layer but SST.
+ *
+ * The on-screen probe carries a short sampling-gate clause, but the exported
+ * file outlives the session and is the surface that most needs this: it states
+ * the product only through `# data_product`, whose short name ends in
+ * `_DAYTIME_V2019.0` — the dataset short name this module exists because nobody
+ * reads aloud. A reader who opens the download six months later sees a column
+ * headed `value` in degrees Celsius and no indication that it omits the
+ * nighttime half of the diurnal cycle, or that it is a skin rather than a bulk
+ * temperature. Both change what the column may be compared against, and neither
+ * is recoverable from the numbers.
+ *
+ * Fuller than the status-line clause on purpose: an archived file has no display
+ * budget (the same reasoning `probeRecordGapsCsvHeaders` applies to naming every
+ * gap month rather than truncating). The unsampled nighttime counterpart is
+ * named so a reader can find the other half themselves, and the absence of any
+ * bias correction is stated so the values are known to be as-published.
+ *
+ * Silent when the configured layer has drifted from the declared identity: a
+ * stale daytime-only claim attached to a different product would be worse than
+ * no claim at all, and the exported file cannot be corrected after the fact.
+ * Magnitudes are never asserted — the day-only offset varies with wind and
+ * insolation this app does not observe — and nothing biological is claimed.
+ */
+export function sstSamplingIdentityCsvHeaders(
+  layerId: LayerId | undefined
+): string[] {
+  if (layerId !== SST_SAMPLING_IDENTITY_LAYER_ID) return [];
+  if (sstSamplingIdentityDrift().length > 0) return [];
+  const identity = SEA_SURFACE_TEMPERATURE_SAMPLING_IDENTITY;
+  // No commas anywhere below: a `#` line must never contain a CSV delimiter
+  // (see the header discipline documented on `csvHeaderText` in probe.ts).
+  return [
+    `# sst_sampling: ${identity.diurnalSampling} monthly composite from Aqua's ~${identity.nominalOverpassLocalSolarTime} local-solar-time overpass — it omits the nighttime half of the diurnal cycle and is not a day-and-night monthly mean`,
+    `# sst_retrieval_depth: ${identity.retrievalDepth} — a thermal-infrared retrieval senses the ocean's radiative skin (the topmost micrometres) and not the bulk temperature of the mixed layer`,
+    `# sst_unsampled_counterpart: ${identity.unsampledDiurnalCounterpartLayer} covers the other diurnal half; this app does not sample it so no day-and-night mean is available here and none is synthesized`,
+    `# sst_bias_correction: none applied — no diurnal or skin-to-bulk adjustment; values are reported as the source publishes them`,
+  ];
 }
 
 export type SstSamplingIdentityDrift =
