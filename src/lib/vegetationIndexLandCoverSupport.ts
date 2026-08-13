@@ -251,6 +251,52 @@ export function vegetationIndexSupportForClass(
 }
 
 /**
+ * The same clause as {@link vegetationIndexSupportNote}, for a POINT sample
+ * that has named its most frequent class or classes rather than a share.
+ *
+ * A point probe resolves to labels, not to a mix, so there is no share to
+ * report: what a reader still cannot tell from "Permanent snow & ice (IGBP
+ * class 15)" alone is that MOD13A3 retrieves NDVI and EVI there anyway, and
+ * that the value is a background-surface signal rather than plant greenness.
+ * The region copy states exactly that for a drawn box; this states it for the
+ * point, from the same definitional tiers, so the two surfaces do not disagree.
+ *
+ * Phrased on the tier, never on the class count, so a tie whose classes share
+ * one tier reads correctly without pluralising. A tie SPANNING tiers is
+ * reported as unresolved rather than resolved to one tier's wording: the tied
+ * classes carry no ordering, so picking either statement would invent one.
+ *
+ * Returns null when no informative class was named — the reading already says
+ * so — and when any class carries no tier at all, which the complete IGBP
+ * contract never produces but an unmapped code would.
+ */
+export function vegetationIndexSupportClassNote(
+  classCodes: readonly number[]
+): string | null {
+  if (classCodes.length === 0) return null;
+  const tiers: VegetationIndexSupportTier[] = [];
+  for (const classCode of classCodes) {
+    const tier = vegetationIndexSupportForClass(classCode);
+    if (!tier) return null;
+    tiers.push(tier);
+  }
+
+  const source = `${VEGETATION_INDEX_SOURCE.shortName} v${VEGETATION_INDEX_SOURCE.version}`;
+  if (new Set(tiers.map((tier) => tier.id)).size > 1) {
+    return `${source} NDVI/EVI is not read the same way on the tied classes — their IGBP definitions differ on whether vegetation cover is required.`;
+  }
+
+  const tier = tiers[0];
+  if (tier.requiresVegetationCover) {
+    return `${source} NDVI/EVI reads as plant greenness here — ${tier.definitionalBasis}.`;
+  }
+  if (tier.permitsVegetationCover) {
+    return `${source} NDVI/EVI mixes plants with another surface here — ${tier.definitionalBasis}.`;
+  }
+  return `${source} still retrieves NDVI/EVI here, but it does not describe plant cover — ${tier.definitionalBasis}.`;
+}
+
+/**
  * Partition a class-coded land-cover summary by vegetation-index support.
  *
  * Reuses the already-validated coverage and provenance from
