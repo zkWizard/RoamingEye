@@ -652,9 +652,51 @@ function climateComparisonIssue(
   return null;
 }
 
+/**
+ * Whether the sampler found usable ground for this month at all.
+ *
+ * Shared by the card and the export so the two surfaces cannot drift apart on
+ * the one question that separates "the source published nothing here" from
+ * "this probe declined to average what it got".
+ */
+function hasPartialCoverage(summary: MonthlyClimateSummary): boolean {
+  return (summary.coverage.validFraction ?? 0) > 0;
+}
+
+/**
+ * Why no usable value can be reported for this month.
+ *
+ * `climate.ts` labels an absent value `missing-value` whichever way it went
+ * absent, because that contract sees only that the caller supplied null. On the
+ * place-sampling path the two ways are not the same claim: `weightedMeanValid`
+ * withholds the region mean when the usable share falls under its admission
+ * threshold, so a boundary the source *did* publish over — thinly — arrives
+ * here as a null value beside a positive coverage share. GLDAS and MERRA-2 land
+ * fields make that ordinary rather than rare: a small island or a mostly-marine
+ * coastal boundary routinely clears zero coverage without clearing the
+ * threshold.
+ *
+ * Reporting that as `missing-value` tells the reader the source had nothing for
+ * the place, when in fact it had part of it and this probe declined to average
+ * it — blaming the source for our own admission rule, the exact mistake
+ * {@link exportUnavailableReason} already documents avoiding in the other
+ * direction. The card therefore names the shortfall with the same term the
+ * download contract uses for the same month, so the two never disagree about
+ * why a month is blank.
+ *
+ * Only the positive-coverage case is re-labelled. A zero or unsupplied share
+ * carries no evidence either way and keeps the contract's own wording rather
+ * than gaining a sharper reason than the summary can support.
+ */
 function unavailableReason(summary: MonthlyClimateSummary): string {
   if (summary.publicationStatus !== "published") {
     return summary.publicationStatus;
+  }
+  if (
+    summary.coverage.reason === "missing-value" &&
+    hasPartialCoverage(summary)
+  ) {
+    return "insufficient-valid-coverage";
   }
   return summary.coverage.reason ?? "unspecified";
 }
@@ -706,7 +748,7 @@ function exportUnavailableReason(
   ) {
     return "sampling-failed";
   }
-  return (summary.coverage.validFraction ?? 0) > 0
+  return hasPartialCoverage(summary)
     ? "insufficient-valid-coverage"
     : "source-no-data";
 }
