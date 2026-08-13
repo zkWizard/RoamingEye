@@ -1,4 +1,8 @@
 import type { MarinePlaceInsightReading } from "./marinePlaceInsight";
+import {
+  describeSstDifferenceCensoring,
+  type SstDifferenceCensoring,
+} from "./sstRampCensoring";
 import { formatYm, ymToIndex } from "./timeline";
 
 /**
@@ -31,7 +35,8 @@ export type MarineBoundarySstChangeStatus =
   | "endpoint-unavailable"
   | "non-adjacent-months"
   | "different-geography"
-  | "incomparable-coverage";
+  | "incomparable-coverage"
+  | "incomparable-censoring";
 
 /**
  * Change of observed SST (°C) below which the pair is reported as
@@ -56,6 +61,7 @@ export const MARINE_BOUNDARY_SST_CHANGE_LIMITATIONS = [
   "Both endpoints are area-weighted means over whichever boundary cells returned a usable SST that month; the sampler reports an unknown surface footprint, so neither endpoint is established as open water.",
   "A thermal-infrared retrieval only exists under cloud-free sky, so the usable share of the boundary differs between months; a signed change is withheld when those shares differ grossly, and equal shares still do not prove the same cells were sampled.",
   "The direction bin (warmer/cooler/little-change) is a reporting convention over a continuous difference; its threshold is not a physical boundary.",
+  "The published colormap's terminal bins are open-ended, so an endpoint that lands in one is a bound rather than a point value; the change is then reported as a one-sided bound, and when both endpoints are censored in opposing directions no change is stated at all.",
   "Two adjacent monthly means are not a trend line, a warming or cooling rate, or a climatology anomaly, and this helper does not compute one.",
   "It inherits the SST product's resolution and biases and infers no ecosystem condition, marine-biology signal, cause, hazard, or any future value.",
 ] as const;
@@ -84,8 +90,22 @@ export interface MarineBoundarySstChange {
   earlierMonth: MarinePlaceInsightReading["dataMonth"];
   laterMonth: MarinePlaceInsightReading["dataMonth"];
   spatialSupport: MarineBoundarySstChangeSpatialSupport;
-  /** Later observed value minus earlier, in °C; null when not computable. */
+  /**
+   * How the published colormap's open end caps constrain this difference. Always
+   * stated, so a consumer can never read `changeValue` as a point estimate
+   * without first seeing whether it is only a bound.
+   */
+  censoring: SstDifferenceCensoring;
+  /**
+   * Later observed value minus earlier, in °C; null when not computable. When
+   * `censoring.bound` is "lower"/"upper" this is a ONE-SIDED BOUND on the true
+   * change, not the change itself.
+   */
   changeValue: number | null;
+  /**
+   * Null when a censored endpoint leaves the direction unestablished — which is
+   * not the same as `little-change`, and must never be rendered as one.
+   */
   trend: MarineBoundarySstTrend | null;
   thresholdValue: number;
   disparityLimit: number;
@@ -121,6 +141,10 @@ export function describeMarineBoundarySstChange(
   const sameGeography =
     earlier.sampledGeography.label === later.sampledGeography.label;
   const spatialSupport = spatialSupportFor(earlier, later, disparityLimit);
+  const censoring = describeSstDifferenceCensoring(
+    earlier.observedValue,
+    later.observedValue
+  );
 
   const base = {
     kind: "month-over-month-boundary-sea-surface-temperature-change" as const,
@@ -133,6 +157,7 @@ export function describeMarineBoundarySstChange(
     earlierMonth: earlier.dataMonth,
     laterMonth: later.dataMonth,
     spatialSupport,
+    censoring,
     changeValue: null,
     trend: null,
     thresholdValue: validConvention(threshold)
@@ -188,19 +213,51 @@ export function describeMarineBoundarySstChange(
     };
   }
 
+  // Two endpoints censored in opposing directions leave the true change
+  // unbounded both ways. Reporting the arithmetic difference — which for a
+  // doubly saturated pair is typically 0.0 °C — would state "little change"
+  // about water whose change is entirely unknown.
+  if (censoring.bound === "indeterminate") {
+    return {
+      ...base,
+      status: "incomparable-censoring",
+      reason: "both-endpoints-censored",
+    };
+  }
+
   const change = later.observedValue - earlier.observedValue;
   return {
     ...base,
     status: "available",
     changeValue: change,
-    trend:
-      Math.abs(change) < threshold
-        ? "little-change"
-        : change > 0
-          ? "warmer"
-          : "cooler",
+    trend: trendFor(change, threshold, censoring.bound),
     reason: null,
   };
+}
+
+/**
+ * Bin a change into a direction, honouring what a censored endpoint actually
+ * permits. With no censoring the difference is a point value and every bin is
+ * available. With a one-sided bound only the direction the bound already proves
+ * may be claimed: if the true change is at least +0.9 °C it is certainly warmer,
+ * but a bound of −0.2 °C proves nothing, and `little-change` — which asserts
+ * BOTH sides — can never be claimed from a one-sided bound.
+ */
+function trendFor(
+  change: number,
+  threshold: number,
+  bound: SstDifferenceCensoring["bound"]
+): MarineBoundarySstTrend | null {
+  if (bound === "none") {
+    return Math.abs(change) < threshold
+      ? "little-change"
+      : change > 0
+        ? "warmer"
+        : "cooler";
+  }
+  if (bound === "lower") return change >= threshold ? "warmer" : null;
+  if (bound === "upper") return change <= -threshold ? "cooler" : null;
+  return null;
 }
 
 /**
@@ -218,7 +275,13 @@ export function formatMarineBoundarySstChange(
     return `no month-over-month SST change stated for ${laterLabel} vs ${earlierLabel} (${change.reason ?? change.status})`;
   }
 
-  const magnitude = `${formatSigned(change.changeValue)} °C`;
+  const magnitude = `${change.censoring.boundPrefix}${formatSigned(change.changeValue)} °C`;
+  if (change.trend === null) {
+    // A censored endpoint bounded the change on one side only, and that bound
+    // does not reach the direction threshold. Say the direction is unestablished
+    // rather than borrowing "little change", which would claim the opposite side.
+    return `${laterLabel} vs ${earlierLabel}: direction not established (${magnitude}, censored endpoint)`;
+  }
   if (change.trend === "little-change") {
     return `${laterLabel} vs ${earlierLabel}: little change (${magnitude})`;
   }
