@@ -115,12 +115,42 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
     measures: "Land surface temperature (day)",
     minLabel: "cold",
     maxLabel: "hot",
+    // Sampled from GIBS's own MODIS_Land_Surface_Temp colormap — the document
+    // the LST tiles are rendered with — rather than drawn by hand. GIBS paints
+    // this layer as a *full-spectrum rainbow* (magenta → violet → blue → cyan
+    // → green → yellow → orange → red) across 200.3–349.7 K, and that ramp is
+    // piecewise-linear in RGB, so stops placed on its hue corners reproduce
+    // the rendered ramp instead of approximating it.
+    //
+    // The five hand-drawn stops these replace were a muted blue → green →
+    // yellow → red gradient with no magenta or violet anywhere. That gradient
+    // did not merely misread the cold end — it missed the rendered ramp so
+    // completely that **all 250 published colours** fell outside
+    // NO_DATA_DISTANCE and inverted to no-data. LST was the app's only layer
+    // whose probe recovered nothing at all; it now recovers every colour at
+    // 0.317 K RMSE. See validation.MEASURED_INVERSION and lstLegend.test.ts.
+    //
+    // Two deliberate departures from the published colours:
+    //   * The end stops sit at 0 and 1 (200 K and 350 K) while GIBS's ramp is
+    //     published over 200.3–349.7 K, so each end extrapolates its segment by
+    //     0.3 K. The legend bar has to span the probe scale it labels; holding
+    //     the ends inside it would leave the bar's extremes uncoloured.
+    //   * The cold stop is GIBS's magenta with red pulled 197 → 194. Pure
+    //     magenta (#ff00ff) sits 58 units from the published colour — inside
+    //     the 60-unit no-data threshold — so the unmodified hue would make an
+    //     off-gradient magenta pixel read as a 200 K measurement. The 3/255
+    //     nudge buys that separation. Same trade the NDVI ramp above makes
+    //     against black.
     stops: [
-      { color: "#2c3ea8", at: 0 }, // frozen ground / high latitudes
-      { color: "#3fa0c7", at: 0.25 },
-      { color: "#7ec96a", at: 0.5 },
-      { color: "#f2c94c", at: 0.75 },
-      { color: "#c62828", at: 1 }, // hot desert surfaces
+      { color: "#c200ff", at: 0 }, // 200 K — coldest rendered surface
+      { color: "#0100ff", at: 0.198 }, // 229.7 K — violet → pure blue corner
+      { color: "#001aff", at: 0.214 }, // 232.1 K
+      { color: "#00ffff", at: 0.394 }, // 259.1 K — cyan corner
+      { color: "#04fff7", at: 0.398 }, // 259.7 K
+      { color: "#0bffe6", at: 0.402 }, // 260.3 K
+      { color: "#6dff01", at: 0.51 }, // 276.5 K — green
+      { color: "#ffff00", at: 0.666 }, // 299.9 K — yellow corner
+      { color: "#ff0400", at: 1 }, // 350 K — hot desert surfaces
     ],
   },
   airtemp: {

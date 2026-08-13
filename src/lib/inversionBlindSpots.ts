@@ -312,10 +312,16 @@ export interface MeasuredBlindSpot {
  * whole-ramp figure only where the shape is `none`.
  *
  * The findings name a concrete downstream hazard per layer:
- *  - `lst` recovers nothing at all, which is why it carries no RMSE.
+ *  - `lst` recovered *nothing at all* — a `total` blind spot over the whole
+ *    200.3–349.7 K ramp — until its legend was rebuilt from
+ *    MODIS_Land_Surface_Temp (2026-08-13); it now reads every colour.
  *  - `airtemp`, `precip`, `sst` and `soil` had wide blind spots until their
  *    legends were rebuilt from GIBS's own ramps (#717, #713, #736, #753);
  *    re-measured after those recalibrations, all four read the whole ramp.
+ *
+ * With LST fixed, no calibrated layer has a blind spot left. The `total` and
+ * `banded` shapes are kept because they are what a future legend regression
+ * would produce, and the contract test still measures for them weekly.
  *
  * `recovered`/`total` are deliberately redundant with `MEASURED_INVERSION`: the
  * unit test asserts the two tables agree, so recalibrating a legend (as #713,
@@ -334,10 +340,10 @@ export const MEASURED_BLIND_SPOTS: Record<
     widest: null,
   },
   lst: {
-    shape: "total",
-    recovered: 0,
+    shape: "none",
+    recovered: 250,
     total: 250,
-    widest: { lo: 200.3, hi: 349.7, unit: "K" },
+    widest: null,
   },
   airtemp: {
     shape: "none",
