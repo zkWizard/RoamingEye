@@ -37,6 +37,12 @@ export class Legend {
   private readonly keyRows = new Map<string, HTMLElement>();
   private readonly classes: HTMLDivElement;
   private scaleRow!: HTMLElement;
+  /**
+   * The layer the source note currently describes. Terrain tile coverage
+   * arrives asynchronously and independently of the selected layer, so the
+   * note's owner has to be tracked rather than inferred from its visibility.
+   */
+  private activeLayer!: LayerId;
   private terrainCoverageNotice = terrainTileAvailabilityNotice(
     terrainTileAvailability(0, 0, 0)
   );
@@ -147,6 +153,7 @@ export class Legend {
   /** Point the legend at a different data layer. */
   setLayer(id: LayerId): void {
     const spec = LEGENDS[id];
+    this.activeLayer = id;
     this.measures.textContent = spec.measures;
     this.caption.textContent = LAYERS[id].description;
     // Every layer that names a source product cites it here, not only the ones
@@ -221,7 +228,13 @@ export class Legend {
     this.terrainCoverageNotice = terrainTileAvailabilityNotice(
       terrainTileAvailability(requested, loaded, failed)
     );
-    if (!this.sourceNote.hidden) this.renderTerrainSourceNote();
+    // Only terrain's own note carries this notice. The previous guard was the
+    // note's visibility, which is true for every layer that names a source, so
+    // a terrain tile batch — they keep arriving whatever layer is selected —
+    // overwrote the active layer's citation and interpretation guardrail with
+    // terrain's. Every data layer therefore rendered "Source: ASTGTM v003",
+    // miscrediting the product on screen and hiding its DOI and caveat.
+    if (this.activeLayer === "terrain") this.renderTerrainSourceNote();
   }
 
   private renderTerrainSourceNote(): void {
