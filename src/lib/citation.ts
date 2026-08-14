@@ -3,6 +3,7 @@ import {
   type VectorSourceCitation,
 } from "./citedVectorSources";
 import { datasetArchive } from "./datasetArchives";
+import { datasetReadoutNote } from "./citedDatasetReadout";
 import { doiResolverUrl } from "./doiLink";
 import { citedDatasets } from "./providers";
 import type { DatasetRef } from "./timeline";
@@ -86,7 +87,11 @@ function datasetKey(ref: DatasetRef): string {
   return `dataset_${ref.shortName.replace(/[^A-Za-z0-9]/g, "")}_v${ref.version.replace(/[^A-Za-z0-9]/g, "")}`;
 }
 
-/** BibTeX @misc entry for a source dataset, with its DOI. */
+/**
+ * BibTeX @misc entry for a source dataset, with its DOI and the note recording
+ * how RoamingEye actually read it (citedDatasetReadout.ts) — so a copied entry
+ * never credits the archived product for numbers recovered from its imagery.
+ */
 export function bibtexDataset(ref: DatasetRef): string {
   const archive = datasetArchive(ref.doi);
   return [
@@ -94,6 +99,7 @@ export function bibtexDataset(ref: DatasetRef): string {
     `  title = {${bibtexEscape(ref.title)} (${ref.shortName} v${ref.version})},`,
     ...(archive ? [`  publisher = {${bibtexEscape(archive.name)}},`] : []),
     `  doi = {${ref.doi}},`,
+    `  note = {${bibtexEscape(datasetReadoutNote(ref))}},`,
     `  url = {${doiResolverUrl(ref.doi)}}`,
     `}`,
   ].join("\n");
@@ -122,6 +128,7 @@ export function risDataset(ref: DatasetRef): string {
     ...(archive ? [`PB  - ${archive.name}`] : []),
     `DO  - ${ref.doi}`,
     `UR  - ${doiResolverUrl(ref.doi)}`,
+    `N1  - ${datasetReadoutNote(ref)}`,
     `ER  - `,
   ].join("\n");
 }
@@ -144,12 +151,14 @@ export function textTool(): string {
  * the string never over-claims metadata the DatasetRef does not carry. A dataset
  * with no verified archive names none rather than borrowing one (see
  * datasetArchives.ts). The DOI is rendered as a resolvable link, per the ESIP
- * data-citation guidelines.
+ * data-citation guidelines, and the readout note closes the string the way a
+ * vector source's note does — this is the form that ends up in a figure caption,
+ * where the indirection is easiest to lose.
  */
 export function textDataset(ref: DatasetRef): string {
   const archive = datasetArchive(ref.doi);
   const publisher = archive ? `${archive.name}. ` : "";
-  return `${ref.title} (${ref.shortName} v${ref.version}) [Data set]. ${publisher}${doiResolverUrl(ref.doi)}`;
+  return `${ref.title} (${ref.shortName} v${ref.version}) [Data set]. ${publisher}${doiResolverUrl(ref.doi)}. ${datasetReadoutNote(ref)}`;
 }
 
 /**
@@ -229,6 +238,7 @@ export function cslDataset(ref: DatasetRef): CslItem {
     version: ref.version,
     DOI: ref.doi,
     URL: doiResolverUrl(ref.doi),
+    note: datasetReadoutNote(ref),
   };
 }
 
@@ -347,6 +357,11 @@ export type CitationFormat = "bibtex" | "ris" | "text" | "csljson";
  * dataset it renders (deduplicated by DOI), and the vector sources behind the
  * volcano, earthquake, and plate-boundary overlays — in the requested format,
  * ready to paste into a reference manager.
+ *
+ * Every entry, imagery and vector alike, carries the note qualifying how
+ * RoamingEye actually read that source (citedDatasetReadout.ts), so a citation
+ * that leaves the app cannot present a recovered value as the archived
+ * product's own.
  *
  * The two groups are kept in a fixed order (imagery, then vector) so the bundle
  * is byte-stable across calls and diffable between releases.
