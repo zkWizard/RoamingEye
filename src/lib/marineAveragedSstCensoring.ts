@@ -1,6 +1,9 @@
 import type { MarineAveragedSstFootprint } from "./marineAveragedSstSupport";
 import type { ProbeSstExtremeCensoring } from "./probeSstExtremeCensoring";
-import type { SstRampCensoringSummary } from "./sstRampCensoring";
+import type {
+  SstDifferenceBound,
+  SstRampCensoringSummary,
+} from "./sstRampCensoring";
 
 /**
  * Why the SST end-cap marks cannot see censoring in an AVERAGED footprint — a
@@ -182,12 +185,32 @@ export function averagedSstCensoringNote(
  * published ramp, which was not decoded from this ramp and so carries no
  * statement about its caps.
  *
+ * `differenceStatedBound` extends the same qualification to a DIFFERENCE printed
+ * on the same card, and is optional because omitting it leaves every existing
+ * caller's text unchanged. It matters because the card does not stop at the mean:
+ * beside it the panel prints a year-over-year difference between this boundary
+ * mean and the same calendar month a year earlier, and `describeSstDifferenceCensoring`
+ * screens that pair by reading the two MEANS. That screen is exact for a pixel
+ * and blind here for the reason above, so the whole apparatus a reader can see —
+ * the `≥`/`≤` prefix, the suppressed direction, the withheld doubly-censored pair
+ * — fires only when a mean itself reached a terminal bin, which averaging is what
+ * prevents. Qualifying the single value while leaving the difference beside it
+ * bare states the incomplete rule twice and corrects it once.
+ *
+ * Pass the comparison's bound when a difference is actually stated: `null` or
+ * `"none"` for one carrying no inequality, `"lower"`/`"upper"` for one that does.
+ * Pass nothing (or `"indeterminate"`, where the difference was withheld outright
+ * and there is no claim left to qualify) for no extra clause.
+ *
  * Claims no presence, direction, or magnitude, for the reason given at the top of
  * this file, and supports no sea-ice, marine-biology, ecosystem, habitat, hazard,
- * causal, or forecast statement.
+ * causal, or forecast statement. In particular it neither corrects a difference
+ * nor withdraws its direction: the sign of what censoring did to a difference
+ * needs its presence in BOTH months, which is exactly what is unrecoverable.
  */
 export function marineBoundaryMeanSstCensoringNote(
-  censoring: SstRampCensoringSummary | null | undefined
+  censoring: SstRampCensoringSummary | null | undefined,
+  differenceStatedBound?: SstDifferenceBound | null
 ): string | null {
   if (!censoring) return null;
   const { status, ramp } = censoring;
@@ -196,12 +219,35 @@ export function marineBoundaryMeanSstCensoringNote(
     // The bound printed just before this clause was read off the MEAN, so it
     // says nothing about the pixels averaged into it — and in particular does
     // not establish that an unmarked mean held none of them.
-    return `that bound screens the boundary mean and not the pixels behind it — a mean of capped and resolved pixels lands inside the finite ramp, so an unmarked mean is not established as uncensored`;
+    return `that bound screens the boundary mean and not the pixels behind it — a mean of capped and resolved pixels lands inside the finite ramp, so an unmarked mean is not established as uncensored${boundaryDifferenceClause(
+      differenceStatedBound
+    )}`;
   }
   if (status === "within-published-ramp") {
-    return `this boundary mean is an area-weighted mean of per-pixel decodes, so a pixel the published ${ramp.colormapDoc} colormap capped averages in with resolved ones and the mean lands inside the finite ramp — no bound is marked here, but that is not evidence the boundary held no censored pixel`;
+    return `this boundary mean is an area-weighted mean of per-pixel decodes, so a pixel the published ${ramp.colormapDoc} colormap capped averages in with resolved ones and the mean lands inside the finite ramp — no bound is marked here, but that is not evidence the boundary held no censored pixel${boundaryDifferenceClause(
+      differenceStatedBound
+    )}`;
   }
   return null;
+}
+
+/**
+ * The trailing half-sentence carrying the mean's qualification onto a difference
+ * printed beside it, or "" when no difference was stated.
+ *
+ * The two stated cases mislead differently, so they are worded differently. An
+ * unmarked difference reads as a screened pair that came back clean; a marked one
+ * reads as a screen that found what there was to find. Both were read off two
+ * averaged means, and neither says anything about the pixels behind them.
+ */
+function boundaryDifferenceClause(
+  bound: SstDifferenceBound | null | undefined
+): string {
+  if (bound === undefined || bound === "indeterminate") return "";
+  if (bound === "lower" || bound === "upper") {
+    return `; the inequality on the year-over-year difference above was read off two such means as well, so it marks only what the means themselves reached and leaves censoring inside either month's footprint undetected`;
+  }
+  return `; the year-over-year difference above is taken between two such means and screened by that same rule, so the absence of an inequality on it is not evidence that either month was uncensored`;
 }
 
 /**
