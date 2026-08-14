@@ -10,8 +10,16 @@ import {
 import { vegetationIndexLegendNote } from "./vegetationIndexRenderedRange";
 import { PROBE_SCALES } from "./probe";
 import { LAYERS, LAYER_ORDER } from "./timeline";
-import { DEPTH_CLASS_COLORS, MAGNITUDE_SIZE_BUCKETS } from "./earthquakes";
-import { ERUPTION_CLASS_COLORS, ERUPTION_CLASS_LABELS } from "./volcanoes";
+import {
+  DEPTH_CLASS_COLORS,
+  MAGNITUDE_SIZE_BUCKETS,
+  SEISMICITY_OVERLAY_POPULATION,
+} from "./earthquakes";
+import {
+  ERUPTION_CLASS_COLORS,
+  ERUPTION_CLASS_LABELS,
+  VOLCANO_OVERLAY_POPULATION,
+} from "./volcanoes";
 
 describe("LEGENDS", () => {
   it("covers every data layer", () => {
@@ -192,6 +200,48 @@ describe("OVERLAY_KEYS quake magnitude-size channel", () => {
     for (const entry of OVERLAY_KEYS.volcanoes.entries) {
       expect(entry.scale).toBeUndefined();
     }
+  });
+});
+
+describe("OVERLAY_KEYS marker population", () => {
+  it("states which records were eligible to be drawn, for both overlays", () => {
+    // A channel says what a marker means; only this says what no marker means.
+    expect(OVERLAY_KEYS.quakes.population).toBe(SEISMICITY_OVERLAY_POPULATION);
+    expect(OVERLAY_KEYS.volcanoes.population).toBe(VOLCANO_OVERLAY_POPULATION);
+  });
+
+  it("names the seismicity selection the feed actually applies", () => {
+    // Both filters, because either one alone understates what is missing.
+    expect(SEISMICITY_OVERLAY_POPULATION).toContain("M4.5+");
+    expect(SEISMICITY_OVERLAY_POPULATION).toContain("30 days");
+    expect(SEISMICITY_OVERLAY_POPULATION).toContain(
+      "not a complete earthquake catalog"
+    );
+  });
+
+  it("names the volcano inventory rather than implying every vent", () => {
+    expect(VOLCANO_OVERLAY_POPULATION).toContain("Holocene inventory");
+    expect(VOLCANO_OVERLAY_POPULATION).toContain(
+      "not a complete record of every volcanic feature or vent"
+    );
+  });
+
+  it("reads an absent marker as unrecorded, never as an all-clear", () => {
+    // The whole point of the note: absence is a property of the selection,
+    // not of the ground. Neither may be read as a hazard or risk statement.
+    for (const note of [
+      SEISMICITY_OVERLAY_POPULATION,
+      VOLCANO_OVERLAY_POPULATION,
+    ]) {
+      expect(note).toContain("an area with no marker is not established as");
+      expect(note).not.toMatch(/hazard|risk|forecast|danger|safe/i);
+    }
+  });
+
+  it("stays out of the channel rows so the key gains no height", () => {
+    // The note describes the marker set, so it belongs to the spec rather than
+    // to a channel; a secondary channel carrying one would repeat it verbatim.
+    expect(OVERLAY_KEYS.quakes.secondary).not.toHaveProperty("population");
   });
 });
 

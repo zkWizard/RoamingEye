@@ -238,6 +238,25 @@ export const USGS_FEED_URL =
   "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_month.geojson";
 
 /**
+ * Which earthquakes the globe is drawing, for the legend key.
+ *
+ * The key names what a marker's color and size encode, but not which events
+ * were eligible to become a marker at all. The feed is a filtered summary:
+ * USGS's own all-magnitude product for the same rolling window carries far
+ * more events, so the overwhelming majority of catalogued earthquakes are
+ * absent by the M4.5+ threshold rather than by their absence from the ground.
+ * Without that stated, an area holding no marker reads as an area holding no
+ * earthquakes.
+ *
+ * Wording follows the limitations already recorded in earthquakeContext.ts
+ * ("not a complete earthquake catalog"; "no matching event does not establish
+ * that a location is seismically quiet"), which no user-facing surface renders.
+ * States the selection only — no hazard, risk, or forecast reading.
+ */
+export const SEISMICITY_OVERLAY_POPULATION =
+  "Live USGS summary feed: global M4.5+ over a rolling 30 days, not a complete earthquake catalog — an area with no marker is not established as seismically quiet.";
+
+/**
  * Compact, source-faithful text for inspecting a rendered earthquake marker.
  * Values remain in the feed's native magnitude, kilometre, and UTC time units.
  */
