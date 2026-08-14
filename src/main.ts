@@ -56,6 +56,7 @@ import {
   seasonalSamplingCsvHeaders,
 } from "./lib/seasonalSamplingBalance";
 import { sstSamplingIdentityCsvHeaders } from "./lib/seaSurfaceTemperatureSamplingIdentity";
+import { lstSamplingIdentityCsvHeaders } from "./lib/lstObservingConstraints";
 import { snowIlluminationNote } from "./lib/snowCoverIllumination";
 import type { GeoResult } from "./lib/geocoding";
 import { refreshDataLatest } from "./lib/freshness";
@@ -1018,14 +1019,17 @@ if (probeEl) {
                 recordGapHeaders: probeRecordGapsCsvHeaders(
                   probeRecordGaps(layer.id, probeMonths)
                 ),
-                // Same reasoning for *which* moments the values sample: the
-                // probe states the SST sampling gate on screen, and the
-                // download needs it more — nothing in a column of degrees
-                // says it is a daytime skin composite. Empty for every
-                // other layer.
-                samplingIdentityHeaders: sstSamplingIdentityCsvHeaders(
-                  layer.id
-                ),
+                // Same reasoning for *which* moments the values sample and
+                // *what quantity* they are: the probe states the SST and the
+                // LST sampling gate on screen, and the download needs them
+                // more — nothing in a column of degrees says it is a daytime
+                // skin composite, and on land the 2 m air-temperature sibling
+                // exports a column that looks identical to this one. A layer
+                // is sst or lst or neither, so at most one list contributes.
+                samplingIdentityHeaders: [
+                  ...sstSamplingIdentityCsvHeaders(layer.id),
+                  ...lstSamplingIdentityCsvHeaders(layer.id),
+                ],
                 // And the same for the rows themselves: the status line prints
                 // an inequality in front of every censored statistic, while a
                 // capped month's `value` cell is an ordinary decimal. Judged on
@@ -1242,14 +1246,17 @@ if (probeEl) {
                 recordGapHeaders: probeRecordGapsCsvHeaders(
                   probeRecordGaps(layer.id, probeMonths)
                 ),
-                // Same reasoning for *which* moments the values sample: the
-                // probe states the SST sampling gate on screen, and the
-                // download needs it more — nothing in a column of degrees
-                // says it is a daytime skin composite. Empty for every
-                // other layer.
-                samplingIdentityHeaders: sstSamplingIdentityCsvHeaders(
-                  layer.id
-                ),
+                // Same reasoning for *which* moments the values sample and
+                // *what quantity* they are: the probe states the SST and the
+                // LST sampling gate on screen, and the download needs them
+                // more — nothing in a column of degrees says it is a daytime
+                // skin composite, and on land the 2 m air-temperature sibling
+                // exports a column that looks identical to this one. A layer
+                // is sst or lst or neither, so at most one list contributes.
+                samplingIdentityHeaders: [
+                  ...sstSamplingIdentityCsvHeaders(layer.id),
+                  ...lstSamplingIdentityCsvHeaders(layer.id),
+                ],
                 // And the same for the rows themselves: the status line prints
                 // an inequality in front of every censored statistic, while a
                 // capped month's `value` cell is an ordinary decimal. Judged on

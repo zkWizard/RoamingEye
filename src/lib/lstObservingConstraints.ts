@@ -64,6 +64,16 @@ import { LAYERS, type DatasetRef, type LayerId } from "./timeline";
 /** The one layer these constraints are asserted for, and only it. */
 export const LST_OBSERVING_CONSTRAINT_LAYER_ID = "lst" as const;
 
+/**
+ * The GIBS identifier every constraint below is asserted for, kept literal for
+ * the export drift guard the way `seaSurfaceTemperatureSamplingIdentity` keeps
+ * `gibsLayer`. GIBS spells the diurnal half into the identifier itself, so a
+ * layer repointed at the night product or an all-sky one must not inherit a
+ * mid-morning clear-sky qualifier.
+ */
+export const LST_OBSERVING_CONSTRAINT_GIBS_LAYER =
+  "MODIS_Terra_L3_Land_Surface_Temp_Monthly_Day" as const;
+
 const lstSource = LAYERS[LST_OBSERVING_CONSTRAINT_LAYER_ID].dataset;
 if (!lstSource) {
   throw new Error(
@@ -178,6 +188,79 @@ export function probeLstSamplingGateClause(
 ): string {
   if (layerId !== LST_OBSERVING_CONSTRAINT_LAYER_ID) return "";
   return hasReportedStatistics ? LST_SAMPLING_GATE_NOTE : "";
+}
+
+/**
+ * Each sampling gate written out for the exported CSV, keyed by constraint id.
+ *
+ * Fuller than the status-line short forms on purpose, for the reason the SST
+ * export gives: an archived file has no display budget, and it is read by
+ * someone who no longer has the status line in front of them. Hand-written
+ * rather than interpolated from `constraint`/`implication` because those carry
+ * commas and a `#` line must not (see the header discipline on `csvHeaderText`
+ * in probe.ts); the keyed `Record` is what keeps them from drifting apart —
+ * adding a fourth constraint fails to compile until its export prose is
+ * written, exactly as `LST_CAPTION_CONSTRAINT_PHRASES` does for the caption.
+ */
+const LST_SAMPLING_IDENTITY_CSV_PROSE: Record<
+  LstObservingConstraintId,
+  string
+> = {
+  "morning-overpass-only":
+    "composited from Terra's daytime overpass only near 10:30 local solar time — hours before the early-afternoon maximum of the land diurnal cycle — so a monthly mean of these rows is neither a diurnal mean nor a diurnal maximum",
+  "clear-sky-retrieval-only":
+    "retrieved in the thermal infrared which does not pass through cloud — only cloud-screened days contribute — so a monthly value averages a non-random subset of that month's days with cloudy days absent rather than averaged in",
+  "radiometric-skin-temperature":
+    "a radiometric skin temperature of the ground or roof or canopy the sensor sees — not the 2 m air temperature this app renders as a sibling layer in the same category — so it is a different quantity rather than a biased estimate of one and the two series must not be differenced as though they measured the same thing",
+};
+
+/**
+ * Provenance headers naming *which* moments and *what quantity* the exported
+ * land-surface-temperature rows represent, or an empty list for every other
+ * layer.
+ *
+ * The probe already states this gate on screen (`probeLstSamplingGateClause`),
+ * and the download is the surface that needs it more: the file outlives the
+ * session and names the product only through `# data_product`, whose short name
+ * is `MOD11C3`. A reader who opens it six months later sees a column headed
+ * `value` in kelvin with no indication that it samples one mid-morning moment,
+ * omits every cloudy day, and describes the radiating surface rather than the
+ * air above it. All three change what the column may be compared against, and
+ * none is recoverable from the numbers — least of all the third, since the app
+ * renders 2 m air temperature as a sibling layer whose export looks identical.
+ *
+ * This is the product's observing system, so it does not depend on the sampled
+ * months and is not derived from them. It is emitted whenever the LST layer is
+ * exported.
+ *
+ * Silent when the configured layer has drifted off the declared identifier: a
+ * stale mid-morning clear-sky claim attached to a different product would be
+ * worse than no claim at all, and an exported file cannot be corrected after
+ * the fact. No magnitude and no direction are asserted — see
+ * `LST_OBSERVING_CONSTRAINT_LIMITS` — and nothing about weather, heat hazard,
+ * health, comfort or urban heat-island attribution follows from any line here.
+ */
+export function lstSamplingIdentityCsvHeaders(
+  layerId: LayerId | undefined
+): string[] {
+  if (layerId !== LST_OBSERVING_CONSTRAINT_LAYER_ID) return [];
+  if (
+    LAYERS[LST_OBSERVING_CONSTRAINT_LAYER_ID].wmsLayer !==
+    LST_OBSERVING_CONSTRAINT_GIBS_LAYER
+  ) {
+    return [];
+  }
+  // No commas anywhere below: a `#` line must never contain a CSV delimiter
+  // (see the header discipline documented on `csvHeaderText` in probe.ts).
+  return [
+    ...LST_OBSERVING_CONSTRAINTS.map(
+      (entry) =>
+        `# lst_${entry.id.replace(/-/g, "_")}: ${
+          LST_SAMPLING_IDENTITY_CSV_PROSE[entry.id]
+        }`
+    ),
+    `# lst_sampling_direction: no direction and no magnitude are asserted — Terra's 10:30 crossing falls between the pre-dawn minimum and the afternoon maximum and the skin-versus-air offset is regime-dependent; these are fixed properties of the cited product's observing system and not of any individual value month or place`,
+  ];
 }
 
 /**
