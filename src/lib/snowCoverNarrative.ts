@@ -4,6 +4,7 @@ import {
   SNOW_COVER_DATASET,
   SNOW_COVER_LIMITATIONS,
   SNOW_COVER_SOURCE_RESOLUTION,
+  SNOW_SEASON_CHANGE_THRESHOLD_PP,
   describeSnowSeasonChange,
   type SnowCoverSummary,
   type SnowSeasonChange,
@@ -363,8 +364,58 @@ export function placeSnowCoverInsight(
   // caveat above is quantifying.
   return {
     value: formatPercent(later.snowCoveredPercent),
-    detail: `${narrative.detail} ${coverageSentence(later.coverage.validFraction)} ${context}`,
+    detail: `${narrative.detail} ${coverageComparisonSentence(change)} ${context}`,
   };
+}
+
+/**
+ * Percentage-point gap between the two months' drawn footprints at or above
+ * which the change sentence is qualified. Reuses the change-reporting band: a
+ * footprint difference smaller than the movement this module already refuses
+ * to call a change is not worth disclosing either, and no second convention
+ * has to be defended.
+ */
+const FOOTPRINT_MISMATCH_THRESHOLD_PP = SNOW_SEASON_CHANGE_THRESHOLD_PP;
+
+/**
+ * State the sampled coverage, qualifying the change when the two months were
+ * drawn over materially different areas.
+ *
+ * Percent 0 is transparent (see DRAWN_FRACTION_CAVEAT), so each month's value
+ * is a mean over whatever was drawn *that* month and the two denominators need
+ * not match. Subtracting them is then not a like-for-like comparison of the
+ * same ground: a month whose drawn area collapsed can report a higher mean over
+ * the little that remains, which renders as snow advancing. The panel showed
+ * only the later month's coverage, so the mismatch was not visible at all.
+ *
+ * Silent by default — the qualifier is added only when a change was actually
+ * stated and both footprints are known, and only once the gap reaches the band
+ * above. Matched footprints keep the original single-coverage sentence.
+ */
+function coverageComparisonSentence(change: SnowSeasonChange): string {
+  const earlierFraction = change.earlier.coverage.validFraction;
+  const laterFraction = change.later.coverage.validFraction;
+  const plain = coverageSentence(laterFraction);
+  if (
+    change.status !== "available" ||
+    earlierFraction === null ||
+    laterFraction === null
+  ) {
+    return plain;
+  }
+  // Compared at the precision the panel actually renders, so a gap too small to
+  // be visible in the two numbers cannot trip the disclosure.
+  const earlierShown = roundTo(earlierFraction * 100, 1);
+  const laterShown = roundTo(laterFraction * 100, 1);
+  if (Math.abs(laterShown - earlierShown) < FOOTPRINT_MISMATCH_THRESHOLD_PP) {
+    return plain;
+  }
+  return (
+    `Usable area coverage was ${formatPercent(laterShown)} in ${formatMonth(change.later.dataMonth)} ` +
+    `against ${formatPercent(earlierShown)} in ${formatMonth(change.earlier.dataMonth)}, ` +
+    `so each month's mean covers a different drawn area and the change above is not a ` +
+    `like-for-like comparison of the same ground.`
+  );
 }
 
 function coverageSentence(validFraction: number | null): string {
