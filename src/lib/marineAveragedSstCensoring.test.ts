@@ -233,4 +233,73 @@ describe("marineBoundaryMeanSstCensoringNote", () => {
       expect(note).not.toMatch(/marine|biolog|ecosystem|habitat|sea-ice/i);
     }
   });
+
+  // The card prints a year-over-year difference between two boundary means and
+  // screens it by reading them, so that screen is blind in exactly the way this
+  // note exists to state. Omitting the bound has to leave the old text alone.
+  it("leaves every existing caller's text unchanged when no difference is stated", () => {
+    for (const value of [FLOOR, INTERIOR, CEILING]) {
+      const summary = summarizeSstRampCensoring(value);
+      expect(marineBoundaryMeanSstCensoringNote(summary, undefined)).toBe(
+        marineBoundaryMeanSstCensoringNote(summary)
+      );
+      // A withheld difference states no claim, so there is nothing to qualify.
+      expect(marineBoundaryMeanSstCensoringNote(summary, "indeterminate")).toBe(
+        marineBoundaryMeanSstCensoringNote(summary)
+      );
+    }
+  });
+
+  it("carries the qualification onto an unmarked year-over-year difference", () => {
+    for (const bound of [null, "none"] as const) {
+      for (const value of [FLOOR, INTERIOR, CEILING]) {
+        const note = marineBoundaryMeanSstCensoringNote(
+          summarizeSstRampCensoring(value),
+          bound
+        );
+        expect(note).toContain("year-over-year difference above");
+        // The difference reads as a screened pair that came back clean; say the
+        // silence is the screen's reach and not a finding.
+        expect(note).toContain(
+          "the absence of an inequality on it is not evidence that either month was uncensored"
+        );
+      }
+    }
+  });
+
+  it("corrects a bounded year-over-year difference instead of explaining a silence", () => {
+    for (const bound of ["lower", "upper"] as const) {
+      const note = marineBoundaryMeanSstCensoringNote(
+        summarizeSstRampCensoring(INTERIOR),
+        bound
+      );
+      expect(note).toContain(
+        "leaves censoring inside either month's footprint undetected"
+      );
+      // An inequality IS printed on the difference, so there is no silence to
+      // explain and the unmarked wording must not appear.
+      expect(note).not.toContain("absence of an inequality");
+    }
+  });
+
+  it("neither corrects a difference nor claims a direction for it", () => {
+    for (const bound of [null, "lower", "upper"] as const) {
+      const note = marineBoundaryMeanSstCensoringNote(
+        summarizeSstRampCensoring(INTERIOR),
+        bound
+      );
+      // The sign of what censoring did to a difference needs its presence in
+      // BOTH months, which is exactly what an averaged footprint destroys.
+      expect(note).not.toMatch(/warmer|cooler|colder|unchanged|≤|≥/);
+      expect(note).not.toMatch(/marine|biolog|ecosystem|habitat|sea-ice/i);
+    }
+  });
+
+  // A value outside the published ramp carries no statement about its caps, so
+  // it gets no clause even when a difference was stated beside it.
+  it("stays silent outside the published ramp even with a stated difference", () => {
+    expect(
+      marineBoundaryMeanSstCensoringNote(summarizeSstRampCensoring(null), null)
+    ).toBeNull();
+  });
 });
