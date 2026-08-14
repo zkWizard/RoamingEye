@@ -1,6 +1,14 @@
 import { LAYERS, type LayerId } from "./timeline";
-import { DEPTH_CLASS_COLORS, MAGNITUDE_SIZE_BUCKETS } from "./earthquakes";
-import { ERUPTION_CLASS_COLORS, ERUPTION_CLASS_LABELS } from "./volcanoes";
+import {
+  DEPTH_CLASS_COLORS,
+  MAGNITUDE_SIZE_BUCKETS,
+  SEISMICITY_OVERLAY_POPULATION,
+} from "./earthquakes";
+import {
+  ERUPTION_CLASS_COLORS,
+  ERUPTION_CLASS_LABELS,
+  VOLCANO_OVERLAY_POPULATION,
+} from "./volcanoes";
 import { PROBE_SCALES, formatProbeValue, scaleValue } from "./probe";
 import { IGBP_LAND_COVER_CLASSES } from "./landCover";
 import { IGBP_RENDERED_PALETTE } from "./landCoverPalette";
@@ -365,6 +373,17 @@ export interface OverlayKeySpec extends OverlayKeyChannel {
    * of what is on screen unexplained.
    */
   secondary?: OverlayKeyChannel;
+  /**
+   * Which records were eligible to be drawn at all.
+   *
+   * A channel explains what a marker means; it cannot explain what the
+   * absence of a marker means. Both geology overlays render a filtered
+   * selection — a live magnitude/time threshold, a bundled Holocene
+   * inventory — and the datasets' own limitation strings say so, but no
+   * user-facing surface renders them. Carried here so the key that is on
+   * screen for exactly as long as the markers are can say it too.
+   */
+  population?: string;
 }
 
 /**
@@ -412,6 +431,7 @@ export const OVERLAY_KEYS: Record<"quakes" | "volcanoes", OverlayKeySpec> = {
       title: "Marker size — reported magnitude",
       entries: magnitudeSizeEntries(),
     },
+    population: SEISMICITY_OVERLAY_POPULATION,
   },
   volcanoes: {
     title: "Last eruption",
@@ -429,6 +449,7 @@ export const OVERLAY_KEYS: Record<"quakes" | "volcanoes", OverlayKeySpec> = {
         label: ERUPTION_CLASS_LABELS.holocene,
       },
     ],
+    population: VOLCANO_OVERLAY_POPULATION,
   },
 };
 

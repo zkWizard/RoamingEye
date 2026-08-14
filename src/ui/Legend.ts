@@ -131,9 +131,15 @@ export class Legend {
     // One row per channel. `.legend__keys` already stacks its children, so an
     // overlay encoding both color and size renders as two rows with no new
     // layout rules; both are tracked together so one toggle removes both.
+    // The population note rides the first row's title only: it describes the
+    // marker set, not one channel, so repeating it on the size row would say
+    // the same thing about the same markers twice.
     const channels = spec.secondary ? [spec, spec.secondary] : [spec];
-    const rows = channels.map((channel) => {
-      const key = buildKeyRow(channel);
+    const rows = channels.map((channel, index) => {
+      const key = buildKeyRow(
+        channel,
+        index === 0 ? spec.population : undefined
+      );
       this.keys.append(key);
       return key;
     });
@@ -273,14 +279,28 @@ const SWATCH_REM = 0.55;
  * A scaled entry is drawn at the overlay's own size ratio, anchored so the
  * largest swatch matches the unscaled default — the row shows the real
  * relationship between markers without becoming taller than the rows beside it.
+ *
+ * `population` — which records were eligible to be drawn — is attached to the
+ * title rather than added as visible copy, the same way the vegetation tick
+ * caveat rides its number: `.legend__key` wraps, so a sentence in the row
+ * would push the swatches onto another line and grow the legend, which sits
+ * over the globe. The title keeps its own text as the accessible name so the
+ * note extends the row for screen readers instead of replacing it.
  */
-function buildKeyRow(channel: OverlayKeyChannel): HTMLDivElement {
+function buildKeyRow(
+  channel: OverlayKeyChannel,
+  population?: string
+): HTMLDivElement {
   const key = document.createElement("div");
   key.className = "legend__key";
 
   const title = document.createElement("span");
   title.className = "legend__key-title";
   title.textContent = channel.title;
+  if (population) {
+    title.title = population;
+    title.setAttribute("aria-label", `${channel.title} — ${population}`);
+  }
   key.append(title);
 
   for (const entry of channel.entries) {
