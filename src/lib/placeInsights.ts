@@ -18,6 +18,7 @@ import { fetchWithRetry } from "./net";
 import type { GeometrySamplingStrategy } from "./geojson";
 import { vegetationDrawnCoverageCaveat } from "./vegetationDrawnCoverage";
 import {
+  formatPlaceVegetationDelta,
   isPlausibleNdvi,
   placeVegetationComparison,
   type PlaceVegetationComparison,
@@ -348,7 +349,13 @@ function vegetationDetail(
         : `${labels.previousMonthLabel} is not the preceding month, so no month-over-month change is reported`;
     return `${labels.currentLabel} regional mean${labels.suffix}; ${reason}`;
   }
-  const delta = formatDelta("vegetation", comparison.delta);
+  // Not `formatDelta`: two decimals is the width of the stability band this
+  // string names, so the shared formatter can print one number under both
+  // verdicts (see formatPlaceVegetationDelta).
+  const delta = formatPlaceVegetationDelta(
+    comparison.delta,
+    comparison.stabilityThreshold
+  );
   const statement =
     comparison.direction === "little-change"
       ? `Little change (${delta} NDVI, within the ${comparison.stabilityThreshold} stability band)`

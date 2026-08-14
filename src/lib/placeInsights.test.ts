@@ -197,6 +197,40 @@ describe("place insights", () => {
     );
   });
 
+  it("never prints one NDVI difference under both vegetation verdicts", () => {
+    const vegetation = PLACE_METRICS.find(
+      (metric) => metric.id === "vegetation"
+    );
+    if (!vegetation) throw new Error("vegetation metric missing");
+    const months: [YearMonth, YearMonth] = [
+      { year: 2026, month: 1 },
+      { year: 2026, month: 2 },
+    ];
+
+    // The stability band is 0.05 — the card's own printing precision — so a
+    // 0.0501 step used to render "Greening +0.05 NDVI" while a 0.0499 step
+    // rendered "Little change (+0.05 NDVI, within the 0.05 stability band)".
+    // One number, opposite verdicts, and the number is all the reader has.
+    const change = placeInsightReading(vegetation, months, [0.5, 0.5501]);
+    const noChange = placeInsightReading(vegetation, months, [0.5, 0.5499]);
+    expect(change.detail).toBe(
+      "Greening +0.0501 NDVI vs Jan 2026 · Feb 2026 · annual cycle not removed"
+    );
+    expect(noChange.detail).toBe(
+      "Little change (+0.05 NDVI, within the 0.05 stability band) vs Jan 2026 · Feb 2026 · annual cycle not removed"
+    );
+    expect(change.detail).not.toContain("Greening +0.05 NDVI");
+
+    // Browning is held to the same standard, and a step that three decimals
+    // already separate from the band is not widened further.
+    expect(placeInsightReading(vegetation, months, [0.5, 0.4499]).detail).toBe(
+      "Browning -0.0501 NDVI vs Jan 2026 · Feb 2026 · annual cycle not removed"
+    );
+    expect(placeInsightReading(vegetation, months, [0.5, 0.5509]).detail).toBe(
+      "Greening +0.051 NDVI vs Jan 2026 · Feb 2026 · annual cycle not removed"
+    );
+  });
+
   it("withholds a vegetation comparison the two sampled months cannot support", () => {
     const vegetation = PLACE_METRICS.find(
       (metric) => metric.id === "vegetation"
