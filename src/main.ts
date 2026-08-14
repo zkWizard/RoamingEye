@@ -68,6 +68,7 @@ import { ProbeSampler } from "./probe/ProbeSampler";
 import { ProbePanel } from "./ui/ProbePanel";
 import { CompareController } from "./scene/CompareController";
 import { CompareControls } from "./ui/CompareControls";
+import { exportMonthStamp } from "./lib/compare";
 import { ShareButton } from "./ui/ShareButton";
 import { ExportControls } from "./ui/ExportControls";
 import { ThemeToggle } from "./ui/ThemeToggle";
@@ -531,8 +532,10 @@ if (exportEl) {
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
         // Version in the filename: a figure in a slide deck stays traceable
-        // to the software that rendered it, months later.
-        a.download = `roamingeye_${currentLayer}_${ym.year}-${String(ym.month).padStart(2, "0")}_v${__APP_VERSION__}.png`;
+        // to the software that rendered it, months later. `showing` (not
+        // `active`) is the right gate here — it is the pinned texture landing
+        // that puts a second month into the pixels being read back.
+        a.download = `roamingeye_${currentLayer}_${exportMonthStamp(ym, compare.showing ? compare.pinned : undefined)}_v${__APP_VERSION__}.png`;
         a.click();
         URL.revokeObjectURL(a.href);
       }, "image/png");
