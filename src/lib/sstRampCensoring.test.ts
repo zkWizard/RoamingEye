@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { invertColormapEntries } from "./probe";
 import {
-  SEAWATER_FREEZING_POINT_C,
   SST_PUBLISHED_RAMP,
   describeSstDifferenceCensoring,
   summarizeSstRampCensoring,
 } from "./sstRampCensoring";
+import { subZeroSstCapBound } from "./seawaterFreezingPoint";
 
 /**
  * The published MODIS_Sea_Surface_Temperature ramp's dark and warm ends, plus
@@ -40,7 +40,42 @@ describe("SST end-cap censoring", () => {
     expect(summary.boundDirection).toBe("upper");
     expect(summary.valueText).toBe("≤ 0.1 °C");
     expect(summary.qualifier).toContain("upper bound");
-    expect(summary.qualifier).toContain(String(SEAWATER_FREEZING_POINT_C));
+    expect(summary.qualifier).toContain(subZeroSstCapBound().lowerC.toFixed(2));
+  });
+
+  it("states the cold cap's floor as conditional on open water, not asserted", () => {
+    // The floor bin is a polar/sub-polar reading, which is exactly where sea
+    // ice sits. A thermal-infrared retrieval over ice measures the ice skin,
+    // which can be far below the freezing point of the water beneath it, and
+    // this app cannot tell the two surfaces apart from the rendered imagery.
+    // Quoting the freezing point WITHOUT that assumption hands the reader a
+    // floor that does not hold in the only waters where the bin occurs.
+    const qualifier = summarizeSstRampCensoring(0.075).qualifier ?? "";
+    expect(qualifier).toContain("open seawater");
+    expect(qualifier).toContain("sea ice");
+    expect(qualifier).toContain("ice skin");
+    // The freezing point is cited, not recalled: the bound carries the UNESCO
+    // paper and the salinity it was taken at.
+    const cap = subZeroSstCapBound();
+    expect(qualifier).toContain(cap.method.series);
+    expect(qualifier).toContain(`${cap.boundSalinityPsu} PSU`);
+    // The bound is taken at the saltiest open-ocean salinity because that is
+    // the coldest, and so the widest — it claims less, not more.
+    expect(cap.lowerC).toBeLessThan(-1.8);
+    expect(cap.assumption).toBe("open-seawater");
+  });
+
+  it("keeps the floor qualifier consistent with withholding a floor-to-floor difference", () => {
+    // Two floor-bin endpoints are withheld as unbounded in BOTH directions.
+    // That is only coherent if the cold cap's floor is conditional: were it
+    // asserted unconditionally, the difference would be bounded by the cap's
+    // width and there would be no reason to withhold it.
+    const both = describeSstDifferenceCensoring(0.075, 0.075);
+    expect(both.bound).toBe("indeterminate");
+    expect(both.qualifier).toContain("unbounded in both directions");
+    expect(summarizeSstRampCensoring(0.075).qualifier).toContain(
+      "cannot rule out sea ice"
+    );
   });
 
   it("reports a ramp-ceiling value as a lower bound", () => {
