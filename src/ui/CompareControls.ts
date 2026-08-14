@@ -1,10 +1,18 @@
 import { splitFromPointer, compareCaption } from "../lib/compare";
-import { formatYm, type YearMonth } from "../lib/timeline";
+import {
+  formatTimelineLabel,
+  type LayerConfig,
+  type YearMonth,
+} from "../lib/timeline";
 
 /**
  * Comparison-mode UI: the toggle button (top-right cluster) and, while
  * comparing, a draggable divider over the globe with a date chip on each side
  * (left = pinned "before", right = the live timeline month).
+ *
+ * Both chips carry the layer so their dates read at its publishing cadence —
+ * an annual product is dated by year, never by the placeholder month its
+ * timeline entries are built from (see `compareCaption`).
  */
 
 const COMPARE_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18"/><path d="M8 7H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h3"/><path d="M16 7h3a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-3"/></svg>`;
@@ -69,15 +77,17 @@ export class CompareControls {
   }
 
   /** Reflect the timeline month on the live ("after") chip. */
-  setLiveMonth(ym: YearMonth): void {
+  setLiveMonth(layer: LayerConfig, ym: YearMonth): void {
+    this.layer = layer;
     this.liveMonth = ym;
-    this.liveChip.textContent = formatYm(ym);
+    this.liveChip.textContent = formatTimelineLabel(layer, ym);
     this.updateCaption();
   }
 
   /** Called by the app once the pinned month is known/loaded. */
-  showDivider(pinned: YearMonth, split: number): void {
-    this.pinnedChip.textContent = `${formatYm(pinned)} · pinned`;
+  showDivider(layer: LayerConfig, pinned: YearMonth, split: number): void {
+    this.layer = layer;
+    this.pinnedChip.textContent = `${formatTimelineLabel(layer, pinned)} · pinned`;
     this.pinnedMonth = pinned;
     this.divider.style.left = `${split * 100}%`;
     this.divider.classList.add("is-visible");
@@ -94,17 +104,22 @@ export class CompareControls {
    * Restore an already-running comparison (deep link): reflect the active
    * state and show the divider without going through the enable callback.
    */
-  restore(pinned: YearMonth, split: number): void {
+  restore(layer: LayerConfig, pinned: YearMonth, split: number): void {
     this.setActive(true);
-    this.showDivider(pinned, split);
+    this.showDivider(layer, pinned, split);
   }
 
+  private layer: LayerConfig | undefined;
   private pinnedMonth: YearMonth | undefined;
   private liveMonth: YearMonth | undefined;
 
   private updateCaption(): void {
-    if (this.pinnedMonth && this.liveMonth) {
-      this.divider.title = compareCaption(this.pinnedMonth, this.liveMonth);
+    if (this.layer && this.pinnedMonth && this.liveMonth) {
+      this.divider.title = compareCaption(
+        this.layer,
+        this.pinnedMonth,
+        this.liveMonth
+      );
     }
   }
 

@@ -427,7 +427,7 @@ function buildTimeline(): void {
       refreshGlobe();
       ensureWarm(index);
       if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
-      compareControls?.setLiveMonth(months[currentIndex]);
+      compareControls?.setLiveMonth(LAYERS[currentLayer], months[currentIndex]);
       scheduleHashSync();
     },
     (ym) => formatTimelineLabel(LAYERS[currentLayer], ym),
@@ -730,8 +730,8 @@ if (compareEl && compareDividerEl) {
       const layer = LAYERS[currentLayer];
       if (layer.static) return false; // one image regardless of month
       compare.enable(layer, months[currentIndex]);
-      compareControls?.showDivider(months[currentIndex], compare.split);
-      compareControls?.setLiveMonth(months[currentIndex]);
+      compareControls?.showDivider(layer, months[currentIndex], compare.split);
+      compareControls?.setLiveMonth(layer, months[currentIndex]);
       scheduleHashSync();
       return true;
     },
@@ -751,8 +751,8 @@ if (compareEl && compareDividerEl) {
     const pinIndex = ymToIndex(pin) - ymToIndex(months[0]);
     if (pinIndex >= 0 && pinIndex < months.length) {
       compare.enable(LAYERS[currentLayer], pin);
-      compareControls.restore(pin, compare.split);
-      compareControls.setLiveMonth(months[currentIndex]);
+      compareControls.restore(LAYERS[currentLayer], pin, compare.split);
+      compareControls.setLiveMonth(LAYERS[currentLayer], months[currentIndex]);
     }
   }
 }
