@@ -6,6 +6,7 @@ import {
   VOLCANO_PROXIMITY_UNITS,
   nearbyVolcanoContext,
   nearestVolcanoStatement,
+  placePointVolcanoQuery,
 } from "./volcanoProximityContext";
 
 const volcano = (overrides: Partial<Volcano> = {}): Volcano => ({
@@ -177,7 +178,7 @@ describe("nearestVolcanoStatement", () => {
     );
 
     expect(nearestVolcanoStatement(context)).toBe(
-      "Nearest catalogued Holocene volcano within 100 km: Near, 56 km from the search centre (Caldera; last erupted 2000). Summit great-circle distance, not a hazard footprint."
+      "Nearest catalogued Holocene volcano within 100 km: Near, 56 km from the geocoded place point (Caldera; last erupted 2000). Summit great-circle distance, measured from the coordinates the geocoder returned for this place rather than from the centre of its bounding box, and not a hazard footprint."
     );
   });
 
@@ -226,8 +227,30 @@ describe("nearestVolcanoStatement", () => {
 
     expect(context.coverage.status).toBe("no-volcanoes-in-radius");
     expect(nearestVolcanoStatement(context)).toBe(
-      "No catalogued Holocene volcano lies within 100 km of the search centre; absence from the GVP inventory does not establish that a place is volcanically inactive."
+      "No catalogued Holocene volcano lies within 100 km of the geocoded place point — the coordinates the geocoder returned for this place, not the centre of its bounding box; absence from the GVP inventory does not establish that a place is volcanically inactive."
     );
+  });
+
+  it("names the point both branches measure from, never as the extent centre", () => {
+    // The same panel prints seismicity distances "from the search-extent
+    // centre" (a bounding-box midpoint). These two are measured from the
+    // geocoder's own point for the place instead, and the two points are
+    // routinely tens to hundreds of km apart, so neither sentence may call
+    // itself "the search centre".
+    const found = nearbyVolcanoContext(
+      [volcano({ name: "Near", lon: 0.5 })],
+      query
+    );
+    const empty = nearbyVolcanoContext([volcano({ lon: 5 })], query);
+
+    for (const statement of [
+      nearestVolcanoStatement(found),
+      nearestVolcanoStatement(empty),
+    ]) {
+      expect(statement).toContain("the geocoded place point");
+      expect(statement).toContain("the centre of its bounding box");
+      expect(statement).not.toContain("search centre");
+    }
   });
 
   it("declines to speak when the query or the supplied records are unusable", () => {
@@ -255,5 +278,29 @@ describe("nearestVolcanoStatement", () => {
 
     expect(NEAREST_VOLCANO_RADIUS_KM).toBe(100);
     expect(nearestVolcanoStatement(context)).toContain("within 100 km");
+  });
+});
+
+describe("placePointVolcanoQuery", () => {
+  it("fixes the declared radius and carries the place point through unchanged", () => {
+    // The radius lived at the call site before; keeping it here puts the
+    // declared cutoff with the reasoning that chose it, and leaves the caller
+    // supplying only the geocoded point.
+    expect(placePointVolcanoQuery(-33.45, -70.67)).toEqual({
+      latitude: -33.45,
+      longitude: -70.67,
+      radiusKm: NEAREST_VOLCANO_RADIUS_KM,
+    });
+  });
+
+  it("drives the same statement the panel renders", () => {
+    const context = nearbyVolcanoContext(
+      [volcano({ name: "Near", lat: 0, lon: 0.5 })],
+      placePointVolcanoQuery(0, 0)
+    );
+
+    expect(nearestVolcanoStatement(context)).toContain(
+      "Nearest catalogued Holocene volcano within 100 km: Near, 56 km from the geocoded place point"
+    );
   });
 });

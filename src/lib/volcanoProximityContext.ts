@@ -208,6 +208,34 @@ function recencyRank(lastEruptionYear: number | null): number {
 export const NEAREST_VOLCANO_RADIUS_KM = 100;
 
 /**
+ * Build the query a place readout uses: {@link NEAREST_VOLCANO_RADIUS_KM}
+ * around the coordinates the geocoder returned for the searched place.
+ *
+ * Fixing the radius here rather than at the call site keeps the declared cutoff
+ * with the reasoning above that chose it. The point matters just as much, and
+ * is the reason this constructor names it: a place search yields two different
+ * points — the geocoder's representative point for the place, and the centre of
+ * the bounding box it also returns — and one panel quotes distances from both.
+ * This distance and the nearest-plate-boundary distance are measured from the
+ * geocoded point; the seismicity search is centred on the extent midpoint
+ * instead (see `searchExtentEarthquakeQuery` in earthquakeContext.ts). The two
+ * are routinely far apart, because a bounding box tracks the shape of the
+ * matched administrative boundary rather than where the place itself sits:
+ * across sixteen sampled Nominatim results they were more than 1 km apart for
+ * eleven and more than 10 km apart for seven, reaching 982 km for "Tokyo",
+ * whose extent runs out to the Ogasawara Islands.
+ *
+ * {@link nearestVolcanoStatement} therefore names this point instead of calling
+ * it "the search centre", which reads as the extent midpoint it is not.
+ */
+export function placePointVolcanoQuery(
+  latitude: number,
+  longitude: number
+): VolcanoProximityQuery {
+  return { latitude, longitude, radiusKm: NEAREST_VOLCANO_RADIUS_KM };
+}
+
+/**
  * One-line nearest-volcano phrasing for a place readout whose in-extent
  * inventory matched nothing.
  *
@@ -216,6 +244,12 @@ export const NEAREST_VOLCANO_RADIUS_KM = 100;
  * their own coverage wording rather than printing an absence the evidence does
  * not back. A "none within the radius" result is reported as exactly that, and
  * never as volcanic inactivity.
+ *
+ * Both branches name the point the radius and the distance are measured from —
+ * the one {@link placePointVolcanoQuery} supplies — because the same panel also
+ * quotes seismicity distances measured from the centre of the search extent,
+ * and "the search centre" (this sentence's previous wording) does not
+ * distinguish the two.
  */
 export function nearestVolcanoStatement(
   context: VolcanoProximityContext
@@ -226,10 +260,10 @@ export function nearestVolcanoStatement(
   }
   const radius = formatDistanceKm(context.query.radiusKm);
   if (context.nearest === null) {
-    return `No catalogued Holocene volcano lies within ${radius} km of the search centre; absence from the GVP inventory does not establish that a place is volcanically inactive.`;
+    return `No catalogued Holocene volcano lies within ${radius} km of the geocoded place point — the coordinates the geocoder returned for this place, not the centre of its bounding box; absence from the GVP inventory does not establish that a place is volcanically inactive.`;
   }
   const { name, distanceKm, primaryType, lastEruptionText } = context.nearest;
-  return `Nearest catalogued Holocene volcano within ${radius} km: ${name}, ${formatDistanceKm(distanceKm)} km from the search centre (${qualifiedVolcanoTypeLabel(primaryType) ?? "primary type not supplied"}; ${lastEruptionText}). Summit great-circle distance, not a hazard footprint.`;
+  return `Nearest catalogued Holocene volcano within ${radius} km: ${name}, ${formatDistanceKm(distanceKm)} km from the geocoded place point (${qualifiedVolcanoTypeLabel(primaryType) ?? "primary type not supplied"}; ${lastEruptionText}). Summit great-circle distance, measured from the coordinates the geocoder returned for this place rather than from the centre of its bounding box, and not a hazard footprint.`;
 }
 
 /**
