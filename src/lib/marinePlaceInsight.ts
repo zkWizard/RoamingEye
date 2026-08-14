@@ -263,8 +263,21 @@ export function marineBoundarySstReading(
   // footprints, which are combined by the very same weighted mean; without it
   // here the identical combiner is qualified on one surface and silent on the
   // other. See marineAveragedSstCensoring for why presence is unrecoverable.
-  const averagedCensoringNote =
-    marineBoundaryMeanSstCensoringNote(rampCensoring);
+  //
+  // The comparison computed just above is reduced from the very same means, one
+  // for each of the two months, and `describeSstDifferenceCensoring` screens it
+  // by reading them — so its `≥`/`≤` prefix, its suppressed direction, and its
+  // withheld doubly-censored pair all inherit this blindness. Left as it was,
+  // the card qualified the single value and then printed a difference of two
+  // such values bare, which reads as the screened number on the line. The bound
+  // is passed only when a difference is actually stated: a withheld one has no
+  // claim left to qualify.
+  const averagedCensoringNote = marineBoundaryMeanSstCensoringNote(
+    rampCensoring,
+    yearOverYear.status === "available"
+      ? yearOverYear.differenceBound
+      : undefined
+  );
 
   // Grade the share as the sampler supplied it, not as `summarizeMarineCoverage`
   // nulls it out on rejection: an invalid fraction was still supplied, and
