@@ -335,8 +335,45 @@ describe("vegetation-index support note", () => {
       { classCode: 11, sampleCount: 1 }, // Mixed: wetland
     ]);
 
-    expect(text).toContain("wetland or built-up");
+    expect(text).toContain(
+      "is permanent wetland, which permits vegetation without requiring it"
+    );
     expect(text).not.toContain("is not plant greenness");
+  });
+
+  it("names only the mixed surfaces the sample actually holds", () => {
+    // A wetland with no built-up pixels must not be told part of it may be
+    // built up, and a built-up sample with no wetland must not be told part of
+    // it may be wetland: the non-vegetating clause already narrows this way.
+    const wetland = note([
+      { classCode: 4, sampleCount: 2 }, // Deciduous broadleaf forest
+      { classCode: 11, sampleCount: 2 }, // Mixed: wetland
+    ]);
+    expect(wetland).toContain(
+      "a further 50% is permanent wetland, which permits vegetation without " +
+        "requiring it"
+    );
+    expect(wetland).not.toContain("built-up");
+
+    const builtUp = note([
+      { classCode: 4, sampleCount: 2 },
+      { classCode: 13, sampleCount: 2 }, // Mixed: urban & built-up
+    ]);
+    expect(builtUp).toContain(
+      "a further 50% is urban and built-up land, which permits vegetation " +
+        "without requiring it"
+    );
+    expect(builtUp).not.toContain("wetland");
+
+    const both = note([
+      { classCode: 4, sampleCount: 2 },
+      { classCode: 11, sampleCount: 1 },
+      { classCode: 13, sampleCount: 1 },
+    ]);
+    expect(both).toContain(
+      "a further 50% is wetland or built-up, which permit vegetation without " +
+        "requiring it"
+    );
   });
 
   it("states the whole of a fully non-vegetated region as such", () => {
@@ -373,7 +410,7 @@ describe("vegetation-index support note", () => {
     ]);
 
     expect(text).toContain("on >99% of classified pixels");
-    expect(text).toContain("a further <1% is wetland or built-up");
+    expect(text).toContain("a further <1% is permanent wetland");
     expect(text).not.toContain("100%");
     expect(text).not.toContain(" 0%");
   });
