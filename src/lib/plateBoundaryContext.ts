@@ -438,6 +438,58 @@ export function suppliedRepeatText(
   return `The bundled GeoJSON splits antimeridian-crossing steps and supplies a few of the halves twice: ${features} a trace already listed, verbatim, and ${repeats === 1 ? "was" : "were"} counted once rather than twice.`;
 }
 
+const EARTH_RADIUS_KM = 6_371;
+const DEG_TO_RAD = Math.PI / 180;
+
+/**
+ * Size of the search bounding box the linework was tested against, or null when
+ * no usable box was supplied.
+ *
+ * The box comes from the geocoder, not from this app, and it is sized by what
+ * the matched OSM object is: a monument's box measures a couple of hundred
+ * metres across while a country's measures thousands of kilometres. Both render
+ * the same count sentence, so without a stated size "no boundaries in extent"
+ * and "3 boundaries" carry no scale at all — the reader cannot tell a negative
+ * result over a city block from one over an archipelago. The sibling seismicity
+ * readout already states its own radius in kilometres; this states the scope
+ * behind the plate counts on the same axis.
+ *
+ * North–south is a meridian arc and so is latitude-independent. East–west is
+ * the arc along the extent's mid-latitude parallel, which is what "how far east
+ * to west does this box reach" means and which shrinks toward the poles — the
+ * copy names the latitude rather than implying a single width. A great-circle
+ * chord is deliberately not used for the width: between two points at equal
+ * latitude it bows poleward, so it understates the box, and it collapses to
+ * zero for a box spanning the full 360°. Both figures are on a mean-radius
+ * sphere, matching the other distances this panel reports.
+ */
+export function searchExtentSpanPhrase(
+  bounds: SearchBoundingBox | null,
+  crossesAntimeridian: boolean
+): string | null {
+  if (!isValidBounds(bounds)) return null;
+  const [south, north, west, rawEast] = bounds;
+  // A west > east box spans the antimeridian; unwrap the eastern edge so the
+  // width is measured across the seam rather than the long way around.
+  const east = crossesAntimeridian ? rawEast + 360 : rawEast;
+  const midLatitude = (south + north) / 2;
+  const northSouthKm = (north - south) * DEG_TO_RAD * EARTH_RADIUS_KM;
+  const eastWestKm =
+    (east - west) *
+    DEG_TO_RAD *
+    EARTH_RADIUS_KM *
+    Math.cos(midLatitude * DEG_TO_RAD);
+  return `about ${formatSpanKm(northSouthKm)} km north–south and ${formatSpanKm(eastWestKm)} km east–west at its mid-latitude`;
+}
+
+/**
+ * Whole kilometres once an extent is wide enough for a fraction to be noise,
+ * one decimal below that so a monument-sized box does not collapse to "0 km".
+ */
+function formatSpanKm(km: number): string {
+  return km >= 100 ? String(Math.round(km)) : km.toFixed(1);
+}
+
 /**
  * Distinct `Source` credits among matched boundaries, most-used first with
  * alphabetical ties, so the order never depends on input order.
@@ -497,7 +549,7 @@ function contextFor(
     geographicCoverage:
       status === "invalid-bounds"
         ? "Search result bounding box was missing or invalid; supplied linework was not compared geographically."
-        : "Supplied polyline segments were tested against the search result bounding box; the exact selected boundary is not tested.",
+        : `Supplied polyline segments were tested against the search result bounding box, ${searchExtentSpanPhrase(bounds, crossesAntimeridian) ?? "of unreported size"}; the exact selected boundary is not tested.`,
     provenance: BIRD_2003_PLATE_BOUNDARY_SOURCE,
     units: PLATE_BOUNDARY_CONTEXT_UNITS,
     limitations: LIMITATIONS,
