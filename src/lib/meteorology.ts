@@ -23,7 +23,11 @@ import {
   type PrecipitationRatePlausibilityStatus,
 } from "./precipitationRatePlausibility";
 import { precipitationAccumulation } from "./precipitationAccumulation";
-import { describePrecipitationAccumulationChange } from "./precipitationAccumulationChange";
+import {
+  describePrecipitationAccumulationChange,
+  type PrecipitationAccumulationChange,
+} from "./precipitationAccumulationChange";
+import { describePrecipitationAccumulationResolvability } from "./precipitationAccumulationResolvability";
 import { monthOverMonthCoverageSupport } from "./climateChangeSupport";
 import type { GeometrySamplingStrategy } from "./geojson";
 import type {
@@ -647,7 +651,9 @@ function accumulationChangeClause(
   if (
     change.status !== "available" ||
     change.changeMm === null ||
-    change.earlier === null
+    change.earlier === null ||
+    change.later === null ||
+    change.source === null
   ) {
     return "";
   }
@@ -658,14 +664,59 @@ function accumulationChangeClause(
   // Both months' day counts are already on the line, so the caveat only has to
   // say that the difference is not attributable to rate alone.
   const lengthCaveat = "part of any difference is month length, not rate";
+  const caveats = `${lengthCaveat}${inversionFloorCaveat(change)}`;
   if (change.trend === "little-change") {
     return `; within ${formatNumber(
       change.thresholdMm
-    )} mm of ${against} (${lengthCaveat})`;
+    )} mm of ${against} (${caveats})`;
   }
   return `; ${formatNumber(Math.abs(change.changeMm))} mm ${
     change.trend === "wetter" ? "more" : "less"
-  } than ${against} (${lengthCaveat})`;
+  } than ${against} (${caveats})`;
+}
+
+/**
+ * Say when the two totals are closer together than the pipeline's own measured
+ * colormap inversion can separate.
+ *
+ * The clause above names a direction, or calls the pair little-change inside a
+ * 1 mm reporting band. Neither total was measured: each is a rendered pixel
+ * colour inverted through an approximate legend gradient and then *integrated
+ * over a calendar month*, which multiplies the layer's measured rate error by
+ * that month's day count. At the currently measured figure the resulting floor
+ * on a difference of two months is around 11 mm — an order of magnitude above
+ * the 1 mm band, and above many differences the clause happily calls wetter or
+ * drier. See {@link describePrecipitationAccumulationResolvability}, which
+ * derives the floor from both months' own lengths and never re-derives the
+ * published error.
+ *
+ * The statement is deliberately about the two totals, not about the direction
+ * word: it never asserts the months delivered the same water, and it never
+ * reverses the reported direction.
+ *
+ * Silent when the difference clears the floor, and when the layer carries no
+ * measured inversion figure in the unit the published error is documented in —
+ * an unmeasured error is not a passed test.
+ */
+function inversionFloorCaveat(change: PrecipitationAccumulationChange): string {
+  if (change.earlier === null || change.later === null) return "";
+  if (change.source === null) return "";
+  const resolvability = describePrecipitationAccumulationResolvability(
+    change.changeMm,
+    change.earlier.monthDays,
+    change.later.monthDays,
+    change.source
+  );
+  if (
+    resolvability === null ||
+    resolvability.resolution !== "unresolved" ||
+    resolvability.differenceFloorMm === null
+  ) {
+    return "";
+  }
+  return `; the two totals differ by less than the ${formatNumber(
+    resolvability.differenceFloorMm
+  )} mm colormap-inversion difference floor for these month lengths, so this pipeline cannot separate them`;
 }
 
 function samplingText(strategy: GeometrySamplingStrategy | null): string {
