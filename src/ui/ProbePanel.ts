@@ -7,6 +7,7 @@ import {
   type ProbeScale,
 } from "../lib/probe";
 import { trendSummary, trendClause } from "../lib/trend";
+import { probeAbsenceStatusLine } from "../lib/probeAbsenceStatus";
 import {
   seasonalSamplingBalance,
   seasonalSamplingClause,
@@ -263,6 +264,9 @@ export class ProbePanel {
    * record that came back empty — see lib/atmosphereProbeDomain.ts. A product
    * defined over land only has no value over open water by construction, and
    * saying "no data" there reports a domain boundary as a retrieval failure.
+   * The replacement is `lib/probeAbsenceStatus.ts`, which also fixes where the
+   * two notes rank: this line long said "replaces" while the code joined them,
+   * so the sentence a domain note exists to correct led the note correcting it.
    *
    * `spatialSupportNote`, when supplied, says what share of an averaged
    * footprint actually returned data — see lib/marineAveragedSstSupport.ts.
@@ -294,17 +298,10 @@ export class ProbePanel {
     const stats = seriesStats(this.values);
     if (!stats || !this.scale) {
       // An averaged footprint that returned nothing is not "no data at this
-      // point" — there was no point. Prefer the support note's own wording
-      // when it has one, so the sentence matches what was actually sampled.
+      // point" — there was no point — and a domain note replaces that sentence
+      // outright rather than trailing it. See lib/probeAbsenceStatus.ts.
       this.setStatus(
-        [
-          spatialSupportNote
-            ? asSentence(spatialSupportNote)
-            : "No data at this point for this layer.",
-          emptySeriesNote,
-        ]
-          .filter(Boolean)
-          .join(" ")
+        probeAbsenceStatusLine(spatialSupportNote, emptySeriesNote)
       );
       return;
     }
@@ -885,13 +882,4 @@ export class ProbePanel {
     ctx.restore();
     ctx.globalAlpha = 1;
   }
-}
-
-/**
- * Render a lower-case clause as a standalone sentence, so a support note can
- * carry the whole status line when there are no stats to lead with.
- */
-function asSentence(clause: string): string {
-  const text = `${clause.charAt(0).toUpperCase()}${clause.slice(1)}`;
-  return /[.!?]$/.test(text) ? text : `${text}.`;
 }
