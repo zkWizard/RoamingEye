@@ -540,6 +540,45 @@ export function epicentralDistanceText(distanceKm: number): string {
   return `${formatDistanceKm(distanceKm)} km from the search-extent centre`;
 }
 
+/**
+ * When USGS generated the feed copy a listed selection was drawn from.
+ *
+ * {@link USGS_M45_MONTH_SOURCE}'s `feedWindow` already tells a reader the
+ * selection is a "rolling past 30 days at source retrieval time" — a phrase
+ * that names an instant and then leaves it unstated. The feed publishes that
+ * instant as `metadata.generated`, and the window really is measured back from
+ * it: in a sampled copy the oldest event sat 29.97 days before the stamp.
+ *
+ * It matters because nothing refreshes. The page fetches this feed once, so the
+ * 30 days on screen are the 30 before that fetch, not the 30 before now, and a
+ * copy served from HTTP cache can be older still. Unstamped, "No recorded
+ * events" reads as a statement about the present rather than about a window
+ * that stopped advancing when the page loaded.
+ *
+ * The sibling volcano section already dates its own snapshot ("Bundled GVP
+ * snapshot retrieved 2026-05 (UTC)"); this is the same disclosure for the one
+ * geology source that is live rather than bundled. A missing stamp is reported
+ * rather than skipped, for the same reason that section reports a missing
+ * retrieval month.
+ *
+ * Minute precision: USGS regenerates these summary feeds every few minutes, so
+ * seconds would imply a currency the copy does not keep, while a bare date
+ * would not separate a copy fetched this morning from one fetched tonight.
+ */
+export function feedGenerationText(generatedTime: number | null): string {
+  const unstated =
+    "This feed copy published no generation time, so the end of its 30-day window is unstated.";
+  if (generatedTime === null || !Number.isFinite(generatedTime))
+    return unstated;
+  const generated = new Date(generatedTime);
+  // A finite epoch value can still be outside the range Date can represent, and
+  // toISOString throws on those rather than returning a marker. Treat an
+  // unrepresentable stamp as no stamp instead of failing the whole panel.
+  if (Number.isNaN(generated.getTime())) return unstated;
+  const stamp = generated.toISOString().slice(0, 16).replace("T", " ");
+  return `USGS generated this feed copy ${stamp} UTC; its 30-day window ends there and does not advance while this page stays open.`;
+}
+
 /** Distances span city blocks to whole countries; keep both legible. */
 function formatDistanceKm(distanceKm: number): string {
   return distanceKm >= 10

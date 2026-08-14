@@ -26,6 +26,7 @@ import {
 import {
   epicenterConstraintText,
   epicentralDistanceText,
+  feedGenerationText,
   listedSeismicityOrderNote,
   reportedDepthBasisText,
   reportedMagnitudeText,
@@ -510,7 +511,10 @@ export class PlaceInsights {
    * hazard rating, and an empty result is reported as "no recorded events",
    * not as a quiet or safe place.
    */
-  setSeismicityContext(context: EarthquakePlaceContext): void {
+  setSeismicityContext(
+    context: EarthquakePlaceContext,
+    generatedTime: number | null = null
+  ): void {
     this.seismicityRecords.replaceChildren();
     // Silent unless events matched, so a no-event or unusable-query result
     // gains no line.
@@ -546,10 +550,15 @@ export class PlaceInsights {
     // The radial query circumscribes the rectangular search extent, so the
     // circle reaches past the boundary corners. Say "near", never "inside".
     const scope = `Epicentres within ${radius} km of the search-extent centre — a circle circumscribing the extent, so it reaches past the boundary corners.`;
+    // Only the two branches below can reach this: the invalid-query and
+    // no-usable-events statuses return above, and those are exactly the cases
+    // where no feed copy was parsed. So the stamp is never claimed for a feed
+    // that was never read — it dates the copy these counts came from.
+    const generated = ` ${feedGenerationText(generatedTime)}`;
     this.seismicityDetail.textContent =
       count === 0
-        ? `${scope} No M4.5+ events recorded in the feed window; that does not establish the area is seismically quiet.`
-        : `${scope} Counted from ${coverage.validEventCount} valid events in the global feed.`;
+        ? `${scope} No M4.5+ events recorded in the feed window; that does not establish the area is seismically quiet.${generated}`
+        : `${scope} Counted from ${coverage.validEventCount} valid events in the global feed.${generated}`;
 
     for (const observation of context.observations.slice(
       0,
