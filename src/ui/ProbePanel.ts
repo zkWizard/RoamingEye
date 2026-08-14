@@ -519,6 +519,58 @@ export class ProbePanel {
       (spatialSupportNote ? ` · ${spatialSupportNote}` : "");
     this.setStatus(stat);
     this.appendPeakGreenness(stat, physical);
+    this.appendFreezeSeason(stat, physical);
+  }
+
+  /**
+   * Append the 2 m air-temperature freeze-season clause: how many months of the
+   * mean annual cycle sit below freezing, and — when the cold season is a single
+   * contiguous window — which months bound it, followed by which of those months
+   * the layer's measured colormap-inversion error cannot place on either side of
+   * the threshold. The place panel holds a two-month pair and so cannot ask this
+   * at all; the probe already fetched the whole multi-year series.
+   *
+   * The freeze-season helpers pull in the annual-cycle climatology, so they load
+   * on demand rather than riding in the entry chunk; the clause lands a moment
+   * after the stats, which the status line already fills in progressively. A
+   * newer series invalidates an in-flight load.
+   *
+   * This and {@link appendPeakGreenness} both rebuild the status line from
+   * `stat`, so they must not both fire: they gate on `airtemp` and `ndvi`
+   * respectively, and a series belongs to one layer.
+   */
+  private appendFreezeSeason(stat: string, physical: (number | null)[]): void {
+    const context = this.context;
+    if (!context) return;
+    const months = this.months;
+    const token = this.seriesToken;
+    void import("../lib/probeFreezeSeason")
+      .then(
+        ({
+          freezeSeasonClause,
+          freezeSeasonResolvabilityClause,
+          probeAirTemperatureFreezeSeason,
+        }) => {
+          if (token !== this.seriesToken) return; // superseded by a newer probe
+          const season = probeAirTemperatureFreezeSeason(
+            context.layerId,
+            months,
+            physical
+          );
+          const clause = freezeSeasonClause(season);
+          if (!clause) return;
+          // Which months the inversion cannot place on a side of freezing.
+          // Silent for a cleanly separated record, so only a point that
+          // actually winters near the threshold pays for the qualification.
+          const resolvability = freezeSeasonResolvabilityClause(season);
+          this.setStatus(
+            [stat, clause, resolvability].filter(Boolean).join(" · ")
+          );
+        }
+      )
+      .catch(() => {
+        // A failed chunk load must leave the stats already on screen intact.
+      });
   }
 
   /**

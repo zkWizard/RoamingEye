@@ -50,6 +50,8 @@ export const AIR_TEMPERATURE_FREEZE_SEASON_LIMITATIONS = [
   "Onset and thaw are month-resolution boundaries read off a short-record mean cycle, not a 30-year normal; a different set of years can shift them by a month.",
   "Onset and thaw are reported only when the below-freezing months form a single contiguous run on the circular calendar; an all-frozen, frost-free, or split cold season yields the counts but no boundaries.",
   "Values are area-mean MERRA-2 reanalysis at the sampled footprint and inherit its resolution and biases; nothing here is a forecast, trend, station frost date, or growing-degree-day total.",
+  "The comparison is exact arithmetic on the supplied means, but a caller that recovered those means by inverting rendered pixel colours through an approximate legend carries that step's measured error: a monthly mean within it of 273.15 K is placed on its side of the threshold by the inversion rather than by the source, which can move the counts, the regime, and the onset and thaw boundaries alike.",
+  "Averaging years does not remove that error. A colormap inversion is a property of the legend, not of the draw — the same colour inverts to the same wrong value every year — so the bias survives the climatological mean instead of shrinking with the square root of the year count the way independent noise would.",
 ] as const;
 
 export interface AirTemperatureFreezeSeason {
