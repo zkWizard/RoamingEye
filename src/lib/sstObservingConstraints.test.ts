@@ -4,7 +4,9 @@ import {
   SST_OBSERVING_CONSTRAINT_LIMITS,
   SST_OBSERVING_CONSTRAINT_SOURCE,
   SST_SAMPLING_GATE_NOTE,
+  formatSstCaptionOmission,
   probeSstSamplingGateClause,
+  sstCaptionConstraintOmissions,
   summarizeSstObservingConstraints,
   type SstObservingConstraintId,
 } from "./sstObservingConstraints";
@@ -186,5 +188,91 @@ describe("probe sampling-gate clause", () => {
     const clause = probeSstSamplingGateClause("sst", true);
     expect(clause).not.toMatch(/[.;]$/);
     expect(clause[0]).toBe(clause[0].toLowerCase());
+  });
+});
+
+describe("sstCaptionConstraintOmissions", () => {
+  it("passes the caption the app actually ships", () => {
+    // The guard exists to keep this true. `Legend` renders the description
+    // verbatim under the globe, so a regression here ships to every reader who
+    // never opens the probe.
+    expect(
+      sstCaptionConstraintOmissions().map(formatSstCaptionOmission)
+    ).toEqual([]);
+  });
+
+  it("catches a caption that states the diurnal gate but not the cloud one", () => {
+    // The defect this fixed: one of two co-equal sampling gates named, which
+    // reads as the complete qualification rather than half of it.
+    const omissions = sstCaptionConstraintOmissions(
+      "Daytime ocean surface temperature (MODIS/Aqua thermal)."
+    );
+    expect(omissions.map((o) => o.constraintId)).toEqual([
+      "clear-sky-retrieval-only",
+    ]);
+    // The message quotes the constraint table rather than restating it, so the
+    // two can never drift into disagreeing about the same product.
+    const entry = SST_OBSERVING_CONSTRAINTS.find(
+      (c) => c.id === "clear-sky-retrieval-only"
+    )!;
+    expect(omissions[0].constraint).toBe(entry.constraint);
+    expect(omissions[0].implication).toBe(entry.implication);
+  });
+
+  it("catches a caption that drops both sampling gates", () => {
+    const omissions = sstCaptionConstraintOmissions(
+      "Ocean surface temperature."
+    );
+    expect(omissions.map((o) => o.constraintId)).toEqual([
+      "daytime-overpass-only",
+      "clear-sky-retrieval-only",
+    ]);
+  });
+
+  it("accepts any declared surface form of a gate", () => {
+    // Wording is a copy decision; the check is about what was said, not how.
+    for (const cloudPhrase of ["clear sky", "cloud-free", "cloud-screened"]) {
+      expect(
+        sstCaptionConstraintOmissions(
+          `Daylight ${cloudPhrase} ocean surface temp.`
+        )
+      ).toEqual([]);
+    }
+  });
+
+  it("never requires the radiometric-depth constraint in the caption", () => {
+    // Deliberate: it is about what is sensed rather than which moments
+    // contribute, and it is stated in full on the probe, the place card and the
+    // CSV. A one-sentence caption that tried to carry everything would push the
+    // sampling gates out.
+    const omissions = sstCaptionConstraintOmissions("Daytime clear-sky ocean.");
+    expect(omissions.map((o) => o.constraintId)).not.toContain(
+      "near-surface-radiometric"
+    );
+  });
+
+  it("matches case-insensitively", () => {
+    expect(
+      sstCaptionConstraintOmissions(
+        "DAYTIME CLEAR-SKY OCEAN SURFACE TEMPERATURE."
+      )
+    ).toEqual([]);
+  });
+
+  it("claims nothing biological and asserts no magnitude", () => {
+    // A caption audit reports which gate is unstated. It says nothing about how
+    // large either gate's effect is, or about anything alive.
+    const messages = sstCaptionConstraintOmissions("Ocean surface temperature.")
+      .map(formatSstCaptionOmission)
+      .join(" ");
+    expect(messages).not.toMatch(
+      /species|habitat|ecosystem|biolog|bleach|heatwave|forecast|°/i
+    );
+  });
+
+  it("keeps the shipped caption inside the layer-caption length convention", () => {
+    // The captions render on one line under the globe; 71 characters is the
+    // longest the app ships, and the SST one must not become the new record.
+    expect(LAYERS.sst.description.length).toBeLessThanOrEqual(71);
   });
 });
