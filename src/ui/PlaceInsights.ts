@@ -42,6 +42,7 @@ import {
 import {
   BIRD_2003_PLATE_BOUNDARY_SOURCE,
   digitizationCreditText,
+  searchExtentSpanPhrase,
   subductionMarkingText,
   subductionPolarityText,
   suppliedRepeatText,
@@ -656,9 +657,18 @@ export class PlaceInsights {
       count === 0 && proximity
         ? nearestPlateBoundaryStatement(proximity)
         : null;
+    // A negative result is only readable against the size of the region that
+    // produced it: the geocoder sizes this box by what it matched, so the same
+    // "no boundaries" sentence covers a monument a few hundred metres across
+    // and a country thousands of kilometres wide. The count > 0 branch carries
+    // the same figure inside `geographicCoverage`.
+    const span = searchExtentSpanPhrase(
+      context.bounds,
+      context.crossesAntimeridian
+    );
     this.plateDetail.textContent =
       count === 0
-        ? `No bundled Bird (2003) boundary polylines intersect this search bounding box; that does not establish the place sits away from a plate boundary.${nearest ? ` ${nearest}` : ""} Compared against ${coverage.usableBoundaryCount} usable supplied ${coverage.usableBoundaryCount === 1 ? "polyline" : "polylines"}.`
+        ? `No bundled Bird (2003) boundary polylines intersect this search bounding box${span ? `, ${span}` : ""}; that does not establish the place sits away from a plate boundary.${nearest ? ` ${nearest}` : ""} Compared against ${coverage.usableBoundaryCount} usable supplied ${coverage.usableBoundaryCount === 1 ? "polyline" : "polylines"}.`
         : `${context.geographicCoverage} ${segments} supplied ${segments === 1 ? "segment intersects" : "segments intersect"}, from ${coverage.usableBoundaryCount} usable supplied ${coverage.usableBoundaryCount === 1 ? "polyline" : "polylines"}.${repeats ? ` ${repeats}` : ""}${marking ? ` ${marking}` : ""}${polarity ? ` ${polarity}` : ""}${credit ? ` ${credit}` : ""} ${caveat}`;
 
     for (const boundary of context.matchingBoundaries.slice(0, 5)) {
