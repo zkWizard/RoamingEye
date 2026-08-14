@@ -139,6 +139,40 @@ export function volcanoCoordinateLabel(
   )}`;
 }
 
+/**
+ * The number of bundled records this extent search actually ran against. The
+ * panel's headline is a bare match count, so on its own it cannot be read: a
+ * reader has no way to tell whether 0 matches, or 67, is a small or a large
+ * share of the catalogue that was searched.
+ *
+ * The sibling plate and seismicity sections already state their own comparison
+ * population under both outcomes ("Compared against N usable supplied
+ * polylines" in plateBoundaryContext, "Counted from N valid events in the
+ * global feed" in earthquakeContext); this gives the volcano section the same
+ * disclosure in the same two voices.
+ *
+ * Reports `suppliedRecordCount`, which parseVolcanoDataset has already filtered
+ * to records carrying a usable name and finite in-range coordinates. Records it
+ * dropped were never searched, so counting them would overstate the basis.
+ */
+export function suppliedRecordPopulationText(
+  context: VolcanoExtentContext
+): string | null {
+  // Both excluded cases already report their own population in their own words:
+  // an unusable bounding box searched nothing at all, and a dataset that
+  // supplied zero valid records says exactly that. Rendering this as well would
+  // state one figure twice.
+  if (context.status !== "available") return null;
+  const supplied = context.suppliedRecordCount;
+  if (supplied <= 0) return null;
+  const noun = supplied === 1 ? "record" : "records";
+  // "Compared against" is this repo's existing wording for the size of a search
+  // that matched nothing; "Counted from" for one that did.
+  return context.matchedRecordCount === 0
+    ? `Compared against ${supplied} valid bundled ${noun}.`
+    : `Counted from ${supplied} valid bundled ${noun}.`;
+}
+
 function contextFor(
   records: VolcanoExtentRecord[],
   suppliedRecordCount: number,
