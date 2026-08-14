@@ -108,6 +108,24 @@ export const ERUPTION_CLASS_LABELS: Record<EruptionClass, string> = {
 };
 
 /**
+ * Which volcanoes the globe is drawing, for the legend key.
+ *
+ * The key's bands say how recently each drawn volcano erupted, which silently
+ * implies the drawn set is "the volcanoes". It is one inventory: GVP's
+ * Holocene catalog, so a feature with no Holocene eruption evidence has no
+ * marker regardless of whether it exists. The recency bands cannot carry that
+ * — every band presupposes the record was already in the inventory.
+ *
+ * Wording follows the limitations already recorded in
+ * volcanoProximityContext.ts ("the GVP Holocene inventory, not a complete
+ * record of every volcanic feature or vent"; "no matching volcano does not
+ * establish that a location is volcanically inactive"), which no user-facing
+ * surface renders. States the selection only — no hazard or risk reading.
+ */
+export const VOLCANO_OVERLAY_POPULATION =
+  "Bundled Smithsonian GVP Holocene inventory, not a complete record of every volcanic feature or vent — an area with no marker is not established as volcanically inactive.";
+
+/**
  * Human-readable "most recent eruption" phrase, honest about the data:
  * a null year means Holocene evidence only, and negative years are BCE.
  */
