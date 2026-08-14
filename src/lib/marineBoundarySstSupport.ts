@@ -131,12 +131,36 @@ export function summarizeMarineBoundarySstSupport(
 }
 
 /**
+ * Why an empty searched boundary is not a failed retrieval — the same two-sided
+ * statement `marineAveragedSstSupport` makes for its footprints, in this
+ * module's vocabulary. Land is the usual reason a searched administrative area
+ * returns nothing, and it is named first because that is what the limitations
+ * above already commit to; the rest of the clause refuses to settle which cause
+ * emptied this boundary, since `sstNoData` forbids reading a surface class out
+ * of a missing value.
+ */
+const EMPTY_BOUNDARY_DOMAIN_CLAUSE =
+  "SST is undefined over land, and cloud, ice, or source gaps also leave a searched boundary empty";
+
+/**
  * One clause for a place readout. Keeps the usable share and the scope of the
  * mean together, so a share is never read as a boundary-wide temperature.
+ *
+ * A boundary that returned nothing gets the domain clause appended. Without it
+ * the card asserted "no usable SST anywhere in the searched boundary" and
+ * stopped, which reports the ocean product's domain boundary as a retrieval
+ * failure — the same defect the probe surface carries `marineProbeDomain` to
+ * correct, and the first entry of this module's own limitations. The other two
+ * empty states stay bare on purpose: an unsupplied or invalid share is not a
+ * report that the boundary held no water, so explaining it by the domain would
+ * attribute a cause the sampler never observed.
  */
 export function describeMarineBoundarySstSupport(
   summary: MarineBoundarySstSupportSummary
 ): string {
+  if (summary.status === "no-usable-sample") {
+    return `${summary.sampledSharePhrase} — ${EMPTY_BOUNDARY_DOMAIN_CLAUSE}`;
+  }
   return summary.meanScope === null
     ? summary.sampledSharePhrase
     : `${summary.sampledSharePhrase}; mean covers only those pixels`;
