@@ -203,7 +203,9 @@ describe("the one-line readout", () => {
         reading(FEB, 14.1, 0.8)
       )
     );
-    expect(line).toBe("Feb 2026 vs Jan 2026: warmer (+1.7 °C)");
+    expect(line).toBe(
+      "Feb 2026 vs Jan 2026: warmer (+1.7 °C) — this change is a difference of two area-weighted boundary means, screened for the published colormap's end caps by reading those means, so the absence of an inequality on it is not evidence that either month's boundary was uncensored"
+    );
   });
 
   it("signs a cooling difference", () => {
@@ -213,7 +215,9 @@ describe("the one-line readout", () => {
         reading(FEB, 12.4, 0.8)
       )
     );
-    expect(line).toBe("Feb 2026 vs Jan 2026: cooler (-1.7 °C)");
+    expect(line).toBe(
+      "Feb 2026 vs Jan 2026: cooler (-1.7 °C) — this change is a difference of two area-weighted boundary means, screened for the published colormap's end caps by reading those means, so the absence of an inequality on it is not evidence that either month's boundary was uncensored"
+    );
   });
 
   it("says plainly that no change is stated, without inventing a number", () => {
@@ -373,6 +377,92 @@ describe("open colormap end caps constrain the reported change", () => {
     expect(change.censoring.bound).toBe("none");
     expect(change.trend).toBe("little-change");
     expect(formatMarineBoundarySstChange(change)).toContain("little change");
+  });
+
+  it("says the end-cap screen read two averaged means, not their pixels", () => {
+    // The screen behind the ≥/≤ prefix reads the two boundary MEANS. A mean of
+    // capped and resolved pixels lands inside the finite ramp, so the mark
+    // fires only when a mean itself reached a terminal bin — which averaging is
+    // what prevents. The card's year-over-year sibling already says this.
+    const line = formatMarineBoundarySstChange(
+      describeMarineBoundarySstChange(
+        reading(JAN, 20, 0.8),
+        reading(FEB, 31.9, 0.8)
+      )
+    );
+    expect(line).toContain("≥ +11.9 °C");
+    expect(line).toContain("read off two area-weighted boundary means");
+    expect(line).toContain("either month's footprint undetected");
+  });
+
+  it("qualifies an unmarked change as unscreened rather than clean", () => {
+    const line = formatMarineBoundarySstChange(
+      describeMarineBoundarySstChange(
+        reading(JAN, 12.4, 0.8),
+        reading(FEB, 12.6, 0.8)
+      )
+    );
+    expect(line).toContain("little change");
+    expect(line).toContain("absence of an inequality");
+    expect(line).toContain("not evidence that either month's boundary");
+    // The unmarked wording must never appear beside a printed inequality.
+    expect(line).not.toContain("≥");
+    expect(line).not.toContain("≤");
+  });
+
+  it("qualifies a bounded change whose direction is unestablished", () => {
+    const line = formatMarineBoundarySstChange(
+      describeMarineBoundarySstChange(
+        reading(JAN, 31.9, 0.8),
+        reading(FEB, 31.7, 0.8)
+      )
+    );
+    expect(line).toContain("direction not established");
+    expect(line).toContain("read off two area-weighted boundary means");
+    // Shipping the unmarked wording here would print "the absence of an
+    // inequality" beside a visible ≤.
+    expect(line).not.toContain("absence of an inequality");
+  });
+
+  it("adds no clause where no change was stated", () => {
+    // Nothing was claimed, so there is nothing to qualify — and a doubly
+    // censored pair is withheld outright rather than reported as a bound.
+    const withheld = [
+      describeMarineBoundarySstChange(
+        reading(JAN, 31.9, 0.8),
+        reading(FEB, 31.9, 0.8)
+      ),
+      describeMarineBoundarySstChange(
+        reading(JAN, 12.4, 0.8),
+        reading(FEB, null, 0.8)
+      ),
+      describeMarineBoundarySstChange(
+        reading(JAN, 12.4, 0.82),
+        reading(FEB, 14.1, 0.14)
+      ),
+    ];
+    for (const change of withheld) {
+      const line = formatMarineBoundarySstChange(change);
+      expect(line).toContain("no month-over-month SST change stated");
+      expect(line).not.toContain("area-weighted boundary means");
+    }
+  });
+
+  it("neither corrects the change nor withdraws its direction", () => {
+    // The qualification states an undetectable blindness; the sign of what
+    // censoring did to a DIFFERENCE needs its presence in both months, which is
+    // exactly what averaging destroys.
+    const change = describeMarineBoundarySstChange(
+      reading(JAN, 12.4, 0.8),
+      reading(FEB, 14.1, 0.8)
+    );
+    const line = formatMarineBoundarySstChange(change);
+    expect(change.changeValue).toBeCloseTo(1.7, 6);
+    expect(change.trend).toBe("warmer");
+    expect(line).toContain("warmer (+1.7 °C)");
+    expect(line).not.toMatch(
+      /warmer than stated|cooler than stated|underestimat|overestimat|correct(ed|ion)/i
+    );
   });
 
   it("discloses the censoring rule in its limitations", () => {

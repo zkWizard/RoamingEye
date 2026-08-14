@@ -251,6 +251,49 @@ function boundaryDifferenceClause(
 }
 
 /**
+ * The same qualification as a STANDALONE clause, for a difference of two boundary
+ * means printed on its own line rather than trailing the mean's sentence.
+ *
+ * The place card carries two differences over the same boundary, produced by two
+ * different code paths. The year-over-year one is built inside `marinePlaceInsight`
+ * and is qualified by `boundaryDifferenceClause` above. The month-over-month one is
+ * computed separately and appended to the card's detail by the place controller,
+ * after everything `marinePlaceInsight` wrote — and it was left bare, even though
+ * `describeSstDifferenceCensoring` screens it by reading the very same two averaged
+ * means and is blind for the very same reason. So the card printed one difference
+ * with the qualification and a second, of identical construction, without it.
+ *
+ * Naming only the sibling made the omission worse than silence: a reader who meets
+ * a caveat that says "the year-over-year difference above" and then meets a second
+ * difference with no such caveat is entitled to read the omission as a statement
+ * that this one WAS screened exactly.
+ *
+ * The wording here is deliberately self-contained rather than shared verbatim with
+ * `boundaryDifferenceClause`: that clause trails the mean's sentence and can lean on
+ * it for "two such means", while this one is appended last and can reach the reader
+ * with no preceding mean clause at all — the mean's note is omitted for a value that
+ * fell outside the published ramp, and the change line is printed regardless. The
+ * SCIENCE is one statement; only the connective differs.
+ *
+ * Null — no clause — when no inequality-bearing claim was made: an omitted bound, and
+ * `indeterminate`, where the difference was withheld outright and nothing remains to
+ * qualify. As above, this neither corrects a difference nor withdraws its direction;
+ * the sign of what censoring did to a difference needs its presence in BOTH months,
+ * which averaging is exactly what destroys.
+ */
+export function marineBoundaryMeanSstDifferenceCensoringNote(
+  bound: SstDifferenceBound | null | undefined
+): string | null {
+  if (bound === undefined || bound === null || bound === "indeterminate") {
+    return null;
+  }
+  if (bound === "lower" || bound === "upper") {
+    return "that inequality was read off two area-weighted boundary means, so it marks only what those means themselves reached and leaves censoring inside either month's footprint undetected";
+  }
+  return "this change is a difference of two area-weighted boundary means, screened for the published colormap's end caps by reading those means, so the absence of an inequality on it is not evidence that either month's boundary was uncensored";
+}
+
+/**
  * Provenance lines carrying the same qualification into the exported CSV, or
  * an empty list for a point probe, a non-SST layer, and a footprint that
  * returned nothing — those files stay byte-identical.
