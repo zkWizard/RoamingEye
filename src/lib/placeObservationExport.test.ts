@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { LAYERS } from "./timeline";
+import { AEROSOL_RAMP_CEILING } from "./aerosolPlaceInsight";
 import {
   GIBS_IMAGERY_SOURCE,
   PLACE_OBSERVATION_NATIVE_UNITS,
   PLACE_OBSERVATION_GEOGRAPHY,
+  aerosolPlaceObservationFromSample,
   createPlaceObservationExport,
   placeObservationProductFromSample,
   serializePlaceObservationExport,
@@ -128,6 +130,96 @@ describe("place observation export", () => {
       value: 18.375,
       validFraction: 0.37,
     });
+  });
+
+  it("records a column-AOD month on the open top bin as a lower bound", () => {
+    const dataMonth = { year: 2026, month: 5 };
+
+    // Pinned so a PROBE_SCALES or LUT edit that moved the decode ceiling would
+    // be caught here rather than silently re-scoping which months are
+    // censored. It sits one quantization step below the ramp's open 0.9 edge,
+    // which the inversion can therefore never reach.
+    expect(AEROSOL_RAMP_CEILING).toBeCloseTo(0.9 - 0.9 / 255, 9);
+    expect(AEROSOL_RAMP_CEILING).toBeLessThan(0.9);
+
+    expect(
+      aerosolPlaceObservationFromSample(dataMonth, AEROSOL_RAMP_CEILING, 0.94)
+    ).toEqual({
+      dataMonth,
+      value: AEROSOL_RAMP_CEILING,
+      validFraction: 0.94,
+      valueBound: "at-or-above",
+    });
+  });
+
+  it("leaves a resolved column-AOD month unqualified", () => {
+    const dataMonth = { year: 2026, month: 5 };
+
+    // One quantization step below the ceiling is an ordinary two-sided
+    // reading; qualifying it would put doubt in the file the ramp cannot
+    // justify. The ramp's low end is closed at 0, so nothing bounds from below.
+    expect(aerosolPlaceObservationFromSample(dataMonth, 0.895, 0.94)).toEqual({
+      dataMonth,
+      value: 0.895,
+      validFraction: 0.94,
+    });
+    expect(aerosolPlaceObservationFromSample(dataMonth, 0, 0.94)).toEqual({
+      dataMonth,
+      value: 0,
+      validFraction: 0.94,
+    });
+  });
+
+  it("never bounds a column-AOD month that carries no value", () => {
+    const dataMonth = { year: 2026, month: 5 };
+
+    // A month with nothing to read is unassessed, not censored — the contract
+    // rejects a bound on a null value outright.
+    expect(aerosolPlaceObservationFromSample(dataMonth, null, 0.1)).toEqual({
+      dataMonth,
+      value: null,
+      validFraction: 0.1,
+    });
+  });
+
+  it("carries the column-AOD bound through to the serialized record", () => {
+    const record = JSON.parse(
+      serializePlaceObservationExport({
+        ...input,
+        products: [
+          {
+            layerId: "aerosol" as const,
+            wmsLayer: LAYERS.aerosol.wmsLayer,
+            nativeUnit: PLACE_OBSERVATION_NATIVE_UNITS.aerosol,
+            source: LAYERS.aerosol.dataset!,
+            samplingStrategy: "boundary-grid" as const,
+            sourceImageDimensions: { width: 512, height: 512 },
+            observations: [
+              aerosolPlaceObservationFromSample(
+                { year: 2026, month: 4 },
+                0.41,
+                0.9
+              ),
+              aerosolPlaceObservationFromSample(
+                { year: 2026, month: 5 },
+                AEROSOL_RAMP_CEILING,
+                0.9
+              ),
+            ],
+          },
+          ...nonPrecipProducts(),
+        ],
+      })
+    );
+    const aerosol = record.products.find(
+      (product: { layerId: string }) => product.layerId === "aerosol"
+    );
+
+    // The downloaded file is the surface that outlives the panel: a plume
+    // month must leave the app reading as a bound, exactly as the card states.
+    expect(aerosol.observations[0].valueBound).toBeNull();
+    expect(aerosol.observations[1].valueBound).toBe("at-or-above");
+    expect(aerosol.observations[1].value).toBeCloseTo(AEROSOL_RAMP_CEILING, 6);
   });
 
   it("records an SST value in a terminal ramp bin as a bound, not a measurement", () => {
