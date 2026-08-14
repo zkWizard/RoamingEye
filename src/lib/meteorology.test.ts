@@ -229,7 +229,7 @@ describe("rendered monthly meteorology", () => {
     expect(climateInsightText(precipitation[0], precipitation[1])).toEqual({
       value: "8.64 mm/day",
       detail:
-        "2026-02 land-surface-model field; +4.32 mm/day vs 2026-01 (at least 70% and at most 80% of the sampled area is common to both months); 28-day total 241.92 mm water-equivalent (mean rate integrated over the calendar month); 108 mm more than 2026-01's 31-day total (part of any difference is month length, not rate); native source value 0.0001 kg/m²/s (1 kg/m² of liquid water ≡ 1 mm depth; × 86,400 s/day); 90% sampled coverage; the shortfall can include ground at or above the legend's 43.2 mm/day ceiling, which GIBS renders in an open end cap this probe reads as no-data, so the value is a mean over representable ground only; the 2026-01 mean it is differenced against is itself a mean over representable ground only, so part of the difference can be a change in what the legend could represent rather than in the field; rendered source image dimensions not supplied; sampling strategy not supplied; model-derived, not a direct measurement; GIBS layer GLDAS_Surface_Total_Precipitation_Rate_Monthly; source GLDAS_NOAH025_M v2.1",
+        "2026-02 land-surface-model field; +4.32 mm/day vs 2026-01 (at least 70% and at most 80% of the sampled area is common to both months); 28-day total 241.92 mm water-equivalent (mean rate integrated over the calendar month); 108 mm more than 2026-01's 31-day total (part of any difference is month length, not rate); the 0.27 mm/day measured colormap-inversion error justifies reporting this rate only to the nearest 0.1 mm/day (8.6 mm/day); native source value 0.0001 kg/m²/s (1 kg/m² of liquid water ≡ 1 mm depth; × 86,400 s/day); 90% sampled coverage; the shortfall can include ground at or above the legend's 43.2 mm/day ceiling, which GIBS renders in an open end cap this probe reads as no-data, so the value is a mean over representable ground only; the 2026-01 mean it is differenced against is itself a mean over representable ground only, so part of the difference can be a change in what the legend could represent rather than in the field; rendered source image dimensions not supplied; sampling strategy not supplied; model-derived, not a direct measurement; GIBS layer GLDAS_Surface_Total_Precipitation_Rate_Monthly; source GLDAS_NOAH025_M v2.1",
     });
     expect(
       climateInsightText(airTemperature[0], airTemperature[1])
@@ -1064,6 +1064,113 @@ describe("place readout air-temperature reported-precision caveat", () => {
     expect(climateInsightText(undefined, noData).value).toBe("Unavailable");
     expect(climateInsightText(undefined, noData).detail).not.toContain(
       "justifies reporting this mean"
+    );
+  });
+});
+
+/**
+ * The same false precision on the other atmospheric value the card leads with,
+ * reached by the mirror-image argument. Precipitation's published inversion
+ * figure is documented in mm/day — the scaled unit the card prints — so it fixes
+ * the place of that number and of no other on the line; the identical error
+ * written natively is 3.125e-6 kg/m²/s, five decimal places away.
+ */
+describe("place readout precipitation reported-precision caveat", () => {
+  const precipMonth = (mmPerDay: number) =>
+    summarizeRenderedClimateSample(
+      {
+        metricId: "precipitation-rate",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [mmPerDay],
+        nativeToSampledValueFactor: 86_400,
+        validFractions: [1],
+      },
+      { year: 2026, month: 1 }
+    )[0];
+
+  // Derived from the committed figure so a recalibration moves the expectation
+  // with the code rather than leaving a stale literal asserting the old place.
+  const justifiedStepText = () => {
+    const rmse = MEASURED_INVERSION.precip.rmse as number;
+    return Number(
+      (10 ** Math.floor(Math.log10(rmse) + 1e-9)).toPrecision(5)
+    ).toString();
+  };
+
+  it("says how coarsely a five-figure rate may honestly be written", () => {
+    const insight = climateInsightText(undefined, precipMonth(2.592));
+    // The card still leads with the value it always did.
+    expect(insight.value).toBe("2.592 mm/day");
+    expect(insight.detail).toContain(
+      `justifies reporting this rate only to the nearest ${justifiedStepText()} mm/day (2.6 mm/day)`
+    );
+    // The published figure is quoted in the unit it is documented in.
+    expect(insight.detail).toContain(
+      `${MEASURED_INVERSION.precip.rmse} mm/day measured colormap-inversion error`
+    );
+  });
+
+  it("quotes the place of the displayed unit, never of the native value", () => {
+    // The scaled conversion shifts the place: 0.27 mm/day and 3.125e-6 kg/m²/s
+    // are one error on one measurement, justifying 10^-1 in the printed unit
+    // and 10^-6 in the native one. The same line prints the native value, so a
+    // place quoted without its unit would be wrong by five decimal places.
+    const detail = climateInsightText(undefined, precipMonth(2.592)).detail;
+    expect(detail).toContain("native source value 0.00003 kg/m²/s");
+    expect(detail).not.toContain("kg/m²/s measured colormap-inversion error");
+    expect(detail).not.toContain("to the nearest 0.1 kg/m²/s");
+    // A place, never a figure count — the half a scaled conversion preserves is
+    // the count, but the clause is not the place to spend it.
+    expect(detail).not.toContain("significant figure");
+  });
+
+  it("stays silent when the rendered rate already sits at that place", () => {
+    // 3.2 mm/day shows no digit past the tenths the measured error supports.
+    const insight = climateInsightText(undefined, precipMonth(3.2));
+    expect(insight.value).toBe("3.2 mm/day");
+    expect(insight.detail).not.toContain("justifies reporting this rate");
+  });
+
+  it("qualifies the rate even when there is no comparison month", () => {
+    // The accumulation-difference floor needs a pair; this claim stands on one
+    // month alone, which is the case that floor cannot reach.
+    const detail = climateInsightText(undefined, precipMonth(2.592)).detail;
+    expect(detail).not.toContain("colormap-inversion difference floor");
+    expect(detail).toContain("justifies reporting this rate");
+  });
+
+  it("does not attach the precipitation caveat to another metric", () => {
+    // Air temperature carries its own clause by its own licence, and must not
+    // pick up a place derived from a scaled conversion it does not undergo.
+    const [air] = summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [287.385],
+        nativeToSampledValueFactor: 1,
+        validFractions: [1],
+      },
+      { year: 2026, month: 1 }
+    );
+    const detail = climateInsightText(undefined, air).detail;
+    expect(detail).not.toContain("justifies reporting this rate");
+    expect(detail).toContain("justifies reporting this mean");
+  });
+
+  it("withholds the caveat when the month has no usable observation", () => {
+    const [noData] = summarizeRenderedClimateSample(
+      {
+        metricId: "precipitation-rate",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [null],
+        nativeToSampledValueFactor: 86_400,
+        validFractions: [0],
+      },
+      { year: 2026, month: 1 }
+    );
+    expect(climateInsightText(undefined, noData).value).toBe("Unavailable");
+    expect(climateInsightText(undefined, noData).detail).not.toContain(
+      "justifies reporting this rate"
     );
   });
 });
