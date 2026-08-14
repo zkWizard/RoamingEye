@@ -34,3 +34,27 @@ export function compareCaption(pinned: YearMonth, live: YearMonth): string {
 export function isTrivialCompare(pinned: YearMonth, live: YearMonth): boolean {
   return ymEqual(pinned, live);
 }
+
+/**
+ * Month field for an exported figure's filename: `"2024-08"` normally, and
+ * `"compare_2019-08-left_2024-08-right"` while a comparison is on screen.
+ *
+ * A comparison PNG holds two months of imagery, but the divider and its two
+ * date chips are DOM overlays — the canvas readback that produces the file
+ * captures the imagery and neither label. The filename is then the figure's
+ * only surviving provenance, so it has to say both months and which side of
+ * the seam each one is on; naming the live month alone would date a two-month
+ * change-detection figure to a single month once it is in a slide deck. The
+ * deep link already records the pin (main.ts `currentViewState`), and every
+ * CSV export carries that link — the PNG is the surface that was dropping it.
+ *
+ * A trivial comparison shows one month on both sides, so it stamps as one.
+ */
+export function exportMonthStamp(live: YearMonth, pinned?: YearMonth): string {
+  if (!pinned || isTrivialCompare(pinned, live)) return isoYm(live);
+  return `compare_${isoYm(pinned)}-left_${isoYm(live)}-right`;
+}
+
+function isoYm(ym: YearMonth): string {
+  return `${ym.year}-${String(ym.month).padStart(2, "0")}`;
+}
