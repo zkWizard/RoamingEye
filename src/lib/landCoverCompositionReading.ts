@@ -4,6 +4,11 @@ import {
   type LandCoverCompositionSummary,
 } from "./landCoverComposition";
 import { noKnownLandCoverHeadline } from "./landCoverNoClassHeadline";
+import {
+  landCoverPixels,
+  landCoverUnclassifiedReasons,
+  landCoverUnclassifiedRemainder,
+} from "./landCoverUnclassifiedRemainder";
 
 /**
  * Probe-panel copy for a drawn-region sample of the MCD12Q1 LC_Type1 map.
@@ -71,9 +76,10 @@ export function describeLandCoverComposition(
   }
 
   const metrics = composition.metrics;
+  const remainder = landCoverUnclassifiedRemainder(coverage);
   const sampled = `${metrics.knownLandCoverSampleCount} classified of ${
     coverage.totalSampleCount
-  } sampled image pixels${unclassifiedRemainder(coverage)}`;
+  } sampled image pixels${remainder === "" ? "" : ` (${remainder})`}`;
 
   // A tie carries no ordering, so every class sharing the top count is named
   // and none is promoted to "the" most frequent class of the region.
@@ -145,80 +151,12 @@ function unavailableDetail(
   if (coverage.totalSampleCount === 0) {
     return "The rendered source image supplied no pixels for this region.";
   }
-  const parts = unclassifiedReasons(coverage).map(
-    (reason) => `${pixels(reason.sampleCount)} ${reason.text}`
+  const parts = landCoverUnclassifiedReasons(coverage).map(
+    (reason) => `${landCoverPixels(reason.sampleCount)} ${reason.text}`
   );
   return parts.length === 0
     ? `None of the ${coverage.totalSampleCount} sampled image pixels carried an IGBP class.`
     : `Of ${coverage.totalSampleCount} sampled image pixels: ${parts.join(", ")}.`;
-}
-
-/**
- * Why the sampled pixels that carry no IGBP class did not get one, in source
- * order, omitting reasons that took no pixels.
- *
- * Every counted sample lands in exactly one of four buckets
- * (`summarizeLandCoverContext`): an informative class 1..17, source class 255,
- * no usable code, or a code outside the IGBP contract. These are the three that
- * are not informative land cover, so together they always account for exactly
- * `totalSampleCount - knownLandCoverSampleCount`.
- */
-function unclassifiedReasons(
-  coverage: LandCoverContextSummary["coverage"]
-): { sampleCount: number; text: string }[] {
-  return [
-    {
-      sampleCount: coverage.unclassifiedSampleCount,
-      text: "source-unclassified",
-    },
-    { sampleCount: coverage.noDataSampleCount, text: "with no usable colour" },
-    {
-      sampleCount: coverage.invalidClassSampleCount,
-      text: "outside the IGBP class contract",
-    },
-  ].filter((reason) => reason.sampleCount > 0);
-}
-
-/**
- * Say why the unclassified remainder of an available composition is
- * unclassified.
- *
- * "512 classified of 780 sampled image pixels" states the shortfall but not its
- * cause, and the two causes are not the same kind of fact. Source-unclassified
- * pixels are MCD12Q1's own answer for that ground — the product looked and
- * declined to assign a class. Pixels with no usable colour are this app failing
- * to read the rendered map: an exact palette match was not found, so nothing
- * was counted (see landCoverPalette.ts — a nearest-colour match would invent a
- * class the source never assigned). A region that is 66% classified because the
- * product says "unclassified" and one that is 66% classified because a third of
- * the sample could not be decoded are the same number and different
- * observations, and only the second is a reason to distrust the shares beside
- * it.
- *
- * The unavailable branch above already names these reasons; this states them on
- * the branches that report a composition, which is where the shares that depend
- * on them are shown. The printed total is summed from the printed parts, so the
- * clause can never disagree with its own breakdown. Silent when every sampled
- * pixel carried an informative class.
- */
-function unclassifiedRemainder(
-  coverage: LandCoverContextSummary["coverage"]
-): string {
-  const reasons = unclassifiedReasons(coverage);
-  if (reasons.length === 0) return "";
-  const remainder = reasons.reduce(
-    (total, reason) => total + reason.sampleCount,
-    0
-  );
-  // One reason accounts for the whole remainder, so naming the count twice
-  // would add nothing: "the other 268 pixels source-unclassified" reads
-  // correctly for each of the three reasons on its own.
-  if (reasons.length === 1) {
-    return ` (the other ${pixels(remainder)} ${reasons[0].text})`;
-  }
-  return ` (the other ${pixels(remainder)}: ${reasons
-    .map((reason) => `${reason.sampleCount} ${reason.text}`)
-    .join(", ")})`;
 }
 
 function reading(
@@ -259,8 +197,4 @@ function percent(fraction: number): string {
 
 function index(value: number): string {
   return value.toFixed(2);
-}
-
-function pixels(count: number): string {
-  return `${count} pixel${count === 1 ? "" : "s"}`;
 }
