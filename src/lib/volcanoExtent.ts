@@ -1,3 +1,4 @@
+import { searchExtentSpanPhrase } from "./searchExtentSpan";
 import { GVP_VOLCANO_SOURCE, VOLCANO_CONTEXT_UNITS } from "./volcanoContext";
 import { lastEruptionLabel, type Volcano } from "./volcanoes";
 import {
@@ -171,7 +172,7 @@ function contextFor(
     crossesAntimeridian,
     geographicCoverage:
       status === "available"
-        ? "Coordinates inside the search result bounding box; the exact selected boundary is not tested."
+        ? `Coordinates inside the search result bounding box, ${searchExtentSpanPhrase(bounds, crossesAntimeridian) ?? "of unreported size"}; the exact selected boundary is not tested.`
         : "Search result bounding box was missing or invalid; no geographic comparison was made.",
     provenance: GVP_VOLCANO_SOURCE,
     units: VOLCANO_CONTEXT_UNITS,
