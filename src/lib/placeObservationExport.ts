@@ -1,5 +1,10 @@
 import { isRampSaturated } from "./aerosolPlaceInsight";
 import {
+  characterizeLayerInversion,
+  inversionUncertaintyForLayer,
+  type UncharacterizedReason,
+} from "./briefValueUncertainty";
+import {
   geometryBounds,
   type GeoGeometry,
   type GeometrySamplingStrategy,
@@ -23,7 +28,7 @@ import {
  */
 
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
-  "roamingeye-place-observation-export/v6" as const;
+  "roamingeye-place-observation-export/v7" as const;
 
 export const PLACE_OBSERVATION_GEOGRAPHY = {
   coordinateReferenceSystem: "OGC:CRS84",
@@ -193,6 +198,96 @@ export interface PlaceObservationMethodInput {
   imageHeight: number;
 }
 
+/**
+ * The measured end-to-end error of the very method this export names in
+ * `method.valueMethod`.
+ *
+ * Every value here is produced by `approximate-colormap-inversion`: a rendered
+ * pixel colour is inverted through a ramp to recover a physical number. The
+ * repository measures how well that round-trip works — `validateInversion`
+ * feeds GIBS's authoritative colormap through the production inversion and
+ * compares the recovered value to the published one — and the residuals are
+ * committed in `MEASURED_INVERSION`, documented in METHODS §3 and
+ * docs/validation.md, and re-asserted against live GIBS by
+ * `contract/inversion-validation.contract.test.ts`.
+ *
+ * The probe panel and the probe CSV already carry that figure beside the values
+ * it qualifies (`probeInversionAccuracy`). This record carries the same
+ * measurement into the place export, so a downloaded observation states the
+ * accuracy of the method that produced it rather than leaving the reader with
+ * the qualitative "values are approximate" line alone.
+ *
+ * Honesty rules, matching the probe's:
+ *  - `nativeRmse` is in this product's own `nativeUnit`, the unit `value` is
+ *    recorded in, converted from the published figure with the same
+ *    `SCALE_CONVERSIONS` factor `sampleToNative` uses — so a ± band is never
+ *    dimensionally mismatched to the number it qualifies. `reportedRmse` keeps
+ *    the published figure traceable when the two units differ (precipitation).
+ *  - This is the *rendering-inversion* error only. It is not the source
+ *    product's own validation against in-situ measurement, which METHODS.md
+ *    cites separately, and it implies nothing causal, predictive, or about
+ *    environmental condition.
+ *  - It is a whole-ramp pooled scalar, not a per-value band. Where a layer's
+ *    error is known to be strongly non-uniform across its ramp, that split is
+ *    reported separately rather than folded in here.
+ *  - A layer with no measured figure is recorded as uncharacterized with the
+ *    reason it has none. An error is never invented, and absence is never
+ *    rendered as accuracy.
+ */
+export interface PlaceObservationInversionAccuracy {
+  status: "characterized" | "uncharacterized";
+  /** Null exactly when `status === "characterized"`. */
+  uncharacterizedReason: UncharacterizedReason | null;
+  /** RMSE in this product's `nativeUnit`; null when uncharacterized. */
+  nativeRmse: number | null;
+  /** The published RMSE in the probe's reported unit; null when uncharacterized. */
+  reportedRmse: number | null;
+  /** The reported-unit label (e.g. "mm/day"); null when uncharacterized. */
+  reportedUnit: string | null;
+  /**
+   * Published colormap steps the inversion recovered, and the total considered.
+   * Retained even when nothing recovered — "0 of 250" is a finding, not the
+   * absence of one — and null only for a layer never measured at all.
+   */
+  recoveredColormapSteps: number | null;
+  totalColormapSteps: number | null;
+}
+
+/**
+ * Bind a product to its committed inversion measurement, in the product's own
+ * native unit. Nothing is re-derived or re-measured here: the figure is read
+ * from the same committed table the probe surfaces quote.
+ */
+function inversionAccuracyForProduct(
+  layerId: LayerId,
+  nativeUnit: string
+): PlaceObservationInversionAccuracy {
+  const measured = inversionUncertaintyForLayer(layerId, nativeUnit);
+  if (measured === null) {
+    // The classifier supplies both the reason and the recovery counts, so the
+    // recorded reason can never disagree with the recorded evidence.
+    const characterization = characterizeLayerInversion(layerId);
+    return {
+      status: "uncharacterized",
+      uncharacterizedReason: characterization.reason,
+      nativeRmse: null,
+      reportedRmse: null,
+      reportedUnit: null,
+      recoveredColormapSteps: characterization.recoveredSteps,
+      totalColormapSteps: characterization.totalSteps,
+    };
+  }
+  return {
+    status: "characterized",
+    uncharacterizedReason: null,
+    nativeRmse: measured.nativeRmse,
+    reportedRmse: measured.reportedRmse,
+    reportedUnit: measured.reportedUnit,
+    recoveredColormapSteps: measured.recoveredSteps,
+    totalColormapSteps: measured.totalSteps,
+  };
+}
+
 export interface PlaceObservationExport {
   schema: typeof PLACE_OBSERVATION_EXPORT_SCHEMA;
   kind: "place-observation-export";
@@ -239,6 +334,7 @@ export interface PlaceObservationExport {
     "Data-month record states do not make values across products interchangeable or describe environmental condition.",
     "A legend-cap censoring record marks the month it names as a one-sided bound rather than a measurement; where no record is supplied, none was assessed, which is not evidence that no censoring occurred.",
     "An observation's valueBound marks that value as a bound the rendered ramp could not resolve past, never as a measurement; a null bound records that this observation was not assessed for one, which is not evidence its value was resolved.",
+    "A product's inversionAccuracy is the measured end-to-end error of this export's own colormap inversion against the published GIBS colormap, pooled over the whole ramp and stated in the product's native unit; it is not the source product's validation against in-situ measurement, and a layer recorded as uncharacterized carries an unmeasured inversion error rather than none.",
   ];
 }
 
@@ -256,6 +352,8 @@ export interface PlaceObservationExportProduct {
   sourceImage: { width: number; height: number } | null;
   valueMapping: PlaceObservationValueMapping;
   legendCapCensoring: PlaceObservationLegendCapCensoring | null;
+  /** Measured end-to-end error of the colormap inversion that produced `value`. */
+  inversionAccuracy: PlaceObservationInversionAccuracy;
   observations: {
     dataMonth: string;
     value: number | null;
@@ -469,6 +567,7 @@ const LIMITATIONS = [
   "Data-month record states do not make values across products interchangeable or describe environmental condition.",
   "A legend-cap censoring record marks the month it names as a one-sided bound rather than a measurement; where no record is supplied, none was assessed, which is not evidence that no censoring occurred.",
   "An observation's valueBound marks that value as a bound the rendered ramp could not resolve past, never as a measurement; a null bound records that this observation was not assessed for one, which is not evidence its value was resolved.",
+  "A product's inversionAccuracy is the measured end-to-end error of this export's own colormap inversion against the published GIBS colormap, pooled over the whole ramp and stated in the product's native unit; it is not the source product's validation against in-situ measurement, and a layer recorded as uncharacterized carries an unmeasured inversion error rather than none.",
 ] as const;
 
 /** Create a JSON-ready, whitelist-only reproducibility record. */
@@ -998,6 +1097,13 @@ function exportProducts(
         : null,
       valueMapping: exportValueMapping(product.valueMapping),
       legendCapCensoring: exportLegendCapCensoring(product.legendCapCensoring),
+      // Derived here rather than taken from the caller: the measurement is a
+      // property of the layer's committed validation run, not of any one
+      // sampling, so no builder can supply a figure that disagrees with it.
+      inversionAccuracy: inversionAccuracyForProduct(
+        product.layerId,
+        product.nativeUnit
+      ),
       observations: product.observations
         .map((observation) => ({
           dataMonth: formatYearMonth(observation.dataMonth),
