@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Volcano } from "./volcanoes";
 import {
   gvpVolcanoUrl,
+  suppliedRecordPopulationText,
   volcanoCoordinateLabel,
   volcanoesInSearchExtent,
 } from "./volcanoExtent";
@@ -319,5 +320,84 @@ describe("search extent size in the volcano geographic coverage sentence", () =>
     const context = volcanoesInSearchExtent([volcano()], null);
     expect(context.status).toBe("invalid-bounds");
     expect(context.geographicCoverage).not.toContain("north–south");
+  });
+});
+
+describe("suppliedRecordPopulationText", () => {
+  it("states the searched population when nothing matched", () => {
+    // The defect this guards: "No bundled GVP volcano records have coordinates
+    // inside this search bounding box" is a negative result, and a negative
+    // result cannot be read without the size of the set that produced it.
+    const context = volcanoesInSearchExtent(
+      [
+        volcano({ lat: 50 }),
+        volcano({ name: "Fuji", lat: 35.36, lon: 138.73 }),
+      ],
+      [0, 10, 0, 10]
+    );
+
+    expect(context.matchedRecordCount).toBe(0);
+    expect(suppliedRecordPopulationText(context)).toBe(
+      "Compared against 2 valid bundled records."
+    );
+  });
+
+  it("states the searched population when records did match", () => {
+    // A bare match count is not comparable between places either: the same "1
+    // record" reads very differently against 2 searched records and 1,196.
+    const context = volcanoesInSearchExtent([volcano()], [30, 40, 0, 20]);
+
+    expect(context.matchedRecordCount).toBe(1);
+    expect(suppliedRecordPopulationText(context)).toBe(
+      "Counted from 1 valid bundled record."
+    );
+  });
+
+  it("uses the matched branch's verb only when something matched", () => {
+    // The two voices must not converge: "Counted from" claims records were
+    // counted, which is false of a search that matched nothing.
+    const empty = volcanoesInSearchExtent([volcano()], [0, 10, 0, 10]);
+    const matched = volcanoesInSearchExtent([volcano()], [30, 40, 0, 20]);
+
+    expect(suppliedRecordPopulationText(empty)).not.toContain("Counted from");
+    expect(suppliedRecordPopulationText(matched)).not.toContain(
+      "Compared against"
+    );
+  });
+
+  it("stays silent when the bounding box was unusable", () => {
+    // That branch reports that no geographic comparison was made at all, so a
+    // comparison population would describe a search that never ran.
+    const context = volcanoesInSearchExtent([volcano()], null);
+
+    expect(context.status).toBe("invalid-bounds");
+    expect(suppliedRecordPopulationText(context)).toBeNull();
+  });
+
+  it("stays silent when the bundled dataset supplied no valid records", () => {
+    // That branch already says the dataset supplied zero valid records; adding
+    // "Compared against 0 valid bundled records" would state one figure twice.
+    const context = volcanoesInSearchExtent([], [0, 10, 0, 10]);
+
+    expect(context.suppliedRecordCount).toBe(0);
+    expect(suppliedRecordPopulationText(context)).toBeNull();
+  });
+
+  it("counts every supplied record, not only the ones that matched", () => {
+    // Records outside the box were still searched, so they belong in the basis;
+    // reporting only the matched ones would make the denominator meaningless.
+    const context = volcanoesInSearchExtent(
+      [
+        volcano({ name: "Inside" }),
+        volcano({ name: "Outside", lat: 50 }),
+        volcano({ name: "Also outside", lat: 55 }),
+      ],
+      [30, 40, 0, 20]
+    );
+
+    expect(context.matchedRecordCount).toBe(1);
+    expect(suppliedRecordPopulationText(context)).toBe(
+      "Counted from 3 valid bundled records."
+    );
   });
 });
