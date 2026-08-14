@@ -212,10 +212,34 @@ export function seasonalSamplingClause(
  * Comma-free by the header contract documented on `csvHeaderText` in probe.ts,
  * so each line stays one untorn field for naive parsers: calendar months are
  * space-separated and the interpolated unit is scrubbed.
+ *
+ * `meanBoundPrefix` is the inequality the caller has already decided the plain
+ * mean must carry — "≤ ", "≥ ", or "" — exactly as passed to
+ * `seasonalSamplingClause`, and it applies to both figures this header quotes.
+ * The reason it matters more here than on the status line is that the panel
+ * prints its own `mean` a few fields earlier already marked as a bound, so the
+ * reader sees the inequality whatever this clause does; the CSV states no mean
+ * anywhere else, which makes these two the only means in the exported file and
+ * leaves nothing to correct them. Both are averages of the very same usable
+ * values, so a colormap cap that pushed some months one way pushed each of
+ * them the same way (see `probeSstExtremeCensoring` and
+ * `probeAerosolCeilingCensoring`) — writing them as plain decimals hands a
+ * reader who has outlived the session two point estimates for quantities that
+ * are bounds. Rendered as prose rather than the panel's glyph, matching the
+ * censoring headers this line sits beside.
+ *
+ * The offset keeps no inequality and gains a line saying so. Both means are
+ * bounds over the same censored months, each wrong by an unknown amount in the
+ * same direction, so the sign of the difference between those two errors is
+ * precisely what the caps destroyed (Helsel 2e §11) — it is stated as bounded
+ * on neither side rather than inheriting a direction the data cannot support.
+ * The default keeps every uncensored record, and every layer whose ramp closes
+ * at both ends, byte-identical.
  */
 export function seasonalSamplingCsvHeaders(
   balance: SeasonalSamplingBalance,
-  scale: ProbeScale
+  scale: ProbeScale,
+  meanBoundPrefix = ""
 ): string[] {
   if (!balance.coversFullYear || balance.recordMean === null) return [];
   const digits = csvDecimals(scale);
@@ -239,8 +263,23 @@ export function seasonalSamplingCsvHeaders(
   const bias = balance.seasonalSamplingBias;
   if (bias === null || Math.abs(bias) < quantizationStep(scale)) return [];
   const sign = bias >= 0 ? "+" : "-";
+  // The panel's glyph would be the only one in the file; its neighbours state
+  // every bound in words, so this one does too. An unrecognized prefix is
+  // treated as no bound rather than guessed at — a wrong direction is worse
+  // than the bare decimal this replaces.
+  const bound =
+    meanBoundPrefix === "≤ "
+      ? "at most "
+      : meanBoundPrefix === "≥ "
+        ? "at least "
+        : "";
   return [
-    `# seasonal_sampling_bias: the value column averages ${balance.recordMean.toFixed(digits)}${unit}; weighting each of the 12 calendar months equally gives ${balance.calendarBalancedMean!.toFixed(digits)}${unit} (${sign}${Math.abs(bias).toFixed(digits)}${unit}) — this record samples the calendar unevenly`,
+    `# seasonal_sampling_bias: the value column averages ${bound}${balance.recordMean.toFixed(digits)}${unit}; weighting each of the 12 calendar months equally gives ${bound}${balance.calendarBalancedMean!.toFixed(digits)}${unit} (${sign}${Math.abs(bias).toFixed(digits)}${unit}) — this record samples the calendar unevenly`,
     `# seasonal_sampling_bias_scope: a re-weighting of the rows below and not a measurement — it estimates no month and changes no exported value`,
+    ...(bound
+      ? [
+          `# seasonal_sampling_bias_censoring: both figures above are one-sided bounds and not measurements — the published colormap collapsed some of this record's months into an open end cap so each mean inherits that cap's direction; the offset between them is a difference of two same-direction errors of unknown size and carries no claimable sign of its own`,
+        ]
+      : []),
   ];
 }

@@ -31,9 +31,11 @@ import {
 } from "./lib/sstColdEndAccuracy";
 import {
   probeSstExtremeCensoring,
+  sstExtremeBoundPrefix,
   sstExtremeCensoringCsvHeaders,
 } from "./lib/probeSstExtremeCensoring";
 import {
+  aerosolCeilingBoundPrefix,
   aerosolCeilingCensoringCsvHeaders,
   probeAerosolCeilingCensoring,
 } from "./lib/probeAerosolCeilingCensoring";
@@ -1059,9 +1061,20 @@ if (probeEl) {
                 // mean, then hands over a value column with nothing on it to
                 // stop the next reader averaging all of it. Silent for a record
                 // spread evenly across the calendar.
+                //
+                // The bound prefix goes in for the same reason it goes on the
+                // status line: the two means this header quotes are reduced
+                // from the very same months the block above may have just
+                // reported as capped. The panel at least prints its own `mean`
+                // already marked, so the reader sees the inequality either way;
+                // this file states no other mean, which makes these two the
+                // only ones in it and leaves nothing else to carry the caveat.
+                // Empty for every uncensored record and every closed ramp.
                 seasonalSamplingHeaders: seasonalSamplingCsvHeaders(
                   seasonalSamplingBalance(probeMonths, physical),
-                  scale
+                  scale,
+                  sstExtremeBoundPrefix(sstCensoring, "mean") ||
+                    aerosolCeilingBoundPrefix(aerosolCensoring, "mean")
                 ),
               },
               probeMonths,
@@ -1285,9 +1298,17 @@ if (probeEl) {
                 // and given no location context — it describes which calendar
                 // months this file holds, and claims nothing about their
                 // seasons.
+                //
+                // The bound prefix carries over unchanged: a region's censoring
+                // screen reads its area means, so a prefix it does raise is as
+                // true of a re-weighting of those means as of their average.
+                // The averaged-censoring lines above already say that silence
+                // here is not evidence the region held no capped pixel.
                 seasonalSamplingHeaders: seasonalSamplingCsvHeaders(
                   seasonalSamplingBalance(probeMonths, physical),
-                  scale
+                  scale,
+                  sstExtremeBoundPrefix(sstCensoring, "mean") ||
+                    aerosolCeilingBoundPrefix(aerosolCensoring, "mean")
                 ),
               },
               probeMonths,
