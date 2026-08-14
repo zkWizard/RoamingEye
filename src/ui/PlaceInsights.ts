@@ -19,6 +19,7 @@ import {
   GVP_VOLCANO_SOURCE,
   gvpVolcanoSourceLabel,
 } from "../lib/volcanoContext";
+import { searchExtentSpanPhrase } from "../lib/searchExtentSpan";
 import {
   volcanoCoordinateLabel,
   type VolcanoExtentContext,
@@ -42,7 +43,6 @@ import {
 import {
   BIRD_2003_PLATE_BOUNDARY_SOURCE,
   digitizationCreditText,
-  searchExtentSpanPhrase,
   subductionMarkingText,
   subductionPolarityText,
   suppliedRepeatText,
