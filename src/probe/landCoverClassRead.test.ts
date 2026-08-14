@@ -44,26 +44,31 @@ describe("readLandCoverClassText", () => {
     expect(text).not.toContain("class 9");
   });
 
-  it("treats the source's unclassified colour as carrying no land cover", () => {
+  it("reports the source's unclassified colour as MCD12Q1 declining to classify", () => {
     const text = readLandCoverClassText(
       Array.from({ length: 9 }, () => pixel(255)),
       2024
     );
 
-    expect(text).toContain("No IGBP land-cover class here");
+    expect(text).toContain(
+      "Source-unclassified in every land-cover pixel read here"
+    );
     expect(text).toContain("9 pixels source-unclassified");
   });
 
   it("rejects a colour the palette does not publish rather than guessing", () => {
     // One channel off a real entry: a nearest-colour match here would invent a
-    // source class, so the pixel stays unusable.
+    // source class, so the pixel stays unusable. Nothing was decoded, so the
+    // copy reports an unreadable render and not bare ground.
     const near = IGBP_RENDERED_PALETTE[12];
     const text = readLandCoverClassText(
       Array.from({ length: 9 }, () => ({ ...near, r: near.r - 1, a: 255 })),
       2024
     );
 
-    expect(text).toContain("No IGBP land-cover class here");
+    expect(text).toContain(
+      "No sampled pixel carried a readable land-cover colour"
+    );
     expect(text).toContain("9 pixels with no usable colour");
   });
 
@@ -133,7 +138,9 @@ describe("vegetation-index support on the point reading", () => {
       2024
     );
 
-    expect(text).toContain("No IGBP land-cover class here");
+    expect(text).toContain(
+      "Source-unclassified in every land-cover pixel read here"
+    );
     expect(text).not.toContain("MOD13A3");
   });
 });
