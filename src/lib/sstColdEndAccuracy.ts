@@ -165,6 +165,48 @@ export function sstColdEndAccuracyClause(
 }
 
 /**
+ * CSV provenance headers qualifying the pooled inversion RMSE that
+ * `inversionAccuracyCsvHeaders` writes into the same file.
+ *
+ * The export is a second surface with its own failure mode. On screen the
+ * reader sees the pooled band beside the values it describes and can be left to
+ * read them together; a downloaded file outlives that session and states its
+ * accuracy once, at the top, as a rule that looks complete for every row below
+ * it. For a polar or sub-polar record that rule understates the error by about
+ * a factor of three, so the qualifier travels with the file exactly as it
+ * travels with the panel.
+ *
+ * Returned as a list, and empty unless the record actually enters the band —
+ * an ordinary subtropical export is byte-identical to before. Silence is
+ * correct there rather than merely convenient: above the threshold the pooled
+ * figure *overstates* the residual, and a conservative band needs no warning.
+ */
+export function sstColdEndAccuracyCsvHeaders(
+  reading: SstColdEndAccuracyReading
+): string[] {
+  if (!reading.applies || reading.coldBandRmseC === null) return [];
+  const { unit, thresholdC, restOfRampRmseC, legendColdAnchorC, source } =
+    SST_COLD_END_ACCURACY;
+  const whole =
+    reading.wholeRampRmseC === null
+      ? "the pooled figure above"
+      : `the pooled ±${reading.wholeRampRmseC.toFixed(1)} ${unit} above`;
+  const months = reading.coldBandMonths === 1 ? "month" : "months";
+  const coldest =
+    reading.coldestValueC === null
+      ? ""
+      : ` (coldest ${reading.coldestValueC.toFixed(1)} ${unit})`;
+  // No commas anywhere below: a `#` line must never contain a CSV delimiter
+  // (see the header discipline documented on `csvHeaderText` in probe.ts).
+  return [
+    `# inversion_validation_cold_end: that RMSE is pooled over the whole SST ramp — below ${thresholdC} ${unit} the measured residual is ±${reading.coldBandRmseC.toFixed(1)} ${unit} against ±${restOfRampRmseC.min}–${restOfRampRmseC.max} ${unit} over the rest of the ramp (${source})`,
+    `# inversion_validation_cold_end_rows: ${reading.coldBandMonths} sampled ${months} report at or below ${thresholdC} ${unit}${coldest} — read those rows against the ±${reading.coldBandRmseC.toFixed(1)} ${unit} band and not ${whole}`,
+    `# inversion_validation_cold_end_cause: the display legend anchors its cold stop at GIBS's ~${legendColdAnchorC} ${unit} hue so that undrawn pixels stay rejected as no-data; the wider cold-end residual is the cost of that separation and not a retrieval error`,
+    `# inversion_validation_cold_end_screen: this count reads reported values which are themselves imprecise in this band — a true cold-band month can surface above the threshold and go unflagged so the count is a lower bound and never an exhaustive one`,
+  ];
+}
+
+/**
  * Drift anchor: the threshold this module splits the ramp at has to lie inside
  * the range the probe scales its SST readings with, and the cold-band residual
  * has to stay worse than the whole-ramp figure it qualifies — otherwise the

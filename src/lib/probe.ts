@@ -609,7 +609,10 @@ export interface ProbeCsvMeta {
   viewUrl?: string;
   /**
    * Measured colormap-inversion accuracy lines for this layer, built by
-   * `probeInversionAccuracy.inversionAccuracyCsvHeaders`. Passed in rather
+   * `probeInversionAccuracy.inversionAccuracyCsvHeaders` and — where the
+   * pooled figure that builder writes does not describe the values in this
+   * file — followed by the qualifying lines from
+   * `sstColdEndAccuracy.sstColdEndAccuracyCsvHeaders`. Passed in rather
    * than derived here so this module stays a leaf of the validation figures
    * (validation.ts already imports this file). Omitted for layers with no
    * committed measurement — never replaced with a hedged placeholder.
