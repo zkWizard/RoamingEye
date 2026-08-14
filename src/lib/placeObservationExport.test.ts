@@ -494,7 +494,7 @@ describe("place observation export", () => {
     const exported = createPlaceObservationExport(input);
 
     expect(exported).toMatchObject({
-      schema: "roamingeye-place-observation-export/v7",
+      schema: "roamingeye-place-observation-export/v8",
       kind: "place-observation-export",
       boundary,
       geography: PLACE_OBSERVATION_GEOGRAPHY,
@@ -1646,6 +1646,10 @@ describe("place observation export inversion accuracy", () => {
     // move the exported figure, never leave a stale number behind here.
     expect(productFor(exported, "ndvi").inversionAccuracy).toEqual({
       status: "characterized",
+      // This product's values were read through GIBS's published colormap, so
+      // the committed figure — measured on the UI legend gradient — describes a
+      // different inversion from the one that produced them.
+      scope: "measures-a-different-inversion",
       uncharacterizedReason: null,
       nativeRmse: MEASURED_INVERSION.ndvi.rmse,
       reportedRmse: MEASURED_INVERSION.ndvi.rmse,
@@ -1702,11 +1706,74 @@ describe("place observation export inversion accuracy", () => {
     }
   });
 
+  it("reads the scope from the product's own recorded value method", () => {
+    const withMappings = {
+      ...input,
+      products: [
+        // Same layer three times is not possible (products are keyed by layer),
+        // so vary the mapping across the fixture's real products instead.
+        { ...input.products[0], valueMapping: undefined },
+        {
+          ...input.products[1],
+          valueMapping: {
+            status: "ui-legend-approximation" as const,
+            url: null,
+          },
+        },
+      ],
+    };
+    const exported = createPlaceObservationExport(withMappings);
+
+    // No mapping recorded: which ramp was inverted is unknown, and that is not
+    // evidence that either one ran.
+    expect(productFor(exported, "ndvi").inversionAccuracy.scope).toBe(
+      "value-inversion-unrecorded"
+    );
+    // The legend approximation is the very inversion MEASURED_INVERSION covers.
+    expect(productFor(exported, "precip").inversionAccuracy.scope).toBe(
+      "measures-this-product"
+    );
+  });
+
+  it("never lets the scope disagree with the recorded value mapping", () => {
+    const exported = createPlaceObservationExport(input);
+
+    for (const product of exported.products) {
+      const expected =
+        product.valueMapping.status === "gibs-colormap"
+          ? "measures-a-different-inversion"
+          : product.valueMapping.status === "ui-legend-approximation"
+            ? "measures-this-product"
+            : "value-inversion-unrecorded";
+      expect(product.inversionAccuracy.scope).toBe(expected);
+    }
+  });
+
+  it("states the scope without inventing a figure for the unmeasured inversion", () => {
+    const exported = createPlaceObservationExport(input);
+    const ndvi = productFor(exported, "ndvi");
+
+    // The mismatch is reported, never repaired: the quoted figure stays the
+    // committed one, unscaled and unsubstituted.
+    expect(ndvi.inversionAccuracy.scope).toBe("measures-a-different-inversion");
+    expect(ndvi.inversionAccuracy.nativeRmse).toBe(
+      MEASURED_INVERSION.ndvi.rmse
+    );
+    expect(exported.limitations.join(" ")).toMatch(
+      /neither this product's error nor evidence of a larger or smaller one/
+    );
+  });
+
   it("survives serialization and states its limits", () => {
     const exported = createPlaceObservationExport(input);
     const parsed = JSON.parse(serializePlaceObservationExport(input));
 
     expect(parsed).toEqual(exported);
+    expect(
+      parsed.products.find(
+        (product: { layerId: string }) => product.layerId === "ndvi"
+      ).inversionAccuracy.scope
+    ).toBe("measures-a-different-inversion");
     expect(
       parsed.products.find(
         (product: { layerId: string }) => product.layerId === "ndvi"
