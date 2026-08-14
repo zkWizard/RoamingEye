@@ -9,7 +9,7 @@ import {
   exportMonthStamp,
   imageryUrlExport,
 } from "./compare";
-import { LAYERS, gibsWmsUrl } from "./timeline";
+import { LAYERS, gibsWmsUrl, formatTimelineLabel } from "./timeline";
 
 describe("clampSplit", () => {
   it("keeps the divider away from the edges", () => {
@@ -39,8 +39,36 @@ describe("splitFromPointer", () => {
 describe("captions", () => {
   it("describes the pinned-vs-live pair", () => {
     expect(
-      compareCaption({ year: 2019, month: 8 }, { year: 2024, month: 8 })
+      compareCaption(
+        LAYERS.ndvi,
+        { year: 2019, month: 8 },
+        { year: 2024, month: 8 }
+      )
     ).toBe("Aug 2019 vs Aug 2024");
+  });
+
+  it("dates an annual product by year, not by its placeholder month", () => {
+    // monthRangeForLayer enumerates annual layers as {year, month: 1}: the
+    // month is a slot, not an observation. Naming it would date each side of
+    // a land-cover swipe to a January MCD12Q1 never resolved — and contradict
+    // the scrubber, which reads a bare year for the very same view.
+    const annual = LAYERS.landcover;
+    expect(annual.cadence).toBe("annual");
+    expect(
+      compareCaption(annual, { year: 2001, month: 1 }, { year: 2020, month: 1 })
+    ).toBe("2001 vs 2020");
+  });
+
+  it("labels each side exactly as the timeline labels it", () => {
+    // Reads the invariant off formatTimelineLabel rather than restating its
+    // output, so a cadence added to the catalog cannot drift the two apart.
+    for (const layer of Object.values(LAYERS)) {
+      const pinned = { year: 2015, month: 3 };
+      const live = { year: 2020, month: 9 };
+      expect(compareCaption(layer, pinned, live)).toBe(
+        `${formatTimelineLabel(layer, pinned)} vs ${formatTimelineLabel(layer, live)}`
+      );
+    }
   });
 
   it("flags a self-comparison", () => {
