@@ -22,7 +22,10 @@ import {
   precipitationRatePlausibility,
   type PrecipitationRatePlausibilityStatus,
 } from "./precipitationRatePlausibility";
-import { precipitationAccumulation } from "./precipitationAccumulation";
+import {
+  precipitationAccumulation,
+  type PrecipitationAccumulation,
+} from "./precipitationAccumulation";
 import {
   describePrecipitationAccumulationChange,
   type PrecipitationAccumulationChange,
@@ -30,6 +33,7 @@ import {
 import {
   describePrecipitationAccumulationResolvability,
   precipitationInversionRmseMmPerDay,
+  precipitationTotalInversionRmseMm,
   PRECIP_INVERSION_REPORTED_UNIT,
   PRECIPITATION_RATE_METRIC_ID,
 } from "./precipitationAccumulationResolvability";
@@ -441,11 +445,16 @@ export function climateInsightText(
   // alongside the rate — never in place of it — with the month length shown,
   // because month length is part of why two months' totals differ. Non-
   // precipitation metrics yield null here and gain no clause.
+  // The total is rendered by the same five-figure helper as the rate it was
+  // integrated from, but its error is that rate's error integrated too — a
+  // third justified place on this one line — so it carries its own caveat.
   const accumulated = precipitationAccumulation(current);
   const accumulation = accumulated
     ? `; ${accumulated.monthDays}-day total ${formatNumber(
         accumulated.totalMm
-      )} mm water-equivalent (mean rate integrated over the calendar month)`
+      )} mm water-equivalent (mean rate integrated over the calendar month)${precipitationTotalPrecisionCaveat(
+        accumulated
+      )}`
     : "";
   // The rate difference above answers "did it rain harder?"; on its own it
   // cannot answer "did more water fall?", because each month's total integrates
@@ -923,11 +932,109 @@ function precipitationValuePrecisionCaveat(
   // rendered strings can say whether any unjustified digit is actually shown.
   if (formatNumber(conventional.value) === formatNumber(rounded)) return "";
 
+  if (roundsAwayToZero(conventional.value, rounded)) {
+    return `; this rate is smaller than the ${formatNumber(
+      rateRmse
+    )} ${PRECIP_INVERSION_REPORTED_UNIT} measured colormap-inversion error, so no digit of it is justified and it is not resolved from zero — which is not a report that no rain fell`;
+  }
+
   return `; the ${formatNumber(rateRmse)} ${PRECIP_INVERSION_REPORTED_UNIT} measured colormap-inversion error justifies reporting this rate only to the nearest ${formatNumber(
     10 ** place
   )} ${PRECIP_INVERSION_REPORTED_UNIT} (${formatNumber(
     rounded
   )} ${PRECIP_INVERSION_REPORTED_UNIT})`;
+}
+
+/**
+ * Whether rounding a positive precipitation amount to its justified place has
+ * collapsed it to a bare zero.
+ *
+ * `roundToPlace` returns 0 for anything below half its place, so a real but
+ * small amount — a 0.0107 mm/day arid-month rate, a sub-millimetre total —
+ * reaches the parenthetical as "(0 mm/day)". On a ratio scale that is not a
+ * coarser way of writing the same reading: zero means *none fell*, and offering
+ * it as the justified report of a nonzero observation states an absence the
+ * observation does not contain. The honest statement is the one this predicate
+ * routes to — that the amount is under the pipeline's own error and no digit of
+ * it survives — which withholds the number without ever claiming a dry month.
+ *
+ * Deliberately not applied to the air-temperature clause. Celsius is an
+ * interval scale whose zero is a chosen origin, not an absence: 0.0 °C is an
+ * ordinary reading, and rounding 0.04 °C to it reports a measurement rather
+ * than erasing one. The collapse is a defect only where zero means nothing at
+ * all, so it is scoped to the two precipitation amounts on this line.
+ */
+function roundsAwayToZero(value: number, rounded: number): boolean {
+  return rounded === 0 && value > 0;
+}
+
+/**
+ * Say how coarsely the measured inversion error lets this month's accumulated
+ * total be written.
+ *
+ * This line now renders one measurement three times — the native kg/m²/s value,
+ * the mm/day rate, and this total — and the single published error justifies a
+ * *different* rounding place for each, because two different scalings stand
+ * between them. The 0.27 mm/day figure fixes the rate at 10^-1 mm/day; the same
+ * error natively is 3.125e-6 kg/m²/s, place 10^-6; and integrated over a
+ * calendar month it is around 7.6–8.4 mm, place 10^0. Five decimal places
+ * separate the first two and one more separates the last, yet all three
+ * describe one inversion of one pixel colour. A reader given five figures on
+ * every one of them cannot see that: a 241.92 mm total shows two digits the
+ * error cannot fix, one more than the rate beside it does.
+ *
+ * The error used here is the *single-month* integration from {@link
+ * precipitationTotalInversionRmseMm}, never the two-month difference floor the
+ * accumulation-change clause quotes. That floor combines two independently
+ * inverted months in quadrature; one month is one inversion scaled by one day
+ * count, so quoting the pair floor here would overstate the error on a claim
+ * that involves a single total.
+ *
+ * No display-unit guard is needed, unlike the rate clause beside it: the total
+ * is not a conversion of the printed value but a quantity this module derives
+ * in mm itself, as the reported mm/day rate times the month's own days. The
+ * condition that has to hold instead is that the published error is a *rate*
+ * documented in mm/day, which is what makes multiplying it by a day count
+ * legitimate at all — and that is exactly what the helper fails closed on.
+ *
+ * Silent when the rendered total already sits at the justified place, when the
+ * month length is not a calendar length, and when the layer carries no measured
+ * figure in the published unit — an unmeasured error is not a passed test. It
+ * bounds how the number should be written: it makes no anomaly, trend, cause,
+ * or forecast claim, and it never restates or replaces the reported total.
+ */
+function precipitationTotalPrecisionCaveat(
+  accumulated: PrecipitationAccumulation
+): string {
+  const rateRmse = precipitationInversionRmseMmPerDay();
+  if (rateRmse === null) return "";
+  const totalRmseMm = precipitationTotalInversionRmseMm(accumulated.monthDays);
+  if (totalRmseMm === null) return "";
+  const place = justifiedRoundingPlace(totalRmseMm);
+  if (place === null) return "";
+
+  const rounded = roundToPlace(accumulated.totalMm, place);
+  if (formatNumber(accumulated.totalMm) === formatNumber(rounded)) return "";
+
+  if (roundsAwayToZero(accumulated.totalMm, rounded)) {
+    return `; this total is smaller than the ${formatNumber(
+      totalRmseMm
+    )} mm the ${formatNumber(
+      rateRmse
+    )} ${PRECIP_INVERSION_REPORTED_UNIT} measured colormap-inversion error becomes over ${
+      accumulated.monthDays
+    } days, so no digit of it is justified and it is not resolved from zero — which is not a report that no rain fell`;
+  }
+
+  return `; the ${formatNumber(
+    rateRmse
+  )} ${PRECIP_INVERSION_REPORTED_UNIT} measured colormap-inversion error integrated over the same ${
+    accumulated.monthDays
+  } days is ${formatNumber(
+    totalRmseMm
+  )} mm, which justifies reporting this total only to the nearest ${formatNumber(
+    10 ** place
+  )} mm (${formatNumber(rounded)} mm)`;
 }
 
 /**
