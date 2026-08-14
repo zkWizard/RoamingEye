@@ -126,10 +126,26 @@ export function classifyRenderedVegetationIndex(
 /**
  * The legend's guardrail for a vegetation-index layer.
  *
- * Built from {@link RENDERED_VEGETATION_INDEX_RANGE} rather than written out,
- * so the sentence the user reads cannot drift from the measured ramp. The
- * existing caveat is kept: the colour is an index, not a cover or condition
- * measurement.
+ * The sentence is held to {@link RENDERED_VEGETATION_INDEX_RANGE} by the suite
+ * rather than interpolated from it — a legend wants "above zero", not the exact
+ * 0.0001 ramp start — so a GIBS re-render that moved the ramp off zero fails a
+ * test instead of leaving a stale sentence on screen. The existing caveat is
+ * kept: the colour is an index, not a cover or condition measurement.
+ *
+ * Both transparent causes are named, not just the surfaces. The three surfaces
+ * that drive an index negative are only three of the four things a blank pixel
+ * can be: the module comment above records that the product's own fill band
+ * [-0.3, -0.2) is marked transparent in the same colormap, so a pixel the
+ * product never observed is blank in exactly the way an ocean pixel is, and the
+ * tile cannot separate them. Listing only the surfaces reads as an inventory of
+ * what is there — it corrects "low greenness" and then asserts a surface in its
+ * place. Both sibling surfaces already refuse that for the same rendering fact:
+ * `vegetationProbeAbsence.ts` tells the probe's empty record that a below-ramp
+ * point and one "whose composites never arrived" are indistinguishable, and the
+ * snow legend note says an unobserved pixel and snow-free ground look the same.
+ *
+ * Still deliberately unasserted: which of the four a given blank pixel is, and
+ * anything about cover, biomass, condition or cause.
  */
 export function vegetationIndexLegendNote(
   index: RenderedVegetationIndexId
@@ -137,6 +153,6 @@ export function vegetationIndexLegendNote(
   const label = index.toUpperCase();
   return (
     `${label} is a unitless vegetation index; color does not measure vegetation cover, biomass, or condition. ` +
-    "Only values above zero are drawn — water, snow, ice, and cloud are transparent gaps here, not low greenness."
+    "Only values above zero are drawn, and the product's no-data fill is transparent too — so water, snow, ice, cloud and an unobserved pixel are all blank here, not low greenness."
   );
 }
