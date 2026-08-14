@@ -94,14 +94,21 @@ const AEROSOL_CARD_SCOPE =
  * value-admission contract in `aerosolLoading` (which the multi-year judgment
  * modules also read, and whose 0.9 is correct for a native-value caller).
  */
-const AEROSOL_RAMP_CEILING =
+export const AEROSOL_RAMP_CEILING =
   PROBE_SCALES.aerosol.max - quantizationStep(PROBE_SCALES.aerosol);
 
 /**
  * Whether a usable endpoint value rests on the rendered ramp's open-ended top
  * bin, and so reads as "at least this much" rather than as a measurement.
+ *
+ * Exported because the card is not the only surface over these samples: the
+ * downloaded observation record is built from the same two values and must
+ * qualify them the same way. Sharing this predicate is what makes the two
+ * provably agree — a ceiling derivation that drifted between them would put a
+ * censored column in the file as a plain measurement while the card on screen
+ * called it a bound.
  */
-function isRampSaturated(value: number | null): boolean {
+export function isRampSaturated(value: number | null): boolean {
   return (
     value !== null && Number.isFinite(value) && value >= AEROSOL_RAMP_CEILING
   );
