@@ -962,6 +962,113 @@ describe("place readout month-over-month air-temperature inversion floor", () =>
 });
 
 /**
+ * The floor above qualifies a difference. The card's headline value is a single
+ * absolute number rendered by the same five-significant-figure helper, and it is
+ * shown even for a month with no comparison at all — so it carries the same
+ * false precision with nothing beside it to qualify it. A ±0.485 K inversion
+ * error fixes the tenths digit and no digit after it, so "14.235 °C" shows two
+ * digits the pipeline cannot support.
+ */
+describe("place readout air-temperature reported-precision caveat", () => {
+  const airMonth = (valueK: number) =>
+    summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [valueK],
+        nativeToSampledValueFactor: 1,
+        validFractions: [1],
+      },
+      { year: 2026, month: 1 }
+    )[0];
+
+  // Derived from the committed figure so a recalibration moves the expectation
+  // with the code rather than leaving a stale literal asserting the old place.
+  const justifiedStepText = () => {
+    const rmse = MEASURED_INVERSION.airtemp.rmse as number;
+    return Number(
+      (10 ** Math.floor(Math.log10(rmse) + 1e-9)).toPrecision(5)
+    ).toString();
+  };
+
+  it("says how coarsely a five-figure mean may honestly be written", () => {
+    const insight = climateInsightText(undefined, airMonth(287.385));
+    // The card still leads with the value it always did.
+    expect(insight.value).toBe("14.235 °C");
+    expect(insight.detail).toContain(
+      `justifies reporting this mean only to the nearest ${justifiedStepText()} °C (14.2 °C)`
+    );
+    // The published figure is quoted in the unit it is documented in.
+    expect(insight.detail).toContain(
+      `${MEASURED_INVERSION.airtemp.rmse} K measured colormap-inversion error`
+    );
+  });
+
+  it("states a rounding place and never a significant-figure count", () => {
+    // Under an offset-only conversion the justified place is invariant but the
+    // figure count is not: 287.385 K and 14.235 °C are one measurement rounded
+    // to one place, yet that is four justified figures in K and three in °C. A
+    // count carried across the conversion would be wrong where a place is not.
+    const insight = climateInsightText(undefined, airMonth(287.385));
+    expect(insight.detail).not.toContain("significant figure");
+    // It qualifies how the value is written; it never withdraws or replaces it.
+    expect(insight.value).toBe("14.235 °C");
+    expect(insight.value).not.toBe("Unavailable");
+    expect(insight.detail).toContain("native source value 287.38 K");
+  });
+
+  it("stays silent when the rendered value already sits at that place", () => {
+    // 288.15 K renders as exactly 15 °C, which shows no unjustified digit.
+    const insight = climateInsightText(undefined, airMonth(288.15));
+    expect(insight.value).toBe("15 °C");
+    expect(insight.detail).not.toContain("justifies reporting this mean");
+  });
+
+  it("qualifies the value even when there is no comparison month", () => {
+    // The difference floor needs a pair; this claim stands on one month alone,
+    // which is the case the floor cannot reach.
+    const detail = climateInsightText(undefined, airMonth(287.385)).detail;
+    expect(detail).not.toContain("colormap-inversion difference floor");
+    expect(detail).toContain("justifies reporting this mean");
+  });
+
+  it("does not attach the air-temperature caveat to another metric", () => {
+    // Soil moisture carries a measured inversion figure too, but it lies
+    // outside this module's atmospheric scope and gains no clause here.
+    const [soil] = summarizeRenderedClimateSample(
+      {
+        metricId: "soil-moisture",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [20.235],
+        nativeToSampledValueFactor: 1,
+        validFractions: [1],
+      },
+      { year: 2026, month: 1 }
+    );
+    expect(climateInsightText(undefined, soil).detail).not.toContain(
+      "justifies reporting this mean"
+    );
+  });
+
+  it("withholds the caveat when the month has no usable observation", () => {
+    const [noData] = summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [null],
+        nativeToSampledValueFactor: 1,
+        validFractions: [0],
+      },
+      { year: 2026, month: 1 }
+    );
+    expect(climateInsightText(undefined, noData).value).toBe("Unavailable");
+    expect(climateInsightText(undefined, noData).detail).not.toContain(
+      "justifies reporting this mean"
+    );
+  });
+});
+
+/**
  * A month-over-month difference on the place readout subtracts two area
  * aggregates, each taken over only its own month's usable pixels. When the two
  * months' coverage differs, part of that difference is a change in which ground

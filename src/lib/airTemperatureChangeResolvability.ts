@@ -121,8 +121,15 @@ export interface AirTemperatureChangeResolvability {
  * because the conversion applies no scale. Were a scale ever introduced, the
  * two would no longer be commensurate, so the floor is withheld rather than
  * applied to a difference it no longer describes.
+ *
+ * Exported because the same licence underwrites a second claim on the same
+ * readout: the rounding place the error justifies for the *absolute* monthly
+ * mean, which the place panel qualifies alongside the difference floor. Both
+ * set a kelvin error beside a Celsius number, so both must fail closed on the
+ * one condition that permits it, from a single definition rather than two
+ * copies that could drift apart.
  */
-function airTemperatureInversionRmse(): number | null {
+export function airTemperatureInversionRmseK(): number | null {
   const conversion = conventionalUnitConversionFor(AIR_TEMPERATURE_METRIC_ID);
   if (conversion === null || conversion.scale !== 1) return null;
 
@@ -150,7 +157,7 @@ export function describeAirTemperatureChangeResolvability(
 ): AirTemperatureChangeResolvability | null {
   if (changeK === null || !Number.isFinite(changeK)) return null;
 
-  const monthRmseK = airTemperatureInversionRmse();
+  const monthRmseK = airTemperatureInversionRmseK();
   const base = {
     kind: "air-temperature-change-resolvability" as const,
     isForecast: false as const,
