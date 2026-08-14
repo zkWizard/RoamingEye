@@ -1,5 +1,5 @@
 import { doiResolverUrl } from "./doiLink";
-import { LAYERS } from "./timeline";
+import { LAYERS, type LayerId } from "./timeline";
 
 /**
  * Provenance and interpretation limits for the terrain view.
@@ -93,6 +93,41 @@ export function terrainTileAvailabilityNotice(
     case "unavailable":
       return `Visible tile coverage unavailable: all ${availability.requested} requested tiles failed to load.`;
   }
+}
+
+/**
+ * Why the terrain legend's colour bar cannot be read back to a height.
+ *
+ * The bar runs "lowlands" to "high peaks" (see LEGENDS.terrain in legend.ts)
+ * under the heading "Elevation (shaded relief)", which reads as an ordinal
+ * height scale. A colour shaded-relief rendering is not one: the hypsometric
+ * tint is drawn over a relief shading, so the colour a pixel ends up with
+ * carries local slope and illumination as well as height. The mapping is
+ * therefore many-to-many — one colour occurs across a span of elevations, and
+ * a shaded slope high on a range can render darker than a lit lowland.
+ *
+ * `accessibleNotice` above already says the colours are "not calibrated
+ * elevation values", but that states a precision limit, and a reader can honour
+ * it while still trusting the ordering the end labels assert. This states the
+ * mechanism that breaks the ordering itself.
+ *
+ * GIBS backs this up by omitting the layer: it publishes a colormap document
+ * for every ramp RoamingEye inverts (see COLORMAP_DOCS in colormap.ts) and none
+ * for ASTER_GDEM_Color_Shaded_Relief, because the layer is a rendering rather
+ * than a value-to-colour lookup. That is the same reason PROBE_SCALES marks
+ * terrain `calibrated: false` and legendTicks prints no numbers for it.
+ *
+ * Null for every other layer, mirroring vegetationRampTickCaveat: layers whose
+ * colour IS a function of the value alone need no such warning.
+ */
+export function reliefShadingLegendCaveat(id: LayerId): string | null {
+  if (id !== "terrain") return null;
+  return (
+    "Relief shading varies the drawn colour with slope and illumination as well as height, " +
+    "so this bar orders the hypsometric tint rather than the pixels: one colour occurs across " +
+    "a span of elevations, and a shaded slope high on a range can read darker than a lit lowland. " +
+    "The view supports landform shape, not a height read off a colour."
+  );
 }
 
 /**

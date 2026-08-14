@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { LAYERS } from "./timeline";
+import { LAYERS, LAYER_ORDER } from "./timeline";
 import {
   ASTER_GDEM_COVERAGE,
+  reliefShadingLegendCaveat,
   TERRAIN_CONTEXT_SOURCE,
   terrainLayerContext,
   terrainTileAvailability,
@@ -100,5 +101,47 @@ describe("terrainTileAvailability", () => {
     expect(() => terrainTileAvailability(2, 2, 1)).toThrow(RangeError);
     expect(() => terrainTileAvailability(-1, 0, 0)).toThrow(RangeError);
     expect(() => terrainTileAvailability(1.5, 0, 0)).toThrow(RangeError);
+  });
+});
+
+describe("reliefShadingLegendCaveat", () => {
+  it("names the mechanism that breaks the bar's elevation ordering", () => {
+    const caveat = reliefShadingLegendCaveat("terrain");
+
+    expect(caveat).not.toBeNull();
+    // Slope and illumination are the two things folded into the drawn colour;
+    // naming them is what separates this from the existing "not calibrated"
+    // wording, which a reader can honour while still trusting the ordering.
+    expect(caveat).toContain("slope and illumination");
+    expect(caveat).toContain("one colour occurs across a span of elevations");
+  });
+
+  it("keeps the layer descriptive rather than declaring the view useless", () => {
+    const caveat = reliefShadingLegendCaveat("terrain") ?? "";
+
+    // The rendering still shows landform shape; the caveat bounds what may be
+    // read off a colour, and must not read as "this layer shows nothing".
+    expect(caveat).toContain("landform shape");
+    // Descriptive geometry only: no hazard, risk, or accuracy claim.
+    expect(caveat).not.toMatch(/hazard|risk|accurac|error|±/i);
+  });
+
+  it("is silent for every layer whose colour is a function of the value", () => {
+    for (const id of LAYER_ORDER) {
+      if (id === "terrain") continue;
+      expect(reliefShadingLegendCaveat(id)).toBeNull();
+    }
+  });
+
+  it("agrees with the layer configuration it describes", () => {
+    // The caveat is only correct for a shaded-relief rendering, and only needed
+    // for a layer the probe does not invert to a physical value.
+    expect(LAYERS.terrain.wmsLayer).toContain("Color_Shaded_Relief");
+    expect(terrainLayerContext().interpretation.representation).toBe(
+      "color-shaded-relief"
+    );
+    expect(terrainLayerContext().interpretation.providesPointElevation).toBe(
+      false
+    );
   });
 });

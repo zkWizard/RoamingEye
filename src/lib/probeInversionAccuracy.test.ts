@@ -147,7 +147,7 @@ describe("inversionAccuracyCsvHeaders", () => {
 
   it("cites where the figure comes from and bounds what it covers", () => {
     const headers = inversionAccuracyCsvHeaders(probeInversionAccuracy("sst"));
-    expect(headers).toHaveLength(2);
+    expect(headers).toHaveLength(3);
     expect(headers[0]).toContain("RMSE ±1.0 °C");
     expect(headers[0]).toContain("0 of 213 ramp colours rejected");
     expect(headers[0]).toContain("docs/validation.md");
@@ -155,5 +155,48 @@ describe("inversionAccuracyCsvHeaders", () => {
     // the L3 product's accuracy against in-situ measurement.
     expect(headers[1]).toContain("rendering-inversion error only");
     expect(headers[1]).toContain("in-situ");
+  });
+
+  /**
+   * `validateInversion` feeds GIBS's published `entry.rgb` straight into the
+   * production inversion, so `MEASURED_INVERSION` is a transport-free figure —
+   * while the probe samples imagery GIBS serves as JPEG. The compression
+   * therefore adds error on top of the RMSE rather than being contained by it,
+   * and `probe.accuracy.test.ts` bounds that component separately. The CSV
+   * already tells the reader compression sits on top of the much smaller
+   * quantization figure; the RMSE is the number an analysis will actually use
+   * as an error bar, so it must not be left reading as end-to-end.
+   */
+  it("says the measured RMSE excludes the JPEG transport it is sampled over", () => {
+    for (const layer of CALIBRATED) {
+      const accuracy = probeInversionAccuracy(layer);
+      if (accuracy.status !== "characterized") continue;
+      const transport = inversionAccuracyCsvHeaders(accuracy).find((line) =>
+        line.startsWith("# inversion_validation_transport:")
+      );
+      expect(transport, layer).toBeDefined();
+      expect(transport, layer).toContain("JPEG");
+      // "on top of" not "within": the two components add, and a reader must
+      // not take the RMSE as already absorbing the compression.
+      expect(transport, layer).toContain("on top of this figure");
+    }
+  });
+
+  it("claims no transport-excluded RMSE for a ramp that inverted nothing", () => {
+    // No RMSE exists in that state, so there is no figure for the transport
+    // caveat to qualify — emitting one would imply a measurement.
+    const rejected = {
+      layerId: "lst" as const,
+      status: "all-colours-rejected" as const,
+      rmse: null,
+      unit: "K",
+      rejectedColours: 250,
+      totalColours: 250,
+      rejectedFraction: 1,
+      quantizationText: "",
+    };
+    expect(inversionAccuracyCsvHeaders(rejected).join(" ")).not.toContain(
+      "inversion_validation_transport"
+    );
   });
 });

@@ -131,9 +131,35 @@ describe("rendered vegetation-index range", () => {
       expect(note).not.toMatch(/\b(cause|because|due to|health|risk)\b/i);
     });
 
-    it(`${index}: the rendered ceiling matches the legend's own scale`, () => {
-      // If the legend ever spanned a different range, the note's "above zero"
+    it(`${index}: the legend note names the fill band, not only the surfaces`, () => {
+      const note = vegetationIndexLegendNote(index);
+
+      // The colormap marks the product's fill band transparent alongside the
+      // negative range, so a blank pixel has four readings, not three. Naming
+      // only water/snow/ice/cloud corrects "low greenness" by asserting a
+      // surface is present — which the tile cannot support. The wired probe
+      // note (vegetationProbeAbsence.ts) and the snow legend note both already
+      // disclose the unobserved reading for the same rendering fact.
+      expect(note).toMatch(/fill/i);
+      expect(note).toMatch(/unobserved/i);
+      // And the disclosure must not quietly drop the surfaces it replaces.
+      for (const surface of ["water", "snow", "ice", "cloud"]) {
+        expect(note).toContain(surface);
+      }
+      // Still no claim about which of the four any one blank pixel is.
+      expect(note).not.toMatch(/\b(is|are) (water|snow|ice|cloud)\b/i);
+    });
+
+    it(`${index}: the rendered floor and ceiling match the note's own claim`, () => {
+      // If the layer ever spanned a different range, the note's "above zero"
       // claim and the ramp would disagree. Fail here rather than in prose.
+      // The stop positions below are normalized 0..1 by construction and so
+      // cannot witness that; the measured range is what the sentence asserts.
+      const range = RENDERED_VEGETATION_INDEX_RANGE[index];
+      expect(range.renderedMinimum).toBeGreaterThan(0);
+      // The fill band the note now names must actually sit below the ramp.
+      expect(range.transparentFloor).toBeLessThan(range.renderedMinimum);
+
       const spec = LEGENDS[index];
       if (spec.kind === "classes")
         throw new Error(`${index} must be a gradient`);

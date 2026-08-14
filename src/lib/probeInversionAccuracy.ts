@@ -54,6 +54,18 @@ import { MEASURED_INVERSION } from "./validation";
  *    that is the product teams' own published validation, which METHODS.md
  *    cites separately — and it implies nothing biological, ecological,
  *    causal, or predictive.
+ *  - The figure is measured on GIBS's published colormap colours **themselves**:
+ *    `validateInversion` feeds `entry.rgb` straight into the production
+ *    inversion, so the imagery transport is absent from it by construction. In
+ *    the app those colours arrive re-encoded as JPEG, and that compression adds
+ *    error on top of this RMSE rather than being contained by it. The repo
+ *    bounds that second component separately — `probe.accuracy.test.ts` sweeps
+ *    every gradient under a ±8/channel JPEG-like perturbation and CI-asserts a
+ *    per-layer bound — and `probe.ts` already tells the CSV reader that
+ *    "compression noise sits on top" of the *quantization* figure. The RMSE is
+ *    the larger number and the one a reader will actually use as an error bar,
+ *    so it must carry the same caveat; without it "rendering-inversion error
+ *    only" reads as end-to-end when it is the error at zero compression.
  *
  * Tightening the inversion itself (sampling through GIBS's real colormaps
  * rather than our display legend) is tracked as issue #170; until that lands,
@@ -177,5 +189,11 @@ export function inversionAccuracyCsvHeaders(
   return [
     `# inversion_validation: RMSE ${formatRmse(accuracy.rmse as number, accuracy.unit)} against the published GIBS colormap; ${accuracy.rejectedColours} of ${accuracy.totalColours} ramp colours rejected as no-data (docs/validation.md; re-asserted weekly against live GIBS)`,
     `# inversion_validation_scope: rendering-inversion error only; not the accuracy of the underlying L3 product against in-situ measurement`,
+    // The RMSE is measured on the colormap colours themselves, so the JPEG
+    // transport is absent from it by construction. Say so beside the figure:
+    // the CSV already tells the reader compression sits on top of the much
+    // smaller quantization number, and staying silent here invites the larger
+    // one to be read as end-to-end.
+    `# inversion_validation_transport: measured on the published colormap colours themselves — the JPEG imagery transport the probe samples adds error on top of this figure rather than within it; bounded separately per layer by the probe accuracy suite`,
   ];
 }

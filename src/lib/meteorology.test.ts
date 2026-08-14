@@ -877,6 +877,91 @@ describe("place readout month-over-month precipitation accumulation change", () 
 });
 
 /**
+ * The readout prints a month-over-month air-temperature difference to five
+ * significant figures. Both months are colormap inversions, so a difference of
+ * two of them carries a sqrt(2) x RMSE noise floor — about 0.69 K at the
+ * measured 0.485 K. Differences of a few tenths are ordinary near the seasonal
+ * turning points and throughout the deep tropics, so the readout must say when
+ * the pair it is differencing sits inside that floor.
+ */
+describe("place readout month-over-month air-temperature inversion floor", () => {
+  const airPair = (earlierK: number, laterK: number) =>
+    summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [
+          { year: 2026, month: 1 },
+          { year: 2026, month: 2 },
+        ],
+        sampledValues: [earlierK, laterK],
+        nativeToSampledValueFactor: 1,
+        validFractions: [1, 1],
+      },
+      { year: 2026, month: 2 }
+    );
+
+  // Derived from the committed figure so a recalibration moves the expectation
+  // with the code rather than leaving a stale literal asserting the old floor.
+  // Formatted the way the readout formats it (meteorology's own five-figure
+  // helper), not the way the module's statement does.
+  const airFloorText = () =>
+    Number(
+      (Math.SQRT2 * (MEASURED_INVERSION.airtemp.rmse as number)).toPrecision(5)
+    ).toString();
+
+  it("qualifies a difference the inversion cannot resolve", () => {
+    const [january, february] = airPair(288.15, 288.45);
+    const detail = climateInsightText(january, february).detail;
+    expect(detail).toContain("+0.3 °C vs 2026-01");
+    expect(detail).toContain(
+      `the two monthly means differ by less than the ${airFloorText()} K colormap-inversion difference floor`
+    );
+    // The clause explains why a kelvin figure may be set beside a Celsius
+    // difference at all; without it the two look like different scales.
+    expect(detail).toContain(
+      "the same figure in °C, an offset-only conversion"
+    );
+    // It qualifies the difference, it never removes or reverses it.
+    expect(detail).not.toContain("no change");
+  });
+
+  it("stays silent when the difference clears the floor", () => {
+    const [january, february] = airPair(285.15, 288.15);
+    const detail = climateInsightText(january, february).detail;
+    expect(detail).toContain("+3 °C vs 2026-01");
+    expect(detail).not.toContain("colormap-inversion difference floor");
+  });
+
+  it("stays silent when there is no comparison to qualify", () => {
+    const [, february] = airPair(288.15, 288.45);
+    expect(climateInsightText(undefined, february).detail).not.toContain(
+      "colormap-inversion difference floor"
+    );
+  });
+
+  it("does not attach the air-temperature floor to another metric", () => {
+    // Soil moisture carries a measured inversion figure too, but it lies
+    // outside this module's atmospheric scope and gains no clause here.
+    const [january, february] = summarizeRenderedClimateSample(
+      {
+        metricId: "soil-moisture",
+        months: [
+          { year: 2026, month: 1 },
+          { year: 2026, month: 2 },
+        ],
+        sampledValues: [20, 20.05],
+        nativeToSampledValueFactor: 1,
+        validFractions: [1, 1],
+      },
+      { year: 2026, month: 2 }
+    );
+    expect(climateInsightText(january, february).detail).not.toContain(
+      "colormap-inversion difference floor"
+    );
+  });
+});
+
+/**
  * A month-over-month difference on the place readout subtracts two area
  * aggregates, each taken over only its own month's usable pixels. When the two
  * months' coverage differs, part of that difference is a change in which ground
