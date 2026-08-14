@@ -322,8 +322,16 @@ export const PROVIDERS: Provider[] = [
     url: "https://volcano.si.edu/",
     license: "Open (attribution)",
     use: "core",
+    // GVP's inventory is Holocene *activity*, which is not the same as a
+    // record of eruptions: in the bundled snapshot 364 of 1,196 records carry
+    // no dated eruption at all, and the app labels those "Holocene evidence
+    // only" (see volcanoes.ts ERUPTION_CLASS_LABELS, which warns against
+    // exactly this reading). Saying "with eruption history" claimed a dated
+    // eruption for the whole count and misdescribed about a third of it. Every
+    // other surface in the repo says "~1,200 Holocene volcanoes"; this now
+    // matches, and names the undated share rather than hiding it.
     description:
-      "Volcanoes of the World — the authoritative Holocene volcano database; source of our volcanoes overlay (~1,200 volcanoes with eruption history).",
+      "Volcanoes of the World — the authoritative Holocene volcano database; source of our volcanoes overlay (~1,200 Holocene volcanoes, about a third with no dated eruption).",
   },
   {
     name: "Bird (2003) plate boundaries",
