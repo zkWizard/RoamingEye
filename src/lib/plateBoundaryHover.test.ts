@@ -24,9 +24,34 @@ describe("plateBoundaryHoverLabel", () => {
 
   it("keeps the source label's code order and delimiter", () => {
     // Order and delimiter record the digitization's boundary-step orientation,
-    // so they are reported as supplied rather than normalized.
-    expect(plateBoundaryHoverLabel(boundary("AN\\AF", []))).toBe(
+    // so they are reported as supplied rather than normalized. The verbatim
+    // label is unchanged by the descent clause that now follows it.
+    expect(plateBoundaryHoverLabel(boundary("AN\\AF", []))).toContain(
       "Antarctica–Africa plate boundary · PB2002 AN\\AF"
+    );
+  });
+
+  it("decodes the delimiter into the descent it records", () => {
+    // "\" means the left-hand plate descends, so the reading is not the code
+    // order: a reader who assumes the first-named plate goes down gets this
+    // one right and the "/" case below wrong.
+    expect(plateBoundaryHoverLabel(boundary("AN\\AF", []))).toBe(
+      "Antarctica–Africa plate boundary · PB2002 AN\\AF · delimiter: Antarctica subducts beneath Africa"
+    );
+    expect(plateBoundaryHoverLabel(boundary("AM/PS", []))).toBe(
+      "Amur–Philippine Sea plate boundary · PB2002 AM/PS · delimiter: Philippine Sea subducts beneath Amur"
+    );
+  });
+
+  it("says nothing about descent for a label recording no subduction", () => {
+    // PB2002 marks subduction steps only, so "-" is no assignment rather than
+    // a statement that the boundary does not subduct. 176 of the 241 bundled
+    // features take this path.
+    expect(plateBoundaryHoverLabel(boundary("AF-AN", []))).not.toContain(
+      "delimiter"
+    );
+    expect(plateBoundaryHoverLabel(boundary("AFAN", []))).toBe(
+      UNLABELED_PLATE_BOUNDARY_TEXT
     );
   });
 
@@ -45,6 +70,9 @@ describe("plateBoundaryHoverLabel", () => {
   });
 
   it("never asserts a boundary type, motion, or hazard", () => {
+    // "NZ-SA" records no subduction, so nothing the source marked is dropped
+    // by forbidding "subduct" here: the descent clause is a passthrough of a
+    // marking PB2002 wrote, and only appears for labels that carry one.
     const label = plateBoundaryHoverLabel(boundary("NZ-SA", []));
     for (const forbidden of [
       "convergent",
