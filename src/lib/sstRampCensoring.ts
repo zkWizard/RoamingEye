@@ -1,5 +1,6 @@
 import { colormapUrl, COLORMAP_DOCS } from "./colormap";
 import { PROBE_SCALES } from "./probe";
+import { subZeroSstCapBound } from "./seawaterFreezingPoint";
 
 /**
  * NASA's published MODIS_Sea_Surface_Temperature colormap ends in two OPEN
@@ -11,12 +12,22 @@ import { PROBE_SCALES } from "./probe";
  * inside any usable inversion threshold.
  *
  * The consequence for ocean work is a silent CENSORING, not a rejection: a
- * sub-zero polar or sub-polar pixel (seawater freezes near −1.8 °C at 35 PSU,
+ * sub-zero polar or sub-polar pixel (seawater freezes near −1.9 °C at 35 PSU,
  * and MODIS/Aqua L3 retrievals routinely report below 0 °C in the Barents,
  * Bering, Labrador, Ross, and Weddell seas in winter) is decoded and reported
- * as ≈ 0.1 °C — a warm bias of up to ~1.9 °C in exactly the waters where the
- * sea-ice margin sits. The warm cap censors the other way in the tropical
+ * as ≈ 0.1 °C — a warm bias of a couple of degrees in exactly the waters where
+ * the sea-ice margin sits. The warm cap censors the other way in the tropical
  * warm pool.
+ *
+ * The two caps are NOT symmetric, and the floor qualifier must say so without
+ * overstating it. Liquid seawater has a freezing point, so the cold cap is a
+ * closed interval — but only where the pixel is open water. Over sea ice a
+ * thermal-infrared retrieval measures the ice skin, which can sit far below
+ * the freezing point of the water beneath, and this app cannot tell the two
+ * surfaces apart from the rendered imagery. The bound is therefore reported
+ * with its assumption attached rather than asserted; that is also why
+ * {@link describeSstDifferenceCensoring} still treats two floor-bin endpoints
+ * as unbounded in both directions instead of differencing them.
  *
  * This module does not undo the censoring — the information is genuinely gone
  * from the imagery. It names it, so a decoded value that lands in a terminal
@@ -39,13 +50,6 @@ export const SST_PUBLISHED_RAMP = {
   /** Highest finite bin: [31.80, 32.00). Anything warmer shares one colour. */
   ceilingBin: { lo: 31.8, hi: 32 },
 } as const;
-
-/**
- * Approximate freezing point of seawater at 35 PSU. Quoted only to say how
- * far below the ramp floor a real ocean observation can legitimately sit; the
- * app never estimates a value for a censored pixel.
- */
-export const SEAWATER_FREEZING_POINT_C = -1.8;
 
 export type SstRampCensoringStatus =
   /** Inside the finite ramp; the decoded value stands as an estimate. */
@@ -255,7 +259,8 @@ function qualifierFor(status: SstRampCensoringStatus): string | null {
   const { floorBin, ceilingBin } = SST_PUBLISHED_RAMP;
   const unit = SST_PUBLISHED_RAMP.unit;
   if (status === "at-ramp-floor") {
-    return `at the published colormap's lowest bin — NASA renders every SST below ${floorBin.lo.toFixed(1)} ${unit} in a single colour, so this is an upper bound on a possibly colder observation (seawater freezes near ${SEAWATER_FREEZING_POINT_C} ${unit})`;
+    const cap = subZeroSstCapBound();
+    return `at the published colormap's lowest bin — NASA renders every SST below ${floorBin.lo.toFixed(1)} ${unit} in a single colour, so this is an upper bound on a possibly colder observation; open seawater cannot be colder than ${cap.lowerC.toFixed(2)} ${unit} (${cap.method.series} ${cap.method.number}, at ${cap.boundSalinityPsu} PSU), but this app cannot rule out sea ice, over which a thermal retrieval reads the ice skin and can be far colder still`;
   }
   if (status === "at-ramp-ceiling") {
     return `at the published colormap's highest bin — NASA renders every SST at or above ${ceilingBin.hi.toFixed(1)} ${unit} in a single colour, so this is a lower bound on a possibly warmer observation`;
