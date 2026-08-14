@@ -30,8 +30,10 @@ import {
 import { describePrecipitationAccumulationResolvability } from "./precipitationAccumulationResolvability";
 import {
   AIR_TEMPERATURE_METRIC_ID,
+  airTemperatureInversionRmseK,
   describeAirTemperatureChangeResolvability,
 } from "./airTemperatureChangeResolvability";
+import { justifiedRoundingPlace, roundToPlace } from "./briefValuePrecision";
 import { monthOverMonthCoverageSupport } from "./climateChangeSupport";
 import type { GeometrySamplingStrategy } from "./geojson";
 import type {
@@ -458,6 +460,11 @@ export function climateInsightText(
   // the same scale with no conversion step to prompt the comparison.
   const changeFloor =
     nativeDelta !== null ? airTemperatureFloorCaveat(current, nativeDelta) : "";
+  // The floor above qualifies the difference. The absolute value the card leads
+  // with is rendered by the same five-figure helper and, unlike the difference,
+  // is shown for a single month with no comparison at all — so it carries the
+  // same false precision with nothing on the line to qualify it.
+  const valuePrecision = valuePrecisionCaveat(current, conventional);
   // The coverage percentage alone cannot say whether the missing area was
   // unpublished or merely unrepresentable, and only the latter biases the mean.
   const rampShortfall = rampShortfallCaveat(current, conventional);
@@ -467,7 +474,7 @@ export function climateInsightText(
     nativeDelta !== null && previous ? comparisonShortfallCaveat(previous) : "";
   return {
     value,
-    detail: `${month} ${modality.field}${comparison}${accumulation}${accumulationChange}${changeFloor}${nativeProvenance}; ${coverage}${rampShortfall}${comparisonShortfall}; ${provenance}; ${sampling}; ${modality.limit}; ${sourceVariable}; source ${source}`,
+    detail: `${month} ${modality.field}${comparison}${accumulation}${accumulationChange}${changeFloor}${valuePrecision}${nativeProvenance}; ${coverage}${rampShortfall}${comparisonShortfall}; ${provenance}; ${sampling}; ${modality.limit}; ${sourceVariable}; source ${source}`,
   };
 }
 
@@ -779,6 +786,69 @@ function airTemperatureFloorCaveat(
   return `; the two monthly means differ by less than the ${formatNumber(
     resolvability.differenceFloorK
   )} K colormap-inversion difference floor — the same figure in °C, an offset-only conversion — so this pipeline cannot separate them`;
+}
+
+/**
+ * Say how coarsely the measured inversion error lets this month's air
+ * temperature be written at all.
+ *
+ * The caveat above qualifies the *difference* between two months. This one
+ * qualifies the single absolute value the card leads with, which is rendered by
+ * the same five-significant-figure helper and carries no qualification today: a
+ * 287.385 K sample is shown as "14.235 °C", four digits past what a ±0.485 K
+ * inversion error can fix. The convention applied is the standard
+ * significant-figure / GUM practice already implemented in
+ * `briefValuePrecision`: the least-significant digit of a reported value sits at
+ * the order of magnitude of its standard uncertainty.
+ *
+ * Only the *rounding place* is taken from that module, never its
+ * significant-figure count, and the reason is the same offset that makes the
+ * difference floor unit-invariant. Under an offset-only conversion the absolute
+ * uncertainty is unchanged, so the justified rounding place is identical in K
+ * and in °C — but the figure *count* is not, because the conversion moves the
+ * value across decades: 287.385 K and 14.235 °C are one measurement rounded to
+ * one place, yet that is four justified figures in K and three in °C. (A scaled
+ * conversion is the exact mirror: it preserves the figure count and shifts the
+ * place, as kg/m²/s → mm/day does for precipitation.) A count copied across the
+ * conversion would therefore be wrong in a way a place is not, so the clause
+ * states the place and the rounded value and claims nothing about figures.
+ *
+ * Silent when the rendered value already sits at the justified place, and when
+ * the layer carries no measured figure in the unit the published error is
+ * documented in — an unmeasured error is not a passed test. It bounds how the
+ * number should be written; it makes no anomaly, trend, cause, or forecast
+ * claim, and it never restates or replaces the reported value.
+ */
+function valuePrecisionCaveat(
+  current: MonthlyClimateSummary,
+  conventional: ConventionalClimateValue | null
+): string {
+  if (current.metric.id !== AIR_TEMPERATURE_METRIC_ID) return "";
+  if (current.observedValue === null) return "";
+  // Null unless the published figure is still documented in K and the
+  // kelvin-to-Celsius conversion is still offset-only — the one condition that
+  // lets a kelvin error fix the rounding of a Celsius number.
+  const rmseK = airTemperatureInversionRmseK();
+  if (rmseK === null) return "";
+  const place = justifiedRoundingPlace(rmseK);
+  if (place === null) return "";
+
+  // The displayed number: the conventional °C value where one exists, else the
+  // native kelvin value. The offset-only guard above means both share the place.
+  const shown =
+    conventional && conventional.value !== null
+      ? { value: conventional.value, unit: conventional.conventionalUnit }
+      : { value: current.observedValue, unit: current.metric.nativeUnit };
+
+  const rounded = roundToPlace(shown.value, place);
+  // Compare what the card prints against what it would print rounded, rather
+  // than counting digits: the rendering collapses trailing zeros, so only the
+  // rendered strings can say whether any unjustified digit is actually shown.
+  if (formatNumber(shown.value) === formatNumber(rounded)) return "";
+
+  return `; the ${formatNumber(rmseK)} K measured colormap-inversion error justifies reporting this mean only to the nearest ${formatNumber(
+    10 ** place
+  )} ${shown.unit} (${formatNumber(rounded)} ${shown.unit})`;
 }
 
 function samplingText(strategy: GeometrySamplingStrategy | null): string {
