@@ -73,12 +73,15 @@ import {
 } from "../lib/earthquakeContext";
 import { parseEarthquakeFeed, USGS_FEED_URL } from "../lib/earthquakes";
 import {
-  NEAREST_VOLCANO_RADIUS_KM,
   nearbyVolcanoContext,
+  placePointVolcanoQuery,
 } from "../lib/volcanoProximityContext";
 import { parseVolcanoDataset } from "../lib/volcanoes";
 import { plateBoundariesInSearchExtent } from "../lib/plateBoundaryContext";
-import { nearestPlateBoundary } from "../lib/plateProximity";
+import {
+  nearestPlateBoundary,
+  placePointPlateQuery,
+} from "../lib/plateProximity";
 import { parsePlateBoundaries } from "../lib/plates";
 import type { GeoResult } from "../lib/geocoding";
 import { fetchJson, isAbortError } from "../lib/net";
@@ -190,11 +193,10 @@ export function runPlaceInsights(result: GeoResult): void {
           extent,
           dataset.dataMonth,
           extent.matchedRecordCount === 0
-            ? nearbyVolcanoContext(dataset.volcanoes, {
-                latitude: result.lat,
-                longitude: result.lon,
-                radiusKm: NEAREST_VOLCANO_RADIUS_KM,
-              })
+            ? nearbyVolcanoContext(
+                dataset.volcanoes,
+                placePointVolcanoQuery(result.lat, result.lon)
+              )
             : null
         );
       })
@@ -230,10 +232,10 @@ export function runPlaceInsights(result: GeoResult): void {
         placeInsights.setPlateBoundaryContext(
           extent,
           extent.coverage.matchedBoundaryCount === 0
-            ? nearestPlateBoundary(boundaries, {
-                latitude: result.lat,
-                longitude: result.lon,
-              })
+            ? nearestPlateBoundary(
+                boundaries,
+                placePointPlateQuery(result.lat, result.lon)
+              )
             : null
         );
       })

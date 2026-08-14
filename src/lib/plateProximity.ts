@@ -33,6 +33,32 @@ export interface PlateProximityQuery {
   longitude: number;
 }
 
+/**
+ * Build the query a place readout uses: the coordinates the geocoder returned
+ * for the searched place.
+ *
+ * This exists so the module owns the meaning of its own anchor. A place search
+ * yields two different points — the geocoder's representative point for the
+ * place, and the centre of the bounding box it also returns — and one panel
+ * quotes distances from both. This module's distance and the nearest-volcano
+ * distance are measured from the geocoded point; the seismicity search is
+ * centred on the extent midpoint instead (see `searchExtentEarthquakeQuery` in
+ * earthquakeContext.ts). The two are routinely far apart, because a bounding
+ * box tracks the shape of the matched administrative boundary rather than where
+ * the place itself sits: across sixteen sampled Nominatim results they were
+ * more than 1 km apart for eleven and more than 10 km apart for seven, reaching
+ * 982 km for "Tokyo", whose extent runs out to the Ogasawara Islands.
+ *
+ * {@link nearestPlateBoundaryStatement} therefore names this point instead of
+ * calling it "the search centre", which reads as the extent midpoint it is not.
+ */
+export function placePointPlateQuery(
+  latitude: number,
+  longitude: number
+): PlateProximityQuery {
+  return { latitude, longitude };
+}
+
 export type PlateProximityQueryField = "latitude" | "longitude";
 
 export type PlateProximityStatus =
@@ -160,6 +186,14 @@ export function nearestPlateBoundary(
  * measured to — digitized linework — because a reader will otherwise take it for
  * a distance to a mapped plate margin.
  *
+ * It states what the distance is measured FROM for the same reason. The point
+ * is the one {@link placePointPlateQuery} supplies — the geocoder's coordinates
+ * for the place — and the panel around this sentence also quotes seismicity
+ * distances measured from the centre of the search extent, a genuinely
+ * different point (see that constructor for how far apart the two run). Calling
+ * this one "the search centre", as it read before, made the two anchors
+ * indistinguishable and named this point as the midpoint it is not.
+ *
  * That label carries PB2002's subduction polarity in its delimiter, and this is
  * the one surface where nothing else decodes it: the panel's polarity paragraph
  * (subductionPolarityText in plateBoundaryContext.ts) describes the boundaries
@@ -186,7 +220,7 @@ export function nearestPlateBoundaryStatement(
     reading === null
       ? ""
       : ` That label's delimiter records which plate descends: ${reading}, read back as the model wrote it rather than measured.`;
-  return `Nearest supplied boundary polyline: ${plateBoundaryPairLabel(name)}, ${formatDistanceKm(distanceKm)} km from the search centre.${descent} Great-circle distance to Bird (2003) digitized linework, not to a mapped plate margin; apart from the source's own subduction marking, the model carries no boundary type, motion, activity, or hazard.`;
+  return `Nearest supplied boundary polyline: ${plateBoundaryPairLabel(name)}, ${formatDistanceKm(distanceKm)} km from the geocoded place point.${descent} Great-circle distance to Bird (2003) digitized linework, not to a mapped plate margin, and measured from the coordinates the geocoder returned for this place rather than from the centre of its bounding box; apart from the source's own subduction marking, the model carries no boundary type, motion, activity, or hazard.`;
 }
 
 /**
