@@ -128,4 +128,55 @@ export function placeVegetationComparison(
   return { kind: "not-comparable", reason: "not-consecutive-months" };
 }
 
+/**
+ * The card's house precision for an NDVI difference: two decimals, matching
+ * the greenness value printed above it.
+ */
+const PLACE_VEGETATION_DELTA_DIGITS = 2;
+
+/**
+ * The widest precision this will fall back to. Four decimals resolves every
+ * collision the default 0.05 band can produce; the cap only bounds the search
+ * for a caller that supplies a much finer band.
+ */
+const MAX_PLACE_VEGETATION_DELTA_DIGITS = 6;
+
+/**
+ * Render a month-over-month NDVI difference so the printed number cannot
+ * contradict the direction label printed beside it.
+ *
+ * Two decimals is also the precision of the stability band itself (0.05), so
+ * rounding erases the very distinction the band draws: a measured difference of
+ * 0.0501 is a change by the band rule but renders as "+0.05" — the identical
+ * string a difference of 0.0499 produces, which the card labels "Little change
+ * (+0.05 NDVI, within the 0.05 stability band)". Two vegetation cards then show
+ * one number under opposite verdicts, and that number is the only evidence a
+ * reader has for either.
+ *
+ * The band verdict is not re-decided here. `phenologyChange` owns it and this
+ * module deliberately keeps no second copy, so re-classifying the rounded value
+ * would create exactly the drift the module exists to prevent. Only the
+ * rendering widens, to the fewest decimals that place the printed magnitude on
+ * the same side of the band as the measured magnitude. A difference that is
+ * unambiguous at two decimals is untouched, so the common case is unchanged.
+ */
+export function formatPlaceVegetationDelta(
+  delta: number,
+  stabilityThreshold: number
+): string {
+  const sign = delta >= 0 ? "+" : "";
+  const measuredIsChange = Math.abs(delta) > stabilityThreshold;
+  for (
+    let digits = PLACE_VEGETATION_DELTA_DIGITS;
+    digits < MAX_PLACE_VEGETATION_DELTA_DIGITS;
+    digits += 1
+  ) {
+    const rendered = delta.toFixed(digits);
+    if (Math.abs(Number(rendered)) > stabilityThreshold === measuredIsChange) {
+      return `${sign}${rendered}`;
+    }
+  }
+  return `${sign}${delta.toFixed(MAX_PLACE_VEGETATION_DELTA_DIGITS)}`;
+}
+
 export { DEFAULT_NDVI_CHANGE_STABILITY_THRESHOLD };

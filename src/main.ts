@@ -67,7 +67,11 @@ import { ProbeSampler } from "./probe/ProbeSampler";
 import { ProbePanel } from "./ui/ProbePanel";
 import { CompareController } from "./scene/CompareController";
 import { CompareControls } from "./ui/CompareControls";
-import { exportMonthStamp, imageryUrlExport } from "./lib/compare";
+import {
+  exportMonthStamp,
+  imageryUrlExport,
+  provenanceMonths,
+} from "./lib/compare";
 import { ShareButton } from "./ui/ShareButton";
 import { ExportControls } from "./ui/ExportControls";
 import { ThemeToggle } from "./ui/ThemeToggle";
@@ -445,6 +449,12 @@ hdTiles.onVisibleCoverageChange(({ requested, loaded, failed }) => {
 // both because their contents belong to the previous layer.
 let closeProbe: (() => void) | undefined;
 let compareControls: CompareControls | undefined;
+// The pinned month behind the divider, for surfaces that run before the
+// comparison controller is constructed (it needs the renderer and the globe
+// material, so it is built with the rest of the compare section below). The
+// initial refreshGlobe() draws the provenance line before that point, when no
+// comparison can be on screen.
+let pinnedComparisonMonth: () => YearMonth | undefined = () => undefined;
 let placeInsightsModule:
   Promise<typeof import("./place/placeInsightsController")> | undefined;
 
@@ -511,7 +521,11 @@ void refreshDataLatest().then((grew) => {
 function updateProvenance(): void {
   if (!provenanceEl) return;
   const layer = LAYERS[currentLayer];
-  provenanceEl.textContent = `${layer.wmsLayer} · ${formatTimelineLabel(layer, months[currentIndex])}`;
+  provenanceEl.textContent = `${layer.wmsLayer} · ${provenanceMonths(
+    layer,
+    months[currentIndex],
+    pinnedComparisonMonth()
+  )}`;
 }
 
 if (exportEl) {
@@ -721,8 +735,15 @@ if (searchEl) {
 const compare = new CompareController(
   earth.material,
   renderer.capabilities.getMaxAnisotropy(),
-  (ready) => setStatus(ready ? "" : "Comparison imagery failed to load")
+  (ready) => {
+    setStatus(ready ? "" : "Comparison imagery failed to load");
+    // The second month only belongs in the provenance line once its imagery is
+    // actually drawn — and a load failure drops the comparison, so the line
+    // falls back to the one month still on screen.
+    updateProvenance();
+  }
 );
+pinnedComparisonMonth = () => (compare.showing ? compare.pinned : undefined);
 
 if (compareEl && compareDividerEl) {
   compareControls = new CompareControls(compareEl, compareDividerEl, {
@@ -737,6 +758,7 @@ if (compareEl && compareDividerEl) {
     },
     onDisable: () => {
       compare.disable();
+      updateProvenance();
       scheduleHashSync();
     },
     onSplitChange: (fraction) => {
