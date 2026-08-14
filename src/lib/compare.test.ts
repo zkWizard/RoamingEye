@@ -8,6 +8,7 @@ import {
   isTrivialCompare,
   exportMonthStamp,
   imageryUrlExport,
+  provenanceMonths,
 } from "./compare";
 import { LAYERS, gibsWmsUrl, formatTimelineLabel } from "./timeline";
 
@@ -170,6 +171,75 @@ describe("imageryUrlExport", () => {
     )) {
       expect(line).toMatch(/^https:\/\/gibs\.earthdata\.nasa\.gov\/wms\//);
       expect(line).toContain("REQUEST=GetMap");
+    }
+  });
+});
+
+describe("provenanceMonths", () => {
+  it("names one month when nothing is pinned", () => {
+    expect(provenanceMonths(LAYERS.ndvi, { year: 2024, month: 8 })).toBe(
+      "Aug 2024"
+    );
+  });
+
+  it("names both months of a comparison, pinned side first", () => {
+    // The globe draws the pinned month left of the divider and the live month
+    // right of it. The provenance line is what a reader pastes under the
+    // figure, so it has to carry the pair the view is built from.
+    expect(
+      provenanceMonths(
+        LAYERS.ndvi,
+        { year: 2024, month: 8 },
+        { year: 2019, month: 8 }
+      )
+    ).toBe("Aug 2019 vs Aug 2024");
+  });
+
+  it("dates an annual comparison by year", () => {
+    const annual = LAYERS.landcover;
+    expect(annual.cadence).toBe("annual");
+    expect(
+      provenanceMonths(
+        annual,
+        { year: 2020, month: 1 },
+        { year: 2001, month: 1 }
+      )
+    ).toBe("2001 vs 2020");
+  });
+
+  it("collapses a self-comparison to a single month", () => {
+    // Enabling compare pins the month already on screen (main.ts), so one
+    // image is drawn on both sides of the divider until the user scrubs. One
+    // image is one month of provenance.
+    const ym = { year: 2024, month: 8 };
+    expect(provenanceMonths(LAYERS.ndvi, ym, { ...ym })).toBe("Aug 2024");
+  });
+
+  it("dedupes on the built label, so an annual pair within one year is one date", () => {
+    // Two distinct YearMonths that an annual product publishes as the same
+    // year: reporting "2020 vs 2020" would claim a change-detection pair the
+    // catalog cannot separate.
+    expect(
+      provenanceMonths(
+        LAYERS.landcover,
+        { year: 2020, month: 1 },
+        { year: 2020, month: 7 }
+      )
+    ).toBe("2020");
+  });
+
+  it("agrees with the divider caption for every layer", () => {
+    // The line and the on-screen chips must not drift: one authority for how
+    // a comparison is dated, read off compareCaption rather than restated.
+    for (const layer of Object.values(LAYERS)) {
+      const pinned = { year: 2015, month: 3 };
+      const live = { year: 2020, month: 9 };
+      expect(provenanceMonths(layer, live, pinned)).toBe(
+        compareCaption(layer, pinned, live)
+      );
+      expect(provenanceMonths(layer, live)).toBe(
+        formatTimelineLabel(layer, live)
+      );
     }
   });
 });

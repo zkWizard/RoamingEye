@@ -54,6 +54,45 @@ export function compareCaption(
   return `${formatTimelineLabel(layer, pinned)} vs ${formatTimelineLabel(layer, live)}`;
 }
 
+/**
+ * Date field for the provenance readout: one month normally, and both months
+ * — pinned (left, "before") first — while a comparison is on screen.
+ *
+ * The provenance line is the app's citation surface. It is the only readout
+ * styled `user-select: text` precisely because researchers copy it into notes
+ * and methods sections (see `.provenance` in style.css), so it travels off
+ * screen in a way the divider's own date chips never do. While a comparison
+ * was showing it still named `months[currentIndex]` alone, which dated a
+ * two-month change-detection view to a single month: the globe drew August
+ * 2019 left of the divider and August 2024 right of it, and the line a reader
+ * would paste under the figure said only "Aug 2024". Half the imagery on
+ * screen had no provenance at all, and the half that did was attributed to
+ * the wrong side of the seam for everything left of the divider.
+ *
+ * Same provenance drop already fixed for the PNG filename (`exportMonthStamp`)
+ * and the copied GetMap URL (`imageryUrlExport`), on the third and last
+ * surface that carries a comparison's dates out of the app.
+ *
+ * Both sides format through `formatTimelineLabel`, so an annual product reads
+ * "2001 vs 2020" rather than claiming a January that MCD12Q1 cannot resolve,
+ * and the dedupe is on the BUILT LABELS rather than the months: the moment
+ * compare is enabled the pinned month IS the live month (main.ts pins
+ * `months[currentIndex]`), and one image on both sides of the divider is one
+ * month of provenance, not two.
+ */
+export function provenanceMonths(
+  layer: LayerConfig,
+  live: YearMonth,
+  pinned?: YearMonth
+): string {
+  const liveLabel = formatTimelineLabel(layer, live);
+  if (!pinned) return liveLabel;
+  const pinnedLabel = formatTimelineLabel(layer, pinned);
+  return pinnedLabel === liveLabel
+    ? liveLabel
+    : compareCaption(layer, pinned, live);
+}
+
 /** Comparing a month to itself shows nothing — callers surface a hint. */
 export function isTrivialCompare(pinned: YearMonth, live: YearMonth): boolean {
   return ymEqual(pinned, live);
