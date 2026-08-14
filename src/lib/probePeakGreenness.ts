@@ -258,7 +258,12 @@ export function probeSeasonalConcentration(
  *
  * Silent unless the median lands in a weak bin, so a firmly seasonal record adds
  * no status-line text. The bins are presentation aids, not thresholds from any
- * published standard — the median is the measurement and is always printed.
+ * published standard — the median is the measurement and is always printed. The
+ * bin is taken from the median as ROUNDED for display, so a reader applying
+ * {@link seasonalityClassFor}'s documented break points to the printed number
+ * always recovers the label printed beside it; that also decides the silence, so
+ * a median rendering as 0.35 or higher adds no text rather than printing a
+ * "weakly seasonal" label the number itself contradicts.
  *
  * This describes the shape of a unitless index in time and nothing else. A low
  * concentration is not degraded, unproductive, or unhealthy vegetation: an
@@ -280,12 +285,19 @@ export function seasonalConcentrationClause(
   );
   if (measured.length === 0) return null;
 
-  const median = medianOf(measured);
-  const bin = seasonalityClassFor(median);
+  // Bin the median as it will be PRINTED, not as it was computed. The bins are
+  // reading aids for R, and the only R this clause ever shows is the rounded
+  // one, so classifying the raw value lets the label contradict the number
+  // beside it: a raw 0.1499 prints "0.15" — the break `seasonalityClassFor`
+  // documents as the start of the weakly-seasonal bin — while the raw value
+  // still reads "near-aseasonal". Rendering once and classifying that same
+  // string keeps the two from drifting apart at all.
+  const rendered = medianOf(measured).toFixed(2);
+  const bin = seasonalityClassFor(Number(rendered));
   if (bin !== "aseasonal" && bin !== "weakly-seasonal") return null;
 
   const label = bin === "aseasonal" ? "near-aseasonal" : "weakly seasonal";
-  return `within-year greenness ${label} (median ${median.toFixed(2)} over ${measured.length} yr)`;
+  return `within-year greenness ${label} (median ${rendered} over ${measured.length} yr)`;
 }
 
 /**

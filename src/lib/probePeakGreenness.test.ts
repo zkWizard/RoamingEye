@@ -535,6 +535,63 @@ describe("seasonalConcentrationClause", () => {
     );
   });
 
+  /**
+   * Two opposed months carry all of the above-minimum greenness, so the year's
+   * magnitude-weighted resultant is exactly (w1 − w7) / (w1 + w7). That lets a
+   * fixture land R just under a bin break point, where the value the clause
+   * prints and the value it classified stop agreeing.
+   */
+  function opposed(
+    monthList: readonly YearMonth[],
+    weightJan: number,
+    weightJul: number
+  ): number[] {
+    return monthList.map((ym) => {
+      if (ym.month === 1) return 0.2 + weightJan;
+      if (ym.month === 7) return 0.2 + weightJul;
+      return 0.2;
+    });
+  }
+
+  it("labels the median it prints, not the one it computed", () => {
+    const range = months(2001, 12 * 5);
+    // R = 0.1499, which rounds to the 0.15 break into the weakly-seasonal bin.
+    const values = opposed(range, 0.57495, 0.42505);
+    const timing = probePeakGreennessTiming("ndvi", range, values, 8);
+    const concentrations = probeSeasonalConcentration("ndvi", range, values, 8);
+
+    // The raw value really does sit in the aseasonal bin — the rounding, not
+    // the measurement, is what moves the label.
+    expect(concentrations?.[0]?.seasonalityClass).toBe("aseasonal");
+    expect(seasonalConcentrationClause(timing, concentrations)).toBe(
+      "within-year greenness weakly seasonal (median 0.15 over 5 yr)"
+    );
+  });
+
+  it("stays silent when the printed median reads as seasonal", () => {
+    const range = months(2001, 12 * 5);
+    // R = 0.3499 rounds to 0.35, the break out of the weakly-seasonal bin, so
+    // the clause must not print a label the number beside it contradicts.
+    const values = opposed(range, 0.67495, 0.32505);
+    const timing = probePeakGreennessTiming("ndvi", range, values, 8);
+    const concentrations = probeSeasonalConcentration("ndvi", range, values, 8);
+
+    expect(concentrations?.[0]?.seasonalityClass).toBe("weakly-seasonal");
+    expect(seasonalConcentrationClause(timing, concentrations)).toBeNull();
+  });
+
+  it("leaves a median clear of a break point untouched", () => {
+    const range = months(2001, 12 * 5);
+    // R = 0.30, well inside the weakly-seasonal bin either way.
+    const values = opposed(range, 0.65, 0.35);
+    const timing = probePeakGreennessTiming("ndvi", range, values, 8);
+    const concentrations = probeSeasonalConcentration("ndvi", range, values, 8);
+
+    expect(seasonalConcentrationClause(timing, concentrations)).toBe(
+      "within-year greenness weakly seasonal (median 0.30 over 5 yr)"
+    );
+  });
+
   it("stays silent for a record that peaks on one season", () => {
     const range = months(2001, 12 * 5);
     const values = cycle(range, 7);
