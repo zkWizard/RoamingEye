@@ -49,7 +49,10 @@ import type { DatasetRef } from "./timeline";
  * change to the probe's reported unit makes this module withhold a floor
  * instead of silently scaling a rate error by a day count it no longer matches.
  */
-export const PRECIP_INVERSION_REPORTED_UNIT = "mm/day";
+export const PRECIP_INVERSION_REPORTED_UNIT = "mm/day" as const;
+
+/** The climate metric id whose observations this module's figures describe. */
+export const PRECIPITATION_RATE_METRIC_ID = "precipitation-rate" as const;
 
 /** Honest scope limits for the accumulation-difference floor. */
 export const PRECIP_ACCUMULATION_RESOLVABILITY_LIMITATIONS = [
@@ -102,8 +105,16 @@ export interface PrecipitationAccumulationResolvability {
  * The measured precipitation inversion RMSE as a rate in mm/day, or null when
  * the layer carries no measured figure or the published figure is no longer
  * documented in mm/day.
+ *
+ * Exported because the same licence underwrites a second claim on the same
+ * readout: the rounding place the error justifies for the *absolute* mm/day
+ * rate, which the place panel qualifies alongside the accumulation-difference
+ * floor. Both set a figure published in mm/day beside a number that exists in
+ * this pipeline in two units at once, so both must fail closed on the one
+ * condition that permits it, from a single definition rather than two copies
+ * that could drift apart.
  */
-function precipRateInversionRmse(): number | null {
+export function precipitationInversionRmseMmPerDay(): number | null {
   const measured = inversionUncertaintyForLayer(
     "precip",
     PRECIP_INVERSION_REPORTED_UNIT
@@ -138,7 +149,7 @@ export function describePrecipitationAccumulationResolvability(
   if (!isCalendarMonthLength(earlierMonthDays)) return null;
   if (!isCalendarMonthLength(laterMonthDays)) return null;
 
-  const rateRmse = precipRateInversionRmse();
+  const rateRmse = precipitationInversionRmseMmPerDay();
   const base = {
     kind: "precip-accumulation-change-resolvability" as const,
     isForecast: false as const,
