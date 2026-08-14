@@ -140,6 +140,16 @@ export interface SensSlopeResult {
   upperPerYear: number;
   /** Number of pairwise slopes the median is taken over. */
   nPairs: number;
+  /**
+   * Whether each rank-based limit was actually located inside the sample of
+   * pairwise slopes. False when the rank fell outside it, in which case the
+   * bound above is the most extreme slope observed standing in for a limit
+   * this record does not contain — the true limit lies further out. Callers
+   * that state the interval in words must not present a clamped bound as a
+   * confidence limit; see {@link trendCsvHeaders}.
+   */
+  lowerResolved: boolean;
+  upperResolved: boolean;
 }
 
 /** Median of a numeric array (caller guarantees non-empty). */
@@ -169,7 +179,14 @@ export function sensSlope(
     }
   }
   if (slopes.length === 0) {
-    return { slopePerYear: 0, lowerPerYear: 0, upperPerYear: 0, nPairs: 0 };
+    return {
+      slopePerYear: 0,
+      lowerPerYear: 0,
+      upperPerYear: 0,
+      nPairs: 0,
+      lowerResolved: false,
+      upperResolved: false,
+    };
   }
   slopes.sort((a, b) => a - b);
   const nPairs = slopes.length;
@@ -179,12 +196,22 @@ export function sensSlope(
   const cAlpha = 1.959963984540054 * Math.sqrt(varS);
   const lowerRank = Math.round((nPairs - cAlpha) / 2);
   const upperRank = Math.round((nPairs + cAlpha) / 2) + 1;
+  const lowerIndex = lowerRank - 1;
+  const upperIndex = upperRank - 1;
   const clamp = (r: number): number => Math.min(nPairs - 1, Math.max(0, r));
   return {
     slopePerYear: slope,
-    lowerPerYear: varS > 0 ? slopes[clamp(lowerRank - 1)] : slope,
-    upperPerYear: varS > 0 ? slopes[clamp(upperRank - 1)] : slope,
+    lowerPerYear: varS > 0 ? slopes[clamp(lowerIndex)] : slope,
+    upperPerYear: varS > 0 ? slopes[clamp(upperIndex)] : slope,
     nPairs,
+    // The half-width grows like n^1.5 while the slope count grows like n², so
+    // on a short record the offset can exceed the sample and the rank lands
+    // outside it. The clamp above then returns the most extreme slope observed
+    // — a number the chart band can draw, but not a limit the record
+    // determined. varS = 0 leaves the rank procedure undefined outright: with
+    // every within-season pair tied there is no variance to space the ranks by.
+    lowerResolved: varS > 0 && lowerIndex >= 0 && lowerIndex < nPairs,
+    upperResolved: varS > 0 && upperIndex >= 0 && upperIndex < nPairs,
   };
 }
 
@@ -194,6 +221,9 @@ export interface TrendSummary extends MannKendallResult {
   lowerPerYear: number;
   upperPerYear: number;
   nPairs: number;
+  /** Whether each CI bound above is a located rank, not a clamped extreme. */
+  lowerResolved: boolean;
+  upperResolved: boolean;
   /** Sen's slope × 10, for readable reporting ("per decade"). */
   perDecade: number;
   /** Enough record to run a meaningful test (≥ 3 years in a season). */
@@ -247,6 +277,8 @@ export function trendSummary(
     lowerPerYear: sen.lowerPerYear,
     upperPerYear: sen.upperPerYear,
     nPairs: sen.nPairs,
+    lowerResolved: sen.lowerResolved,
+    upperResolved: sen.upperResolved,
     perDecade: sen.slopePerYear * 10,
     testable: enoughRecord,
     significant,
@@ -278,10 +310,51 @@ export function trendClause(t: TrendSummary): string {
   return `trend ${formatPerDecade(t.perDecade, t.unit)} · p = ${t.pValue.toFixed(3)}`;
 }
 
+/**
+ * The 95% interval on Sen's slope in words, or an honest refusal to state one.
+ *
+ * The rank-based interval (Gilbert 1987, §16.4.2) places its limits at ranks
+ * offset from the median by z_{0.975}·√Var(S) within the sorted pairwise
+ * slopes. That offset grows like n^1.5 while the number of slopes grows like
+ * n², so on a short record the rank can land outside the sample: the limit the
+ * procedure asks for is a slope more extreme than any pair observed. The
+ * estimator clamps to the sample so it always returns a drawable number, which
+ * is what the chart band wants — but printing that clamped number as a "95% CI"
+ * states a limit the record never determined, and always states it too narrowly,
+ * because the true limit lies further out.
+ *
+ * At the shortest record this app reports a trend for at all — one season with
+ * `MIN_YEARS_PER_SEASON` years — both ranks fall outside the sample, so the
+ * printed interval collapsed to the observed slope range. On a monotone series
+ * that range excludes zero, so the export carried an interval implying a trend
+ * beside the p-value and `trend_significant: false` that refuse one; the two
+ * described the same series and could not both be right.
+ *
+ * Withholding the interval is a smaller loss than misstating it: the slope, τ,
+ * p-value, and significance verdict on the surrounding lines are untouched and
+ * still say everything this record supports. Nothing here re-estimates the
+ * trend, changes the reported slope, or makes any claim about its direction.
+ */
+function trendConfidenceText(t: TrendSummary): string {
+  if (t.lowerResolved && t.upperResolved) {
+    return `(95% CI ${formatPerDecade(t.lowerPerYear * 10, t.unit)} – ${formatPerDecade(t.upperPerYear * 10, t.unit)})`;
+  }
+  if (t.varS <= 0) {
+    return "(95% CI not resolvable: every within-season pair is tied, so the Mann-Kendall variance is zero and the rank-based interval is undefined)";
+  }
+  const which =
+    !t.lowerResolved && !t.upperResolved
+      ? "both rank-based limits fall"
+      : !t.lowerResolved
+        ? "the lower rank-based limit falls"
+        : "the upper rank-based limit falls";
+  return `(95% CI not resolvable from this record: ${which} outside the ${t.nPairs} within-season pairwise slopes it supplies, so the interval is wider than the observed slope range)`;
+}
+
 /** CSV provenance headers for the trend (empty when the record is too short). */
 export function trendCsvHeaders(t: TrendSummary): string[] {
   if (!t.testable) return [];
-  const ci = `(95% CI ${formatPerDecade(t.lowerPerYear * 10, t.unit)} – ${formatPerDecade(t.upperPerYear * 10, t.unit)})`;
+  const ci = trendConfidenceText(t);
   return [
     `# trend_method: ${TREND_METHOD_LABEL}`,
     `# trend_sens_slope: ${formatPerDecade(t.perDecade, t.unit)} ${ci}`,
