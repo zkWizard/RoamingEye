@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_NDVI_CHANGE_STABILITY_THRESHOLD,
   NDVI_VALID_RANGE,
+  formatPlaceVegetationDelta,
   isPlausibleNdvi,
   placeVegetationComparison,
 } from "./placeVegetationChange";
@@ -126,5 +127,47 @@ describe("place vegetation comparison", () => {
     expect(comparison.kind).toBe("compared");
     if (comparison.kind !== "compared") return;
     expect(comparison.direction).toBe("greening");
+  });
+});
+
+describe("place vegetation delta formatting", () => {
+  const BAND = DEFAULT_NDVI_CHANGE_STABILITY_THRESHOLD;
+
+  it("keeps two decimals when they do not straddle the band", () => {
+    expect(formatPlaceVegetationDelta(0.2, BAND)).toBe("+0.20");
+    expect(formatPlaceVegetationDelta(-0.2, BAND)).toBe("-0.20");
+    expect(formatPlaceVegetationDelta(0.02, BAND)).toBe("+0.02");
+    expect(formatPlaceVegetationDelta(0, BAND)).toBe("+0.00");
+  });
+
+  it("widens a change that two decimals would round back onto the band", () => {
+    // 0.0501 is a change by the band rule but renders "+0.05" at the card's
+    // house precision — the same string 0.0499 produces under the opposite
+    // verdict. Only the change side widens; see the sibling test below.
+    expect(formatPlaceVegetationDelta(0.0501, BAND)).toBe("+0.0501");
+    expect(formatPlaceVegetationDelta(-0.0501, BAND)).toBe("-0.0501");
+    // Three decimals already clear the band here, so it stops there.
+    expect(formatPlaceVegetationDelta(0.0509, BAND)).toBe("+0.051");
+    expect(formatPlaceVegetationDelta(-0.0509, BAND)).toBe("-0.051");
+  });
+
+  it("leaves a little-change difference at two decimals", () => {
+    // "+0.05" beside "within the 0.05 stability band" is consistent: the band
+    // is inclusive, so a rounded magnitude equal to it contradicts nothing.
+    expect(formatPlaceVegetationDelta(0.0499, BAND)).toBe("+0.05");
+    expect(formatPlaceVegetationDelta(-0.0499, BAND)).toBe("-0.05");
+  });
+
+  it("respects a band the caller supplies rather than the default", () => {
+    expect(formatPlaceVegetationDelta(0.1001, 0.1)).toBe("+0.1001");
+    expect(formatPlaceVegetationDelta(0.1001, 0.05)).toBe("+0.10");
+  });
+
+  it("never prints a magnitude on the wrong side of the band", () => {
+    for (let step = 0; step <= 2000; step += 1) {
+      const delta = (step - 1000) / 10000;
+      const rendered = formatPlaceVegetationDelta(delta, BAND);
+      expect(Math.abs(Number(rendered)) > BAND).toBe(Math.abs(delta) > BAND);
+    }
   });
 });
