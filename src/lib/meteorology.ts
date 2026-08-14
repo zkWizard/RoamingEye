@@ -27,7 +27,12 @@ import {
   describePrecipitationAccumulationChange,
   type PrecipitationAccumulationChange,
 } from "./precipitationAccumulationChange";
-import { describePrecipitationAccumulationResolvability } from "./precipitationAccumulationResolvability";
+import {
+  describePrecipitationAccumulationResolvability,
+  precipitationInversionRmseMmPerDay,
+  PRECIP_INVERSION_REPORTED_UNIT,
+  PRECIPITATION_RATE_METRIC_ID,
+} from "./precipitationAccumulationResolvability";
 import {
   AIR_TEMPERATURE_METRIC_ID,
   airTemperatureInversionRmseK,
@@ -819,7 +824,7 @@ function airTemperatureFloorCaveat(
  * number should be written; it makes no anomaly, trend, cause, or forecast
  * claim, and it never restates or replaces the reported value.
  */
-function valuePrecisionCaveat(
+function airTemperatureValuePrecisionCaveat(
   current: MonthlyClimateSummary,
   conventional: ConventionalClimateValue | null
 ): string {
@@ -849,6 +854,99 @@ function valuePrecisionCaveat(
   return `; the ${formatNumber(rmseK)} K measured colormap-inversion error justifies reporting this mean only to the nearest ${formatNumber(
     10 ** place
   )} ${shown.unit} (${formatNumber(rounded)} ${shown.unit})`;
+}
+
+/**
+ * Say how coarsely the measured inversion error lets this month's precipitation
+ * rate be written at all.
+ *
+ * The air-temperature clause above makes the same statement for the other
+ * five-significant-figure value this formatter leads with. The two cannot share
+ * one derivation, because the conversion standing between the published error
+ * and the printed number is a different kind in each case, and the difference
+ * decides which fact about the number survives it:
+ *
+ * | conversion | justified rounding place | significant-figure count |
+ * | --- | --- | --- |
+ * | offset-only (K → °C) | invariant | changes |
+ * | scaled (kg/m²/s → mm/day) | shifts | invariant |
+ *
+ * Precipitation is the scaled case. The published figure — 0.27 mm/day at the
+ * currently measured value — is documented in mm/day, the same 86,400× scaling
+ * the card applies to reach the rate it prints, so it fixes the place of *that*
+ * number and of no other on the line. The identical error expressed natively is
+ * 3.125e-6 kg/m²/s, whose justified place is 10^-6 rather than 10^-1: five
+ * decimal places away from the one quoted here, even though both express one
+ * error on one measurement. What the scaling does leave intact is the figure
+ * *count* — two, in either unit — which is exactly the half the offset case
+ * loses. So this clause names the place only after pinning the unit, and the
+ * air-temperature clause names the place because an offset cannot move it.
+ *
+ * The consequence for the guard is concrete rather than theoretical: the same
+ * detail line prints `native source value 0.0001 kg/m²/s` a few clauses later.
+ * Quoting a mm/day-derived place against that number would be wrong by five
+ * decimal places, so the clause withholds unless the value it is qualifying is
+ * itself displayed in the unit the error is published in, rather than assuming
+ * the conventional conversion is the only one the card could ever apply.
+ *
+ * Silent when the rendered rate already sits at the justified place, and when
+ * the layer carries no measured figure in that unit — an unmeasured error is
+ * not a passed test. It bounds how the number should be written; it makes no
+ * anomaly, trend, cause, or forecast claim, it says nothing about the monthly
+ * total on the same line (whose error is this rate error integrated over the
+ * month, a third place again), and it never restates or replaces the reported
+ * value.
+ */
+function precipitationValuePrecisionCaveat(
+  current: MonthlyClimateSummary,
+  conventional: ConventionalClimateValue | null
+): string {
+  if (current.metric.id !== PRECIPITATION_RATE_METRIC_ID) return "";
+  if (current.observedValue === null) return "";
+  // Null unless the published figure is still documented in mm/day.
+  const rateRmse = precipitationInversionRmseMmPerDay();
+  if (rateRmse === null) return "";
+  const place = justifiedRoundingPlace(rateRmse);
+  if (place === null) return "";
+
+  // Under a scaled conversion the place belongs to one unit, so the clause is
+  // withheld unless the card is actually leading with the mm/day rate the
+  // published figure describes.
+  if (conventional === null || conventional.value === null) return "";
+  if (conventional.conventionalUnit !== PRECIP_INVERSION_REPORTED_UNIT) {
+    return "";
+  }
+
+  const rounded = roundToPlace(conventional.value, place);
+  // Compare what the card prints against what it would print rounded, rather
+  // than counting digits: the rendering collapses trailing zeros, so only the
+  // rendered strings can say whether any unjustified digit is actually shown.
+  if (formatNumber(conventional.value) === formatNumber(rounded)) return "";
+
+  return `; the ${formatNumber(rateRmse)} ${PRECIP_INVERSION_REPORTED_UNIT} measured colormap-inversion error justifies reporting this rate only to the nearest ${formatNumber(
+    10 ** place
+  )} ${PRECIP_INVERSION_REPORTED_UNIT} (${formatNumber(
+    rounded
+  )} ${PRECIP_INVERSION_REPORTED_UNIT})`;
+}
+
+/**
+ * Qualify the single absolute value the card leads with against the layer's own
+ * measured inversion error, for whichever atmospheric layer supplied it.
+ *
+ * The two layers reach the same statement by different licences — see each
+ * clause — and a summary carries exactly one metric, so at most one can speak.
+ * Soil moisture lies outside the atmospheric domain this module owns and gains
+ * no clause here.
+ */
+function valuePrecisionCaveat(
+  current: MonthlyClimateSummary,
+  conventional: ConventionalClimateValue | null
+): string {
+  return (
+    airTemperatureValuePrecisionCaveat(current, conventional) ||
+    precipitationValuePrecisionCaveat(current, conventional)
+  );
 }
 
 function samplingText(strategy: GeometrySamplingStrategy | null): string {
