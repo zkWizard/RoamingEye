@@ -1,5 +1,9 @@
 import { LAYERS, type DatasetRef, type LayerId } from "./timeline";
 import type { SpatialDomain } from "./signalDomain";
+import {
+  GLDAS_RAMP_SATURATION,
+  type GldasRampLayerId,
+} from "./gldasRampSaturation";
 
 /**
  * Why an atmospheric probe came back empty: the cited product's spatial
@@ -34,9 +38,29 @@ import type { SpatialDomain } from "./signalDomain";
  * `NO_DATA_DISTANCE` — so every out-of-domain pixel is rejected exactly as it
  * should be. The sampler is right; only the sentence explaining it is wrong.
  *
+ * The domain is not the only ordinary reading behind an empty *precipitation*
+ * record, and this is why the land-only sentence carries a second clause. GIBS
+ * publishes the GLDAS precipitation ramp with an open-ended `≥ 5.0e-04` kg/m²/s
+ * top bin — 43.2 mm/day of monthly-mean rate — and `parseColormapEntries` drops
+ * that cap by documented design (see gldasRampSaturation.ts). Its colour
+ * rgb(94,79,162) sits 76.7 RGB units from the nearest colour on the legend ramp
+ * the point probe actually inverts against, again far outside the 60-unit
+ * threshold, so a cell that saturated in every sampled month empties a record
+ * too. That reading is the *opposite* extreme of the one a bare domain sentence
+ * invites: the wettest monsoon and tropical-orographic cells the ramp can
+ * represent, not an absence of rain. Naming only the domain would leave a
+ * reader free to settle on dryness, so both readings are stated and neither is
+ * chosen. The two MERRA-2 layers carry no such clause — they are not GLDAS,
+ * their ramps are not this one, and their wording is untouched by it.
+ *
  * Scope and honesty limits:
  *  - Domain of definition is a fixed, documented property of the cited product,
  *    asserted per layer below. It is never inferred from a value.
+ *  - The ramp ceiling is likewise a documented property of the published
+ *    colormap, read from `GLDAS_RAMP_SATURATION` rather than restated. The note
+ *    never says which of the two readings applies, never reports a corrected or
+ *    substituted rate, and never claims rainfall, flood state, runoff, or any
+ *    future value — a cell at the cap is only known to be at or above it.
  *  - This helper does NOT know where the user clicked. It never states that a
  *    point is over water; it states what the product covers and leaves the
  *    reader to place their own point. The land-only wording is deliberately
@@ -58,7 +82,9 @@ export type AtmosphereProbeLayerId = "precip" | "airtemp" | "aerosol";
 /**
  * A discriminated union rather than one shape with an optional field: only a
  * land-only product can be absent for a reason the domain explains, so only it
- * carries the `quantity` used to name the zero-reading a reader must not infer.
+ * carries the `quantity` used to name the zero-reading a reader must not infer,
+ * and only it keys into the GLDAS ramp whose dropped top cap is the second
+ * ordinary reading behind the same empty record.
  */
 type AtmosphereDomainClaim =
   | {
@@ -67,6 +93,12 @@ type AtmosphereDomainClaim =
       quantity: string;
       /** Why the domain is what it is — a product property, not a value. */
       basis: string;
+      /**
+       * The GLDAS ramp this layer is rendered with. The bound is read from
+       * `GLDAS_RAMP_SATURATION` rather than restated here, so the sentence
+       * cannot outlive the measured colormap facts.
+       */
+      rampLayerId: GldasRampLayerId;
     }
   | { domain: "land-and-ocean"; basis: string };
 
@@ -83,6 +115,7 @@ const ATMOSPHERE_DOMAINS: Record<
     quantity: "precipitation",
     basis:
       "the GLDAS Noah land-surface model is solved on land cells only, so open water carries no value by construction",
+    rampLayerId: "precip",
   },
   airtemp: {
     domain: "land-and-ocean",
@@ -130,13 +163,33 @@ export function emptyAtmosphereProbeNote(
   const layer = LAYERS[layerId];
   const consequence =
     claim.domain === "land-only"
-      ? `An empty record here is consistent with a point outside that domain — not a reading of zero ${claim.quantity}, and not evidence of a failed retrieval.`
+      ? `${ceilingClause(claim.rampLayerId)} An empty record here is consistent with a point outside that domain or with a rate at or above that bound — not a reading of zero ${claim.quantity}, and not evidence of a failed retrieval.`
       : "The product's domain therefore does not explain an empty record here; this note does not diagnose the cause.";
 
   // Same statement shape as signalDomain.ts, so the two read as one voice.
   return (
     `${layer.label}: defined over ${domainPhrase(claim.domain)} — ${claim.basis}. ` +
     `${consequence} Source ${sourceLabel(layer.dataset)}.`
+  );
+}
+
+/**
+ * The second ordinary reading behind an empty record on a GLDAS layer: the
+ * ramp's open-ended top bin, dropped by the same inversion that drops an
+ * undrawn pixel.
+ *
+ * The published label is in the document's native unit, which for
+ * precipitation is not the unit the probe reports — so the bound is given
+ * twice rather than mislabelled once. Both come from the measured facts; no
+ * number is written out here.
+ */
+function ceilingClause(rampLayerId: GldasRampLayerId): string {
+  const { ceiling, nativeUnit, reportedUnit } =
+    GLDAS_RAMP_SATURATION[rampLayerId];
+  return (
+    `The ramp's open-ended "${ceiling.publishedLabel}" ${nativeUnit} top bin ` +
+    `(${ceiling.boundReported} ${reportedUnit}) is discarded by the same inversion, ` +
+    `so the wettest cells the ramp can represent empty a record too.`
   );
 }
 
