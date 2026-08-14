@@ -335,15 +335,6 @@ export class ProbePanel {
     const sstColdEnd = sstColdEndAccuracyClause(
       probeSstColdEndAccuracy(this.context?.layerId, physical)
     );
-    // The trend is seasonally corrected, but the mean beside it is not: it
-    // averages whichever months returned data. When those months are unevenly
-    // spread across the calendar the mean carries a seasonal-sampling bias,
-    // so measure it and say so. Silent whenever the record is balanced or the
-    // bias falls below the inversion's own resolution.
-    const seasonal = seasonalSamplingClause(
-      seasonalSamplingBalance(this.months, physical),
-      s
-    );
     // NASA's published SST colormap ends in two OPEN caps, and the months that
     // land in them are exactly the ones that set the extremes — so for this one
     // layer `min`, `mean` and `max` can be one-sided bounds rather than
@@ -479,6 +470,28 @@ export class ProbePanel {
     const boundPrefix = (statistic: "min" | "mean" | "max"): string =>
       sstExtremeBoundPrefix(sstCensoring, statistic) ||
       aerosolCeilingBoundPrefix(aerosolCensoring, statistic);
+    // The trend is seasonally corrected, but the mean beside it is not: it
+    // averages whichever months returned data. When those months are unevenly
+    // spread across the calendar the mean carries a seasonal-sampling bias,
+    // so measure it and say so. Silent whenever the record is balanced or the
+    // bias falls below the inversion's own resolution.
+    //
+    // It is computed here, after the two ramp screens, because the balanced
+    // mean it prints is a fourth statistic reduced from the very same series —
+    // and on SST that series can hold months the published colormap collapsed
+    // into an open end cap. A re-weighting of capped values is as censored as
+    // the mean it is differenced against, so it takes the same inequality the
+    // mean already carries rather than appearing beside two marked extremes as
+    // the one unqualified number on the line. The offset itself gets no
+    // inequality: both means are bounds over the same months, so the sign of
+    // the difference between their two errors is exactly what the cap
+    // destroyed. Passing "" — every uncensored record, every layer whose ramp
+    // closes at both ends — leaves the clause as it was.
+    const seasonal = seasonalSamplingClause(
+      seasonalSamplingBalance(this.months, physical),
+      s,
+      boundPrefix("mean")
+    );
     const stat =
       `${stats.count} of ${this.months.length} months` +
       (recordGapsClause ? ` · ${recordGapsClause}` : "") +

@@ -150,10 +150,28 @@ export function seasonalSamplingBalance(
  * deliberately symmetric — which of the two is understated depends on where
  * the absent months sit in the local seasonal cycle, and this module holds no
  * climatology with which to say, so it states the shared limit and stops.
+ *
+ * `meanBoundPrefix` is the inequality the caller has already decided the plain
+ * mean must carry — "≤ ", "≥ ", or "" — and it applies unchanged to the
+ * balanced mean. The balanced mean is a positive-weight average of the very
+ * same usable values, so a colormap cap that pushes every affected month one
+ * way pushes this re-weighting the same way: on a layer whose ramp ends in an
+ * open bin (see `probeSstExtremeCensoring` and `probeAerosolCeilingCensoring`)
+ * it is a bound, not an estimate. Rendering it bare beside a `≤`-marked mean
+ * would present the derived statistic as the two-sided one on the line.
+ *
+ * The offset takes no inequality, and that asymmetry is deliberate. Both means
+ * are bounds over the same censored months, each wrong by an unknown amount in
+ * the same direction, so the difference of those two errors has no claimable
+ * sign — the offset is stated as a bound on neither side rather than inheriting
+ * a direction the caps destroyed. Nothing here estimates a value behind a cap.
+ * The default keeps every uncensored record, and every layer whose ramp closes
+ * at both ends, byte-identical.
  */
 export function seasonalSamplingClause(
   balance: SeasonalSamplingBalance,
-  scale: ProbeScale
+  scale: ProbeScale,
+  meanBoundPrefix = ""
 ): string | null {
   if (!balance.coversFullYear || balance.recordMean === null) return null;
   if (balance.absentCalendarMonths.length > 0) {
@@ -168,9 +186,12 @@ export function seasonalSamplingClause(
   if (bias === null || Math.abs(bias) < quantizationStep(scale)) return null;
   const digits = csvDecimals(scale);
   const unit = scale.unit ? ` ${scale.unit}` : "";
-  return `uneven calendar-month sampling: balanced mean ${balance.calendarBalancedMean!.toFixed(
+  const offsetScope = meanBoundPrefix
+    ? "; each is a one-sided bound over the same censored months, so their offset is not itself bounded"
+    : "";
+  return `uneven calendar-month sampling: balanced mean ${meanBoundPrefix}${balance.calendarBalancedMean!.toFixed(
     digits
-  )}${unit} (${bias >= 0 ? "+" : "-"}${Math.abs(bias).toFixed(digits)}${unit} vs mean shown)`;
+  )}${unit} (${bias >= 0 ? "+" : "-"}${Math.abs(bias).toFixed(digits)}${unit} vs mean shown${offsetScope})`;
 }
 
 /**

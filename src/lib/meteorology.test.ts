@@ -8,6 +8,21 @@ import {
   placeMetricUnavailableDetail,
   summarizeRenderedClimateSample,
 } from "./meteorology";
+import { MEASURED_INVERSION } from "./validation";
+
+/**
+ * The inversion-difference floor the readout prints for a pair of month
+ * lengths, formatted the way the readout formats it. Derived from the published
+ * figure rather than restated, so a recalibration cannot leave these
+ * expectations asserting a number the app no longer shows.
+ */
+const floorText = (earlierDays: number, laterDays: number) =>
+  Number(
+    (
+      (MEASURED_INVERSION.precip.rmse as number) *
+      Math.hypot(earlierDays, laterDays)
+    ).toPrecision(5)
+  ).toString();
 
 describe("rendered monthly meteorology", () => {
   it("returns rendered precipitation to GLDAS native units with month and coverage intact", () => {
@@ -738,7 +753,7 @@ describe("place readout month-over-month precipitation accumulation change", () 
     expect(detail).toContain("+0.2 mm/day vs 2026-01");
     expect(detail).toContain("28-day total 89.6 mm water-equivalent");
     expect(detail).toContain(
-      "3.4 mm less than 2026-01's 31-day total (part of any difference is month length, not rate)"
+      "3.4 mm less than 2026-01's 31-day total (part of any difference is month length, not rate;"
     );
   });
 
@@ -756,6 +771,66 @@ describe("place readout month-over-month precipitation accumulation change", () 
     const detail = climateInsightText(march, april).detail;
     expect(detail).toContain("+0.1 mm/day vs 2026-03");
     expect(detail).toContain("within 1 mm of 2026-03's 31-day total");
+  });
+
+  /**
+   * Both totals are rendered colours inverted through an approximate legend and
+   * then integrated over a calendar month, which scales the layer's measured
+   * rate error by that month's day count. The floor is derived from the
+   * published figure here so a legend recalibration moves the expectation with
+   * the clause instead of leaving a stale literal behind.
+   */
+  it("says when the two totals are closer than the measured inversion can separate", () => {
+    const [january, february] = ratePair(
+      [
+        { year: 2026, month: 1 },
+        { year: 2026, month: 2 },
+      ],
+      [3, 3.2]
+    );
+
+    const detail = climateInsightText(january, february).detail;
+    // 3.4 mm apart, against a floor built from a 31-day and a 28-day month.
+    expect(detail).toContain(
+      `the two totals differ by less than the ${floorText(31, 28)} mm colormap-inversion difference floor for these month lengths, so this pipeline cannot separate them`
+    );
+    // The caveat qualifies the comparison; it never withdraws the direction the
+    // clause reported, nor claims the two months delivered the same water.
+    expect(detail).toContain("3.4 mm less than 2026-01's 31-day total");
+    expect(detail).not.toContain("no change");
+  });
+
+  it("qualifies a little-change call, whose 1 mm band is well inside the floor", () => {
+    const [march, april] = ratePair(
+      [
+        { year: 2026, month: 3 },
+        { year: 2026, month: 4 },
+      ],
+      [3, 3.1]
+    );
+
+    const detail = climateInsightText(march, april).detail;
+    expect(detail).toContain(
+      `within 1 mm of 2026-03's 31-day total (part of any difference is month length, not rate; the two totals differ by less than the ${floorText(31, 30)} mm`
+    );
+  });
+
+  it("stays silent when the difference clears the floor", () => {
+    // 93 mm against 168 mm: far outside anything the inversion error explains,
+    // so the clause adds nothing and the line keeps its original shape.
+    const [january, february] = ratePair(
+      [
+        { year: 2026, month: 1 },
+        { year: 2026, month: 2 },
+      ],
+      [3, 6]
+    );
+
+    const detail = climateInsightText(january, february).detail;
+    expect(detail).toContain(
+      "75 mm more than 2026-01's 31-day total (part of any difference is month length, not rate)"
+    );
+    expect(detail).not.toContain("colormap-inversion difference floor");
   });
 
   it("withholds a total difference across non-consecutive months", () => {
