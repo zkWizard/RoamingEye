@@ -6,6 +6,7 @@ import {
 import { COLORMAP_DOCS, colormapUrl } from "./colormap";
 import { PROBE_SCALES, quantizationStep } from "./probe";
 import type { DatasetRef, LayerId } from "./timeline";
+import type { TrendSummary } from "./trend";
 
 /**
  * How the published aerosol colormap bounds the *summary statistics* of a
@@ -34,6 +35,27 @@ import type { DatasetRef, LayerId } from "./timeline";
  * The clause names the trend as well. An enumeration that says which statistics
  * are bounds reads as a claim that the ones it omits are not, and the trend a
  * few fields earlier on the same line is fitted over this very series.
+ *
+ * But the direction stops at the mean, and saying so is the delicate part. The
+ * clause has just established one — max and mean are LOWER bounds — so naming
+ * the trend immediately afterwards as inheriting "that censoring" invites the
+ * reader to carry the direction across with it. It does not survive the trip.
+ * Sen's slope is the median of the within-season pairwise slopes, and a capped
+ * month is the earlier member of some of those pairs and the later member of
+ * others: resolving it upward steepens the first group and flattens the second,
+ * so which way the median finally moves depends on where in the record the
+ * capped months fall — a fact about the true values, which the imagery has
+ * already destroyed (Helsel, *Statistics for Censored Environmental Data Using
+ * Minitab and R*, 2nd ed., Wiley 2012, §11). The single open cap that makes the
+ * mean's direction unambiguous buys nothing here. This is the same refusal
+ * `probeSstTrendCensoring` makes for the marine ramp and that this module's own
+ * CSV headers already make for the downloaded file; the status line was the one
+ * surface that left it open.
+ *
+ * The trend sentence is also conditional on there being a trend. `trendClause`
+ * prints "trend: insufficient record" for a series too short to test, and a
+ * verdict that makes no numeric claim has nothing to qualify — so a record that
+ * short gets the max/mean bounds and no trend sentence at all.
  *
  * This module recovers nothing: the information is gone from the imagery. It
  * names which reported statistics are bounds and in which direction. It is a
@@ -90,6 +112,7 @@ export const PROBE_AEROSOL_CEILING_CENSORING_LIMITATIONS = [
   "A mean containing a capped month understates the true mean; the direction is unambiguous because this ramp has only one open cap.",
   "Nothing here estimates the column loading behind the cap, and no surface air-quality, health, exposure, hazard, causal, or forecast claim follows from a censored reading.",
   "The reported minimum is unaffected: the ramp's low end is closed at 0 and column AOD cannot be negative.",
+  "The trend is fitted over the same censored series and inherits the censoring, but no direction is claimed for it: a capped month is the earlier member of some within-season pairs and the later member of others, so the single open cap that signs the mean's bias does not sign the slope's.",
 ] as const;
 
 /**
@@ -167,9 +190,15 @@ export function aerosolCeilingBoundPrefix(
  * One status-line clause naming which statistics are bounds and why, or null
  * when no sampled month reached the cap — an ordinary clean-column record then
  * reads exactly as it did before.
+ *
+ * `trend` is the summary the status line reports a few fields earlier, taken
+ * for its `testable` flag alone: this clause qualifies that trend, so it must
+ * not describe one the line never printed. Passing the summary rather than a
+ * bare boolean keeps the two statements pinned to the same fit.
  */
 export function aerosolCeilingCensoringClause(
-  censoring: ProbeAerosolCeilingCensoring
+  censoring: ProbeAerosolCeilingCensoring,
+  trend: Pick<TrendSummary, "testable">
 ): string | null {
   if (!censoring.applicable) return null;
   const { ceilingMonthCount, observedMonthCount, rampMax, wavelengthNm } =
@@ -182,9 +211,15 @@ export function aerosolCeilingCensoringClause(
   // The verb agrees with the capped count, the noun with the record length.
   const rest = ceilingMonthCount === 1 ? "rests" : "rest";
   const cap = `every column AOD at or above ${rampMax.toFixed(3)} at ${wavelengthNm} nm shares one colour`;
+  // Named only when one was actually fitted, and explicitly stripped of the
+  // direction the preceding half of the sentence just established for the mean.
+  const trendPhrase = trend.testable
+    ? " and the trend fitted over the same series inherits that censoring but not its direction, " +
+      "because a substituted cap moves a seasonal median whichever way the record's shape decides"
+    : "";
   return (
-    `${tally} ${rest} on the aerosol colormap's open top bin (${cap}), so max and mean are lower bounds on possibly heavier columns ` +
-    `and the trend fitted over the same series inherits that censoring; min is unaffected because the ramp's low end is closed at 0 ` +
+    `${tally} ${rest} on the aerosol colormap's open top bin (${cap}), so max and mean are lower bounds on possibly heavier columns` +
+    `${trendPhrase}; min is unaffected because the ramp's low end is closed at 0 ` +
     `(source ${COLORMAP_DOCS.aerosol} colormap)`
   );
 }
