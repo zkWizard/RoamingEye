@@ -128,6 +128,53 @@ export function precipitationInversionRmseMmPerDay(): number | null {
 }
 
 /**
+ * The one place a published mm/day rate error becomes a depth error on a
+ * month's own total.
+ *
+ * Kept as a named step, rather than inlined at each site, because two different
+ * claims now scale the same published figure by a day count: the two-month
+ * difference floor below, and the rounding place a *single* month's total can
+ * be written to. Those are separate claims that must move together — if the
+ * integration ever stops being a plain multiplication by calendar days, both
+ * have to stop with it, and one shared line is the only way that is guaranteed.
+ */
+function integrateRateRmse(
+  rateRmseMmPerDay: number,
+  monthDays: number
+): number {
+  return rateRmseMmPerDay * monthDays;
+}
+
+/**
+ * Inversion error on a *single* month's accumulated total, in mm, or null when
+ * the layer carries no measured figure documented in mm/day or the supplied
+ * length is not a calendar month.
+ *
+ * The difference floor below combines two such errors in quadrature because two
+ * independently inverted months are two draws. One month is not: the total is
+ * the reported mm/day rate multiplied by that month's own day count, so the
+ * error on it is that one error multiplied by the same day count, exactly and
+ * with no independence assumption to make. A caller qualifying a lone total
+ * must therefore use this figure and never the pair floor, which would be
+ * larger by roughly sqrt(2) for a claim that involves only one inversion.
+ *
+ * This is a re-expression of an already-published error, not a new measurement,
+ * and it inherits every limit in {@link
+ * PRECIP_ACCUMULATION_RESOLVABILITY_LIMITATIONS}: the RMSE is aggregated over
+ * the whole rendered ramp rather than being a per-value 1-sigma bar, and it
+ * bounds colormap inversion alone, not the land-surface model's own
+ * precipitation error.
+ */
+export function precipitationTotalInversionRmseMm(
+  monthDays: number
+): number | null {
+  if (!isCalendarMonthLength(monthDays)) return null;
+  const rateRmse = precipitationInversionRmseMmPerDay();
+  if (rateRmse === null) return null;
+  return integrateRateRmse(rateRmse, monthDays);
+}
+
+/**
  * Describe whether a month-over-month difference of two derived precipitation
  * accumulation totals is larger than the error the pipeline's own colormap
  * inversion introduces into a difference of two independently inverted totals.
@@ -173,8 +220,8 @@ export function describePrecipitationAccumulationResolvability(
     };
   }
 
-  const earlierTotalRmseMm = rateRmse * earlierMonthDays;
-  const laterTotalRmseMm = rateRmse * laterMonthDays;
+  const earlierTotalRmseMm = integrateRateRmse(rateRmse, earlierMonthDays);
+  const laterTotalRmseMm = integrateRateRmse(rateRmse, laterMonthDays);
   // Independent errors add in quadrature. Unlike a same-length pair, whose
   // floor collapses to sqrt(2) x RMSE, the two months here carry different
   // integration lengths and therefore different error magnitudes.

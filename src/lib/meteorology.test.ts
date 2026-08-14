@@ -229,7 +229,7 @@ describe("rendered monthly meteorology", () => {
     expect(climateInsightText(precipitation[0], precipitation[1])).toEqual({
       value: "8.64 mm/day",
       detail:
-        "2026-02 land-surface-model field; +4.32 mm/day vs 2026-01 (at least 70% and at most 80% of the sampled area is common to both months); 28-day total 241.92 mm water-equivalent (mean rate integrated over the calendar month); 108 mm more than 2026-01's 31-day total (part of any difference is month length, not rate); the 0.27 mm/day measured colormap-inversion error justifies reporting this rate only to the nearest 0.1 mm/day (8.6 mm/day); native source value 0.0001 kg/m²/s (1 kg/m² of liquid water ≡ 1 mm depth; × 86,400 s/day); 90% sampled coverage; the shortfall can include ground at or above the legend's 43.2 mm/day ceiling, which GIBS renders in an open end cap this probe reads as no-data, so the value is a mean over representable ground only; the 2026-01 mean it is differenced against is itself a mean over representable ground only, so part of the difference can be a change in what the legend could represent rather than in the field; rendered source image dimensions not supplied; sampling strategy not supplied; model-derived, not a direct measurement; GIBS layer GLDAS_Surface_Total_Precipitation_Rate_Monthly; source GLDAS_NOAH025_M v2.1",
+        "2026-02 land-surface-model field; +4.32 mm/day vs 2026-01 (at least 70% and at most 80% of the sampled area is common to both months); 28-day total 241.92 mm water-equivalent (mean rate integrated over the calendar month); the 0.27 mm/day measured colormap-inversion error integrated over the same 28 days is 7.56 mm, which justifies reporting this total only to the nearest 1 mm (242 mm); 108 mm more than 2026-01's 31-day total (part of any difference is month length, not rate); the 0.27 mm/day measured colormap-inversion error justifies reporting this rate only to the nearest 0.1 mm/day (8.6 mm/day); native source value 0.0001 kg/m²/s (1 kg/m² of liquid water ≡ 1 mm depth; × 86,400 s/day); 90% sampled coverage; the shortfall can include ground at or above the legend's 43.2 mm/day ceiling, which GIBS renders in an open end cap this probe reads as no-data, so the value is a mean over representable ground only; the 2026-01 mean it is differenced against is itself a mean over representable ground only, so part of the difference can be a change in what the legend could represent rather than in the field; rendered source image dimensions not supplied; sampling strategy not supplied; model-derived, not a direct measurement; GIBS layer GLDAS_Surface_Total_Precipitation_Rate_Monthly; source GLDAS_NOAH025_M v2.1",
     });
     expect(
       climateInsightText(airTemperature[0], airTemperature[1])
@@ -1172,6 +1172,147 @@ describe("place readout precipitation reported-precision caveat", () => {
     expect(climateInsightText(undefined, noData).detail).not.toContain(
       "justifies reporting this rate"
     );
+  });
+});
+
+/**
+ * The readout renders one inverted pixel colour three times — natively, as a
+ * mm/day rate, and as a monthly total — and one published error justifies a
+ * different rounding place for each, because a different scaling stands between
+ * it and each rendering. The total is the rendering with the most unjustified
+ * digits and, until now, the only one with no qualification at all.
+ */
+describe("place readout precipitation accumulation-precision caveat", () => {
+  const precipMonth = (mmPerDay: number, month = { year: 2026, month: 1 }) =>
+    summarizeRenderedClimateSample(
+      {
+        metricId: "precipitation-rate",
+        months: [month],
+        sampledValues: [mmPerDay],
+        nativeToSampledValueFactor: 86_400,
+        validFractions: [1],
+      },
+      month
+    )[0];
+
+  /** The published rate error integrated over a month, formatted as shown. */
+  const totalErrorText = (monthDays: number) =>
+    Number(
+      ((MEASURED_INVERSION.precip.rmse as number) * monthDays).toPrecision(5)
+    ).toString();
+
+  it("says how coarsely a five-figure total may honestly be written", () => {
+    // 2.592 mm/day over 31 days totals 80.352 mm, against an ~8 mm error.
+    const detail = climateInsightText(undefined, precipMonth(2.592)).detail;
+    expect(detail).toContain("31-day total 80.352 mm water-equivalent");
+    expect(detail).toContain(
+      `the ${MEASURED_INVERSION.precip.rmse} mm/day measured colormap-inversion error integrated over the same 31 days is ${totalErrorText(31)} mm, which justifies reporting this total only to the nearest 1 mm (80 mm)`
+    );
+  });
+
+  it("gives the same error three different justified places on one line", () => {
+    // The whole point of the clause: one inversion, three renderings, and the
+    // place moves with each scaling while the reported figures do not.
+    const detail = climateInsightText(undefined, precipMonth(2.592)).detail;
+    expect(detail).toContain("native source value 0.00003 kg/m²/s");
+    expect(detail).toContain("to the nearest 0.1 mm/day (2.6 mm/day)");
+    expect(detail).toContain("to the nearest 1 mm (80 mm)");
+    // The total's place is quoted in mm, never in the rate's unit.
+    expect(detail).not.toContain("to the nearest 1 mm/day");
+  });
+
+  it("scales the error by the month's own length, not a nominal month", () => {
+    const february = climateInsightText(
+      undefined,
+      precipMonth(2.592, { year: 2026, month: 2 })
+    ).detail;
+    expect(february).toContain(
+      `integrated over the same 28 days is ${totalErrorText(28)} mm`
+    );
+    expect(february).not.toContain(`is ${totalErrorText(31)} mm`);
+  });
+
+  it("uses the single-month integration, never the two-month pair floor", () => {
+    // A pair puts both figures on one line. The difference floor combines two
+    // independently inverted months in quadrature; a lone total is one
+    // inversion scaled by one day count, so quoting the floor here would
+    // overstate the error on this claim by roughly sqrt(2).
+    const [january, february] = summarizeRenderedClimateSample(
+      {
+        metricId: "precipitation-rate",
+        months: [
+          { year: 2026, month: 1 },
+          { year: 2026, month: 2 },
+        ],
+        sampledValues: [3, 3.2],
+        nativeToSampledValueFactor: 86_400,
+        validFractions: [1, 1],
+      },
+      { year: 2026, month: 2 }
+    );
+    const detail = climateInsightText(january, february).detail;
+    expect(detail).toContain(
+      `integrated over the same 28 days is ${totalErrorText(28)} mm`
+    );
+    expect(detail).toContain(`${floorText(31, 28)} mm colormap-inversion`);
+    // The two figures are genuinely different claims, not one number restated.
+    expect(totalErrorText(28)).not.toBe(floorText(31, 28));
+  });
+
+  it("stays silent when the rendered total already sits at that place", () => {
+    // 3 mm/day over 31 days is exactly 93 mm: no digit past the millimetre.
+    const detail = climateInsightText(undefined, precipMonth(3)).detail;
+    expect(detail).toContain("31-day total 93 mm water-equivalent");
+    expect(detail).not.toContain("justifies reporting this total");
+  });
+
+  it("does not attach the total caveat to another metric", () => {
+    const [air] = summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [287.385],
+        nativeToSampledValueFactor: 1,
+        validFractions: [1],
+      },
+      { year: 2026, month: 1 }
+    );
+    const detail = climateInsightText(undefined, air).detail;
+    expect(detail).not.toContain("justifies reporting this total");
+    expect(detail).not.toContain("-day total");
+  });
+
+  /**
+   * Rounding to the justified place sends any amount below half that place to
+   * zero. On a ratio scale that is not a coarser rendering of the same reading:
+   * zero means none fell. Offering it as the justified report of a real arid
+   * month would state an absence the observation does not contain.
+   */
+  it("never offers a bare zero as the justified reading of a wet month", () => {
+    // 0.01 mm/day over 31 days is 0.31 mm — real, and under both errors.
+    const detail = climateInsightText(undefined, precipMonth(0.01)).detail;
+    expect(detail).toContain("31-day total 0.31 mm water-equivalent");
+    expect(detail).not.toContain("(0 mm)");
+    expect(detail).not.toContain("(0 mm/day)");
+    expect(detail).toContain(
+      `this total is smaller than the ${totalErrorText(31)} mm the ${MEASURED_INVERSION.precip.rmse} mm/day measured colormap-inversion error becomes over 31 days, so no digit of it is justified and it is not resolved from zero — which is not a report that no rain fell`
+    );
+    expect(detail).toContain(
+      `this rate is smaller than the ${MEASURED_INVERSION.precip.rmse} mm/day measured colormap-inversion error, so no digit of it is justified and it is not resolved from zero`
+    );
+    // Withholding the digits never withdraws the reported value itself.
+    expect(climateInsightText(undefined, precipMonth(0.01)).value).toBe(
+      "0.01 mm/day"
+    );
+  });
+
+  it("stays silent on a genuinely zero month rather than calling it unresolved", () => {
+    // A reported zero is already at its justified place; there is nothing to
+    // round away and no claim to withhold.
+    const detail = climateInsightText(undefined, precipMonth(0)).detail;
+    expect(detail).toContain("31-day total 0 mm water-equivalent");
+    expect(detail).not.toContain("not resolved from zero");
+    expect(detail).not.toContain("justifies reporting this total");
   });
 });
 
