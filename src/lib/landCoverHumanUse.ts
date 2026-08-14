@@ -133,6 +133,11 @@ export interface LandCoverHumanUseSummary {
  * degradation, conversion, ecological health, or any cause, and no categorical
  * class identifier is averaged.
  *
+ * The unambiguous clause names only the categories the region actually holds,
+ * so a purely cultivated region is never told it may be built-up and a purely
+ * built-up one is never told it may be cropland — the same standard the
+ * vegetation-index support clause in this status line applies to its surfaces.
+ *
  * Returns null when the classes record no human land use at all — a region of
  * ocean or unbroken forest gains no clause — and when no informative class was
  * observed, which the composition copy already states.
@@ -152,15 +157,50 @@ export function landCoverHumanUseNote(
 
   // Zero unambiguous human land use with mosaic present: leading on "0%" would
   // put an absence where the informative statement is the ambiguous class.
-  if (lowerBound === 0) {
+  const anthropogenic = sampledAnthropogenicSurfaces(summary);
+  if (lowerBound === 0 || anthropogenic === null) {
     return `No wholly cultivated or built-up class was sampled; ${mosaic}.`;
   }
 
-  const unambiguous = `Cropland or urban & built-up on ${shareText(
+  const unambiguous = `${anthropogenic.surfaces} on ${shareText(
     lowerBound
-  )} of classified pixels — the IGBP classes that record direct human land use`;
+  )} of classified pixels — ${anthropogenic.classPhrase}`;
   if (mosaicSampleCount === 0) return `${unambiguous}.`;
   return `${unambiguous}; a further ${mosaic}.`;
+}
+
+/**
+ * The unambiguously anthropogenic categories a region actually sampled, worded
+ * for the head of the clause.
+ *
+ * Naming both categories whenever either is present would tell a roadless
+ * farming region it may be urban, and a dense city that it may be cultivated —
+ * the class definitions record which one was observed, so the copy states it.
+ * The trailing phrase carries its own number agreement rather than being
+ * pluralised at the call site, so the noun and its verb cannot drift apart.
+ *
+ * Returns null when neither category was sampled; the caller then leads on the
+ * ambiguous mosaic instead.
+ */
+function sampledAnthropogenicSurfaces(
+  summary: LandCoverHumanUseSummary
+): { surfaces: string; classPhrase: string } | null {
+  const sampled = new Set(
+    summary.categoryCoverage
+      .filter((entry) => entry.sampleCount > 0)
+      .map((entry) => entry.id)
+  );
+  const cultivated = sampled.has("cultivated");
+  const built = sampled.has("built");
+  if (cultivated && built)
+    return {
+      surfaces: "Cropland or urban & built-up",
+      classPhrase: "the IGBP classes that record direct human land use",
+    };
+  const single = "the IGBP class that records direct human land use";
+  if (cultivated) return { surfaces: "Cropland", classPhrase: single };
+  if (built) return { surfaces: "Urban & built-up", classPhrase: single };
+  return null;
 }
 
 /**

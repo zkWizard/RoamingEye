@@ -10,7 +10,7 @@ import {
 import { vegetationIndexLegendNote } from "./vegetationIndexRenderedRange";
 import { PROBE_SCALES } from "./probe";
 import { LAYERS, LAYER_ORDER } from "./timeline";
-import { DEPTH_CLASS_COLORS } from "./earthquakes";
+import { DEPTH_CLASS_COLORS, MAGNITUDE_SIZE_BUCKETS } from "./earthquakes";
 import { ERUPTION_CLASS_COLORS, ERUPTION_CLASS_LABELS } from "./volcanoes";
 
 describe("LEGENDS", () => {
@@ -132,6 +132,66 @@ describe("OVERLAY_KEYS", () => {
       "year 0–1899",
       "BCE or undated",
     ]);
+  });
+});
+
+describe("OVERLAY_KEYS quake magnitude-size channel", () => {
+  it("names the second thing quake markers encode", () => {
+    // Color is depth; size is the reported magnitude. Only the first was ever
+    // stated, so the largest dots on the globe carried no stated meaning.
+    const size = OVERLAY_KEYS.quakes.secondary;
+    expect(size).toBeDefined();
+    expect(size!.title).toContain("size");
+    expect(size!.title).toContain("magnitude");
+  });
+
+  it("covers every rendered magnitude band, smallest first", () => {
+    expect(OVERLAY_KEYS.quakes.secondary!.entries.map((e) => e.label)).toEqual([
+      "< M5.5",
+      "M5.5–6.4",
+      "M6.5+",
+    ]);
+  });
+
+  it("takes its labels and ratios from the buckets the overlay draws with", () => {
+    // Same contract as the colors above: one definition, so the key cannot
+    // drift from the sizes on the globe.
+    const entries = OVERLAY_KEYS.quakes.secondary!.entries;
+    expect(entries.map((e) => e.label)).toEqual(
+      [...MAGNITUDE_SIZE_BUCKETS].reverse().map((b) => b.label)
+    );
+    const largest = Math.max(...MAGNITUDE_SIZE_BUCKETS.map((b) => b.size));
+    expect(entries.map((e) => e.scale)).toEqual(
+      [...MAGNITUDE_SIZE_BUCKETS].reverse().map((b) => b.size / largest)
+    );
+  });
+
+  it("scales swatches within the key's own size, largest anchored at 1", () => {
+    const scales = OVERLAY_KEYS.quakes.secondary!.entries.map((e) => e.scale!);
+    expect(Math.max(...scales)).toBe(1);
+    for (const scale of scales) {
+      expect(scale).toBeGreaterThan(0);
+      expect(scale).toBeLessThanOrEqual(1);
+    }
+    // Strictly increasing, so the row reads as a size ramp rather than three
+    // swatches that happen to differ.
+    expect([...scales].sort((a, b) => a - b)).toEqual(scales);
+  });
+
+  it("keeps the size swatches neutral so they assert no depth", () => {
+    // Depth already owns color on this overlay; tinting a size swatch with a
+    // depth color would claim a depth the magnitude band does not have.
+    for (const entry of OVERLAY_KEYS.quakes.secondary!.entries) {
+      expect(entry.color).not.toMatch(/^#/);
+      expect(Object.values(DEPTH_CLASS_COLORS)).not.toContain(entry.color);
+    }
+  });
+
+  it("leaves single-channel overlays without a second row", () => {
+    expect(OVERLAY_KEYS.volcanoes.secondary).toBeUndefined();
+    for (const entry of OVERLAY_KEYS.volcanoes.entries) {
+      expect(entry.scale).toBeUndefined();
+    }
   });
 });
 

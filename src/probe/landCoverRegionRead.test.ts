@@ -59,9 +59,8 @@ describe("human land use on the drawn-region reading", () => {
       SAMPLING
     );
 
-    expect(text).toContain(
-      "Cropland or urban & built-up on 50% of classified pixels"
-    );
+    // No urban class was sampled, so the clause names cropland alone.
+    expect(text).toContain("Cropland on 50% of classified pixels");
     expect(text).toContain(
       "a further 25% of classified pixels is the cropland/natural vegetation mosaic"
     );
@@ -93,7 +92,9 @@ describe("human land use on the drawn-region reading", () => {
     );
 
     const composition = text.indexOf("Cropland (IGBP class 12) most frequent");
-    const humanUse = text.indexOf("the IGBP classes that record direct human");
+    // Prefix of both the singular and plural forms: this asserts clause order,
+    // not which categories the fixture happened to sample.
+    const humanUse = text.indexOf("the IGBP class");
     const support = text.indexOf("MOD13A3 v061 NDVI/EVI reads as plant");
     const grid = text.indexOf("Sampled on a");
 

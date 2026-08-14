@@ -215,13 +215,58 @@ describe("landCoverHumanUseNote", () => {
   it("states one share when no ambiguous mosaic was sampled", () => {
     const text = note([
       { classCode: 12, sampleCount: 3 },
+      { classCode: 13, sampleCount: 1 },
+      { classCode: 10, sampleCount: 4 },
+    ]);
+
+    expect(text).toBe(
+      "Cropland or urban & built-up on 50% of classified pixels — the IGBP classes that record direct human land use."
+    );
+    expect(text).not.toContain("mosaic");
+  });
+
+  it("names only cropland when no built-up class was sampled", () => {
+    // A roadless farming region holds no urban class at all, so naming built-up
+    // beside it would offer a surface the IGBP classes did not record.
+    const text = note([
+      { classCode: 12, sampleCount: 3 },
       { classCode: 10, sampleCount: 1 },
     ]);
 
     expect(text).toBe(
-      "Cropland or urban & built-up on 75% of classified pixels — the IGBP classes that record direct human land use."
+      "Cropland on 75% of classified pixels — the IGBP class that records direct human land use."
     );
-    expect(text).not.toContain("mosaic");
+    expect(text).not.toContain("built-up");
+    // Narrowing to one category must carry its own number agreement.
+    expect(text).not.toContain("IGBP classes");
+  });
+
+  it("names only built-up land when no cropland class was sampled", () => {
+    const text = note([
+      { classCode: 13, sampleCount: 3 },
+      { classCode: 10, sampleCount: 1 },
+    ]);
+
+    expect(text).toBe(
+      "Urban & built-up on 75% of classified pixels — the IGBP class that records direct human land use."
+    );
+    expect(text).not.toContain("Cropland");
+    expect(text).not.toContain("IGBP classes");
+  });
+
+  it("does not let the mosaic stand in for an unsampled category", () => {
+    // The mosaic is neither category, so it must not stand in for the missing
+    // one: cropland + mosaic is still a cropland-only unambiguous clause.
+    const text = note([
+      { classCode: 12, sampleCount: 2 },
+      { classCode: 14, sampleCount: 1 },
+      { classCode: 10, sampleCount: 1 },
+    ]);
+
+    expect(text).toContain("Cropland on 50% of classified pixels");
+    expect(text).toContain("the IGBP class that records direct human land use");
+    expect(text).toContain("a further 25%");
+    expect(text).not.toContain("built-up on");
   });
 
   it("leads on the mosaic when no wholly cultivated or built-up class was sampled", () => {
