@@ -31,6 +31,10 @@ export class Toolbar {
         `<span class="toolbar__label">${overlay.label}</span>`;
 
       button.addEventListener("click", () => {
+        // Still waiting on the last enable's data. A second click here would
+        // start a duplicate fetch — or a second geolocation prompt — and leave
+        // the pressed state describing something other than what's drawn.
+        if (button.dataset.state === "pending") return;
         const on = button.getAttribute("aria-pressed") !== "true";
         button.setAttribute("aria-pressed", String(on));
         onToggle(overlay, on);
@@ -78,5 +82,27 @@ export class Toolbar {
    */
   setPressed(overlayId: string, on: boolean): void {
     this.buttons.get(overlayId)?.setAttribute("aria-pressed", String(on));
+  }
+
+  /**
+   * Mark an overlay's toggle as waiting on its data — the network fetch behind
+   * five of these, or the browser's geolocation prompt, which can sit for its
+   * full 10s timeout while the visitor decides.
+   *
+   * Without this the button looked identical the instant it was clicked and
+   * once the data had actually landed: same pressed styling, no ARIA state.
+   * `aria-busy` gives assistive tech the wait, `data-state` drives the spinner,
+   * and the click handler above uses it to swallow impatient double-taps.
+   */
+  setPending(overlayId: string, pending: boolean): void {
+    const button = this.buttons.get(overlayId);
+    if (!button) return;
+    if (pending) {
+      button.dataset.state = "pending";
+      button.setAttribute("aria-busy", "true");
+    } else {
+      delete button.dataset.state;
+      button.removeAttribute("aria-busy");
+    }
   }
 }

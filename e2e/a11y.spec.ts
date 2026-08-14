@@ -225,3 +225,61 @@ test("every keyboard stop paints an app-authored focus ring", async ({
     `keyboard stops falling back to the browser default focus ring:\n  ${weak.join("\n  ")}`
   ).toEqual([]);
 });
+
+/**
+ * An overlay toggle that is still fetching must say so. Five of the nine
+ * overlays fetch their data on first enable and a sixth waits on the browser's
+ * geolocation prompt; before this, the button looked the same the instant it
+ * was clicked as it did once the data had landed — same pressed styling, no
+ * ARIA state — so a slow network was indistinguishable from a dead control.
+ *
+ * Held delay well over the 150ms anti-flicker grace period, under the fetch's
+ * own patience, so the assertion isn't racing either boundary.
+ */
+test("an overlay toggle reports that it is waiting on its data", async ({
+  page,
+}) => {
+  let release: (() => void) | undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  await page.route("**/data/countries.geojson", async (route) => {
+    await held;
+    await route.continue();
+  });
+
+  await awaitAppInteractive(page);
+
+  const borders = page.locator(".toolbar__item", { hasText: "Borders" });
+  await expect(borders).toHaveAttribute("aria-pressed", "false");
+  await expect(borders).not.toHaveAttribute("aria-busy", "true");
+
+  await borders.click();
+
+  // Waiting: busy for assistive tech, spinner for everyone else.
+  await expect(borders).toHaveAttribute("aria-busy", "true");
+  await expect(borders).toHaveAttribute("data-state", "pending");
+  await expect(borders).toHaveAttribute("aria-pressed", "true");
+
+  const spinner = await borders.locator(".toolbar__icon").evaluate((el) => {
+    const ring = getComputedStyle(el, "::after");
+    return { content: ring.content, width: ring.width };
+  });
+  expect(spinner.content, "a pending toggle draws the loader ring").not.toBe(
+    "none"
+  );
+
+  // A second click while busy must not start a duplicate load, nor desync the
+  // pressed state from what is actually drawn.
+  await borders.click();
+  await expect(borders).toHaveAttribute("aria-pressed", "true");
+  await expect(borders).toHaveAttribute("aria-busy", "true");
+
+  release?.();
+
+  // Settled: the busy state clears and never lingers.
+  await expect(borders).not.toHaveAttribute("aria-busy", "true");
+  await expect(borders).not.toHaveAttribute("data-state", "pending");
+  await expect(borders).toHaveAttribute("aria-pressed", "true");
+});
