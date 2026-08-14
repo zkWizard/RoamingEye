@@ -5,6 +5,8 @@ import {
   LST_OBSERVING_CONSTRAINT_SOURCE,
   LST_SAMPLING_GATE_NOTE,
   probeLstSamplingGateClause,
+  lstCaptionConstraintOmissions,
+  formatLstCaptionOmission,
 } from "./lstObservingConstraints";
 import { LAYERS, LAYER_ORDER } from "./timeline";
 
@@ -139,5 +141,95 @@ describe("probe LST sampling-gate clause", () => {
     const clause = probeLstSamplingGateClause("lst", true);
     expect(clause).not.toMatch(/[.]$/);
     expect(clause).toMatch(/^Terra's\b/);
+  });
+});
+
+describe("lstCaptionConstraintOmissions", () => {
+  it("passes the caption the app actually ships", () => {
+    // The guard exists to keep this true. `Legend` renders the description
+    // verbatim under the globe, so a regression here ships to every reader who
+    // never opens the probe.
+    expect(
+      lstCaptionConstraintOmissions().map(formatLstCaptionOmission)
+    ).toEqual([]);
+  });
+
+  it("catches a caption that states the overpass gate but not the cloud one", () => {
+    // The defect this fixed, and the exact caption that shipped before it: one
+    // of two co-equal sampling gates named, which reads as the complete
+    // qualification rather than half of it. The ocean twin had already been
+    // corrected; the land caption still stated the overpass alone.
+    const omissions = lstCaptionConstraintOmissions(
+      "Daytime land-surface temperature (MODIS/Terra)."
+    );
+    expect(omissions.map((o) => o.constraintId)).toEqual([
+      "clear-sky-retrieval-only",
+    ]);
+    // The message quotes the constraint table rather than restating it, so the
+    // two can never drift into disagreeing about the same product.
+    const entry = LST_OBSERVING_CONSTRAINTS.find(
+      (c) => c.id === "clear-sky-retrieval-only"
+    )!;
+    expect(omissions[0].constraint).toBe(entry.constraint);
+    expect(omissions[0].implication).toBe(entry.implication);
+  });
+
+  it("catches a caption that drops both sampling gates", () => {
+    const omissions = lstCaptionConstraintOmissions(
+      "Land-surface temperature."
+    );
+    expect(omissions.map((o) => o.constraintId)).toEqual([
+      "morning-overpass-only",
+      "clear-sky-retrieval-only",
+    ]);
+  });
+
+  it("accepts any declared surface form of a gate", () => {
+    // Wording is a copy decision; the check is about what was said, not how.
+    for (const cloudPhrase of ["clear sky", "cloud-free", "cloud-screened"]) {
+      expect(
+        lstCaptionConstraintOmissions(
+          `Morning ${cloudPhrase} land-surface temp.`
+        )
+      ).toEqual([]);
+    }
+  });
+
+  it("never requires the skin-temperature constraint in the caption", () => {
+    // Deliberate: the caption already names the quantity it renders, which is
+    // what separates it from the 2 m air-temperature sibling, and the full
+    // constraint is stated on the probe status line and the place card. A
+    // one-sentence caption that tried to carry everything would push the
+    // sampling gates out.
+    const omissions = lstCaptionConstraintOmissions("Daytime clear-sky land.");
+    expect(omissions.map((o) => o.constraintId)).not.toContain(
+      "radiometric-skin-temperature"
+    );
+  });
+
+  it("matches case-insensitively", () => {
+    expect(
+      lstCaptionConstraintOmissions(
+        "DAYTIME CLEAR-SKY LAND-SURFACE TEMPERATURE."
+      )
+    ).toEqual([]);
+  });
+
+  it("asserts no magnitude, direction, hazard or health claim", () => {
+    // A caption audit reports which gate is unstated. It says nothing about how
+    // large either gate's effect is, and this product asserts no direction at
+    // all — see the module comment on why Terra's 10:30 crossing fixes no sign.
+    const messages = lstCaptionConstraintOmissions("Land-surface temperature.")
+      .map(formatLstCaptionOmission)
+      .join(" ");
+    expect(messages).not.toMatch(
+      /heat ?wave|hazard|health|comfort|urban heat|forecast|warmer|cooler|°|\d+\s*K\b/i
+    );
+  });
+
+  it("keeps the shipped caption inside the layer-caption length convention", () => {
+    // The captions render on one line under the globe; 71 characters is the
+    // longest the app ships, and the LST one must not become the new record.
+    expect(LAYERS.lst.description.length).toBeLessThanOrEqual(71);
   });
 });

@@ -179,3 +179,94 @@ export function probeLstSamplingGateClause(
   if (layerId !== LST_OBSERVING_CONSTRAINT_LAYER_ID) return "";
   return hasReportedStatistics ? LST_SAMPLING_GATE_NOTE : "";
 }
+
+/**
+ * Surface forms that count as stating a constraint in the rendered caption, or
+ * `null` for one the caption is not required to carry.
+ *
+ * `radiometric-skin-temperature` is `null` for the same reason its SST
+ * counterpart `near-surface-radiometric` is: the caption already names the
+ * quantity it renders ("land-surface temperature"), which is what distinguishes
+ * it from the 2 m air-temperature sibling, and a caption has no room for every
+ * qualifier — pretending otherwise would push the useful ones out.
+ *
+ * Keyed by `LstObservingConstraintId` on purpose: adding a fourth constraint
+ * fails to compile until someone decides whether the caption must carry it.
+ */
+const LST_CAPTION_CONSTRAINT_PHRASES: Record<
+  LstObservingConstraintId,
+  readonly string[] | null
+> = {
+  "morning-overpass-only": ["daytime", "day-time", "daylight", "morning"],
+  "clear-sky-retrieval-only": [
+    "clear-sky",
+    "clear sky",
+    "cloud-free",
+    "cloud free",
+    "cloud-screened",
+  ],
+  "radiometric-skin-temperature": null,
+};
+
+/** A sampling gate the rendered caption fails to state. */
+export interface LstCaptionOmission {
+  layerId: typeof LST_OBSERVING_CONSTRAINT_LAYER_ID;
+  constraintId: LstObservingConstraintId;
+  /** The product property the caption left out, verbatim from the table. */
+  constraint: string;
+  /** What omitting it lets a reader assume, verbatim from the table. */
+  implication: string;
+  reason: string;
+}
+
+/**
+ * Report every sampling gate the LST caption fails to state.
+ *
+ * `Legend` renders `LAYERS.lst.description` verbatim under the globe and
+ * `LayerSelector` uses it as the option tooltip, so that one sentence is the
+ * most-read claim the app makes about this layer — and for most readers the
+ * only one, since the probe and place surfaces need a gesture to reach. The
+ * caption named the daytime overpass and stopped there, while the constraint
+ * table beside it, `LST_SAMPLING_GATE_NOTE`, the place card and the probe
+ * status line all carry the clear-sky gate too. A caption that states one of
+ * two co-equal gates reads as the complete qualification, which is why this is
+ * a check and not a comment.
+ *
+ * This mirrors `sstCaptionConstraintOmissions` deliberately. The ocean twin's
+ * caption was corrected to name both gates; the land caption was left stating
+ * the overpass alone, even though thermal infrared is stopped by cloud over
+ * land exactly as it is over water, and land cloudiness is itself seasonal —
+ * so the absent days are not a random sample of the month.
+ *
+ * Limits of the check (it is a copy audit, nothing more):
+ *  - It matches declared surface forms. A clean audit means the caption states
+ *    the *checked* gates; it is not evidence the caption is complete or that
+ *    any other wording in it is accurate.
+ *  - It reads only the caption. It cannot confirm what the layer renders, and
+ *    it asserts no magnitude or direction for either gate — those stay where
+ *    `LST_OBSERVING_CONSTRAINTS` puts them, and that module asserts no
+ *    direction at all for this product.
+ *  - Nothing about weather, heat hazard, health or comfort follows from a
+ *    stated or an omitted gate.
+ */
+export function lstCaptionConstraintOmissions(
+  caption: string = LAYERS[LST_OBSERVING_CONSTRAINT_LAYER_ID].description
+): LstCaptionOmission[] {
+  const haystack = caption.toLowerCase();
+  return LST_OBSERVING_CONSTRAINTS.filter((entry) => {
+    const phrases = LST_CAPTION_CONSTRAINT_PHRASES[entry.id];
+    return phrases !== null && !phrases.some((p) => haystack.includes(p));
+  }).map((entry) => ({
+    layerId: LST_OBSERVING_CONSTRAINT_LAYER_ID,
+    constraintId: entry.id,
+    constraint: entry.constraint,
+    implication: entry.implication,
+    reason:
+      "The caption is the most-read claim the app makes about this layer, and it is the only LST surface a reader meets without a gesture; a sampling gate left out of it reads as a gate that does not apply.",
+  }));
+}
+
+/** One-line rendering of an omission, for a test failure message. */
+export function formatLstCaptionOmission(omission: LstCaptionOmission): string {
+  return `${omission.layerId}: caption omits ${omission.constraintId} — the product is ${omission.constraint}, so ${omission.implication}; ${omission.reason}`;
+}

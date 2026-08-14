@@ -277,7 +277,7 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     },
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 2000, month: 3 },
-    description: "Daytime land-surface temperature (MODIS/Terra).",
+    description: "Daytime clear-sky land-surface temperature (MODIS/Terra).",
   },
   airtemp: {
     id: "airtemp",
