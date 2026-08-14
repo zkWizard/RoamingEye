@@ -8,7 +8,6 @@ import {
   formatTimelineLabel,
   ymEqual,
   ymToIndex,
-  gibsWmsUrl,
   type LayerConfig,
   type LayerId,
   type YearMonth,
@@ -68,7 +67,7 @@ import { ProbeSampler } from "./probe/ProbeSampler";
 import { ProbePanel } from "./ui/ProbePanel";
 import { CompareController } from "./scene/CompareController";
 import { CompareControls } from "./ui/CompareControls";
-import { exportMonthStamp } from "./lib/compare";
+import { exportMonthStamp, imageryUrlExport } from "./lib/compare";
 import { ShareButton } from "./ui/ShareButton";
 import { ExportControls } from "./ui/ExportControls";
 import { ThemeToggle } from "./ui/ThemeToggle";
@@ -540,7 +539,14 @@ if (exportEl) {
         URL.revokeObjectURL(a.href);
       }, "image/png");
     },
-    imageryUrl: () => gibsWmsUrl(LAYERS[currentLayer], months[currentIndex]),
+    // A comparison is built from two GetMap requests, so the copied URL has
+    // to name both months — `showing` again, for the same reason as the PNG.
+    imageryUrl: () =>
+      imageryUrlExport(
+        LAYERS[currentLayer],
+        months[currentIndex],
+        compare.showing ? compare.pinned : undefined
+      ),
   });
 }
 
