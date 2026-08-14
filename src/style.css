@@ -949,8 +949,45 @@ body {
 }
 
 .toolbar__icon {
+  position: relative;
   width: 22px;
   height: 22px;
+}
+
+/* Waiting on this overlay's data — a network fetch for five of them, or the
+   browser's geolocation prompt. Same ring as the boot loader, so "fetching"
+   reads the same wherever it happens. The ring sits inside the fixed 22px icon
+   box and the icon only fades, so a pending button never changes size: at
+   phone widths this toolbar is a row above the HUD, where a control that grows
+   pushes the panel up over the globe. */
+.toolbar__item[data-state="pending"] {
+  cursor: progress;
+}
+
+.toolbar__item[data-state="pending"] .toolbar__icon svg {
+  opacity: 0.2;
+}
+
+.toolbar__item[data-state="pending"] .toolbar__icon::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  /* currentColor, not --accent: while pending the button is already pressed,
+     and an accent ring on the accent fill would be invisible. */
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* A frozen arc reads as an icon, not as activity — close the ring so the
+     dimmed icon still has an unmistakable "not settled" mark over it. */
+  .toolbar__item[data-state="pending"] .toolbar__icon::after {
+    border-color: currentColor;
+    opacity: 0.5;
+    animation: none;
+  }
 }
 
 .toolbar__icon svg {
