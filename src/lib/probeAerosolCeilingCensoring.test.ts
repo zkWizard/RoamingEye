@@ -5,6 +5,7 @@ import {
   aerosolCeilingCensoringClause,
   aerosolCeilingCensoringCsvHeaders,
   probeAerosolCeilingCensoring,
+  PROBE_AEROSOL_CEILING_CENSORING_LIMITATIONS,
 } from "./probeAerosolCeilingCensoring";
 import { AEROSOL_RENDERED_RAMP_MAX } from "./aerosolLoading";
 import { COLORMAP_DOCS, colormapUrl } from "./colormap";
@@ -102,6 +103,15 @@ describe("probeAerosolCeilingCensoring", () => {
   });
 });
 
+describe("PROBE_AEROSOL_CEILING_CENSORING_LIMITATIONS", () => {
+  it("keeps the mean's direction and the trend's refusal on the record", () => {
+    const text = PROBE_AEROSOL_CEILING_CENSORING_LIMITATIONS.join(" ");
+    expect(text).toContain("understates the true mean");
+    expect(text).toMatch(/no direction is claimed for it/);
+    expect(text).toContain("within-season pairs");
+  });
+});
+
 describe("aerosolCeilingBoundPrefix", () => {
   const censored = probeAerosolCeilingCensoring("aerosol", [0.2, 0.8975]);
   const clean = probeAerosolCeilingCensoring("aerosol", [0.2, 0.4]);
@@ -125,50 +135,98 @@ describe("aerosolCeilingBoundPrefix", () => {
 });
 
 describe("aerosolCeilingCensoringClause", () => {
+  // The status line only ever prints a trend it could fit; `testable` is the
+  // flag trendClause itself switches on between a slope and "insufficient
+  // record", so the clause is exercised on both sides of it.
+  const fitted = { testable: true };
+  const tooShort = { testable: false };
+
   it("stays silent for another layer and for a clean record", () => {
     expect(
-      aerosolCeilingCensoringClause(probeAerosolCeilingCensoring("sst", [0.9]))
+      aerosolCeilingCensoringClause(
+        probeAerosolCeilingCensoring("sst", [0.9]),
+        fitted
+      )
     ).toBeNull();
     expect(
       aerosolCeilingCensoringClause(
-        probeAerosolCeilingCensoring("aerosol", [0.1, 0.2])
+        probeAerosolCeilingCensoring("aerosol", [0.1, 0.2]),
+        fitted
       )
     ).toBeNull();
   });
 
   it("names the tally, the open cap, the affected statistics and the source", () => {
     const clause = aerosolCeilingCensoringClause(
-      probeAerosolCeilingCensoring("aerosol", [0.1, 0.8975, 0.8975])
+      probeAerosolCeilingCensoring("aerosol", [0.1, 0.8975, 0.8975]),
+      fitted
     );
     expect(clause).toBe(
       "2 of 3 sampled months rest on the aerosol colormap's open top bin " +
         "(every column AOD at or above 0.900 at 550 nm shares one colour), " +
         "so max and mean are lower bounds on possibly heavier columns and the " +
-        "trend fitted over the same series inherits that censoring; min is " +
-        "unaffected because the ramp's low end is closed at 0 (source " +
+        "trend fitted over the same series inherits that censoring but not its " +
+        "direction, because a substituted cap moves a seasonal median whichever " +
+        "way the record's shape decides; min is unaffected because the ramp's " +
+        "low end is closed at 0 (source " +
         "MERRA2_Total_Aerosol_Optical_Thickness_550nm_Extinction_Monthly colormap)"
     );
   });
 
+  it("bounds the mean but refuses to sign the trend it names", () => {
+    const clause =
+      aerosolCeilingCensoringClause(
+        probeAerosolCeilingCensoring("aerosol", [0.2, 0.8975]),
+        fitted
+      ) ?? "";
+    // The mean keeps its direction — one open cap can only bias it downward.
+    expect(clause).toContain("max and mean are lower bounds");
+    // The trend must not inherit it. Sen's slope is a median of within-season
+    // pairwise slopes and a capped month is the earlier member of some pairs
+    // and the later member of others (Helsel 2012, section 11), so the clause
+    // may not leave a signed slope standing.
+    expect(clause).toContain("inherits that censoring but not its direction");
+    expect(clause).not.toMatch(/trend[^;]*\b(lower|upper) bound/);
+  });
+
+  it("omits the trend entirely when the record was too short to fit one", () => {
+    // trendClause prints "trend: insufficient record" here, so there is no
+    // numeric claim to qualify — naming a censored trend would invent one.
+    const clause =
+      aerosolCeilingCensoringClause(
+        probeAerosolCeilingCensoring("aerosol", [0.2, 0.8975]),
+        tooShort
+      ) ?? "";
+    expect(clause).not.toContain("trend");
+    // The statistics that were reported still carry their bounds.
+    expect(clause).toContain("max and mean are lower bounds");
+    expect(clause).toContain("min is unaffected");
+    expect(clause).toContain(COLORMAP_DOCS.aerosol);
+  });
+
   it("keeps the tally singular for a one-month record", () => {
     const clause = aerosolCeilingCensoringClause(
-      probeAerosolCeilingCensoring("aerosol", [0.8975])
+      probeAerosolCeilingCensoring("aerosol", [0.8975]),
+      fitted
     );
     expect(clause).toContain("1 of 1 sampled month rests on");
   });
 
   it("claims no air-quality, health or forecast meaning", () => {
-    const clause =
-      aerosolCeilingCensoringClause(
-        probeAerosolCeilingCensoring("aerosol", [0.8975])
-      ) ?? "";
-    for (const forbidden of [
-      "air quality",
-      "health",
-      "forecast",
-      "unhealthy",
-    ]) {
-      expect(clause.toLowerCase()).not.toContain(forbidden);
+    for (const trend of [fitted, tooShort]) {
+      const clause =
+        aerosolCeilingCensoringClause(
+          probeAerosolCeilingCensoring("aerosol", [0.8975]),
+          trend
+        ) ?? "";
+      for (const forbidden of [
+        "air quality",
+        "health",
+        "forecast",
+        "unhealthy",
+      ]) {
+        expect(clause.toLowerCase()).not.toContain(forbidden);
+      }
     }
   });
 });

@@ -400,8 +400,18 @@ export class ProbePanel {
       this.context?.layerId,
       physical
     );
-    const aerosolCensoringClause =
-      aerosolCeilingCensoringClause(aerosolCensoring);
+    // The trend goes in for the same reason the SST clause takes one: this
+    // clause qualifies the trend printed a few fields earlier, so it must know
+    // whether one was fitted at all. It also stops the direction there. Having
+    // just called max and mean LOWER bounds, saying the trend inherits "that
+    // censoring" would hand the reader a signed slope the estimator cannot
+    // support — a capped month sits in some within-season pairs as the earlier
+    // member and in others as the later one. The downloaded CSV has refused
+    // that direction since the export headers landed; the status line had not.
+    const aerosolCensoringClause = aerosolCeilingCensoringClause(
+      aerosolCensoring,
+      trend
+    );
     // And that screen has the same blind spot on an averaged footprint that the
     // SST one does, for the same reason: it reads the region's monthly MEANS,
     // and a mean of capped and resolved pixels lands inside the finite ramp.
