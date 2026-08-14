@@ -26,6 +26,10 @@ import {
   probeInversionAccuracy,
 } from "./lib/probeInversionAccuracy";
 import {
+  probeSstColdEndAccuracy,
+  sstColdEndAccuracyCsvHeaders,
+} from "./lib/sstColdEndAccuracy";
+import {
   probeSstExtremeCensoring,
   sstExtremeCensoringCsvHeaders,
 } from "./lib/probeSstExtremeCensoring";
@@ -993,9 +997,22 @@ if (probeEl) {
                 generatedIso: new Date().toISOString(),
                 toolVersion: __APP_VERSION__,
                 viewUrl: currentShareUrl(),
-                inversionAccuracyHeaders: inversionAccuracyCsvHeaders(
-                  probeInversionAccuracy(layer.id, scale)
-                ),
+                // That RMSE is pooled over the whole ramp, and SST's is
+                // measured to be about three times worse below 4 °C. The
+                // status line already carries the split; the file needs it
+                // more, because it states its accuracy once at the top as a
+                // rule covering every row and then outlives the session that
+                // would have given the reader context. Judged on the physical
+                // series the file writes. Empty for every other layer and for
+                // an SST record that never enters the band.
+                inversionAccuracyHeaders: [
+                  ...inversionAccuracyCsvHeaders(
+                    probeInversionAccuracy(layer.id, scale)
+                  ),
+                  ...sstColdEndAccuracyCsvHeaders(
+                    probeSstColdEndAccuracy(layer.id, physical)
+                  ),
+                ],
                 // The status line already qualifies the on-screen month
                 // count; the exported file outlives the session, so it
                 // carries the same correction.
@@ -1207,9 +1224,22 @@ if (probeEl) {
                 generatedIso: new Date().toISOString(),
                 toolVersion: __APP_VERSION__,
                 viewUrl: currentShareUrl(),
-                inversionAccuracyHeaders: inversionAccuracyCsvHeaders(
-                  probeInversionAccuracy(layer.id, scale)
-                ),
+                // That RMSE is pooled over the whole ramp, and SST's is
+                // measured to be about three times worse below 4 °C. The
+                // status line already carries the split; the file needs it
+                // more, because it states its accuracy once at the top as a
+                // rule covering every row and then outlives the session that
+                // would have given the reader context. Judged on the physical
+                // series the file writes. Empty for every other layer and for
+                // an SST record that never enters the band.
+                inversionAccuracyHeaders: [
+                  ...inversionAccuracyCsvHeaders(
+                    probeInversionAccuracy(layer.id, scale)
+                  ),
+                  ...sstColdEndAccuracyCsvHeaders(
+                    probeSstColdEndAccuracy(layer.id, physical)
+                  ),
+                ],
                 // The status line already qualifies the on-screen month
                 // count; the exported file outlives the session, so it
                 // carries the same correction.
