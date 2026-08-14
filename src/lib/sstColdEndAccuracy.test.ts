@@ -13,11 +13,17 @@ import {
   inversionAccuracyCsvHeaders,
   probeInversionAccuracy,
 } from "./probeInversionAccuracy";
+import { probeSstExtremeCensoring } from "./probeSstExtremeCensoring";
+import { SST_PUBLISHED_RAMP } from "./sstRampCensoring";
 
 /** Ordinary subtropical water, far above the cold-end split. */
 const INTERIOR = 18.4;
 /** Sub-polar water inside the band the whole-ramp figure does not describe. */
 const COLD = 1.2;
+/** A month the published ramp collapsed into its open low cap. */
+const FLOOR = SST_PUBLISHED_RAMP.floorBin.lo + 0.075;
+/** A month in its open high cap, which no cold-band screen can reach. */
+const CEILING = SST_PUBLISHED_RAMP.ceilingBin.lo + 0.1;
 
 describe("probeSstColdEndAccuracy", () => {
   it("is inapplicable for every layer but SST", () => {
@@ -244,5 +250,129 @@ describe("sstColdEndAccuracyCsvHeaders", () => {
     )) {
       expect(header.startsWith("# inversion_validation_cold_end")).toBe(true);
     }
+  });
+});
+
+describe("cold-band months the ramp capped rather than resolved", () => {
+  const censoring = (values: readonly (number | null)[]) =>
+    probeSstExtremeCensoring("sst", values);
+
+  it("co-fires with the ramp screen on every capped record", () => {
+    // Not an overlap to be handled defensively but the normal case: the low cap
+    // collapses water below 0.00 °C, which decodes far under the 4 °C split, so
+    // a record that reaches the cap is always inside this band too.
+    const values = [FLOOR, INTERIOR];
+    expect(probeSstExtremeCensoring("sst", values).floorMonthCount).toBe(1);
+    const reading = probeSstColdEndAccuracy("sst", values, censoring(values));
+    expect(reading.applies).toBe(true);
+    expect(reading.cappedMonths).toBe(1);
+  });
+
+  it("counts no capped month when the caller supplies no screen", () => {
+    // The optional argument leaves the question unmeasured rather than answered
+    // in the negative, and every caller that had not supplied it reads exactly
+    // as it did before.
+    const reading = probeSstColdEndAccuracy("sst", [FLOOR, INTERIOR]);
+    expect(reading.applies).toBe(true);
+    expect(reading.cappedMonths).toBe(0);
+    expect(sstColdEndAccuracyClause(reading)).not.toContain("capped");
+  });
+
+  it("ignores the ceiling cap, which cannot reach this band", () => {
+    const values = [CEILING, COLD];
+    const screen = censoring(values);
+    expect(screen.ceilingMonthCount).toBe(1);
+    expect(screen.floorMonthCount).toBe(0);
+    expect(probeSstColdEndAccuracy("sst", values, screen).cappedMonths).toBe(0);
+  });
+
+  it("ignores a screen that judged another layer or nothing at all", () => {
+    for (const screen of [
+      probeSstExtremeCensoring("ndvi", [FLOOR]),
+      probeSstExtremeCensoring("sst", [null]),
+    ]) {
+      expect(screen.applicable).toBe(false);
+      expect(
+        probeSstColdEndAccuracy("sst", [FLOOR, INTERIOR], screen).cappedMonths
+      ).toBe(0);
+    }
+  });
+
+  it("withholds the ± band from the capped months on the status line", () => {
+    const values = [FLOOR, COLD, INTERIOR];
+    const clause = sstColdEndAccuracyClause(
+      probeSstColdEndAccuracy("sst", values, censoring(values))
+    );
+    // The band figure it corrects still has to be there — the point is that the
+    // ± no longer stands unqualified over a row whose error is unbounded.
+    expect(clause).toContain(
+      `±${SST_COLD_END_ACCURACY.coldBandRmseC.toFixed(1)} °C`
+    );
+    expect(clause).toContain("neither band describes the 1 capped month");
+    // Singular and plural, so the clause never says "1 capped months".
+    const two = [FLOOR, 0.05, INTERIOR];
+    expect(
+      sstColdEndAccuracyClause(
+        probeSstColdEndAccuracy("sst", two, censoring(two))
+      )
+    ).toContain("2 capped months");
+  });
+
+  it("marks the coldest value as a bound in the exported file", () => {
+    const values = [FLOOR, COLD, INTERIOR];
+    const headers = sstColdEndAccuracyCsvHeaders(
+      probeSstColdEndAccuracy("sst", values, censoring(values))
+    );
+    const rows = headers.find((h) =>
+      h.startsWith("# inversion_validation_cold_end_rows:")
+    );
+    // The coldest month IS the series minimum, which the ramp screen elsewhere
+    // in the same file declares an upper bound. Printed bare it reads as a
+    // measurement — the defect the status line's inequality already prevents.
+    expect(rows).toContain(`coldest ≤ ${FLOOR.toFixed(1)} °C`);
+    expect(rows).not.toContain(`coldest ${FLOOR.toFixed(1)} °C`);
+  });
+
+  it("adds one export line naming the rows neither band covers", () => {
+    const values = [FLOOR, COLD, INTERIOR];
+    const headers = sstColdEndAccuracyCsvHeaders(
+      probeSstColdEndAccuracy("sst", values, censoring(values))
+    );
+    expect(headers.length).toBe(5);
+    const capped = headers.find((h) =>
+      h.startsWith("# inversion_validation_cold_end_capped:")
+    );
+    expect(capped).toBeDefined();
+    expect(capped).toContain("1 of those months");
+    expect(capped).toContain("unbounded");
+    // It points at the block that states the direction rather than restating it,
+    // so the two screens cannot drift into disagreeing.
+    expect(capped).toContain("sst_ramp_censoring");
+    // And it sits between the row count it qualifies and the screen caveat.
+    expect(headers.indexOf(capped as string)).toBe(3);
+    for (const header of headers) {
+      expect(header.startsWith("# inversion_validation_cold_end")).toBe(true);
+      expect(header).not.toContain(",");
+      expect(header).not.toContain('"');
+      expect(csvHeaderText(header)).toBe(header);
+    }
+  });
+
+  it("stays silent in the export when nothing was capped", () => {
+    const values = [COLD, INTERIOR];
+    const headers = sstColdEndAccuracyCsvHeaders(
+      probeSstColdEndAccuracy("sst", values, censoring(values))
+    );
+    // A sub-polar record that never reached the cap is byte-identical to the
+    // file it produced before this qualifier existed.
+    expect(headers).toEqual(
+      sstColdEndAccuracyCsvHeaders(probeSstColdEndAccuracy("sst", values))
+    );
+  });
+
+  it("names the limit in the module's own disclosure list", () => {
+    expect(SST_COLD_END_ACCURACY_LIMITATIONS.join(" ")).toContain(
+      "open low cap"
+    );
   });
 });
