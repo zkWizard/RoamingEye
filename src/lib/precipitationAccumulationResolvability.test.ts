@@ -4,7 +4,9 @@ import { SCALE_CONVERSIONS } from "./colormap";
 import {
   PRECIP_ACCUMULATION_RESOLVABILITY_LIMITATIONS,
   PRECIP_INVERSION_REPORTED_UNIT,
+  PRECIPITATION_RATE_METRIC_ID,
   describePrecipitationAccumulationResolvability,
+  precipitationInversionRmseMmPerDay,
 } from "./precipitationAccumulationResolvability";
 import { PRECIP_ACCUMULATION_CHANGE_THRESHOLD_MM } from "./precipitationAccumulationChange";
 import { MEASURED_INVERSION } from "./validation";
@@ -162,5 +164,42 @@ describe("describePrecipitationAccumulationResolvability", () => {
         limit.includes("not added to the land-model product's own")
       )
     ).toBe(true);
+  });
+});
+
+/**
+ * The published figure is shared with a second claim on the same readout — the
+ * rounding place it justifies for the absolute mm/day rate — so it is exported
+ * from one definition rather than re-derived beside each consumer.
+ */
+describe("precipitationInversionRmseMmPerDay", () => {
+  it("reports the committed figure in the unit it is documented in", () => {
+    expect(precipitationInversionRmseMmPerDay()).toBe(RATE_RMSE);
+    expect(PRECIP_INVERSION_REPORTED_UNIT).toBe("mm/day");
+  });
+
+  it("is the figure the accumulation floor is built from", () => {
+    // One definition, two consumers: the floor a caller can observe must be
+    // reconstructible from the exported figure alone, or the two have drifted.
+    const result = describePrecipitationAccumulationResolvability(
+      0,
+      31,
+      30,
+      SOURCE
+    );
+    const rate = precipitationInversionRmseMmPerDay();
+    expect(rate).not.toBeNull();
+    expect(result?.rateRmseMmPerDay).toBe(rate);
+    expect(result?.differenceFloorMm).toBeCloseTo(
+      (rate as number) * Math.hypot(31, 30),
+      10
+    );
+  });
+
+  it("names the metric its figures describe", () => {
+    // The rate error belongs to precipitation observations only; a consumer
+    // scoping a clause by metric id must not have to spell the literal itself.
+    expect(PRECIPITATION_RATE_METRIC_ID).toBe("precipitation-rate");
+    expect(CLIMATE_METRICS[PRECIPITATION_RATE_METRIC_ID].source).toBe(SOURCE);
   });
 });
