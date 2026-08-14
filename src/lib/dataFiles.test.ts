@@ -8,6 +8,7 @@ import {
   parseVolcanoDataset,
 } from "./volcanoes";
 import { canonicalVolcanoType } from "./volcanoMorphology";
+import { PROVIDERS } from "./providers";
 import { parsePlateBoundaries, plateBoundaryClass } from "./plates";
 import { decodePlatePair } from "./platePairs";
 import { buildAdmin1Index, buildCountryIndex } from "./countryIndex";
@@ -44,6 +45,28 @@ describe("bundled data files", () => {
     expect(
       volcanoes.filter((v) => v.lastEruptionYear !== null).length
     ).toBeGreaterThanOrEqual(500);
+  });
+
+  it("the GVP provider caption describes the bundled records honestly", () => {
+    // The providers page renders this description verbatim, so it is a science
+    // claim about the shipped snapshot. GVP's inventory is Holocene *activity*,
+    // and a large minority of it carries no dated eruption — a caption saying
+    // "with eruption history" would assert one for every record. Measured
+    // against the real file through the app's own parser, so a regeneration
+    // that moved the fraction out of "about a third" fails here.
+    const volcanoes = parseVolcanoDataset(load("volcanoes.json")).volcanoes;
+    const undated = volcanoes.filter((v) => v.lastEruptionYear === null);
+    const undatedShare = undated.length / volcanoes.length;
+    expect(undatedShare).toBeGreaterThan(0.2);
+    expect(undatedShare).toBeLessThan(0.45);
+
+    const gvp = PROVIDERS.find((p) =>
+      p.name.includes("Global Volcanism Program")
+    );
+    expect(gvp).toBeDefined();
+    // Must not claim a dated eruption for the whole population.
+    expect(gvp?.description).not.toMatch(/volcanoes with eruption history/i);
+    expect(gvp?.description).toMatch(/no dated eruption/i);
   });
 
   it("every volcanoes.json type label canonicalizes to a clean landform", () => {
