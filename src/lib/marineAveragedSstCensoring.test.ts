@@ -3,6 +3,7 @@ import {
   averagedSstCensoringNote,
   marineAveragedSstCensoringCsvHeaders,
   marineBoundaryMeanSstCensoringNote,
+  marineBoundaryMeanSstDifferenceCensoringNote,
   summarizeMarineAveragedSstCensoring,
 } from "./marineAveragedSstCensoring";
 import { probeSstExtremeCensoring } from "./probeSstExtremeCensoring";
@@ -301,5 +302,55 @@ describe("marineBoundaryMeanSstCensoringNote", () => {
     expect(
       marineBoundaryMeanSstCensoringNote(summarizeSstRampCensoring(null), null)
     ).toBeNull();
+  });
+});
+
+describe("the standalone clause for a difference printed on its own line", () => {
+  it("explains a silence as unscreened rather than clean", () => {
+    const note = marineBoundaryMeanSstDifferenceCensoringNote("none");
+    expect(note).toContain("two area-weighted boundary means");
+    expect(note).toContain("absence of an inequality");
+    expect(note).toContain("not evidence that either month's boundary");
+  });
+
+  it("explains a printed inequality as read off the means", () => {
+    for (const bound of ["lower", "upper"] as const) {
+      const note = marineBoundaryMeanSstDifferenceCensoringNote(bound);
+      expect(note).toContain("read off two area-weighted boundary means");
+      expect(note).toContain(
+        "leaves censoring inside either month's footprint undetected"
+      );
+      // Printing "the absence of an inequality" beside a visible ≥/≤ would be
+      // flatly wrong, so the two wordings must never cross over.
+      expect(note).not.toContain("absence of an inequality");
+    }
+  });
+
+  it("says nothing where no difference was stated", () => {
+    // `indeterminate` is a WITHHELD difference: no claim survives to qualify.
+    for (const bound of [undefined, null, "indeterminate"] as const) {
+      expect(marineBoundaryMeanSstDifferenceCensoringNote(bound)).toBeNull();
+    }
+  });
+
+  it("stands on its own, without leaning on a preceding mean clause", () => {
+    // The month-over-month line is appended after everything the place insight
+    // wrote, and the mean's own note is omitted for a value outside the
+    // published ramp — so this clause can arrive with no antecedent at all.
+    for (const bound of ["none", "lower", "upper"] as const) {
+      const note = marineBoundaryMeanSstDifferenceCensoringNote(bound) ?? "";
+      expect(note).not.toMatch(/two such means|that same rule|as well/);
+      expect(note).toContain("area-weighted boundary means");
+    }
+  });
+
+  it("claims no direction, magnitude, or biological consequence", () => {
+    for (const bound of ["none", "lower", "upper"] as const) {
+      const note = marineBoundaryMeanSstDifferenceCensoringNote(bound) ?? "";
+      expect(note).not.toMatch(/warmer|cooler|colder|unchanged|≤|≥/);
+      expect(note).not.toMatch(
+        /marine|biolog|ecosystem|habitat|sea-ice|heatwave|forecast/i
+      );
+    }
   });
 });

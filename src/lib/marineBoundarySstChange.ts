@@ -1,3 +1,4 @@
+import { marineBoundaryMeanSstDifferenceCensoringNote } from "./marineAveragedSstCensoring";
 import type { MarinePlaceInsightReading } from "./marinePlaceInsight";
 import {
   describeSstDifferenceCensoring,
@@ -264,6 +265,14 @@ function trendFor(
  * A compact, honest one-line readout of the change, matching the place panel's
  * cited-readout style. Non-`available` results are reported plainly rather than
  * dressed up as a number.
+ *
+ * Every stated change carries the averaged-footprint qualification, because both
+ * endpoints are area-weighted boundary means and `describeSstDifferenceCensoring`
+ * screens the pair by reading those means. A mean of capped and resolved pixels
+ * lands inside the finite ramp, so the whole apparatus the reader can see here —
+ * the `≥`/`≤` prefix, the suppressed direction — fires only when a mean itself
+ * reached a terminal bin, which averaging is what prevents. The withheld branches
+ * take no clause: they state no change, so there is nothing to qualify.
  */
 export function formatMarineBoundarySstChange(
   change: MarineBoundarySstChange
@@ -276,16 +285,34 @@ export function formatMarineBoundarySstChange(
   }
 
   const magnitude = `${change.censoring.boundPrefix}${formatSigned(change.changeValue)} °C`;
+  const censoringNote = averagedCensoringSuffix(change);
   if (change.trend === null) {
     // A censored endpoint bounded the change on one side only, and that bound
     // does not reach the direction threshold. Say the direction is unestablished
     // rather than borrowing "little change", which would claim the opposite side.
-    return `${laterLabel} vs ${earlierLabel}: direction not established (${magnitude}, censored endpoint)`;
+    return `${laterLabel} vs ${earlierLabel}: direction not established (${magnitude}, censored endpoint)${censoringNote}`;
   }
   if (change.trend === "little-change") {
-    return `${laterLabel} vs ${earlierLabel}: little change (${magnitude})`;
+    return `${laterLabel} vs ${earlierLabel}: little change (${magnitude})${censoringNote}`;
   }
-  return `${laterLabel} vs ${earlierLabel}: ${change.trend} (${magnitude})`;
+  return `${laterLabel} vs ${earlierLabel}: ${change.trend} (${magnitude})${censoringNote}`;
+}
+
+/**
+ * The trailing clause saying what the end-cap screen on this difference could not
+ * see, or "" when there is nothing to add.
+ *
+ * The place card's year-over-year difference already carries this qualification;
+ * this line reached the same card, built from the same two averaged means by the
+ * same screen, and printed bare. Worse than bare: the sibling's caveat names "the
+ * year-over-year difference above", so the reader met one difference qualified by
+ * name and a second, of identical construction, not mentioned.
+ */
+function averagedCensoringSuffix(change: MarineBoundarySstChange): string {
+  const note = marineBoundaryMeanSstDifferenceCensoringNote(
+    change.censoring.bound
+  );
+  return note === null ? "" : ` — ${note}`;
 }
 
 /**
