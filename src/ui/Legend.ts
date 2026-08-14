@@ -7,6 +7,7 @@ import {
   legendTicks,
   overlayKeyFor,
   type LegendProvenance,
+  type OverlayKeyChannel,
 } from "../lib/legend";
 import {
   terrainLayerContext,
@@ -34,7 +35,8 @@ export class Legend {
   private readonly caption: HTMLParagraphElement;
   private readonly sourceNote: HTMLParagraphElement;
   private readonly keys: HTMLDivElement;
-  private readonly keyRows = new Map<string, HTMLElement>();
+  /** Rendered rows per overlay id — one per channel that overlay encodes. */
+  private readonly keyRows = new Map<string, HTMLElement[]>();
   private readonly classes: HTMLDivElement;
   private scaleRow!: HTMLElement;
   /**
@@ -118,7 +120,7 @@ export class Legend {
   setOverlayKey(id: string, on: boolean): void {
     const existing = this.keyRows.get(id);
     if (!on) {
-      existing?.remove();
+      for (const row of existing ?? []) row.remove();
       this.keyRows.delete(id);
       return;
     }
@@ -126,28 +128,16 @@ export class Legend {
     const spec = overlayKeyFor(id);
     if (!spec) return;
 
-    const key = document.createElement("div");
-    key.className = "legend__key";
-
-    const title = document.createElement("span");
-    title.className = "legend__key-title";
-    title.textContent = spec.title;
-    key.append(title);
-
-    for (const entry of spec.entries) {
-      const item = document.createElement("span");
-      item.className = "legend__key-item";
-      const swatch = document.createElement("span");
-      swatch.className = "legend__swatch";
-      swatch.style.background = entry.color;
-      const label = document.createElement("span");
-      label.textContent = entry.label;
-      item.append(swatch, label);
-      key.append(item);
-    }
-
-    this.keys.append(key);
-    this.keyRows.set(id, key);
+    // One row per channel. `.legend__keys` already stacks its children, so an
+    // overlay encoding both color and size renders as two rows with no new
+    // layout rules; both are tracked together so one toggle removes both.
+    const channels = spec.secondary ? [spec, spec.secondary] : [spec];
+    const rows = channels.map((channel) => {
+      const key = buildKeyRow(channel);
+      this.keys.append(key);
+      return key;
+    });
+    this.keyRows.set(id, rows);
   }
 
   /** Point the legend at a different data layer. */
@@ -268,4 +258,50 @@ export class Legend {
       provenance.note ? `. ${provenance.note}` : "."
     );
   }
+}
+
+/**
+ * The key's default swatch diameter, in rem — the value `.legend__swatch`
+ * carries in the stylesheet. Scaled entries are sized against it here rather
+ * than in CSS, because the ratios come from the overlay's own bucket sizes.
+ */
+const SWATCH_REM = 0.55;
+
+/**
+ * Build one channel's row: a title and its swatch/label pairs.
+ *
+ * A scaled entry is drawn at the overlay's own size ratio, anchored so the
+ * largest swatch matches the unscaled default — the row shows the real
+ * relationship between markers without becoming taller than the rows beside it.
+ */
+function buildKeyRow(channel: OverlayKeyChannel): HTMLDivElement {
+  const key = document.createElement("div");
+  key.className = "legend__key";
+
+  const title = document.createElement("span");
+  title.className = "legend__key-title";
+  title.textContent = channel.title;
+  key.append(title);
+
+  for (const entry of channel.entries) {
+    const item = document.createElement("span");
+    item.className = "legend__key-item";
+    const swatch = document.createElement("span");
+    swatch.className = "legend__swatch";
+    swatch.style.background = entry.color;
+    if (entry.scale !== undefined) {
+      const diameter = `${(SWATCH_REM * entry.scale).toFixed(3)}rem`;
+      swatch.style.width = diameter;
+      swatch.style.height = diameter;
+      // Keeps the smaller swatches on the same baseline as their labels once
+      // they no longer fill the row's default height.
+      swatch.style.flex = "0 0 auto";
+    }
+    const label = document.createElement("span");
+    label.textContent = entry.label;
+    item.append(swatch, label);
+    key.append(item);
+  }
+
+  return key;
 }
