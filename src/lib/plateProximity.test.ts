@@ -4,6 +4,7 @@ import { BIRD_2003_PLATE_BOUNDARY_SOURCE } from "./plateBoundaryContext";
 import {
   nearestPlateBoundary,
   nearestPlateBoundaryStatement,
+  placePointPlateQuery,
   PLATE_PROXIMITY_UNITS,
 } from "./plateProximity";
 import {
@@ -200,7 +201,11 @@ describe("nearestPlateBoundaryStatement", () => {
     // One boundary must read identically wherever it appears, so the sentence
     // is built from the same decoder the hover label uses.
     expect(statement).toContain(plateBoundaryPairLabel("PA-NA"));
-    expect(statement).toContain(`${Math.round(DEG_KM)} km from the search`);
+    // The anchor phrase is pinned in full by the dedicated test below; here it
+    // only has to show that a distance is quoted at all.
+    expect(statement).toContain(
+      `${Math.round(DEG_KM)} km from the geocoded place point`
+    );
   });
 
   it("reads the nearest label's delimiter back as a descent", () => {
@@ -282,5 +287,32 @@ describe("nearestPlateBoundaryStatement", () => {
         nearestPlateBoundary([], { latitude: 1, longitude: 5 })
       )
     ).toBeNull();
+  });
+
+  it("names the point the distance is measured from, never as a search centre", () => {
+    // The same panel prints seismicity distances "from the search-extent
+    // centre" (a bounding-box midpoint). This one is measured from the
+    // geocoder's own point for the place, and the two are routinely tens to
+    // hundreds of km apart, so this sentence must not borrow that wording.
+    const statement = nearestPlateBoundaryStatement(
+      nearestPlateBoundary([boundary()], placePointPlateQuery(1, 5))
+    );
+
+    expect(statement).toContain("km from the geocoded place point.");
+    expect(statement).toContain(
+      "measured from the coordinates the geocoder returned for this place rather than from the centre of its bounding box"
+    );
+    expect(statement).not.toContain("search centre");
+  });
+});
+
+describe("placePointPlateQuery", () => {
+  it("carries the geocoded place coordinates through unchanged", () => {
+    // The constructor exists so this module owns the meaning of its anchor;
+    // it must not adjust the point it is given.
+    expect(placePointPlateQuery(-33.45, -70.67)).toEqual({
+      latitude: -33.45,
+      longitude: -70.67,
+    });
   });
 });
