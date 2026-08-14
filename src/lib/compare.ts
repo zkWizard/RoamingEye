@@ -1,4 +1,10 @@
-import { formatYm, ymEqual, type YearMonth } from "./timeline";
+import {
+  formatYm,
+  gibsWmsUrl,
+  ymEqual,
+  type LayerConfig,
+  type YearMonth,
+} from "./timeline";
 
 /**
  * Comparison (A/B) mode model: the pure logic behind the swipe divider that
@@ -53,6 +59,36 @@ export function isTrivialCompare(pinned: YearMonth, live: YearMonth): boolean {
 export function exportMonthStamp(live: YearMonth, pinned?: YearMonth): string {
   if (!pinned || isTrivialCompare(pinned, live)) return isoYm(live);
   return `compare_${isoYm(pinned)}-left_${isoYm(live)}-right`;
+}
+
+/**
+ * Clipboard payload for the "Imagery URL" export action: the GIBS WMS GetMap
+ * URL for every month the view is actually built from, pinned ("before", left
+ * of the divider) first.
+ *
+ * Same provenance drop as `exportMonthStamp` fixed for the PNG, on the other
+ * export action. A comparison draws two months of imagery from two separate
+ * GetMap requests (scene/CompareController loads the pinned one itself), but
+ * the copied URL named only `months[currentIndex]` — so the artifact a user
+ * pastes into a notebook or a methods section reproduced one side of a
+ * change-detection view and silently discarded the other, with nothing in the
+ * URL to say a second month was on screen. Both requests are already made by
+ * the app; this hands over the pair it actually used rather than half of it.
+ *
+ * The dedupe is on the built URLs, not on the months, so the two cases that
+ * genuinely render one image — a self-comparison, and a `static` (time-less)
+ * layer whose URL carries no TIME param — collapse to a single line by
+ * construction and cannot drift away from what `gibsWmsUrl` emits.
+ */
+export function imageryUrlExport(
+  layer: LayerConfig,
+  live: YearMonth,
+  pinned?: YearMonth
+): string {
+  const liveUrl = gibsWmsUrl(layer, live);
+  if (!pinned) return liveUrl;
+  const pinnedUrl = gibsWmsUrl(layer, pinned);
+  return pinnedUrl === liveUrl ? liveUrl : `${pinnedUrl}\n${liveUrl}`;
 }
 
 function isoYm(ym: YearMonth): string {

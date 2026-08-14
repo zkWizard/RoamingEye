@@ -7,7 +7,9 @@ import {
   compareCaption,
   isTrivialCompare,
   exportMonthStamp,
+  imageryUrlExport,
 } from "./compare";
+import { LAYERS, gibsWmsUrl } from "./timeline";
 
 describe("clampSplit", () => {
   it("keeps the divider away from the edges", () => {
@@ -87,5 +89,59 @@ describe("exportMonthStamp", () => {
       { year: 2019, month: 8 }
     );
     expect(stamp).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+});
+
+describe("imageryUrlExport", () => {
+  const LIVE = { year: 2024, month: 8 };
+  const PINNED = { year: 2019, month: 8 };
+
+  it("copies the live month's URL when nothing is pinned", () => {
+    expect(imageryUrlExport(LAYERS.ndvi, LIVE)).toBe(
+      gibsWmsUrl(LAYERS.ndvi, LIVE)
+    );
+  });
+
+  it("copies one URL per month of a comparison, pinned side first", () => {
+    expect(imageryUrlExport(LAYERS.ndvi, LIVE, PINNED)).toBe(
+      `${gibsWmsUrl(LAYERS.ndvi, PINNED)}\n${gibsWmsUrl(LAYERS.ndvi, LIVE)}`
+    );
+  });
+
+  it("addresses each line at the month it stands for", () => {
+    const lines = imageryUrlExport(LAYERS.sst, LIVE, PINNED).split("\n");
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain("TIME=2019-08-01");
+    expect(lines[1]).toContain("TIME=2024-08-01");
+  });
+
+  it("keeps the pinned month first however the pair is ordered", () => {
+    // Pinning a month later than the live one is legal; left is the pinned
+    // side by construction, not the earlier date (see exportMonthStamp).
+    const lines = imageryUrlExport(LAYERS.ndvi, PINNED, LIVE).split("\n");
+    expect(lines[0]).toContain("TIME=2024-08-01");
+    expect(lines[1]).toContain("TIME=2019-08-01");
+  });
+
+  it("copies one URL for a self-comparison, which draws one image", () => {
+    expect(imageryUrlExport(LAYERS.ndvi, LIVE, { ...LIVE })).toBe(
+      gibsWmsUrl(LAYERS.ndvi, LIVE)
+    );
+  });
+
+  it("copies one URL for a static layer, whose months are the same image", () => {
+    // `terrain` carries no TIME param, so two months are one GetMap request.
+    expect(imageryUrlExport(LAYERS.terrain, LIVE, PINNED)).toBe(
+      gibsWmsUrl(LAYERS.terrain, LIVE)
+    );
+  });
+
+  it("emits only whole GetMap URLs, one per line", () => {
+    for (const line of imageryUrlExport(LAYERS.ndvi, LIVE, PINNED).split(
+      "\n"
+    )) {
+      expect(line).toMatch(/^https:\/\/gibs\.earthdata\.nasa\.gov\/wms\//);
+      expect(line).toContain("REQUEST=GetMap");
+    }
   });
 });
