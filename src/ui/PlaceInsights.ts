@@ -21,6 +21,7 @@ import {
 } from "../lib/volcanoContext";
 import { searchExtentSpanPhrase } from "../lib/searchExtentSpan";
 import {
+  gvpCatalogRegionLabel,
   suppliedRecordPopulationText,
   volcanoCoordinateLabel,
   type VolcanoExtentContext,
@@ -451,7 +452,11 @@ export class PlaceInsights {
       const item = document.createElement("li");
       const details = [
         record.country,
-        record.subregion ?? record.region,
+        // GVP's region vocabulary names tectonic features, not political
+        // geography, so the bare value read as the app asserting arc or rift
+        // membership. Attribute it the way the tectonic setting below already
+        // is, since the same row carries app-derived readings too.
+        gvpCatalogRegionLabel(record),
         volcanoCoordinateLabel(record),
         // GVP encodes qualifiers in the type string itself: "(s)"/"(es)" for a
         // record covering multiple landforms and "?" for an uncertain
