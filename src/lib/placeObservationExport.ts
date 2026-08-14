@@ -1,3 +1,4 @@
+import { isRampSaturated } from "./aerosolPlaceInsight";
 import {
   geometryBounds,
   type GeoGeometry,
@@ -380,6 +381,46 @@ export function sstPlaceObservationFromSample(
     value: null,
     validFraction,
     unavailableReason: coverageUnavailableReason(validFraction),
+  };
+}
+
+/**
+ * Preserve a completed column-AOD sampler result as an export observation.
+ *
+ * The aerosol place card already screens both of its months with
+ * {@link isRampSaturated}: NASA's rendered MERRA-2 ramp ends in an open
+ * `≥ 0.900` bin that `parseColormapEntries` drops, so a boundary mean recovered
+ * through it can rise no further than the topmost finite bin
+ * (`AEROSOL_RAMP_CEILING`, 0.8975). Where a month rests there the card
+ * says the true column may be higher, downgrades the loading tier to
+ * "… or heavier", and withholds the month-over-month difference outright when
+ * both months are capped.
+ *
+ * The downloaded record was built from those same two values and said none of
+ * it, so a dust-outbreak or biomass-burning column left the app as a plain
+ * number. That is the surface which outlives the panel — and the file's own
+ * limitations state that an absent bound records an *unassessed* observation,
+ * not a resolved one, which was untrue here: it had been assessed, on these
+ * exact values, for the card.
+ *
+ * The number is unchanged. This marks how to read it, never re-estimates it,
+ * and never guesses how far past the cap the true column lies. It is a
+ * colour-ramp representability statement about total-column optical depth,
+ * never surface air quality, an exposure or health claim, or a forecast.
+ */
+export function aerosolPlaceObservationFromSample(
+  dataMonth: YearMonth,
+  value: number | null,
+  validFraction: number
+): PlaceObservationInput {
+  return {
+    dataMonth,
+    value,
+    validFraction,
+    // Only the open top bin censors this ramp — its low end is closed at 0 and
+    // column AOD cannot be negative — so the one direction a capped month can
+    // be wrong in is upward. An interior value is returned unqualified.
+    ...(isRampSaturated(value) ? { valueBound: "at-or-above" as const } : {}),
   };
 }
 
