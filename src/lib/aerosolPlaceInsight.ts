@@ -5,7 +5,10 @@ import {
   type AerosolLoadingChange,
   type AerosolLoadingSummary,
 } from "./aerosolLoading";
-import { describeAerosolChangeResolvability } from "./aerosolInversionResolvability";
+import {
+  describeAerosolChangeResolvability,
+  describeAerosolTierResolvability,
+} from "./aerosolInversionResolvability";
 import { PROBE_SCALES, quantizationStep } from "./probe";
 import { formatYm, type YearMonth } from "./timeline";
 
@@ -239,7 +242,12 @@ function detailFor(
     const tier = laterSaturated
       ? `${later.loading.label} or heavier`
       : later.loading.label;
-    parts.push(`${tier} (descriptive tier${marginal})`);
+    parts.push(
+      `${tier} (descriptive tier${marginal}${tierInversionClause(
+        observedValue,
+        laterSaturated
+      )})`
+    );
     if (laterSaturated) {
       parts.push(
         `at the top of the rendered colour ramp — the true column value may be higher`
@@ -327,6 +335,58 @@ function comparisonText(
     : change.trend === "decreasing";
   const direction = directionSurvives ? `${trend}, ` : "";
   return `${bound.phrase} ${signed} vs ${earlierMonth} (${direction}${bound.month} rests on the rendered ramp's open-ended top bin, so this is ${bound.side} on the change, not a measured difference); a difference between two modelled monthly means, not a trend`;
+}
+
+/**
+ * Qualify a loading tier that the app's own colormap-inversion error cannot
+ * pick out from its neighbours.
+ *
+ * The card names one descriptive tier for the month's column AOD. That tier is
+ * decided by comparing the value against the break points in
+ * `AEROSOL_LOADING_BANDS` — but the value being binned was never measured
+ * directly. RoamingEye inverts a rendered GIBS pixel colour through an
+ * approximate legend gradient, and that step has a measured end-to-end RMSE for
+ * this layer (METHODS §3, docs/validation.md, CI-asserted in
+ * `MEASURED_INVERSION`). At the currently measured figure that error is *wider
+ * than the two cleanest bands are* — `very-low` and `low` are each 0.1 across —
+ * so for much of the ramp more than one tier is consistent with the reading and
+ * the single word on the card overstates what the pipeline can distinguish.
+ *
+ * The `close to the X tier edge` note beside it does not cover this. That note
+ * measures distance to a break point in the value's own units; it says nothing
+ * about how well the value itself is known, so a reading sitting squarely
+ * mid-band gets no note at all while still being one retrieval error away from
+ * two other tiers.
+ *
+ * `describeAerosolTierResolvability` already decides this, so it is called
+ * rather than re-derived: the printed band moves with the committed measurement
+ * instead of being copied into a second place.
+ *
+ * Deliberately narrow in three ways, mirroring {@link inversionFloorClause}:
+ *  - Silent when only one tier is consistent, so a robust tier gains no text.
+ *  - Silent when the layer has no measured figure (`uncharacterized`), so a
+ *    band is never invented for an unmeasured layer.
+ *  - Silent on a saturated reading. `AEROSOL_RESOLVABILITY_LIMITATIONS` states
+ *    that the band is symmetric and does not model the top of the rendered
+ *    ramp, where the value is a lower bound and its uncertainty stops being
+ *    two-sided. Those readings already say `or heavier`, which is the honest
+ *    one-sided statement for that case.
+ *
+ * The wording never claims the named tier is wrong — an unresolved tier says
+ * only that this pipeline cannot separate it from its neighbours, which is a
+ * statement about resolving power rather than about the atmosphere.
+ */
+function tierInversionClause(value: number, saturated: boolean): string {
+  if (saturated) return "";
+  const resolvability = describeAerosolTierResolvability(value);
+  if (resolvability === null || resolvability.resolution !== "unresolved") {
+    return "";
+  }
+  const { inversionRmse, lower, upper, consistentCategories } = resolvability;
+  if (inversionRmse === null || lower === null || upper === null) return "";
+  return `, but the ±${formatAod(inversionRmse)} colormap-inversion error admits ${formatAod(
+    lower
+  )} to ${formatAod(upper)}, spanning ${consistentCategories.length} tiers, so the tier is not resolved by this pipeline`;
 }
 
 /**
