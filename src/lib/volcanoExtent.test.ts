@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Volcano } from "./volcanoes";
 import {
+  gvpCatalogRegionLabel,
   gvpVolcanoUrl,
   suppliedRecordPopulationText,
   volcanoCoordinateLabel,
@@ -399,5 +400,52 @@ describe("suppliedRecordPopulationText", () => {
     expect(suppliedRecordPopulationText(context)).toBe(
       "Counted from 3 valid bundled records."
     );
+  });
+});
+
+describe("gvpCatalogRegionLabel", () => {
+  it("attributes a subregion to GVP rather than asserting arc membership", () => {
+    expect(
+      gvpCatalogRegionLabel({
+        region: "Japan, Taiwan, Marianas",
+        subregion: "Nankai Volcanic Arc",
+      })
+    ).toBe("GVP subregion: Nankai Volcanic Arc");
+  });
+
+  it("names the region level when no subregion is supplied", () => {
+    // GVP treats the two as distinct catalog levels, so a fallback value must
+    // not be presented as the finer one.
+    expect(
+      gvpCatalogRegionLabel({
+        region: "Iceland and Arctic Ocean",
+        subregion: null,
+      })
+    ).toBe("GVP region: Iceland and Arctic Ocean");
+  });
+
+  it("returns null when neither level is supplied", () => {
+    // The caller drops falsy row items; inventing a placeholder here would
+    // change that behaviour rather than attribute an existing value.
+    expect(gvpCatalogRegionLabel({ region: null, subregion: null })).toBeNull();
+  });
+
+  it("falls back to the region when the subregion is blank", () => {
+    expect(
+      gvpCatalogRegionLabel({
+        region: "Mexico and Central America",
+        subregion: "",
+      })
+    ).toBe("GVP region: Mexico and Central America");
+  });
+
+  it("never returns a value without naming the catalog it came from", () => {
+    const labels = [
+      gvpCatalogRegionLabel({ region: "R", subregion: "S" }),
+      gvpCatalogRegionLabel({ region: "R", subregion: null }),
+    ];
+    for (const label of labels) {
+      expect(label).toMatch(/^GVP (sub)?region: /);
+    }
   });
 });

@@ -33,7 +33,9 @@ export interface VolcanoExtentRecord {
   lastEruptionText: string;
   volcanoNumber: number | null;
   sourceUrl: string | null;
+  /** Verbatim GVP catalog level; names a tectonic feature, not a territory. */
   region: string | null;
+  /** Verbatim GVP catalog level; names a tectonic feature, not a territory. */
   subregion: string | null;
   /** Verbatim GVP label; not a causal interpretation. */
   tectonicSetting: string | null;
@@ -137,6 +139,35 @@ export function volcanoCoordinateLabel(
     "E",
     "W"
   )}`;
+}
+
+/**
+ * Attribute the catalog region a listed record sits in to GVP.
+ *
+ * GVP's region and subregion vocabulary names tectonic features rather than
+ * political geography: 1181 of the 1196 bundled records carry a value naming
+ * an arc, rift, ridge, or volcanic province ("Nankai Volcanic Arc", "Afar Rift
+ * Volcanic Province"), and the rest name a GVP volcano group. Rendered bare it
+ * therefore reads as RoamingEye asserting arc or rift membership — the exact
+ * inference plateBoundaryContext's limitations refuse to make ("does not infer
+ * tectonic setting") and this module's own limitations disclaim.
+ *
+ * The listed row already marks the neighbouring tectonic setting as GVP's, and
+ * the same row carries genuinely app-derived readings beside it (the summit
+ * elevation regime, the decoded type qualifiers), so an unmarked sibling reads
+ * as one of those rather than as a retained label.
+ *
+ * Names whichever field supplied the value, because GVP treats region and
+ * subregion as distinct catalog levels and conflating them would misattribute
+ * the coarser one. Returns null when neither is supplied, leaving the caller's
+ * existing omission behaviour unchanged.
+ */
+export function gvpCatalogRegionLabel(
+  record: Pick<VolcanoExtentRecord, "region" | "subregion">
+): string | null {
+  if (record.subregion) return `GVP subregion: ${record.subregion}`;
+  if (record.region) return `GVP region: ${record.region}`;
+  return null;
 }
 
 /**
