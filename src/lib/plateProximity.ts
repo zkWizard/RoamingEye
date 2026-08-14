@@ -1,5 +1,8 @@
 import { BIRD_2003_PLATE_BOUNDARY_SOURCE } from "./plateBoundaryContext";
-import { plateBoundaryPairLabel } from "./plateBoundaryHover";
+import {
+  plateBoundaryPairLabel,
+  plateBoundarySubductionReading,
+} from "./plateBoundaryHover";
 import type { Position } from "./geojson";
 import type { PlateBoundary } from "./plates";
 
@@ -156,6 +159,15 @@ export function nearestPlateBoundary(
  * identically everywhere it appears. The sentence states what the distance is
  * measured to — digitized linework — because a reader will otherwise take it for
  * a distance to a mapped plate margin.
+ *
+ * That label carries PB2002's subduction polarity in its delimiter, and this is
+ * the one surface where nothing else decodes it: the panel's polarity paragraph
+ * (subductionPolarityText in plateBoundaryContext.ts) describes the boundaries
+ * that intersect the search extent, so it is silent in exactly the case this
+ * sentence renders — no crossing at all, which is the common case for a
+ * city-sized extent. The descent is therefore read back here, through the same
+ * {@link plateBoundarySubductionReading} the tooltip uses so the two cannot
+ * drift, and stated as the model's own label reading rather than a measurement.
  */
 export function nearestPlateBoundaryStatement(
   context: PlateProximityContext
@@ -166,7 +178,15 @@ export function nearestPlateBoundaryStatement(
   }
   if (context.nearest === null) return null;
   const { name, distanceKm } = context.nearest;
-  return `Nearest supplied boundary polyline: ${plateBoundaryPairLabel(name)}, ${formatDistanceKm(distanceKm)} km from the search centre. Great-circle distance to Bird (2003) digitized linework, not to a mapped plate margin; apart from the source's own subduction marking, the model carries no boundary type, motion, activity, or hazard.`;
+  // Silent for a non-subducting or undecodable label rather than reporting an
+  // absence: PB2002 marks subduction steps only, so no marking is no
+  // assignment, not a statement that the boundary does not subduct.
+  const reading = plateBoundarySubductionReading(name);
+  const descent =
+    reading === null
+      ? ""
+      : ` That label's delimiter records which plate descends: ${reading}, read back as the model wrote it rather than measured.`;
+  return `Nearest supplied boundary polyline: ${plateBoundaryPairLabel(name)}, ${formatDistanceKm(distanceKm)} km from the search centre.${descent} Great-circle distance to Bird (2003) digitized linework, not to a mapped plate margin; apart from the source's own subduction marking, the model carries no boundary type, motion, activity, or hazard.`;
 }
 
 /**

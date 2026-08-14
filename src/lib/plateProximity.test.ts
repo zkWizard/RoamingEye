@@ -203,6 +203,31 @@ describe("nearestPlateBoundaryStatement", () => {
     expect(statement).toContain(`${Math.round(DEG_KM)} km from the search`);
   });
 
+  it("reads the nearest label's delimiter back as a descent", () => {
+    // The panel's polarity paragraph only describes boundaries that intersect
+    // the extent, so it is silent whenever this sentence renders. Without this
+    // clause the glyph in "CO\NA" reaches the reader undecoded.
+    const context = nearestPlateBoundary([boundary({ name: "CO\\NA" })], {
+      latitude: 1,
+      longitude: 5,
+    });
+
+    expect(nearestPlateBoundaryStatement(context)).toContain(
+      "That label's delimiter records which plate descends: Cocos subducts beneath North America, read back as the model wrote it rather than measured."
+    );
+  });
+
+  it("says nothing about descent when the label records no subduction", () => {
+    // "PA-NA" is a non-subducting step; reporting an absence would read as a
+    // finding that the boundary does not subduct, which PB2002 never states.
+    const statement = nearestPlateBoundaryStatement(
+      nearestPlateBoundary([boundary()], { latitude: 1, longitude: 5 })
+    );
+
+    expect(statement).not.toContain("descends");
+    expect(statement).not.toContain("subducts beneath");
+  });
+
   it("says the distance is to digitized linework, not a mapped margin", () => {
     const statement = nearestPlateBoundaryStatement(
       nearestPlateBoundary([boundary()], { latitude: 1, longitude: 5 })

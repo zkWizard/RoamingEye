@@ -272,10 +272,13 @@ export function subductionMarkingText(
  * the two plate codes: "/" means the right-hand plate subducts under the
  * left-hand one, "\" is the opposite polarity, and "-" is a non-subducting
  * segment (Bird 2003 electronic supplement readme, quoted in full at
- * PB2002_LABEL_CONVENTION in platePairs.ts). The list below this paragraph and
- * the globe tooltip both print that delimiter verbatim inside the label
- * ("PB2002 PA\OK"), so without this line a reader is shown the glyph and never
- * told it carries the model's own reading of which plate goes down.
+ * PB2002_LABEL_CONVENTION in platePairs.ts). The list below this paragraph
+ * prints that delimiter verbatim inside the label ("PB2002 PA\OK"), so without
+ * this line a reader is shown the glyph and never told it carries the model's
+ * own reading of which plate goes down. The globe tooltip and the nearest-
+ * boundary sentence print the same glyph and decode it themselves, through
+ * plateBoundarySubductionReading in plateBoundaryHover.ts; this paragraph is
+ * the crossing list's equivalent.
  *
  * The codes alone cannot be read for polarity, which is why the descent is
  * spelled out rather than left implied by the label: a whole-Japan extent

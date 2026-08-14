@@ -1,4 +1,8 @@
-import { decodePlatePair, type PlateIdentity } from "./platePairs";
+import {
+  decodePlatePair,
+  subductionSummary,
+  type PlateIdentity,
+} from "./platePairs";
 import type { PlateBoundary } from "./plates";
 
 /**
@@ -20,9 +24,17 @@ import type { PlateBoundary } from "./plates";
  * which plate subducts, read from the label alone rather than from the drawn
  * polyline's traversal direction (Bird 2003 electronic supplement readme,
  * quoted at PB2002_LABEL_CONVENTION in platePairs.ts). That is why the label is
- * kept verbatim here instead of being normalized to a canonical pair, and the
- * place panel spells the polarity out in prose (subductionPolarityText in
- * plateBoundaryContext.ts) rather than leaving a reader to interpret the glyph.
+ * kept verbatim here instead of being normalized to a canonical pair.
+ *
+ * The glyph alone cannot be read for polarity by a reader who does not know the
+ * convention, and it is not self-explaining: "AM/PS" and "EU\AF" are the same
+ * shape but opposite readings, so assuming the first-named plate is the one
+ * descending is right for one and wrong for the other. Every surface that
+ * prints the label therefore also states the reading — the tooltip through
+ * plateBoundarySubductionReading below, the place panel's crossing paragraph
+ * through subductionPolarityText in plateBoundaryContext.ts, and the
+ * nearest-boundary sentence through nearestPlateBoundaryStatement in
+ * plateProximity.ts.
  *
  * Unknown codes are surfaced rather than dropped so the readout stays honest
  * about the source.
@@ -56,11 +68,39 @@ export function plateBoundaryPairLabel(name: string | null): string {
 }
 
 /**
+ * Read back the descent a PB2002 label's delimiter encodes, e.g. "Cocos
+ * subducts beneath North America" for "CO\NA".
+ *
+ * Returns null when the label records no subduction ("-", PB2002's marking for
+ * a non-subducting step) or cannot be decoded at all, so a caller renders
+ * nothing rather than implying a polarity the model did not write. 176 of the
+ * 241 bundled features return null.
+ *
+ * This is a categorical passthrough of byte 3 of the label. It measures
+ * nothing and adds no convergence rate, slab depth, deformation, activity, or
+ * hazard, and it is not a boundary-type classification: PB2002 marks
+ * subduction steps only and leaves the field blank elsewhere, so a null here
+ * records no assignment rather than a non-subduction boundary.
+ */
+export function plateBoundarySubductionReading(
+  name: string | null
+): string | null {
+  const decoded = name === null ? null : decodePlatePair(name);
+  return decoded === null ? null : subductionSummary(decoded);
+}
+
+/**
  * Describe a single boundary polyline. Returns the unlabeled text for a
  * polyline whose label is not a two-code PB2002 pair.
+ *
+ * The descent clause follows the verbatim label so it reads as the decoding of
+ * the glyph immediately before it, and is omitted entirely for the
+ * non-subducting majority rather than saying that nothing was recorded.
  */
 export function plateBoundaryHoverLabel(boundary: PlateBoundary): string {
-  return plateBoundaryPairLabel(boundary.name);
+  const label = plateBoundaryPairLabel(boundary.name);
+  const reading = plateBoundarySubductionReading(boundary.name);
+  return reading === null ? label : `${label} · delimiter: ${reading}`;
 }
 
 /**
