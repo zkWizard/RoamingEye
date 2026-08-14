@@ -10,6 +10,7 @@ import {
   type OverlayKeyChannel,
 } from "../lib/legend";
 import {
+  reliefShadingLegendCaveat,
   terrainLayerContext,
   terrainTileAvailability,
   terrainTileAvailabilityNotice,
@@ -208,11 +209,24 @@ export class Legend {
       mid.removeAttribute("title");
       mid.removeAttribute("aria-label");
     }
+    // Terrain's end labels ("lowlands" to "high peaks") assert an ordering the
+    // rendering does not keep: a colour shaded-relief pixel carries slope and
+    // illumination as well as height. Said on the bar itself — the element that
+    // makes the claim — rather than in the source note below, because the legend
+    // sits over the globe and the note is already two sentences long (same
+    // reasoning as the mid-tick caveat above).
+    const barCaveat = reliefShadingLegendCaveat(id);
+    if (barCaveat) {
+      this.bar.title = barCaveat;
+    } else {
+      this.bar.removeAttribute("title");
+    }
+    const scaleLabel = ticks
+      ? `Color scale from ${spec.minLabel} (${ticks.min}) to ${spec.maxLabel} (${ticks.max})`
+      : `Color scale from ${spec.minLabel} to ${spec.maxLabel}`;
     this.bar.setAttribute(
       "aria-label",
-      ticks
-        ? `Color scale from ${spec.minLabel} (${ticks.min}) to ${spec.maxLabel} (${ticks.max})`
-        : `Color scale from ${spec.minLabel} to ${spec.maxLabel}`
+      barCaveat ? `${scaleLabel} — ${barCaveat}` : scaleLabel
     );
   }
 
