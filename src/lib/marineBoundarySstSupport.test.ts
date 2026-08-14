@@ -75,9 +75,58 @@ describe("marine boundary SST spatial support", () => {
       meanScope: null,
       reason: "zero-usable-share",
     });
-    expect(describeMarineBoundarySstSupport(summary)).toBe(
+    expect(summary.sampledSharePhrase).toBe(
       "no usable SST anywhere in the searched boundary"
     );
+    expect(describeMarineBoundarySstSupport(summary)).toBe(
+      "no usable SST anywhere in the searched boundary — SST is undefined over " +
+        "land, and cloud, ice, or source gaps also leave a searched boundary empty"
+    );
+  });
+
+  it("explains an empty boundary by the ocean domain instead of asserting it bare", () => {
+    // The place card's only other statement for this case is the value text
+    // "No usable SST observation", so a bare share phrase left the reader with
+    // two assertions of absence and no statement that the cited product is an
+    // ocean field at all. `marineAveragedSstSupport` — this module's documented
+    // series counterpart, over the same product and the same zero share — has
+    // always qualified it; the searched-boundary path had not.
+    const clause = describeMarineBoundarySstSupport(
+      summarizeMarineBoundarySstSupport(0)
+    );
+
+    expect(clause).toContain("SST is undefined over land");
+    // Two-sided: naming land as the usual reason must not become a claim that
+    // this boundary was land. `sstNoData` forbids reading a surface class out
+    // of a missing value, so the other emptying causes are named too.
+    expect(clause).toContain("cloud, ice, or source gaps");
+    // Never a retrieval-failure reading, and never a biological one.
+    expect(clause).not.toMatch(/failed|error|unavailable/i);
+    expect(clause).not.toMatch(/habitat|species|ecosystem|heatwave/i);
+  });
+
+  it("withholds the domain explanation when no zero share was ever reported", () => {
+    // An unsupplied or invalid share is not a report that the boundary held no
+    // water, so attributing it to the ocean domain would state a cause the
+    // sampler never observed.
+    for (const share of [null, undefined, Number.NaN, -0.1, 1.5]) {
+      expect(
+        describeMarineBoundarySstSupport(
+          summarizeMarineBoundarySstSupport(share)
+        )
+      ).not.toContain("SST is undefined over land");
+    }
+  });
+
+  it("keeps the domain explanation off every share that did return water", () => {
+    for (const share of [0.002, 0.2, 0.5, 0.9, 1]) {
+      const clause = describeMarineBoundarySstSupport(
+        summarizeMarineBoundarySstSupport(share)
+      );
+
+      expect(clause).toContain("mean covers only those pixels");
+      expect(clause).not.toContain("SST is undefined over land");
+    }
   });
 
   it("keeps an unsupplied share explicitly absent instead of assuming zero", () => {
