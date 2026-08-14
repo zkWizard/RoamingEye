@@ -104,6 +104,35 @@ describe("sensSlope", () => {
     const sen = sensSlope(months, values);
     expect(sen.slopePerYear).toBeCloseTo(0.1, 1);
   });
+
+  it("marks both CI limits unresolved when the ranks fall outside the sample", () => {
+    // The shortest record the app will report a trend for: one season, three
+    // years. z·√varS (3.75) exceeds the three pairwise slopes available, so
+    // both ranks land outside the sample and the returned bounds are the
+    // extreme observed slopes, not located confidence limits.
+    const { months, values } = series([2000, 2001, 2002], [1], (y) => y - 2000);
+    const sen = sensSlope(months, values);
+    expect(sen.nPairs).toBe(3);
+    expect(sen.lowerResolved).toBe(false);
+    expect(sen.upperResolved).toBe(false);
+    // Every pair rises by exactly 1/yr, so the clamped range excludes zero —
+    // which is precisely why it must not be reported as a confidence interval.
+    expect(sen.lowerPerYear).toBe(1);
+    expect(sen.upperPerYear).toBe(1);
+  });
+
+  it("resolves both CI limits on a record long enough to contain them", () => {
+    const { months, values } = series(
+      Array.from({ length: 8 }, (_, i) => 2000 + i),
+      [1, 7],
+      (y, m) => (m === 1 ? 0.2 : 0.5) + (y - 2000) * 0.02
+    );
+    const sen = sensSlope(months, values);
+    expect(sen.lowerResolved).toBe(true);
+    expect(sen.upperResolved).toBe(true);
+    expect(sen.lowerPerYear).toBeLessThanOrEqual(sen.slopePerYear);
+    expect(sen.upperPerYear).toBeGreaterThanOrEqual(sen.slopePerYear);
+  });
 });
 
 describe("trendSummary", () => {
@@ -173,6 +202,54 @@ describe("trend formatting", () => {
     );
     expect(headers.some((h) => /# trend_p_value: 0\.\d{4}/.test(h))).toBe(true);
     expect(headers.some((h) => /# trend_significant: true/.test(h))).toBe(true);
+  });
+
+  it("CSV headers state a numeric CI only when the ranks were located", () => {
+    const headers = trendCsvHeaders(rising(kelvin));
+    const slope = headers.find((h) => h.startsWith("# trend_sens_slope:"))!;
+    expect(slope).toMatch(/\(95% CI [+−]\d.*K\/decade – [+−]\d.*K\/decade\)$/);
+    expect(slope).not.toContain("not resolvable");
+  });
+
+  it("withholds the CI when its ranks fall outside a short record", () => {
+    // Three Januaries rising by 1 K/yr: testable, but not significant. Before
+    // this, the clamped bounds printed as "(95% CI +10.0 K/decade – +10.0
+    // K/decade)" — a zero-width interval excluding zero, on the same export as
+    // trend_significant: false. A reader trusting the interval would have
+    // concluded a trend the test on the next line explicitly refused.
+    const { months, values } = series(
+      [2000, 2001, 2002],
+      [1],
+      (y) => 273 + (y - 2000)
+    );
+    const t = trendSummary(months, values, kelvin);
+    expect(t.testable).toBe(true);
+    expect(t.significant).toBe(false);
+
+    const headers = trendCsvHeaders(t);
+    const slope = headers.find((h) => h.startsWith("# trend_sens_slope:"))!;
+    // The slope itself is still reported — only the interval is withheld.
+    expect(slope).toContain("+10.0 K/decade");
+    expect(slope).toContain(
+      "(95% CI not resolvable from this record: both rank-based limits fall " +
+        "outside the 3 within-season pairwise slopes it supplies, so the " +
+        "interval is wider than the observed slope range)"
+    );
+    expect(headers).toContain(
+      `# trend_significant: false (alpha ${TREND_ALPHA})`
+    );
+  });
+
+  it("withholds the CI when every within-season pair is tied", () => {
+    const { months, values } = series([2000, 2001, 2002], [1], () => 273.15);
+    const t = trendSummary(months, values, kelvin);
+    expect(t.testable).toBe(true);
+    expect(t.varS).toBe(0);
+    const slope = trendCsvHeaders(t).find((h) =>
+      h.startsWith("# trend_sens_slope:")
+    )!;
+    expect(slope).toContain("Mann-Kendall variance is zero");
+    expect(slope).not.toMatch(/95% CI [+−]/);
   });
 
   it("emits no trend headers for an untestable record", () => {
