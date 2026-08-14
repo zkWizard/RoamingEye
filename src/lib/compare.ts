@@ -1,5 +1,5 @@
 import {
-  formatYm,
+  formatTimelineLabel,
   gibsWmsUrl,
   ymEqual,
   type LayerConfig,
@@ -31,9 +31,27 @@ export function splitFromPointer(clientX: number, width: number): number {
   return clampSplit(clientX / width);
 }
 
-/** Accessible description of the comparison, e.g. "Aug 2019 vs Aug 2024". */
-export function compareCaption(pinned: YearMonth, live: YearMonth): string {
-  return `${formatYm(pinned)} vs ${formatYm(live)}`;
+/**
+ * Accessible description of the comparison, e.g. "Aug 2019 vs Aug 2024" — and
+ * "2001 vs 2020" for an annual product.
+ *
+ * Labelled at the layer's own publishing cadence, like every other date the
+ * app renders (the scrubber readout and the provenance line both go through
+ * `formatTimelineLabel`). Annual layers enumerate as `{year, month: 1}`
+ * placeholders (`monthRangeForLayer`), so formatting a comparison with the
+ * plain month formatter printed "Jan 2001 vs Jan 2020" over a land-cover
+ * swipe: a January that MCD12Q1 does not resolve. An annual IGBP composite
+ * classifies a whole year, and a change-detection view that dates each side
+ * to a month claims the product separates months — the same fabricated
+ * precision the app refuses everywhere else, and contradicted on screen by
+ * its own scrubber reading a bare year.
+ */
+export function compareCaption(
+  layer: LayerConfig,
+  pinned: YearMonth,
+  live: YearMonth
+): string {
+  return `${formatTimelineLabel(layer, pinned)} vs ${formatTimelineLabel(layer, live)}`;
 }
 
 /** Comparing a month to itself shows nothing — callers surface a hint. */
