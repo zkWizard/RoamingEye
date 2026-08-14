@@ -310,7 +310,12 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     start: { year: 2002, month: 7 },
     latest: { year: 2026, month: 3 },
     unpublished: MODIS_AQUA_SST_DAY_UNPUBLISHED_MONTHS,
-    description: "Daytime ocean surface temperature (MODIS/Aqua thermal).",
+    // Both sampling gates, not just the diurnal one: a thermal-infrared
+    // retrieval exists only under cloud-free sky, so the monthly field averages
+    // a non-random subset of the month's days. See sstObservingConstraints —
+    // `sstCaptionConstraintOmissions` keeps this caption in step with it.
+    description:
+      "Daytime clear-sky ocean surface temperature (MODIS/Aqua thermal).",
   },
   precip: {
     id: "precip",
