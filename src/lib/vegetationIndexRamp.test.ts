@@ -7,6 +7,7 @@ import {
   describeVegetationRampFidelity,
   exceedsLinearityCeiling,
   linearityCeilingMultiple,
+  uncalibratedVegetationAccuracyClause,
   vegetationIndexId,
   vegetationRampFidelity,
   vegetationRampTickCaveat,
@@ -16,6 +17,11 @@ import { PROBE_SCALES, buildColormapLut, invertColormap } from "./probe";
 import { LEGENDS, type GradientLegendSpec } from "./legend";
 import { snapshotColormapEntries } from "./gibsColormapSnapshot";
 import { MEASURED_INVERSION } from "./validation";
+import { LAYERS, type LayerId } from "./timeline";
+import {
+  inversionAccuracyClause,
+  probeInversionAccuracy,
+} from "./probeInversionAccuracy";
 
 describe("vegetation-index ramp fidelity", () => {
   it("characterizes only the two MOD13A3 vegetation indices", () => {
@@ -201,6 +207,73 @@ describe("vegetation-index ramp fidelity", () => {
     expect(describeVegetationRampFidelity("evi")).toContain(
       "mean error of +0.22"
     );
+  });
+
+  it("gives the uncalibrated index the error figure the probe withheld", () => {
+    // The defect: the probe status line takes its measured-error clause from
+    // `MEASURED_INVERSION`, which is keyed by CalibratedLayerId, so EVI fell
+    // through to "uncharacterized" and the panel printed only "±0.002 per
+    // value" — the quantization floor this suite already asserts EVI's real
+    // error dwarfs. NDVI, whose error is more than ten times smaller, was the
+    // one showing an error figure.
+    const evi = uncalibratedVegetationAccuracyClause("evi", "uncharacterized");
+    expect(evi).toContain("±0.29");
+    expect(evi).toContain("MODIS_L3_EVI");
+    // The value is a gradient position, not a colormap inversion; saying so is
+    // why this figure may sit beside the calibrated layers' one.
+    expect(evi).toContain("not colormap-inverted");
+    // EVI's bias clears a colormap step, so its direction is named.
+    expect(evi).toContain("+0.22");
+    expect(evi).toContain("greener");
+    // 38 of 132 published colours never invert at all — a coverage fact the
+    // RMSE alone hides, since it is computed over the 94 that do.
+    expect(evi).toContain("29% of ramp unreadable");
+    // Never a fitness, cover, or condition claim.
+    expect(evi).not.toContain("vegetation cover");
+  });
+
+  it("stays silent wherever it would speak over another figure", () => {
+    // A calibrated index already has `inversionAccuracyClause` quoting
+    // MEASURED_INVERSION. Two committed RMSEs rendered for one layer is
+    // exactly the defect the test above this one guards in the constants.
+    expect(uncalibratedVegetationAccuracyClause("ndvi", "characterized")).toBe(
+      null
+    );
+    // Not a vegetation index: uncharacterized here means there is genuinely no
+    // measurement, and absence is never rendered as accuracy.
+    expect(
+      uncalibratedVegetationAccuracyClause("snow", "uncharacterized")
+    ).toBe(null);
+    expect(
+      uncalibratedVegetationAccuracyClause("landcover", "uncharacterized")
+    ).toBe(null);
+    // A rebuilt legend that rejects the whole ramp has its own state and its
+    // own sentence; this clause must not talk over that either.
+    expect(
+      uncalibratedVegetationAccuracyClause("evi", "all-colours-rejected")
+    ).toBe(null);
+  });
+
+  it("never lets both accuracy clauses quote a figure for one layer", () => {
+    // The invariant the wiring depends on: the panel renders both clauses, so
+    // exactly one of them may speak per layer. It holds by construction today
+    // and must survive EVI later joining COLORMAP_DOCS.
+    for (const id of Object.keys(LAYERS) as LayerId[]) {
+      if (PROBE_SCALES[id] === undefined) continue;
+      const accuracy = probeInversionAccuracy(id);
+      const calibrated = inversionAccuracyClause(accuracy);
+      const uncalibrated = uncalibratedVegetationAccuracyClause(
+        id,
+        accuracy.status
+      );
+      expect(calibrated !== "" && uncalibrated !== null).toBe(false);
+    }
+    // And the one layer this exists for really is reached.
+    const evi = probeInversionAccuracy("evi");
+    expect(inversionAccuracyClause(evi)).toBe("");
+    expect(
+      uncalibratedVegetationAccuracyClause("evi", evi.status)
+    ).not.toBeNull();
   });
 
   it("carries its method limits", () => {

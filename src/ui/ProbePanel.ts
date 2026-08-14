@@ -46,6 +46,7 @@ import { probeRecordGaps, probeRecordGapsClause } from "../lib/probeRecordGaps";
 import { probeSstSamplingGateClause } from "../lib/sstObservingConstraints";
 import { probeLstSamplingGateClause } from "../lib/lstObservingConstraints";
 import { probeVegetationSamplingGateClause } from "../lib/vegetationObservingConstraints";
+import { uncalibratedVegetationAccuracyClause } from "../lib/vegetationIndexRamp";
 import { ICONS } from "./icons";
 
 /** What the current series is: which layer, and where it was sampled. */
@@ -317,9 +318,28 @@ export class ProbePanel {
     // finely a gradient position resolves; the measured inversion RMSE is
     // whether that position lands on the right value — for SST the second is
     // ~17x the first, so quoting only the step overstates precision badly.
-    const accuracy = this.context
-      ? inversionAccuracyClause(probeInversionAccuracy(this.context.layerId, s))
+    const inversionAccuracy = this.context
+      ? probeInversionAccuracy(this.context.layerId, s)
+      : null;
+    const accuracy = inversionAccuracy
+      ? inversionAccuracyClause(inversionAccuracy)
       : "";
+    // That clause is keyed to the calibrated colormap-inverted layers, and one
+    // layer falls outside it while still having a committed measurement: EVI's
+    // ramp ends in pure black, which the JPEG transport cannot tell from an
+    // undrawn pixel, so no stop placement calibrates it — but its error against
+    // GIBS's published MOD13A3 ramp is measured all the same and re-asserted
+    // against the live documents. Without this the panel showed EVI only the
+    // quantization floor, i.e. the index with the larger end-to-end error was
+    // the one displaying no error figure at all. Silent for every layer the
+    // clause above already characterizes, so nothing on a calibrated readout
+    // changes and the two can never both quote a figure.
+    const uncalibratedVegetationAccuracy = inversionAccuracy
+      ? uncalibratedVegetationAccuracyClause(
+          inversionAccuracy.layerId,
+          inversionAccuracy.status
+        )
+      : null;
     // NASA's published SST colormap ends in two OPEN caps, and the months that
     // land in them are exactly the ones that set the extremes — so for this one
     // layer `min`, `mean` and `max` can be one-sided bounds rather than
@@ -505,6 +525,9 @@ export class ProbePanel {
       ` · max ${boundPrefix("max")}${fmt(stats.max)}` +
       ` · ${uncertaintyText(s)} per value` +
       (accuracy ? ` · ${accuracy}` : "") +
+      (uncalibratedVegetationAccuracy
+        ? ` · ${uncalibratedVegetationAccuracy}`
+        : "") +
       (sstColdEnd ? ` · ${sstColdEnd}` : "") +
       ` · ${trendClause(trend)}` +
       (seasonal ? ` · ${seasonal}` : "") +
