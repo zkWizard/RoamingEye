@@ -1,5 +1,10 @@
-import { MAX_LINEARITY_DEVIATION } from "./colormap";
+import {
+  COLORMAP_DOCS,
+  MAX_LINEARITY_DEVIATION,
+  type CalibratedLayerId,
+} from "./colormap";
 import type { LayerId } from "./timeline";
+import { MEASURED_INVERSION } from "./validation";
 
 /**
  * How faithfully RoamingEye's vegetation-index legend reproduces NASA GIBS's
@@ -18,18 +23,26 @@ import type { LayerId } from "./timeline";
  * narrow bins under a separate brown palette, and the upper canopy range is
  * stretched into progressively wider ones. Measured against the live documents,
  * the ramps depart from linear-in-value by 12.9% (NDVI) and 21.3% (EVI) of
- * span — 6.4x and 10.7x the ceiling. That is why `ndvi` and `evi` are absent
- * from `COLORMAP_DOCS`: they would fail the linear position→value contract that
- * membership asserts, so they are deliberately not treated as calibrated,
- * colormap-inverted layers.
+ * span — 6.4x and 10.7x the ceiling.
  *
- * The consequence is directional, so it is worth stating plainly: running each
- * GIBS ramp colour back through the production inversion recovers the index
- * with a *positive* mean error. A reported vegetation-index value reads greener
- * than GIBS's ramp says — by +0.13 NDVI and +0.22 EVI on average, with an RMSE
- * of 0.23 and 0.29 on a 0–1 index. Those figures dwarf the colormap
- * quantization band the probe prints alongside its values, which describes only
- * the ramp's step size and not this end-to-end error.
+ * A non-uniform ramp is not by itself disqualifying, and the two indices have
+ * since parted company on exactly that point:
+ *  - **NDVI is calibrated.** Its legend stops were rebuilt from MODIS_L3_NDVI
+ *    and placed at that ramp's own *value* fractions (the 0.28→0.30 hue jump is
+ *    encoded in stop position rather than smoothed over), which absorbs the
+ *    bin-width non-uniformity instead of inheriting it. `ndvi` therefore joined
+ *    `COLORMAP_DOCS`, and the linear position→value step it asserts is measured
+ *    and CI-asserted: all 140 published colours recover, at RMSE 0.024 with a
+ *    mean error of +0.002 on a 0–1 index (`MEASURED_INVERSION.ndvi`).
+ *  - **EVI cannot follow, for an unrelated reason.** Its GIBS ramp contains pure
+ *    black, which the JPEG transport makes indistinguishable from an undrawn
+ *    pixel (see vegetationIndexNoData.ts), so no stop placement can calibrate
+ *    it. `evi` stays out of `COLORMAP_DOCS`, its values remain gradient
+ *    positions rather than colormap-inverted ones, and its error stays
+ *    directional: reported EVI reads greener than the ramp by +0.22 on average
+ *    at an RMSE of 0.29 — figures that dwarf the colormap quantization band the
+ *    probe prints alongside its values, which describes only the ramp's step
+ *    size and not this end-to-end error.
  *
  * Scope limits, in the repo's usual order:
  *  - This measures *our inversion against GIBS's ramp*, the tightest reference
@@ -85,13 +98,24 @@ export interface VegetationRampFidelity {
 }
 
 /**
- * Committed figures, measured 2026-08-11 against the live GIBS documents using
- * the production `parseColormap` / `linearityDeviation` path and the same
- * legend-LUT inversion `validation.validateInversion` runs for the calibrated
- * layers (that function is typed to `CalibratedLayerId`, so the contract test
- * mirrors its body rather than widening it). Both ramps span 0–1 exactly, so
- * the legend's *end* ticks are faithful; everything between them is where the
- * non-linearity lives.
+ * Committed figures, measured against the GIBS documents using the production
+ * `parseColormap` / `linearityDeviation` path and the same legend-LUT inversion
+ * `validation.validateInversion` runs for the calibrated layers (that function
+ * is typed to `CalibratedLayerId`, so the contract test mirrors its body rather
+ * than widening it). Both ramps span 0–1 exactly, so the legend's *end* ticks
+ * are faithful.
+ *
+ * `linearityDeviation` is a property of GIBS's own document — how unevenly its
+ * bins are spaced in value — so it is unchanged by anything this app does to
+ * its legend. The inversion figures beside it are NOT: they measure this repo's
+ * gradient against that ramp, and they move whenever the legend is rebuilt.
+ * NDVI's were re-measured 2026-08-14 from the pinned `gibsColormaps.json`
+ * snapshot after its stops were placed at the ramp's value fractions; the
+ * previous pins (RMSE 0.23, bias +0.133, 108 of 140 recovered) described the
+ * retired hand-drawn gradient, whose 32 rejected colours fell in the three
+ * contiguous blocks `validation.ts` records. They now agree with
+ * `MEASURED_INVERSION.ndvi`, which is the authoritative figure for any
+ * calibrated layer; nothing here may restate it differently.
  */
 export const MEASURED_VEGETATION_RAMP: Record<
   VegetationIndexId,
@@ -99,10 +123,10 @@ export const MEASURED_VEGETATION_RAMP: Record<
 > = {
   ndvi: {
     linearityDeviation: 0.129,
-    rmse: 0.23,
-    bias: 0.133,
-    p95: 0.332,
-    recoveredSteps: 108,
+    rmse: 0.0236,
+    bias: 0.0023,
+    p95: 0.0511,
+    recoveredSteps: 140,
     totalSteps: 140,
   },
   evi: {
@@ -127,6 +151,20 @@ export function vegetationIndexId(id: LayerId): VegetationIndexId | null {
   return id === "ndvi" || id === "evi" ? id : null;
 }
 
+/**
+ * The vegetation index as a calibrated layer, or null if it is not one.
+ *
+ * Membership in `COLORMAP_DOCS` is the repo's single answer to "is a reported
+ * value colormap-inverted", and it is asked of the shared record rather than
+ * hard-coded here so an index that is later calibrated — or de-calibrated by a
+ * GIBS re-render — changes what every surface says at once.
+ */
+export function calibratedVegetationIndex(
+  index: VegetationIndexId
+): CalibratedLayerId | null {
+  return index in COLORMAP_DOCS ? (index as CalibratedLayerId) : null;
+}
+
 /** Measured ramp fidelity for a layer, or null if it is not a vegetation index. */
 export function vegetationRampFidelity(
   id: LayerId
@@ -136,9 +174,15 @@ export function vegetationRampFidelity(
 }
 
 /**
- * Whether a vegetation index's ramp exceeds the linearity ceiling that
- * membership in `COLORMAP_DOCS` asserts. Derived from the shared constant, so
- * the claim stays true if the ceiling is ever retuned.
+ * Whether GIBS's own ramp for a vegetation index is spaced more unevenly in
+ * value than the linearity ceiling. Derived from the shared constant, so the
+ * claim stays true if the ceiling is ever retuned.
+ *
+ * This is a statement about the *source document*, not a verdict on the layer.
+ * A legend whose stops are placed at the ramp's value fractions inverts
+ * correctly through an uneven ramp — NDVI exceeds this ceiling and is
+ * calibrated anyway. Use {@link calibratedVegetationIndex} to ask whether a
+ * reported value is colormap-inverted.
  */
 export function exceedsLinearityCeiling(id: LayerId): boolean {
   const fidelity = vegetationRampFidelity(id);
@@ -164,21 +208,62 @@ function indexLabel(index: VegetationIndexId): string {
   return index === "ndvi" ? "NDVI" : "EVI";
 }
 
-/** "+0.13" / "-0.04" — a signed index figure at the pinned precision. */
+/**
+ * "+0.13" / "-0.04" — a signed index figure at the pinned precision, widened to
+ * three decimals for a bias that would otherwise print as "+0.00". A rounded
+ * zero carrying a sign reads as a measurement of nothing.
+ */
 function signed(value: number): string {
-  return `${value >= 0 ? "+" : "-"}${Math.abs(value).toFixed(2)}`;
+  return `${value >= 0 ? "+" : "-"}${Math.abs(value).toFixed(
+    Math.abs(value) < 0.005 ? 3 : 2
+  )}`;
 }
+
+/**
+ * Half a colormap step on the 0–1 index scale — the resolution floor the probe
+ * already prints. A mean error below it is not a direction the method can
+ * resolve, so no direction is claimed for one.
+ */
+const INDEX_QUANTIZATION_STEP = 1 / 255;
 
 /**
  * Caveat for the legend's interior value tick. The end ticks are exact — both
  * ramps span 0–1 — so only the mid-scale number needs qualifying, and it is
- * qualified with the measured deviation rather than a vague "approximate".
- * Null for every layer whose ramp is linear enough to trust throughout.
+ * qualified with a measured figure rather than a vague "approximate".
+ *
+ * The two indices need opposite sentences, and quoting the uncalibrated one on
+ * both is what this branch exists to prevent. A ramp's `linearityDeviation` is
+ * how unevenly GIBS spaced its bins; it becomes the *reader's* error only if
+ * the legend ignored that spacing. NDVI's does not — its stops sit at the
+ * ramp's value fractions — so telling an NDVI reader the mid tick is "not a
+ * colormap-inverted value", 13% of span out, denies the layer's calibration and
+ * overstates its measured error by roughly fivefold. For a calibrated index the
+ * tick therefore carries `MEASURED_INVERSION`'s figure, the same number the
+ * probe panel and CSV quote, so the legend cannot contradict them. EVI keeps
+ * the original sentence: it is genuinely uncalibrated (its ramp ends in black,
+ * which the JPEG transport cannot tell from an undrawn pixel), so its mid tick
+ * really is a gradient position.
+ *
+ * Null for every layer that is neither a vegetation index nor demonstrably off
+ * the linear scale — absence is never rendered as accuracy.
  */
 export function vegetationRampTickCaveat(id: LayerId): string | null {
   const index = vegetationIndexId(id);
   const fidelity = vegetationRampFidelity(id);
   if (index === null || fidelity === null) return null;
+  const calibrated = calibratedVegetationIndex(index);
+  if (calibrated !== null) {
+    const measured = MEASURED_INVERSION[calibrated];
+    // A calibrated layer that inverts nothing has no figure to quote; say
+    // nothing rather than dress a null up as precision.
+    if (measured.rmse === null) return null;
+    const recovered = measured.total - measured.nulls;
+    return (
+      `Mid-scale ${indexLabel(index)} is inverted through GIBS's ${VEGETATION_INDEX_COLORMAP_DOCS[index]} colormap, ` +
+      `whose value fractions this legend's stops sit at: ${recovered} of its ${measured.total} published ramp colours ` +
+      `recover with an RMSE of ${measured.rmse.toFixed(2)} on the 0–1 index. The end labels are exact.`
+    );
+  }
   if (!exceedsLinearityCeiling(id)) return null;
   const percent = Math.round(fidelity.linearityDeviation * 100);
   return (
@@ -197,11 +282,21 @@ export function describeVegetationRampFidelity(id: LayerId): string | null {
   const index = vegetationIndexId(id);
   const fidelity = vegetationRampFidelity(id);
   if (index === null || fidelity === null) return null;
+  const source =
+    calibratedVegetationIndex(index) !== null
+      ? `${indexLabel(index)} values are inverted through GIBS's ${VEGETATION_INDEX_COLORMAP_DOCS[index]} colormap, whose value fractions this legend's stops sit at`
+      : `${indexLabel(index)} values are read off RoamingEye's legend gradient, not GIBS's ${VEGETATION_INDEX_COLORMAP_DOCS[index]} colormap`;
+  // A mean error the method cannot resolve is not a direction. Naming one
+  // anyway would turn a calibrated layer's residual scatter into a claim that
+  // its values lean green — the same overstatement the tick caveat carried.
+  const direction =
+    Math.abs(fidelity.bias) > INDEX_QUANTIZATION_STEP
+      ? ` (${fidelity.bias > 0 ? "reported values read greener than the ramp" : "reported values read less green than the ramp"})`
+      : " (below one colormap step, so no direction is claimed)";
   return (
-    `${indexLabel(index)} values are read off RoamingEye's legend gradient, not GIBS's ` +
-    `${VEGETATION_INDEX_COLORMAP_DOCS[index]} colormap: measured against that ramp they carry ` +
-    `an RMSE of ${fidelity.rmse.toFixed(2)} and a mean error of ${signed(fidelity.bias)} index units ` +
-    `(${fidelity.bias > 0 ? "reported values read greener than the ramp" : "reported values read less green than the ramp"}), ` +
+    `${source}: measured against that ramp they carry ` +
+    `an RMSE of ${fidelity.rmse.toFixed(2)} and a mean error of ${signed(fidelity.bias)} index units` +
+    `${direction}, ` +
     `over ${fidelity.recoveredSteps} of ${fidelity.totalSteps} ramp colours that invert to a value. ` +
     `No correction is applied and the index implies nothing about cover, biomass, or condition.`
   );

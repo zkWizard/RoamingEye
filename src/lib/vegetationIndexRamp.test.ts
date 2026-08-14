@@ -3,6 +3,7 @@ import {
   MEASURED_VEGETATION_RAMP,
   VEGETATION_INDEX_COLORMAP_DOCS,
   VEGETATION_RAMP_LIMITS,
+  calibratedVegetationIndex,
   describeVegetationRampFidelity,
   exceedsLinearityCeiling,
   linearityCeilingMultiple,
@@ -11,7 +12,10 @@ import {
   vegetationRampTickCaveat,
 } from "./vegetationIndexRamp";
 import { COLORMAP_DOCS, MAX_LINEARITY_DEVIATION } from "./colormap";
-import { PROBE_SCALES } from "./probe";
+import { PROBE_SCALES, buildColormapLut, invertColormap } from "./probe";
+import { LEGENDS, type GradientLegendSpec } from "./legend";
+import { snapshotColormapEntries } from "./gibsColormapSnapshot";
+import { MEASURED_INVERSION } from "./validation";
 
 describe("vegetation-index ramp fidelity", () => {
   it("characterizes only the two MOD13A3 vegetation indices", () => {
@@ -66,7 +70,11 @@ describe("vegetation-index ramp fidelity", () => {
     );
   });
 
-  it("records a positive bias: reported values read greener than the ramp", () => {
+  it("keeps each pinned bias, RMSE and p95 mutually consistent", () => {
+    // Only EVI's bias is large enough to be a direction a reader should act on;
+    // NDVI's sits below one colormap step. The shared invariant is the ordering
+    // of the three figures, not a claim that either reads green.
+    expect(MEASURED_VEGETATION_RAMP.evi.bias).toBeGreaterThan(1 / 255);
     for (const index of ["ndvi", "evi"] as const) {
       const fidelity = MEASURED_VEGETATION_RAMP[index];
       expect(fidelity.bias).toBeGreaterThan(0);
@@ -80,12 +88,82 @@ describe("vegetation-index ramp fidelity", () => {
   });
 
   it("dwarfs the quantization band the probe prints beside its values", () => {
-    // The probe's "±..." is half a colormap step. The end-to-end error is
-    // orders of magnitude larger, which is the reason this module exists.
+    // The probe's "±..." is half a colormap step. For the UNCALIBRATED index
+    // the end-to-end error is orders of magnitude larger, which is the reason
+    // this module exists. NDVI is no longer in that position: its stops sit at
+    // the ramp's value fractions, so its error is within a few steps and the
+    // "dwarfs" framing must not be quoted for it.
     const step = 1 / 255;
+    expect(MEASURED_VEGETATION_RAMP.evi.rmse).toBeGreaterThan(step * 10);
+    expect(MEASURED_VEGETATION_RAMP.ndvi.rmse).toBeLessThan(step * 10);
+  });
+
+  it("never restates a calibrated layer's inversion error differently", () => {
+    // The defect this guards: MEASURED_VEGETATION_RAMP kept NDVI's retired
+    // hand-drawn-gradient figures (RMSE 0.23, 108 of 140 recovered) after the
+    // legend was rebuilt from MODIS_L3_NDVI, and the legend's mid-tick tooltip
+    // was generated from them. Two committed RMSEs for one layer is the bug;
+    // MEASURED_INVERSION is the authority for anything in COLORMAP_DOCS.
     for (const index of ["ndvi", "evi"] as const) {
-      expect(MEASURED_VEGETATION_RAMP[index].rmse).toBeGreaterThan(step * 10);
+      const calibrated = calibratedVegetationIndex(index);
+      if (calibrated === null) continue;
+      const authoritative = MEASURED_INVERSION[calibrated];
+      const local = MEASURED_VEGETATION_RAMP[index];
+      expect(authoritative.rmse).not.toBeNull();
+      expect(local.rmse).toBeCloseTo(authoritative.rmse as number, 3);
+      expect(local.totalSteps).toBe(authoritative.total);
+      expect(local.recoveredSteps).toBe(
+        authoritative.total - authoritative.nulls
+      );
     }
+  });
+
+  it("re-measures NDVI from the pinned snapshot through the production path", () => {
+    // The offline guard the pins claim. Runs the same legend LUT + linear
+    // position→value step validateInversion runs, against the committed GIBS
+    // ramp, so a legend edit that moves the error fails here rather than on the
+    // legend tooltip.
+    const spec = LEGENDS.ndvi as GradientLegendSpec;
+    const lut = buildColormapLut(spec.stops);
+    const scale = PROBE_SCALES.ndvi;
+    const span = scale.max - scale.min;
+    const errors: number[] = [];
+    let nulls = 0;
+    for (const entry of snapshotColormapEntries("ndvi")) {
+      const pos = invertColormap(entry.rgb, lut);
+      if (pos === null) {
+        nulls++;
+        continue;
+      }
+      errors.push(scale.min + pos * span - entry.value);
+    }
+    const n = errors.length;
+    const rmse = Math.sqrt(errors.reduce((s, e) => s + e * e, 0) / n);
+    const bias = errors.reduce((s, e) => s + e, 0) / n;
+    expect(nulls, "every published NDVI ramp colour inverts").toBe(0);
+    expect(n).toBe(MEASURED_VEGETATION_RAMP.ndvi.recoveredSteps);
+    expect(rmse).toBeCloseTo(MEASURED_VEGETATION_RAMP.ndvi.rmse, 3);
+    expect(bias).toBeCloseTo(MEASURED_VEGETATION_RAMP.ndvi.bias, 3);
+  });
+
+  it("does not deny a calibrated index its calibration on the legend", () => {
+    // NDVI is in COLORMAP_DOCS, so its mid tick IS a colormap-inverted value.
+    // The tooltip must not say otherwise, and must quote the same figure the
+    // probe panel and CSV quote rather than a second, larger one.
+    const caveat = vegetationRampTickCaveat("ndvi") as string;
+    expect(caveat).not.toContain("not a colormap-inverted value");
+    expect(caveat).not.toContain("% of span");
+    expect(caveat).toContain("140 of its 140 published ramp colours");
+    expect(caveat).toContain(
+      `RMSE of ${(MEASURED_INVERSION.ndvi.rmse as number).toFixed(2)}`
+    );
+    // EVI genuinely is a gradient position — its ramp ends in black, so no stop
+    // placement can calibrate it. It keeps the original sentence.
+    const evi = vegetationRampTickCaveat("evi") as string;
+    expect(evi).toContain("not a colormap-inverted value");
+    expect(Object.prototype.hasOwnProperty.call(COLORMAP_DOCS, "evi")).toBe(
+      false
+    );
   });
 
   it("names an authoritative GIBS colormap document for each index", () => {
@@ -97,7 +175,6 @@ describe("vegetation-index ramp fidelity", () => {
     const caveat = vegetationRampTickCaveat("ndvi");
     expect(caveat).toContain("Mid-scale NDVI");
     expect(caveat).toContain("MODIS_L3_NDVI");
-    expect(caveat).toContain("13% of span");
     expect(caveat).toContain("The end labels are exact.");
     expect(vegetationRampTickCaveat("evi")).toContain("21% of span");
     // Both ramps span 0-1, which is what makes the end labels exact.
@@ -109,10 +186,14 @@ describe("vegetation-index ramp fidelity", () => {
 
   it("states the error, its direction, and the recovery rate in one line", () => {
     const ndvi = describeVegetationRampFidelity("ndvi");
-    expect(ndvi).toContain("RMSE of 0.23");
-    expect(ndvi).toContain("mean error of +0.13");
-    expect(ndvi).toContain("read greener than the ramp");
-    expect(ndvi).toContain("108 of 140 ramp colours");
+    expect(ndvi).toContain("RMSE of 0.02");
+    expect(ndvi).toContain("mean error of +0.002");
+    // NDVI's residual is below one colormap step, so no direction is claimed:
+    // calling a calibrated layer's scatter a green lean is the overstatement
+    // this module was carrying on the legend.
+    expect(ndvi).toContain("no direction is claimed");
+    expect(ndvi).not.toContain("read greener than the ramp");
+    expect(ndvi).toContain("140 of 140 ramp colours");
     // Never a fitness, condition, or biomass claim.
     expect(ndvi).toContain(
       "implies nothing about cover, biomass, or condition"
