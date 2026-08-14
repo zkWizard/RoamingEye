@@ -257,4 +257,80 @@ describe("placeSnowCoverInsight", () => {
       "rendered source image dimensions not supplied"
     );
   });
+
+  it("keeps the plain coverage sentence when both months were drawn alike", () => {
+    const insight = placeSnowCoverInsight(months, [80, 55], months[1], {
+      validFractions: [0.9, 0.88],
+    });
+
+    expect(insight.detail).toContain("Usable area coverage was 88%.");
+    expect(insight.detail).not.toContain("different drawn area");
+  });
+
+  it("qualifies the change when the two months cover different drawn areas", () => {
+    // Percent 0 is transparent, so each month's mean is taken over whatever was
+    // drawn that month. Subtracting means over a 90% and a 20% footprint is not
+    // a comparison of the same ground, and the panel showed only the later
+    // month's coverage, so the mismatch was invisible.
+    const insight = placeSnowCoverInsight(months, [80, 55], months[1], {
+      validFractions: [0.9, 0.2],
+    });
+
+    expect(insight.detail).toContain("Usable area coverage was 20% in 2025-03");
+    expect(insight.detail).toContain("against 90% in 2025-02");
+    expect(insight.detail).toContain(
+      "each month's mean covers a different drawn area"
+    );
+    expect(insight.detail).toContain("not a like-for-like comparison");
+  });
+
+  it("qualifies a collapsed footprint that renders as snow advancing", () => {
+    // The failure this guards: cover retreats to a few patches, the mean over
+    // the little still drawn rises, and the card reads "advanced".
+    const insight = placeSnowCoverInsight(months, [40, 75], months[1], {
+      validFractions: [0.95, 0.05],
+    });
+
+    expect(insight.detail).toContain("advanced by 35 percentage points");
+    expect(insight.detail).toContain("different drawn area");
+  });
+
+  it("stays silent when either month's footprint is unknown", () => {
+    // Nothing can be said about a gap that was never measured.
+    const insight = placeSnowCoverInsight(months, [80, 55], months[1], {
+      validFractions: [null, 0.2],
+    });
+
+    expect(insight.detail).not.toContain("different drawn area");
+  });
+
+  it("does not qualify a change it never stated", () => {
+    // Non-adjacent months report no movement, so there is no comparison to
+    // caveat even though the footprints differ wildly.
+    const gapped: [YearMonth, YearMonth] = [
+      { year: 2025, month: 1 },
+      { year: 2025, month: 5 },
+    ];
+    const insight = placeSnowCoverInsight(gapped, [80, 55], gapped[1], {
+      validFractions: [0.95, 0.1],
+    });
+
+    expect(insight.detail).toContain("not exactly one calendar month apart");
+    expect(insight.detail).not.toContain("different drawn area");
+  });
+
+  it("fires at the reporting band, matching the change threshold", () => {
+    // The band is reused from SNOW_SEASON_CHANGE_THRESHOLD_PP rather than
+    // invented, so it is pinned here in both directions.
+    const at = placeSnowCoverInsight(months, [80, 55], months[1], {
+      validFractions: [0.9, 0.85],
+    });
+    const below = placeSnowCoverInsight(months, [80, 55], months[1], {
+      validFractions: [0.9, 0.851],
+    });
+
+    expect(at.detail).toContain("different drawn area");
+    expect(below.detail).toContain("Usable area coverage was 85.1%.");
+    expect(below.detail).not.toContain("different drawn area");
+  });
 });
