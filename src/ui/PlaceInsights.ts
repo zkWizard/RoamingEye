@@ -26,6 +26,7 @@ import {
 } from "../lib/volcanoExtent";
 import {
   epicenterConstraintText,
+  comparedEventPopulationText,
   epicentralDistanceText,
   feedGenerationText,
   listedSeismicityOrderNote,
@@ -556,9 +557,14 @@ export class PlaceInsights {
     // where no feed copy was parsed. So the stamp is never claimed for a feed
     // that was never read — it dates the copy these counts came from.
     const generated = ` ${feedGenerationText(generatedTime)}`;
+    // A negative result is only readable against the size of the set that
+    // produced it, and the matched branch below already states that size. Placed
+    // after the disclaimer it qualifies, matching how the plate section trails
+    // its own "Compared against N usable supplied polylines".
+    const compared = comparedEventPopulationText(context);
     this.seismicityDetail.textContent =
       count === 0
-        ? `${scope} No M4.5+ events recorded in the feed window; that does not establish the area is seismically quiet.${generated}`
+        ? `${scope} No M4.5+ events recorded in the feed window; that does not establish the area is seismically quiet.${compared ? ` ${compared}` : ""}${generated}`
         : `${scope} Counted from ${coverage.validEventCount} valid events in the global feed.${generated}`;
 
     for (const observation of context.observations.slice(

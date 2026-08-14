@@ -541,6 +541,44 @@ export function epicentralDistanceText(distanceKm: number): string {
 }
 
 /**
+ * How large a set an empty nearby-seismicity result was compared against.
+ *
+ * The empty branch tells a reader that no matched event "does not establish the
+ * area is seismically quiet" — a statement whose whole force is the size of the
+ * set that was searched. That size is already on the coverage, and the same
+ * section prints it whenever events do match ("Counted from N valid events in
+ * the global feed"), so the one branch that omits it is the branch where a
+ * reader most needs it: an empty result measured against a full feed copy and
+ * one measured against a copy that parsed down to a handful of events read
+ * identically on screen. The plate-boundary section already states its own
+ * comparison population under both outcomes ("Compared against N usable
+ * supplied polylines"), and this is the same disclosure for the live feed.
+ *
+ * The verb follows that sibling rather than the matched branch's "Counted
+ * from": nothing was counted here, so the figure describes what was searched.
+ *
+ * This is the feed copy in hand, not a completeness claim — it says how many
+ * valid events this search was compared against, and nothing about how many
+ * earthquakes occurred. Returns null unless a radial search actually ran and
+ * found nothing, so a caller never reports a comparison that did not happen:
+ * an invalid query and a copy with no valid events are separate states the
+ * section reports in their own words.
+ */
+export function comparedEventPopulationText(
+  context: EarthquakePlaceContext
+): string | null {
+  const { status, validEventCount } = context.coverage;
+  if (status !== "no-events-in-radius") return null;
+  // Guards the phrasing rather than the status alone: "no-events-in-radius"
+  // already implies at least one valid event, so a zero here would mean the
+  // coverage disagreed with itself, and naming it would be worse than silence.
+  if (validEventCount <= 0) return null;
+  return `Compared against ${validEventCount} valid ${
+    validEventCount === 1 ? "event" : "events"
+  } in the global feed.`;
+}
+
+/**
  * When USGS generated the feed copy a listed selection was drawn from.
  *
  * {@link USGS_M45_MONTH_SOURCE}'s `feedWindow` already tells a reader the
