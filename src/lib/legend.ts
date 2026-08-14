@@ -1,5 +1,5 @@
 import { LAYERS, type LayerId } from "./timeline";
-import { DEPTH_CLASS_COLORS } from "./earthquakes";
+import { DEPTH_CLASS_COLORS, MAGNITUDE_SIZE_BUCKETS } from "./earthquakes";
 import { ERUPTION_CLASS_COLORS, ERUPTION_CLASS_LABELS } from "./volcanoes";
 import { PROBE_SCALES, formatProbeValue, scaleValue } from "./probe";
 import { IGBP_LAND_COVER_CLASSES } from "./landCover";
@@ -342,12 +342,54 @@ export function legendTicks(
 export interface OverlayKeyEntry {
   color: string;
   label: string;
+  /**
+   * Swatch diameter relative to the largest swatch in its channel (0–1).
+   * Set only where the overlay itself varies marker size; omitted entries
+   * render at the key's default size.
+   */
+  scale?: number;
 }
 
-export interface OverlayKeySpec {
-  /** What the colors encode, in plain words. */
+/** One visual channel an overlay encodes, and what its swatches mean. */
+export interface OverlayKeyChannel {
+  /** What this channel encodes, in plain words. */
   title: string;
   entries: OverlayKeyEntry[];
+}
+
+export interface OverlayKeySpec extends OverlayKeyChannel {
+  /**
+   * A second channel the same markers encode, when the overlay has one.
+   * An overlay that varies both color and size is telling the reader two
+   * things at once; a key that names only the color leaves the other half
+   * of what is on screen unexplained.
+   */
+  secondary?: OverlayKeyChannel;
+}
+
+/**
+ * The size channel's swatches are deliberately neutral rather than tinted:
+ * on this overlay color already carries the depth class, so giving a size
+ * swatch one of the depth colors would assert a depth the band does not have.
+ */
+const SIZE_SWATCH_COLOR = "var(--muted)";
+
+/**
+ * Magnitude-size key rows, derived from the buckets the overlay draws with, so
+ * the swatch sizes are the globe's own ratios rather than hand-picked ones.
+ * Scaled against the largest bucket, which keeps the biggest swatch at the
+ * key's existing size — the row gains meaning without gaining height.
+ */
+function magnitudeSizeEntries(): OverlayKeyEntry[] {
+  const largest = Math.max(
+    ...MAGNITUDE_SIZE_BUCKETS.map((bucket) => bucket.size)
+  );
+  // Smallest band first, matching the depth row's low-to-high reading order.
+  return [...MAGNITUDE_SIZE_BUCKETS].reverse().map(({ label, size }) => ({
+    color: SIZE_SWATCH_COLOR,
+    label,
+    scale: size / largest,
+  }));
 }
 
 /**
@@ -363,6 +405,13 @@ export const OVERLAY_KEYS: Record<"quakes" | "volcanoes", OverlayKeySpec> = {
       { color: DEPTH_CLASS_COLORS.intermediate, label: "70–300 km" },
       { color: DEPTH_CLASS_COLORS.deep, label: "> 300 km" },
     ],
+    // The overlay sizes each marker by reported magnitude as well as coloring
+    // it by depth (see MAGNITUDE_SIZE_BUCKETS). Bands are rendering buckets,
+    // not the USGS magnitude classes, and carry no hazard or shaking meaning.
+    secondary: {
+      title: "Marker size — reported magnitude",
+      entries: magnitudeSizeEntries(),
+    },
   },
   volcanoes: {
     title: "Last eruption",

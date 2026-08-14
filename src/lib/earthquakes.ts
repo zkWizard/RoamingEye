@@ -271,6 +271,42 @@ export const DEPTH_CLASS_COLORS: Record<DepthClass, string> = {
 };
 
 /**
+ * Marker diameter per reported-magnitude band, in scene units — the overlay's
+ * second visual channel, alongside the depth colors above.
+ *
+ * A rendered earthquake encodes two different quantities at once: color is the
+ * hypocentre depth class, and marker size is the reported magnitude. Only the
+ * first was ever named to the reader, so the biggest dots on the globe — the
+ * ones a reader most wants to identify — carried no stated meaning at all.
+ * These live here, beside the colors, so the overlay and the legend key read
+ * the same numbers and the key cannot drift from what the globe draws.
+ *
+ * The three bands are a RENDERING choice (three buckets keep the overlay on
+ * cheap shared PointsMaterials), not a classification of earthquake size.
+ * They are deliberately NOT the USGS magnitude-class descriptors documented at
+ * MAGNITUDE_CLASS_ORDER below, and they say nothing about energy, shaking
+ * intensity, damage, or hazard.
+ *
+ * Ordered largest first, and matched with `magnitude >= min`, so each band is
+ * half-open: [5.5, 6.5) renders at the middle size. Labels are written in the
+ * one-decimal convention USGS uses for its own magnitude bands ("M5.5–6.4").
+ */
+export interface MagnitudeSizeBucket {
+  /** Inclusive lower bound on reported magnitude. */
+  min: number;
+  /** Rendered point diameter in unit-sphere scene units. */
+  size: number;
+  /** Compact band label for the legend key. */
+  label: string;
+}
+
+export const MAGNITUDE_SIZE_BUCKETS: readonly MagnitudeSizeBucket[] = [
+  { min: 6.5, size: 0.055, label: "M6.5+" },
+  { min: 5.5, size: 0.035, label: "M5.5–6.4" },
+  { min: 0, size: 0.02, label: "< M5.5" },
+];
+
+/**
  * The conventional USGS magnitude-class descriptors, which bin the reported
  * magnitude value into named categories of earthquake size:
  * great (≥ 8), major (7–7.9), strong (6–6.9), moderate (5–5.9),

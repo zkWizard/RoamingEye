@@ -8,6 +8,7 @@ import {
   depthClass,
   formatEarthquakeObservation,
   DEPTH_CLASS_COLORS,
+  MAGNITUDE_SIZE_BUCKETS,
   USGS_FEED_URL,
   type DepthClass,
   type Earthquake,
@@ -32,12 +33,12 @@ const DEPTH_COLORS = Object.fromEntries(
   ])
 ) as Record<DepthClass, THREE.Color>;
 
-/** Magnitude buckets → point size (unit-sphere scene units), largest first. */
-const SIZE_BUCKETS: { min: number; size: number }[] = [
-  { min: 6.5, size: 0.055 },
-  { min: 5.5, size: 0.035 },
-  { min: 0, size: 0.02 },
-];
+/**
+ * Magnitude buckets → point size (unit-sphere scene units), largest first.
+ * Shared with the legend key (lib/earthquakes.ts) exactly as the depth colors
+ * are, so the sizes on the globe and the sizes in the key stay one definition.
+ */
+const SIZE_BUCKETS = MAGNITUDE_SIZE_BUCKETS;
 
 /** Maximum number of point sources exposed for hover inspection. */
 export const EARTHQUAKE_HOVER_SOURCE_COUNT = SIZE_BUCKETS.length;

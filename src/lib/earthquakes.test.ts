@@ -9,6 +9,7 @@ import {
   formatEarthquakeObservation,
   magnitudeClass,
   MAGNITUDE_CLASS_ORDER,
+  MAGNITUDE_SIZE_BUCKETS,
   summarizeEarthquakes,
   isValidEarthquakeObservation,
 } from "./earthquakes";
@@ -680,5 +681,56 @@ describe("summarizeEarthquakes", () => {
       depthKm: { min: null, max: null },
       depthClassCounts: { shallow: 0, intermediate: 0, deep: 0 },
     });
+  });
+});
+
+describe("MAGNITUDE_SIZE_BUCKETS", () => {
+  /** The overlay's own lookup: largest-first, matched with `magnitude >= min`. */
+  const bucketFor = (magnitude: number) =>
+    MAGNITUDE_SIZE_BUCKETS.find((b) => magnitude >= b.min) ??
+    MAGNITUDE_SIZE_BUCKETS[MAGNITUDE_SIZE_BUCKETS.length - 1];
+
+  it("is ordered largest first, with strictly descending bounds and sizes", () => {
+    const mins = MAGNITUDE_SIZE_BUCKETS.map((b) => b.min);
+    const sizes = MAGNITUDE_SIZE_BUCKETS.map((b) => b.size);
+    expect([...mins].sort((a, b) => b - a)).toEqual(mins);
+    expect([...sizes].sort((a, b) => b - a)).toEqual(sizes);
+  });
+
+  it("covers every magnitude, including below the feed's M4.5 cutoff", () => {
+    // The lowest bucket is open at the bottom so the overlay still renders a
+    // marker if it is ever handed a broader catalog than the M4.5+ summary.
+    expect(MAGNITUDE_SIZE_BUCKETS[MAGNITUDE_SIZE_BUCKETS.length - 1].min).toBe(
+      0
+    );
+    for (const magnitude of [0, 1.2, 4.5, 5.4, 9.5]) {
+      expect(bucketFor(magnitude)).toBeDefined();
+    }
+  });
+
+  it("puts each band's own bound in that band, not the one below", () => {
+    // Bands are half-open: exactly 5.5 is medium and exactly 6.5 is large.
+    expect(bucketFor(5.5).label).toBe("M5.5–6.4");
+    expect(bucketFor(6.49).label).toBe("M5.5–6.4");
+    expect(bucketFor(6.5).label).toBe("M6.5+");
+    expect(bucketFor(5.49).label).toBe("< M5.5");
+  });
+
+  it("labels each band consistently with the bound that selects it", () => {
+    for (const bucket of MAGNITUDE_SIZE_BUCKETS) {
+      expect(bucketFor(bucket.min).label).toBe(bucket.label);
+      expect(bucket.label.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("is a rendering encoding, not the USGS magnitude classes", () => {
+    // Three display buckets against seven published descriptors: naming one
+    // after the other would claim a classification the sizes do not make.
+    expect(MAGNITUDE_SIZE_BUCKETS.length).not.toBe(
+      MAGNITUDE_CLASS_ORDER.length
+    );
+    for (const bucket of MAGNITUDE_SIZE_BUCKETS) {
+      expect(MAGNITUDE_CLASS_ORDER).not.toContain(bucket.label);
+    }
   });
 });
