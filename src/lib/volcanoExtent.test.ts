@@ -58,7 +58,7 @@ describe("volcanoesInSearchExtent", () => {
         fraction: 1,
       },
       geographicCoverage:
-        "Coordinates inside the search result bounding box; the exact selected boundary is not tested.",
+        "Coordinates inside the search result bounding box, about 361 km north–south and 49.0 km east–west at its mid-latitude; the exact selected boundary is not tested.",
       provenance: { org: "Smithsonian Institution Global Volcanism Program" },
       units: { elevation: "metres relative to sea level" },
     });
@@ -289,5 +289,35 @@ describe("volcanoesInSearchExtent", () => {
 
     expect(context.typeComposition.totalCount).toBe(0);
     expect(context.typeComposition.tallies).toEqual([]);
+  });
+});
+
+describe("search extent size in the volcano geographic coverage sentence", () => {
+  it("scales a matched-record count by stating the extent it was taken over", () => {
+    // The defect this guards: the same "N records" sentence covers a city-sized
+    // box and a country-sized one, so a count read without a size is not
+    // comparable between places.
+    const city = volcanoesInSearchExtent(
+      [volcano({ name: "Hekla", lat: 63.98, lon: -19.7 })],
+      [64.03, 64.18, -22.05, -21.75]
+    );
+    const country = volcanoesInSearchExtent(
+      [volcano({ name: "Hekla", lat: 63.98, lon: -19.7 })],
+      [63.2, 66.6, -24.6, -13.400001]
+    );
+
+    expect(city.geographicCoverage).toContain(
+      "about 16.7 km north–south and 14.6 km east–west at its mid-latitude"
+    );
+    expect(country.geographicCoverage).toContain(
+      "about 378 km north–south and 528 km east–west at its mid-latitude"
+    );
+    expect(city.geographicCoverage).not.toBe(country.geographicCoverage);
+  });
+
+  it("says nothing about extent size when the bounding box was unusable", () => {
+    const context = volcanoesInSearchExtent([volcano()], null);
+    expect(context.status).toBe("invalid-bounds");
+    expect(context.geographicCoverage).not.toContain("north–south");
   });
 });
