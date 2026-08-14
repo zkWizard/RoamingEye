@@ -5,9 +5,14 @@ import {
   SST_COLD_END_SCALE_ANCHOR,
   probeSstColdEndAccuracy,
   sstColdEndAccuracyClause,
+  sstColdEndAccuracyCsvHeaders,
 } from "./sstColdEndAccuracy";
 import { MEASURED_INVERSION } from "./validation";
-import { PROBE_SCALES } from "./probe";
+import { csvHeaderText, PROBE_SCALES } from "./probe";
+import {
+  inversionAccuracyCsvHeaders,
+  probeInversionAccuracy,
+} from "./probeInversionAccuracy";
 
 /** Ordinary subtropical water, far above the cold-end split. */
 const INTERIOR = 18.4;
@@ -144,5 +149,100 @@ describe("cold-end drift guards", () => {
     expect(SST_COLD_END_ACCURACY_LIMITATIONS.join(" ")).toContain(
       "rendering-inversion error only"
     );
+  });
+});
+
+describe("sstColdEndAccuracyCsvHeaders", () => {
+  it("writes nothing for a record the pooled figure already covers", () => {
+    // Above the threshold the pooled band overstates the residual, so a
+    // conservative figure needs no warning and an ordinary subtropical export
+    // stays byte-identical to what it was before this qualifier existed.
+    expect(
+      sstColdEndAccuracyCsvHeaders(
+        probeSstColdEndAccuracy("sst", [INTERIOR, 22.5])
+      )
+    ).toEqual([]);
+    expect(
+      sstColdEndAccuracyCsvHeaders(probeSstColdEndAccuracy("sst", [null]))
+    ).toEqual([]);
+    for (const layerId of ["ndvi", "lst", "airtemp", "precip"] as const) {
+      expect(
+        sstColdEndAccuracyCsvHeaders(
+          probeSstColdEndAccuracy(layerId, [COLD, INTERIOR])
+        )
+      ).toEqual([]);
+    }
+  });
+
+  it("qualifies the pooled figure once the record enters the band", () => {
+    const headers = sstColdEndAccuracyCsvHeaders(
+      probeSstColdEndAccuracy("sst", [COLD, INTERIOR, null])
+    );
+    expect(headers.length).toBe(4);
+    const joined = headers.join("\n");
+    // The band figure, the threshold it applies below, and the pooled figure
+    // it corrects all have to be present — a qualifier that names only one of
+    // the two numbers leaves the reader unable to tell which row takes which.
+    expect(joined).toContain(
+      `±${SST_COLD_END_ACCURACY.coldBandRmseC.toFixed(1)}`
+    );
+    expect(joined).toContain(
+      `±${(MEASURED_INVERSION.sst.rmse as number).toFixed(1)}`
+    );
+    expect(joined).toContain(`below ${SST_COLD_END_ACCURACY.thresholdC} °C`);
+    expect(joined).toContain(SST_COLD_END_ACCURACY.source);
+    // The cause is stated so the wider residual is not read as a retrieval
+    // fault in the L3 product.
+    expect(joined).toContain("not a retrieval error");
+    // And the screen's own imprecision is disclosed, so the count is never
+    // read as exhaustive.
+    expect(joined).toContain("lower bound");
+  });
+
+  it("counts the cold-band rows and names the coldest", () => {
+    const headers = sstColdEndAccuracyCsvHeaders(
+      probeSstColdEndAccuracy("sst", [COLD, 3.5, INTERIOR, null])
+    );
+    const rows = headers.find((h) =>
+      h.startsWith("# inversion_validation_cold_end_rows:")
+    );
+    expect(rows).toBeDefined();
+    expect(rows).toContain("2 sampled months");
+    expect(rows).toContain(`coldest ${COLD.toFixed(1)} °C`);
+
+    const single = sstColdEndAccuracyCsvHeaders(
+      probeSstColdEndAccuracy("sst", [COLD, INTERIOR])
+    ).find((h) => h.startsWith("# inversion_validation_cold_end_rows:"));
+    // Singular, so the line does not report "1 sampled months".
+    expect(single).toContain("1 sampled month ");
+  });
+
+  it("honours the CSV header contract on every line", () => {
+    const headers = sstColdEndAccuracyCsvHeaders(
+      probeSstColdEndAccuracy("sst", [COLD, INTERIOR])
+    );
+    for (const header of headers) {
+      expect(header.startsWith("# ")).toBe(true);
+      // A `#` line must never carry a delimiter, a quote, or a line break, or
+      // it splits the file it is meant to document.
+      expect(header).not.toContain(",");
+      expect(header).not.toContain('"');
+      expect(header).not.toMatch(/[\r\n]/);
+      expect(csvHeaderText(header)).toBe(header);
+    }
+  });
+
+  it("sits beside the pooled accuracy lines it corrects", () => {
+    // The two builders are concatenated at the export call sites, so their
+    // keys have to share a prefix for the qualifier to read as a continuation
+    // of the figure above it rather than an unrelated block.
+    const pooled = inversionAccuracyCsvHeaders(probeInversionAccuracy("sst"));
+    expect(pooled.length).toBeGreaterThan(0);
+    expect(pooled[0].startsWith("# inversion_validation:")).toBe(true);
+    for (const header of sstColdEndAccuracyCsvHeaders(
+      probeSstColdEndAccuracy("sst", [COLD])
+    )) {
+      expect(header.startsWith("# inversion_validation_cold_end")).toBe(true);
+    }
   });
 });
