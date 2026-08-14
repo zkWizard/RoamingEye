@@ -1563,8 +1563,9 @@ const renderFrame = (): void => {
   wasFlying = flyer.isFlying;
   highlight.update(camera.position.length()); // keep the marker a constant size
   for (const overlay of overlays) overlay.update?.(camera, window.innerHeight);
-  // HD tiles stream the live month, so they only belong on the live side of
-  // a comparison split (the pinned side falls back to its full-globe texture).
+  // HD tiles only ever stream the live month, so a comparison suppresses them
+  // on both sides and both months render from their own full-globe texture —
+  // a like-for-like split (see CompareController.renderSplit).
   if (compare.showing) {
     compare.renderSplit(renderer, scene, camera, [hdTiles.object]);
   } else {
