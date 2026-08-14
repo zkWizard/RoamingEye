@@ -30,6 +30,11 @@ import {
   sstExtremeCensoringCsvHeaders,
 } from "./lib/probeSstExtremeCensoring";
 import {
+  aerosolCeilingCensoringCsvHeaders,
+  probeAerosolCeilingCensoring,
+} from "./lib/probeAerosolCeilingCensoring";
+import { averagedAerosolCensoringCsvHeaders } from "./lib/probeAerosolAveragedCensoring";
+import {
   probeRecordGaps,
   probeRecordGapsCsvHeaders,
 } from "./lib/probeRecordGaps";
@@ -962,6 +967,13 @@ if (probeEl) {
           v === null ? null : scaleValue(v, scale)
         );
         const sstCensoring = probeSstExtremeCensoring(layer.id, physical);
+        // The aerosol ramp has the same problem at one end: its top bin is open,
+        // so a heavy-loading month decodes to a lower bound. The status line has
+        // marked those since the end-cap screen shipped; the file did not.
+        const aerosolCensoring = probeAerosolCeilingCensoring(
+          layer.id,
+          physical
+        );
         panel.finish(
           () =>
             buildProbeCsv(
@@ -1002,15 +1014,25 @@ if (probeEl) {
                 // capped month's `value` cell is an ordinary decimal. Judged on
                 // the physical series the file writes, not the 0..1 gradient
                 // positions held here. Empty for every other layer and for an
-                // SST record that stayed inside the finite ramp.
-                censoringHeaders: sstExtremeCensoringCsvHeaders(sstCensoring),
+                // SST record that stayed inside the finite ramp. A layer is
+                // sst or aerosol or neither, so at most one list is non-empty.
+                censoringHeaders: [
+                  ...sstExtremeCensoringCsvHeaders(sstCensoring),
+                  ...aerosolCeilingCensoringCsvHeaders(aerosolCensoring),
+                ],
                 // And that screen reads the area mean, not the pixels it
                 // averaged, so an unflagged row is not an uncensored one. A
                 // point probe's median needs no such correction.
-                averagedCensoringHeaders: marineAveragedSstCensoringCsvHeaders(
-                  averagedFootprint,
-                  sstCensoring
-                ),
+                averagedCensoringHeaders: [
+                  ...marineAveragedSstCensoringCsvHeaders(
+                    averagedFootprint,
+                    sstCensoring
+                  ),
+                  ...averagedAerosolCensoringCsvHeaders(
+                    averagedFootprint,
+                    aerosolCensoring
+                  ),
+                ],
                 // And the same for the record's calendar composition: the panel
                 // says a mean over 11 of 12 calendar months is not an annual
                 // mean, then hands over a value column with nothing on it to
@@ -1158,6 +1180,11 @@ if (probeEl) {
           v === null ? null : scaleValue(v, scale)
         );
         const sstCensoring = probeSstExtremeCensoring(layer.id, physical);
+        // Same for the aerosol ramp's open top bin — see the point/area path.
+        const aerosolCensoring = probeAerosolCeilingCensoring(
+          layer.id,
+          physical
+        );
         panel.finish(
           () =>
             buildProbeCsv(
@@ -1198,14 +1225,24 @@ if (probeEl) {
                 // capped month's `value` cell is an ordinary decimal. Judged on
                 // the physical series the file writes, not the 0..1 gradient
                 // positions held here. Empty for every other layer and for an
-                // SST record that stayed inside the finite ramp.
-                censoringHeaders: sstExtremeCensoringCsvHeaders(sstCensoring),
+                // SST record that stayed inside the finite ramp. A layer is
+                // sst or aerosol or neither, so at most one list is non-empty.
+                censoringHeaders: [
+                  ...sstExtremeCensoringCsvHeaders(sstCensoring),
+                  ...aerosolCeilingCensoringCsvHeaders(aerosolCensoring),
+                ],
                 // And that screen reads the region mean, not the pixels it
                 // averaged, so an unflagged row is not an uncensored one.
-                averagedCensoringHeaders: marineAveragedSstCensoringCsvHeaders(
-                  "drawn-region",
-                  sstCensoring
-                ),
+                averagedCensoringHeaders: [
+                  ...marineAveragedSstCensoringCsvHeaders(
+                    "drawn-region",
+                    sstCensoring
+                  ),
+                  ...averagedAerosolCensoringCsvHeaders(
+                    "drawn-region",
+                    aerosolCensoring
+                  ),
+                ],
                 // A drawn box spans latitudes and can straddle hemispheres, so
                 // the balance is measured on the region's own charted series
                 // and given no location context — it describes which calendar
