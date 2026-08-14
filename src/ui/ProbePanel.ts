@@ -30,6 +30,10 @@ import {
   sstTrendCensoringClause,
 } from "../lib/probeSstTrendCensoring";
 import {
+  probeSstColdEndAccuracy,
+  sstColdEndAccuracyClause,
+} from "../lib/sstColdEndAccuracy";
+import {
   aerosolCeilingBoundPrefix,
   aerosolCeilingCensoringClause,
   probeAerosolCeilingCensoring,
@@ -315,10 +319,22 @@ export class ProbePanel {
     // Two different accuracy claims, both needed. The quantization step is how
     // finely a gradient position resolves; the measured inversion RMSE is
     // whether that position lands on the right value — for SST the second is
-    // ~80x the first, so quoting only the step overstates precision badly.
+    // ~17x the first, so quoting only the step overstates precision badly.
     const accuracy = this.context
       ? inversionAccuracyClause(probeInversionAccuracy(this.context.layerId, s))
       : "";
+    // That second figure is a whole-ramp RMSE, and for SST the repository has
+    // already measured that the error is not uniform across the ramp it
+    // summarizes: below ~4 °C it is 2.8 °C, against 0.1–0.4 °C elsewhere,
+    // because the legend anchors its cold stop at GIBS's ~2 °C hue so that the
+    // black GIBS renders for an absent retrieval stays rejected. Quoting only
+    // the pooled number beside a polar reading understates that reading's error
+    // roughly threefold, so name the band figure beside it. Silent for every
+    // other layer, for an empty record, and for any SST record that stays out
+    // of the cold band.
+    const sstColdEnd = sstColdEndAccuracyClause(
+      probeSstColdEndAccuracy(this.context?.layerId, physical)
+    );
     // The trend is seasonally corrected, but the mean beside it is not: it
     // averages whichever months returned data. When those months are unevenly
     // spread across the calendar the mean carries a seasonal-sampling bias,
@@ -461,6 +477,7 @@ export class ProbePanel {
       ` · max ${boundPrefix("max")}${fmt(stats.max)}` +
       ` · ${uncertaintyText(s)} per value` +
       (accuracy ? ` · ${accuracy}` : "") +
+      (sstColdEnd ? ` · ${sstColdEnd}` : "") +
       ` · ${trendClause(trend)}` +
       (seasonal ? ` · ${seasonal}` : "") +
       (sstCensoringClause ? ` · ${sstCensoringClause}` : "") +

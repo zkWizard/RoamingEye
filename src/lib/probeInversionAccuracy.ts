@@ -19,12 +19,16 @@ import { MEASURED_INVERSION } from "./validation";
  * live in `MEASURED_INVERSION`, are documented in METHODS §3 and
  * docs/validation.md, and are re-asserted weekly against live GIBS by
  * `contract/inversion-validation.contract.test.ts`. For sea-surface
- * temperature that measurement is **RMSE 5.11 °C with 85 of the 213 published
- * ramp colours rejected as no-data** — about eighty times the ±0.06 °C the
- * panel quotes, and the unreadable colours are not scattered noise but whole
- * contiguous temperature bands (near-freezing polar water, most of the
- * 18–24 °C range covering the world's productive shelf seas, and the warmest
- * tropical water).
+ * temperature that measurement is **RMSE 1.0 °C over all 213 published ramp
+ * colours** — about seventeen times the ±0.06 °C the panel quotes. (It was
+ * 5.11 °C with 85 colours rejected outright until the legend was rebuilt from
+ * GIBS's own spectral ramp on 2026-08-11; no layer rejects a colour now.)
+ *
+ * A pooled RMSE is still not a per-value band. SST's is the one measured to be
+ * strongly non-uniform across its ramp — 2.8 °C below ~4 °C against 0.1–0.4 °C
+ * elsewhere — which `lib/sstColdEndAccuracy.ts` reports beside this figure
+ * rather than folding into it, so the pooled number stays the honest whole-ramp
+ * summary it is.
  *
  * A reader comparing two months of SST, or reading the trend clause, needs to
  * know the second number. This module binds each probe layer to its committed
