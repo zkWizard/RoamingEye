@@ -592,6 +592,11 @@ function saveSession(): void {
   }
 }
 
+// How long an overlay may take to load before its toggle admits it's waiting.
+// Under this, the spinner would be a flicker the eye reads as a glitch; over
+// it, silence reads as a dead button.
+const PENDING_INDICATOR_DELAY_MS = 150;
+
 // Toolbar overlays — load lazily on first enable, then toggle visibility.
 // Returns whether the overlay is now in the requested state: an enable whose
 // lazy load fails (e.g. geolocation denied) stays off so the caller can revert.
@@ -625,7 +630,22 @@ if (toolbarEl) {
         saveSession();
       }
       legend?.setOverlayKey(overlay.id, on);
+
+      // An enable that has to fetch — or ask the browser where we are — used to
+      // look exactly like a settled one for the whole wait. Mark it busy, but
+      // only once the wait is long enough to be worth reporting, so an
+      // already-cached overlay never flashes a spinner on its way to instant.
+      let pendingTimer: ReturnType<typeof setTimeout> | undefined;
+      if (on && overlay.ensureLoaded) {
+        pendingTimer = setTimeout(
+          () => toolbar.setPending(overlay.id, true),
+          PENDING_INDICATOR_DELAY_MS
+        );
+      }
+
       void toggleOverlay(overlay, on).then((ok) => {
+        if (pendingTimer !== undefined) clearTimeout(pendingTimer);
+        toolbar.setPending(overlay.id, false);
         if (on && !ok) {
           // The enable didn't take (permission denied, load error) — snap the
           // button back and drop the (already-toasted) key.
