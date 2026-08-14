@@ -9,6 +9,7 @@ import {
   summarizeRenderedClimateSample,
 } from "./meteorology";
 import { MEASURED_INVERSION } from "./validation";
+import { FREEZING_POINT_K } from "./airTemperatureFreeze";
 
 /**
  * The inversion-difference floor the readout prints for a pair of month
@@ -1064,6 +1065,115 @@ describe("place readout air-temperature reported-precision caveat", () => {
     expect(climateInsightText(undefined, noData).value).toBe("Unavailable");
     expect(climateInsightText(undefined, noData).detail).not.toContain(
       "justifies reporting this mean"
+    );
+  });
+});
+
+/**
+ * The caveats above bound how finely the value may be written. They say nothing
+ * about which side of a physical boundary it may be read as falling on, and for
+ * air temperature that is a separate, sharper claim: the Celsius origin is the
+ * freezing point of water, so the *sign* of the printed value is itself a phase
+ * statement. At a 0.485 K measured inversion error a mean of "-0.15 °C" cannot be
+ * placed below freezing at all, however few digits it is written to.
+ */
+describe("place readout air-temperature freeze-threshold caveat", () => {
+  const airMonth = (valueK: number) =>
+    summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [valueK],
+        nativeToSampledValueFactor: 1,
+        validFractions: [1],
+      },
+      { year: 2026, month: 1 }
+    )[0];
+
+  it("says a near-freezing mean cannot be placed on either side of the threshold", () => {
+    const insight = climateInsightText(undefined, airMonth(273));
+    // The card still leads with the signed value it always did.
+    expect(insight.value).toBe("-0.15 °C");
+    expect(insight.detail).toContain(
+      `this mean sits within the ${MEASURED_INVERSION.airtemp.rmse} K measured colormap-inversion error of the ${FREEZING_POINT_K} K freezing point, so this pipeline cannot place the monthly mean above or below it`
+    );
+  });
+
+  it("bounds the mean by the single-month error, never the difference floor", () => {
+    // One inverted month set against an exact physical constant carries no
+    // quadrature term. Quoting the sqrt(2) x RMSE month-over-month floor here
+    // would overstate the bound by ~41% on a claim that never draws two months.
+    const rmse = MEASURED_INVERSION.airtemp.rmse as number;
+    const detail = climateInsightText(undefined, airMonth(273)).detail;
+    expect(detail).toContain(`within the ${rmse} K measured`);
+    expect(detail).not.toContain(
+      Number((Math.SQRT2 * rmse).toPrecision(5)).toString()
+    );
+  });
+
+  it("stays silent once the mean stands clear of the measured error", () => {
+    const rmse = MEASURED_INVERSION.airtemp.rmse as number;
+    // Just outside the error: the classification is distinguishable, so the
+    // readout says nothing rather than qualifying a mean that needs no caveat.
+    const clear = climateInsightText(
+      undefined,
+      airMonth(FREEZING_POINT_K + rmse * 1.5)
+    );
+    expect(clear.detail).not.toContain("freezing point");
+    expect(
+      climateInsightText(undefined, airMonth(288.15)).detail
+    ).not.toContain("freezing point");
+  });
+
+  it("qualifies the sign as well as the digits when both claims apply", () => {
+    // The two clauses are independent statements about one number, not
+    // alternatives: rounding qualifies the digits, and this clause is what stops
+    // the rounded result being read as a phase claim.
+    const detail = climateInsightText(undefined, airMonth(273)).detail;
+    expect(detail).toContain("justifies reporting this mean");
+    expect(detail).toContain("cannot place the monthly mean above or below it");
+  });
+
+  it("never asserts the month averaged exactly the freezing point", () => {
+    const insight = climateInsightText(undefined, airMonth(273));
+    expect(insight.value).not.toBe("Unavailable");
+    expect(insight.value).not.toBe("0 °C");
+    expect(insight.detail).not.toContain("froze");
+    // Monthly-mean scope survives into the readout unchanged.
+    expect(insight.detail).toContain("monthly mean");
+  });
+
+  it("does not attach the freeze clause to another metric", () => {
+    // A near-zero precipitation rate is not near a phase boundary; nothing in
+    // this clause generalises to a metric whose zero is an amount.
+    const [precip] = summarizeRenderedClimateSample(
+      {
+        metricId: "precipitation-rate",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [0.01],
+        nativeToSampledValueFactor: 86_400,
+        validFractions: [1],
+      },
+      { year: 2026, month: 1 }
+    );
+    expect(climateInsightText(undefined, precip).detail).not.toContain(
+      "freezing point"
+    );
+  });
+
+  it("withholds the clause when the month has no usable observation", () => {
+    const [noData] = summarizeRenderedClimateSample(
+      {
+        metricId: "air-temperature-2m",
+        months: [{ year: 2026, month: 1 }],
+        sampledValues: [null],
+        nativeToSampledValueFactor: 1,
+        validFractions: [0],
+      },
+      { year: 2026, month: 1 }
+    );
+    expect(climateInsightText(undefined, noData).detail).not.toContain(
+      "freezing point"
     );
   });
 });

@@ -42,6 +42,10 @@ import {
   airTemperatureInversionRmseK,
   describeAirTemperatureChangeResolvability,
 } from "./airTemperatureChangeResolvability";
+import {
+  describeAirTemperatureFreezeSeparation,
+  FREEZING_POINT_K,
+} from "./airTemperatureFreeze";
 import { justifiedRoundingPlace, roundToPlace } from "./briefValuePrecision";
 import { monthOverMonthCoverageSupport } from "./climateChangeSupport";
 import type { GeometrySamplingStrategy } from "./geojson";
@@ -1038,21 +1042,77 @@ function precipitationTotalPrecisionCaveat(
 }
 
 /**
+ * Say when a monthly air-temperature mean is nearer the freezing point than the
+ * pipeline's own measured colormap inversion can resolve.
+ *
+ * The clauses above bound how *finely* the value may be written. This one bounds
+ * a different thing: which side of a physical threshold it may be read as
+ * falling on. The two are not the same claim, and the gap between them is
+ * exactly where this readout misleads today. Rounding qualifies digits; a phase
+ * boundary qualifies a category, and a reader who sees "-0.31 °C" concludes the
+ * month averaged below freezing — a conclusion the pipeline cannot support at a
+ * 0.485 K inversion error, whatever place the value is written to.
+ *
+ * That the two clauses can fire together is the point, not a redundancy. Where
+ * the precision clause rounds a near-zero Celsius mean and prints "(0 °C)", this
+ * clause is what stops that rounded zero being read as a phase claim.
+ *
+ * Celsius is an interval scale, so its zero is normally a chosen origin and a
+ * reading of 0.0 °C is ordinary — which is why the near-zero collapse that is a
+ * defect for precipitation is not one here. Air temperature is the exception
+ * that the rule needs stated: the Celsius origin *coincides* with a real phase
+ * boundary, so on this one metric the sign of the value carries a physical claim
+ * that the arbitrary-origin argument does not license.
+ *
+ * Silent when the mean stands clear of freezing, when the layer carries no
+ * measured inversion figure, and for every other metric. It never restates the
+ * value, never asserts the month averaged exactly the freezing point, and makes
+ * no claim about daily highs, lows, or whether water actually froze — the
+ * statement is about a monthly mean and nothing else. See
+ * {@link describeAirTemperatureFreezeSeparation}, which never re-derives the
+ * published error and never quotes the month-over-month difference floor: one
+ * inverted month against an exact constant carries no quadrature term.
+ */
+function airTemperatureFreezeThresholdCaveat(
+  current: MonthlyClimateSummary
+): string {
+  const separation = describeAirTemperatureFreezeSeparation(current);
+  if (
+    separation === null ||
+    separation.separation !== "within-inversion-error" ||
+    separation.monthRmseK === null
+  ) {
+    return "";
+  }
+  // The error is quoted in K because that is the unit it is documented in; the
+  // margin it bounds is the printed °C value itself, kelvin-to-Celsius being an
+  // exact offset, so the clause needs no conversion step to be commensurate.
+  return `; this mean sits within the ${formatNumber(
+    separation.monthRmseK
+  )} K measured colormap-inversion error of the ${FREEZING_POINT_K} K freezing point, so this pipeline cannot place the monthly mean above or below it`;
+}
+
+/**
  * Qualify the single absolute value the card leads with against the layer's own
  * measured inversion error, for whichever atmospheric layer supplied it.
  *
- * The two layers reach the same statement by different licences — see each
- * clause — and a summary carries exactly one metric, so at most one can speak.
- * Soil moisture lies outside the atmospheric domain this module owns and gains
- * no clause here.
+ * The two precision clauses reach the same statement by different licences — see
+ * each clause — and a summary carries exactly one metric, so at most one can
+ * speak. Soil moisture lies outside the atmospheric domain this module owns and
+ * gains no clause here.
+ *
+ * The freeze-threshold clause is appended rather than alternated: it qualifies
+ * the value's *side of a physical boundary* rather than its digits, so it is a
+ * second, independent statement about the same number and both may apply.
  */
 function valuePrecisionCaveat(
   current: MonthlyClimateSummary,
   conventional: ConventionalClimateValue | null
 ): string {
   return (
-    airTemperatureValuePrecisionCaveat(current, conventional) ||
-    precipitationValuePrecisionCaveat(current, conventional)
+    (airTemperatureValuePrecisionCaveat(current, conventional) ||
+      precipitationValuePrecisionCaveat(current, conventional)) +
+    airTemperatureFreezeThresholdCaveat(current)
   );
 }
 
