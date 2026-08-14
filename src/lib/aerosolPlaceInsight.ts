@@ -5,6 +5,7 @@ import {
   type AerosolLoadingChange,
   type AerosolLoadingSummary,
 } from "./aerosolLoading";
+import { describeAerosolChangeResolvability } from "./aerosolInversionResolvability";
 import { PROBE_SCALES, quantizationStep } from "./probe";
 import { formatYm, type YearMonth } from "./timeline";
 
@@ -304,7 +305,9 @@ function comparisonText(
       : `${change.trend ?? "unavailable"}`;
 
   if (!earlierSaturated && !laterSaturated) {
-    return `${signed} vs ${earlierMonth} (${trend}); a difference between two modelled monthly means, not a trend`;
+    // Both endpoints are ordinary inverted readings, which is exactly the case
+    // the symmetric inversion-difference floor is defined for.
+    return `${signed} vs ${earlierMonth} (${trend}${inversionFloorClause(change.changeValue)}); a difference between two modelled monthly means, not a trend`;
   }
 
   // Exactly one endpoint saturated: the true difference is bounded on one side.
@@ -324,6 +327,55 @@ function comparisonText(
     : change.trend === "decreasing";
   const direction = directionSurvives ? `${trend}, ` : "";
   return `${bound.phrase} ${signed} vs ${earlierMonth} (${direction}${bound.month} rests on the rendered ramp's open-ended top bin, so this is ${bound.side} on the change, not a measured difference); a difference between two modelled monthly means, not a trend`;
+}
+
+/**
+ * Qualify a month-over-month difference that is smaller than the error this
+ * app's own colormap inversion puts into it.
+ *
+ * `describeAerosolLoadingChange` names a difference increasing or decreasing
+ * once it clears `AEROSOL_LOADING_CHANGE_THRESHOLD` (0.02), and calls anything
+ * under that `little-change`. That threshold is a descriptive reading
+ * convention chosen against the *tier* break points; it was never a statement
+ * about how well this pipeline can measure a difference at all. RoamingEye does
+ * not read AOD from MERRA-2 directly — it inverts a rendered GIBS pixel colour
+ * through an approximate legend gradient, and that step has a measured
+ * end-to-end RMSE for this layer (METHODS §3, docs/validation.md, CI-asserted in
+ * `MEASURED_INVERSION`). Differencing two independently inverted months adds
+ * those errors in quadrature, so the noise floor on a difference is
+ * `sqrt(2) x RMSE` — an order of magnitude above the 0.02 break point at the
+ * currently measured figure.
+ *
+ * The gap is the defect: every difference between the naming threshold and that
+ * floor was printed with a confident direction word, or as "little change",
+ * with nothing on the card saying the pipeline cannot tell either one from its
+ * own retrieval error. `describeAerosolChangeResolvability` already decides
+ * this; it is called rather than re-derived here so the figure moves with the
+ * committed measurement instead of being copied into a second place.
+ *
+ * Deliberately narrow in three ways:
+ *  - Silent when the difference clears the floor, so the card gains no text in
+ *    the case it was already entitled to describe.
+ *  - Silent when the layer has no measured figure (`uncharacterized`), so a
+ *    floor is never invented for an unmeasured layer.
+ *  - Applied only where both endpoints are ordinary inverted readings.
+ *    `AEROSOL_RESOLVABILITY_LIMITATIONS` states that the band is symmetric and
+ *    does not model the top of the rendered ramp, where a reading is a lower
+ *    bound and its uncertainty stops being two-sided — so this must not be
+ *    attached to the saturated branches, which carry their own bound wording.
+ *
+ * The wording never says the column was unchanged. An unresolved difference is
+ * a statement about this pipeline's resolving power, not about the atmosphere,
+ * and the two are opposite claims.
+ */
+function inversionFloorClause(changeValue: number): string {
+  const resolvability = describeAerosolChangeResolvability(changeValue);
+  if (resolvability === null || resolvability.resolution !== "unresolved") {
+    return "";
+  }
+  const floor = resolvability.differenceFloor;
+  if (floor === null) return "";
+  return `, but inside the ${formatAod(floor)} colormap-inversion difference floor, so this pipeline cannot separate it from its own retrieval error — not a claim the column was unchanged`;
 }
 
 function usableValue(summary: AerosolLoadingSummary): number | null {

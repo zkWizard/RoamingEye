@@ -5,7 +5,12 @@ import {
   unavailableAerosolBoundaryReading,
   type AerosolBoundarySampleInput,
 } from "./aerosolPlaceInsight";
-import { AEROSOL_SOURCE, AEROSOL_WAVELENGTH_NM } from "./aerosolLoading";
+import {
+  AEROSOL_LOADING_CHANGE_THRESHOLD,
+  AEROSOL_SOURCE,
+  AEROSOL_WAVELENGTH_NM,
+} from "./aerosolLoading";
+import { describeAerosolChangeResolvability } from "./aerosolInversionResolvability";
 
 const MONTHS = [
   { year: 2026, month: 2 },
@@ -85,6 +90,72 @@ describe("aerosol place-panel reading", () => {
     );
     expect(small.detail).toContain("+0.01 vs Feb 2026");
     expect(small.detail).toContain("little change, within ±0.02");
+  });
+
+  // The 0.02 naming threshold was chosen against the tier break points, not
+  // against how well this pipeline can measure a difference. Differencing two
+  // colour-inverted months carries sqrt(2) x the layer's measured inversion
+  // RMSE, which is far wider — so a direction named inside that floor is not
+  // separable from the app's own retrieval error, and the card must say so.
+  it("says when a difference is inside the measured colormap-inversion floor", () => {
+    const reading = aerosolBoundaryLoadingReading(sample());
+
+    expect(reading.detail).toContain("+0.06 vs Feb 2026");
+    // The direction is still shown; it is qualified, not withheld.
+    expect(reading.detail).toContain("increasing");
+    expect(reading.detail).toContain("colormap-inversion difference floor");
+    expect(reading.detail).toContain(
+      "cannot separate it from its own retrieval error"
+    );
+    // The refusal must not flip into the opposite claim.
+    expect(reading.detail).toContain("not a claim the column was unchanged");
+  });
+
+  it("qualifies a little-change reading by the same floor", () => {
+    // "little change" invites the stability reading most directly, so it is the
+    // case that most needs the floor stated beside it.
+    const reading = aerosolBoundaryLoadingReading(
+      sample({ observedValues: [0.2, 0.21] })
+    );
+
+    expect(reading.detail).toContain("little change, within ±0.02");
+    expect(reading.detail).toContain("colormap-inversion difference floor");
+  });
+
+  it("stays silent when the difference clears the inversion floor", () => {
+    const reading = aerosolBoundaryLoadingReading(
+      sample({ observedValues: [0.2, 0.45] })
+    );
+
+    expect(reading.detail).toContain("+0.25 vs Feb 2026");
+    expect(reading.detail).toContain("increasing");
+    expect(reading.detail).not.toContain("colormap-inversion difference floor");
+  });
+
+  it("reads the floor from the measured figure rather than restating one", () => {
+    // A copied constant would drift the moment the layer is recalibrated. The
+    // printed floor must be the module's own, formatted to the card's scale.
+    const resolvability = describeAerosolChangeResolvability(0.06);
+    expect(resolvability?.resolution).toBe("unresolved");
+    const floor = resolvability?.differenceFloor;
+    expect(floor).toBeGreaterThan(AEROSOL_LOADING_CHANGE_THRESHOLD);
+
+    expect(aerosolBoundaryLoadingReading(sample()).detail).toContain(
+      `inside the ${(floor as number).toFixed(2)} colormap-inversion difference floor`
+    );
+  });
+
+  it("does not attach the symmetric floor to a censored endpoint", () => {
+    // +0.0475 sits inside the floor, but the later month rests on the ramp's
+    // open-ended top bin. AEROSOL_RESOLVABILITY_LIMITATIONS states the band is
+    // symmetric and does not model that bound, so the card must keep its own
+    // one-sided wording there instead of borrowing a band that does not apply.
+    const reading = aerosolBoundaryLoadingReading(
+      sample({ observedValues: [0.85, 0.8975] })
+    );
+
+    expect(reading.detail).toContain("a lower bound on the change");
+    expect(reading.detail).not.toContain("colormap-inversion difference floor");
   });
 
   it("flags a value that only marginally falls inside its tier", () => {
