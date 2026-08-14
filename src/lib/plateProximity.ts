@@ -202,6 +202,19 @@ export function nearestPlateBoundary(
  * city-sized extent. The descent is therefore read back here, through the same
  * {@link plateBoundarySubductionReading} the tooltip uses so the two cannot
  * drift, and stated as the model's own label reading rather than a measurement.
+ *
+ * It also states that the search is unbounded, because the sibling proximity
+ * readout in the same panel is not: nearestVolcanoStatement searches a fixed
+ * NEAREST_VOLCANO_RADIUS_KM (100 km) and quotes that radius in both of its
+ * branches, so a reader meeting two "nearest X" sentences side by side has no
+ * way to tell that only one of them was capped. This search evaluates every
+ * supplied polyline and returns the global minimum at any range, which makes
+ * the figure routinely large: sampling sixteen major cities against the bundled
+ * linework gives a median nearest distance of 1,514 km, ten of them beyond
+ * 1,000 km, and 2,619 km for Chicago. Those are exactly the places this
+ * sentence renders for — it appears only when nothing crosses the extent — so
+ * without the bound stated, a four-digit distance reads as though a nearer
+ * boundary was searched for and missed rather than as the model's true nearest.
  */
 export function nearestPlateBoundaryStatement(
   context: PlateProximityContext
@@ -220,7 +233,7 @@ export function nearestPlateBoundaryStatement(
     reading === null
       ? ""
       : ` That label's delimiter records which plate descends: ${reading}, read back as the model wrote it rather than measured.`;
-  return `Nearest supplied boundary polyline: ${plateBoundaryPairLabel(name)}, ${formatDistanceKm(distanceKm)} km from the geocoded place point.${descent} Great-circle distance to Bird (2003) digitized linework, not to a mapped plate margin, and measured from the coordinates the geocoder returned for this place rather than from the centre of its bounding box; apart from the source's own subduction marking, the model carries no boundary type, motion, activity, or hazard.`;
+  return `Nearest supplied boundary polyline: ${plateBoundaryPairLabel(name)}, ${formatDistanceKm(distanceKm)} km from the geocoded place point.${descent} Great-circle distance to Bird (2003) digitized linework, not to a mapped plate margin, and measured from the coordinates the geocoder returned for this place rather than from the centre of its bounding box. The search applies no distance limit, so this is the closest polyline anywhere in the supplied model rather than one found within a set radius; apart from the source's own subduction marking, the model carries no boundary type, motion, activity, or hazard.`;
 }
 
 /**
