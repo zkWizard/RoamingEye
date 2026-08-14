@@ -442,4 +442,94 @@ describe("seasonalSamplingCsvHeaders", () => {
       expect(line).not.toMatch(/[\r\n]/);
     }
   });
+
+  /** The bias branch: two Januaries dropped, so equal weighting shifts down. */
+  function unevenBalance() {
+    const months = monthlyRecord(2001, 3);
+    const values: (number | null)[] = seasonalCycle(months, 288, 10);
+    let droppedJan = 0;
+    months.forEach((ym, i) => {
+      if (ym.month === 1 && droppedJan++ < 2) values[i] = null;
+    });
+    return seasonalSamplingBalance(months, values);
+  }
+
+  it("leaves an uncensored record byte-identical when no bound is passed", () => {
+    const balance = unevenBalance();
+    // The parameter defaults to no bound, so every layer whose ramp closes at
+    // both ends — and every SST record that stayed inside the finite ramp —
+    // must export exactly the two lines it exported before.
+    expect(seasonalSamplingCsvHeaders(balance, AIRTEMP, "")).toEqual(
+      seasonalSamplingCsvHeaders(balance, AIRTEMP)
+    );
+    expect(seasonalSamplingCsvHeaders(balance, AIRTEMP)).toHaveLength(2);
+  });
+
+  it("marks both quoted means as bounds when the mean is censored", () => {
+    const balance = unevenBalance();
+    const headers = seasonalSamplingCsvHeaders(balance, AIRTEMP, "≥ ");
+    expect(headers).toHaveLength(3);
+    // Both the record mean and the balanced mean are averages of the same
+    // usable values, so a one-signed cap propagates to each of them alike;
+    // neither may appear as a plain decimal.
+    expect(headers[0]).toContain(
+      `averages at least ${balance.recordMean!.toFixed(1)}`
+    );
+    expect(headers[0]).toContain(
+      `gives at least ${balance.calendarBalancedMean!.toFixed(1)}`
+    );
+    expect(headers[2]).toContain("# seasonal_sampling_bias_censoring:");
+    expect(headers[2]).toContain("one-sided bounds and not measurements");
+  });
+
+  it("uses the upper-bound wording for a floor-censored mean", () => {
+    const headers = seasonalSamplingCsvHeaders(unevenBalance(), AIRTEMP, "≤ ");
+    expect(headers[0]).toContain("averages at most ");
+    expect(headers[0]).toContain("gives at most ");
+    expect(headers[0]).not.toContain("at least");
+  });
+
+  it("claims no sign for the offset between two censored means", () => {
+    const balance = unevenBalance();
+    const headers = seasonalSamplingCsvHeaders(balance, AIRTEMP, "≥ ");
+    const offset = `(-${Math.abs(balance.seasonalSamplingBias!).toFixed(1)}`;
+    // The offset keeps its signed magnitude and gains NO inequality: both
+    // means are bounds over the same censored months, so the sign of the
+    // difference between their two errors is exactly what the caps destroyed
+    // (Helsel 2e §11). The extra line says so rather than implying a
+    // direction the data cannot support.
+    expect(headers[0]).toContain(offset);
+    expect(headers[0]).not.toContain("at least -");
+    expect(headers[2]).toContain("carries no claimable sign of its own");
+  });
+
+  it("adds nothing to the absent-months branch which quotes no value", () => {
+    const months = monthlyRecord(2001, 3);
+    const values: (number | null)[] = seasonalCycle(months, 288, 10);
+    months.forEach((ym, i) => {
+      if (ym.month === 1) values[i] = null;
+    });
+    const balance = seasonalSamplingBalance(months, values);
+    expect(balance.absentCalendarMonths).toEqual([1]);
+    // That branch reports which months are missing and states no statistic,
+    // so there is no number for a bound to qualify.
+    expect(seasonalSamplingCsvHeaders(balance, AIRTEMP, "≥ ")).toEqual(
+      seasonalSamplingCsvHeaders(balance, AIRTEMP)
+    );
+  });
+
+  it("keeps the censoring line a single comma-free CSV field", () => {
+    for (const prefix of ["≤ ", "≥ "]) {
+      for (const line of seasonalSamplingCsvHeaders(
+        unevenBalance(),
+        AIRTEMP,
+        prefix
+      )) {
+        expect(line.startsWith("# ")).toBe(true);
+        expect(line).not.toContain(",");
+        expect(line).not.toContain('"');
+        expect(line).not.toMatch(/[\r\n]/);
+      }
+    }
+  });
 });
