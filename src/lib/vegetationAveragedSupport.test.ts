@@ -39,8 +39,12 @@ describe("summarizeVegetationAveragedSupport", () => {
       [1, 0.999]
     );
     expect(summary.status).toBe("partly-drawn");
-    // Rounds to 100%, so the caveat is the only thing distinguishing it.
-    expect(vegetationAveragedSupportClause(summary)).toContain("100%");
+    // The whole point of refusing to call 0.999 fully drawn is that the reader
+    // learns pixels were excluded, so the clause must not round that away: one
+    // month covered the footprint and one did not, and ">99%–100%" says so.
+    const clause = vegetationAveragedSupportClause(summary) ?? "";
+    expect(clause).toContain(">99%–100%");
+    expect(clause).not.toContain("100%–100%");
   });
 
   it("reads shares only from months that charted a value", () => {
@@ -169,6 +173,23 @@ describe("vegetationAveragedSupportClause", () => {
     const clause = clauseFor([0.002, 0.85]) ?? "";
     expect(clause).toContain("<1%");
     expect(clause).not.toContain("0%");
+  });
+
+  it("prints a near-whole share as >99% rather than a contradictory 100%", () => {
+    // One undrawn pixel in a full 28x28 sampling grid. The rest of the clause
+    // says the mean covers only its drawn pixels and reads high against the
+    // whole region, which a bare "100%" flatly contradicts.
+    const clause = clauseFor([783 / 784, 783 / 784]) ?? "";
+    expect(clause).toContain(">99%");
+    expect(clause).not.toContain("100%");
+  });
+
+  it("prints one share, not a range, when both ends round alike", () => {
+    // 0.990 and 0.994 are different fractions but the same rendered share;
+    // "99%–99%" would announce a spread the clause cannot show.
+    const clause = clauseFor([0.99, 0.994]) ?? "";
+    expect(clause).toContain("drawn over 99% of");
+    expect(clause).not.toContain("99%–99%");
   });
 });
 
