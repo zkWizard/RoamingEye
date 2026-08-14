@@ -240,8 +240,9 @@ export interface VegetationIndexLandCoverSupportSummary {
  * Each share is rounded on its own and joined with "a further", which claims
  * no partition: three independently rounded shares need not total 100%, and
  * `shareText` deliberately reports a present share as "<1%" rather than "0%".
- * Only the surfaces actually sampled are named, so a snow-and-water region is
- * never told it contains barren ground.
+ * Both surface clauses name only the tiers actually sampled, so a snow-and-water
+ * region is never told it contains barren ground and a wetland is never told it
+ * is built up.
  *
  * Returns null when no informative class was observed — the composition copy
  * already states that, and a second empty statement would only add width.
@@ -260,11 +261,12 @@ export function vegetationIndexSupportNote(
       lowerBound
     )} of classified pixels, where the IGBP class definition requires vegetation cover`,
   ];
-  if (mixedSampleCount > 0) {
+  const mixedSurfaces = sampledMixedSurfaces(summary);
+  if (mixedSampleCount > 0 && mixedSurfaces) {
     clauses.push(
-      `a further ${shareText(
-        upperBound - lowerBound
-      )} is wetland or built-up, which permit vegetation without requiring it`
+      `a further ${shareText(upperBound - lowerBound)} is ${
+        mixedSurfaces.surfaces
+      }, which ${mixedSurfaces.permit} vegetation without requiring it`
     );
   }
   const nonVegetatedSurfaces = sampledNonVegetatingSurfaces(summary);
@@ -278,21 +280,63 @@ export function vegetationIndexSupportNote(
   return `${clauses.join("; ")}.`;
 }
 
+/**
+ * Prose for the mixed tiers this sample actually holds, with the verb that
+ * number of tiers needs; null for none.
+ *
+ * The mixed clause covers two tiers whose class definitions permit vegetation
+ * without requiring it — permanent wetland and urban built-up — and a drawn
+ * region routinely holds only one of them. Naming both regardless told a
+ * roadless wetland that part of it may be built up, and an inner-city block
+ * that part of it may be wetland: a surface the sample never carried, stated
+ * as though it had. The non-vegetating clause below already narrows to the
+ * tiers actually sampled; this narrows the same way, from the same tier counts,
+ * so the two clauses of one sentence do not hold themselves to different
+ * standards. The point reading names one tier's own definition and so was
+ * never affected.
+ */
+function sampledMixedSurfaces(
+  summary: VegetationIndexLandCoverSupportSummary
+): { surfaces: string; permit: string } | null {
+  const sampled = sampledTierIds(summary);
+  const wetland = sampled.has("mixed-water");
+  const builtUp = sampled.has("mixed-built");
+  if (wetland && builtUp)
+    return { surfaces: "wetland or built-up", permit: "permit" };
+  if (wetland) return { surfaces: "permanent wetland", permit: "permits" };
+  if (builtUp)
+    return { surfaces: "urban and built-up land", permit: "permits" };
+  return null;
+}
+
 /** Prose for the non-vegetating tiers this sample actually holds; null for none. */
 function sampledNonVegetatingSurfaces(
   summary: VegetationIndexLandCoverSupportSummary
 ): string | null {
-  const sampled = new Set(
-    summary.tierCoverage
-      .filter((tier) => tier.sampleCount > 0)
-      .map((tier) => tier.id)
-  );
+  const sampled = sampledTierIds(summary);
   const barren = sampled.has("sparsely-vegetated");
   const frozenOrWater = sampled.has("non-vegetated");
   if (barren && frozenOrWater) return "barren, snow, ice, or permanent water";
   if (barren) return "barren sand, rock, or soil";
   if (frozenOrWater) return "permanent snow, ice, or water";
   return null;
+}
+
+/**
+ * The tiers this sample actually carries pixels in.
+ *
+ * A tier reaches `tierCoverage` when a class code was counted at all, so the
+ * positive-count filter is what separates a surface the sample holds from one
+ * it merely listed.
+ */
+function sampledTierIds(
+  summary: VegetationIndexLandCoverSupportSummary
+): ReadonlySet<VegetationIndexSupportId> {
+  return new Set(
+    summary.tierCoverage
+      .filter((tier) => tier.sampleCount > 0)
+      .map((tier) => tier.id)
+  );
 }
 
 /**
