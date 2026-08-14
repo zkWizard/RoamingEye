@@ -40,6 +40,7 @@ import type { MarineAveragedSstFootprint } from "../lib/marineAveragedSstSupport
 import { probeRecordGaps, probeRecordGapsClause } from "../lib/probeRecordGaps";
 import { probeSstSamplingGateClause } from "../lib/sstObservingConstraints";
 import { probeLstSamplingGateClause } from "../lib/lstObservingConstraints";
+import { probeVegetationSamplingGateClause } from "../lib/vegetationObservingConstraints";
 import { ICONS } from "./icons";
 
 /** What the current series is: which layer, and where it was sampled. */
@@ -429,6 +430,24 @@ export class ProbePanel {
       this.context?.layerId,
       stats.count > 0
     );
+    // And SST and LST are not the only layers whose statistics are gated by how
+    // the product reduced each month. The two vegetation-index layers are the
+    // sharper case: their monthly value is not an average at all. An optical
+    // index exists only where the sensor got a clear, sunlit, snow-free view, so
+    // cloudy and snow-covered days are left out rather than averaged in; each
+    // compositing window is then reduced by a constrained-view MAXIMUM-value
+    // composite, which keeps its least-contaminated observation instead of
+    // averaging the eligible ones. So the mean printed above averages selected
+    // within-month states, and the trend is fitted through them — the one
+    // reduction in the app that a reader is most likely to take for a monthly
+    // average. The clause distinguishes the two layers: the selection maximizes
+    // NDVI, and the observation it keeps merely supplies that window's EVI, so
+    // only NDVI's value carries the not-below-their-average inequality. Silent
+    // for every other layer and for an empty record.
+    const vegetationSamplingGate = probeVegetationSamplingGateClause(
+      this.context?.layerId,
+      stats.count > 0
+    );
     // At most one of the two ramps can apply — a series belongs to one layer —
     // so the first non-empty prefix is the whole answer.
     const boundPrefix = (statistic: "min" | "mean" | "max"): string =>
@@ -449,6 +468,7 @@ export class ProbePanel {
       (sstAveragedCensoring ? ` · ${sstAveragedCensoring}` : "") +
       (sstSamplingGate ? ` · ${sstSamplingGate}` : "") +
       (lstSamplingGate ? ` · ${lstSamplingGate}` : "") +
+      (vegetationSamplingGate ? ` · ${vegetationSamplingGate}` : "") +
       (aerosolCensoringClause ? ` · ${aerosolCensoringClause}` : "") +
       (aerosolAveragedCensoring ? ` · ${aerosolAveragedCensoring}` : "") +
       (spatialSupportNote ? ` · ${spatialSupportNote}` : "");
