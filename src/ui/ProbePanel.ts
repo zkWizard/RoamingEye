@@ -323,18 +323,6 @@ export class ProbePanel {
     const accuracy = this.context
       ? inversionAccuracyClause(probeInversionAccuracy(this.context.layerId, s))
       : "";
-    // That second figure is a whole-ramp RMSE, and for SST the repository has
-    // already measured that the error is not uniform across the ramp it
-    // summarizes: below ~4 °C it is 2.8 °C, against 0.1–0.4 °C elsewhere,
-    // because the legend anchors its cold stop at GIBS's ~2 °C hue so that the
-    // black GIBS renders for an absent retrieval stays rejected. Quoting only
-    // the pooled number beside a polar reading understates that reading's error
-    // roughly threefold, so name the band figure beside it. Silent for every
-    // other layer, for an empty record, and for any SST record that stays out
-    // of the cold band.
-    const sstColdEnd = sstColdEndAccuracyClause(
-      probeSstColdEndAccuracy(this.context?.layerId, physical)
-    );
     // NASA's published SST colormap ends in two OPEN caps, and the months that
     // land in them are exactly the ones that set the extremes — so for this one
     // layer `min`, `mean` and `max` can be one-sided bounds rather than
@@ -350,6 +338,26 @@ export class ProbePanel {
       physical
     );
     const sstCensoringClause = sstExtremeCensoringClause(sstCensoring);
+    // That second figure is a whole-ramp RMSE, and for SST the repository has
+    // already measured that the error is not uniform across the ramp it
+    // summarizes: below ~4 °C it is 2.8 °C, against 0.1–0.4 °C elsewhere,
+    // because the legend anchors its cold stop at GIBS's ~2 °C hue so that the
+    // black GIBS renders for an absent retrieval stays rejected. Quoting only
+    // the pooled number beside a polar reading understates that reading's error
+    // roughly threefold, so name the band figure beside it. Silent for every
+    // other layer, for an empty record, and for any SST record that stays out
+    // of the cold band.
+    //
+    // It is computed after the ramp screen because the screen answers a
+    // question this clause would otherwise get wrong. Both accuracy figures are
+    // two-sided residuals for a colour that resolves to one value; the low cap
+    // resolves to none, and a capped month is always inside this band, so on
+    // exactly the coldest records the two co-fire and an unqualified ± would
+    // stand over rows whose cold-side error is unbounded. Passing the screen
+    // costs nothing — it is already computed above for its own clause.
+    const sstColdEnd = sstColdEndAccuracyClause(
+      probeSstColdEndAccuracy(this.context?.layerId, physical, sstCensoring)
+    );
     // That clause names min, mean and max — and stops there, while the trend
     // reported a few fields earlier is fitted over the very same series. An
     // enumeration that lists which statistics are bounds reads as a claim that

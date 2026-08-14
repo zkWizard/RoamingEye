@@ -1010,12 +1010,16 @@ if (probeEl) {
                 // would have given the reader context. Judged on the physical
                 // series the file writes. Empty for every other layer and for
                 // an SST record that never enters the band.
+                // The ramp screen goes in because both figures are two-sided
+                // residuals: a month the low cap collapsed is inside the band but
+                // outside either ±, and it is exactly the coldest rows that reach
+                // the cap.
                 inversionAccuracyHeaders: [
                   ...inversionAccuracyCsvHeaders(
                     probeInversionAccuracy(layer.id, scale)
                   ),
                   ...sstColdEndAccuracyCsvHeaders(
-                    probeSstColdEndAccuracy(layer.id, physical)
+                    probeSstColdEndAccuracy(layer.id, physical, sstCensoring)
                   ),
                 ],
                 // The status line already qualifies the on-screen month
@@ -1248,12 +1252,16 @@ if (probeEl) {
                 // would have given the reader context. Judged on the physical
                 // series the file writes. Empty for every other layer and for
                 // an SST record that never enters the band.
+                // The ramp screen goes in because both figures are two-sided
+                // residuals: a month the low cap collapsed is inside the band but
+                // outside either ±, and it is exactly the coldest rows that reach
+                // the cap.
                 inversionAccuracyHeaders: [
                   ...inversionAccuracyCsvHeaders(
                     probeInversionAccuracy(layer.id, scale)
                   ),
                   ...sstColdEndAccuracyCsvHeaders(
-                    probeSstColdEndAccuracy(layer.id, physical)
+                    probeSstColdEndAccuracy(layer.id, physical, sstCensoring)
                   ),
                 ],
                 // The status line already qualifies the on-screen month
