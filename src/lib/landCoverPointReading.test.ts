@@ -79,11 +79,41 @@ describe("describeLandCoverPointReading", () => {
       block([255, 255, 255, 255, null, null, null, null, null])
     );
 
+    // Mixed 255 + undecodable: the headline stays scoped to the pixels read,
+    // which is true here because every pixel read was source-unclassified or
+    // unreadable. It must not assert the ground carries no class.
     expect(reading.status).toBe("unavailable");
-    expect(reading.headline).toBe("No IGBP land-cover class here");
+    expect(reading.headline).toBe(
+      "Source-unclassified in every land-cover pixel read here"
+    );
+    expect(reading.headline).not.toContain("No IGBP land-cover class");
     expect(reading.detail).toContain("4 pixels source-unclassified");
     expect(reading.detail).toContain("5 pixels with no usable colour");
     expect(reading.detail).toContain("counted, never averaged");
+  });
+
+  it("blames the unreadable render, not the ground, when nothing decoded", () => {
+    // A point clicked where the rendered map is transparent decodes no pixel
+    // at all, so MCD12Q1 was never consulted about this location.
+    const reading = describeLandCoverPointReading(block(Array(9).fill(null)));
+
+    expect(reading.status).toBe("unavailable");
+    expect(reading.headline).toBe(
+      "No sampled pixel carried a readable land-cover colour"
+    );
+    expect(reading.detail).toContain("9 pixels with no usable colour");
+  });
+
+  it("calls an all-255 point source-unclassified rather than class-free", () => {
+    // Class 255 is MCD12Q1 declining to assign a class — the product's own
+    // answer, and not a statement that the ground carries no land cover.
+    const reading = describeLandCoverPointReading(block(Array(9).fill(255)));
+
+    expect(reading.status).toBe("unavailable");
+    expect(reading.headline).toBe(
+      "Source-unclassified in every land-cover pixel read here"
+    );
+    expect(reading.detail).toContain("9 pixels source-unclassified");
   });
 
   it("singularizes a lone unusable pixel", () => {

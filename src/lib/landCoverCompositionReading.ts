@@ -3,6 +3,7 @@ import {
   summarizeLandCoverComposition,
   type LandCoverCompositionSummary,
 } from "./landCoverComposition";
+import { noKnownLandCoverHeadline } from "./landCoverNoClassHeadline";
 
 /**
  * Probe-panel copy for a drawn-region sample of the MCD12Q1 LC_Type1 map.
@@ -129,39 +130,6 @@ function unavailableHeadline(
       : `No land-cover map published for ${context.provenance.dataYear}`;
   }
   return noKnownLandCoverHeadline(context.coverage);
-}
-
-/**
- * Headline a sample that produced no informative class, scoped to what was
- * actually read rather than to the region.
- *
- * "No IGBP land-cover classes in this region" is a claim about the ground, and
- * three of the four ways this branch is reached never observed the ground at
- * all. A region drawn where the rendered map is transparent samples pixels the
- * palette cannot decode (landCoverPalette.ts declines an inexact match rather
- * than inventing a class), and an empty sample observed nothing whatsoever —
- * yet both read as MCD12Q1 having found no land cover there. Only source class
- * 255 is the product's own answer, and even that says the product declined to
- * assign a class, not that the ground carries none.
- *
- * So the headline names the sample: nothing sampled, nothing decodable, or
- * source-unclassified across every pixel this app could read. The mixed case —
- * some pixels source-unclassified, some undecodable — takes the last form,
- * which stays true because it is scoped to the pixels that were read; the
- * detail below it breaks the remainder down by reason.
- */
-function noKnownLandCoverHeadline(
-  coverage: LandCoverContextSummary["coverage"]
-): string {
-  if (coverage.totalSampleCount === 0) {
-    return "No land-cover pixels sampled here";
-  }
-  const undecoded =
-    coverage.noDataSampleCount + coverage.invalidClassSampleCount;
-  if (undecoded === coverage.totalSampleCount) {
-    return "No sampled pixel carried a readable land-cover colour";
-  }
-  return "Source-unclassified in every land-cover pixel read here";
 }
 
 function unavailableDetail(

@@ -1,4 +1,5 @@
 import type { LandCoverContextSummary } from "./landCover";
+import { noKnownLandCoverHeadline } from "./landCoverNoClassHeadline";
 
 /**
  * Probe-panel copy for a point sample of the MCD12Q1 LC_Type1 land-cover map.
@@ -67,9 +68,13 @@ export function describeLandCoverPointReading(
           `The rendered source image supplied no pixels here. ${source}.`
         );
       default:
+        // Scoped to the pixels that were read, never to the ground: a point
+        // clicked where the rendered map is transparent decodes nothing, and
+        // source class 255 is MCD12Q1 declining to classify. Neither supports
+        // "no IGBP land-cover class here".
         return reading(
           "unavailable",
-          "No IGBP land-cover class here",
+          noKnownLandCoverHeadline(coverage),
           `${unclassifiedText(coverage)} ${source}. ${categorical}`
         );
     }
