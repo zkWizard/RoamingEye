@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { summarizeMonthlyClimate } from "./climate";
 import {
+  describeAirTemperatureFreezeSeparation,
   describeAirTemperatureFreezeThreshold,
+  FREEZE_THRESHOLD_SEPARATION_LIMITATIONS,
   FREEZING_POINT_K,
 } from "./airTemperatureFreeze";
+import { MEASURED_INVERSION } from "./validation";
 
 const AVAILABLE_THROUGH = { year: 2026, month: 5 } as const;
 
@@ -119,5 +122,107 @@ describe("air-temperature freeze-threshold context", () => {
     expect(context?.status).toBe("unavailable");
     expect(context?.category).toBeNull();
     expect(context?.reason).toBe("invalid-value");
+  });
+});
+
+/**
+ * The classification above is exact arithmetic on a published value. The place
+ * readout never sees one: it sees a rendered pixel colour inverted through an
+ * approximate legend, and the sign that decides the category is then the
+ * inversion's, not the source's.
+ */
+describe("freeze-threshold separation against measured inversion error", () => {
+  const rmse = MEASURED_INVERSION.airtemp.rmse as number;
+
+  it("separates a mean that stands clear of the measured error", () => {
+    const separation = describeAirTemperatureFreezeSeparation(
+      airSummary(FREEZING_POINT_K + rmse * 2)
+    );
+
+    expect(separation).toMatchObject({
+      kind: "air-temperature-freeze-separation",
+      isForecast: false,
+      unit: "K",
+      separation: "separated",
+      category: "above-freezing",
+      monthRmseK: rmse,
+    });
+    expect(separation?.statement).toContain("clear of the");
+    expect(separation?.statement).toContain("monthly mean only");
+  });
+
+  it("withholds a side when the mean is inside the measured error", () => {
+    const separation = describeAirTemperatureFreezeSeparation(
+      airSummary(FREEZING_POINT_K - rmse / 2)
+    );
+
+    expect(separation?.separation).toBe("within-inversion-error");
+    // The reported category is never overridden or reversed.
+    expect(separation?.category).toBe("below-freezing");
+    expect(separation?.statement).toContain(
+      "cannot place the mean above or below the threshold"
+    );
+    expect(separation?.statement).toContain(
+      "does not assert the month averaged exactly the freezing point"
+    );
+  });
+
+  it("bounds by the single-month RMSE, not the difference floor", () => {
+    // A difference draws two independently inverted months and carries a
+    // sqrt(2) quadrature term. This comparison draws one inverted month and an
+    // exact constant, which contributes no error, so the bound is smaller — a
+    // margin between the two must separate here and would not there.
+    const between = FREEZING_POINT_K + rmse * 1.2;
+    expect(
+      describeAirTemperatureFreezeSeparation(airSummary(between))
+    ).toMatchObject({ separation: "separated" });
+    expect(Math.abs(between - FREEZING_POINT_K)).toBeLessThan(
+      Math.SQRT2 * rmse
+    );
+  });
+
+  it("treats a mean exactly at the freezing point as unseparated", () => {
+    const separation = describeAirTemperatureFreezeSeparation(
+      airSummary(FREEZING_POINT_K)
+    );
+
+    expect(separation?.separation).toBe("within-inversion-error");
+    expect(separation?.marginKelvin).toBe(0);
+    expect(separation?.category).toBe("at-freezing");
+  });
+
+  it("keeps the margin identical to the Celsius reading it qualifies", () => {
+    // Kelvin to Celsius is an exact offset, so the margin the bound applies to
+    // is the number the readout prints — no conversion step stands between the
+    // published kelvin error and the value it qualifies.
+    const separation = describeAirTemperatureFreezeSeparation(
+      airSummary(289.4)
+    );
+    expect(separation?.marginKelvin).toBeCloseTo(289.4 - FREEZING_POINT_K, 10);
+  });
+
+  it("returns null for another metric and for an unusable month", () => {
+    const soil = summarizeMonthlyClimate(
+      {
+        metricId: "soil-moisture",
+        dataMonth: { year: 2026, month: 3 },
+        value: 20,
+      },
+      AVAILABLE_THROUGH
+    );
+    expect(describeAirTemperatureFreezeSeparation(soil)).toBeNull();
+    expect(describeAirTemperatureFreezeSeparation(airSummary(null))).toBeNull();
+  });
+
+  it("carries scope limits that never claim water froze", () => {
+    const separation = describeAirTemperatureFreezeSeparation(
+      airSummary(FREEZING_POINT_K)
+    );
+    expect(separation?.limitations).toEqual(
+      FREEZE_THRESHOLD_SEPARATION_LIMITATIONS
+    );
+    expect(separation?.limitations.join(" ")).toContain(
+      "does not rule out sub-freezing days"
+    );
   });
 });
