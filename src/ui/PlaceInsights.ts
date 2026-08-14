@@ -21,6 +21,7 @@ import {
 } from "../lib/volcanoContext";
 import { searchExtentSpanPhrase } from "../lib/searchExtentSpan";
 import {
+  suppliedRecordPopulationText,
   volcanoCoordinateLabel,
   type VolcanoExtentContext,
 } from "../lib/volcanoExtent";
@@ -437,10 +438,15 @@ export class PlaceInsights {
         context.records.map((record) => record.elevationMeters)
       )
     );
+    // A match count is only readable against the size of the set that produced
+    // it, and neither branch stated that size. Placed after the sentence it
+    // qualifies and before the snapshot stamp, matching how the seismicity
+    // section trails its own "Counted from N valid events in the global feed".
+    const population = suppliedRecordPopulationText(context);
     this.volcanoDetail.textContent =
       count === 0
-        ? `No bundled GVP volcano records have coordinates inside this search bounding box.${nearest ? ` ${nearest}` : ""}${snapshot}`
-        : `${context.geographicCoverage} Summit elevation is supplied for ${context.elevationCoverage.presentCount} of ${count} matched ${count === 1 ? "record" : "records"} in metres relative to sea level.${datum ? ` ${datum}` : ""}${snapshot}`;
+        ? `No bundled GVP volcano records have coordinates inside this search bounding box.${nearest ? ` ${nearest}` : ""}${population ? ` ${population}` : ""}${snapshot}`
+        : `${context.geographicCoverage} Summit elevation is supplied for ${context.elevationCoverage.presentCount} of ${count} matched ${count === 1 ? "record" : "records"} in metres relative to sea level.${datum ? ` ${datum}` : ""}${population ? ` ${population}` : ""}${snapshot}`;
     for (const record of context.records.slice(0, 5)) {
       const item = document.createElement("li");
       const details = [
