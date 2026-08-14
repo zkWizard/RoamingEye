@@ -8,6 +8,7 @@ import {
   landCoverPixels,
   landCoverUnclassifiedReasons,
   landCoverUnclassifiedRemainder,
+  type LandCoverUndecodedSplit,
 } from "./landCoverUnclassifiedRemainder";
 
 /**
@@ -60,7 +61,8 @@ const NOT_ECOLOGY =
  * class code is re-parsed or re-ranked here.
  */
 export function describeLandCoverComposition(
-  context: LandCoverContextSummary
+  context: LandCoverContextSummary,
+  undecoded?: LandCoverUndecodedSplit
 ): LandCoverCompositionReading {
   const composition = summarizeLandCoverComposition(context);
   const { provenance, coverage, unavailableReason } = context;
@@ -70,13 +72,13 @@ export function describeLandCoverComposition(
     return reading(
       "unavailable",
       unavailableHeadline(composition, context),
-      `${unavailableDetail(composition, coverage, unavailableReason)} ${source}.`,
+      `${unavailableDetail(composition, coverage, unavailableReason, undecoded)} ${source}.`,
       composition
     );
   }
 
   const metrics = composition.metrics;
-  const remainder = landCoverUnclassifiedRemainder(coverage);
+  const remainder = landCoverUnclassifiedRemainder(coverage, undecoded);
   const sampled = `${metrics.knownLandCoverSampleCount} classified of ${
     coverage.totalSampleCount
   } sampled image pixels${remainder === "" ? "" : ` (${remainder})`}`;
@@ -141,7 +143,8 @@ function unavailableHeadline(
 function unavailableDetail(
   composition: LandCoverCompositionSummary,
   coverage: LandCoverContextSummary["coverage"],
-  reason: LandCoverContextSummary["unavailableReason"]
+  reason: LandCoverContextSummary["unavailableReason"],
+  undecoded: LandCoverUndecodedSplit | undefined
 ): string {
   if (composition.status === "unavailable") {
     return reason === "invalid-year"
@@ -151,7 +154,7 @@ function unavailableDetail(
   if (coverage.totalSampleCount === 0) {
     return "The rendered source image supplied no pixels for this region.";
   }
-  const parts = landCoverUnclassifiedReasons(coverage).map(
+  const parts = landCoverUnclassifiedReasons(coverage, undecoded).map(
     (reason) => `${landCoverPixels(reason.sampleCount)} ${reason.text}`
   );
   return parts.length === 0

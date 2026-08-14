@@ -4,6 +4,7 @@ import {
   landCoverPixels,
   landCoverUnclassifiedReasons,
   landCoverUnclassifiedRemainder,
+  type LandCoverUndecodedSplit,
 } from "./landCoverUnclassifiedRemainder";
 
 /**
@@ -39,7 +40,8 @@ export interface LandCoverPointReading {
  * dropped and no class code is re-parsed or re-ranked here.
  */
 export function describeLandCoverPointReading(
-  summary: LandCoverContextSummary
+  summary: LandCoverContextSummary,
+  undecoded?: LandCoverUndecodedSplit
 ): LandCoverPointReading {
   const {
     provenance,
@@ -80,13 +82,13 @@ export function describeLandCoverPointReading(
         return reading(
           "unavailable",
           noKnownLandCoverHeadline(coverage),
-          `${unclassifiedText(coverage)} ${source}. ${categorical}`
+          `${unclassifiedText(coverage, undecoded)} ${source}. ${categorical}`
         );
     }
   }
 
   const sampled = `of ${coverage.totalSampleCount} sampled image pixels`;
-  const shortfall = classifiedShortfall(coverage);
+  const shortfall = classifiedShortfall(coverage, undecoded);
   if (dominantClass) {
     return reading(
       "classified",
@@ -131,9 +133,10 @@ export function describeLandCoverPointReading(
  * also present.
  */
 function classifiedShortfall(
-  coverage: LandCoverContextSummary["coverage"]
+  coverage: LandCoverContextSummary["coverage"],
+  undecoded: LandCoverUndecodedSplit | undefined
 ): string {
-  const remainder = landCoverUnclassifiedRemainder(coverage);
+  const remainder = landCoverUnclassifiedRemainder(coverage, undecoded);
   if (remainder === "") return "";
   return ` Of those, ${landCoverPixels(
     coverage.knownLandCoverSampleCount
@@ -156,9 +159,10 @@ function reading(
 }
 
 function unclassifiedText(
-  coverage: LandCoverContextSummary["coverage"]
+  coverage: LandCoverContextSummary["coverage"],
+  undecoded: LandCoverUndecodedSplit | undefined
 ): string {
-  const parts = landCoverUnclassifiedReasons(coverage).map(
+  const parts = landCoverUnclassifiedReasons(coverage, undecoded).map(
     (reason) => `${landCoverPixels(reason.sampleCount)} ${reason.text}`
   );
   return parts.length === 0
