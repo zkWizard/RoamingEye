@@ -304,6 +304,24 @@ describe("nearestPlateBoundaryStatement", () => {
     );
     expect(statement).not.toContain("search centre");
   });
+
+  it("says the search has no distance limit, and still reports a very distant nearest", () => {
+    // The sibling proximity readout in the same panel caps its search at a
+    // stated 100 km radius. This one does not cap at all, and it renders only
+    // when nothing crosses the extent — the case where the global minimum is
+    // routinely four digits — so a reader must be able to tell that a large
+    // figure is the model's true nearest, not a near miss inside some radius.
+    const remote = nearestPlateBoundaryStatement(
+      nearestPlateBoundary([boundary()], placePointPlateQuery(24, 5))
+    );
+
+    expect(remote).toContain("The search applies no distance limit");
+    expect(remote).toContain(
+      "the closest polyline anywhere in the supplied model rather than one found within a set radius"
+    );
+    // Reported, not suppressed: ~24° from the equatorial segment.
+    expect(remote).toContain(`${Math.round(DEG_KM * 24)} km`);
+  });
 });
 
 describe("placePointPlateQuery", () => {
