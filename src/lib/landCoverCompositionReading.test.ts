@@ -180,10 +180,30 @@ describe("land-cover region composition copy", () => {
     );
 
     expect(reading.status).toBe("unavailable");
-    expect(reading.headline).toBe("No IGBP land-cover classes in this region");
+    // Two of the nine pixels were never decoded, so the headline is scoped to
+    // the pixels that were read rather than claiming the region holds none.
+    expect(reading.headline).toBe(
+      "Source-unclassified in every land-cover pixel read here"
+    );
+    expect(reading.headline).not.toContain("in this region");
     expect(reading.detail).toContain(
       "Of 9 sampled image pixels: 7 pixels source-unclassified, 2 pixels with no usable colour"
     );
+  });
+
+  it("says the map could not be read when no sampled pixel decoded", () => {
+    const reading = describeLandCoverComposition(
+      summarizeLandCoverContext([{ classCode: null, sampleCount: 12 }], 2024)
+    );
+
+    expect(reading.status).toBe("unavailable");
+    // Nothing about the ground was observed: the palette declined every pixel,
+    // so this must not read as MCD12Q1 having found no land cover here.
+    expect(reading.headline).toBe(
+      "No sampled pixel carried a readable land-cover colour"
+    );
+    expect(reading.headline).not.toContain("Source-unclassified");
+    expect(reading.detail).toContain("12 pixels with no usable colour");
   });
 
   it("names the one reason a composition's unclassified remainder is unclassified", () => {
@@ -324,6 +344,10 @@ describe("land-cover region composition copy", () => {
     );
 
     expect(reading.status).toBe("unavailable");
+    // A headline asserting the region holds no IGBP classes would state a
+    // ground fact drawn from zero observations, contradicting its own detail.
+    expect(reading.headline).toBe("No land-cover pixels sampled here");
+    expect(reading.headline).not.toContain("classes");
     expect(reading.detail).toContain(
       "The rendered source image supplied no pixels for this region"
     );
