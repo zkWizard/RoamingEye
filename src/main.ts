@@ -46,6 +46,7 @@ import { snowAveragedSupportNote } from "./lib/snowAveragedSupport";
 import { emptyMarineProbeNote } from "./lib/marineProbeDomain";
 import { emptySnowProbeNote } from "./lib/snowProbeAbsence";
 import { emptyVegetationProbeNote } from "./lib/vegetationProbeAbsence";
+import { emptySoilProbeNote } from "./lib/soilProbeDomain";
 import {
   seasonalSamplingBalance,
   seasonalSamplingCsvHeaders,
@@ -1058,10 +1059,14 @@ if (probeEl) {
           // The vegetation indices empty the same way, below their ramp start
           // rather than at zero, and were the last domain still reporting that
           // as "no data at this point".
+          // Soil moisture is precipitation's sibling field in one GLDAS run, so
+          // it empties off land for the same reason — and again at the ramp's
+          // dropped top bin, which is why its note refuses the dry reading.
           emptyAtmosphereProbeNote(layer.id, values) ??
             emptyMarineProbeNote(layer.id, values, sstSupportNote) ??
             emptySnowProbeNote(layer.id, values, snowSupportNote) ??
-            emptyVegetationProbeNote(layer.id, values, vegetationSupportNote),
+            emptyVegetationProbeNote(layer.id, values, vegetationSupportNote) ??
+            emptySoilProbeNote(layer.id, values),
           // Each note is gated on its own layer, so at most one is ever a
           // string — the fallback picks the one that spoke.
           sstSupportNote ?? vegetationSupportNote ?? snowSupportNote,
@@ -1260,10 +1265,13 @@ if (probeEl) {
           // defer here. They are passed anyway so the chain stays the same on
           // both paths and a region that ever loses its shares is still
           // explained rather than falling back to "no data at this point".
+          // The soil note supplies no share either way: no averaged clause
+          // speaks for a GLDAS layer in any mode, so it reads the same here.
           emptyAtmosphereProbeNote(layer.id, values) ??
             emptyMarineProbeNote(layer.id, values, sstSupportNote) ??
             emptySnowProbeNote(layer.id, values, snowSupportNote) ??
-            emptyVegetationProbeNote(layer.id, values, vegetationSupportNote),
+            emptyVegetationProbeNote(layer.id, values, vegetationSupportNote) ??
+            emptySoilProbeNote(layer.id, values),
           // Each note is gated on its own layer, so at most one is ever a
           // string — the fallback picks the one that spoke.
           sstSupportNote ?? vegetationSupportNote ?? snowSupportNote,

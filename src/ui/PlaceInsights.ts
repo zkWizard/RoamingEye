@@ -25,6 +25,7 @@ import {
 } from "../lib/volcanoExtent";
 import {
   epicenterConstraintText,
+  epicentralDistanceText,
   listedSeismicityOrderNote,
   reportedDepthBasisText,
   reportedMagnitudeText,
@@ -694,7 +695,10 @@ function seismicityListItem(
   }`;
   const details = [
     observation.place ?? "source location not supplied",
-    `${formatDistanceKm(observation.distanceKm)} km away`,
+    // Named anchor, not a bare "away": the source's own place string states a
+    // distance from a settlement, so an unlabelled second figure beside it
+    // reads as a contradiction rather than as a different measurement.
+    epicentralDistanceText(observation.distanceKm),
     `${observation.depthKm} km deep (${observation.depthClass})`,
     `${new Date(observation.time).toISOString().slice(0, 10)} UTC`,
   ];
@@ -724,10 +728,4 @@ function seismicityListItem(
 /** Radii span metropolitan boundaries to whole countries; keep both legible. */
 function formatRadiusKm(radiusKm: number): string {
   return radiusKm >= 100 ? String(Math.round(radiusKm)) : radiusKm.toFixed(1);
-}
-
-function formatDistanceKm(distanceKm: number): string {
-  return distanceKm >= 10
-    ? String(Math.round(distanceKm))
-    : distanceKm.toFixed(1);
 }

@@ -1,6 +1,7 @@
 import { LAYERS, monthRangeForLayer, type YearMonth } from "../lib/timeline";
 import { geometryBounds, isAreaGeometry } from "../lib/geojson";
 import {
+  aerosolPlaceObservationFromSample,
   PLACE_OBSERVATION_NATIVE_UNITS,
   placeObservationProductFromSample,
   serializePlaceObservationExport,
@@ -759,11 +760,18 @@ export function runPlaceInsights(result: GeoResult): void {
           samplingStrategy: sample.geometrySamplingStrategy,
           sourceImageDimensions: sample.sourceImageDimensions,
           colormapUrl: colormapUrl(PLACE_COLORMAP_DOCS.aerosol),
-          observations: aerosolMonths.map((dataMonth, index) => ({
-            dataMonth,
-            value: sample.values[index] ?? null,
-            validFraction: sample.validFractions[index],
-          })),
+          // The card screens both months against the rendered ramp's open
+          // `≥ 0.900` top bin and says the true column may be higher where one
+          // rests on it. Built through the same predicate so the downloaded
+          // record cannot present a capped plume column as a plain measurement
+          // while the card beside it calls that value a bound.
+          observations: aerosolMonths.map((dataMonth, index) =>
+            aerosolPlaceObservationFromSample(
+              dataMonth,
+              sample.values[index] ?? null,
+              sample.validFractions[index]
+            )
+          ),
         });
       })().catch((error: unknown) => {
         if (isAbortError(error) || abort.signal.aborted) return;
