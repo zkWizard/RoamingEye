@@ -2,8 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   LST_OBSERVING_CONSTRAINTS,
   LST_OBSERVING_CONSTRAINT_LIMITS,
+  LST_OBSERVING_CONSTRAINT_GIBS_LAYER,
   LST_OBSERVING_CONSTRAINT_SOURCE,
   LST_SAMPLING_GATE_NOTE,
+  lstSamplingIdentityCsvHeaders,
   probeLstSamplingGateClause,
   lstCaptionConstraintOmissions,
   formatLstCaptionOmission,
@@ -231,5 +233,100 @@ describe("lstCaptionConstraintOmissions", () => {
     // The captions render on one line under the globe; 71 characters is the
     // longest the app ships, and the LST one must not become the new record.
     expect(LAYERS.lst.description.length).toBeLessThanOrEqual(71);
+  });
+});
+
+describe("lstSamplingIdentityCsvHeaders", () => {
+  const headers = lstSamplingIdentityCsvHeaders("lst");
+
+  it("names every constraint the status line carries", () => {
+    // The download must not qualify a sampled column less completely than the
+    // status line the reader has already closed. One header per constraint,
+    // keyed by its id, so a fourth constraint cannot ship export-less.
+    expect(headers).toHaveLength(LST_OBSERVING_CONSTRAINTS.length + 1);
+    for (const entry of LST_OBSERVING_CONSTRAINTS) {
+      const key = `# lst_${entry.id.replace(/-/g, "_")}: `;
+      expect(headers.some((line) => line.startsWith(key))).toBe(true);
+    }
+  });
+
+  it("states the mid-morning overpass the dataset short name only implies", () => {
+    // `MOD11C3` is all the exported file otherwise says about the product.
+    const text = headers.join("\n");
+    expect(text).toContain("10:30 local solar time");
+    expect(text).toContain("neither a diurnal mean nor a diurnal maximum");
+  });
+
+  it("states the clear-sky gate, not just the daytime one", () => {
+    // Thermal infrared is stopped by cloud, and land cloudiness is seasonal —
+    // so the days missing from a monthly composite are not a random sample.
+    const text = headers.join("\n");
+    expect(text).toContain("does not pass through cloud");
+    expect(text).toContain("non-random subset");
+  });
+
+  it("separates skin temperature from the 2 m air-temperature sibling", () => {
+    // This is the specific misreading the export exists to prevent: the app
+    // renders MERRA-2 air temperature in the same category, so the same point
+    // can be probed on both and the two files set side by side.
+    const text = headers.join("\n");
+    expect(text).toContain("radiometric skin temperature");
+    expect(text).toContain("2 m air temperature");
+    expect(text).toContain("must not be differenced");
+  });
+
+  it("asserts no direction and no magnitude", () => {
+    // Terra's 10:30 crossing falls between the pre-dawn minimum and the
+    // afternoon maximum, so observing geometry fixes no sign here — the point
+    // where this product departs from its SST counterpart.
+    expect(headers.join("\n")).toContain(
+      "# lst_sampling_direction: no direction and no magnitude are asserted"
+    );
+  });
+
+  it("obeys the CSV header contract: no delimiter, quote, or line break", () => {
+    // A comma here would tear provenance into ragged cells for every reader
+    // (see csvHeaderText in probe.ts); these lines are not scrubbed on the way
+    // out, so the discipline has to hold at the source.
+    for (const line of headers) {
+      expect(line.startsWith("# ")).toBe(true);
+      expect(line).not.toMatch(/[,"\r\n]/);
+    }
+  });
+
+  it("is silent for every layer but LST", () => {
+    // In particular the neighbouring 2 m air-temperature layer must never
+    // inherit a skin-temperature product's sampling gate.
+    for (const id of LAYER_ORDER) {
+      if (id === "lst") continue;
+      expect(lstSamplingIdentityCsvHeaders(id)).toEqual([]);
+    }
+    expect(lstSamplingIdentityCsvHeaders(undefined)).toEqual([]);
+  });
+
+  it("is asserted for the declared GIBS identifier", () => {
+    // The drift guard compares against this literal. If the layer is repointed
+    // at the night product or an all-sky one, the headers must stop rather
+    // than travel into a file that cannot be corrected afterwards.
+    expect(LAYERS.lst.wmsLayer).toBe(LST_OBSERVING_CONSTRAINT_GIBS_LAYER);
+  });
+
+  it("claims nothing about hazard, health, weather or attribution", () => {
+    // A sampling gate is a statement about an instrument and an orbit.
+    const text = headers.join("\n").toLowerCase();
+    for (const forbidden of [
+      "heatwave",
+      "heat wave",
+      "hazard",
+      "health",
+      "comfort",
+      "urban heat",
+      "forecast",
+      "warmer",
+      "cooler",
+      "danger",
+    ]) {
+      expect(text).not.toContain(forbidden);
+    }
   });
 });
