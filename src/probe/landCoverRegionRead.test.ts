@@ -28,6 +28,22 @@ describe("readLandCoverRegionText", () => {
       "Sampled on a 8×8 grid over the drawn box, resolving to 20 distinct source pixels."
     );
   });
+
+  it("does not claim a region has no land cover where nothing rendered", () => {
+    // A box drawn where the land-cover layer is transparent: every pixel is
+    // undecodable, so MCD12Q1 was never read here at all.
+    const text = readLandCoverRegionText(
+      Array.from({ length: 12 }, () => ({ r: 0, g: 0, b: 0, a: 0 })),
+      2024,
+      SAMPLING
+    );
+
+    expect(text).toContain("No sampled pixel carried a readable land-cover");
+    expect(text).not.toContain("in this region");
+    expect(text).toContain("12 pixels with no usable colour");
+    // The citation survives a reading that reports nothing.
+    expect(text).toContain("MCD12Q1 v061");
+  });
 });
 
 describe("human land use on the drawn-region reading", () => {
@@ -80,7 +96,9 @@ describe("human land use on the drawn-region reading", () => {
       2024,
       SAMPLING
     );
-    expect(unclassified).toContain("No IGBP land-cover classes in this region");
+    expect(unclassified).toContain(
+      "Source-unclassified in every land-cover pixel read here"
+    );
     expect(unclassified).not.toContain("human land use");
   });
 
