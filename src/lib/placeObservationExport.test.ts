@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { LAYERS } from "./timeline";
+import { MEASURED_INVERSION } from "./validation";
 import { AEROSOL_RAMP_CEILING } from "./aerosolPlaceInsight";
 import {
   GIBS_IMAGERY_SOURCE,
@@ -493,7 +494,7 @@ describe("place observation export", () => {
     const exported = createPlaceObservationExport(input);
 
     expect(exported).toMatchObject({
-      schema: "roamingeye-place-observation-export/v6",
+      schema: "roamingeye-place-observation-export/v7",
       kind: "place-observation-export",
       boundary,
       geography: PLACE_OBSERVATION_GEOGRAPHY,
@@ -1628,6 +1629,96 @@ describe("place observation export", () => {
       })
     ).toThrow(
       "Product precip must cite the published legend bin it was capped by."
+    );
+  });
+});
+
+describe("place observation export inversion accuracy", () => {
+  const productFor = (
+    exported: ReturnType<typeof createPlaceObservationExport>,
+    layerId: string
+  ) => exported.products.find((product) => product.layerId === layerId)!;
+
+  it("carries each product's committed inversion RMSE rather than a restated constant", () => {
+    const exported = createPlaceObservationExport(input);
+
+    // Read from the committed table, not a literal: recalibrating a legend must
+    // move the exported figure, never leave a stale number behind here.
+    expect(productFor(exported, "ndvi").inversionAccuracy).toEqual({
+      status: "characterized",
+      uncharacterizedReason: null,
+      nativeRmse: MEASURED_INVERSION.ndvi.rmse,
+      reportedRmse: MEASURED_INVERSION.ndvi.rmse,
+      reportedUnit: "NDVI",
+      recoveredColormapSteps:
+        MEASURED_INVERSION.ndvi.total - MEASURED_INVERSION.ndvi.nulls,
+      totalColormapSteps: MEASURED_INVERSION.ndvi.total,
+    });
+  });
+
+  it("states the band in the product's native unit using the same factor as sampleToNative", () => {
+    const exported = createPlaceObservationExport(input);
+    const precip = productFor(exported, "precip");
+
+    // The published figure is mm/day; the export records kg/m²/s. A band left in
+    // the published unit would be 86 400× too large for the value it qualifies.
+    expect(precip.nativeUnit).toBe("kg/m²/s");
+    expect(precip.inversionAccuracy.reportedUnit).toBe("mm/day");
+    expect(precip.inversionAccuracy.reportedRmse).toBe(
+      MEASURED_INVERSION.precip.rmse
+    );
+    expect(precip.inversionAccuracy.nativeRmse).toBeCloseTo(
+      (MEASURED_INVERSION.precip.rmse as number) / 86_400,
+      12
+    );
+    // The conversion is the export's own sampleToNative factor, so the band and
+    // the value it qualifies can never drift into different units.
+    expect(precip.inversionAccuracy.nativeRmse).toBeCloseTo(
+      (precip.inversionAccuracy.reportedRmse as number) /
+        precip.sampleToNative.factor,
+      12
+    );
+  });
+
+  it("keeps the band consistent for every exported product", () => {
+    const exported = createPlaceObservationExport(input);
+
+    for (const product of exported.products) {
+      const accuracy = product.inversionAccuracy;
+      // characterized and "has a number" are the same fact, never two.
+      expect(accuracy.status === "characterized").toBe(
+        accuracy.nativeRmse !== null
+      );
+      expect(accuracy.uncharacterizedReason === null).toBe(
+        accuracy.status === "characterized"
+      );
+      if (accuracy.status === "characterized") {
+        expect(accuracy.nativeRmse as number).toBeGreaterThan(0);
+        expect(accuracy.recoveredColormapSteps as number).toBeGreaterThan(0);
+        expect(accuracy.totalColormapSteps as number).toBeGreaterThanOrEqual(
+          accuracy.recoveredColormapSteps as number
+        );
+      }
+    }
+  });
+
+  it("survives serialization and states its limits", () => {
+    const exported = createPlaceObservationExport(input);
+    const parsed = JSON.parse(serializePlaceObservationExport(input));
+
+    expect(parsed).toEqual(exported);
+    expect(
+      parsed.products.find(
+        (product: { layerId: string }) => product.layerId === "ndvi"
+      ).inversionAccuracy.nativeRmse
+    ).toBe(MEASURED_INVERSION.ndvi.rmse);
+    // The value method is named in the record; its measured error must be too.
+    expect(exported.method.valueMethod).toBe("approximate-colormap-inversion");
+    expect(exported.limitations.join(" ")).toMatch(
+      /inversionAccuracy is the measured end-to-end error/
+    );
+    expect(exported.limitations.join(" ")).toMatch(
+      /not the source product's validation against in-situ measurement/
     );
   });
 });
