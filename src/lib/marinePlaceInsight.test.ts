@@ -465,6 +465,76 @@ describe("same-calendar-month year-over-year boundary SST difference", () => {
     expect(reading.detail).toContain("not a trend");
   });
 
+  // The difference is reduced from the same two boundary means the card already
+  // qualifies as blind to per-pixel censoring, and its end-cap screen reads
+  // those means — so the qualification has to reach it too, or the card states
+  // an incomplete rule twice and corrects it once.
+  it("carries the averaged-censoring qualification onto the stated difference", () => {
+    const reading = marineBoundarySstReading({
+      ...target,
+      priorYear: {
+        dataMonth: { year: 2025, month: 3 },
+        observedValue: 17.5,
+        validFraction: 0.58,
+      },
+    });
+
+    expect(reading.detail).toContain(
+      "the year-over-year difference above is taken between two such means"
+    );
+    expect(reading.detail).toContain(
+      "not evidence that either month was uncensored"
+    );
+    // Still a statement about the colour ramp, never about the water.
+    expect(reading.detail).not.toMatch(/heatwave|anomal|ecosystem|habitat/i);
+  });
+
+  it("qualifies a bounded difference by its inequality's reach instead", () => {
+    // A prior-year month decoded into the ramp's open low cap bounds the
+    // difference on one side, so the card prints an inequality on it.
+    const reading = marineBoundarySstReading({
+      ...target,
+      priorYear: {
+        dataMonth: { year: 2025, month: 3 },
+        observedValue: 0.075,
+        validFraction: 0.58,
+      },
+    });
+
+    expect(reading.yearOverYear.differenceBound).toBe("lower");
+    expect(reading.detail).toContain(
+      "leaves censoring inside either month's footprint undetected"
+    );
+    expect(reading.detail).not.toContain("absence of an inequality");
+  });
+
+  it("adds no difference qualification when none is stated", () => {
+    // No prior year at all, and a pair the colormap censored in opposing
+    // directions: neither card states a difference, so neither gains a clause.
+    const noPrior = marineBoundarySstReading(target);
+    const withheld = marineBoundarySstReading({
+      ...target,
+      observedValue: 0.075,
+      priorYear: {
+        dataMonth: { year: 2025, month: 3 },
+        observedValue: 0.075,
+        validFraction: 0.58,
+      },
+    });
+
+    expect(withheld.yearOverYear.status).toBe("censored-endpoints");
+    for (const detail of [noPrior.detail, withheld.detail]) {
+      expect(detail).not.toContain("year-over-year difference above");
+    }
+    // The value's own qualification is untouched on both.
+    expect(noPrior.detail).toContain(
+      "not evidence the boundary held no censored pixel"
+    );
+    expect(withheld.detail).toContain(
+      "screens the boundary mean and not the pixels"
+    );
+  });
+
   it("reports a cooler difference and an unchanged pair by sign only", () => {
     const cooler = marineBoundarySstReading({
       ...target,
