@@ -1,4 +1,5 @@
 import { PROBE_SCALES } from "./probe";
+import type { ProbeSstExtremeCensoring } from "./probeSstExtremeCensoring";
 import type { LayerId } from "./timeline";
 import { MEASURED_INVERSION } from "./validation";
 
@@ -52,6 +53,19 @@ import { MEASURED_INVERSION } from "./validation";
  *  - A cold reading is a physical observation only. Nothing here implies sea
  *    ice, marine organisms, habitat, ecosystem condition, hazard, cause, or
  *    future ocean state.
+ *
+ * One band the split does NOT describe: the coldest water of all. Both figures
+ * above are two-sided RMSEs — they say how far a *resolved* colour lands from
+ * the value it stands for. The same colormap ends in an OPEN low cap, where
+ * every SST below 0.00 °C shares one colour, and a month decoded into it is a
+ * bound rather than a measurement (`probeSstExtremeCensoring`). Such a month is
+ * always inside this band — it decodes to about 0.1 °C, far under the 4 °C
+ * threshold — so the two screens do not merely overlap, they co-fire on every
+ * record that reaches the cap. Quoting `±2.8 °C` over rows whose cold-side
+ * error is unbounded replaces one understatement with another, so when the
+ * caller supplies the censoring screen this module names the capped months and
+ * withholds the band from them. Passing no censoring leaves every caller's
+ * output exactly as it was.
  */
 
 /**
@@ -87,6 +101,7 @@ export const SST_COLD_END_ACCURACY_LIMITATIONS = [
   `The probe's quoted inversion accuracy is a whole-ramp RMSE; below ${SST_COLD_END_ACCURACY.thresholdC} °C the measured residual is ${SST_COLD_END_ACCURACY.coldBandRmseC} °C, against ${SST_COLD_END_ACCURACY.restOfRampRmseC.min}–${SST_COLD_END_ACCURACY.restOfRampRmseC.max} °C over the rest of the ramp.`,
   `The display legend anchors its cold stop at GIBS's ~${SST_COLD_END_ACCURACY.legendColdAnchorC} °C hue so that undrawn pixels stay rejected as no-data; the wider cold-end residual is the cost of that separation, not a retrieval error.`,
   "The screen reads reported values, which are themselves imprecise in this band, so a true cold-band reading can surface above the threshold and go unflagged.",
+  "Both figures are two-sided residuals for resolved colours; a month decoded into the colormap's open low cap is a bound whose cold-side error is unbounded, so neither band describes it.",
   "This is rendering-inversion error only — not the accuracy of the underlying L3 product — and no sea-ice, biological, ecological, hazard, causal, or forecast claim follows from a cold reading.",
 ] as const;
 
@@ -98,6 +113,14 @@ export interface SstColdEndAccuracyReading {
   coldestValueC: number | null;
   /** Reported months at or below the threshold. */
   coldBandMonths: number;
+  /**
+   * Of those, how many are not measurements at all: months the published
+   * colormap collapsed into its open low cap, whose cold-side error is
+   * unbounded and which therefore sit outside both quoted bands. Zero whenever
+   * the caller supplies no censoring screen, which keeps the reading exactly
+   * as it read before this was measured.
+   */
+  cappedMonths: number;
   /** Measured residual for this band, or null when the reading does not apply. */
   coldBandRmseC: number | null;
   /** The whole-ramp figure the panel quotes, for contrast; null when unmeasured. */
@@ -110,16 +133,25 @@ export interface SstColdEndAccuracyReading {
  * `values` are the physical values the panel charts and summarizes — the same
  * numbers the reader sees — so this describes what the quoted ± band can be
  * said to mean for them, not how they were obtained.
+ *
+ * `censoring` is the same series judged against the ramp's open end caps. It is
+ * optional because it answers a different question and every caller that has it
+ * already computed it for its own clause; supplying it lets this reading say
+ * which of the cold-band months are bounds rather than measurements, and
+ * omitting it simply leaves that unmeasured rather than assumed absent. A
+ * screen for another layer, or one with nothing to judge, counts as none.
  */
 export function probeSstColdEndAccuracy(
   layerId: LayerId | undefined,
-  values: readonly (number | null)[]
+  values: readonly (number | null)[],
+  censoring?: ProbeSstExtremeCensoring
 ): SstColdEndAccuracyReading {
   const empty: SstColdEndAccuracyReading = {
     kind: "sst-cold-end-accuracy",
     applies: false,
     coldestValueC: null,
     coldBandMonths: 0,
+    cappedMonths: 0,
     coldBandRmseC: null,
     wholeRampRmseC: null,
   };
@@ -137,11 +169,20 @@ export function probeSstColdEndAccuracy(
   if (coldBandMonths === 0) {
     return { ...empty, coldestValueC: coldest };
   }
+  // Only the LOW cap can put a month in this band: the high cap collapses water
+  // at or above 32 °C, which no threshold this side of the ramp reaches. So the
+  // ceiling count is deliberately ignored rather than added in.
+  const cappedMonths =
+    censoring && censoring.applicable ? censoring.floorMonthCount : 0;
   return {
     kind: "sst-cold-end-accuracy",
     applies: true,
     coldestValueC: coldest,
     coldBandMonths,
+    // A screen judged on a different series could in principle count more
+    // capped months than this one saw cold-band months; clamp rather than
+    // print a subset larger than its set.
+    cappedMonths: Math.min(cappedMonths, coldBandMonths),
     coldBandRmseC: SST_COLD_END_ACCURACY.coldBandRmseC,
     wholeRampRmseC: MEASURED_INVERSION.sst.rmse,
   };
@@ -152,6 +193,11 @@ export function probeSstColdEndAccuracy(
  * accuracy figure it qualifies. Empty for every other layer, for an empty
  * record, and for any SST record that stays out of the cold band — so an
  * ordinary readout is unchanged.
+ *
+ * A capped month adds a short trailing parenthesis rather than a second clause:
+ * it corrects the very band this clause just quoted, so it belongs inside it,
+ * and the whole line is silent unless the record both enters the cold band and
+ * reaches the low cap.
  */
 export function sstColdEndAccuracyClause(
   reading: SstColdEndAccuracyReading
@@ -161,7 +207,16 @@ export function sstColdEndAccuracyClause(
     reading.wholeRampRmseC === null
       ? "the whole-ramp figure"
       : `the whole-ramp ±${reading.wholeRampRmseC.toFixed(1)} ${SST_COLD_END_ACCURACY.unit}`;
-  return `±${reading.coldBandRmseC.toFixed(1)} ${SST_COLD_END_ACCURACY.unit} below ${SST_COLD_END_ACCURACY.thresholdC} ${SST_COLD_END_ACCURACY.unit}, not ${whole}`;
+  // Neither band is a two-sided residual for a month the colormap capped, so
+  // name the exception instead of letting the ± read as covering every row in
+  // the band. No corrected value is offered: none exists.
+  const capped =
+    reading.cappedMonths > 0
+      ? ` (neither band describes the ${reading.cappedMonths} capped ${
+          reading.cappedMonths === 1 ? "month" : "months"
+        })`
+      : "";
+  return `±${reading.coldBandRmseC.toFixed(1)} ${SST_COLD_END_ACCURACY.unit} below ${SST_COLD_END_ACCURACY.thresholdC} ${SST_COLD_END_ACCURACY.unit}, not ${whole}${capped}`;
 }
 
 /**
@@ -192,16 +247,28 @@ export function sstColdEndAccuracyCsvHeaders(
       ? "the pooled figure above"
       : `the pooled ±${reading.wholeRampRmseC.toFixed(1)} ${unit} above`;
   const months = reading.coldBandMonths === 1 ? "month" : "months";
+  // When the low cap took the coldest month, that number is an upper bound on
+  // possibly colder water and printing it bare hands the reader a measurement.
+  // The status line marks every censored statistic the moment it renders it;
+  // this parenthetical is the same figure and takes the same inequality.
+  const coldestPrefix = reading.cappedMonths > 0 ? "≤ " : "";
   const coldest =
     reading.coldestValueC === null
       ? ""
-      : ` (coldest ${reading.coldestValueC.toFixed(1)} ${unit})`;
+      : ` (coldest ${coldestPrefix}${reading.coldestValueC.toFixed(1)} ${unit})`;
+  const capped =
+    reading.cappedMonths > 0
+      ? [
+          `# inversion_validation_cold_end_capped: ${reading.cappedMonths} of those ${months} decode into the colormap's open low cap rather than resolving — both figures above are two-sided residuals for a colour that stands for one value so neither describes those rows whose cold-side error is unbounded (see the sst_ramp_censoring lines)`,
+        ]
+      : [];
   // No commas anywhere below: a `#` line must never contain a CSV delimiter
   // (see the header discipline documented on `csvHeaderText` in probe.ts).
   return [
     `# inversion_validation_cold_end: that RMSE is pooled over the whole SST ramp — below ${thresholdC} ${unit} the measured residual is ±${reading.coldBandRmseC.toFixed(1)} ${unit} against ±${restOfRampRmseC.min}–${restOfRampRmseC.max} ${unit} over the rest of the ramp (${source})`,
     `# inversion_validation_cold_end_rows: ${reading.coldBandMonths} sampled ${months} report at or below ${thresholdC} ${unit}${coldest} — read those rows against the ±${reading.coldBandRmseC.toFixed(1)} ${unit} band and not ${whole}`,
     `# inversion_validation_cold_end_cause: the display legend anchors its cold stop at GIBS's ~${legendColdAnchorC} ${unit} hue so that undrawn pixels stay rejected as no-data; the wider cold-end residual is the cost of that separation and not a retrieval error`,
+    ...capped,
     `# inversion_validation_cold_end_screen: this count reads reported values which are themselves imprecise in this band — a true cold-band month can surface above the threshold and go unflagged so the count is a lower bound and never an exhaustive one`,
   ];
 }
