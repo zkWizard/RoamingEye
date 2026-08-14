@@ -10,19 +10,31 @@ import type { RenderedPixel } from "./ProbeSampler";
  * Loaded on demand: only a probe on the class-coded layer needs it. Pixels that
  * do not match a published palette colour exactly stay unclassified — picking
  * the nearest colour would invent a source class that MCD12Q1 never assigned.
+ *
+ * A transparent pixel is counted apart from that failure. The class contract
+ * admits one value per pixel, so both arrive as null and the reading would
+ * otherwise report a point clicked where nothing rendered as pixels this app
+ * could not decode — evidence against the palette that transparency never
+ * supplies. This is the only place the two are still distinguishable.
  */
 export function readLandCoverClassText(
   pixels: readonly RenderedPixel[],
   dataYear: number
 ): string {
+  let transparentSampleCount = 0;
   const observations = pixels.map((pixel) => {
     const decoded = decodeRenderedLandCoverPixel(pixel);
+    if (decoded.status === "unavailable" && decoded.reason === "transparent") {
+      transparentSampleCount += 1;
+    }
     return {
       classCode: decoded.status === "classified" ? decoded.classCode : null,
     };
   });
   const context = summarizeLandCoverContext(observations, dataYear);
-  const reading = describeLandCoverPointReading(context);
+  const reading = describeLandCoverPointReading(context, {
+    transparentSampleCount,
+  });
   // A class label alone does not say whether the vegetation-index layers can
   // be read as plant greenness at this point: MOD13A3 retrieves NDVI and EVI
   // over snow, water, and barren ground just as it does over canopy. The

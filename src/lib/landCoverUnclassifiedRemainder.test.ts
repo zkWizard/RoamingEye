@@ -63,6 +63,84 @@ describe("landCoverUnclassifiedReasons", () => {
       sample.totalSampleCount - sample.knownLandCoverSampleCount
     );
   });
+
+  it("names transparency apart from the colours the decoder lost to", () => {
+    const reasons = landCoverUnclassifiedReasons(
+      coverage({
+        totalSampleCount: 25,
+        knownLandCoverSampleCount: 15,
+        noDataSampleCount: 10,
+      }),
+      { transparentSampleCount: 6 }
+    );
+    expect(reasons).toEqual([
+      { sampleCount: 6, text: "with no rendered imagery" },
+      { sampleCount: 4, text: "with no usable colour" },
+    ]);
+  });
+
+  it("still accounts for exactly the shortfall once transparency is split", () => {
+    const sample = coverage({
+      totalSampleCount: 784,
+      knownLandCoverSampleCount: 500,
+      unclassifiedSampleCount: 200,
+      noDataSampleCount: 76,
+      invalidClassSampleCount: 8,
+    });
+    const summed = landCoverUnclassifiedReasons(sample, {
+      transparentSampleCount: 61,
+    }).reduce((total, reason) => total + reason.sampleCount, 0);
+    expect(summed).toBe(
+      sample.totalSampleCount - sample.knownLandCoverSampleCount
+    );
+  });
+
+  it("drops a whole reason rather than printing a zero part", () => {
+    // Every undecoded pixel was transparent, so "with no usable colour" would
+    // claim a failure that did not happen.
+    const reasons = landCoverUnclassifiedReasons(
+      coverage({
+        totalSampleCount: 12,
+        knownLandCoverSampleCount: 0,
+        noDataSampleCount: 12,
+      }),
+      { transparentSampleCount: 12 }
+    );
+    expect(reasons).toEqual([
+      { sampleCount: 12, text: "with no rendered imagery" },
+    ]);
+  });
+
+  it("clamps a split that would not sum back to the pixels it divides", () => {
+    // A caller counting more transparent pixels than the contract admitted as
+    // undecodable would otherwise print a negative part.
+    const sample = coverage({
+      totalSampleCount: 20,
+      knownLandCoverSampleCount: 12,
+      noDataSampleCount: 8,
+    });
+    for (const transparentSampleCount of [20, -3, 2.5, Number.NaN]) {
+      const reasons = landCoverUnclassifiedReasons(sample, {
+        transparentSampleCount,
+      });
+      expect(reasons.every((reason) => reason.sampleCount > 0)).toBe(true);
+      expect(
+        reasons.reduce((total, reason) => total + reason.sampleCount, 0)
+      ).toBe(8);
+    }
+  });
+
+  it("is unchanged when the caller cannot tell the reasons apart", () => {
+    const sample = coverage({
+      totalSampleCount: 25,
+      knownLandCoverSampleCount: 18,
+      unclassifiedSampleCount: 4,
+      noDataSampleCount: 3,
+    });
+    expect(landCoverUnclassifiedReasons(sample)).toEqual(
+      landCoverUnclassifiedReasons(sample, { transparentSampleCount: 0 })
+    );
+  });
 });
 
 describe("landCoverUnclassifiedRemainder", () => {

@@ -72,13 +72,57 @@ describe("readLandCoverClassText", () => {
     expect(text).toContain("9 pixels with no usable colour");
   });
 
-  it("treats fully transparent pixels as no data", () => {
+  it("says nothing rendered rather than blaming the colour, on transparency", () => {
+    // Nothing was drawn at this point, so there was never a colour to match.
+    // Reporting it as an unreadable colour is evidence against the palette that
+    // transparency cannot supply.
     const text = readLandCoverClassText(
       Array.from({ length: 9 }, () => ({ ...IGBP_RENDERED_PALETTE[12], a: 0 })),
       2024
     );
 
-    expect(text).toContain("9 pixels with no usable colour");
+    expect(text).toContain("9 pixels with no rendered imagery");
+    expect(text).not.toContain("with no usable colour");
+  });
+
+  it("separates transparency from undecodable colour in one sample", () => {
+    // 5 drawn nowhere, 4 drawn one channel off class 12. The printed parts sum
+    // to the 9 pixels that carried no class.
+    const near = IGBP_RENDERED_PALETTE[12];
+    const text = readLandCoverClassText(
+      [
+        ...Array.from({ length: 5 }, () => ({ ...near, a: 0 })),
+        ...Array.from({ length: 4 }, () => ({
+          ...near,
+          r: near.r - 1,
+          a: 255,
+        })),
+      ],
+      2024
+    );
+
+    expect(text).toContain("5 pixels with no rendered imagery");
+    expect(text).toContain("4 pixels with no usable colour");
+  });
+
+  it("names transparency beside a class it did report", () => {
+    // The classified branch, not the unavailable one: 6 cropland pixels and 3
+    // that never rendered. The label stands; the shortfall is not the decoder
+    // failing on imagery it received.
+    const text = readLandCoverClassText(
+      [
+        ...Array.from({ length: 6 }, () => pixel(12)),
+        ...Array.from({ length: 3 }, () => ({
+          ...IGBP_RENDERED_PALETTE[12],
+          a: 0,
+        })),
+      ],
+      2024
+    );
+
+    expect(text).toContain("Cropland (IGBP class 12)");
+    expect(text).toContain("the other 3 pixels with no rendered imagery");
+    expect(text).not.toContain("with no usable colour");
   });
 
   it("carries the probed year through to the citation", () => {

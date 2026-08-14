@@ -4,6 +4,7 @@ import { parseEarthquakeFeed, type Earthquake } from "./earthquakes";
 import {
   EARTHQUAKE_PLACE_CONTEXT_UNITS,
   USGS_M45_MONTH_SOURCE,
+  comparedEventPopulationText,
   epicenterConstraintText,
   epicentralDistanceText,
   feedGenerationText,
@@ -837,6 +838,103 @@ describe("epicentralDistanceText", () => {
 
     expect(text).toContain("km from the search-extent centre.");
     expect(text).not.toContain("km away");
+  });
+});
+
+describe("comparedEventPopulationText", () => {
+  // A far-away query so the valid events supplied below never match, which is
+  // the state the section's negative branch renders.
+  const emptyResult = (events: readonly Earthquake[]) =>
+    nearbyEarthquakeContext(events, {
+      latitude: 0,
+      longitude: 0,
+      radiusKm: 50,
+    });
+
+  it("states how many valid events an empty result was compared against", () => {
+    const context = emptyResult([
+      earthquake({ lat: 40 }),
+      earthquake({ lat: 41 }),
+      earthquake({ lat: 42 }),
+    ]);
+
+    expect(context.coverage.matchedEventCount).toBe(0);
+    expect(comparedEventPopulationText(context)).toBe(
+      "Compared against 3 valid events in the global feed."
+    );
+  });
+
+  it("names a lone event in the singular", () => {
+    // The section's other counts already avoid "1 events"; a comparison
+    // population of one is reachable from a sparse feed copy.
+    expect(
+      comparedEventPopulationText(emptyResult([earthquake({ lat: 40 })]))
+    ).toBe("Compared against 1 valid event in the global feed.");
+  });
+
+  it("says the set was compared rather than counted", () => {
+    // Nothing was counted in this branch. The verb follows the plate-boundary
+    // section's "Compared against N usable supplied polylines", which is the
+    // repo's existing wording for the size of a search that matched nothing.
+    const text = comparedEventPopulationText(
+      emptyResult([earthquake({ lat: 40 })])
+    );
+    expect(text).toContain("Compared against");
+    expect(text).not.toContain("Counted from");
+  });
+
+  it("stays silent when no radial search was run", () => {
+    // An invalid query is a separate state the section reports in its own
+    // words; claiming a comparison population there would describe a search
+    // that never happened.
+    const context = nearbyEarthquakeContext([earthquake({ lat: 40 })], {
+      latitude: NaN,
+      longitude: NaN,
+      radiusKm: NaN,
+    });
+
+    expect(context.coverage.status).toBe("invalid-query");
+    expect(comparedEventPopulationText(context)).toBeNull();
+  });
+
+  it("stays silent when the feed copy held no valid events", () => {
+    // The section already tells this reader that no comparison was made, so a
+    // "compared against 0" line would contradict it.
+    const context = nearbyEarthquakeContext([], {
+      latitude: 0,
+      longitude: 0,
+      radiusKm: 50,
+    });
+
+    expect(context.coverage.status).toBe("no-usable-events");
+    expect(comparedEventPopulationText(context)).toBeNull();
+  });
+
+  it("stays silent when events matched, because that branch states its own total", () => {
+    // The matched branch prints "Counted from N valid events in the global
+    // feed"; rendering both would say the same figure twice.
+    const context = nearbyEarthquakeContext([earthquake()], {
+      latitude: 0,
+      longitude: 0,
+      radiusKm: 50,
+    });
+
+    expect(context.coverage.status).toBe("available");
+    expect(comparedEventPopulationText(context)).toBeNull();
+  });
+
+  it("reports the valid total, not the supplied total", () => {
+    // Invalid records were never searched, so counting them would overstate
+    // the set the negative result rests on.
+    const context = emptyResult([
+      earthquake({ lat: 40 }),
+      earthquake({ lat: 41 }),
+      earthquake({ lat: Number.NaN }),
+    ]);
+
+    expect(context.coverage.suppliedEventCount).toBe(3);
+    expect(context.coverage.validEventCount).toBe(2);
+    expect(comparedEventPopulationText(context)).toContain("2 valid events");
   });
 });
 
