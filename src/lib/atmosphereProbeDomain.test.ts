@@ -7,6 +7,7 @@ import {
 import { LAYERS, type LayerId } from "./timeline";
 import { buildColormapLut, invertColormap, NO_DATA_DISTANCE } from "./probe";
 import { LEGENDS } from "./legend";
+import { GLDAS_RAMP_SATURATION } from "./gldasRampSaturation";
 
 const EMPTY = [null, null, null, null];
 
@@ -50,6 +51,59 @@ describe("atmosphere probe domain of definition", () => {
     expect(note).toContain("not a reading of zero precipitation");
     expect(note).toContain("not evidence of a failed retrieval");
     expect(note).not.toMatch(/\b(is|over) (the )?ocean\b/i);
+  });
+
+  it("names the dropped ramp ceiling as the second reading, in both units", () => {
+    // Without this clause a reader of an empty water-cycle record settles on
+    // dryness, when a saturated cell is the opposite extreme.
+    const note = emptyAtmosphereProbeNote("precip", EMPTY) ?? "";
+    const { ceiling, nativeUnit, reportedUnit } = GLDAS_RAMP_SATURATION.precip;
+
+    // The published label is in kg/m²/s but the probe reports mm/day; quoting
+    // one against the other's unit is the mistake this asserts against.
+    expect(note).toContain(`"${ceiling.publishedLabel}" ${nativeUnit}`);
+    expect(note).toContain(`${ceiling.boundReported} ${reportedUnit}`);
+    expect(note).toContain("at or above that bound");
+    // It must never resolve the ambiguity it has just described.
+    expect(note).not.toMatch(
+      /this point is|you clicked|it rained|is saturated/i
+    );
+  });
+
+  it("leaves the MERRA-2 wording free of any GLDAS ramp claim", () => {
+    // The clause is keyed to the land-only claim, which only GLDAS holds; the
+    // two MERRA-2 layers belong to another specialist and must read unchanged.
+    for (const id of ["airtemp", "aerosol"] as const) {
+      const note = emptyAtmosphereProbeNote(id, EMPTY) ?? "";
+      expect(note).not.toContain(
+        GLDAS_RAMP_SATURATION.precip.ceiling.publishedLabel
+      );
+      expect(note).not.toMatch(/top bin|at or above that bound/);
+    }
+  });
+
+  it("rejects the published top cap on the ramp the probe inverts against", () => {
+    // The clause's whole claim is that a saturated cell decodes to nothing, so
+    // the distance is re-derived rather than trusted as prose. Measured on the
+    // display-legend LUT — the point probe's oracle — not the published
+    // colormap entries the place panel inverts against. If either the ramp or
+    // the threshold moves, this fails before the sentence goes stale.
+    const spec = LEGENDS.precip;
+    if (spec.kind === "classes") throw new Error("precip legend is not a ramp");
+    const { rgb } = GLDAS_RAMP_SATURATION.precip.ceiling;
+    const lut = buildColormapLut(spec.stops);
+    const distance = lut.reduce(
+      (best, entry) =>
+        Math.min(
+          best,
+          Math.hypot(entry.r - rgb.r, entry.g - rgb.g, entry.b - rgb.b)
+        ),
+      Infinity
+    );
+
+    expect(distance).toBeGreaterThan(NO_DATA_DISTANCE);
+    expect(distance).toBeCloseTo(76.7, 1);
+    expect(invertColormap(rgb, lut)).toBeNull();
   });
 
   it("refuses to let the domain excuse an empty MERRA-2 record", () => {
