@@ -28,7 +28,7 @@ import {
  */
 
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
-  "roamingeye-place-observation-export/v7" as const;
+  "roamingeye-place-observation-export/v8" as const;
 
 export const PLACE_OBSERVATION_GEOGRAPHY = {
   coordinateReferenceSystem: "OGC:CRS84",
@@ -199,23 +199,60 @@ export interface PlaceObservationMethodInput {
 }
 
 /**
- * The measured end-to-end error of the very method this export names in
- * `method.valueMethod`.
+ * Whether a product's committed inversion figure measures the inversion that
+ * actually produced that product's values.
  *
- * Every value here is produced by `approximate-colormap-inversion`: a rendered
- * pixel colour is inverted through a ramp to recover a physical number. The
- * repository measures how well that round-trip works — `validateInversion`
- * feeds GIBS's authoritative colormap through the production inversion and
- * compares the recovered value to the published one — and the residuals are
+ * The three cases are decided by the product's recorded `valueMapping` and are
+ * not interchangeable: the first says the quoted error belongs to these
+ * numbers, the second says it belongs to a different ramp, and the third says
+ * the value method was never recorded — which is not evidence that either ran.
+ */
+export type InversionAccuracyScope =
+  /**
+   * Values were read through the UI legend gradient — the very inversion
+   * `MEASURED_INVERSION` measures — so the figure characterizes them.
+   */
+  | "measures-this-product"
+  /**
+   * Values were read through GIBS's published colormap. The figure measures the
+   * UI legend gradient instead, so it is not this product's measured error and
+   * is not evidence of a larger or a smaller one.
+   */
+  | "measures-a-different-inversion"
+  /**
+   * No value mapping was recorded for the product, so which ramp was inverted
+   * is unknown and the figure cannot be tied to these values either way.
+   */
+  | "value-inversion-unrecorded";
+
+/**
+ * The measured end-to-end error of RoamingEye's *UI legend gradient*, plus a
+ * statement of whether that is the inversion which produced this product's
+ * values.
+ *
+ * Every value here is produced by inverting a rendered pixel colour through a
+ * ramp — but not always the *same* ramp. `ProbeSampler.sampleGeometryPhysical`
+ * inverts against GIBS's published colormap entries, while
+ * `ProbeSampler.sampleGeometry` inverts through this app's approximate legend
+ * gradient, and the place controller chooses between them per product according
+ * to whether the published colormap document loaded. Which one ran is already
+ * recorded, per product, in `valueMapping`.
+ *
+ * The committed measurement covers exactly one of those two. `validateInversion`
+ * feeds GIBS's authoritative colormap through `LEGENDS[layer]` — the UI legend
+ * LUT — and compares the recovered value to the published one; the residuals are
  * committed in `MEASURED_INVERSION`, documented in METHODS §3 and
  * docs/validation.md, and re-asserted against live GIBS by
- * `contract/inversion-validation.contract.test.ts`.
+ * `contract/inversion-validation.contract.test.ts`. No equivalent validation run
+ * measures the published-colormap inversion.
  *
- * The probe panel and the probe CSV already carry that figure beside the values
- * it qualifies (`probeInversionAccuracy`). This record carries the same
- * measurement into the place export, so a downloaded observation states the
- * accuracy of the method that produced it rather than leaving the reader with
- * the qualitative "values are approximate" line alone.
+ * So on a `gibs-colormap` product this figure characterizes a *different*
+ * inversion from the one that produced the numbers beside it. That is not a
+ * reason to drop it — it is the only measured characterization this repository
+ * holds, and the probe panel and probe CSV quote the same table
+ * (`probeInversionAccuracy`) — but it must not be read as this product's own
+ * error, in either direction. `scope` states which case a reader is in, so two
+ * fields of one record cannot silently disagree about how the values were read.
  *
  * Honesty rules, matching the probe's:
  *  - `nativeRmse` is in this product's own `nativeUnit`, the unit `value` is
@@ -233,9 +270,19 @@ export interface PlaceObservationMethodInput {
  *  - A layer with no measured figure is recorded as uncharacterized with the
  *    reason it has none. An error is never invented, and absence is never
  *    rendered as accuracy.
+ *  - `scope` reports the mismatch; it never repairs it. Where the figure
+ *    characterizes a different inversion, no substitute figure is estimated,
+ *    scaled, or asserted for the one that actually ran — an unmeasured
+ *    inversion is recorded as unmeasured, exactly as an unmeasured *layer* is.
  */
 export interface PlaceObservationInversionAccuracy {
   status: "characterized" | "uncharacterized";
+  /**
+   * Whether the quoted figure measures the inversion that produced this
+   * product's values. Read from the product's own `valueMapping`, so it can
+   * never disagree with the recorded value method.
+   */
+  scope: InversionAccuracyScope;
   /** Null exactly when `status === "characterized"`. */
   uncharacterizedReason: UncharacterizedReason | null;
   /** RMSE in this product's `nativeUnit`; null when uncharacterized. */
@@ -254,14 +301,39 @@ export interface PlaceObservationInversionAccuracy {
 }
 
 /**
+ * Decide whether the committed figure describes the inversion that produced a
+ * product's values, from the value method the product already records.
+ *
+ * Read off `valueMapping` rather than re-deciding here: the controller picks
+ * the inverter per product at sampling time and records the choice, so reading
+ * the record is the only way this verdict cannot drift away from it.
+ */
+function inversionAccuracyScope(
+  mapping: PlaceObservationValueMapping | undefined
+): InversionAccuracyScope {
+  switch (mapping?.status) {
+    case "ui-legend-approximation":
+      return "measures-this-product";
+    case "gibs-colormap":
+      return "measures-a-different-inversion";
+    default:
+      return "value-inversion-unrecorded";
+  }
+}
+
+/**
  * Bind a product to its committed inversion measurement, in the product's own
- * native unit. Nothing is re-derived or re-measured here: the figure is read
- * from the same committed table the probe surfaces quote.
+ * native unit, and state whether that measurement covers the inversion the
+ * product's values came from. Nothing is re-derived or re-measured here: the
+ * figure is read from the same committed table the probe surfaces quote, and
+ * the scope from the product's own recorded value method.
  */
 function inversionAccuracyForProduct(
   layerId: LayerId,
-  nativeUnit: string
+  nativeUnit: string,
+  valueMapping: PlaceObservationValueMapping | undefined
 ): PlaceObservationInversionAccuracy {
+  const scope = inversionAccuracyScope(valueMapping);
   const measured = inversionUncertaintyForLayer(layerId, nativeUnit);
   if (measured === null) {
     // The classifier supplies both the reason and the recovery counts, so the
@@ -269,6 +341,7 @@ function inversionAccuracyForProduct(
     const characterization = characterizeLayerInversion(layerId);
     return {
       status: "uncharacterized",
+      scope,
       uncharacterizedReason: characterization.reason,
       nativeRmse: null,
       reportedRmse: null,
@@ -279,6 +352,7 @@ function inversionAccuracyForProduct(
   }
   return {
     status: "characterized",
+    scope,
     uncharacterizedReason: null,
     nativeRmse: measured.nativeRmse,
     reportedRmse: measured.reportedRmse,
@@ -334,7 +408,8 @@ export interface PlaceObservationExport {
     "Data-month record states do not make values across products interchangeable or describe environmental condition.",
     "A legend-cap censoring record marks the month it names as a one-sided bound rather than a measurement; where no record is supplied, none was assessed, which is not evidence that no censoring occurred.",
     "An observation's valueBound marks that value as a bound the rendered ramp could not resolve past, never as a measurement; a null bound records that this observation was not assessed for one, which is not evidence its value was resolved.",
-    "A product's inversionAccuracy is the measured end-to-end error of this export's own colormap inversion against the published GIBS colormap, pooled over the whole ramp and stated in the product's native unit; it is not the source product's validation against in-situ measurement, and a layer recorded as uncharacterized carries an unmeasured inversion error rather than none.",
+    "A product's inversionAccuracy is the measured end-to-end error of RoamingEye's UI legend gradient inverted against the published GIBS colormap, pooled over the whole ramp and stated in the product's native unit; it is not the source product's validation against in-situ measurement, and a layer recorded as uncharacterized carries an unmeasured inversion error rather than none.",
+    "That figure does not always describe the inversion a product's values came from: inversionAccuracy.scope reports measures-a-different-inversion where the values were read through GIBS's published colormap rather than the UI legend gradient, and no validation run measures that inversion, so the quoted figure is neither this product's error nor evidence of a larger or smaller one.",
   ];
 }
 
@@ -567,7 +642,8 @@ const LIMITATIONS = [
   "Data-month record states do not make values across products interchangeable or describe environmental condition.",
   "A legend-cap censoring record marks the month it names as a one-sided bound rather than a measurement; where no record is supplied, none was assessed, which is not evidence that no censoring occurred.",
   "An observation's valueBound marks that value as a bound the rendered ramp could not resolve past, never as a measurement; a null bound records that this observation was not assessed for one, which is not evidence its value was resolved.",
-  "A product's inversionAccuracy is the measured end-to-end error of this export's own colormap inversion against the published GIBS colormap, pooled over the whole ramp and stated in the product's native unit; it is not the source product's validation against in-situ measurement, and a layer recorded as uncharacterized carries an unmeasured inversion error rather than none.",
+  "A product's inversionAccuracy is the measured end-to-end error of RoamingEye's UI legend gradient inverted against the published GIBS colormap, pooled over the whole ramp and stated in the product's native unit; it is not the source product's validation against in-situ measurement, and a layer recorded as uncharacterized carries an unmeasured inversion error rather than none.",
+  "That figure does not always describe the inversion a product's values came from: inversionAccuracy.scope reports measures-a-different-inversion where the values were read through GIBS's published colormap rather than the UI legend gradient, and no validation run measures that inversion, so the quoted figure is neither this product's error nor evidence of a larger or smaller one.",
 ] as const;
 
 /** Create a JSON-ready, whitelist-only reproducibility record. */
@@ -1102,7 +1178,8 @@ function exportProducts(
       // sampling, so no builder can supply a figure that disagrees with it.
       inversionAccuracy: inversionAccuracyForProduct(
         product.layerId,
-        product.nativeUnit
+        product.nativeUnit,
+        product.valueMapping
       ),
       observations: product.observations
         .map((observation) => ({
