@@ -30,8 +30,10 @@ describe("readLandCoverRegionText", () => {
   });
 
   it("does not claim a region has no land cover where nothing rendered", () => {
-    // A box drawn where the land-cover layer is transparent: every pixel is
-    // undecodable, so MCD12Q1 was never read here at all.
+    // A box drawn where the land-cover layer is transparent: MCD12Q1 was never
+    // read here at all, so the shortfall is missing imagery and not a colour
+    // the decoder lost to. Saying the latter would tell the reader the whole
+    // sample defeated the palette.
     const text = readLandCoverRegionText(
       Array.from({ length: 12 }, () => ({ r: 0, g: 0, b: 0, a: 0 })),
       2024,
@@ -40,9 +42,52 @@ describe("readLandCoverRegionText", () => {
 
     expect(text).toContain("No sampled pixel carried a readable land-cover");
     expect(text).not.toContain("in this region");
-    expect(text).toContain("12 pixels with no usable colour");
+    expect(text).toContain("12 pixels with no rendered imagery");
+    expect(text).not.toContain("with no usable colour");
     // The citation survives a reading that reports nothing.
     expect(text).toContain("MCD12Q1 v061");
+  });
+
+  it("keeps transparency out of the share that questions the classes", () => {
+    // 8 forest pixels, 12 that never rendered. The class named beside the
+    // remainder was read from imagery that decoded exactly, so nothing here
+    // argues against it — the drawn box simply extends past the tile.
+    const text = readLandCoverRegionText(
+      [
+        ...block(1, 8),
+        ...Array.from({ length: 12 }, () => ({ r: 0, g: 0, b: 0, a: 0 })),
+      ],
+      2024,
+      SAMPLING
+    );
+
+    expect(text).toContain("Evergreen needleleaf forest (IGBP class 1) only");
+    expect(text).toContain("8 classified of 20 sampled image pixels");
+    expect(text).toContain("12 pixels with no rendered imagery");
+    expect(text).not.toContain("with no usable colour");
+  });
+
+  it("splits a remainder that is part missing imagery and part bad colour", () => {
+    // 6 forest, 8 never rendered, 6 one channel off class 1. Both reasons are
+    // named and the printed counts sum to the 14 pixels carrying no class.
+    const near = IGBP_RENDERED_PALETTE[1];
+    const text = readLandCoverRegionText(
+      [
+        ...block(1, 6),
+        ...Array.from({ length: 8 }, () => ({ r: 0, g: 0, b: 0, a: 0 })),
+        ...Array.from({ length: 6 }, () => ({
+          ...near,
+          g: near.g - 1,
+          a: 255,
+        })),
+      ],
+      2024,
+      SAMPLING
+    );
+
+    expect(text).toContain(
+      "8 with no rendered imagery, 6 with no usable colour"
+    );
   });
 });
 
