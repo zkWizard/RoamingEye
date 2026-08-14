@@ -240,6 +240,75 @@ describe("seasonalSamplingClause", () => {
     expect(clause).toContain(AIRTEMP.unit);
     expect(balance.seasonalSamplingBias!).toBeLessThan(0);
   });
+
+  it("carries the mean's inequality onto the balanced mean, which re-weights the same censored months", () => {
+    const months = monthlyRecord(2001, 3);
+    const values: (number | null)[] = seasonalCycle(months, 288, 10);
+    let droppedJan = 0;
+    months.forEach((ym, i) => {
+      if (ym.month === 1 && droppedJan++ < 2) values[i] = null;
+    });
+
+    const balance = seasonalSamplingBalance(months, values);
+    const bare = seasonalSamplingClause(balance, AIRTEMP)!;
+    const bounded = seasonalSamplingClause(balance, AIRTEMP, "≤ ")!;
+
+    expect(bounded).toContain("balanced mean ≤ ");
+    // Same number and same offset — only the claim made about them changed.
+    // Removing the inequality and the scope note must reproduce the bare
+    // clause exactly, so no digit can drift between the two renderings.
+    const scope =
+      "; each is a one-sided bound over the same censored months, so their offset is not itself bounded";
+    expect(bounded.replace("≤ ", "").replace(scope, "")).toBe(bare);
+  });
+
+  it("refuses to bound the offset between two means bounded the same way", () => {
+    const months = monthlyRecord(2001, 3);
+    const values: (number | null)[] = seasonalCycle(months, 288, 10);
+    let droppedJan = 0;
+    months.forEach((ym, i) => {
+      if (ym.month === 1 && droppedJan++ < 2) values[i] = null;
+    });
+
+    const balance = seasonalSamplingBalance(months, values);
+    const bounded = seasonalSamplingClause(balance, AIRTEMP, "≥ ")!;
+
+    // The offset keeps its sign as an arithmetic fact but is never given an
+    // inequality: both means overstate by an unknown amount in the same
+    // direction, so the difference of those errors has no claimable side.
+    expect(bounded).toContain("their offset is not itself bounded");
+    expect(bounded).not.toMatch(/\((≤|≥) /);
+  });
+
+  it("leaves an uncensored record byte-identical when no inequality is supplied", () => {
+    const months = monthlyRecord(2001, 3);
+    const values: (number | null)[] = seasonalCycle(months, 288, 10);
+    let droppedJan = 0;
+    months.forEach((ym, i) => {
+      if (ym.month === 1 && droppedJan++ < 2) values[i] = null;
+    });
+
+    const balance = seasonalSamplingBalance(months, values);
+    expect(seasonalSamplingClause(balance, AIRTEMP, "")).toBe(
+      seasonalSamplingClause(balance, AIRTEMP)
+    );
+    expect(seasonalSamplingClause(balance, AIRTEMP)).not.toContain(
+      "not itself bounded"
+    );
+  });
+
+  it("adds no inequality to the absent-months branch, which quotes no statistic", () => {
+    const months = monthlyRecord(2001, 2);
+    const values: (number | null)[] = seasonalCycle(months, 288, 10);
+    months.forEach((ym, i) => {
+      if (ym.month === 1 || ym.month === 12) values[i] = null;
+    });
+
+    const balance = seasonalSamplingBalance(months, values);
+    expect(seasonalSamplingClause(balance, AIRTEMP, "≤ ")).toBe(
+      seasonalSamplingClause(balance, AIRTEMP)
+    );
+  });
 });
 
 describe("seasonalSamplingCsvHeaders", () => {
