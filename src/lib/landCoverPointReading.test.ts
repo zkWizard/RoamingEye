@@ -155,4 +155,69 @@ describe("describeLandCoverPointReading", () => {
     expect(summary.isForecast).toBe(false);
     expect(describeLandCoverPointReading(summary).isInterpretation).toBe(false);
   });
+
+  it("says how much of a classified sample carried no IGBP class", () => {
+    // 4 cropland, 3 grassland, 2 source-unclassified: the class is named from
+    // 7 classified pixels, not from all 9, and the reading must say so.
+    const reading = describeLandCoverPointReading(
+      block([12, 12, 12, 12, 10, 10, 10, 255, 255])
+    );
+
+    expect(reading.status).toBe("classified");
+    expect(reading.detail).toContain(
+      "Most frequent class in 4 of 9 sampled image pixels."
+    );
+    expect(reading.detail).toContain(
+      "Of those, 7 pixels carried an IGBP class; the other 2 pixels source-unclassified."
+    );
+  });
+
+  it("keeps the source's own unclassified answer apart from an unreadable pixel", () => {
+    // Same shortfall, different observations: only the undecoded pixels are a
+    // reason to distrust the label above them.
+    const reading = describeLandCoverPointReading(
+      block([12, 12, 12, 12, 12, 255, 255, null, null])
+    );
+
+    expect(reading.detail).toContain(
+      "Of those, 5 pixels carried an IGBP class; the other 4 pixels: 2 source-unclassified, 2 with no usable colour."
+    );
+  });
+
+  it("discloses the shortfall on a tie as well as on a single class", () => {
+    const reading = describeLandCoverPointReading(
+      block([10, 10, 10, 12, 12, 12, null, null, null])
+    );
+
+    expect(reading.status).toBe("tied");
+    expect(reading.detail).toContain(
+      "Of those, 6 pixels carried an IGBP class; the other 3 pixels with no usable colour."
+    );
+  });
+
+  it("stays silent when every sampled pixel carried an informative class", () => {
+    const reading = describeLandCoverPointReading(
+      block([12, 12, 12, 12, 12, 12, 12, 10, 10])
+    );
+
+    expect(reading.detail).not.toContain("Of those,");
+    expect(reading.detail).toBe(
+      "Most frequent class in 7 of 9 sampled image pixels. MCD12Q1 v061, 500 m, 2024 annual IGBP map. Class labels are categorical — counted, never averaged."
+    );
+  });
+
+  it("never lets the shortfall clause disagree with the sample it describes", () => {
+    // The printed classified count plus the printed remainder must be the whole
+    // sample — a clause that rounded or reused the wrong denominator would not.
+    const reading = describeLandCoverPointReading(
+      block([1, 1, 1, 2, 2, 255, null, null, 99])
+    );
+
+    expect(reading.detail).toContain(
+      "Of those, 5 pixels carried an IGBP class"
+    );
+    expect(reading.detail).toContain(
+      "the other 4 pixels: 1 source-unclassified, 2 with no usable colour, 1 outside the IGBP class contract"
+    );
+  });
 });

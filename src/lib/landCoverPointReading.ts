@@ -1,5 +1,10 @@
 import type { LandCoverContextSummary } from "./landCover";
 import { noKnownLandCoverHeadline } from "./landCoverNoClassHeadline";
+import {
+  landCoverPixels,
+  landCoverUnclassifiedReasons,
+  landCoverUnclassifiedRemainder,
+} from "./landCoverUnclassifiedRemainder";
 
 /**
  * Probe-panel copy for a point sample of the MCD12Q1 LC_Type1 land-cover map.
@@ -81,11 +86,12 @@ export function describeLandCoverPointReading(
   }
 
   const sampled = `of ${coverage.totalSampleCount} sampled image pixels`;
+  const shortfall = classifiedShortfall(coverage);
   if (dominantClass) {
     return reading(
       "classified",
       `${dominantClass.label} (IGBP class ${dominantClass.classCode})`,
-      `Most frequent class in ${dominantClass.sampleCount} ${sampled}. ${source}. ${categorical}`
+      `Most frequent class in ${dominantClass.sampleCount} ${sampled}.${shortfall} ${source}. ${categorical}`
     );
   }
 
@@ -97,8 +103,41 @@ export function describeLandCoverPointReading(
     `Tied: ${mostFrequentClasses
       .map((entry) => `${entry.label} (IGBP class ${entry.classCode})`)
       .join(", ")}`,
-    `Each occurred in ${tied.sampleCount} ${sampled}; no single most frequent class. ${source}. ${categorical}`
+    `Each occurred in ${tied.sampleCount} ${sampled}; no single most frequent class.${shortfall} ${source}. ${categorical}`
   );
+}
+
+/**
+ * How much of the sample carried no IGBP class at all, and why.
+ *
+ * "Most frequent class in 7 of 25 sampled image pixels" prints a denominator of
+ * every pixel read, so the 18 that are not this class could be other classes,
+ * MCD12Q1's own "unclassified" answer, or pixels this app could not decode —
+ * and those are not the same observation. Seven of twenty-five where the rest
+ * carry classes is a mixed neighbourhood; seven of twenty-five where eighteen
+ * never decoded is a class named from a mostly unreadable sample. Only the
+ * second is a reason to distrust the label above it.
+ *
+ * The unavailable branch has always broken the remainder down this way
+ * (`unclassifiedText`); this states it on the branches that DO name a class,
+ * which is the same disclosure the drawn-region reading already makes beside
+ * its shares (landCoverUnclassifiedRemainder.ts). Deliberately silent when
+ * every sampled pixel carried an informative class, which keeps the ordinary
+ * probe status line exactly as long as it is today.
+ *
+ * The classified count is stated explicitly rather than left to be inferred:
+ * "the other N" alone would read against the 25, not against the classified
+ * pixels, and would contradict its own breakdown whenever another class was
+ * also present.
+ */
+function classifiedShortfall(
+  coverage: LandCoverContextSummary["coverage"]
+): string {
+  const remainder = landCoverUnclassifiedRemainder(coverage);
+  if (remainder === "") return "";
+  return ` Of those, ${landCoverPixels(
+    coverage.knownLandCoverSampleCount
+  )} carried an IGBP class; ${remainder}.`;
 }
 
 function reading(
@@ -119,25 +158,10 @@ function reading(
 function unclassifiedText(
   coverage: LandCoverContextSummary["coverage"]
 ): string {
-  const parts: string[] = [];
-  if (coverage.unclassifiedSampleCount > 0) {
-    parts.push(
-      `${pixels(coverage.unclassifiedSampleCount)} source-unclassified`
-    );
-  }
-  if (coverage.noDataSampleCount > 0) {
-    parts.push(`${pixels(coverage.noDataSampleCount)} with no usable colour`);
-  }
-  if (coverage.invalidClassSampleCount > 0) {
-    parts.push(
-      `${pixels(coverage.invalidClassSampleCount)} outside the IGBP class contract`
-    );
-  }
+  const parts = landCoverUnclassifiedReasons(coverage).map(
+    (reason) => `${landCoverPixels(reason.sampleCount)} ${reason.text}`
+  );
   return parts.length === 0
     ? `None of the ${coverage.totalSampleCount} sampled image pixels carried an IGBP class.`
     : `Of ${coverage.totalSampleCount} sampled image pixels: ${parts.join(", ")}.`;
-}
-
-function pixels(count: number): string {
-  return `${count} pixel${count === 1 ? "" : "s"}`;
 }
