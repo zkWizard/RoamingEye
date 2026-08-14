@@ -10,7 +10,10 @@ import {
   AEROSOL_SOURCE,
   AEROSOL_WAVELENGTH_NM,
 } from "./aerosolLoading";
-import { describeAerosolChangeResolvability } from "./aerosolInversionResolvability";
+import {
+  describeAerosolChangeResolvability,
+  describeAerosolTierResolvability,
+} from "./aerosolInversionResolvability";
 
 const MONTHS = [
   { year: 2026, month: 2 },
@@ -170,6 +173,83 @@ describe("aerosol place-panel reading", () => {
       sample({ observedValues: [0.3, 0.35] })
     );
     expect(interior.detail).not.toContain("tier edge");
+  });
+
+  it("says when the inversion error admits more than one loading tier", () => {
+    // 0.24 bins as moderate, but the layer's measured end-to-end
+    // colormap-inversion error reaches back across the 0.2 break point, so low
+    // is equally consistent with the reading. Naming one tier on its own
+    // overstates what this pipeline can distinguish.
+    const reading = aerosolBoundaryLoadingReading(sample());
+
+    expect(reading.detail).toContain(
+      "moderate column loading (descriptive tier, but the ±"
+    );
+    expect(reading.detail).toContain("colormap-inversion error admits");
+    expect(reading.detail).toContain(
+      "so the tier is not resolved by this pipeline"
+    );
+  });
+
+  it("stays silent when one tier survives the inversion error", () => {
+    // 0.35 sits clear of both moderate break points by more than the measured
+    // error, so the tier is resolved and the card gains no text for it.
+    const reading = aerosolBoundaryLoadingReading(
+      sample({ observedValues: [0.3, 0.35] })
+    );
+
+    expect(reading.detail).toContain(
+      "moderate column loading (descriptive tier)"
+    );
+    expect(reading.detail).not.toContain("colormap-inversion error admits");
+  });
+
+  it("reads the tier band from the measured figure rather than restating one", () => {
+    // A copied constant would drift the moment the layer is recalibrated. The
+    // printed band, and the tier count it spans, must be the module's own.
+    const resolvability = describeAerosolTierResolvability(0.24);
+    expect(resolvability?.resolution).toBe("unresolved");
+    const rmse = resolvability?.inversionRmse as number;
+    const lower = resolvability?.lower as number;
+    const upper = resolvability?.upper as number;
+    const spanned = resolvability?.consistentCategories.length as number;
+    expect(spanned).toBeGreaterThan(1);
+
+    expect(aerosolBoundaryLoadingReading(sample()).detail).toContain(
+      `±${rmse.toFixed(2)} colormap-inversion error admits ${lower.toFixed(
+        2
+      )} to ${upper.toFixed(2)}, spanning ${spanned} tiers`
+    );
+  });
+
+  it("does not attach the symmetric tier band to a censored reading", () => {
+    // The value rests on the ramp's open-ended top bin, so it is a lower bound.
+    // AEROSOL_RESOLVABILITY_LIMITATIONS states the band is symmetric and does
+    // not model that bound, so the card keeps its own one-sided `or heavier`
+    // wording rather than borrowing a band that does not apply — even though
+    // the module does return an unresolved verdict for the value.
+    const reading = aerosolBoundaryLoadingReading(
+      sample({ observedValues: [0.7, 0.8975] })
+    );
+
+    expect(describeAerosolTierResolvability(0.8975)?.resolution).toBe(
+      "unresolved"
+    );
+    expect(reading.detail).toContain("or heavier (descriptive tier)");
+    expect(reading.detail).not.toContain("colormap-inversion error admits");
+  });
+
+  it("keeps the tier-edge note and the inversion band as separate statements", () => {
+    // Proximity measures distance to a break point in the value's own units;
+    // resolvability measures how well the value itself is known. They are
+    // different claims, so a marginal unresolved reading carries both.
+    const reading = aerosolBoundaryLoadingReading(
+      sample({ observedValues: [0.2, 0.21] })
+    );
+
+    expect(reading.detail).toMatch(
+      /close to the 0\.20 tier edge, but the ±[\d.]+ colormap-inversion error admits/
+    );
   });
 
   it("flags a sample censored by the rendered ramp's ceiling", () => {

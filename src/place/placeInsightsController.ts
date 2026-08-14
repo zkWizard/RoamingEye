@@ -71,7 +71,7 @@ import {
   nearbyEarthquakeContext,
   searchExtentEarthquakeQuery,
 } from "../lib/earthquakeContext";
-import { parseEarthquakeFeed, USGS_FEED_URL } from "../lib/earthquakes";
+import { parseEarthquakeFeedSnapshot, USGS_FEED_URL } from "../lib/earthquakes";
 import {
   nearbyVolcanoContext,
   placePointVolcanoQuery,
@@ -254,15 +254,19 @@ export function runPlaceInsights(result: GeoResult): void {
 
   // Live seismicity for the same extent. The overlay already reads this feed,
   // so the place panel reuses the identical URL and parser rather than
-  // introducing a second, divergent view of USGS records.
+  // introducing a second, divergent view of USGS records. The snapshot parser
+  // is the one the overlay uses; its `events` are the same array the plain
+  // parser returns, and it additionally keeps the feed's published generation
+  // time, which the panel dates its window with.
   const seismicityQuery = searchExtentEarthquakeQuery(result.boundingBox);
   if (result.boundingBox) {
     void fetchJson<unknown>(USGS_FEED_URL, { signal: abort.signal })
-      .then(parseEarthquakeFeed)
-      .then((earthquakes) => {
+      .then(parseEarthquakeFeedSnapshot)
+      .then((snapshot) => {
         if (abort.signal.aborted) return;
         placeInsights.setSeismicityContext(
-          nearbyEarthquakeContext(earthquakes, seismicityQuery)
+          nearbyEarthquakeContext(snapshot.events, seismicityQuery),
+          snapshot.metadata.generatedTime
         );
       })
       .catch((error: unknown) => {
