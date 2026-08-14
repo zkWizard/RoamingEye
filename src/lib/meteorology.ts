@@ -28,6 +28,10 @@ import {
   type PrecipitationAccumulationChange,
 } from "./precipitationAccumulationChange";
 import { describePrecipitationAccumulationResolvability } from "./precipitationAccumulationResolvability";
+import {
+  AIR_TEMPERATURE_METRIC_ID,
+  describeAirTemperatureChangeResolvability,
+} from "./airTemperatureChangeResolvability";
 import { monthOverMonthCoverageSupport } from "./climateChangeSupport";
 import type { GeometrySamplingStrategy } from "./geojson";
 import type {
@@ -446,6 +450,14 @@ export function climateInsightText(
     nativeDelta !== null && previous
       ? accumulationChangeClause(previous, current)
       : "";
+  // The precipitation difference above is qualified against its own inversion
+  // floor inside the accumulation clause. The air-temperature difference had no
+  // such qualification, yet it is rendered to five significant figures — and its
+  // floor is easy to miss precisely because kelvin-to-Celsius is offset-only, so
+  // the published kelvin error and the printed Celsius difference are already
+  // the same scale with no conversion step to prompt the comparison.
+  const changeFloor =
+    nativeDelta !== null ? airTemperatureFloorCaveat(current, nativeDelta) : "";
   // The coverage percentage alone cannot say whether the missing area was
   // unpublished or merely unrepresentable, and only the latter biases the mean.
   const rampShortfall = rampShortfallCaveat(current, conventional);
@@ -455,7 +467,7 @@ export function climateInsightText(
     nativeDelta !== null && previous ? comparisonShortfallCaveat(previous) : "";
   return {
     value,
-    detail: `${month} ${modality.field}${comparison}${accumulation}${accumulationChange}${nativeProvenance}; ${coverage}${rampShortfall}${comparisonShortfall}; ${provenance}; ${sampling}; ${modality.limit}; ${sourceVariable}; source ${source}`,
+    detail: `${month} ${modality.field}${comparison}${accumulation}${accumulationChange}${changeFloor}${nativeProvenance}; ${coverage}${rampShortfall}${comparisonShortfall}; ${provenance}; ${sampling}; ${modality.limit}; ${sourceVariable}; source ${source}`,
   };
 }
 
@@ -717,6 +729,56 @@ function inversionFloorCaveat(change: PrecipitationAccumulationChange): string {
   return `; the two totals differ by less than the ${formatNumber(
     resolvability.differenceFloorMm
   )} mm colormap-inversion difference floor for these month lengths, so this pipeline cannot separate them`;
+}
+
+/**
+ * Say when two monthly air-temperature means are closer together than the
+ * pipeline's own measured colormap inversion can separate.
+ *
+ * The readout prints the difference to five significant figures with no
+ * indication of how well it is known. Neither month was measured: each is a
+ * rendered pixel colour inverted through an approximate legend gradient, and
+ * differencing two independently inverted months puts a floor of
+ * `sqrt(2) x RMSE` — about 0.69 K at the currently measured figure — under any
+ * difference the line reports. See
+ * {@link describeAirTemperatureChangeResolvability}, which never re-derives the
+ * published error.
+ *
+ * Scoped to air temperature deliberately. Precipitation carries its own
+ * accumulation-aware floor in {@link inversionFloorCaveat}, whose error scales
+ * with each month's length; soil moisture lies outside the atmospheric domain
+ * this module owns and gains no clause here.
+ *
+ * The statement is about the pair of means, not about the printed difference:
+ * it never asserts the months were equally warm, and it never removes or
+ * reverses the difference shown beside it.
+ *
+ * Silent when the difference clears the floor, and when the layer carries no
+ * measured inversion figure in the unit the published error is documented in —
+ * an unmeasured error is not a passed test.
+ */
+function airTemperatureFloorCaveat(
+  current: MonthlyClimateSummary,
+  nativeDelta: number
+): string {
+  if (current.metric.id !== AIR_TEMPERATURE_METRIC_ID) return "";
+  const resolvability = describeAirTemperatureChangeResolvability(
+    nativeDelta,
+    current.metric.source
+  );
+  if (
+    resolvability === null ||
+    resolvability.resolution !== "unresolved" ||
+    resolvability.differenceFloorK === null
+  ) {
+    return "";
+  }
+  // The floor is quoted in K because that is the unit the published error is
+  // documented in; the printed difference is in °C and is the same number,
+  // which the clause says outright rather than leaving to the reader.
+  return `; the two monthly means differ by less than the ${formatNumber(
+    resolvability.differenceFloorK
+  )} K colormap-inversion difference floor — the same figure in °C, an offset-only conversion — so this pipeline cannot separate them`;
 }
 
 function samplingText(strategy: GeometrySamplingStrategy | null): string {
