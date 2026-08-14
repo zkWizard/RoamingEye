@@ -6,6 +6,7 @@ import {
   USGS_M45_MONTH_SOURCE,
   epicenterConstraintText,
   epicentralDistanceText,
+  feedGenerationText,
   largestReportedMagnitudeObservation,
   listedSeismicityOrderNote,
   nearbyEarthquakeContext,
@@ -836,5 +837,51 @@ describe("epicentralDistanceText", () => {
 
     expect(text).toContain("km from the search-extent centre.");
     expect(text).not.toContain("km away");
+  });
+});
+
+describe("feedGenerationText", () => {
+  it("dates the feed copy to the minute in UTC", () => {
+    // 2026-08-14T04:13:14Z — a real metadata.generated value from the live
+    // M4.5+ month summary.
+    expect(feedGenerationText(1_786_680_794_000)).toBe(
+      "USGS generated this feed copy 2026-08-14 04:13 UTC; its 30-day window " +
+        "ends there and does not advance while this page stays open."
+    );
+  });
+
+  it("says the window does not advance, because the page fetches the feed once", () => {
+    // The point of the stamp: a reader must not take a 30-day window measured
+    // at load time for one measured now.
+    expect(feedGenerationText(1_786_680_794_000)).toContain(
+      "does not advance while this page stays open"
+    );
+  });
+
+  it("reports a missing generation time rather than skipping the disclosure", () => {
+    // Mirrors the volcano section, which reports a missing retrieval month
+    // instead of quietly dropping its snapshot sentence.
+    expect(feedGenerationText(null)).toBe(
+      "This feed copy published no generation time, so the end of its 30-day " +
+        "window is unstated."
+    );
+  });
+
+  it("treats a non-finite stamp as no stamp", () => {
+    expect(feedGenerationText(Number.NaN)).toBe(feedGenerationText(null));
+    expect(feedGenerationText(Number.POSITIVE_INFINITY)).toBe(
+      feedGenerationText(null)
+    );
+  });
+
+  it("treats a finite but unrepresentable stamp as no stamp instead of throwing", () => {
+    // Date cannot represent this and toISOString would throw; the parser only
+    // guarantees the value is finite, not that it is a plausible epoch.
+    expect(feedGenerationText(1e20)).toBe(feedGenerationText(null));
+  });
+
+  it("never claims a currency finer than the feed's regeneration cadence", () => {
+    // Seconds would imply the copy tracks the source more closely than it does.
+    expect(feedGenerationText(1_786_680_794_000)).not.toMatch(/\d\d:\d\d:\d\d/);
   });
 });
