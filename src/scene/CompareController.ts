@@ -82,9 +82,19 @@ export class CompareController {
    * Two scissored passes: pinned month left of the divider, live month right.
    * Call in place of the normal `renderer.render` when `showing`.
    *
-   * `liveOnly` objects (e.g. streamed HD tiles, which always show the live
-   * month) are hidden during the pinned pass so the "before" side never
-   * wears "after" imagery.
+   * `liveOnly` objects (streamed HD tiles) are hidden for BOTH passes, not
+   * just the pinned one. They can only ever hold the live month, so drawing
+   * them on the live side alone makes a change-detection view whose two halves
+   * are not comparable: the pinned side is the 2048×1024 full-globe texture
+   * (0.176°/px), while the live side is re-draped with WMTS tiles that
+   * subdivide toward the product's native resolution (overlays/
+   * TiledImageryOverlay only activates past that base sharpness, MIN_LEVEL 2).
+   * A coastline, snowline, or burn scar resolved on one side and smoothed away
+   * on the other is then a resampling difference read as change — the exact
+   * error the swipe exists to avoid. Suppressing the tiles puts both months on
+   * the same grid at the same resolution, which is what makes the difference
+   * across the seam attributable to the months rather than to the renderer.
+   * Exiting compare restores them (visibility is saved and put back here).
    */
   renderSplit(
     renderer: THREE.WebGLRenderer,
@@ -100,16 +110,15 @@ export class CompareController {
     // only a null↔texture change would require a material rebuild.
     const needsRebuild = live === null;
     const liveOnlyVisible = liveOnly.map((o) => o.visible);
+    for (const o of liveOnly) o.visible = false;
 
     renderer.setScissorTest(true);
 
     this.material.map = this.texture;
-    for (const o of liveOnly) o.visible = false;
     if (needsRebuild) this.material.needsUpdate = true;
     renderer.setScissor(0, 0, splitX, size.y);
     renderer.render(scene, camera);
 
-    liveOnly.forEach((o, i) => (o.visible = liveOnlyVisible[i]));
     this.material.map = live;
     if (needsRebuild) this.material.needsUpdate = true;
     renderer.setScissor(splitX, 0, size.x - splitX, size.y);
@@ -117,5 +126,6 @@ export class CompareController {
 
     renderer.setScissorTest(false);
     renderer.setScissor(0, 0, size.x, size.y);
+    liveOnly.forEach((o, i) => (o.visible = liveOnlyVisible[i]));
   }
 }
