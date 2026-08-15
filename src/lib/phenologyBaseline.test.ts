@@ -12,7 +12,7 @@ import {
   NDVI_UNIT,
   type NdviMonthlyObservation,
 } from "./phenology";
-import type { YearMonth } from "./timeline";
+import { DATA_LATEST, addMonths, type YearMonth } from "./timeline";
 
 const AVAILABLE_THROUGH: YearMonth = { year: 2026, month: 5 };
 
@@ -225,9 +225,12 @@ describe("seasonal NDVI baseline comparisons", () => {
       10,
       { minimumSamples: 3 }
     );
+    // One month past the compiled record — derived, not hardcoded, so a
+    // routine DATA_LATEST bump can never turn this fixture into a real month.
+    const beyondRecord = addMonths(DATA_LATEST, 1);
     const unsupportedAvailabilityCheckpoint = summarizeMonthlyNdvi(
       ndvi(2026, 5, 0.4, 0.8),
-      { year: 2026, month: 6 }
+      beyondRecord
     );
 
     expect(preProduct).toMatchObject({

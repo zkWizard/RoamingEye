@@ -101,9 +101,10 @@ export interface LayerConfig {
  * trails "today". A live binding: freshness.ts probes GIBS at boot and
  * extends it when NASA has published newer months than this compiled-in
  * baseline (which should still be bumped occasionally so cold boots start
- * close to the truth).
+ * close to the truth). Last bumped 2026-08-15: Jun 2026 verified against
+ * MOD13A3's DescribeDomains answer (the slowest of the non-lagging families).
  */
-export let DATA_LATEST: YearMonth = { year: 2026, month: 5 };
+export let DATA_LATEST: YearMonth = { year: 2026, month: 6 };
 
 /** Move the runtime latest forward (never backward) — see lib/freshness.ts. */
 export function extendDataLatest(ym: YearMonth): void {
@@ -308,7 +309,9 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     },
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 2002, month: 7 },
-    latest: { year: 2026, month: 3 },
+    // Verified against GIBS DescribeDomains 2026-08-14; extended at boot by
+    // its own freshness family (added 2026-08-15 — this pin is the fallback).
+    latest: { year: 2026, month: 4 },
     unpublished: MODIS_AQUA_SST_DAY_UNPUBLISHED_MONTHS,
     // Both sampling gates, not just the diurnal one: a thermal-infrared
     // retrieval exists only under cloud-free sky, so the monthly field averages
