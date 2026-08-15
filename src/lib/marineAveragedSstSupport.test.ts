@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { classifyCoverage } from "./coverageAdequacy";
 import {
   MARINE_AVERAGED_SST_SUPPORT_LIMITATIONS,
+  averagedSstSupportNote,
   marineAveragedSstSupportClause,
   summarizeMarineAveragedSstSupport,
 } from "./marineAveragedSstSupport";
@@ -180,6 +181,108 @@ describe("marine averaged SST spatial support", () => {
       ]);
       expect(summary.lowestTier).toBe(classifyCoverage(fraction));
     }
+  });
+
+  it("ranges over the months the mean averages, not the ones it never saw", () => {
+    // An ice-covered winter returns a zero share and charts nothing; the mean
+    // is taken over the summers alone, so the range must be theirs.
+    const values = [null, 12.4, 13.1, null];
+    const fractions = [0, 0.6, 0.7, 0];
+
+    const summary = summarizeMarineAveragedSstSupport(
+      "sampled-area",
+      fractions,
+      values
+    );
+
+    expect(summary.status).toBe("usable-sample");
+    expect(summary.classifiedMonthCount).toBe(4);
+    expect(summary.chartedMonthCount).toBe(2);
+    expect(summary.minFraction).toBe(0.6);
+    expect(summary.maxFraction).toBe(0.7);
+    expect(marineAveragedSstSupportClause(summary)).toBe(
+      "usable SST over 60%–70% of the sampled area (partial); the mean covers only those pixels"
+    );
+  });
+
+  it("qualifies only the SST layer, and only where shares were supplied", () => {
+    const values = [null, 12.4, 13.1, null];
+    const fractions = [0, 0.6, 0.7, 0];
+
+    expect(
+      averagedSstSupportNote("sst", "sampled-area", values, fractions)
+    ).toBe(
+      "usable SST over 60%–70% of the sampled area (partial); the mean covers only those pixels"
+    );
+    // A land layer's shares mean something else; a point probe supplies none.
+    expect(
+      averagedSstSupportNote("lst", "sampled-area", values, fractions)
+    ).toBeNull();
+    expect(
+      averagedSstSupportNote("sst", "sampled-area", values, null)
+    ).toBeNull();
+  });
+
+  it("re-reads the tiers from the charted extremes, not the classified ones", () => {
+    // The dropped month sits in a lower band, so an inherited tier would name
+    // a completeness the mean never rested on.
+    const summary = summarizeMarineAveragedSstSupport(
+      "drawn-region",
+      [0.05, 0.9, 0.95],
+      [null, 11, 11.5]
+    );
+
+    expect(summary.lowestTier).toBe(classifyCoverage(0.9));
+    expect(summary.highestTier).toBe(classifyCoverage(0.95));
+    expect(marineAveragedSstSupportClause(summary)).not.toContain("sparse");
+  });
+
+  it("still explains a footprint that never returned usable SST", () => {
+    // The empty-chart explanation is the whole value of this clause on a land
+    // or fully ice-covered box; filtering to charted months must not mute it.
+    const summary = summarizeMarineAveragedSstSupport(
+      "sampled-area",
+      [0, 0, 0],
+      [null, null, null]
+    );
+
+    expect(summary.status).toBe("no-usable-sample");
+    expect(summary.chartedMonthCount).toBe(0);
+    expect(marineAveragedSstSupportClause(summary)).toBe(
+      "no usable SST anywhere in the sampled area in any sampled month — SST is undefined over land, and cloud, ice, or source gaps also leave a footprint empty"
+    );
+  });
+
+  it("stays silent when a positive share charted no value at all", () => {
+    // Share and value are inverted from the same pixels, so this is defensive
+    // — but "no usable SST anywhere" would deny a share the sampler reported.
+    const summary = summarizeMarineAveragedSstSupport(
+      "drawn-region",
+      [0.4, 0.5],
+      [null, null]
+    );
+
+    expect(summary.status).toBe("no-charted-month");
+    expect(summary.reason).toBe("no-charted-value");
+    expect(summary.meanScope).toBeNull();
+    expect(marineAveragedSstSupportClause(summary)).toBeNull();
+  });
+
+  it("grades every classified share when no series is supplied", () => {
+    // A caller holding shares alone keeps the earlier whole-series behaviour
+    // rather than being told there is nothing to report.
+    const withoutSeries = summarizeMarineAveragedSstSupport(
+      "sampled-area",
+      [0.2, 0.9]
+    );
+
+    expect(withoutSeries.chartedMonthCount).toBe(2);
+    expect(withoutSeries.minFraction).toBe(0.2);
+    expect(marineAveragedSstSupportClause(withoutSeries)).toBe(
+      marineAveragedSstSupportClause(
+        summarizeMarineAveragedSstSupport("sampled-area", [0.2, 0.9], [4, 9])
+      )
+    );
   });
 
   it("never claims a footprint-representative mean and keeps its limits", () => {
