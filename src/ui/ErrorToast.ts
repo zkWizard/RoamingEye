@@ -8,9 +8,17 @@ const AUTO_HIDE_MS = 8000;
  * mid-session should see that something broke instead of a silently wedged
  * UI. Only one shows at a time; repeats of the visible message are ignored
  * rather than stacked.
+ *
+ * The `role="alert"` root stays in the DOM and rendered at all times, and the
+ * message box is what gets inserted and removed. A live region hidden with
+ * `hidden`/`display: none` is absent from the accessibility tree, so text
+ * written into it while hidden changes nothing an assistive technology can
+ * observe — the toast would be seen but never heard. Inserting the box into
+ * an already-rendered region is the mutation screen readers announce.
  */
 export class ErrorToast {
   private readonly root: HTMLDivElement;
+  private readonly box: HTMLDivElement;
   private readonly text: HTMLSpanElement;
   private hideTimer: ReturnType<typeof setTimeout> | undefined;
   private currentMessage = "";
@@ -19,7 +27,9 @@ export class ErrorToast {
     this.root = document.createElement("div");
     this.root.className = "error-toast";
     this.root.setAttribute("role", "alert");
-    this.root.hidden = true;
+
+    this.box = document.createElement("div");
+    this.box.className = "error-toast__box";
 
     this.text = document.createElement("span");
     this.text.className = "error-toast__text";
@@ -31,21 +41,22 @@ export class ErrorToast {
     close.innerHTML = ICONS.close;
     close.addEventListener("click", () => this.hide());
 
-    this.root.append(this.text, close);
+    this.box.append(this.text, close);
+    // The root goes up empty: at rest it has no box, so it paints nothing.
     parent.appendChild(this.root);
   }
 
   show(message: string): void {
-    if (!this.root.hidden && message === this.currentMessage) return;
+    if (this.box.isConnected && message === this.currentMessage) return;
     this.currentMessage = message;
     this.text.textContent = message;
-    this.root.hidden = false;
+    this.root.appendChild(this.box);
     clearTimeout(this.hideTimer);
     this.hideTimer = setTimeout(() => this.hide(), AUTO_HIDE_MS);
   }
 
   hide(): void {
-    this.root.hidden = true;
+    this.box.remove();
     this.currentMessage = "";
     clearTimeout(this.hideTimer);
   }

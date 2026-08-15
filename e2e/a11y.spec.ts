@@ -314,3 +314,57 @@ test("the timeline says how current the layer is, and why it stops", async ({
   await expect(next).toBeEnabled();
   await expect(next).toHaveAttribute("aria-label", /^Next \w+ \(→\)$/);
 });
+
+test("the toast and offline banner announce, not just appear", async ({
+  page,
+  context,
+}) => {
+  await awaitAppInteractive(page);
+
+  // Both regions must be RENDERED at rest. A live region hidden with
+  // `hidden`/`display: none` is absent from the accessibility tree, so a
+  // message written into it is never announced — seen but not heard.
+  const banner = page.locator(".offline-banner");
+  const toast = page.locator(".error-toast");
+  await expect(banner).toHaveAttribute("role", "status");
+  await expect(toast).toHaveAttribute("role", "alert");
+
+  const restingDisplay = await page.evaluate(() =>
+    [".offline-banner", ".error-toast"].map((sel) => {
+      const el = document.querySelector(sel);
+      // Tag the resting nodes so we can prove the message lands INSIDE the
+      // region that was already there, rather than a fresh one appearing.
+      el?.setAttribute("data-e2e-persistent", "1");
+      return el ? getComputedStyle(el).display : "missing";
+    })
+  );
+  expect(restingDisplay).toEqual(["block", "block"]);
+
+  // Empty at rest: the region paints nothing until it has something to say.
+  await expect(banner).toBeHidden();
+  await expect(toast).toBeHidden();
+
+  // Offline: the pill is inserted into the SAME status region.
+  await context.setOffline(true);
+  await expect(banner).toBeVisible();
+  await expect(banner).toContainText("Offline");
+  await expect(banner).toHaveAttribute("data-e2e-persistent", "1");
+
+  await context.setOffline(false);
+  await expect(banner).toBeHidden();
+  await expect(banner).toHaveAttribute("data-e2e-persistent", "1");
+
+  // Same contract for the alert region on an uncaught failure.
+  await page.evaluate(() => {
+    setTimeout(() => {
+      throw new Error("e2e live-region failure");
+    }, 0);
+  });
+  await expect(toast).toBeVisible();
+  await expect(toast).toContainText("e2e live-region failure");
+  await expect(toast).toHaveAttribute("data-e2e-persistent", "1");
+
+  await toast.locator(".error-toast__close").click();
+  await expect(toast).toBeHidden();
+  await expect(toast).toHaveAttribute("data-e2e-persistent", "1");
+});
