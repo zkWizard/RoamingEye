@@ -3,6 +3,7 @@ import {
   MAX_LINEARITY_DEVIATION,
   type CalibratedLayerId,
 } from "./colormap";
+import type { ProbeInversionAccuracyStatus } from "./probeInversionAccuracy";
 import type { LayerId } from "./timeline";
 import { MEASURED_INVERSION } from "./validation";
 
@@ -271,6 +272,77 @@ export function vegetationRampTickCaveat(id: LayerId): string | null {
     `GIBS's ${VEGETATION_INDEX_COLORMAP_DOCS[index]} ramp is non-linear, departing from this scale by up to ${percent}% of span. ` +
     `The end labels are exact.`
   );
+}
+
+/**
+ * The probe status line's measured-error clause for a vegetation index the
+ * calibrated-inversion path leaves uncharacterized — today, EVI alone.
+ *
+ * `probeInversionAccuracy` binds a probe layer to `MEASURED_INVERSION`, which
+ * is keyed by `CalibratedLayerId`, so a layer outside `COLORMAP_DOCS` returns
+ * "uncharacterized" and `inversionAccuracyClause` renders nothing. That is the
+ * right rule for a layer with no measurement — a band is never invented — but
+ * EVI is not that layer. Its error against GIBS's published MOD13A3 ramp is
+ * measured by the same legend-LUT inversion, committed in
+ * {@link MEASURED_VEGETATION_RAMP}, and re-asserted against the live documents
+ * by the vegetation-index ramp contract. Only the *lookup* misses it.
+ *
+ * The consequence is a disclosure inversion on the surface a reader actually
+ * uses. Probing NDVI prints "±0.002 per value · ±0.02 vs GIBS colormap";
+ * probing EVI prints "±0.002 per value" and stops — so the index whose
+ * end-to-end error is more than ten times larger is the one that shows no
+ * error figure at all, and its only visible number is the quantization floor
+ * this module's own test asserts that error dwarfs. A reader comparing the two
+ * layers at one point reads the worse one as the tighter one.
+ *
+ * The screen is at the consumer, not inside the calibration contract:
+ * `COLORMAP_DOCS` membership decides whether a value is colormap-inverted, and
+ * widening it to make this clause fire would tell every other surface that EVI
+ * is calibrated. Passing the accuracy status in keeps one rule — the clause
+ * goes silent by itself the day EVI joins the calibrated set and
+ * `inversionAccuracyClause` starts speaking for it, so the two can never both
+ * quote a figure.
+ *
+ * Nothing here is re-measured or improved, and the direction is claimed only
+ * when the bias clears one colormap step, on the same terms as
+ * {@link describeVegetationRampFidelity}. Null for every layer that is not an
+ * uncharacterized vegetation index, and for a ramp that lost no colours and
+ * has no direction to name — absence is never rendered as accuracy.
+ */
+export function uncalibratedVegetationAccuracyClause(
+  id: LayerId,
+  inversionAccuracyStatus: ProbeInversionAccuracyStatus
+): string | null {
+  if (inversionAccuracyStatus !== "uncharacterized") return null;
+  const index = vegetationIndexId(id);
+  const fidelity = vegetationRampFidelity(id);
+  if (index === null || fidelity === null) return null;
+  const direction =
+    Math.abs(fidelity.bias) > INDEX_QUANTIZATION_STEP
+      ? `, reads ${signed(fidelity.bias)} ${
+          fidelity.bias > 0 ? "greener" : "less green"
+        } on average`
+      : "";
+  const rejected = fidelity.totalSteps - fidelity.recoveredSteps;
+  const unreadable =
+    rejected > 0
+      ? `, ${rejectedShare(rejected / fidelity.totalSteps)} of ramp unreadable`
+      : "";
+  return (
+    `±${fidelity.rmse.toFixed(2)} vs GIBS ${VEGETATION_INDEX_COLORMAP_DOCS[index]} ramp ` +
+    `(gradient reading, not colormap-inverted)${direction}${unreadable}`
+  );
+}
+
+/**
+ * A rejected-colour share as a percentage that never rounds a real loss away
+ * to "0%", matching how the land-cover and vegetation-support notes format a
+ * share. A ramp that lost colours must not report the same "0%" as one that
+ * lost none, which is the state the caller's own guard renders as silence.
+ */
+function rejectedShare(fraction: number): string {
+  const percent = Math.round(fraction * 100);
+  return percent === 0 && fraction > 0 ? "<1%" : `${percent}%`;
 }
 
 /**

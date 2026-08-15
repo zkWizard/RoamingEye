@@ -34,6 +34,7 @@ import {
   listedSeismicityOrderNote,
   reportedDepthBasisText,
   reportedMagnitudeText,
+  searchExtentScopeText,
   USGS_M45_MONTH_SOURCE,
   type EarthquakePlaceContext,
   type NearbyEarthquakeObservation,
@@ -555,14 +556,16 @@ export class PlaceInsights {
     }
 
     const count = coverage.matchedEventCount;
-    const radius = formatRadiusKm(query.radiusKm);
     this.seismicityValue.textContent =
       count === 0
         ? "No recorded events"
         : `${count} ${count === 1 ? "event" : "events"}`;
     // The radial query circumscribes the rectangular search extent, so the
     // circle reaches past the boundary corners. Say "near", never "inside".
-    const scope = `Epicentres within ${radius} km of the search-extent centre — a circle circumscribing the extent, so it reaches past the boundary corners.`;
+    // The extent is itself the geocoder's bounding box, not the place outline;
+    // the volcano and plate sections above already say so, so this one does too
+    // rather than reading as the boundary-exact section of the three.
+    const scope = searchExtentScopeText(query.radiusKm);
     // Only the two branches below can reach this: the invalid-query and
     // no-usable-events statuses return above, and those are exactly the cases
     // where no feed copy was parsed. So the stamp is never claimed for a feed
@@ -759,9 +762,4 @@ function seismicityListItem(
     item.textContent = `${magnitude}: ${details.join("; ")}`;
   }
   return item;
-}
-
-/** Radii span metropolitan boundaries to whole countries; keep both legible. */
-function formatRadiusKm(radiusKm: number): string {
-  return radiusKm >= 100 ? String(Math.round(radiusKm)) : radiusKm.toFixed(1);
 }
