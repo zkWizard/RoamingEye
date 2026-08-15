@@ -83,6 +83,7 @@ import { ThemeToggle } from "./ui/ThemeToggle";
 import type { Theme } from "./lib/theme";
 import { GlobeTextureManager } from "./textures/GlobeTextureManager";
 import { TimeSlider } from "./ui/TimeSlider";
+import { dataCurrencyNote } from "./ui/dataCurrency";
 import { LayerSelector } from "./ui/LayerSelector";
 import { Toolbar } from "./ui/Toolbar";
 import { SearchBox } from "./ui/SearchBox";
@@ -442,6 +443,10 @@ function buildTimeline(): void {
     (ym) => formatTimelineLabel(LAYERS[currentLayer], ym),
     LAYERS[currentLayer].cadence === "annual" ? "year" : "month"
   );
+  // The record end (and so how far behind the calendar it is) belongs to the
+  // layer, so the resting caption is re-stated wherever the slider is rebuilt:
+  // boot, layer switch, and the freshness probe extending the range.
+  setStatus("");
 }
 buildTimeline();
 
@@ -1771,8 +1776,31 @@ window.addEventListener("resize", () => {
 });
 
 // --- Helpers ----------------------------------------------------------------
+/**
+ * The status row doubles as the timeline's resting caption. Transient text
+ * (loading, failures) wins while it lasts; the moment it clears, the row goes
+ * back to saying how current the layer actually is — see ui/dataCurrency.ts
+ * for why the silence there was read as a fault.
+ */
 function setStatus(text: string): void {
-  if (statusEl) statusEl.textContent = text;
+  if (!statusEl) return;
+  const note = dataCurrencyNote(
+    LAYERS[currentLayer],
+    months[months.length - 1],
+    currentYearMonth()
+  );
+  const next = text || note.text;
+  // The row is aria-live: rewriting identical text re-announces it, and this
+  // runs on every settled imagery load (i.e. every scrub).
+  if (statusEl.textContent !== next) statusEl.textContent = next;
+  const detail = text ? "" : note.detail;
+  if (statusEl.title !== detail) statusEl.title = detail;
+}
+
+/** The real-world current month, as the timeline's own YearMonth shape. */
+function currentYearMonth(): YearMonth {
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() + 1 };
 }
 
 function createStarfield(): THREE.Points {

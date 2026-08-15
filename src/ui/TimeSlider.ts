@@ -24,6 +24,8 @@ export class TimeSlider {
 
   private index: number;
   private dragging = false;
+  /** Base label for the forward stepper, before the end-of-record suffix. */
+  private readonly nextStepLabel: string;
 
   constructor(
     container: HTMLElement,
@@ -75,7 +77,8 @@ export class TimeSlider {
       `Previous ${stepUnit} (←)`,
       -1
     );
-    this.nextBtn = this.makeStep(ICONS.chevronRight, `Next ${stepUnit} (→)`, 1);
+    this.nextStepLabel = `Next ${stepUnit} (→)`;
+    this.nextBtn = this.makeStep(ICONS.chevronRight, this.nextStepLabel, 1);
     steps.append(this.prevBtn, this.nextBtn);
     container.appendChild(steps);
 
@@ -204,7 +207,16 @@ export class TimeSlider {
     this.track.setAttribute("aria-valuenow", String(index));
     this.track.setAttribute("aria-valuetext", this.formatLabel(ym));
     this.prevBtn.disabled = index === 0;
-    this.nextBtn.disabled = index === this.months.length - 1;
+    const atRecordEnd = index === this.months.length - 1;
+    this.nextBtn.disabled = atRecordEnd;
+    // A stepper that greys out with no reason reads as a broken control —
+    // the end of the scrubber is where "why is there no July?" starts. Say
+    // that the record simply stops here, on the control the user just pressed.
+    const nextLabel = atRecordEnd
+      ? `${this.nextStepLabel} — ${this.formatLabel(ym)} is the newest published`
+      : this.nextStepLabel;
+    this.nextBtn.setAttribute("aria-label", nextLabel);
+    this.nextBtn.title = nextLabel;
 
     if (emit && changed) this.onChange(index, ym);
   }
