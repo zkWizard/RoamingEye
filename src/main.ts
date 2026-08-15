@@ -7,7 +7,6 @@ import {
   nearestMonthIndex,
   formatTimelineLabel,
   ymEqual,
-  ymToIndex,
   type LayerConfig,
   type LayerId,
   type YearMonth,
@@ -73,6 +72,7 @@ import {
   exportMonthStamp,
   imageryUrlExport,
   provenanceMonths,
+  resolvePinnedMonth,
 } from "./lib/compare";
 import { ShareButton } from "./ui/ShareButton";
 import { ExportControls } from "./ui/ExportControls";
@@ -788,14 +788,14 @@ if (compareEl && compareDividerEl) {
     },
   });
 
-  // Restore a shared comparison: the pinned month from the URL, when the
-  // active layer's record covers it.
+  // Restore a shared comparison: the pinned month from the URL, snapped to a
+  // slot the active layer actually publishes, when its record covers it.
   const pin = initialView.pin;
   if (pin && !LAYERS[currentLayer].static) {
-    const pinIndex = ymToIndex(pin) - ymToIndex(months[0]);
-    if (pinIndex >= 0 && pinIndex < months.length) {
-      compare.enable(LAYERS[currentLayer], pin);
-      compareControls.restore(LAYERS[currentLayer], pin, compare.split);
+    const pinned = resolvePinnedMonth(months, pin);
+    if (pinned) {
+      compare.enable(LAYERS[currentLayer], pinned);
+      compareControls.restore(LAYERS[currentLayer], pinned, compare.split);
       compareControls.setLiveMonth(LAYERS[currentLayer], months[currentIndex]);
     }
   }
