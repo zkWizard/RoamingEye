@@ -335,6 +335,67 @@ export function uncalibratedVegetationAccuracyClause(
 }
 
 /**
+ * The same measured error, written into the probe CSV's provenance header.
+ *
+ * `inversionAccuracyCsvHeaders` is keyed by the same `MEASURED_INVERSION`
+ * lookup as the panel clause, so it returns *no line at all* for an
+ * uncharacterized layer. That is right for a layer with no measurement, and
+ * wrong for EVI for the reason given on
+ * {@link uncalibratedVegetationAccuracyClause}: the figure exists. The panel
+ * now says so; without this the downloaded file still does not, and the file is
+ * the worse place to stay silent — it states its accuracy once at the top as a
+ * rule covering every row, then outlives the session that would have supplied
+ * the context. Downloading NDVI and EVI side by side yields one file carrying
+ * `RMSE ±0.02` and one carrying no error line, while both carry the same
+ * `±0.002` quantization floor from `csvHeaderText` — so the layer with the
+ * larger error reads as the better characterized one.
+ *
+ * Written under its own `inversion_validation_gradient` key rather than the
+ * `inversion_validation` one: these values are read off RoamingEye's legend
+ * gradient, not inverted through GIBS's colormap, and a script keyed on the
+ * exact name of the calibrated figure must not silently pick this up as one. A
+ * prefix scan still finds it. The two keys can never both appear — this builder
+ * requires the status the other one refuses to speak for.
+ *
+ * The transport caveat is repeated verbatim in substance because it is earned
+ * the same way: `MEASURED_VEGETATION_RAMP` is measured by feeding the published
+ * document's own colours through the inversion, so the JPEG transport the probe
+ * samples is absent from the figure by construction and adds on top of it.
+ *
+ * Empty for every layer the clause is silent for, so the download and the panel
+ * disclose the same thing.
+ */
+export function uncalibratedVegetationAccuracyCsvHeaders(
+  id: LayerId,
+  inversionAccuracyStatus: ProbeInversionAccuracyStatus
+): string[] {
+  if (
+    uncalibratedVegetationAccuracyClause(id, inversionAccuracyStatus) === null
+  )
+    return [];
+  const index = vegetationIndexId(id) as VegetationIndexId;
+  const fidelity = vegetationRampFidelity(id) as VegetationRampFidelity;
+  // No commas anywhere below: a `#` line must never contain a CSV delimiter
+  // (see the header discipline documented on csvHeaderText in probe.ts).
+  const rejected = fidelity.totalSteps - fidelity.recoveredSteps;
+  const unreadable =
+    rejected > 0
+      ? `; ${rejected} of ${fidelity.totalSteps} published ramp colours do not invert to a value`
+      : "";
+  const direction =
+    Math.abs(fidelity.bias) > INDEX_QUANTIZATION_STEP
+      ? `; mean error ${signed(fidelity.bias)} index units (reported values read ${
+          fidelity.bias > 0 ? "greener" : "less green"
+        } than the ramp)`
+      : "";
+  return [
+    `# inversion_validation_gradient: RMSE ±${fidelity.rmse.toFixed(2)} on the 0–1 index against GIBS's ${VEGETATION_INDEX_COLORMAP_DOCS[index]} published ramp — these values are read off RoamingEye's legend gradient rather than inverted through that colormap${unreadable}${direction} (docs/validation.md; re-asserted against the live GIBS documents by the vegetation-index ramp contract)`,
+    `# inversion_validation_gradient_scope: rendering-inversion error only; not the accuracy of the underlying MOD13A3 product against in-situ measurement. ${indexLabel(index)} is a unitless reflectance index and none of these figures support a claim about vegetation cover biomass condition or health`,
+    `# inversion_validation_gradient_transport: measured on the published colormap colours themselves — the JPEG imagery transport the probe samples adds error on top of this figure rather than within it; bounded separately per layer by the probe accuracy suite`,
+  ];
+}
+
+/**
  * A rejected-colour share as a percentage that never rounds a real loss away
  * to "0%", matching how the land-cover and vegetation-support notes format a
  * share. A ramp that lost colours must not report the same "0%" as one that
