@@ -101,10 +101,16 @@ export interface LayerConfig {
  * trails "today". A live binding: freshness.ts probes GIBS at boot and
  * extends it when NASA has published newer months than this compiled-in
  * baseline (which should still be bumped occasionally so cold boots start
- * close to the truth). Last bumped 2026-08-15: Jun 2026 verified against
- * MOD13A3's DescribeDomains answer (the slowest of the non-lagging families).
+ * close to the truth).
+ *
+ * This is the newest month *any* product has published, matching what
+ * `refreshDataLatest` writes back at runtime (the maximum over the families).
+ * It is deliberately not a month every layer can serve: each dynamic layer
+ * carries its own verified `latest` below, so nothing resolves a record end
+ * through this value. Last bumped 2026-08-15: Jul 2026, verified against
+ * MOD11C3's and MOD10CM's DescribeDomains answers.
  */
-export let DATA_LATEST: YearMonth = { year: 2026, month: 6 };
+export let DATA_LATEST: YearMonth = { year: 2026, month: 7 };
 
 /** Move the runtime latest forward (never backward) — see lib/freshness.ts. */
 export function extendDataLatest(ym: YearMonth): void {
@@ -245,6 +251,10 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     },
     wmts: { set: "1km", maxLevel: 6, ext: "png" },
     start: { year: 2000, month: 3 },
+    // Verified against GIBS DescribeDomains 2026-08-15. MOD13A3 trails the
+    // MODIS thermal products by a month, so this pin is what keeps an
+    // unpublished July off the vegetation timeline.
+    latest: { year: 2026, month: 6 },
     unpublished: MOD13A3_UNPUBLISHED_MONTHS,
     // Named gates, not a flourish: a MOD13A3 month is the highest eligible
     // observation of its compositing window, so calling this "the classic
@@ -268,6 +278,9 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     },
     wmts: { set: "1km", maxLevel: 6, ext: "png" },
     start: { year: 2000, month: 3 },
+    // Same granule as ndvi — same verified end (GIBS DescribeDomains,
+    // 2026-08-15); the two extend together as one family.
+    latest: { year: 2026, month: 6 },
     unpublished: MOD13A3_UNPUBLISHED_MONTHS,
     // No "max-value" here, deliberately: the composite selects on NDVI and this
     // layer inherits the kept observation, so an EVI maximum is an inequality
@@ -288,6 +301,9 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     },
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 2000, month: 3 },
+    // Verified against GIBS DescribeDomains 2026-08-15. MOD11C3 and MOD10CM
+    // are the fastest-publishing families; they set DATA_LATEST above.
+    latest: { year: 2026, month: 7 },
     description: "Daytime clear-sky land-surface temperature (MODIS/Terra).",
   },
   airtemp: {
@@ -303,7 +319,9 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     },
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 1980, month: 1 },
-    latest: { year: 2026, month: 3 },
+    // Verified against GIBS DescribeDomains 2026-08-15. MERRA-2 runs ~3
+    // months behind the calendar; this is its own end, not the global one.
+    latest: { year: 2026, month: 5 },
     description: "Near-surface air temperature (MERRA-2 reanalysis).",
   },
   sst: {
@@ -319,8 +337,9 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     },
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 2002, month: 7 },
-    // Verified against GIBS DescribeDomains 2026-08-14; extended at boot by
-    // its own freshness family (added 2026-08-15 — this pin is the fallback).
+    // Re-verified against GIBS DescribeDomains 2026-08-15 (unchanged);
+    // extended at boot by its own freshness family, so this pin is the
+    // fallback rather than the ceiling.
     latest: { year: 2026, month: 4 },
     unpublished: MODIS_AQUA_SST_DAY_UNPUBLISHED_MONTHS,
     // Both sampling gates, not just the diurnal one: a thermal-infrared
@@ -343,7 +362,9 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     },
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 2000, month: 1 },
-    latest: { year: 2026, month: 1 },
+    // Verified against GIBS DescribeDomains 2026-08-15. GLDAS is the app's
+    // slowest family (~5 months behind); precip and soil share the granule.
+    latest: { year: 2026, month: 3 },
     description: "Total precipitation rate (GLDAS land model).",
   },
   soil: {
@@ -359,7 +380,8 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     },
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 2000, month: 1 },
-    latest: { year: 2026, month: 1 },
+    // Same GLDAS granule as precip — same verified end (2026-08-15).
+    latest: { year: 2026, month: 3 },
     // Depth is GIBS's own ("Soil Moisture (Monthly, 0-10 cm, Noah LSM,
     // GLDAS)"), not the root zone. Kept literal to preserve this module's
     // dependency-free contract; soilMoistureDepth.test.ts pins the two together.
@@ -378,6 +400,9 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     },
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 2000, month: 3 },
+    // Verified against GIBS DescribeDomains 2026-08-15 (interval end
+    // 2026-07-01), matching the seventh advertised range documented above.
+    latest: { year: 2026, month: 7 },
     unpublished: MOD10CM_UNPUBLISHED_MONTHS,
     description:
       "Average snow-cover percentage — watch winter advance/retreat.",
@@ -395,7 +420,9 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     },
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 1980, month: 1 },
-    latest: { year: 2026, month: 3 },
+    // Same reanalysis stream as airtemp, different granule — verified
+    // separately against GIBS DescribeDomains 2026-08-15.
+    latest: { year: 2026, month: 5 },
     // AOD is a whole-column optical thickness, so it cannot see the surface
     // concentration an "air quality" caption used to promise here; and both
     // sibling atmosphere captions name their production method (see

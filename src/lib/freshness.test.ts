@@ -236,32 +236,38 @@ describe("refreshDataLatest (per-product families)", () => {
     // The DescribeDomains window runs two years ahead (describeDomainsUrl), so
     // a declared-but-unproduced domain end is parseable and plausible-looking.
     // Accepting it would put ~13 months of 404-ing tiles on the timeline.
-    const before = monthRangeForLayer(LAYERS.ndvi).at(-1);
+    // Captured per layer: MOD13A3 and MOD10CM keep separate compiled ends.
+    const beforeNdvi = monthRangeForLayer(LAYERS.ndvi).at(-1);
+    const beforeSnow = monthRangeForLayer(LAYERS.snow).at(-1);
     respondByLayer({
       ndvi: "2028-01-01",
       lst: "2028-01-01",
       snow: "2028-01-01",
     });
     await expect(refreshDataLatest(NOW)).resolves.toBe(false);
-    expect(monthRangeForLayer(LAYERS.ndvi).at(-1)).toEqual(before);
-    expect(monthRangeForLayer(LAYERS.snow).at(-1)).toEqual(before);
+    expect(monthRangeForLayer(LAYERS.ndvi).at(-1)).toEqual(beforeNdvi);
+    expect(monthRangeForLayer(LAYERS.snow).at(-1)).toEqual(beforeSnow);
   });
 
   it("one family's future end cannot drag the others forward", async () => {
-    const floor = DATA_LATEST;
+    // Each family falls back to its OWN compiled floor, not a shared one.
+    const ndviFloor = compiled.get("ndvi")!;
+    const lstFloor = compiled.get("lst")!;
     const day = (m: YearMonth): string =>
       `${m.year}-${String(m.month).padStart(2, "0")}-01`;
     respondByLayer({
       ndvi: "2030-01-01", // declared domain runs ahead of production
-      lst: day(addMonths(floor, 1)), // genuinely published
-      snow: day(floor),
+      lst: day(addMonths(lstFloor, 1)), // genuinely published
+      snow: day(compiled.get("snow")!),
     });
     await expect(refreshDataLatest(NOW)).resolves.toBe(true);
     // NDVI falls back to the curated baseline rather than to LST's month:
     // rejecting an answer must not borrow another product's schedule.
-    expect(monthRangeForLayer(LAYERS.ndvi).at(-1)).toEqual(floor);
-    expect(monthRangeForLayer(LAYERS.evi).at(-1)).toEqual(floor);
-    expect(monthRangeForLayer(LAYERS.lst).at(-1)).toEqual(addMonths(floor, 1));
+    expect(monthRangeForLayer(LAYERS.ndvi).at(-1)).toEqual(ndviFloor);
+    expect(monthRangeForLayer(LAYERS.evi).at(-1)).toEqual(ndviFloor);
+    expect(monthRangeForLayer(LAYERS.lst).at(-1)).toEqual(
+      addMonths(lstFloor, 1)
+    );
   });
 
   it("a lagging family extends to a verified end below the global baseline", async () => {
@@ -303,7 +309,14 @@ describe("refreshDataLatest (per-product families)", () => {
   it("asks a lagging family about its own baseline, not the global month", () => {
     // The window opens one month before the family's floor; anchoring it to
     // DATA_LATEST would start the query after months it needs to discover.
-    const url = describeDomainsUrl("precip", LAYERS.precip.latest!);
-    expect(url).toContain("TIME=2025-12-01/");
+    // Derived, not literal: this assertion must survive a pin bump (the
+    // month after DATA_LATEST is a moving target — see phenologyBaseline).
+    const floor = LAYERS.precip.latest!;
+    const url = describeDomainsUrl("precip", floor);
+    const open = addMonths(floor, -1);
+    expect(url).toContain(
+      `TIME=${open.year}-${String(open.month).padStart(2, "0")}-01/`
+    );
+    expect(compareYm(floor, DATA_LATEST)).toBeLessThan(0);
   });
 });

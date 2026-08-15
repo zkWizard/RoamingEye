@@ -7,6 +7,7 @@ import {
   RECORD_DEPTH_TIERS,
   summarizeBriefRecordDepth,
 } from "./briefRecordDepth";
+import { LAYERS, type YearMonth } from "./timeline";
 
 /** A fully-usable four-signal brief, all observations within availability. */
 const USABLE_INPUT: EnvironmentBriefInput = {
@@ -58,30 +59,30 @@ describe("summarizeBriefRecordDepth", () => {
       summary.depths.map((depth) => [depth.signalId, depth])
     );
 
-    // MERRA-2 air temperature publishes from 1980-01 to 2026-03 (fixed end):
-    // (2026*12+2) - (1980*12) + 1 = 555 months ≈ 46.3 years.
+    // MERRA-2 air temperature publishes from 1980-01 to 2026-05 (fixed end):
+    // (2026*12+4) - (1980*12) + 1 = 557 months ≈ 46.4 years.
     expect(byId["air-temperature"].startMonth).toEqual({
       year: 1980,
       month: 1,
     });
-    expect(byId["air-temperature"].endMonth).toEqual({ year: 2026, month: 3 });
+    expect(byId["air-temperature"].endMonth).toEqual({ year: 2026, month: 5 });
     expect(byId["air-temperature"].endIsHorizon).toBe(false);
-    expect(byId["air-temperature"].spanMonths).toBe(555);
-    expect(byId["air-temperature"].spanYears).toBe(46.3);
+    expect(byId["air-temperature"].spanMonths).toBe(557);
+    expect(byId["air-temperature"].spanYears).toBe(46.4);
     expect(byId["air-temperature"].tier).toBe("four-decades-plus");
 
-    // GLDAS rainfall/soil publish 2000-01 to 2026-01 (fixed end): 313 months.
-    expect(byId["rainfall"].spanMonths).toBe(313);
+    // GLDAS rainfall/soil publish 2000-01 to 2026-03 (fixed end): 315 months.
+    expect(byId["rainfall"].spanMonths).toBe(315);
     expect(byId["rainfall"].endIsHorizon).toBe(false);
-    expect(byId["rainfall"].spanYears).toBe(26.1);
+    expect(byId["rainfall"].spanYears).toBe(26.3);
     expect(byId["rainfall"].tier).toBe("two-decades");
-    expect(byId["soil-moisture"].spanMonths).toBe(313);
+    expect(byId["soil-moisture"].spanMonths).toBe(315);
 
-    // NDVI (MOD13A3) is open-ended: it closes at the supplied horizon and is
-    // flagged. 2000-03 to 2026-03 inclusive = 313 months.
-    expect(byId["vegetation"].endIsHorizon).toBe(true);
-    expect(byId["vegetation"].endMonth).toEqual(AS_OF);
-    expect(byId["vegetation"].spanMonths).toBe(313);
+    // NDVI (MOD13A3) carries a verified catalog end too (2026-08-15), so it
+    // is measured to that, not to the horizon: 2000-03 to 2026-06 = 316.
+    expect(byId["vegetation"].endIsHorizon).toBe(false);
+    expect(byId["vegetation"].endMonth).toEqual({ year: 2026, month: 6 });
+    expect(byId["vegetation"].spanMonths).toBe(316);
   });
 
   it("identifies the deepest and shallowest archives and their spread", () => {
@@ -90,8 +91,11 @@ describe("summarizeBriefRecordDepth", () => {
     });
 
     expect(summary.deepest?.signalId).toBe("air-temperature");
-    expect(summary.shallowest?.signalId).toBe("vegetation");
-    expect(summary.spreadMonths).toBe(555 - 313);
+    // GLDAS rainfall and soil moisture are one granule, so they tie at the
+    // shallowest depth; the picker keeps the first, in composed-signal order.
+    expect(summary.shallowest?.signalId).toBe("rainfall");
+    expect(summary.shallowest?.spanMonths).toBe(315);
+    expect(summary.spreadMonths).toBe(557 - 315);
     expect(summary.commensurate).toBe(false);
     expect(summary.statement).toContain("air-temperature");
     expect(summary.statement).toContain("deeper archive");
@@ -167,25 +171,40 @@ describe("summarizeBriefRecordDepth", () => {
     // Record depth is a product property: the unavailable value does not change
     // the archive length behind the signal.
     const airtemp = all.depths.find((d) => d.signalId === "air-temperature");
-    expect(airtemp?.spanMonths).toBe(555);
+    expect(airtemp?.spanMonths).toBe(557);
   });
 
   it("closes open-ended products at the supplied horizon only", () => {
-    const early = summarizeBriefRecordDepth(signalsFor(USABLE_INPUT), {
-      asOf: { year: 2020, month: 3 },
-    });
-    const byIdEarly = Object.fromEntries(
-      early.depths.map((d) => [d.signalId, d])
-    );
-    // NDVI (open-ended) shrinks with an earlier horizon...
-    expect(byIdEarly["vegetation"].endMonth).toEqual({ year: 2020, month: 3 });
-    expect(byIdEarly["vegetation"].spanMonths).toBe(241);
-    // ...while fixed-end products ignore the horizon entirely.
-    expect(byIdEarly["air-temperature"].endMonth).toEqual({
-      year: 2026,
-      month: 3,
-    });
-    expect(byIdEarly["rainfall"].spanMonths).toBe(313);
+    // Every catalogued product now carries a verified end (2026-08-15), so
+    // this path is defensive — it covers a layer added without a pin, whose
+    // end would otherwise silently be the fastest product's month. Unpin one
+    // to exercise it, exactly as the freshness suite does.
+    const vegetation = LAYERS.ndvi as { latest?: YearMonth };
+    const pinned = vegetation.latest;
+    delete vegetation.latest;
+    try {
+      const early = summarizeBriefRecordDepth(signalsFor(USABLE_INPUT), {
+        asOf: { year: 2020, month: 3 },
+      });
+      const byIdEarly = Object.fromEntries(
+        early.depths.map((d) => [d.signalId, d])
+      );
+      // The unpinned product shrinks with an earlier horizon, and says so...
+      expect(byIdEarly["vegetation"].endIsHorizon).toBe(true);
+      expect(byIdEarly["vegetation"].endMonth).toEqual({
+        year: 2020,
+        month: 3,
+      });
+      expect(byIdEarly["vegetation"].spanMonths).toBe(241);
+      // ...while fixed-end products ignore the horizon entirely.
+      expect(byIdEarly["air-temperature"].endMonth).toEqual({
+        year: 2026,
+        month: 5,
+      });
+      expect(byIdEarly["rainfall"].spanMonths).toBe(315);
+    } finally {
+      vegetation.latest = pinned;
+    }
   });
 
   it("returns an empty, honest summary when nothing is assessed", () => {

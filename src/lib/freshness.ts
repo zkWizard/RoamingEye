@@ -75,8 +75,10 @@ export const FRESHNESS_FAMILIES: FreshnessFamily[] = [
 /**
  * Each family's fallback month, read at module load — before any pinning —
  * so a value written by one refresh can never become the floor a later
- * refresh falls back to. Undefined for the families whose layers carry no
- * compiled `latest`; those keep using the global baseline.
+ * refresh falls back to. Every probe layer carries a verified compiled
+ * `latest` (2026-08-15), so no family resolves its floor through the global
+ * baseline any more; the `?? global` fallback below stays as a guard for a
+ * layer added without one.
  */
 const COMPILED_FLOOR = new Map<LayerId, YearMonth | undefined>(
   FRESHNESS_FAMILIES.map((f) => [f.probe, LAYERS[f.probe].latest])
