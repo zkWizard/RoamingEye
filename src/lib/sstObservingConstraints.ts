@@ -213,6 +213,98 @@ export function probeSstSamplingGateClause(
 }
 
 /**
+ * GIBS spells the retrieval band into the layer identifier, the way it spells
+ * the diurnal half into it. The clear-sky prose below names the thermal
+ * infrared verbatim, and GIBS also publishes mid-infrared SST variants of the
+ * same product, so a layer that stops saying `Thermal` must stop inheriting a
+ * claim that is worded for it.
+ */
+const SST_THERMAL_RETRIEVAL_PATTERN = /_Thermal_/;
+
+/**
+ * Each observing constraint written out for the exported CSV, or `null` for one
+ * the file already carries from elsewhere.
+ *
+ * Only the clear-sky gate is written here. The other two are `null` because
+ * `sstSamplingIdentityCsvHeaders` already states them in full in the same
+ * block — `# sst_sampling` for the daytime overpass and `# sst_retrieval_depth`
+ * for the radiometric skin — and a provenance claim repeated twice in one file
+ * reads as two different claims a reader has to reconcile.
+ *
+ * Hand-written rather than interpolated from `constraint`/`implication`,
+ * exactly as the land twin does it: those carry commas and a `#` line must not
+ * (see the header discipline on `csvHeaderText` in probe.ts). The keyed
+ * `Record` is what keeps them from drifting apart — adding a fourth constraint
+ * fails to compile until someone decides whether the export must carry it, the
+ * same guard `SST_CAPTION_CONSTRAINT_PHRASES` gives the caption.
+ */
+const SST_OBSERVING_CONSTRAINT_CSV_PROSE: Record<
+  SstObservingConstraintId,
+  string | null
+> = {
+  "daytime-overpass-only": null,
+  "clear-sky-retrieval-only":
+    "retrieved in the thermal infrared which does not pass through cloud — only cloud-screened days contribute — so a monthly value averages a non-random subset of that month's days with cloudy days absent rather than averaged in",
+  "near-surface-radiometric": null,
+};
+
+/**
+ * Provenance headers naming the clear-sky gate for the exported CSV, or an
+ * empty list for every layer but SST.
+ *
+ * The status line states this gate on screen (`probeSstSamplingGateClause`),
+ * the place card states it, and `sstCaptionConstraintOmissions` fails CI if the
+ * caption drops it — because it is one of two co-equal gates deciding which
+ * moments of the month contribute at all. The download was the one SST surface
+ * that never said it. What it does say makes that worse rather than neutral:
+ * `# sst_sampling` names the *other* gate in full, so a file that qualifies the
+ * diurnal half and stops reads as the complete account of which moments were
+ * composited, and a reader concludes the daytime half of every day of the
+ * month. Only cloud-screened days contributed, and in a persistently cloudy
+ * regime that is the month's atypically clear ones. The land twin
+ * (`lstSamplingIdentityCsvHeaders`) already writes all three of its constraints
+ * into the same file, citing this export as its precedent.
+ *
+ * The direction line is not decoration. A reader who learns cloudy days are
+ * absent will supply a sign for it — clear means sunny means warm — and that
+ * inference is exactly what `SST_OBSERVING_CONSTRAINTS` refuses to make: the
+ * same screening that favours calm sunlit days in one basin coincides with
+ * upwelling in another. Stating a gate without stating that its sign is
+ * unasserted invites the guess the table declines to make.
+ *
+ * These are fixed properties of the product's observing system, so they are not
+ * derived from the sampled months and are emitted whenever the SST layer is
+ * exported. Silent when the configured layer has drifted off the thermal
+ * infrared: prose worded for one retrieval band travelling into a file that
+ * cannot be corrected afterwards would be worse than no claim at all. No
+ * magnitude is asserted, and nothing about organisms, habitat, ecosystem
+ * condition or any future value follows from any line here.
+ */
+export function sstObservingConstraintCsvHeaders(
+  layerId: LayerId | undefined
+): string[] {
+  if (layerId !== SST_OBSERVING_CONSTRAINT_LAYER_ID) return [];
+  if (
+    !SST_THERMAL_RETRIEVAL_PATTERN.test(
+      LAYERS[SST_OBSERVING_CONSTRAINT_LAYER_ID].wmsLayer
+    )
+  ) {
+    return [];
+  }
+  // No commas anywhere below: a `#` line must never contain a CSV delimiter
+  // (see the header discipline documented on `csvHeaderText` in probe.ts).
+  return [
+    ...SST_OBSERVING_CONSTRAINTS.flatMap((entry) => {
+      const prose = SST_OBSERVING_CONSTRAINT_CSV_PROSE[entry.id];
+      return prose === null
+        ? []
+        : [`# sst_${entry.id.replace(/-/g, "_")}: ${prose}`];
+    }),
+    "# sst_clear_sky_direction: no direction and no magnitude are asserted for that subset — whether a month's cloud-free days run warmer or cooler than its cloudy ones is regime-dependent; this is a fixed property of the cited product's observing system and not of any individual value month or place",
+  ];
+}
+
+/**
  * Surface forms that count as stating a constraint in the rendered caption, or
  * `null` for a constraint the caption is not required to carry.
  *
