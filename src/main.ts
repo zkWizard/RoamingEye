@@ -28,6 +28,7 @@ import {
   probeSstColdEndAccuracy,
   sstColdEndAccuracyCsvHeaders,
 } from "./lib/sstColdEndAccuracy";
+import { uncalibratedVegetationAccuracyCsvHeaders } from "./lib/vegetationIndexRamp";
 import {
   probeSstExtremeCensoring,
   sstExtremeBoundPrefix,
@@ -1066,6 +1067,17 @@ if (probeEl) {
                   ...inversionAccuracyCsvHeaders(
                     probeInversionAccuracy(layer.id, scale)
                   ),
+                  // That builder is keyed to the calibrated layers, so it
+                  // writes nothing for EVI — whose error against GIBS's
+                  // published MOD13A3 ramp is measured all the same, in a
+                  // second record the lookup cannot reach. The status line
+                  // already says so; the file outlives the session and needs
+                  // it more. Empty for every layer the line above speaks for,
+                  // so the two can never both state an accuracy.
+                  ...uncalibratedVegetationAccuracyCsvHeaders(
+                    layer.id,
+                    probeInversionAccuracy(layer.id, scale).status
+                  ),
                   ...sstColdEndAccuracyCsvHeaders(
                     probeSstColdEndAccuracy(layer.id, physical, sstCensoring)
                   ),
@@ -1307,6 +1319,17 @@ if (probeEl) {
                 inversionAccuracyHeaders: [
                   ...inversionAccuracyCsvHeaders(
                     probeInversionAccuracy(layer.id, scale)
+                  ),
+                  // That builder is keyed to the calibrated layers, so it
+                  // writes nothing for EVI — whose error against GIBS's
+                  // published MOD13A3 ramp is measured all the same, in a
+                  // second record the lookup cannot reach. The status line
+                  // already says so; the file outlives the session and needs
+                  // it more. Empty for every layer the line above speaks for,
+                  // so the two can never both state an accuracy.
+                  ...uncalibratedVegetationAccuracyCsvHeaders(
+                    layer.id,
+                    probeInversionAccuracy(layer.id, scale).status
                   ),
                   ...sstColdEndAccuracyCsvHeaders(
                     probeSstColdEndAccuracy(layer.id, physical, sstCensoring)
