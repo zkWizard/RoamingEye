@@ -1654,22 +1654,36 @@ window.addEventListener("unhandledrejection", (e) => {
 // why nothing new is loading; on reconnect the banner drops and the current
 // view refreshes itself — failed months aren't cached, so a refreshGlobe()
 // genuinely refetches.
+// The `role="status"` root stays rendered and empty; the pill is what gets
+// inserted. Toggling `hidden` on the region itself was silent to assistive
+// technology: a `display: none` live region is outside the accessibility
+// tree, and the banner's text never changed after construction, so going
+// offline mutated nothing a screen reader could announce.
 const offlineBanner = document.createElement("div");
 offlineBanner.className = "offline-banner";
 offlineBanner.setAttribute("role", "status");
-offlineBanner.textContent = "Offline — showing last loaded imagery";
-offlineBanner.hidden = true;
 document.body.appendChild(offlineBanner);
 
+const offlineBannerPill = document.createElement("span");
+offlineBannerPill.className = "offline-banner__pill";
+offlineBannerPill.textContent = "Offline — showing last loaded imagery";
+
+function setOfflineBannerShown(shown: boolean): void {
+  // Guard: re-appending an identical node would re-announce it.
+  if (shown === offlineBannerPill.isConnected) return;
+  if (shown) offlineBanner.appendChild(offlineBannerPill);
+  else offlineBannerPill.remove();
+}
+
 window.addEventListener("offline", () => {
-  offlineBanner.hidden = false;
+  setOfflineBannerShown(true);
 });
 window.addEventListener("online", () => {
-  offlineBanner.hidden = true;
+  setOfflineBannerShown(false);
   refreshGlobe();
   if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
 });
-if (!isOnline()) offlineBanner.hidden = false;
+if (!isOnline()) setOfflineBannerShown(true);
 
 // --- WebGL context loss/recovery ---------------------------------------------
 // A GPU reset, driver update, or aggressive mobile backgrounding can kill the

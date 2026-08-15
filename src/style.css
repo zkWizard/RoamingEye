@@ -2424,12 +2424,19 @@ body {
 }
 
 /* --- Error toast (uncaught failures, bottom-center) --------------------------- */
+/* The live-region root is always rendered so screen readers can observe the
+   message arriving; it carries only placement and paints nothing while empty.
+   All the chrome lives on __box, which is inserted and removed. */
 .error-toast {
   position: fixed;
   bottom: calc(clamp(1rem, 3vw, 2rem) + 4.5rem);
   left: 50%;
   transform: translateX(-50%);
   z-index: 11;
+  pointer-events: none;
+}
+
+.error-toast__box {
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -2441,10 +2448,7 @@ body {
   border: 1px solid var(--warn-border);
   border-radius: 12px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-}
-
-.error-toast[hidden] {
-  display: none;
+  pointer-events: auto;
 }
 
 .error-toast__text {
@@ -2475,13 +2479,20 @@ body {
   height: 14px;
 }
 
-/* Offline banner (issue #106) — quiet and persistent, above the timeline */
+/* Offline banner (issue #106) — quiet and persistent, above the timeline.
+   Same split as the toast: the root is the always-rendered live region, the
+   pill is the visible chrome that comes and goes. */
 .offline-banner {
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
   left: 50%;
   transform: translateX(-50%);
   z-index: 11;
+  pointer-events: none;
+}
+
+.offline-banner__pill {
+  display: inline-block;
   padding: 0.4rem 0.9rem;
   font-size: 0.78rem;
   color: var(--fg);
@@ -2489,10 +2500,6 @@ body {
   border: 1px solid var(--warn-border);
   border-radius: 999px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-}
-
-.offline-banner[hidden] {
-  display: none;
 }
 
 /* Search status row: failure / no-matches feedback (issue #74) */
