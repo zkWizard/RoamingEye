@@ -2,10 +2,16 @@ import { describe, it, expect } from "vitest";
 import {
   atmosphereLayerDomain,
   emptyAtmosphereProbeNote,
+  MERRA2_AIR_TEMPERATURE_RAMP_CAPS,
   type AtmosphereProbeLayerId,
 } from "./atmosphereProbeDomain";
 import { LAYERS, type LayerId } from "./timeline";
-import { buildColormapLut, invertColormap, NO_DATA_DISTANCE } from "./probe";
+import {
+  buildColormapLut,
+  invertColormap,
+  NO_DATA_DISTANCE,
+  PROBE_SCALES,
+} from "./probe";
 import { LEGENDS } from "./legend";
 import { GLDAS_RAMP_SATURATION } from "./gldasRampSaturation";
 
@@ -104,6 +110,98 @@ describe("atmosphere probe domain of definition", () => {
     expect(distance).toBeGreaterThan(NO_DATA_DISTANCE);
     expect(distance).toBeCloseTo(76.7, 1);
     expect(invertColormap(rgb, lut)).toBeNull();
+  });
+
+  it("names both discarded airtemp ramp ends as the second reading", () => {
+    // The defect this closes: the panel told a reader of an empty air-temperature
+    // record that it could not diagnose the cause at all, while the legend's own
+    // interpretationNote already said both overflow colours read as no-data.
+    const note = emptyAtmosphereProbeNote("airtemp", EMPTY) ?? "";
+    const { closedSpan, unit, below, above } = MERRA2_AIR_TEMPERATURE_RAMP_CAPS;
+
+    expect(note).toContain(
+      `${closedSpan.min}–${closedSpan.max} ${unit} legend`
+    );
+    expect(note).toContain(`"${below.publishedLabel}"`);
+    expect(note).toContain(`"${above.publishedLabel}"`);
+    expect(note).toContain("beyond either end empties");
+  });
+
+  it("asserts no direction for airtemp, unlike the one-sided GLDAS clause", () => {
+    // The load-bearing asymmetry. GLDAS may name "the wettest cells" because its
+    // companion "< 0" cap is physically impossible; both MERRA-2 caps are
+    // reachable monthly means, so naming an end here would be a fabrication.
+    const note = emptyAtmosphereProbeNote("airtemp", EMPTY) ?? "";
+
+    expect(note).toContain("consistent with either extreme");
+    expect(note).toContain("does not diagnose the cause");
+    // Never resolves the ambiguity it just described, in either direction.
+    expect(note).not.toMatch(
+      /coldest|hottest|the warmest|too cold|too hot|heat wave|freezing/i
+    );
+    // And never claims a place, a hazard, or a trend from an absence.
+    expect(note).not.toMatch(/this point is|you clicked|Antarctic|desert/i);
+  });
+
+  it("rejects both published airtemp caps on the ramp the probe inverts against", () => {
+    // Same re-derivation the precip cap gets: the clause's whole claim is that a
+    // cell beyond either end decodes to nothing, so the distances are measured
+    // against the display-legend LUT rather than trusted as prose. If the ramp
+    // or the threshold moves, this fails before the sentence goes stale.
+    const spec = LEGENDS.airtemp;
+    if (spec.kind === "classes")
+      throw new Error("airtemp legend is not a ramp");
+    const lut = buildColormapLut(spec.stops);
+    const distanceTo = (rgb: { r: number; g: number; b: number }) =>
+      lut.reduce(
+        (best, entry) =>
+          Math.min(
+            best,
+            Math.hypot(entry.r - rgb.r, entry.g - rgb.g, entry.b - rgb.b)
+          ),
+        Infinity
+      );
+
+    const { below, above } = MERRA2_AIR_TEMPERATURE_RAMP_CAPS;
+    expect(distanceTo(below.rgb)).toBeGreaterThan(NO_DATA_DISTANCE);
+    expect(distanceTo(below.rgb)).toBeCloseTo(76.6, 1);
+    expect(invertColormap(below.rgb, lut)).toBeNull();
+
+    expect(distanceTo(above.rgb)).toBeGreaterThan(NO_DATA_DISTANCE);
+    expect(distanceTo(above.rgb)).toBeCloseTo(74.5, 1);
+    expect(invertColormap(above.rgb, lut)).toBeNull();
+
+    // …while the ramp's own end colours still invert, so the caps are rejected
+    // for being off the ramp, not because the ramp ends are unreachable.
+    expect(invertColormap({ r: 50, g: 136, b: 189 }, lut)).not.toBeNull();
+    expect(invertColormap({ r: 205, g: 53, b: 77 }, lut)).not.toBeNull();
+  });
+
+  it("pins the airtemp caps to the window the probe reports on", () => {
+    // The note quotes a 220–310 K legend; PROBE_SCALES pins the same window.
+    // If either moves without the other, the sentence starts describing a ramp
+    // the app does not use.
+    const { closedSpan, below, above } = MERRA2_AIR_TEMPERATURE_RAMP_CAPS;
+    expect(closedSpan.min).toBe(PROBE_SCALES.airtemp.min);
+    expect(closedSpan.max).toBe(PROBE_SCALES.airtemp.max);
+    expect(below.bound).toBe(closedSpan.min);
+    expect(above.bound).toBe(closedSpan.max);
+    expect(MERRA2_AIR_TEMPERATURE_RAMP_CAPS.unit).toBe(
+      PROBE_SCALES.airtemp.unit
+    );
+  });
+
+  it("keeps aerosol's wording free of any ramp-cap clause", () => {
+    // Aerosol's top end is a censoring handled by the aerosol ceiling modules,
+    // not a rejection — it must not borrow air temperature's sentence.
+    const note = emptyAtmosphereProbeNote("aerosol", EMPTY) ?? "";
+    expect(note).not.toContain("second reading");
+    expect(note).not.toContain(
+      MERRA2_AIR_TEMPERATURE_RAMP_CAPS.above.publishedLabel
+    );
+    expect(note).toContain(
+      "does not explain an empty record here; this note does not diagnose the cause"
+    );
   });
 
   it("refuses to let the domain excuse an empty MERRA-2 record", () => {
