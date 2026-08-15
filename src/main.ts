@@ -49,6 +49,7 @@ import { marineAveragedSstCensoringCsvHeaders } from "./lib/marineAveragedSstCen
 import { averagedSstSupportNote } from "./lib/marineAveragedSstSupport";
 import { sstNativeSupportNote } from "./lib/sstNativeSupport";
 import { vegetationAveragedSupportNote } from "./lib/vegetationAveragedSupport";
+import { gldasAveragedSupportNote } from "./lib/gldasAveragedSupport";
 import { snowAveragedSupportNote } from "./lib/snowAveragedSupport";
 import { emptyMarineProbeNote } from "./lib/marineProbeDomain";
 import { emptySnowProbeNote } from "./lib/snowProbeAbsence";
@@ -1019,6 +1020,18 @@ if (probeEl) {
           values,
           mode === "area" ? validFractions : null
         );
+        // And the two water-cycle layers, the last averaged ones charting a
+        // bare mean. GLDAS is solved on land cells only, and its ramp discards
+        // both the sub-zero fill and the open top bin, so an area mean covers
+        // the drawn cells alone. Unlike snow's undrawn pixels — all at the low
+        // end — the discarded set here holds the box's WETTEST cells too, so
+        // the clause refuses the dry reading rather than damping a swing.
+        const gldasSupportNote = gldasAveragedSupportNote(
+          layer.id,
+          "sampled-area",
+          values,
+          mode === "area" ? validFractions : null
+        );
         // An area value is a mean of per-pixel decodes and a point value a
         // median, so only the area footprint carries censoring the end-cap
         // screen cannot see. Shared by the status line and the export.
@@ -1190,7 +1203,10 @@ if (probeEl) {
             emptySoilProbeNote(layer.id, values),
           // Each note is gated on its own layer, so at most one is ever a
           // string — the fallback picks the one that spoke.
-          sstSupportNote ?? vegetationSupportNote ?? snowSupportNote,
+          sstSupportNote ??
+            vegetationSupportNote ??
+            snowSupportNote ??
+            gldasSupportNote,
           // Area mode charts a weighted mean of per-pixel decodes; point mode
           // charts a median, which the SST end-cap screen already catches.
           averagedFootprint
@@ -1304,6 +1320,17 @@ if (probeEl) {
         // charted mean covers the drawn patches only, and the share it covers
         // shrinks through the melt season, damping the swing the chart shows.
         const snowSupportNote = snowAveragedSupportNote(
+          layer.id,
+          "drawn-region",
+          values,
+          validFractions
+        );
+        // And the same for the two water-cycle layers — see the point/area
+        // path. A drawn box gets the clause for the same reason a sampled one
+        // does: GLDAS carries no value off land, and its ramp's discarded caps
+        // sit at both ends, so the share the mean covers is not a share of the
+        // box and its remainder is not dry ground.
+        const gldasSupportNote = gldasAveragedSupportNote(
           layer.id,
           "drawn-region",
           values,
@@ -1456,8 +1483,10 @@ if (probeEl) {
           // defer here. They are passed anyway so the chain stays the same on
           // both paths and a region that ever loses its shares is still
           // explained rather than falling back to "no data at this point".
-          // The soil note supplies no share either way: no averaged clause
-          // speaks for a GLDAS layer in any mode, so it reads the same here.
+          // The soil note is passed no share for the opposite reason: the GLDAS
+          // clause is deliberately silent on an empty record, because this note
+          // and the atmosphere one already own that sentence and both already
+          // refuse the dry reading. So it reads the same here as it always did.
           emptyAtmosphereProbeNote(layer.id, values) ??
             emptyMarineProbeNote(layer.id, values, sstSupportNote) ??
             emptySnowProbeNote(layer.id, values, snowSupportNote) ??
@@ -1472,7 +1501,8 @@ if (probeEl) {
           // line built from this argument reads exactly as it did before.
           [sstSupportNote, sstNativeNote].filter(Boolean).join(" · ") ||
             vegetationSupportNote ||
-            snowSupportNote,
+            snowSupportNote ||
+            gldasSupportNote,
           // Every drawn-region value is a weighted mean of per-pixel decodes.
           "drawn-region"
         );
