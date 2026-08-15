@@ -19,13 +19,6 @@ take one directly when no Owner's pick applies to its domain.
 
 ## Agent-verified candidates
 
-- [ ] **Say what "current" means, per layer.** The timeline ends at the newest
-      month NASA has published (NDVI ~6 weeks behind the calendar, MERRA-2
-      ~2–3 months, GLDAS ~5 months) and the UI never says so — users read the
-      lag as the site being broken ("why is there no July?"). One line of copy
-      near the timeline or provenance readout. Presentation belongs to the
-      UI/UX engineer; the wording must keep scientific precision.
-      _(Found 2026-08-15 diagnosing the missing-July complaint.)_
 - [ ] **`.error-toast` and `.offline-banner` have no `aria-live`** — a toast
       nobody hears. Verify what announces today; add live regions where
       warranted. _(uiux notebook, run 4.)_
@@ -49,3 +42,11 @@ take one directly when no Owner's pick applies to its domain.
 ## Done
 
 <!-- The shipping PR moves its item here, with the PR number. -->
+
+- [x] **Say what "current" means, per layer.** (#953) The timeline status row
+      now carries a resting caption naming the layer's record end and how far
+      behind the calendar it sits — "Newest data: Jun 2026 · 2 months behind
+      Aug 2026", or "· annual product" for land cover — with the product-level
+      reason on its tooltip, and the disabled forward stepper says why it
+      stops. The lag is computed from the record end, so it follows the boot
+      freshness probe rather than drifting.
