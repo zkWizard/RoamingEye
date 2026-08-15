@@ -4,6 +4,7 @@ import {
   SST_NATIVE_SUPPORT_LIMITATIONS,
   describeSstNativeSupport,
   qualifyingSstNativeSupportNote,
+  sstNativeSupportNote,
   summarizeSstNativeSupport,
 } from "./sstNativeSupport";
 import type { DatasetRef } from "./timeline";
@@ -355,5 +356,137 @@ describe("SST native-grid support place-card note", () => {
       expect(note![0]).toBe(note![0].toLowerCase());
       expect(note).not.toContain(SST_SOURCE.shortName);
     }
+  });
+});
+
+describe("SST native-grid support drawn-region note", () => {
+  /** The smallest region `boundsUsable` accepts, centred on `midLat`. */
+  function smallestDrawnRegion(midLat: number) {
+    return {
+      south: midLat - 0.1,
+      north: midLat + 0.1,
+      west: 20,
+      east: 20.2,
+    };
+  }
+
+  /** One month of charted values, so the note has a mean to qualify. */
+  const CHARTED = [null, 4.2, null];
+
+  it("names the drawn region rather than a boundary the probe never searched", () => {
+    const note = qualifyingSstNativeSupportNote(
+      summarizeSstNativeSupport({
+        south: 40,
+        north: 40.05,
+        west: -70.05,
+        east: -70,
+      }),
+      "drawn-region"
+    );
+
+    expect(note).toBe(
+      "drawn region is narrower than one 9km source cell, whose footprint extends beyond it — the mean rests on a single source cell"
+    );
+  });
+
+  it("keeps the place card's wording when no footprint is passed", () => {
+    const bounds = { south: 0, north: 0.01, west: 0, east: 5 };
+    const summary = summarizeSstNativeSupport(bounds);
+
+    expect(qualifyingSstNativeSupportNote(summary)).toBe(
+      qualifyingSstNativeSupportNote(summary, "searched-boundary")
+    );
+    expect(qualifyingSstNativeSupportNote(summary)).toContain(
+      "searched boundary"
+    );
+  });
+
+  it("qualifies the smallest region drawable in the Barents Sea", () => {
+    // 0.2° is the floor `boundsUsable` enforces. At 75°N that is ~5.8 km of
+    // longitude — narrower than one 9 km cell — so the charted mean rests on a
+    // single retrieval that also covers water outside the box.
+    expect(
+      sstNativeSupportNote(
+        "sst",
+        "drawn-region",
+        smallestDrawnRegion(75),
+        CHARTED
+      )
+    ).toBe(
+      "drawn region is narrower than one 9km source cell, whose footprint extends beyond it — the mean rests on a single source cell"
+    );
+  });
+
+  it("reports only the spill just inside the Arctic Circle", () => {
+    // At 68°N the same box is still sub-cell east-west, but its area bounds
+    // more than two cells — so the single-cell half would be false.
+    expect(
+      sstNativeSupportNote(
+        "sst",
+        "drawn-region",
+        smallestDrawnRegion(68),
+        CHARTED
+      )
+    ).toBe(
+      "drawn region is narrower than one 9km source cell in one direction, so that cell's footprint extends beyond it"
+    );
+  });
+
+  it("stays silent for the same box at a mid-latitude that resolves the grid", () => {
+    // The clause is a property of the geometry, not of drawing a small box:
+    // at 40°N the minimum region already spans more than one cell each way.
+    expect(
+      sstNativeSupportNote(
+        "sst",
+        "drawn-region",
+        smallestDrawnRegion(40),
+        CHARTED
+      )
+    ).toBeNull();
+  });
+
+  it("stays silent for a region that never charted a value", () => {
+    // An all-land or fully clouded polar box has no mean for the geometry to
+    // qualify, and the empty-series notes already explain the absence.
+    for (const values of [[], [null, null], null, undefined]) {
+      expect(
+        sstNativeSupportNote(
+          "sst",
+          "drawn-region",
+          smallestDrawnRegion(75),
+          values
+        )
+      ).toBeNull();
+    }
+  });
+
+  it("speaks only for the layer whose cited grid it read", () => {
+    // The 9 km bound describes the SST product; no other layer is graded by it.
+    for (const layerId of ["ndvi", "aerosol", "airtemp", "lst"] as const) {
+      expect(
+        sstNativeSupportNote(
+          layerId,
+          "drawn-region",
+          smallestDrawnRegion(75),
+          CHARTED
+        )
+      ).toBeNull();
+    }
+  });
+
+  it("claims sampling geometry only, as a fragment for the status line", () => {
+    const note = sstNativeSupportNote(
+      "sst",
+      "drawn-region",
+      smallestDrawnRegion(75),
+      CHARTED
+    );
+
+    expect(note).not.toBeNull();
+    expect(note).not.toMatch(
+      /habitat|species|heatwave|reliab|accurate|healthy|risk|will |expect/i
+    );
+    expect(note![0]).toBe(note![0].toLowerCase());
+    expect(note).not.toContain(SST_SOURCE.shortName);
   });
 });
