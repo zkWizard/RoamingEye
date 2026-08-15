@@ -7,6 +7,7 @@ import {
   formatSstCaptionOmission,
   probeSstSamplingGateClause,
   sstCaptionConstraintOmissions,
+  sstObservingConstraintCsvHeaders,
   summarizeSstObservingConstraints,
   type SstObservingConstraintId,
 } from "./sstObservingConstraints";
@@ -274,5 +275,86 @@ describe("sstCaptionConstraintOmissions", () => {
     // The captions render on one line under the globe; 71 characters is the
     // longest the app ships, and the SST one must not become the new record.
     expect(LAYERS.sst.description.length).toBeLessThanOrEqual(71);
+  });
+});
+
+describe("sstObservingConstraintCsvHeaders", () => {
+  const headers = sstObservingConstraintCsvHeaders("sst");
+
+  it("states the clear-sky gate the exported file was missing", () => {
+    // The gate that decides which *days* contributed reached the status line,
+    // the place card and the CI-asserted caption, and never the download.
+    const text = headers.join("\n");
+    expect(text).toContain("# sst_clear_sky_retrieval_only:");
+    expect(text).toContain("does not pass through cloud");
+    expect(text).toContain("non-random subset of that month's days");
+  });
+
+  it("does not repeat the gates the identity headers already write", () => {
+    // `# sst_sampling` and `# sst_retrieval_depth` state the daytime overpass
+    // and the radiometric skin in full in the same block. A provenance claim
+    // made twice in one file reads as two claims a reader has to reconcile.
+    const text = headers.join("\n");
+    expect(text).not.toContain("# sst_daytime_overpass_only:");
+    expect(text).not.toContain("# sst_near_surface_radiometric:");
+  });
+
+  it("asserts no direction and no magnitude for the clear-sky subset", () => {
+    // A reader told cloudy days are absent will supply a sign — clear means
+    // sunny means warm. The table declines to: the same screening that favours
+    // calm sunlit days in one basin coincides with upwelling in another.
+    expect(headers.join("\n")).toContain(
+      "# sst_clear_sky_direction: no direction and no magnitude are asserted"
+    );
+    expect(headers.join("\n")).toContain("regime-dependent");
+  });
+
+  it("obeys the CSV header contract: no delimiter, quote, or line break", () => {
+    // A comma here would tear provenance into ragged cells for every reader
+    // (see csvHeaderText in probe.ts); these lines are not scrubbed on the way
+    // out, so the discipline has to hold at the source.
+    for (const line of headers) {
+      expect(line.startsWith("# ")).toBe(true);
+      expect(line).not.toMatch(/[,"\r\n]/);
+    }
+  });
+
+  it("is silent for every layer but SST", () => {
+    // In particular the land-surface-temperature sibling must never inherit an
+    // ocean product's gate; it writes its own from lstObservingConstraints.
+    for (const id of LAYER_ORDER) {
+      if (id === "sst") continue;
+      expect(sstObservingConstraintCsvHeaders(id)).toEqual([]);
+    }
+    expect(sstObservingConstraintCsvHeaders(undefined)).toEqual([]);
+  });
+
+  it("is asserted only for a thermal-infrared retrieval", () => {
+    // The prose names the thermal infrared verbatim and GIBS publishes mid-IR
+    // variants of the same product, so the identifier is what the claim rests
+    // on. An exported file cannot be corrected after the fact.
+    expect(LAYERS.sst.wmsLayer).toMatch(/_Thermal_/);
+  });
+
+  it("carries every prose line for a constraint the table declares", () => {
+    // The keyed record is the drift guard: a fourth constraint must not slip
+    // into the table with no decision made about the exported file.
+    const declared = new Set<SstObservingConstraintId>(
+      SST_OBSERVING_CONSTRAINTS.map((entry) => entry.id)
+    );
+    for (const line of headers) {
+      const match = /^# sst_([a-z_]+):/.exec(line);
+      if (!match || match[1] === "clear_sky_direction") continue;
+      expect(
+        declared.has(match[1].replace(/_/g, "-") as SstObservingConstraintId)
+      ).toBe(true);
+    }
+  });
+
+  it("claims nothing biological and no future value", () => {
+    // These are statements about an instrument and an orbit.
+    expect(headers.join("\n")).not.toMatch(
+      /species|habitat|ecosystem|biolog|bleach|heatwave|heat wave|forecast|stress/i
+    );
   });
 });

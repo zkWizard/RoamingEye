@@ -58,6 +58,7 @@ import {
   seasonalSamplingCsvHeaders,
 } from "./lib/seasonalSamplingBalance";
 import { sstSamplingIdentityCsvHeaders } from "./lib/seaSurfaceTemperatureSamplingIdentity";
+import { sstObservingConstraintCsvHeaders } from "./lib/sstObservingConstraints";
 import { lstSamplingIdentityCsvHeaders } from "./lib/lstObservingConstraints";
 import { snowIlluminationNote } from "./lib/snowCoverIllumination";
 import type { GeoResult } from "./lib/geocoding";
@@ -1083,9 +1084,16 @@ if (probeEl) {
                 // more — nothing in a column of degrees says it is a daytime
                 // skin composite, and on land the 2 m air-temperature sibling
                 // exports a column that looks identical to this one. A layer
-                // is sst or lst or neither, so at most one list contributes.
+                // is sst or lst or neither, so only one product's lists
+                // contribute; for SST that is two, because the diurnal half
+                // and the cloud screen are separate gates owned by separate
+                // modules and the file was carrying only the first. Naming one
+                // of two co-equal gates reads as the whole account of which
+                // moments were composited, which is the same failure
+                // sstCaptionConstraintOmissions guards the caption against.
                 samplingIdentityHeaders: [
                   ...sstSamplingIdentityCsvHeaders(layer.id),
+                  ...sstObservingConstraintCsvHeaders(layer.id),
                   ...lstSamplingIdentityCsvHeaders(layer.id),
                 ],
                 // And the same for the rows themselves: the status line prints
@@ -1339,9 +1347,16 @@ if (probeEl) {
                 // more — nothing in a column of degrees says it is a daytime
                 // skin composite, and on land the 2 m air-temperature sibling
                 // exports a column that looks identical to this one. A layer
-                // is sst or lst or neither, so at most one list contributes.
+                // is sst or lst or neither, so only one product's lists
+                // contribute; for SST that is two, because the diurnal half
+                // and the cloud screen are separate gates owned by separate
+                // modules and the file was carrying only the first. Naming one
+                // of two co-equal gates reads as the whole account of which
+                // moments were composited, which is the same failure
+                // sstCaptionConstraintOmissions guards the caption against.
                 samplingIdentityHeaders: [
                   ...sstSamplingIdentityCsvHeaders(layer.id),
+                  ...sstObservingConstraintCsvHeaders(layer.id),
                   ...lstSamplingIdentityCsvHeaders(layer.id),
                 ],
                 // And the same for the rows themselves: the status line prints
