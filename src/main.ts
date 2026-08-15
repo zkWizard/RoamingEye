@@ -51,6 +51,7 @@ import { sstNativeSupportNote } from "./lib/sstNativeSupport";
 import { vegetationAveragedSupportNote } from "./lib/vegetationAveragedSupport";
 import { gldasAveragedSupportNote } from "./lib/gldasAveragedSupport";
 import { snowAveragedSupportNote } from "./lib/snowAveragedSupport";
+import { snowChartedRecordNote } from "./lib/snowChartedRecord";
 import { emptyMarineProbeNote } from "./lib/marineProbeDomain";
 import { emptySnowProbeNote } from "./lib/snowProbeAbsence";
 import { emptyVegetationProbeNote } from "./lib/vegetationProbeAbsence";
@@ -1022,12 +1023,20 @@ if (probeEl) {
         // rather than sitting still. The place panel states this for one
         // month; the series did not. It also gives a snow-free box a reason
         // for its empty chart instead of "no data at this point".
-        const snowSupportNote = snowAveragedSupportNote(
-          layer.id,
-          "sampled-area",
-          values,
-          mode === "area" ? validFractions : null
-        );
+        // And the same question along the OTHER axis, which no mode stated:
+        // that transparent band drops whole MONTHS out of the series too, so a
+        // seasonal point charts only the months that carried snow and the
+        // statistics beside them are conditional on that. The share clause
+        // above already names the mechanism for an averaged footprint, so this
+        // defers to it and speaks for the point probe — which passes no shares
+        // and so had no snow clause in any partial case at all.
+        const snowSupportNote =
+          snowAveragedSupportNote(
+            layer.id,
+            "sampled-area",
+            values,
+            mode === "area" ? validFractions : null
+          ) ?? snowChartedRecordNote(layer.id, values);
         // And the two water-cycle layers, the last averaged ones charting a
         // bare mean. GLDAS is solved on land cells only, and its ramp discards
         // both the sub-zero fill and the open top bin, so an area mean covers
@@ -1328,12 +1337,16 @@ if (probeEl) {
         // snow-free ground is rejected rather than averaged in as 0% — the
         // charted mean covers the drawn patches only, and the share it covers
         // shrinks through the melt season, damping the swing the chart shows.
-        const snowSupportNote = snowAveragedSupportNote(
-          layer.id,
-          "drawn-region",
-          values,
-          validFractions
-        );
+        // And the same temporal companion as the point/area path: a drawn box
+        // loses whole months to the same transparent band, and the share clause
+        // above speaks first whenever it has something to say.
+        const snowSupportNote =
+          snowAveragedSupportNote(
+            layer.id,
+            "drawn-region",
+            values,
+            validFractions
+          ) ?? snowChartedRecordNote(layer.id, values);
         // And the same for the two water-cycle layers — see the point/area
         // path. A drawn box gets the clause for the same reason a sampled one
         // does: GLDAS carries no value off land, and its ramp's discarded caps
