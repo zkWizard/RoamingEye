@@ -1,5 +1,16 @@
+/* `color-scheme` is what tells the browser to render its OWN widgets — the
+ * scrollbars on every panel, the native <select> popups in the software finder,
+ * the search field's clear button and caret, and the default focus ring — in
+ * the same palette as ours. Without it every one of those resolves light, so a
+ * white scrollbar rides the dark glass panels and the layer list's popup opens
+ * black-on-white. It tracks `data-theme`, not `prefers-color-scheme`, so the
+ * UA chrome follows the theme the user actually picked rather than the OS's.
+ * The bare `:root` carries it too, covering the frame before ThemeToggle sets
+ * the attribute. */
 :root,
 :root[data-theme="dark"] {
+  color-scheme: dark;
+
   --bg: #05070d;
   --fg: #e8eef7;
   --muted: #8b97ab;
@@ -25,6 +36,8 @@
 }
 
 :root[data-theme="light"] {
+  color-scheme: light;
+
   --bg: #eaf0f8;
   --fg: #0e1626;
   --muted: #51607a;
@@ -229,11 +242,13 @@ body {
 
 /* --- Focus ring parity ------------------------------------------------------
  * Most controls declare `outline: 2px solid var(--accent)` on :focus-visible,
- * but these ones never did and fell back to the browser's default ring. That
- * default resolves to a 1px near-black outline in BOTH themes (we declare no
- * `color-scheme`), so on the dark glass panels it is all but invisible — the
- * layer picker and the nine overlay toggles are the worst hit. Same ring, same
- * offsets as everywhere else; outlines don't participate in layout, so the HUD
+ * but these ones never did and fell back to the browser's default ring — which,
+ * before we declared `color-scheme` above, resolved to a 1px near-black outline
+ * in BOTH themes and all but vanished on the dark glass panels. The layer
+ * picker and the nine overlay toggles were the worst hit. `color-scheme` now
+ * makes that fallback ring light in dark theme, but these keep the app's own
+ * accent ring: same ring, same offsets as everywhere else, and consistent
+ * rather than UA-dependent. Outlines don't participate in layout, so the HUD
  * stack is untouched.
  */
 .hint__shortcuts:focus-visible,
