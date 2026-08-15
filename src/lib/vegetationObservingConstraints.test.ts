@@ -8,6 +8,8 @@ import {
   VEGETATION_SAMPLING_GATE_NOTES,
   probeVegetationSamplingGateClause,
   vegetationSamplingIdentityCsvHeaders,
+  vegetationCaptionConstraintOmissions,
+  formatVegetationCaptionOmission,
 } from "./vegetationObservingConstraints";
 import { LAYERS, LAYER_ORDER } from "./timeline";
 
@@ -324,6 +326,128 @@ describe("vegetationSamplingIdentityCsvHeaders", () => {
       const clause = probeVegetationSamplingGateClause(id, true);
       const headers = vegetationSamplingIdentityCsvHeaders(id);
       expect(headers.length > 0).toBe(clause !== "");
+    }
+  });
+});
+
+describe("vegetationCaptionConstraintOmissions", () => {
+  it("passes both captions the app actually ships", () => {
+    // The guard exists to keep this true. `Legend` renders the description
+    // verbatim under the globe, so a regression here ships to every reader who
+    // never opens the probe.
+    for (const layerId of VEGETATION_OBSERVING_CONSTRAINT_LAYER_IDS) {
+      expect(
+        vegetationCaptionConstraintOmissions(layerId).map(
+          formatVegetationCaptionOmission
+        )
+      ).toEqual([]);
+    }
+  });
+
+  it("catches the NDVI caption that shipped before this guard", () => {
+    // The defect this fixed: a caption that named no gate at all, and framed
+    // the layer as the seasonal-cycle signal — the very reading the
+    // maximum-value selection bends.
+    const omissions = vegetationCaptionConstraintOmissions(
+      "ndvi",
+      "Vegetation greenness — the classic seasonal-cycle signal."
+    );
+    expect(omissions.map((o) => o.constraintId)).toEqual([
+      "clear-sky-optical-only",
+      "maximum-value-selection",
+      "composite-not-monthly-mean",
+    ]);
+    // The message quotes the constraint table rather than restating it, so the
+    // two can never drift into disagreeing about the same product.
+    const entry = VEGETATION_OBSERVING_CONSTRAINTS.ndvi.find(
+      (c) => c.id === "maximum-value-selection"
+    )!;
+    const reported = omissions.find(
+      (o) => o.constraintId === "maximum-value-selection"
+    )!;
+    expect(reported.constraint).toBe(entry.constraint);
+    expect(reported.implication).toBe(entry.implication);
+  });
+
+  it("catches the EVI caption that shipped before this guard", () => {
+    const omissions = vegetationCaptionConstraintOmissions(
+      "evi",
+      "Enhanced vegetation index — less saturated over dense canopy."
+    );
+    expect(omissions.map((o) => o.constraintId)).toEqual([
+      "clear-sky-optical-only",
+      "composite-not-monthly-mean",
+    ]);
+  });
+
+  it("never requires an EVI caption to claim a maximum it does not have", () => {
+    // Deliberate, and the one asymmetry between the two layers: the composite
+    // selects on NDVI and EVI inherits the kept observation, so "max-value" in
+    // an EVI caption would assert an inequality that does not hold. The probe
+    // status line and the exported CSV carry the honest version in full.
+    const omissions = vegetationCaptionConstraintOmissions(
+      "evi",
+      "Clear-sky composite."
+    );
+    expect(omissions.map((o) => o.constraintId)).not.toContain(
+      "maximum-value-selection"
+    );
+    // NDVI, whose selection does fix a sign, must still be required to say so.
+    expect(
+      vegetationCaptionConstraintOmissions("ndvi", "Clear-sky composite.").map(
+        (o) => o.constraintId
+      )
+    ).toEqual(["maximum-value-selection"]);
+  });
+
+  it("accepts any declared surface form of a gate", () => {
+    // Wording is a copy decision; the check is about what was said, not how.
+    for (const clearPhrase of ["clear sky", "cloud-free", "cloud-screened"]) {
+      expect(
+        vegetationCaptionConstraintOmissions(
+          "evi",
+          `Enhanced index — ${clearPhrase} composite.`
+        )
+      ).toEqual([]);
+    }
+    for (const maxPhrase of ["maximum-value", "maximum value", "highest"]) {
+      expect(
+        vegetationCaptionConstraintOmissions(
+          "ndvi",
+          `Greenness — clear-sky ${maxPhrase} composite.`
+        )
+      ).toEqual([]);
+    }
+  });
+
+  it("matches case-insensitively", () => {
+    expect(
+      vegetationCaptionConstraintOmissions(
+        "ndvi",
+        "GREENNESS — CLEAR-SKY MAX-VALUE COMPOSITE, NOT A MONTHLY MEAN."
+      )
+    ).toEqual([]);
+  });
+
+  it("asserts no magnitude, ecological or hazard claim", () => {
+    // A caption audit reports which gate is unstated. It says nothing about how
+    // large the selection's effect is, and nothing about the vegetation itself.
+    const messages = VEGETATION_OBSERVING_CONSTRAINT_LAYER_IDS.flatMap((id) =>
+      vegetationCaptionConstraintOmissions(id, "Vegetation.")
+    )
+      .map(formatVegetationCaptionOmission)
+      .join(" ");
+    expect(messages).not.toMatch(
+      /biomass|habitat|biodiversity|ecological health|drought|healthy|degraded|forecast|greener|browner|\d+\s*%/i
+    );
+  });
+
+  it("keeps both shipped captions inside the layer-caption length convention", () => {
+    // The captions render on one line under the globe; 71 characters is the
+    // longest the app ships, and neither vegetation caption may become the new
+    // record.
+    for (const layerId of VEGETATION_OBSERVING_CONSTRAINT_LAYER_IDS) {
+      expect(LAYERS[layerId].description.length).toBeLessThanOrEqual(71);
     }
   });
 });
