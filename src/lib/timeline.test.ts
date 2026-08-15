@@ -19,6 +19,7 @@ import {
   LAYERS,
   DATA_LATEST,
 } from "./timeline";
+import { FRESHNESS_FAMILIES } from "./freshness";
 
 describe("year/month arithmetic", () => {
   it("round-trips index <-> year/month", () => {
@@ -76,11 +77,14 @@ describe("buildMonthRange", () => {
 });
 
 describe("isAvailable", () => {
-  it("respects the layer start and the global latest", () => {
+  it("respects the layer start and the layer's own published end", () => {
+    // Derived from the pin, not from DATA_LATEST: every dynamic layer now
+    // carries its own verified end, and MOD13A3 trails the global newest.
+    const end = LAYERS.ndvi.latest ?? DATA_LATEST;
     expect(isAvailable(LAYERS.ndvi, { year: 1999, month: 12 })).toBe(false);
     expect(isAvailable(LAYERS.ndvi, LAYERS.ndvi.start)).toBe(true);
-    expect(isAvailable(LAYERS.ndvi, DATA_LATEST)).toBe(true);
-    expect(isAvailable(LAYERS.ndvi, addMonths(DATA_LATEST, 1))).toBe(false);
+    expect(isAvailable(LAYERS.ndvi, end)).toBe(true);
+    expect(isAvailable(LAYERS.ndvi, addMonths(end, 1))).toBe(false);
   });
 });
 
@@ -114,8 +118,8 @@ describe("clampIndexToLayer", () => {
   });
 
   it("snaps back to a covered month for a lagging layer", () => {
-    const idx = clampIndexToLayer(months, 59, LAYERS.precip); // latest 2026-01
-    expect(months[idx]).toEqual({ year: 2026, month: 1 });
+    const idx = clampIndexToLayer(months, 59, LAYERS.precip); // GLDAS lags
+    expect(months[idx]).toEqual(LAYERS.precip.latest);
   });
 
   it("leaves earlier indices untouched", () => {
@@ -150,17 +154,20 @@ describe("gibsWmsUrl", () => {
 
 describe("monthRangeForLayer", () => {
   it("spans the layer's full record, start to latest", () => {
-    const range = monthRangeForLayer(LAYERS.ndvi); // 2000-03 → DATA_LATEST
+    const range = monthRangeForLayer(LAYERS.ndvi); // 2000-03 → its own end
     expect(range[0]).toEqual({ year: 2000, month: 3 });
-    expect(range[range.length - 1]).toEqual(DATA_LATEST);
+    expect(range[range.length - 1]).toEqual(LAYERS.ndvi.latest ?? DATA_LATEST);
     expect(range.length).toBeGreaterThan(300); // 26+ years of months
   });
 
   it("respects a layer's own latest month", () => {
-    const range = monthRangeForLayer(LAYERS.airtemp); // 1980-01 → 2026-03
+    // MERRA-2 trails the MODIS composites, so airtemp's record must stop at
+    // its own pin. Both the end and the length are read off that pin.
+    const end = LAYERS.airtemp.latest!;
+    const range = monthRangeForLayer(LAYERS.airtemp); // 1980-01 → end
     expect(range[0]).toEqual({ year: 1980, month: 1 });
-    expect(range[range.length - 1]).toEqual({ year: 2026, month: 3 });
-    expect(range.length).toBe((2026 - 1980) * 12 + 3);
+    expect(range[range.length - 1]).toEqual(end);
+    expect(range.length).toBe((end.year - 1980) * 12 + end.month);
   });
 
   it("is consecutive for a layer with no declared distribution gaps", () => {
@@ -208,12 +215,13 @@ describe("MOD13A3 distribution gap (NDVI/EVI, April 2025)", () => {
   });
 
   it("drops the gap from the enumerated record, leaving the rest intact", () => {
+    const end = LAYERS.ndvi.latest ?? DATA_LATEST;
     const range = monthRangeForLayer(LAYERS.ndvi);
     expect(range.some((ym) => ymEqual(ym, GAP))).toBe(false);
     expect(range[0]).toEqual({ year: 2000, month: 3 });
-    expect(range[range.length - 1]).toEqual(DATA_LATEST);
+    expect(range[range.length - 1]).toEqual(end);
     // Exactly one month short of the contiguous span it would otherwise be.
-    const span = ymToIndex(DATA_LATEST) - ymToIndex(LAYERS.ndvi.start) + 1;
+    const span = ymToIndex(end) - ymToIndex(LAYERS.ndvi.start) + 1;
     expect(range.length).toBe(span - 1);
   });
 
@@ -490,5 +498,43 @@ describe("nearestMonthIndex", () => {
     expect(nearestMonthIndex(range, { year: 1985, month: 7 })).toBe(
       ymToIndex({ year: 1985, month: 7 }) - ymToIndex({ year: 1980, month: 1 })
     );
+  });
+});
+
+describe("compiled freshness baselines", () => {
+  // These pins ARE the cold-boot timeline: what the app renders before the
+  // DescribeDomains probe answers, and all it has if the probe fails. A
+  // dynamic layer without one falls back to DATA_LATEST, which by
+  // construction belongs to the *fastest*-publishing product — offering a
+  // lagging layer months its producer has not released. All ends verified
+  // against GIBS DescribeDomains on 2026-08-15.
+  const dynamicLayers = FRESHNESS_FAMILIES.flatMap((f) => f.layers);
+
+  it("gives every probed layer its own verified end", () => {
+    for (const id of dynamicLayers) {
+      expect(LAYERS[id].latest).toBeDefined();
+    }
+  });
+
+  it("never claims a month past the global newest", () => {
+    for (const id of dynamicLayers) {
+      expect(compareYm(LAYERS[id].latest!, DATA_LATEST)).toBeLessThanOrEqual(0);
+    }
+  });
+
+  it("keeps DATA_LATEST equal to the fastest family's end", () => {
+    // Not a month of its own: the global baseline is some product's real
+    // record end, so it can never advertise a month nobody has published.
+    const ends = dynamicLayers.map((id) => LAYERS[id].latest!);
+    expect(ends.some((end) => compareYm(end, DATA_LATEST) === 0)).toBe(true);
+  });
+
+  it("keeps every pinned end inside the layer's own record", () => {
+    for (const id of dynamicLayers) {
+      const layer = LAYERS[id];
+      expect(compareYm(layer.latest!, layer.start)).toBeGreaterThan(0);
+      // A pin landing on an undistributed month would enumerate a 404.
+      expect(isUnpublished(layer, layer.latest!)).toBe(false);
+    }
   });
 });

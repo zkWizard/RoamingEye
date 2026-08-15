@@ -276,7 +276,7 @@ describe("place observation environmental brief", () => {
       id: "air-temperature",
       status: "available",
       observedValue: 289.4,
-      climateSummary: { availableThrough: { year: 2026, month: 3 } },
+      climateSummary: { availableThrough: { year: 2026, month: 5 } },
     });
     expect(result.brief.unsupportedLanguageHits).toEqual([]);
     expect("score" in result).toBe(false);

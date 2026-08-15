@@ -42,6 +42,8 @@ take one directly when no Owner's pick applies to its domain.
 - [ ] **Land-cover freshness is manual.** MCD12Q1 is annual and excluded from
       the boot probe by design; once a year, verify the new product year
       against GIBS and bump `LAYERS.landcover.latest` (currently 2024).
+      _Checked 2026-08-15: DescribeDomains still ends at 2024-01-01
+      (`2021-01-01/2024-01-01/P1Y`) — no bump due. Next check ~2026-12._
 - [ ] **Precipitation currency.** GLDAS publishes ~5 months behind. Evaluate
       GPM IMERG monthly (`GPM_3IMERGM`, ~2-month lag) as a replacement or
       additional layer — a data-sourcing decision, not a bug fix.

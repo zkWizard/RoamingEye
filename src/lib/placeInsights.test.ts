@@ -31,8 +31,8 @@ describe("place insights", () => {
 
   it("uses each product's own latest two months", () => {
     expect(latestComparisonMonths("precip")).toEqual([
-      { year: 2025, month: 12 },
-      { year: 2026, month: 1 },
+      { year: 2026, month: 2 },
+      { year: 2026, month: 3 },
     ]);
     expect(latestComparisonMonths("ndvi")).not.toBeNull();
   });
