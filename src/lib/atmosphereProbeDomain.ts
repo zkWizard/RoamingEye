@@ -1,5 +1,7 @@
 import { LAYERS, type DatasetRef, type LayerId } from "./timeline";
 import type { SpatialDomain } from "./signalDomain";
+import { COLORMAP_DOCS } from "./colormap";
+import type { Rgb } from "./probe";
 import {
   GLDAS_RAMP_SATURATION,
   type GldasRampLayerId,
@@ -50,8 +52,39 @@ import {
  * invites: the wettest monsoon and tropical-orographic cells the ramp can
  * represent, not an absence of rain. Naming only the domain would leave a
  * reader free to settle on dryness, so both readings are stated and neither is
- * chosen. The two MERRA-2 layers carry no such clause — they are not GLDAS,
- * their ramps are not this one, and their wording is untouched by it.
+ * chosen.
+ *
+ * Air temperature needs the same second reading for its own ramp, and this is
+ * the one place the GLDAS wording must not simply be reused. MERRA-2's
+ * `MERRA2_2m_Air_Temperature_Monthly` document publishes its continuous legend
+ * between 220 K and 310 K and closes it at *both* ends with an open catch-all —
+ * "< 220" in violet rgb(94,79,162) and "≥ 310" in dark crimson rgb(158,1,66).
+ * `parseColormapEntries` drops both for the same documented reason it drops the
+ * GLDAS caps, and measured against the display-legend LUT the point probe
+ * inverts against (2026-08-15) the two cap colours sit 76.6 and 74.5 RGB units
+ * from the nearest ramp colour, against the same 60-unit `NO_DATA_DISTANCE` —
+ * so a cell outside that window empties a record exactly as an undrawn pixel
+ * does. `legend.ts`'s airtemp `interpretationNote` already tells a reader of
+ * the *legend* that both overflow colours read as no-data; until now the probe
+ * panel's own account of an empty record did not, and said instead that it
+ * could not diagnose the cause at all.
+ *
+ * The two ramps are not symmetric, and the airtemp wording must say less than
+ * the GLDAS one rather than more. GLDAS's discarded cap is one-ended: its
+ * companion "< 0" cap is physically impossible for a rate or a column mass, so
+ * it is model fill, which is what licenses precipitation's clause to name a
+ * direction ("the wettest cells"). Both of MERRA-2's caps are physically
+ * reachable monthly means — below 220 K (−53.15 °C) on the East Antarctic
+ * plateau in winter, at or above 310 K (36.85 °C) in the hottest desert
+ * summers — so an empty air-temperature record is consistent with either
+ * extreme and this module asserts neither. It reports that the window exists
+ * and that both ends of it are discarded; it never says which end a particular
+ * record fell off, never substitutes a value for a discarded cell, and makes
+ * no claim about heat, cold, comfort, hazard, trend, or any future value.
+ *
+ * Aerosol carries no cap clause: its ramp is a different document, its top-end
+ * behaviour is a censoring rather than a rejection, and it is described by the
+ * aerosol ceiling modules instead. Its wording is untouched here.
  *
  * Scope and honesty limits:
  *  - Domain of definition is a fixed, documented property of the cited product,
@@ -79,6 +112,45 @@ import {
 /** The atmosphere layers whose domain of definition this module asserts. */
 export type AtmosphereProbeLayerId = "precip" | "airtemp" | "aerosol";
 
+/** One open-ended catch-all swatch at an end of the MERRA-2 airtemp ramp. */
+export interface Merra2RampCap {
+  /** The RGB GIBS paints this open-ended bin with. */
+  rgb: Rgb;
+  /** The tooltip GIBS prints for the bin, verbatim after entity decoding. */
+  publishedLabel: string;
+  /** The bin's one finite edge, in the document's unit. */
+  bound: number;
+}
+
+/**
+ * The airtemp ramp's two open ends, read from the live
+ * `MERRA2_2m_Air_Temperature_Monthly` document on 2026-08-15.
+ *
+ * Held as facts rather than written into the sentence so the wording cannot
+ * outlive the ramp: the note quotes these labels, and the unit tests re-derive
+ * both cap colours' distance from the LUT the probe actually inverts against.
+ * Deliberately not a classifier — restoring the caps as explicit one-sided
+ * bounds in the inversion is a separate change with its own readout ruling,
+ * exactly as `gldasRampSaturation` records for the water-cycle ramps.
+ */
+export const MERRA2_AIR_TEMPERATURE_RAMP_CAPS = {
+  colormapDocument: COLORMAP_DOCS.airtemp,
+  unit: "K",
+  /** The closed, representable window between the two caps. */
+  closedSpan: { min: 220, max: 310 },
+  /** Physically reachable, unlike GLDAS's "< 0" fill — see the module doc. */
+  below: {
+    rgb: { r: 94, g: 79, b: 162 },
+    publishedLabel: "< 220",
+    bound: 220,
+  } as Merra2RampCap,
+  above: {
+    rgb: { r: 158, g: 1, b: 66 },
+    publishedLabel: "≥ 310",
+    bound: 310,
+  } as Merra2RampCap,
+} as const;
+
 /**
  * A discriminated union rather than one shape with an optional field: only a
  * land-only product can be absent for a reason the domain explains, so only it
@@ -100,7 +172,17 @@ type AtmosphereDomainClaim =
        */
       rampLayerId: GldasRampLayerId;
     }
-  | { domain: "land-and-ocean"; basis: string };
+  | {
+      domain: "land-and-ocean";
+      basis: string;
+      /**
+       * The rendered ramp's two open ends, when the layer has some. Optional
+       * because only air temperature does: aerosol's ramp is a different
+       * document handled by the aerosol ceiling modules, so it carries none
+       * rather than borrowing this one's.
+       */
+      rampCaps?: typeof MERRA2_AIR_TEMPERATURE_RAMP_CAPS;
+    };
 
 /**
  * Domain of definition per atmosphere layer. A layer absent from this table is
@@ -120,6 +202,7 @@ const ATMOSPHERE_DOMAINS: Record<
   airtemp: {
     domain: "land-and-ocean",
     basis: "MERRA-2 is a global reanalysis on a grid spanning land and ocean",
+    rampCaps: MERRA2_AIR_TEMPERATURE_RAMP_CAPS,
   },
   aerosol: {
     domain: "land-and-ocean",
@@ -164,7 +247,9 @@ export function emptyAtmosphereProbeNote(
   const consequence =
     claim.domain === "land-only"
       ? `${ceilingClause(claim.rampLayerId)} An empty record here is consistent with a point outside that domain or with a rate at or above that bound — not a reading of zero ${claim.quantity}, and not evidence of a failed retrieval.`
-      : "The product's domain therefore does not explain an empty record here; this note does not diagnose the cause.";
+      : claim.rampCaps
+        ? `The product's domain therefore does not explain an empty record here, but the rendered ramp offers a second reading. ${rampCapClause(claim.rampCaps)}`
+        : "The product's domain therefore does not explain an empty record here; this note does not diagnose the cause.";
 
   // Same statement shape as signalDomain.ts, so the two read as one voice.
   return (
@@ -190,6 +275,27 @@ function ceilingClause(rampLayerId: GldasRampLayerId): string {
     `The ramp's open-ended "${ceiling.publishedLabel}" ${nativeUnit} top bin ` +
     `(${ceiling.boundReported} ${reportedUnit}) is discarded by the same inversion, ` +
     `so the wettest cells the ramp can represent empty a record too.`
+  );
+}
+
+/**
+ * The second ordinary reading behind an empty MERRA-2 air-temperature record:
+ * the ramp's two open ends, discarded by the same inversion that discards an
+ * undrawn pixel.
+ *
+ * Both labels are quoted from the published document rather than restated, and
+ * the sentence deliberately stops short of the direction the GLDAS clause is
+ * allowed to name — see the module doc for why one-sidedness is not
+ * transferable between these two ramps.
+ */
+function rampCapClause(caps: typeof MERRA2_AIR_TEMPERATURE_RAMP_CAPS): string {
+  const { closedSpan, unit, below, above } = caps;
+  return (
+    `GIBS closes its ${closedSpan.min}–${closedSpan.max} ${unit} legend with an open ` +
+    `"${below.publishedLabel}" swatch and an open "${above.publishedLabel}" swatch, and the same ` +
+    `inversion that discards an undrawn pixel discards both — so a cell beyond either end empties ` +
+    `a record too. Both ends are physically reachable monthly means, so an empty record is ` +
+    `consistent with either extreme and this note does not diagnose the cause.`
   );
 }
 
