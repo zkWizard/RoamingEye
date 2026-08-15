@@ -283,3 +283,34 @@ test("an overlay toggle reports that it is waiting on its data", async ({
   await expect(borders).not.toHaveAttribute("data-state", "pending");
   await expect(borders).toHaveAttribute("aria-pressed", "true");
 });
+
+test("the timeline says how current the layer is, and why it stops", async ({
+  page,
+}) => {
+  await awaitAppInteractive(page);
+
+  // Resting caption: the record end, and the lag that makes the newest month
+  // trail the calendar. Its silence used to read as missing data.
+  const status = page.locator("#timeline-status");
+  await expect(status).toHaveText(/^Newest data: \w{3} \d{4}( · .+)?$/);
+  await expect(status).toHaveAttribute("aria-live", "polite");
+  await expect(status).toHaveAttribute("title", /published|has published/);
+
+  // One line only — the row's reserved height is what stops the bottom HUD
+  // from growing upward over the globe.
+  const rowHeight = await status.evaluate(
+    (el) => el.getBoundingClientRect().height
+  );
+  expect(rowHeight).toBeLessThanOrEqual(24);
+
+  // The forward stepper is the gesture that hits the end of the record, so
+  // it has to explain itself rather than just grey out.
+  const next = page.locator(".timeline__step").nth(1);
+  await expect(next).toBeDisabled();
+  await expect(next).toHaveAttribute("aria-label", /is the newest published$/);
+
+  // Stepping back off the end restores the plain label.
+  await page.locator(".timeline__step").first().click();
+  await expect(next).toBeEnabled();
+  await expect(next).toHaveAttribute("aria-label", /^Next \w+ \(→\)$/);
+});
