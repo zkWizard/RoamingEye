@@ -9,8 +9,14 @@ import {
   exportMonthStamp,
   imageryUrlExport,
   provenanceMonths,
+  resolvePinnedMonth,
 } from "./compare";
-import { LAYERS, gibsWmsUrl, formatTimelineLabel } from "./timeline";
+import {
+  LAYERS,
+  gibsWmsUrl,
+  formatTimelineLabel,
+  monthRangeForLayer,
+} from "./timeline";
 
 describe("clampSplit", () => {
   it("keeps the divider away from the edges", () => {
@@ -241,5 +247,85 @@ describe("provenanceMonths", () => {
         formatTimelineLabel(layer, live)
       );
     }
+  });
+});
+
+describe("resolvePinnedMonth", () => {
+  const monthly = monthRangeForLayer(LAYERS.ndvi);
+  const annual = monthRangeForLayer(LAYERS.landcover);
+
+  it("returns a dense monthly timeline's month unchanged", () => {
+    expect(resolvePinnedMonth(monthly, { year: 2019, month: 8 })).toEqual({
+      year: 2019,
+      month: 8,
+    });
+  });
+
+  it("restores every published slot of an annual layer", () => {
+    // The regression: slot indices were derived by subtracting calendar
+    // indices, so a 24-entry timeline spanning 277 calendar months lost every
+    // pin from its third year onward and shared land-cover comparisons came
+    // back empty. Assert over the whole catalogued record, not one sample.
+    expect(LAYERS.landcover.cadence).toBe("annual");
+    expect(annual.length).toBeGreaterThan(2);
+    for (const slot of annual) {
+      expect(resolvePinnedMonth(annual, slot)).toEqual(slot);
+    }
+  });
+
+  it("snaps a month an annual product cannot resolve onto its own slot", () => {
+    // MCD12Q1 classifies whole years; a July of an annual composite is not an
+    // observation the product separates, so it must never reach the pinned
+    // side of the divider verbatim.
+    expect(resolvePinnedMonth(annual, { year: 2001, month: 7 })).toEqual({
+      year: 2001,
+      month: 1,
+    });
+    expect(resolvePinnedMonth(annual, { year: 2001, month: 11 })).toEqual({
+      year: 2002,
+      month: 1,
+    });
+  });
+
+  it("declines a pin the layer's record does not cover", () => {
+    // Outside the published span the honest answer is no comparison at all —
+    // snapping onto an endpoint would invent a view the sender never shared.
+    expect(
+      resolvePinnedMonth(annual, { year: 1998, month: 1 })
+    ).toBeUndefined();
+    expect(
+      resolvePinnedMonth(annual, { year: 2099, month: 1 })
+    ).toBeUndefined();
+    expect(
+      resolvePinnedMonth(monthly, { year: 1970, month: 1 })
+    ).toBeUndefined();
+  });
+
+  it("accepts both endpoints of every non-static layer's record", () => {
+    for (const layer of Object.values(LAYERS)) {
+      if (layer.static) continue;
+      const slots = monthRangeForLayer(layer);
+      expect(resolvePinnedMonth(slots, slots[0])).toEqual(slots[0]);
+      const last = slots[slots.length - 1];
+      expect(resolvePinnedMonth(slots, last)).toEqual(last);
+    }
+  });
+
+  it("resolves to a slot the timeline actually publishes, never a gap", () => {
+    // Whatever a link asks for, what comes back is drawable: the app requests
+    // the pinned side's imagery for exactly this month.
+    for (const pin of [
+      { year: 2001, month: 7 },
+      { year: 2010, month: 3 },
+      { year: 2023, month: 11 },
+    ]) {
+      const resolved = resolvePinnedMonth(annual, pin);
+      expect(resolved).toBeDefined();
+      expect(annual).toContainEqual(resolved);
+    }
+  });
+
+  it("declines an empty timeline", () => {
+    expect(resolvePinnedMonth([], { year: 2020, month: 1 })).toBeUndefined();
   });
 });
