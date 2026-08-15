@@ -1,4 +1,5 @@
 import { LAYERS, formatYm, type DatasetRef, type YearMonth } from "./timeline";
+import { COLORMAP_DOCS } from "./colormap";
 import {
   placeMonthStep,
   placeMonthStepNote,
@@ -91,6 +92,73 @@ const LST_CARD_SCOPE =
  */
 const KELVIN_TO_CELSIUS_OFFSET = -273.15;
 
+/**
+ * The published LST ramp's terminal bins, read from the live
+ * `MODIS_Land_Surface_Temp` document on 2026-08-15.
+ *
+ * GIBS renders the layer on a closed 200.0–350.0 K legend and then closes it at
+ * *both* ends with an open catch-all: one colour for every land surface below
+ * 200.0 K, one for every surface at or above 350.0 K. Unlike the MERRA-2
+ * air-temperature caps — which sit 74–77 RGB units from the ramp and are
+ * therefore rejected outright, emptying a record (see atmosphereProbeDomain) —
+ * these two cap colours sit just 4 and 3 RGB units from their adjacent finite
+ * bins. They are inside the 60-unit `NO_DATA_DISTANCE`, so a capped pixel does
+ * not empty a record: it *decodes*, into the terminal bin next to it. That is a
+ * censoring, exactly as `sstRampCensoring` describes for the marine ramp, and
+ * it is why this card cannot treat a terminal-bin value as a plain measurement.
+ *
+ * The consequence is a genuine ambiguity, not added doubt: a decoded 349.7 K is
+ * indistinguishable from a true 349.7 K surface and from any surface at or
+ * above 350.0 K, because the ramp paints them the same colour. Such a value is
+ * reported as a one-sided bound. Values inside the finite ramp are returned
+ * unqualified.
+ *
+ * Both caps are physically reachable for a monthly clear-sky daytime composite
+ * — East Antarctic plateau winter runs below 200 K (−73.15 °C), and the hottest
+ * desert surfaces approach the upper cap at midday — so neither end is treated
+ * as model fill and neither is assumed to be the one a given record hit.
+ */
+export const LST_PUBLISHED_RAMP = {
+  colormapDoc: COLORMAP_DOCS.lst,
+  unit: LAND_SURFACE_TEMPERATURE_NATIVE_UNIT,
+  /** Lowest finite bin: [200.00, 200.60). Anything colder shares one colour. */
+  floorBin: { lo: 200, hi: 200.6 },
+  /** Highest finite bin: [349.40, 350.00). Anything hotter shares one colour. */
+  ceilingBin: { lo: 349.4, hi: 350 },
+} as const;
+
+/**
+ * Which way a censored land-surface temperature can be wrong. "upper" means the
+ * true surface is at or below the decoded value; "lower" means at or above it.
+ * Null when the decoded value sits inside the finite ramp.
+ */
+export type LstBoundDirection = "upper" | "lower" | null;
+
+/**
+ * Classify a decoded native-kelvin LST against the published ramp's terminal
+ * bins.
+ *
+ * The direction is safe for a boundary MEAN as well as a single pixel: a capped
+ * cold pixel always decodes warmer than it truly was, so a boundary mean
+ * sitting in the floor bin can only overstate the true mean, and symmetrically
+ * at the ceiling. This never estimates the value behind a cap — that
+ * information is gone from the imagery — it only names which side of the
+ * decoded number the truth lies on.
+ */
+export function lstRampBoundDirection(
+  kelvin: number | null
+): LstBoundDirection {
+  if (kelvin === null || !Number.isFinite(kelvin)) return null;
+  if (kelvin <= LST_PUBLISHED_RAMP.floorBin.hi) return "upper";
+  if (kelvin >= LST_PUBLISHED_RAMP.ceilingBin.lo) return "lower";
+  return null;
+}
+
+/** "≤ " / "≥ " / "" — the prefix a bounded reading is rendered with. */
+function boundPrefix(direction: LstBoundDirection): string {
+  return direction === "upper" ? "≤ " : direction === "lower" ? "≥ " : "";
+}
+
 export interface LstBoundarySampleInput {
   /**
    * The two product months sampled, earlier first. A non-consecutive pair is
@@ -142,7 +210,7 @@ export function lstBoundaryTemperatureReading(
     value:
       later === null
         ? "No usable LST observation"
-        : formatCelsius(toCelsius(later)),
+        : `${boundPrefix(lstRampBoundDirection(later))}${formatCelsius(toCelsius(later))}`,
     detail: detailFor(input, earlier, later),
     kind: "observed-boundary-daytime-land-surface-temperature",
     isForecast: false,
@@ -239,7 +307,23 @@ function comparisonText(
   // identical in kelvin and in degrees Celsius. It is shown on the same scale
   // as the value above it.
   const delta = toCelsius(later) - toCelsius(earlier);
-  const signed = `${delta >= 0 ? "+" : "-"}${formatCelsius(Math.abs(delta))}`;
+  // Either endpoint may be a censored terminal-bin reading rather than a
+  // measurement. A bound on an endpoint carries into the difference with the
+  // sign of the term it sits in: the later month enters positively, the earlier
+  // negatively. When the two surviving bounds oppose, the difference is
+  // unbounded in both directions and is withheld rather than shown as a number
+  // that would read as a measured change.
+  const push =
+    boundPush(lstRampBoundDirection(later)) -
+    boundPush(lstRampBoundDirection(earlier));
+  const opposed =
+    boundPush(lstRampBoundDirection(later)) !== 0 &&
+    boundPush(lstRampBoundDirection(earlier)) !== 0 &&
+    push === 0;
+  if (opposed) {
+    return `difference with ${earlierLabel} withheld (both months decoded into an open end bin of the published ramp, and their bounds oppose)`;
+  }
+  const signed = `${push > 0 ? "≥ " : push < 0 ? "≤ " : ""}${delta >= 0 ? "+" : "-"}${formatCelsius(Math.abs(delta))}`;
   // The panel attaches no climatological baseline, and a one-month step in
   // surface temperature is dominated by the annual cycle at most latitudes, so
   // the difference is never presentable as a departure from normal.
@@ -247,6 +331,15 @@ function comparisonText(
     ? " (annual cycle not removed)"
     : "";
   return `${signed} vs ${earlierLabel}${seasonal}`;
+}
+
+/**
+ * Which way a censored endpoint pushes the true value relative to the decoded
+ * one: +1 when the truth is at or above it, −1 when at or below, 0 when the
+ * value is inside the finite ramp and needs no bound.
+ */
+function boundPush(direction: LstBoundDirection): number {
+  return direction === "lower" ? 1 : direction === "upper" ? -1 : 0;
 }
 
 function usableKelvin(value: number | null): number | null {
