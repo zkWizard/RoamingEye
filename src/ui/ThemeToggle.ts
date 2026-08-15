@@ -49,6 +49,8 @@ export class ThemeToggle {
   /** Reflect the current theme everywhere: <html>, the button, and the caller. */
   private apply(): void {
     document.documentElement.setAttribute("data-theme", this.theme);
+    // After the attribute, so `--bg` already resolves to the new palette.
+    syncThemeColor();
 
     const target = nextTheme(this.theme);
     this.button.innerHTML = this.theme === "dark" ? SUN_ICON : MOON_ICON;
@@ -58,6 +60,45 @@ export class ThemeToggle {
 
     this.onChange?.(this.theme);
   }
+}
+
+/**
+ * Point the browser's own chrome — a phone's address bar, the desktop tab strip
+ * — at the theme the user is actually in.
+ *
+ * index.html ships two `theme-color` tags keyed to `prefers-color-scheme` so the
+ * bar is right on the very first paint, before any script runs. That guess only
+ * holds while the OS and the app agree: pick light on a dark-preferring phone
+ * and the bar stays near-black above a pale page. It is the one piece of UA
+ * chrome `color-scheme` can't reach, because it is painted outside the page.
+ *
+ * So once the real theme is known we take ownership: collapse those tags to a
+ * single one and colour it from `--bg`, the same custom property that paints the
+ * page — the bar then follows the stylesheet instead of drifting from it.
+ */
+function syncThemeColor(): void {
+  const bg = getComputedStyle(document.documentElement)
+    .getPropertyValue("--bg")
+    .trim();
+  // No stylesheet resolved yet: leave the static tags alone rather than
+  // blanking the colour outright.
+  if (!bg) return;
+
+  const tags = [
+    ...document.head.querySelectorAll<HTMLMetaElement>(
+      'meta[name="theme-color"]'
+    ),
+  ];
+  // The browser honours the FIRST tag whose media matches, so the media-keyed
+  // pair would outrank a new one on document order alone — keep one, drop the
+  // rest, and strip the media query off the survivor.
+  const owned =
+    tags.shift() ?? document.head.appendChild(document.createElement("meta"));
+  for (const stale of tags) stale.remove();
+
+  owned.name = "theme-color";
+  owned.removeAttribute("media");
+  owned.content = bg;
 }
 
 // localStorage can throw (private mode, disabled cookies); never let that break

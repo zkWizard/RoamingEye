@@ -36,7 +36,11 @@
     />
 
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <!-- Browser chrome color, per color scheme -->
+    <!-- Browser chrome colour for the first paint only, guessed from the OS
+         preference because no script has run yet — the same fallback the theme
+         resolver uses. ThemeToggle collapses these two into one tag keyed to
+         the theme actually in force, so the bar stops tracking the OS the
+         moment the user's own choice is known. -->
     <meta
       name="theme-color"
       content="#05070d"

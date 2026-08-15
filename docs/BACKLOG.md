@@ -19,13 +19,6 @@ take one directly when no Owner's pick applies to its domain.
 
 ## Agent-verified candidates
 
-- [ ] **The `theme-color` meta tracks the OS, not the app.** `index.html` keys
-      its two `theme-color` tags to `prefers-color-scheme`, so a phone browser's
-      address bar stays near-black (`#05070d`) when someone on a dark-preferring
-      OS switches the app to light — the one piece of UA chrome that
-      `color-scheme` (#955) cannot reach, since it is painted outside the page.
-      The fix is to let `ThemeToggle.apply()` own a single `theme-color` tag the
-      way it already owns `data-theme`. _Found while landing #955._
 - [ ] **Sub-WCAG tap targets** (2.2 AA 2.5.8 wants ≥24×24; mobile guidance
       44×44). `.hint__shortcuts` is 21.6px — the smallest control in the app.
       Timeline steppers are 26×26 at 390px with centres 31.6px apart; the
@@ -46,6 +39,16 @@ take one directly when no Owner's pick applies to its domain.
 
 <!-- The shipping PR moves its item here, with the PR number. -->
 
+- [x] **The `theme-color` meta tracked the OS, not the app.** (#956) The two
+      tags in `index.html` were keyed to `prefers-color-scheme`, so a phone
+      browser's address bar stayed near-black when someone on a dark-preferring
+      OS switched the app to light — the one piece of UA chrome `color-scheme`
+      (#955) cannot reach, since it is painted outside the page. `ThemeToggle`
+      now owns the tag the way it already owns `data-theme`: on every apply it
+      collapses the pair to a single media-less tag and colours it from `--bg`,
+      so the bar follows the stylesheet rather than a second hardcoded copy of
+      the palette. The static pair stays as the pre-boot first-paint guess,
+      which is the same OS fallback the theme resolver uses.
 - [x] **Declare `color-scheme: light`/`dark` per theme.** (#955) The page
       declared none, so every widget the browser paints for itself — the
       scrollbars on the layer list, search results, toolbar and modal bodies,
