@@ -370,6 +370,14 @@ export function subductionPolarityText(
  * they are source strings, not normalized names, and several embed their own
  * punctuation. At most two are named, because a wide extent can match eleven.
  *
+ * Naming two of many is only a "most often" claim when the pair really is ahead
+ * of everything left out. Credit counts run over a handful of matched
+ * boundaries, so ties across the naming cut are ordinary: a Sumatra-sized
+ * extent can match three boundaries carrying three different credits, one
+ * apiece, where no credit is used more than any other and the alphabetical
+ * tie-break alone decides which two appear. The sentence therefore drops the
+ * superlative unless the second named credit is strictly ahead of the third.
+ *
  * Returns null when nothing matched or when no matched boundary carried a
  * credit at all, so the panel never implies a credit it was not given.
  */
@@ -385,9 +393,16 @@ export function digitizationCreditText(
 
   const named = tally.slice(0, 2).map((entry) => `"${entry.citation}"`);
   const credits = named.length === 1 ? named[0] : `${named[0]} and ${named[1]}`;
+  // "most often" claims the two named are used more than the ones left out.
+  // Credits are counted over a handful of matched boundaries, so exact ties are
+  // ordinary rather than rare, and the alphabetical tie-break in creditTally
+  // then decides which of several equally-used credits gets named. Say "most
+  // often" only when the naming cut falls on a strict drop; otherwise name the
+  // same two without ranking them.
+  const namedAreMostUsed = tally.length > 2 && tally[1].count > tally[2].count;
   const attribution =
     tally.length > 2
-      ? `the matched linework here carries ${tally.length} distinct source credits, most often ${credits}`
+      ? `the matched linework here carries ${tally.length} distinct source credits, ${namedAreMostUsed ? "most often" : "including"} ${credits}`
       : `the matched linework here is credited to ${credits}`;
   // Only stated when some matched boundary does carry a credit: an entirely
   // uncredited match returns null above rather than reporting a shortfall.
