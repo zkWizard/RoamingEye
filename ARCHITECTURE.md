@@ -136,35 +136,29 @@ lot of confusion:
   the app imports yet. It is real, reviewed, passing code; it simply has no call
   site on the critical path.
 
-Measured at `9622783` (2026-07-28) by walking the import graph from
-`src/main.ts`: **44 of 199 `src/lib` modules are wired, and 155 are staged.**
-Every other source directory (`ui/`, `overlays/`, `scene/`, `textures/`,
-`probe/`) is fully wired.
+Measured at `278a8f4` (2026-08-15) with the committed oracle described below:
+**138 of 284 `src/lib` modules are wired, and 146 are staged.** Every other
+source directory (`ui/`, `overlays/`, `scene/`, `textures/`, `probe/`) is fully
+wired.
 
-The staged set divides in two, and the halves are worth different things to you:
+Most staged modules are imported by nothing but their own unit test; the rest
+form small clusters that import only each other. Nothing in `scripts/`,
+`contract/`, or the e2e suite reaches into the staged set either, so a unit
+test really is the only thing exercising most of it.
 
-- **124 modules are imported by nothing but their own unit test.** Each is a
-  self-contained function waiting for a call site.
-- **31 more are imported only by other staged modules** — small clusters that
-  already fit together but that the app does not enter. Wiring one of these
-  generally means finding the cluster's entry point rather than a single function.
-
-Nothing in `scripts/`, `contract/`, or the e2e suite reaches into the staged set
-either, so a unit test really is the only thing exercising most of it.
-
-For scale: between 2026-07-27 and 2026-07-28 `src/lib/` grew from 159 modules to
-199 while the wired count went from 42 to 44. The staged set is where almost all
-of the growth lands, which is exactly why this guide documents the wired surface
-module by module and the staged one only by shape.
-
-To check any single module, grep for imports of it:
+To measure, run the committed oracle — it reads vite's sourcemaps, which see
+dynamic `import()` chunks and tree-shaking exactly as the shipped bundle does
+(regex import walks both over-count, via erased `import type` edges, and
+under-count, via missed dynamic-import subtrees):
 
 ```bash
-# Is src/lib/degreeDays.ts wired into the app?
-grep -rn "from '\./degreeDays'" src/ --include='*.ts'
+node scripts/walk-wired.mjs               # build + counts
+node scripts/walk-wired.mjs --list staged # the unreachable module names
 ```
 
-No hits outside its own test file means it is staged.
+Reachable is not the same as exercised: a single constant import keeps a whole
+module "wired" while every function in it tree-shakes away — grep what the
+importer actually uses before believing a module is integrated.
 
 This matters for two reasons. First, **if you edit a staged module, the app's
 behaviour will not change** — the unit tests will prove your logic works, but
@@ -177,11 +171,11 @@ result. If you want to try one, open an issue naming the module first so we can
 agree where it belongs in the interface before you build it.
 
 One practical thing to know before you start: wiring a module in is also the
-moment its code begins counting against the app's 60 kB gzip bundle budget —
-staged code is tree-shaken away, wired code is not — and the app chunk is
-currently sitting on that cap, so the **Build** check will very likely flag it.
-That is not a reason to skip the work; it is a reason to expect the red check
-and raise it in the PR instead of quietly changing the budget. See
+moment its code begins counting against the per-chunk gzip budgets — staged
+code is tree-shaken away, wired code is not. Since the panels were split into
+lazily loaded chunks, the entry chunk usually has a few kB of headroom and the
+lazy panel chunks have plenty; run `npm run build` and read each chunk's
+ok/FAIL word rather than assuming either way. See
 [The bundle budget](.github/CONTRIBUTING.md#the-bundle-budget--read-this-before-adding-code-to-the-app).
 
 ### `src/textures/`

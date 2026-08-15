@@ -53,9 +53,14 @@ export interface FreshnessFamily {
  * together and must extend together — pinning one without the other would
  * show two record ends for a single product.
  *
- * `sst` and `landcover` are deliberately absent: they are the marine and
- * land-cover products' own business, and an unverified layer simply keeps
- * its compiled `latest` exactly as before.
+ * `sst` gained a family on 2026-08-15: its exclusion had left the timeline a
+ * full publication behind for months at a time (compiled Mar 2026 while GIBS
+ * served Apr), and nothing about the marine product makes it less probeable
+ * than the others — the same DescribeDomains ask answers for it.
+ *
+ * `landcover` stays deliberately absent: an annual, categorical product whose
+ * pin moves once a year is cheaper to verify by hand than to guard against a
+ * declared-ahead annual domain; the yearly bump is tracked in docs/BACKLOG.md.
  */
 export const FRESHNESS_FAMILIES: FreshnessFamily[] = [
   { probe: "ndvi", layers: ["ndvi", "evi"], product: "MOD13A3" },
@@ -64,6 +69,7 @@ export const FRESHNESS_FAMILIES: FreshnessFamily[] = [
   { probe: "airtemp", layers: ["airtemp"], product: "M2TMNXSLV" },
   { probe: "aerosol", layers: ["aerosol"], product: "M2TMNXAER" },
   { probe: "precip", layers: ["precip", "soil"], product: "GLDAS_NOAH025_M" },
+  { probe: "sst", layers: ["sst"], product: "MODIS_Aqua_SST_9km_Day" },
 ];
 
 /**
