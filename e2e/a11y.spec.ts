@@ -164,12 +164,13 @@ test("comparison mode is axe-clean", async ({ page }) => {
  * Every keyboard stop must show the app's own focus ring (WCAG 2.4.7).
  *
  * Controls that declare no `:focus-visible` outline inherit the browser
- * default, which resolves to a ~1px near-black ring in BOTH themes because the
- * page declares no `color-scheme`. On the dark glass panels that ring is
- * effectively invisible, so a keyboard user loses their place. axe cannot see
- * this — it does not evaluate rendered focus indicators — hence the explicit
- * walk. Accepts an outline on the stop itself or on the ancestor that carries
- * it via :focus-within (the search field wraps its input in a <label>).
+ * default. The page now declares `color-scheme`, so that default at least
+ * tracks the theme — but it stays a ~1px UA-dependent hairline, which is not a
+ * WCAG-grade indicator on the glass panels. Every stop must therefore paint the
+ * app's own ring. axe cannot see this — it does not evaluate rendered focus
+ * indicators — hence the explicit walk. Accepts an outline on the stop itself
+ * or on the ancestor that carries it via :focus-within (the search field wraps
+ * its input in a <label>).
  */
 test("every keyboard stop paints an app-authored focus ring", async ({
   page,
@@ -367,4 +368,39 @@ test("the toast and offline banner announce, not just appear", async ({
   await toast.locator(".error-toast__close").click();
   await expect(toast).toBeHidden();
   await expect(toast).toHaveAttribute("data-e2e-persistent", "1");
+});
+
+/**
+ * The browser paints widgets we never style: the scrollbars on the layer list,
+ * search results, toolbar and modal bodies; the native <select> popups in the
+ * software finder; the search field's clear button and text caret. Those follow
+ * `color-scheme`, and a page that declares none gets the light rendering — a
+ * white scrollbar on the dark glass, a black-on-white popup over a dark panel.
+ *
+ * It must track `data-theme` (what the user picked), NOT `prefers-color-scheme`
+ * (what their OS prefers) — those disagree the moment anyone uses the toggle,
+ * and headless CI reports light while the app boots dark, so a media-query
+ * implementation would fail exactly here.
+ */
+test("UA widgets follow the chosen theme, not the OS preference", async ({
+  page,
+}) => {
+  const scheme = () =>
+    page.evaluate(() => ({
+      theme: document.documentElement.getAttribute("data-theme"),
+      colorScheme: getComputedStyle(document.documentElement).colorScheme,
+    }));
+
+  // beforeEach booted dark. CI's OS preference is light, so this also proves
+  // the declaration is attribute-driven rather than media-driven.
+  expect(await scheme()).toEqual({ theme: "dark", colorScheme: "dark" });
+
+  // Flipping the theme must carry the UA chrome with it.
+  await page.locator(".theme-toggle").click();
+  await expect.poll(async () => (await scheme()).theme).toBe("light");
+  expect(await scheme()).toEqual({ theme: "light", colorScheme: "light" });
+
+  await page.locator(".theme-toggle").click();
+  await expect.poll(async () => (await scheme()).theme).toBe("dark");
+  expect(await scheme()).toEqual({ theme: "dark", colorScheme: "dark" });
 });

@@ -19,9 +19,13 @@ take one directly when no Owner's pick applies to its domain.
 
 ## Agent-verified candidates
 
-- [ ] **Declare `color-scheme: light`/`dark` per theme.** Root cause of the
-      invisible UA focus ring found in uiux run 3; also fixes UA scrollbars and
-      form controls in dark theme. Needs visual-regression care.
+- [ ] **The `theme-color` meta tracks the OS, not the app.** `index.html` keys
+      its two `theme-color` tags to `prefers-color-scheme`, so a phone browser's
+      address bar stays near-black (`#05070d`) when someone on a dark-preferring
+      OS switches the app to light — the one piece of UA chrome that
+      `color-scheme` (#955) cannot reach, since it is painted outside the page.
+      The fix is to let `ThemeToggle.apply()` own a single `theme-color` tag the
+      way it already owns `data-theme`. _Found while landing #955._
 - [ ] **Sub-WCAG tap targets** (2.2 AA 2.5.8 wants ≥24×24; mobile guidance
       44×44). `.hint__shortcuts` is 21.6px — the smallest control in the app.
       Timeline steppers are 26×26 at 390px with centres 31.6px apart; the
@@ -42,6 +46,17 @@ take one directly when no Owner's pick applies to its domain.
 
 <!-- The shipping PR moves its item here, with the PR number. -->
 
+- [x] **Declare `color-scheme: light`/`dark` per theme.** (#955) The page
+      declared none, so every widget the browser paints for itself — the
+      scrollbars on the layer list, search results, toolbar and modal bodies,
+      the native `<select>` popups in the software finder, the search field's
+      clear button and caret, and the default focus ring — rendered light over
+      the dark glass. It is declared on the `[data-theme]` blocks rather than a
+      `prefers-color-scheme` query, so the UA chrome follows the theme the user
+      picked instead of the one their OS prefers; those disagree the moment
+      anyone touches the toggle. The run-3 focus-ring patch stays: `color-scheme`
+      makes the UA fallback ring theme-appropriate, but it is still a ~1px
+      hairline, so the app's own 2px accent ring remains the WCAG-grade one.
 - [x] **The toast and the offline banner announce, not just appear.** (#954)
       Both already had the right roles (`alert`, `status`), so the original
       "no `aria-live`" framing was off — the real fault was that both were
