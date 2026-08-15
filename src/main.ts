@@ -992,10 +992,13 @@ if (probeEl) {
         if (abort.signal.aborted) return;
         // An area mean over a coastal box averages only the pixels that
         // carried SST; say what share of the box those were. A point probe
-        // has no share to report, so it passes none and stays silent.
+        // has no share to report, so it passes none and stays silent. The
+        // charted series comes too: a month the box returned nothing for
+        // reports a zero share, and the mean never saw it.
         const sstSupportNote = averagedSstSupportNote(
           layer.id,
           "sampled-area",
+          values,
           mode === "area" ? validFractions : null
         );
         // The same question for the vegetation indices, whose undrawn pixels
@@ -1287,6 +1290,7 @@ if (probeEl) {
         const sstSupportNote = averagedSstSupportNote(
           layer.id,
           "drawn-region",
+          values,
           validFractions
         );
         // That share says how much of the box returned pixels; it cannot say
