@@ -246,7 +246,14 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     wmts: { set: "1km", maxLevel: 6, ext: "png" },
     start: { year: 2000, month: 3 },
     unpublished: MOD13A3_UNPUBLISHED_MONTHS,
-    description: "Vegetation greenness — the classic seasonal-cycle signal.",
+    // Named gates, not a flourish: a MOD13A3 month is the highest eligible
+    // observation of its compositing window, so calling this "the classic
+    // seasonal-cycle signal" invited reading the curve as the seasonal cycle of
+    // greenness — the one reading the selection rule bends.
+    // `vegetationCaptionConstraintOmissions` keeps this caption in step with
+    // `VEGETATION_OBSERVING_CONSTRAINTS`.
+    description:
+      "Greenness — clear-sky max-value composite, not a monthly mean.",
   },
   evi: {
     id: "evi",
@@ -262,8 +269,11 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     wmts: { set: "1km", maxLevel: 6, ext: "png" },
     start: { year: 2000, month: 3 },
     unpublished: MOD13A3_UNPUBLISHED_MONTHS,
+    // No "max-value" here, deliberately: the composite selects on NDVI and this
+    // layer inherits the kept observation, so an EVI maximum is an inequality
+    // that does not hold. See the phrase table's note.
     description:
-      "Enhanced vegetation index — less saturated over dense canopy.",
+      "Enhanced index, less canopy saturation — clear-sky composite.",
   },
   lst: {
     id: "lst",

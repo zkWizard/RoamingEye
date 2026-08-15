@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   LAND_SURFACE_TEMPERATURE_SOURCE,
   LST_PLACE_METRIC,
+  LST_PUBLISHED_RAMP,
   lstBoundaryTemperatureReading,
+  lstRampBoundDirection,
   unavailableLstBoundaryReading,
   type LstBoundarySampleInput,
 } from "./lstPlaceInsight";
+import { PROBE_SCALES } from "./probe";
 import { LAYERS } from "./timeline";
 import { PLACE_OBSERVATION_NATIVE_UNITS } from "./placeObservationExport";
 import { PLACE_COLORMAP_DOCS } from "./placeInsights";
@@ -217,5 +220,86 @@ describe("land-surface temperature coverage on the place panel", () => {
 
   it("exports the product in its native kelvin, not the card's Celsius", () => {
     expect(PLACE_OBSERVATION_NATIVE_UNITS.lst).toBe("K");
+  });
+});
+
+describe("open end caps on the published LST ramp", () => {
+  it("pins the terminal bins to the scale the probe decodes against", () => {
+    // The published ramp's closed span and the probe scale are the same window;
+    // if either drifts, the bins below would censor the wrong values silently.
+    expect(LST_PUBLISHED_RAMP.floorBin.lo).toBe(PROBE_SCALES.lst.min);
+    expect(LST_PUBLISHED_RAMP.ceilingBin.hi).toBe(PROBE_SCALES.lst.max);
+    expect(LST_PUBLISHED_RAMP.unit).toBe(PROBE_SCALES.lst.unit);
+  });
+
+  it("leaves a value inside the finite ramp unqualified", () => {
+    // Added doubt the colormap does not justify would be its own defect.
+    expect(lstRampBoundDirection(301.65)).toBeNull();
+    expect(lstBoundaryTemperatureReading(sample()).value).toBe("28.5 °C");
+  });
+
+  it("reports a ceiling-bin month as a lower bound, not a measurement", () => {
+    // 349.7 K is indistinguishable from any surface at or above the 350.0 K
+    // cap: GIBS paints them the same colour, 3 RGB units apart.
+    expect(lstRampBoundDirection(349.7)).toBe("lower");
+    const reading = lstBoundaryTemperatureReading(
+      sample({ observedValues: [295.15, 349.7] })
+    );
+    expect(reading.value).toBe("≥ 76.6 °C");
+    // The native value is untouched — nothing here estimates past the cap.
+    expect(reading.observedValueK).toBe(349.7);
+  });
+
+  it("reports a floor-bin month as an upper bound", () => {
+    expect(lstRampBoundDirection(200.3)).toBe("upper");
+    expect(
+      lstBoundaryTemperatureReading(sample({ observedValues: [295.15, 200.3] }))
+        .value
+    ).toBe("≤ -72.8 °C");
+  });
+
+  it("carries an endpoint's bound into the month-over-month difference", () => {
+    // Later month censored high: the true rise is at least the shown one.
+    expect(
+      lstBoundaryTemperatureReading(sample({ observedValues: [295.15, 349.7] }))
+        .detail
+    ).toContain("≥ +54.6 °C vs Feb 2026");
+    // Earlier month censored high pushes the difference the other way.
+    expect(
+      lstBoundaryTemperatureReading(sample({ observedValues: [349.7, 295.15] }))
+        .detail
+    ).toContain("≤ -54.6 °C vs Feb 2026");
+  });
+
+  it("withholds the difference when both months sit in the same cap", () => {
+    // Two ceiling-bin months are each a lower bound, so the true change can run
+    // either way: the shown -0.2 °C could equally be a large warming.
+    const reading = lstBoundaryTemperatureReading(
+      sample({ observedValues: [349.9, 349.7] })
+    );
+    expect(reading.detail).toContain("difference with Feb 2026 withheld");
+    // A withheld comparison must never degrade into a bare signed number.
+    expect(reading.detail).not.toMatch(/[+-]\d+\.\d+ °C vs/);
+    // The value itself is still shown, still bounded.
+    expect(reading.value).toBe("≥ 76.6 °C");
+
+    // Symmetrically at the floor.
+    expect(
+      lstBoundaryTemperatureReading(sample({ observedValues: [200.1, 200.3] }))
+        .detail
+    ).toContain("difference with Feb 2026 withheld");
+  });
+
+  it("bounds the difference when opposite caps push the same way", () => {
+    // Earlier at the floor (true value at or below) and later at the ceiling
+    // (at or above) both push the difference up — a bound, not a withholding.
+    expect(
+      lstBoundaryTemperatureReading(sample({ observedValues: [200.3, 349.7] }))
+        .detail
+    ).toContain("≥ +149.4 °C vs Feb 2026");
+    expect(
+      lstBoundaryTemperatureReading(sample({ observedValues: [349.7, 200.3] }))
+        .detail
+    ).toContain("≤ -149.4 °C vs Feb 2026");
   });
 });

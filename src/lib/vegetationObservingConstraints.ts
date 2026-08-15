@@ -406,3 +406,111 @@ export function vegetationSamplingIdentityCsvHeaders(
     samplingDirectionHeader(layerId),
   ];
 }
+
+/**
+ * Surface forms that count as stating a constraint in the rendered caption, or
+ * `null` for one that layer's caption is not required to carry.
+ *
+ * This mirrors `sstCaptionConstraintOmissions` and `lstCaptionConstraintOmissions`
+ * deliberately. Both thermal captions were corrected to name the gates that
+ * decide which moments their monthly value describes; the two vegetation
+ * captions named none of theirs, even though a vegetation month is the one
+ * reduction in the app that is not an average at all. The NDVI caption went
+ * further and called the layer "the classic seasonal-cycle signal", which
+ * invites reading the month-to-month curve as the seasonal cycle of greenness —
+ * the one reading the selection rule bends.
+ *
+ * `maximum-value-selection` is `null` for EVI only, and not for want of room:
+ * the composite's selection is made on NDVI and the kept observation merely
+ * supplies its EVI, so a caption claiming an EVI maximum would assert an
+ * inequality that does not hold for this layer. Naming the selection honestly
+ * needs more words than a one-line caption has, and the probe status line and
+ * the exported CSV already carry it in full.
+ *
+ * Keyed by layer *and* constraint id on purpose: adding a fourth constraint, or
+ * a third vegetation layer, fails to compile until someone decides whether that
+ * caption must carry it.
+ */
+const VEGETATION_CAPTION_CONSTRAINT_PHRASES: Record<
+  VegetationObservingConstraintLayerId,
+  Record<VegetationObservingConstraintId, readonly string[] | null>
+> = {
+  ndvi: {
+    "clear-sky-optical-only": [
+      "clear-sky",
+      "clear sky",
+      "cloud-free",
+      "cloud-screened",
+    ],
+    "maximum-value-selection": [
+      "max-value",
+      "maximum-value",
+      "maximum value",
+      "highest",
+    ],
+    "composite-not-monthly-mean": ["composite"],
+  },
+  evi: {
+    "clear-sky-optical-only": [
+      "clear-sky",
+      "clear sky",
+      "cloud-free",
+      "cloud-screened",
+    ],
+    "maximum-value-selection": null,
+    "composite-not-monthly-mean": ["composite"],
+  },
+};
+
+/** One constraint the rendered caption for a vegetation layer fails to state. */
+export interface VegetationCaptionOmission {
+  layerId: VegetationObservingConstraintLayerId;
+  constraintId: VegetationObservingConstraintId;
+  /** The product property the caption left out, verbatim from the table. */
+  constraint: string;
+  /** What omitting it lets a reader assume, verbatim from the table. */
+  implication: string;
+  reason: string;
+}
+
+/**
+ * Which declared observing constraints the shipped caption for a vegetation
+ * layer does not state.
+ *
+ * Limits of the check (it is a copy audit, nothing more):
+ *  - It matches declared surface forms. A clean audit means the caption states
+ *    the *checked* gates; it is not evidence the caption is complete or that
+ *    any other wording in it is accurate.
+ *  - It reads only the caption. It cannot confirm what the layer renders, and
+ *    it asserts no magnitude for any gate — those stay where
+ *    `VEGETATION_OBSERVING_CONSTRAINTS` puts them, and a direction is asserted
+ *    there for NDVI's selection alone.
+ *  - Nothing about vegetation cover, biomass, condition, habitat, ecological
+ *    health, drought or causation follows from a stated or an omitted gate.
+ */
+export function vegetationCaptionConstraintOmissions(
+  layerId: VegetationObservingConstraintLayerId,
+  caption: string = LAYERS[layerId].description
+): VegetationCaptionOmission[] {
+  const haystack = caption.toLowerCase();
+  return VEGETATION_OBSERVING_CONSTRAINTS[layerId]
+    .filter((entry) => {
+      const phrases = VEGETATION_CAPTION_CONSTRAINT_PHRASES[layerId][entry.id];
+      return phrases !== null && !phrases.some((p) => haystack.includes(p));
+    })
+    .map((entry) => ({
+      layerId,
+      constraintId: entry.id,
+      constraint: entry.constraint,
+      implication: entry.implication,
+      reason:
+        "The caption is the most-read claim the app makes about this layer, and it is the only surface a reader meets without a gesture; a compositing gate left out of it reads as a gate that does not apply.",
+    }));
+}
+
+/** One-line rendering of an omission, for a test failure message. */
+export function formatVegetationCaptionOmission(
+  omission: VegetationCaptionOmission
+): string {
+  return `${omission.layerId}: caption omits ${omission.constraintId} — the product is ${omission.constraint}, so ${omission.implication}; ${omission.reason}`;
+}
