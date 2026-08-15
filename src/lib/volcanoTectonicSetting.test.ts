@@ -5,6 +5,7 @@ import { parseVolcanoDataset } from "./volcanoes";
 import {
   CRUSTAL_THICKNESS_CLASSES,
   TECTONIC_SETTING_CLASSES,
+  attributedTectonicSettingLabel,
   crustalThicknessBasisText,
   parseVolcanoTectonicSetting,
   tectonicSettingLabel,
@@ -135,6 +136,51 @@ describe("tectonicSettingLabel", () => {
     expect(tectonicSettingLabel(parseVolcanoTectonicSetting(null))).toBe(
       "tectonic setting not recorded"
     );
+  });
+});
+
+describe("attributedTectonicSettingLabel", () => {
+  it("credits GVP for a setting the catalog supplied", () => {
+    expect(
+      attributedTectonicSettingLabel(
+        parseVolcanoTectonicSetting(
+          "Subduction zone / Continental crust (> 25 km)"
+        )
+      )
+    ).toBe("GVP setting: subduction zone, continental crust");
+  });
+
+  it("credits GVP for text the parser could only retain verbatim", () => {
+    // An unreadable half is still the catalog's wording, so it is exactly the
+    // case that most needs saying whose words these are.
+    expect(
+      attributedTectonicSettingLabel(
+        parseVolcanoTectonicSetting("Hotspot chain / Transitional crust")
+      )
+    ).toBe("GVP setting: Hotspot chain, Transitional crust");
+  });
+
+  it("attributes no absence to the catalog", () => {
+    expect(
+      attributedTectonicSettingLabel(parseVolcanoTectonicSetting(null))
+    ).toBe("tectonic setting not recorded");
+    expect(
+      attributedTectonicSettingLabel(parseVolcanoTectonicSetting(""))
+    ).not.toContain("GVP");
+  });
+
+  it("only adds the credit — the phrase itself is unchanged", () => {
+    for (const raw of [
+      "Subduction zone / Oceanic crust (< 15 km)",
+      "Intraplate / Crustal thickness unknown",
+      "Rift zone",
+      null,
+    ]) {
+      const parsed = parseVolcanoTectonicSetting(raw);
+      expect(attributedTectonicSettingLabel(parsed)).toContain(
+        tectonicSettingLabel(parsed)
+      );
+    }
   });
 });
 

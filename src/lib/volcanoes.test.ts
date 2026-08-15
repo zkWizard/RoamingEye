@@ -267,7 +267,10 @@ describe("volcanoHoverLabel", () => {
     expect(label).not.toContain("-55");
   });
 
-  it("names the GVP tectonic setting recorded for the site", () => {
+  it("names the GVP tectonic setting recorded for the site, and credits GVP", () => {
+    // Every other item on this line is RoamingEye's own reading of the record,
+    // so the retained catalog judgement says whose it is rather than reading as
+    // a setting the app derived from where the marker sits.
     expect(
       volcanoHoverLabel(
         parseVolcanoList([
@@ -277,8 +280,14 @@ describe("volcanoHoverLabel", () => {
         ])[0]
       )
     ).toBe(
-      "Etna · Stratovolcano · Italy · summit elevation 3357 m · last erupted 2025 · subduction zone, continental crust"
+      "Etna · Stratovolcano · Italy · summit elevation 3357 m · last erupted 2025 · GVP setting: subduction zone, continental crust"
     );
+  });
+
+  it("credits no catalog when GVP recorded no setting", () => {
+    const label = volcanoHoverLabel(parseVolcanoList([volcano()])[0]);
+    expect(label).toContain("tectonic setting not recorded");
+    expect(label).not.toContain("GVP");
   });
 
   it("explains GVP multiplicity and uncertainty qualifiers", () => {

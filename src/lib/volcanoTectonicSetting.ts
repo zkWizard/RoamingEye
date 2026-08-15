@@ -158,14 +158,22 @@ export function parseVolcanoTectonicSetting(
 }
 
 /**
+ * What a readout says when the catalog supplied no setting this parser could
+ * read. Shared by both label builders below so the attributed form can detect
+ * "there is nothing of GVP's here to credit" without matching a literal that
+ * one of them might later reword.
+ */
+const NOT_RECORDED_TEXT = "tectonic setting not recorded";
+
+/**
  * Short user-facing phrase for a parsed label. Unrecognized halves fall back
  * to the verbatim source text so nothing GVP said is hidden from the reader.
  */
 export function tectonicSettingLabel(parsed: VolcanoTectonicSetting): string {
-  if (parsed.setting === "not-supplied") return "tectonic setting not recorded";
+  if (parsed.setting === "not-supplied") return NOT_RECORDED_TEXT;
   const setting =
     parsed.setting === "unrecognized"
-      ? (parsed.settingText ?? "tectonic setting not recorded")
+      ? (parsed.settingText ?? NOT_RECORDED_TEXT)
       : SETTING_TEXT[parsed.setting];
   const crust =
     parsed.crust === "unrecognized"
@@ -174,6 +182,36 @@ export function tectonicSettingLabel(parsed: VolcanoTectonicSetting): string {
         ? null
         : CRUST_TEXT[parsed.crust];
   return crust === null ? setting : `${setting}, ${crust}`;
+}
+
+/**
+ * {@link tectonicSettingLabel} with the catalog that assigned it named.
+ *
+ * The bare phrase — "subduction zone, continental crust" — carries nothing
+ * saying whose assignment it is. On the place panel that field is already
+ * rendered as "GVP tectonic setting: …"; on the globe tooltip it is the last
+ * item of a `·`-joined line whose other items genuinely are RoamingEye's
+ * readings of the record (a decoded type qualifier, a signed elevation read as
+ * a depth, a derived eruption year), so an unattributed setting there reads as
+ * a classification this app drew from the marker's position. That is precisely
+ * the inference `plateBoundaryContext` refuses to make in prose.
+ *
+ * Deliberately terser than the panel's "GVP tectonic setting: ". The tooltip is
+ * `white-space: nowrap` and `HoverInspector` can only flip it to the other side
+ * of the cursor, so a line wider than the viewport is clipped rather than
+ * wrapped; the longest bundled record already renders 179 characters. The value
+ * itself names the setting, so the field name adds width without adding
+ * meaning — what was missing is the credit.
+ *
+ * Returns the unattributed phrase when the parser read no setting at all:
+ * there is nothing of GVP's to credit, and "GVP setting: tectonic setting not
+ * recorded" would attribute an absence to the catalog.
+ */
+export function attributedTectonicSettingLabel(
+  parsed: VolcanoTectonicSetting
+): string {
+  const label = tectonicSettingLabel(parsed);
+  return label === NOT_RECORDED_TEXT ? label : `GVP setting: ${label}`;
 }
 
 const SETTING_TEXT: Record<
