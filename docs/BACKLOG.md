@@ -19,9 +19,6 @@ take one directly when no Owner's pick applies to its domain.
 
 ## Agent-verified candidates
 
-- [ ] **`.error-toast` and `.offline-banner` have no `aria-live`** — a toast
-      nobody hears. Verify what announces today; add live regions where
-      warranted. _(uiux notebook, run 4.)_
 - [ ] **Declare `color-scheme: light`/`dark` per theme.** Root cause of the
       invisible UA focus ring found in uiux run 3; also fixes UA scrollbars and
       form controls in dark theme. Needs visual-regression care.
@@ -45,6 +42,14 @@ take one directly when no Owner's pick applies to its domain.
 
 <!-- The shipping PR moves its item here, with the PR number. -->
 
+- [x] **The toast and the offline banner announce, not just appear.** (#954)
+      Both already had the right roles (`alert`, `status`), so the original
+      "no `aria-live`" framing was off — the real fault was that both were
+      toggled with `hidden`, and a `display: none` live region is outside the
+      accessibility tree. The banner's text was assigned once at construction
+      and never changed again, so it could never announce; the toast wrote its
+      message before unhiding. Both roots now stay rendered and the message is
+      inserted into them, which is the mutation screen readers act on.
 - [x] **Say what "current" means, per layer.** (#953) The timeline status row
       now carries a resting caption naming the layer's record end and how far
       behind the calendar it sits — "Newest data: Jun 2026 · 2 months behind
