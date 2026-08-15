@@ -46,6 +46,7 @@ import {
 import { emptyAtmosphereProbeNote } from "./lib/atmosphereProbeDomain";
 import { marineAveragedSstCensoringCsvHeaders } from "./lib/marineAveragedSstCensoring";
 import { averagedSstSupportNote } from "./lib/marineAveragedSstSupport";
+import { sstNativeSupportNote } from "./lib/sstNativeSupport";
 import { vegetationAveragedSupportNote } from "./lib/vegetationAveragedSupport";
 import { snowAveragedSupportNote } from "./lib/snowAveragedSupport";
 import { emptyMarineProbeNote } from "./lib/marineProbeDomain";
@@ -1241,6 +1242,20 @@ if (probeEl) {
           "drawn-region",
           validFractions
         );
+        // That share says how much of the box returned pixels; it cannot say
+        // how many independent source values those pixels carry. A region may
+        // be drawn as small as 0.2° a side, and above ~66° that is narrower
+        // than one ~9 km L3 cell — so the charted mean can rest on a single
+        // retrieval whose footprint extends outside the box the header names.
+        // The place panel states this for a searched boundary; the series
+        // surface did not. Silent unless the geometry actually qualifies the
+        // mean, and only where there is a charted mean to qualify.
+        const sstNativeNote = sstNativeSupportNote(
+          layer.id,
+          "drawn-region",
+          bounds,
+          values
+        );
         // And the same for the vegetation indices. GIBS leaves every value
         // below the ramp start undrawn, so a box's water, snow, ice and cloud
         // pixels are rejected rather than averaged in — and those are exactly
@@ -1389,9 +1404,16 @@ if (probeEl) {
             emptySnowProbeNote(layer.id, values, snowSupportNote) ??
             emptyVegetationProbeNote(layer.id, values, vegetationSupportNote) ??
             emptySoilProbeNote(layer.id, values),
-          // Each note is gated on its own layer, so at most one is ever a
-          // string — the fallback picks the one that spoke.
-          sstSupportNote ?? vegetationSupportNote ?? snowSupportNote,
+          // Each note is gated on its own layer, so at most one layer's notes
+          // are ever strings — the fallback picks the one that spoke. SST is
+          // the one layer with two clauses on this axis: the share it covered
+          // and the source cells it could resolve. They answer different
+          // questions about the same box, so both are carried, in that order.
+          // The native clause is null for an empty series, so the absence
+          // line built from this argument reads exactly as it did before.
+          [sstSupportNote, sstNativeNote].filter(Boolean).join(" · ") ||
+            vegetationSupportNote ||
+            snowSupportNote,
           // Every drawn-region value is a weighted mean of per-pixel decodes.
           "drawn-region"
         );

@@ -1,7 +1,7 @@
 import type { Bounds } from "./imagery";
 import { SEA_SURFACE_TEMPERATURE_COVERAGE_SOURCE } from "./marineCoverage";
 import { parseNativeGrid } from "./spatialSupport";
-import type { DatasetRef } from "./timeline";
+import type { DatasetRef, LayerId } from "./timeline";
 
 /**
  * Provenance-first native-grid adequacy descriptor for a boundary-mean SST.
@@ -54,6 +54,16 @@ const MIN_LATITUDE_COSINE = 0.15;
 
 export type SstNativeSupportStatus =
   "graded" | "unknown-native-grid" | "invalid-bounds";
+
+/**
+ * Which footprint a qualifying note is spoken about. The same geometry bound
+ * qualifies two surfaces that name their footprint differently: the place panel
+ * searches a named boundary, the probe charts a box the user drew. The
+ * `sampled-area` footprint of `marineAveragedSstSupport` is deliberately absent
+ * — that box is a fixed ~1°, which under the mid-latitude cosine floor still
+ * spans more than one cell each way, so it never reaches a qualifying state.
+ */
+export type SstNativeSupportFootprint = "searched-boundary" | "drawn-region";
 
 export type SstNativeSupportClass =
   /** Narrower than one native cell in at least one direction. */
@@ -232,9 +242,15 @@ export function describeSstNativeSupport(
  * The citation is deliberately not repeated here: this is a fragment for a line
  * that already names the cited product, and `statedGrid` is read from that same
  * title. The full `DatasetRef` stays on the summary for structured consumers.
+ *
+ * `footprint` names the geometry the note is spoken about and changes nothing
+ * else; it defaults to the searched boundary the place panel passes, so the
+ * card's wording is unchanged. The summary's own `statement` keeps the
+ * boundary phrasing either way — it is a structured field, not this fragment.
  */
 export function qualifyingSstNativeSupportNote(
-  summary: SstNativeSupportSummary
+  summary: SstNativeSupportSummary,
+  footprint: SstNativeSupportFootprint = "searched-boundary"
 ): string | null {
   if (summary.status !== "graded") return null;
   const { nativeCellExceedsBoundary, meanBoundedBySingleCell } = summary;
@@ -244,14 +260,56 @@ export function qualifyingSstNativeSupportNote(
   // from the parsed grid — but the fallback keeps the sentence honest rather
   // than asserting a token that was never read from the citation.
   const grid = summary.statedGrid ?? "native";
+  const where = footprintLabel(footprint);
   if (nativeCellExceedsBoundary) {
     return meanBoundedBySingleCell
-      ? `searched boundary is narrower than one ${grid} source cell, whose footprint extends beyond it — the mean rests on a single source cell`
-      : `searched boundary is narrower than one ${grid} source cell in one direction, so that cell's footprint extends beyond it`;
+      ? `${where} is narrower than one ${grid} source cell, whose footprint extends beyond it — the mean rests on a single source cell`
+      : `${where} is narrower than one ${grid} source cell in one direction, so that cell's footprint extends beyond it`;
   }
-  return `searched boundary bounds at most ${formatCellBound(
+  return `${where} bounds at most ${formatCellBound(
     summary.boundedCellCount!
   )} ${grid} source cells — the mean cannot rest on more than one independent source measurement`;
+}
+
+/**
+ * The native-support clause a probe series should carry for a footprint it
+ * averaged, or null when nothing qualifies the charted mean.
+ *
+ * Coverage adequacy (`marineAveragedSstSupport`) reports what SHARE of the
+ * footprint returned usable pixels; it cannot say how many independent source
+ * values those pixels carry. A drawn region may be as small as 0.2° a side
+ * (`boundsUsable` in lib/probe.ts), and above roughly 66° latitude 0.2° of
+ * longitude is narrower than one ~9 km L3 cell — so a region chart can print a
+ * "mean" that rests on a single retrieval whose footprint extends outside the
+ * box the panel header names. The place panel states this for a searched
+ * boundary; the series surface did not.
+ *
+ * Gated the same way as the place card, for the same reasons:
+ *  - non-SST layers pass through silently — this bound describes the cited SST
+ *    product's grid and nothing else; and
+ *  - a series in which no month produced a value gets no clause. There is then
+ *    no mean for the geometry to qualify, and the empty-series notes already
+ *    say what happened.
+ * Sampling geometry only: no temperature, condition, or marine-biology claim.
+ */
+export function sstNativeSupportNote(
+  layerId: LayerId,
+  footprint: SstNativeSupportFootprint,
+  bounds: Bounds | null,
+  values: readonly (number | null | undefined)[] | null | undefined
+): string | null {
+  if (layerId !== "sst") return null;
+  const charted = values?.some((value) => Number.isFinite(value)) ?? false;
+  if (!charted) return null;
+  return qualifyingSstNativeSupportNote(
+    summarizeSstNativeSupport(bounds),
+    footprint
+  );
+}
+
+/** How each surface names the footprint the bound was measured over. */
+function footprintLabel(footprint: SstNativeSupportFootprint): string {
+  return footprint === "drawn-region" ? "drawn region" : "searched boundary";
 }
 
 function classifySupport(
