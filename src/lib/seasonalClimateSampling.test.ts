@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CLIMATE_METRICS } from "./climate";
 import { planSeasonalClimateSampling } from "./seasonalClimateSampling";
+import { LAYERS, addMonths } from "./timeline";
 
 describe("seasonal climate sampling plans", () => {
   it("requests only GLDAS-published January observations with source provenance", () => {
@@ -21,7 +22,7 @@ describe("seasonal climate sampling plans", () => {
       layer: { id: "precip" },
       sourceAvailability: {
         firstAvailableMonth: { year: 2000, month: 1 },
-        availableThrough: { year: 2026, month: 1 },
+        availableThrough: LAYERS.precip.latest,
       },
       target: {
         dataMonth: { year: 2026, month: 1 },
@@ -42,14 +43,14 @@ describe("seasonal climate sampling plans", () => {
   });
 
   it("uses each product's own availability rather than another layer's newer month", () => {
-    const precip = planSeasonalClimateSampling("precipitation-rate", {
-      year: 2026,
-      month: 2,
-    });
-    const air = planSeasonalClimateSampling("air-temperature-2m", {
-      year: 2026,
-      month: 3,
-    });
+    // One month past GLDAS's end — and still inside MERRA-2's, which is the
+    // whole point: the newer layer's record must not license this target.
+    const beyondPrecip = addMonths(LAYERS.precip.latest!, 1);
+    const precip = planSeasonalClimateSampling(
+      "precipitation-rate",
+      beyondPrecip
+    );
+    const air = planSeasonalClimateSampling("air-temperature-2m", beyondPrecip);
 
     expect(precip).toMatchObject({
       status: "target-not-yet-published",
@@ -62,7 +63,7 @@ describe("seasonal climate sampling plans", () => {
       status: "ready",
       layer: { id: "airtemp" },
       sourceAvailability: {
-        availableThrough: { year: 2026, month: 3 },
+        availableThrough: LAYERS.airtemp.latest,
       },
     });
   });
