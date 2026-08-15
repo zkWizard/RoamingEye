@@ -19,10 +19,7 @@
       property="og:description"
       content="Scrub through years of monthly NASA satellite data and watch the seasons change across a 3D globe. Open source, open data."
     />
-    <meta
-      property="og:image"
-      content="https://roamingeye.org/social-card.jpg"
-    />
+    <meta property="og:image" content="https://roamingeye.org/og.png" />
     <meta property="og:url" content="https://roamingeye.org/" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="RoamingEye — a 3D Earth you can roam" />
@@ -30,10 +27,7 @@
       name="twitter:description"
       content="Scrub through years of monthly NASA satellite data and watch the seasons change across a 3D globe."
     />
-    <meta
-      name="twitter:image"
-      content="https://roamingeye.org/social-card.jpg"
-    />
+    <meta name="twitter:image" content="https://roamingeye.org/og.png" />
 
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <!-- Browser chrome colour for the first paint only, guessed from the OS
@@ -62,8 +56,12 @@
         role="application"
       ></canvas>
 
-      <header class="overlay overlay--top">
-        <h1 class="brand">Roaming<span>Eye</span></h1>
+      <header class="app-header">
+        <h1 class="brand">
+          <span class="brand__mark" aria-hidden="true"></span>
+          RoamingEye
+        </h1>
+        <p class="brand__descriptor">Planetary data explorer</p>
         <p class="hint">
           Drag to rotate · scrub the timeline · ←/→ keys step months
           <button
@@ -77,27 +75,34 @@
           </button>
         </p>
         <button id="software-link" type="button" class="software-link">
-          Find software
+          Software catalog
         </button>
         <button id="fleet-link" type="button" class="fleet-link">
-          Fleet status
+          Fleet activity
         </button>
         <div id="theme-toggle" class="theme-toggle-mount"></div>
       </header>
 
       <div id="search" class="search"></div>
 
-      <div id="share" class="share"></div>
+      <aside class="explore-rail" aria-label="Exploration tools">
+        <div class="explore-rail__heading">
+          <span>Explore</span>
+          <small>Build your view</small>
+        </div>
 
-      <div id="export"></div>
+        <div id="share" class="share"></div>
 
-      <div id="compare" class="compare"></div>
+        <div id="export"></div>
 
-      <div id="draw"></div>
+        <div id="compare" class="compare"></div>
+
+        <div id="draw"></div>
+
+        <aside id="toolbar" class="toolbar" aria-label="Map overlays"></aside>
+      </aside>
 
       <div id="compare-divider"></div>
-
-      <aside id="toolbar" class="toolbar" aria-label="Map overlays"></aside>
 
       <div id="hover-tooltip" class="hover-tooltip" aria-hidden="true"></div>
 
@@ -107,7 +112,16 @@
 
       <aside id="place-insights"></aside>
 
-      <div class="overlay overlay--bottom">
+      <div class="overlay overlay--bottom data-console">
+        <div class="data-console__heading">
+          <div>
+            <span class="data-console__eyebrow">Time &amp; data</span>
+            <p class="data-console__title">Explore the changing planet</p>
+          </div>
+          <span class="data-console__instruction"
+            >Scrub the record to see what changed</span
+          >
+        </div>
         <div id="controls" class="controls">
           <div id="layer-selector"></div>
           <div id="legend"></div>
