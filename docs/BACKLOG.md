@@ -33,12 +33,12 @@ take one directly when no Owner's pick applies to its domain.
       invisible UA focus ring found in uiux run 3; also fixes UA scrollbars and
       form controls in dark theme. Needs visual-regression care.
 - [ ] **Sub-WCAG tap targets** (2.2 AA 2.5.8 wants ≥24×24; mobile guidance
-      44×44): `.hint__shortcuts` is 21.6px — the smallest control in the app;
-      timeline steppers are 26×26 at 390px with centres 31.6px apart (HUD-safe
-      fix shape already worked out in the uiux notebook: `::after`
-      negative-inset hit expansion, panel height must not change); `Find
-    software`, `Fleet status`, `Copy link`, `Save PNG`, `Imagery URL`,
-      `Compare`, `Draw region`, and the layer trigger are all sub-44 at 390px.
+      44×44). `.hint__shortcuts` is 21.6px — the smallest control in the app.
+      Timeline steppers are 26×26 at 390px with centres 31.6px apart; the
+      HUD-safe fix shape is in the uiux notebook (pseudo-element negative-inset
+      hit expansion — panel height must not change). Also sub-44 at 390px: the
+      "Find software", "Fleet status", "Copy link", "Save PNG", "Imagery URL",
+      "Compare", and "Draw region" buttons plus the layer trigger.
 - [ ] **Land-cover freshness is manual.** MCD12Q1 is annual and excluded from
       the boot probe by design; once a year, verify the new product year
       against GIBS and bump `LAYERS.landcover.latest` (currently 2024).
