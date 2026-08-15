@@ -404,3 +404,51 @@ test("UA widgets follow the chosen theme, not the OS preference", async ({
   await expect.poll(async () => (await scheme()).theme).toBe("dark");
   expect(await scheme()).toEqual({ theme: "dark", colorScheme: "dark" });
 });
+
+/**
+ * `theme-color` paints the chrome AROUND the page — a phone's address bar, the
+ * desktop tab strip — so `color-scheme` cannot reach it. index.html keys its
+ * first-paint guess to `prefers-color-scheme`; once the app knows the real
+ * theme, exactly one tag must survive and it must match `--bg`.
+ *
+ * beforeEach seeds the stored theme dark while headless CI reports an OS
+ * preference of light — the precise case where the two signals disagree, so the
+ * unowned media-keyed pair resolves to the light colour over a dark page.
+ */
+test("browser chrome colour follows the chosen theme, not the OS", async ({
+  page,
+}) => {
+  const chrome = () =>
+    page.evaluate(() => {
+      const tags = [
+        ...document.head.querySelectorAll<HTMLMetaElement>(
+          'meta[name="theme-color"]'
+        ),
+      ];
+      return {
+        count: tags.length,
+        media: tags.map((t) => t.getAttribute("media")),
+        content: tags[0]?.content ?? null,
+        bg: getComputedStyle(document.documentElement)
+          .getPropertyValue("--bg")
+          .trim(),
+      };
+    });
+
+  // One tag, no media query, coloured from the palette actually in force.
+  const dark = await chrome();
+  expect(dark.count).toBe(1);
+  expect(dark.media).toEqual([null]);
+  expect(dark.content).toBe(dark.bg);
+
+  await page.locator(".theme-toggle").click();
+  await expect
+    .poll(async () => (await chrome()).content)
+    .not.toBe(dark.content);
+
+  // The flip re-colours it rather than accumulating a second tag.
+  const light = await chrome();
+  expect(light.count).toBe(1);
+  expect(light.content).toBe(light.bg);
+  expect(light.bg).not.toBe(dark.bg);
+});
