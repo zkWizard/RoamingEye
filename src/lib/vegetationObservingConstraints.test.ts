@@ -4,8 +4,10 @@ import {
   VEGETATION_OBSERVING_CONSTRAINT_LAYER_IDS,
   VEGETATION_OBSERVING_CONSTRAINT_LIMITS,
   VEGETATION_OBSERVING_CONSTRAINT_SOURCES,
+  VEGETATION_OBSERVING_CONSTRAINT_GIBS_LAYERS,
   VEGETATION_SAMPLING_GATE_NOTES,
   probeVegetationSamplingGateClause,
+  vegetationSamplingIdentityCsvHeaders,
 } from "./vegetationObservingConstraints";
 import { LAYERS, LAYER_ORDER } from "./timeline";
 
@@ -180,6 +182,148 @@ describe("probe vegetation sampling-gate clause", () => {
       const clause = probeVegetationSamplingGateClause(id, true);
       expect(clause).not.toMatch(/[.]$/);
       expect(clause).toMatch(/^clear, sunlit days only\b/);
+    }
+  });
+});
+
+describe("vegetationSamplingIdentityCsvHeaders", () => {
+  it("names every constraint the status line carries, for both layers", () => {
+    // The download must not qualify a sampled column less completely than the
+    // status line the reader has already closed. One header per constraint,
+    // keyed by its id, plus the single direction line — so a fourth constraint
+    // cannot ship export-less.
+    for (const id of VEGETATION_OBSERVING_CONSTRAINT_LAYER_IDS) {
+      const headers = vegetationSamplingIdentityCsvHeaders(id);
+      expect(headers).toHaveLength(
+        VEGETATION_OBSERVING_CONSTRAINTS[id].length + 1
+      );
+      for (const entry of VEGETATION_OBSERVING_CONSTRAINTS[id]) {
+        const key = `# ${id}_${entry.id.replace(/-/g, "_")}: `;
+        expect(headers.some((line) => line.startsWith(key))).toBe(true);
+      }
+    }
+  });
+
+  it("states that each row is a selected maximum, not the month's average", () => {
+    // This is the misreading the export exists to prevent: `MOD13A3` is all the
+    // file otherwise says about the product, and a column of dimensionless
+    // index values looks exactly like a monthly mean of greenness.
+    const text = vegetationSamplingIdentityCsvHeaders("ndvi").join("\n");
+    expect(text).toContain("maximum-value composite");
+    expect(text).toContain("highest NDVI");
+    expect(text).toContain("not a time-average of the month's days");
+  });
+
+  it("states the clear-sky gate as a non-random subset of days", () => {
+    // Cloud and snow are seasonal, so the days missing from a composite are not
+    // a random sample of the month.
+    for (const id of VEGETATION_OBSERVING_CONSTRAINT_LAYER_IDS) {
+      const text = vegetationSamplingIdentityCsvHeaders(id).join("\n");
+      expect(text).toContain("clear sunlit snow-free view");
+      expect(text).toContain("non-random subset");
+    }
+  });
+
+  it("asserts a sign for NDVI's selection and none for EVI's", () => {
+    // The one substantive difference between the two exports, and the reason
+    // the direction line is derived from `direction` rather than restated: the
+    // compositing decision is made on NDVI, so only NDVI's kept value is bound
+    // below by the average of its candidates.
+    const ndvi = vegetationSamplingIdentityCsvHeaders("ndvi").join("\n");
+    expect(ndvi).toContain(
+      "# ndvi_sampling_direction: a sign is asserted only"
+    );
+    expect(ndvi).toContain("maximum_value_selection");
+    expect(ndvi).toContain(
+      "cannot sit below the average of the eligible observations"
+    );
+
+    const evi = vegetationSamplingIdentityCsvHeaders("evi").join("\n");
+    expect(evi).toContain(
+      "# evi_sampling_direction: no direction and no magnitude are asserted"
+    );
+    expect(evi).not.toContain("cannot sit below");
+  });
+
+  it("derives the direction line from the `direction` fields, not from prose", () => {
+    // The export must not outlive the field it reports. A layer whose entries
+    // are all `not-asserted` must produce the unsigned line, and one with a
+    // signed entry must name that entry — checked against the data rather than
+    // against a hand-written expectation.
+    for (const id of VEGETATION_OBSERVING_CONSTRAINT_LAYER_IDS) {
+      const signed = VEGETATION_OBSERVING_CONSTRAINTS[id].filter(
+        (entry) => entry.direction !== "not-asserted"
+      );
+      const line = vegetationSamplingIdentityCsvHeaders(id).at(-1) ?? "";
+      expect(line.startsWith(`# ${id}_sampling_direction: `)).toBe(true);
+      expect(line.includes("a sign is asserted only")).toBe(signed.length > 0);
+      for (const entry of signed) {
+        expect(line).toContain(entry.id.replace(/-/g, "_"));
+      }
+    }
+  });
+
+  it("asserts no magnitude anywhere, and no ecological claim", () => {
+    // Same standing prohibition the status line is held to: how far a composite
+    // sits above its candidates' average is not observed by this app, and
+    // nothing about cover, biomass or health follows from a compositing rule.
+    for (const id of VEGETATION_OBSERVING_CONSTRAINT_LAYER_IDS) {
+      const text = vegetationSamplingIdentityCsvHeaders(id).join("\n");
+      // NDVI denies magnitude alone ("no magnitude is asserted anywhere here");
+      // EVI denies it alongside direction ("no direction and no magnitude are
+      // asserted"). Both must deny it, in whichever grammar the line takes.
+      expect(text).toMatch(/no magnitude (is|are) asserted/);
+      expect(text).not.toMatch(
+        /biomass|habitat|ecological health|drought|greening|browning|\d+\s*%/i
+      );
+    }
+  });
+
+  it("obeys the CSV header contract: no delimiter, quote, or line break", () => {
+    // A comma here would tear provenance into ragged cells for every reader
+    // (see csvHeaderText in probe.ts); these lines are not scrubbed on the way
+    // out, so the discipline has to hold at the source.
+    for (const id of VEGETATION_OBSERVING_CONSTRAINT_LAYER_IDS) {
+      for (const line of vegetationSamplingIdentityCsvHeaders(id)) {
+        expect(line.startsWith("# ")).toBe(true);
+        expect(line).not.toMatch(/[,"\r\n]/);
+      }
+    }
+  });
+
+  it("is silent for every layer but the two vegetation indices", () => {
+    for (const id of LAYER_ORDER) {
+      if (
+        (
+          VEGETATION_OBSERVING_CONSTRAINT_LAYER_IDS as readonly string[]
+        ).includes(id)
+      ) {
+        continue;
+      }
+      expect(vegetationSamplingIdentityCsvHeaders(id)).toEqual([]);
+    }
+    expect(vegetationSamplingIdentityCsvHeaders(undefined)).toEqual([]);
+  });
+
+  it("goes silent if a layer is repointed at a different GIBS product", () => {
+    // A stale maximum-value-composite claim attached to a different product
+    // would be worse than no claim at all, and an exported file cannot be
+    // corrected after the fact.
+    for (const id of VEGETATION_OBSERVING_CONSTRAINT_LAYER_IDS) {
+      expect(LAYERS[id].wmsLayer).toBe(
+        VEGETATION_OBSERVING_CONSTRAINT_GIBS_LAYERS[id]
+      );
+    }
+  });
+
+  it("exports exactly when the status line speaks", () => {
+    // The panel/CSV parity invariant: a quantity disclosed on screen and
+    // withheld from the download leaves the two surfaces disagreeing about what
+    // is known, and the file is the one that outlives the session.
+    for (const id of LAYER_ORDER) {
+      const clause = probeVegetationSamplingGateClause(id, true);
+      const headers = vegetationSamplingIdentityCsvHeaders(id);
+      expect(headers.length > 0).toBe(clause !== "");
     }
   });
 });

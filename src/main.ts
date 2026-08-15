@@ -28,6 +28,7 @@ import {
   sstColdEndAccuracyCsvHeaders,
 } from "./lib/sstColdEndAccuracy";
 import { uncalibratedVegetationAccuracyCsvHeaders } from "./lib/vegetationIndexRamp";
+import { vegetationSamplingIdentityCsvHeaders } from "./lib/vegetationObservingConstraints";
 import {
   probeSstExtremeCensoring,
   sstExtremeBoundPrefix,
@@ -1103,10 +1104,20 @@ if (probeEl) {
                 // of two co-equal gates reads as the whole account of which
                 // moments were composited, which is the same failure
                 // sstCaptionConstraintOmissions guards the caption against.
+                //
+                // The vegetation indices state the same gate on screen and were
+                // exporting none of it, though theirs is the one monthly value
+                // in the app that is not an average at all: each row is the
+                // *highest* eligible observation of its compositing window, and
+                // for NDVI that selection rule fixes a sign. A column of
+                // dimensionless index values says none of that. A layer is sst
+                // or lst or a vegetation index or none of them, so only one
+                // product's lists contribute.
                 samplingIdentityHeaders: [
                   ...sstSamplingIdentityCsvHeaders(layer.id),
                   ...sstObservingConstraintCsvHeaders(layer.id),
                   ...lstSamplingIdentityCsvHeaders(layer.id),
+                  ...vegetationSamplingIdentityCsvHeaders(layer.id),
                 ],
                 // And the same for the rows themselves: the status line prints
                 // an inequality in front of every censored statistic, while a
@@ -1377,10 +1388,20 @@ if (probeEl) {
                 // of two co-equal gates reads as the whole account of which
                 // moments were composited, which is the same failure
                 // sstCaptionConstraintOmissions guards the caption against.
+                //
+                // The vegetation indices state the same gate on screen and were
+                // exporting none of it, though theirs is the one monthly value
+                // in the app that is not an average at all: each row is the
+                // *highest* eligible observation of its compositing window, and
+                // for NDVI that selection rule fixes a sign. A column of
+                // dimensionless index values says none of that. A layer is sst
+                // or lst or a vegetation index or none of them, so only one
+                // product's lists contribute.
                 samplingIdentityHeaders: [
                   ...sstSamplingIdentityCsvHeaders(layer.id),
                   ...sstObservingConstraintCsvHeaders(layer.id),
                   ...lstSamplingIdentityCsvHeaders(layer.id),
+                  ...vegetationSamplingIdentityCsvHeaders(layer.id),
                 ],
                 // And the same for the rows themselves: the status line prints
                 // an inequality in front of every censored statistic, while a

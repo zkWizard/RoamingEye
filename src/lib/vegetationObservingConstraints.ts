@@ -249,3 +249,160 @@ export function probeVegetationSamplingGateClause(
   if (!isConstrainedLayer(layerId)) return "";
   return hasReportedStatistics ? VEGETATION_SAMPLING_GATE_NOTES[layerId] : "";
 }
+
+/**
+ * The rendered GIBS layer each constraint set above is asserted for.
+ *
+ * Declared here so the export can refuse to speak if a layer is ever repointed:
+ * the constraints are properties of MOD13A3's compositing algorithm, and an
+ * exported file cannot be corrected after the fact.
+ */
+export const VEGETATION_OBSERVING_CONSTRAINT_GIBS_LAYERS: Record<
+  VegetationObservingConstraintLayerId,
+  string
+> = {
+  ndvi: "MODIS_Terra_L3_NDVI_Monthly",
+  evi: "MODIS_Terra_L3_EVI_Monthly",
+};
+
+/**
+ * Each sampling gate written out for the exported CSV, keyed by layer and then
+ * by constraint id.
+ *
+ * Fuller than the status-line short forms on purpose, for the reason the SST and
+ * LST exports give: an archived file has no display budget, and it is read by
+ * someone who no longer has the status line in front of them. Hand-written
+ * rather than interpolated from `constraint`/`implication` because those carry
+ * commas and a `#` line must not (see the header discipline on `csvHeaderText`
+ * in probe.ts); the doubly-keyed `Record` is what keeps them from drifting apart
+ * — a fourth constraint, or a third layer, fails to compile until its export
+ * prose is written.
+ *
+ * Keyed by layer as well as by constraint because `maximum-value-selection` is
+ * the one entry whose substance genuinely differs between the two: the
+ * compositing decision is made on NDVI, and EVI merely inherits the observation
+ * it kept.
+ */
+const VEGETATION_SAMPLING_IDENTITY_CSV_PROSE: Record<
+  VegetationObservingConstraintLayerId,
+  Record<VegetationObservingConstraintId, string>
+> = {
+  ndvi: {
+    "clear-sky-optical-only":
+      "a reflectance ratio in the red and near-infrared so only a clear sunlit snow-free view of the surface yields an observation at all — cloudy shadowed low-sun and snow-covered days are left out of the month rather than averaged into it — so a month's value describes a non-random subset of that month's days",
+    "maximum-value-selection":
+      "each compositing window is reduced by a constrained-view maximum-value composite which keeps the single eligible observation with the highest NDVI rather than averaging them; the rule exists because the contamination that survives screening — thin cloud shadow residual aerosol off-nadir viewing — depresses the index",
+    "composite-not-monthly-mean":
+      "the published month is a within-month composite built from those selected observations and not a time-average of the month's days — so a mean or trend over the rows below averages selected within-month states rather than monthly means",
+  },
+  evi: {
+    "clear-sky-optical-only":
+      "a reflectance ratio in the red and near-infrared so only a clear sunlit snow-free view of the surface yields an observation at all — cloudy shadowed low-sun and snow-covered days are left out of the month rather than averaged into it — so a month's value describes a non-random subset of that month's days",
+    "maximum-value-selection":
+      "each compositing window is reduced by the same constrained-view maximum-value composite whose selection is made on NDVI; the observation it keeps then supplies that window's EVI — so the exported value is a selected observation rather than an average but was never itself maximized",
+    "composite-not-monthly-mean":
+      "the published month is a within-month composite built from those selected observations and not a time-average of the month's days — so a mean or trend over the rows below averages selected within-month states rather than monthly means",
+  },
+};
+
+/**
+ * What a `direction` other than `not-asserted` means for the exported column,
+ * or `null` for the one value that asserts nothing.
+ *
+ * Keyed by the direction rather than written into the prose above so the export
+ * cannot outlive the field it reports: the day NDVI's selection is recorded as
+ * unsigned, the line below stops claiming a sign on its own. Adding a third
+ * direction fails to compile until its meaning for a reader is stated.
+ */
+const VEGETATION_CSV_DIRECTION_PHRASES: Record<
+  VegetationSamplingDirection,
+  string | null
+> = {
+  "green-leaning":
+    "the kept value cannot sit below the average of the eligible observations it was chosen from",
+  "sparse-leaning":
+    "the kept value cannot sit above the average of the eligible observations it was chosen from",
+  "not-asserted": null,
+};
+
+/**
+ * The one line that says how far the headers above may be read as a bias.
+ *
+ * Derived from the `direction` fields rather than restated, because this is the
+ * single point where the two layers' exports must differ and the difference is
+ * substantive: NDVI's selection rule fixes a sign — a maximum cannot fall below
+ * the mean of the candidates it was drawn from, which is the rule restated and
+ * not an estimate — while EVI's selection is made on NDVI, so no such inequality
+ * holds for it. No magnitude is asserted for either.
+ */
+function samplingDirectionHeader(
+  layerId: VegetationObservingConstraintLayerId
+): string {
+  const key = `# ${layerId}_sampling_direction: `;
+  const directed = VEGETATION_OBSERVING_CONSTRAINTS[layerId].filter(
+    (entry) => VEGETATION_CSV_DIRECTION_PHRASES[entry.direction] !== null
+  );
+  if (directed.length === 0) {
+    return `${key}no direction and no magnitude are asserted for any constraint above — nothing in this product's compositing fixes a sign for these rows; they are fixed properties of the cited algorithm and not of any individual value month or place`;
+  }
+  const signed = directed
+    .map(
+      (entry) =>
+        `${entry.id.replace(/-/g, "_")} — ${
+          VEGETATION_CSV_DIRECTION_PHRASES[entry.direction]
+        }`
+    )
+    .join("; ");
+  return `${key}a sign is asserted only for ${signed}. That is the selection rule restated and not an estimated offset: no magnitude is asserted anywhere here — how far a composite sits above the average of its candidates depends on how many were eligible and how contaminated they were which this app does not observe`;
+}
+
+/**
+ * Provenance headers naming *which* moments the exported vegetation-index rows
+ * were selected from and *what quantity* they therefore are, or an empty list
+ * for every other layer.
+ *
+ * The probe already states this gate on screen
+ * (`probeVegetationSamplingGateClause`), and the download is the surface that
+ * needs it more, for the reason its SST and LST counterparts give: the file
+ * outlives the session and names the product only through `# data_product`,
+ * whose short name is `MOD13A3`. A reader who opens it six months later sees a
+ * column headed `value` holding a dimensionless index between −1 and 1 with
+ * nothing to say that each row is the *highest* eligible observation of its
+ * window rather than that month's average greenness, that cloudy and snow-
+ * covered days are absent rather than averaged in, or that averaging the column
+ * therefore averages selected within-month states. All three change what the
+ * column may be compared against, and none is recoverable from the numbers —
+ * least of all the first, which for NDVI carries a documented direction.
+ *
+ * This is the product's compositing algorithm, so it does not depend on the
+ * sampled months and is not derived from them. It is emitted whenever either
+ * vegetation-index layer is exported.
+ *
+ * Silent when a layer has drifted off its declared GIBS identifier: a stale
+ * maximum-value-composite claim attached to a different product would be worse
+ * than no claim at all. Nothing about vegetation cover, biomass, condition,
+ * habitat, ecological health, drought, causation or any future value follows
+ * from any line here — see `VEGETATION_OBSERVING_CONSTRAINT_LIMITS`.
+ */
+export function vegetationSamplingIdentityCsvHeaders(
+  layerId: LayerId | undefined
+): string[] {
+  if (!isConstrainedLayer(layerId)) return [];
+  if (
+    LAYERS[layerId].wmsLayer !==
+    VEGETATION_OBSERVING_CONSTRAINT_GIBS_LAYERS[layerId]
+  ) {
+    return [];
+  }
+  // No commas anywhere below: a `#` line must never contain a CSV delimiter
+  // (see the header discipline documented on `csvHeaderText` in probe.ts).
+  return [
+    ...VEGETATION_OBSERVING_CONSTRAINTS[layerId].map(
+      (entry) =>
+        `# ${layerId}_${entry.id.replace(/-/g, "_")}: ${
+          VEGETATION_SAMPLING_IDENTITY_CSV_PROSE[layerId][entry.id]
+        }`
+    ),
+    samplingDirectionHeader(layerId),
+  ];
+}
