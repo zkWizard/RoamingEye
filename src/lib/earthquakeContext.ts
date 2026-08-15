@@ -540,6 +540,42 @@ export function epicentralDistanceText(distanceKm: number): string {
   return `${formatDistanceKm(distanceKm)} km from the search-extent centre`;
 }
 
+/** Radii span metropolitan boundaries to whole countries; keep both legible. */
+function formatRadiusKm(radiusKm: number): string {
+  return radiusKm >= 100 ? String(Math.round(radiusKm)) : radiusKm.toFixed(1);
+}
+
+/**
+ * What geographic area a nearby-seismicity result was taken over.
+ *
+ * Two facts, because the searched area is two steps removed from the place the
+ * reader typed. `searchExtentEarthquakeQuery` circumscribes the search extent,
+ * so the circle reaches outside it — that is the first clause, and its doc
+ * comment requires callers to say so. The extent itself is the geocoder's
+ * result bounding box rather than the selected place's own outline, which is
+ * the second: a rectangle around Iceland or Chile admits a great deal that is
+ * not Iceland or Chile.
+ *
+ * The sibling volcano and plate sections both close their scope sentence with
+ * "the exact selected boundary is not tested" (`volcanoExtent`,
+ * `plateBoundaryContext`), and the three sections render one after another in
+ * the same panel. Marking two of the three implies the unmarked one is
+ * boundary-exact, which is backwards here: a circumscribing circle is the
+ * loosest of the three fits. The wording is copied verbatim so a reader
+ * comparing the sections sees one caveat, not three phrasings of it.
+ *
+ * The first sentence stays byte-identical to what the panel printed before;
+ * the boundary clause is appended rather than woven in, so existing assertions
+ * on it continue to hold.
+ */
+export function searchExtentScopeText(radiusKm: number): string {
+  return (
+    `Epicentres within ${formatRadiusKm(radiusKm)} km of the search-extent centre — ` +
+    "a circle circumscribing the extent, so it reaches past the boundary corners. " +
+    "The extent is the search result bounding box; the exact selected boundary is not tested."
+  );
+}
+
 /**
  * How large a set an empty nearby-seismicity result was compared against.
  *
