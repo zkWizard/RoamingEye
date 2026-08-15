@@ -66,6 +66,7 @@ import {
   type GldasRampSamplePosition,
   type GldasRampSaturationSummary,
 } from "../lib/gldasRampSaturation";
+import { gldasCensoredChangeNote } from "../lib/gldasCensoredChange";
 import { volcanoesInSearchExtent } from "../lib/volcanoExtent";
 import {
   nearbyEarthquakeContext,
@@ -321,10 +322,15 @@ export function runPlaceInsights(result: GeoResult): void {
           metric.layerId === "precip" || metric.layerId === "soil"
             ? metric.layerId
             : null;
-        // Only the month whose value the card reports; the previous month is
-        // sampled too, and its saturation would not describe the stated mean.
+        // The card's leading value is the current month's, so only that month's
+        // saturation describes it. The card also states a difference against the
+        // previous month, and a cap on *either* endpoint bounds that difference
+        // (lib/gldasCensoredChange), so both months are classified.
         const currentMonthIndex = months.length - 1;
-        let rampPositions: GldasRampSamplePosition[] | null = null;
+        const rampPositionsByMonth = new Map<
+          number,
+          GldasRampSamplePosition[]
+        >();
         const sample = colormap
           ? placeSampler.sampleGeometryPhysical(
               LAYERS[metric.layerId],
@@ -339,12 +345,14 @@ export function runPlaceInsights(result: GeoResult): void {
                   rampLayerId === null
                     ? undefined
                     : (index, colors) => {
-                        if (index !== currentMonthIndex) return;
-                        rampPositions = colors.map((rgb) =>
-                          classifyGldasRampSample(
-                            rampLayerId,
-                            rgb,
-                            colormap.entries
+                        rampPositionsByMonth.set(
+                          index,
+                          colors.map((rgb) =>
+                            classifyGldasRampSample(
+                              rampLayerId,
+                              rgb,
+                              colormap.entries
+                            )
                           )
                         );
                       },
@@ -427,11 +435,26 @@ export function runPlaceInsights(result: GeoResult): void {
         // is unchanged. It is appended here rather than inside the shared
         // climate formatter because the saturation is a property of this
         // layer's ramp, not of the climate summary.
-        const rampSaturation =
-          rampLayerId !== null && rampPositions !== null
-            ? summarizeGldasRampSaturation(rampLayerId, rampPositions)
+        const saturationFor = (index: number) => {
+          const positions = rampPositionsByMonth.get(index);
+          return rampLayerId !== null && positions !== undefined
+            ? summarizeGldasRampSaturation(rampLayerId, positions)
             : null;
+        };
+        const rampSaturation = saturationFor(currentMonthIndex);
         const rampSaturationNote = gldasRampSaturationNote(rampSaturation);
+        // The note above qualifies the value the card leads with. The same cap
+        // also bounds the difference stated beside it, in a direction set by
+        // which endpoint was capped — silent unless a cap actually took samples.
+        const rampChangeNote =
+          climateReading && climateReading[0]
+            ? gldasCensoredChangeNote({
+                earlier: climateReading[0],
+                later: climateReading[1],
+                earlierSaturation: saturationFor(currentMonthIndex - 1),
+                laterSaturation: rampSaturation,
+              })
+            : "";
         placeInsights.setReading(
           snowReading
             ? {
@@ -448,7 +471,7 @@ export function runPlaceInsights(result: GeoResult): void {
                   id: metric.id,
                   ...withRampSaturationNote(
                     climateInsightText(climateReading[0], climateReading[1]),
-                    rampSaturationNote
+                    `${rampSaturationNote}${rampChangeNote}`
                   ),
                 }
               : colormap
