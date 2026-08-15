@@ -14,7 +14,9 @@ import {
   reportedDepthBasisText,
   reportedMagnitudeText,
   searchExtentEarthquakeQuery,
+  searchExtentScopeText,
 } from "./earthquakeContext";
+import { volcanoesInSearchExtent } from "./volcanoExtent";
 
 const earthquake = (overrides: Partial<Earthquake> = {}): Earthquake => ({
   lat: 0,
@@ -838,6 +840,54 @@ describe("epicentralDistanceText", () => {
 
     expect(text).toContain("km from the search-extent centre.");
     expect(text).not.toContain("km away");
+  });
+});
+
+describe("searchExtentScopeText", () => {
+  it("says the searched circle reaches outside the extent", () => {
+    // searchExtentEarthquakeQuery circumscribes rather than inscribes, and its
+    // doc comment makes saying so a caller obligation.
+    expect(searchExtentScopeText(250)).toContain(
+      "a circle circumscribing the extent, so it reaches past the boundary corners"
+    );
+  });
+
+  it("says the extent is the geocoder's box, not the selected boundary", () => {
+    // The defect this closes: the volcano and plate sections both end their
+    // scope sentence with this clause and seismicity did not, so of the three
+    // sections rendered in one panel the loosest fit read as the exact one.
+    expect(searchExtentScopeText(250)).toContain(
+      "the exact selected boundary is not tested"
+    );
+  });
+
+  it("uses the sibling sections' wording verbatim", () => {
+    // Three phrasings of one caveat would read as three different caveats.
+    const volcano = volcanoesInSearchExtent(
+      [],
+      [0, 1, 0, 1]
+    ).geographicCoverage;
+    const clause = "the exact selected boundary is not tested";
+
+    expect(volcano).toContain(clause);
+    expect(searchExtentScopeText(250)).toContain(clause);
+  });
+
+  it("names the box before disclaiming the boundary", () => {
+    // "The extent" is the term the first sentence and the row distances both
+    // use; the clause has to say which thing that is before calling it inexact.
+    const text = searchExtentScopeText(250);
+
+    expect(text.indexOf("search result bounding box")).toBeLessThan(
+      text.indexOf("the exact selected boundary is not tested")
+    );
+  });
+
+  it("keeps the legibility rule on both sides of the radius threshold", () => {
+    // Sub-100 km radii keep a decimal so a city-sized extent does not print as
+    // a bare integer; larger ones round.
+    expect(searchExtentScopeText(18.64)).toContain("Epicentres within 18.6 km");
+    expect(searchExtentScopeText(250.4)).toContain("Epicentres within 250 km");
   });
 });
 
