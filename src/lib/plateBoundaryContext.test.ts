@@ -344,6 +344,48 @@ describe("digitizationCreditText", () => {
     );
   });
 
+  it("drops the most-used claim when the second named credit ties the third", () => {
+    // B and C are both used twice, so naming B over C is the alphabetical
+    // tie-break, not a frequency ranking.
+    const text = digitizationCreditText(
+      matched("A [1990]", "A [1990]", "A [1990]", "B [1991]", "C [1992]")
+    );
+
+    expect(text).toContain(
+      'carries 3 distinct source credits, including "A [1990]" and "B [1991]"'
+    );
+    expect(text).not.toContain("most often");
+  });
+
+  it("never claims a most-used credit when every credit is used once", () => {
+    // The measured Sumatra case: three matched boundaries, three credits, one
+    // apiece. No credit is used more than any other.
+    const text = digitizationCreditText(
+      matched("A [1990]", "B [1991]", "C [1992]")
+    );
+
+    expect(text).toContain(
+      'carries 3 distinct source credits, including "A [1990]" and "B [1991]"'
+    );
+    expect(text).not.toContain("most often");
+  });
+
+  it("still claims most-used when the named pair is strictly ahead", () => {
+    // A:3, B:2, C:1 — the cut between B and C is a strict drop.
+    const text = digitizationCreditText(
+      matched(
+        "A [1990]",
+        "A [1990]",
+        "A [1990]",
+        "B [1991]",
+        "B [1991]",
+        "C [1992]"
+      )
+    );
+
+    expect(text).toContain('most often "A [1990]" and "B [1991]"');
+  });
+
   it("orders equal counts alphabetically so input order never decides", () => {
     const forward = digitizationCreditText(matched("Zed [1990]", "Abe [1991]"));
     const reversed = digitizationCreditText(
