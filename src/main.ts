@@ -7,7 +7,6 @@ import {
   nearestMonthIndex,
   formatTimelineLabel,
   ymEqual,
-  ymToIndex,
   type LayerConfig,
   type LayerId,
   type YearMonth,
@@ -28,6 +27,7 @@ import {
   probeSstColdEndAccuracy,
   sstColdEndAccuracyCsvHeaders,
 } from "./lib/sstColdEndAccuracy";
+import { uncalibratedVegetationAccuracyCsvHeaders } from "./lib/vegetationIndexRamp";
 import {
   probeSstExtremeCensoring,
   sstExtremeBoundPrefix,
@@ -73,6 +73,7 @@ import {
   exportMonthStamp,
   imageryUrlExport,
   provenanceMonths,
+  resolvePinnedMonth,
 } from "./lib/compare";
 import { ShareButton } from "./ui/ShareButton";
 import { ExportControls } from "./ui/ExportControls";
@@ -788,14 +789,14 @@ if (compareEl && compareDividerEl) {
     },
   });
 
-  // Restore a shared comparison: the pinned month from the URL, when the
-  // active layer's record covers it.
+  // Restore a shared comparison: the pinned month from the URL, snapped to a
+  // slot the active layer actually publishes, when its record covers it.
   const pin = initialView.pin;
   if (pin && !LAYERS[currentLayer].static) {
-    const pinIndex = ymToIndex(pin) - ymToIndex(months[0]);
-    if (pinIndex >= 0 && pinIndex < months.length) {
-      compare.enable(LAYERS[currentLayer], pin);
-      compareControls.restore(LAYERS[currentLayer], pin, compare.split);
+    const pinned = resolvePinnedMonth(months, pin);
+    if (pinned) {
+      compare.enable(LAYERS[currentLayer], pinned);
+      compareControls.restore(LAYERS[currentLayer], pinned, compare.split);
       compareControls.setLiveMonth(LAYERS[currentLayer], months[currentIndex]);
     }
   }
@@ -1068,6 +1069,17 @@ if (probeEl) {
                   ...inversionAccuracyCsvHeaders(
                     probeInversionAccuracy(layer.id, scale)
                   ),
+                  // That builder is keyed to the calibrated layers, so it
+                  // writes nothing for EVI — whose error against GIBS's
+                  // published MOD13A3 ramp is measured all the same, in a
+                  // second record the lookup cannot reach. The status line
+                  // already says so; the file outlives the session and needs
+                  // it more. Empty for every layer the line above speaks for,
+                  // so the two can never both state an accuracy.
+                  ...uncalibratedVegetationAccuracyCsvHeaders(
+                    layer.id,
+                    probeInversionAccuracy(layer.id, scale).status
+                  ),
                   ...sstColdEndAccuracyCsvHeaders(
                     probeSstColdEndAccuracy(layer.id, physical, sstCensoring)
                   ),
@@ -1330,6 +1342,17 @@ if (probeEl) {
                 inversionAccuracyHeaders: [
                   ...inversionAccuracyCsvHeaders(
                     probeInversionAccuracy(layer.id, scale)
+                  ),
+                  // That builder is keyed to the calibrated layers, so it
+                  // writes nothing for EVI — whose error against GIBS's
+                  // published MOD13A3 ramp is measured all the same, in a
+                  // second record the lookup cannot reach. The status line
+                  // already says so; the file outlives the session and needs
+                  // it more. Empty for every layer the line above speaks for,
+                  // so the two can never both state an accuracy.
+                  ...uncalibratedVegetationAccuracyCsvHeaders(
+                    layer.id,
+                    probeInversionAccuracy(layer.id, scale).status
                   ),
                   ...sstColdEndAccuracyCsvHeaders(
                     probeSstColdEndAccuracy(layer.id, physical, sstCensoring)

@@ -1,7 +1,9 @@
 import {
   formatTimelineLabel,
   gibsWmsUrl,
+  nearestMonthIndex,
   ymEqual,
+  ymToIndex,
   type LayerConfig,
   type YearMonth,
 } from "./timeline";
@@ -91,6 +93,50 @@ export function provenanceMonths(
   return pinnedLabel === liveLabel
     ? liveLabel
     : compareCaption(layer, pinned, live);
+}
+
+/**
+ * Resolve a shared link's `pin=` month onto a slot the active layer actually
+ * publishes, or `undefined` when the layer's record does not cover it.
+ *
+ * A deep link records the pinned month as a calendar year-month
+ * (`viewState.ts`), but a layer's timeline is a list of published *slots*, and
+ * for an annual product those slots are not consecutive months: MCD12Q1
+ * enumerates as `{year, month: 1}` once per year (`monthRangeForLayer`), so 24
+ * entries span 277 calendar months. main.ts restored the pin by subtracting
+ * calendar indices (`ymToIndex(pin) - ymToIndex(months[0])`) and treating the
+ * difference as a slot index — arithmetic that is only correct when the
+ * timeline is dense monthly, and it failed both ways on land cover:
+ *
+ * - a genuine pin from 2003 onward computed an index past the end of a
+ *   24-entry timeline, so every shared land-cover comparison silently came
+ *   back with no comparison at all;
+ * - a pin naming a month the product does not resolve (`pin=2001-07`) landed
+ *   inside the array by accident and was pinned verbatim, putting a July of an
+ *   annual composite on the left of the divider — a month MCD12Q1 cannot
+ *   separate, requested as though it were an observation.
+ *
+ * The restore therefore snaps to the nearest published slot, the same
+ * nearest-entry rule the timeline month already restores through
+ * (`nearestMonthIndex` in main.ts), and keeps the containment check the
+ * original code was reaching for by testing the record's *span* rather than an
+ * index: a pin outside the published record is still declined rather than
+ * snapped onto an endpoint, so a link never invents a comparison the sender
+ * did not make.
+ */
+export function resolvePinnedMonth(
+  months: YearMonth[],
+  pin: YearMonth
+): YearMonth | undefined {
+  if (months.length === 0) return undefined;
+  const wanted = ymToIndex(pin);
+  if (
+    wanted < ymToIndex(months[0]) ||
+    wanted > ymToIndex(months[months.length - 1])
+  ) {
+    return undefined;
+  }
+  return months[nearestMonthIndex(months, pin)];
 }
 
 /** Comparing a month to itself shows nothing — callers surface a hint. */

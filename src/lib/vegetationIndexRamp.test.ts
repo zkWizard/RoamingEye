@@ -8,6 +8,7 @@ import {
   exceedsLinearityCeiling,
   linearityCeilingMultiple,
   uncalibratedVegetationAccuracyClause,
+  uncalibratedVegetationAccuracyCsvHeaders,
   vegetationIndexId,
   vegetationRampFidelity,
   vegetationRampTickCaveat,
@@ -20,6 +21,7 @@ import { MEASURED_INVERSION } from "./validation";
 import { LAYERS, type LayerId } from "./timeline";
 import {
   inversionAccuracyClause,
+  inversionAccuracyCsvHeaders,
   probeInversionAccuracy,
 } from "./probeInversionAccuracy";
 
@@ -274,6 +276,70 @@ describe("vegetation-index ramp fidelity", () => {
     expect(
       uncalibratedVegetationAccuracyClause("evi", evi.status)
     ).not.toBeNull();
+  });
+
+  it("writes the same measured error into the probe CSV header", () => {
+    const headers = uncalibratedVegetationAccuracyCsvHeaders(
+      "evi",
+      "uncharacterized"
+    );
+    expect(headers).toHaveLength(3);
+    const joined = headers.join(" ");
+    expect(joined).toContain("±0.29");
+    expect(joined).toContain("MODIS_L3_EVI");
+    // The download must make the same distinction the panel does: this is a
+    // gradient reading, not a colormap inversion.
+    expect(headers[0]).toContain("read off RoamingEye's legend gradient");
+    expect(headers[0]).toContain("38 of 132");
+    expect(headers[0]).toContain("+0.22");
+    expect(headers[0]).toContain("docs/validation.md");
+    // Scope and transport are load-bearing for the same reasons they are on
+    // the calibrated builder: rendering-inversion error at zero compression.
+    expect(headers[1]).toContain("in-situ");
+    expect(headers[2]).toContain("JPEG");
+    expect(headers[2]).toContain("on top of this figure");
+    // Never a fitness, cover, or condition claim.
+    expect(joined).not.toContain("vegetation health");
+  });
+
+  it("emits comment lines that carry no CSV delimiter or newline", () => {
+    // Naive consumers read `#` lines as rows; the repo's header discipline is
+    // that a header line never contains a delimiter, quote, or line break.
+    for (const line of uncalibratedVegetationAccuracyCsvHeaders(
+      "evi",
+      "uncharacterized"
+    )) {
+      expect(line.startsWith("# "), line).toBe(true);
+      expect(line).not.toMatch(/[,"\r\n]/);
+    }
+  });
+
+  it("discloses in the download exactly where it discloses on the panel", () => {
+    // The defect this builder exists for was a surface split: the panel spoke
+    // and the file stayed silent. Parity is asserted rather than assumed, so
+    // the two can never drift apart again — including the day EVI is
+    // calibrated and both must fall silent together.
+    for (const id of Object.keys(LAYERS) as LayerId[]) {
+      if (PROBE_SCALES[id] === undefined) continue;
+      const accuracy = probeInversionAccuracy(id);
+      const spoken =
+        uncalibratedVegetationAccuracyClause(id, accuracy.status) !== null;
+      const written =
+        uncalibratedVegetationAccuracyCsvHeaders(id, accuracy.status).length >
+        0;
+      expect(written, id).toBe(spoken);
+      // And the two CSV builders never both state an accuracy for one layer —
+      // the header-key counterpart of the panel invariant above.
+      const calibratedKeys = inversionAccuracyCsvHeaders(accuracy).filter(
+        (line) => line.startsWith("# inversion_validation:")
+      );
+      expect(calibratedKeys.length > 0 && written, id).toBe(false);
+    }
+    // The keys stay distinguishable: a script keyed on the calibrated figure's
+    // exact name must not pick a gradient reading up as one.
+    expect(
+      uncalibratedVegetationAccuracyCsvHeaders("evi", "uncharacterized")[0]
+    ).not.toContain("# inversion_validation:");
   });
 
   it("carries its method limits", () => {
