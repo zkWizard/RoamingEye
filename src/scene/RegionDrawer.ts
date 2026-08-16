@@ -105,6 +105,15 @@ export class RegionDrawer {
     return "completed";
   }
 
+  /**
+   * Draw the outline for a region that arrived without a drag — a shared link
+   * restoring the box its chart is a mean over. The caption says "mean over"
+   * those corners, so the corners have to be on the globe to match.
+   */
+  show(bounds: Bounds): void {
+    this.showOutline(bounds);
+  }
+
   /** Remove the drawn outline (the region's chart was dismissed). */
   clear(): void {
     if (!this.outline) return;
