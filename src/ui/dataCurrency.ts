@@ -48,14 +48,48 @@ export function dataCurrencyNote(
   const product = layer.dataset?.shortName ?? layer.wmsLayer;
 
   // Annual products are a year behind by construction, so a month count would
-  // overstate a lag that is really just the cadence.
+  // overstate a lag that is really just the cadence. Whole years are the unit
+  // here for the same reason the monthly branch counts months.
+  //
+  // But the cadence only explains the years that have not closed yet. A year
+  // that HAS closed and still carries no release is an ordinary publication
+  // lag, and it is the land-cover layer's normal state rather than an edge
+  // case: MCD12Q1's collection is released well after its product year ends,
+  // so in Aug 2026 the newest year on the timeline is 2024 while 2025 has been
+  // complete since December. Saying only "annual product" over that reads as a
+  // reassurance that 2024 is as new as the product gets — the same silence the
+  // monthly branch exists to break, left in place at the one end of this
+  // formatter that never got it. Land cover is the only annual layer, so this
+  // branch is entirely about MCD12Q1.
   if (layer.cadence === "annual") {
+    // A year is publishable only once it has closed, so the newest one that
+    // could carry a release is last year — never the current one.
+    const newestClosed = today.year - 1;
+    const unreleased = newestClosed - recordEnd.year;
+
+    if (unreleased <= 0) {
+      return {
+        text: `Newest data: ${recordEnd.year} · annual product`,
+        detail:
+          `${product} publishes once a year, so the newest year on the ` +
+          `timeline is ${recordEnd.year}. Later years have not been ` +
+          `released yet.`,
+      };
+    }
+
+    // Named, not counted: "2025" says which year is missing, where "1 year
+    // behind" would have to be measured against a moving calendar.
+    const span =
+      unreleased === 1
+        ? `${newestClosed}`
+        : `${recordEnd.year + 1}–${newestClosed}`;
     return {
-      text: `Newest data: ${recordEnd.year} · annual product`,
+      text: `Newest data: ${recordEnd.year} · ${span} not published yet`,
       detail:
-        `${product} publishes once a year, so the newest year on the ` +
-        `timeline is ${recordEnd.year}. Later years have not been ` +
-        `released yet.`,
+        `${product} publishes once a year, and a product year is released ` +
+        `well after it closes — so the newest year on the timeline is ` +
+        `${recordEnd.year}, and ${span} ended without a release so far. ` +
+        `${today.year} cannot appear until the year itself closes.`,
     };
   }
 
