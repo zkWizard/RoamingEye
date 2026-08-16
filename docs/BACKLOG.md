@@ -37,6 +37,33 @@ take one directly when no Owner's pick applies to its domain.
       the globe's rendered centre upward (which issue #93 argues against).
       A design decision rather than a tweak, which is why #980 stopped here
       instead of guessing at one.
+- [ ] **A phone held in landscape reaches none of the nine map overlays.** The
+      overlay bar is a vertical column capped at `calc(100vh - 400px)`, so that
+      centring it always clears the top-right buttons. A toggle stands 60.6px,
+      so the column shows its first one only above 460px of height — and a
+      phone in landscape is 360–430px tall. The cap resolves to 0px at 390,
+      375 and 360, and to 30px at 430, leaving a 15px sliver of bar with the
+      "more items this way" fade still on it. A hit test at 844x390, 932x430,
+      740x360 and 667x375 reached 0 of 9 toggles at every one. Nothing else on
+      screen substitutes: the layer selector in the HUD chooses the base data
+      layer, while borders, cities, earthquakes, volcanoes, plate boundaries,
+      the graticule, the atmosphere, HD tiles and "my location" are on this bar
+      alone — so the set is unreachable rather than merely cramped, and
+      landscape is the orientation a globe invites.
+      The obvious fix is to trigger the existing ≤540px bottom-bar layout on
+      short viewports as well as narrow ones, and it does restore 9 of 9 at all
+      four sizes with every viewport at/above 501px tall left byte-identical.
+      What stops it is the vertical budget: the HUD panel measures 266px at
+      768px wide and up, 281px below that, against a 360–430px viewport — 62%
+      to 78% of the screen — so the 3.6rem the bottom overlay reserves for the
+      bar pushes the panel's own top off the screen, to `-23px` at 740x360 and
+      `-8px` at 667x375, landing the layer selector under the search box, and
+      burying four header controls at 932x430. That trades one unreachable
+      control set for another, which is why this is filed rather than shipped.
+      It closes with the same decision the item above needs — a collapsible or
+      compact panel below a height threshold — for which landscape phones are a
+      sharper case than the netbook band: there the panel merely covers the
+      crosshair, here it occupies three-quarters of the display.
 - [ ] **The keyboard aim names the ground but never the marker on it.** The
       pointer readout has two modes: `pickMarker` and `pickLine` name an
       overlay record when one is under the cursor, and only when none is does
