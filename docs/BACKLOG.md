@@ -68,6 +68,32 @@ take one directly when no Owner's pick applies to its domain.
 
 <!-- The shipping PR moves its item here, with the PR number. -->
 
+- [x] **The phone bottom bar sat on the credits line.** (#983) At 540px
+      and under the overlay toolbar becomes a bar pinned across the bottom of
+      the screen, and the bottom overlay moves up to clear it — by a flat
+      3.6rem, against a bar that measures 76px. The 18px shortfall put the last
+      line of the attribution underneath the bar, so the taps meant for the
+      "Data providers" button, the repository link and the feedback link went
+      to the toolbar instead: all three were dead on a 430x932 Pro Max and at
+      the 540px breakpoint, two on a 360px Android, one on a 390px iPhone,
+      where the row wraps and only its second line is buried. The bar's panel
+      is translucent, so the links still showed through it greyed out and the
+      row read as a styling choice rather than three dead controls — only a hit
+      test named the toolbar as what received the tap. Toolbar.ts already
+      observes the bar to keep its overflow fade in step and now publishes its
+      measured height as `--toolbar-height`, and the credits line is lifted by
+      the shortfall between that and the reserve already applied; the home
+      indicator comes along for free, since `env(safe-area-inset-bottom)` is
+      inside the bar's own padding and so inside that number. The lift is on
+      the credits line alone rather than on the reserve, because the overlay is
+      bottom-anchored and raising it carries the HUD panel up too — which is
+      exactly what the first attempt did, and the panel landed on the globe
+      point hover-tooltip.spec.ts hovers at 390px, green locally and red on CI
+      where the panel's text wraps taller. Desktop widths are untouched. The
+      assertions hit-test every control in the row at four phone sizes, drive a
+      real tap at the providers button's own coordinates, and pin the panel
+      above as unmoved when the bar's height changes.
+
 - [x] **A pixel of window height cost two layer toggles.** (#981) The toolbar
       column is capped so that centring it always leaves the 200px the
       Share/Save/Compare buttons occupy, and short windows anchored it at that

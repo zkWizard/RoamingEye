@@ -59,10 +59,41 @@ export class Toolbar {
     });
     if (typeof ResizeObserver !== "undefined") {
       // Catches the breakpoint crossing and orientation changes, both of
-      // which resize the bar without scrolling it.
-      new ResizeObserver(() => this.updateOverflow()).observe(container);
+      // which resize the bar without scrolling it. Observing the border box
+      // rather than the content box matters for `publishHeight`: on a notched
+      // phone the home-indicator inset arrives as bottom padding, so rotating
+      // the device can change the bar's height without touching its content.
+      new ResizeObserver(() => {
+        this.updateOverflow();
+        this.publishHeight();
+      }).observe(container, { box: "border-box" });
     }
     this.updateOverflow();
+  }
+
+  /**
+   * Publish the bar's measured height as `--toolbar-height` on the document
+   * root, for the phone layout to reserve room against.
+   *
+   * At phone widths the bar is pinned across the bottom of the screen and
+   * `.overlay--bottom` moves up to clear it. That reserve used to be a flat
+   * `3.6rem`, which was 18px short of the 76px the bar actually measures, so
+   * the attribution's last line rendered underneath the bar and the toolbar
+   * received the taps meant for the data-providers, repository and feedback
+   * links. Measuring instead of guessing keeps the two in step as the bar's
+   * contents change, and covers the home indicator for free:
+   * `env(safe-area-inset-bottom)` sits in the bar's own padding, so it is
+   * already inside this number.
+   *
+   * The value is published at every width — the desktop column is metadata
+   * about the same element — but only the phone layout reads it.
+   */
+  private publishHeight(): void {
+    const height = this.container.getBoundingClientRect().height;
+    document.documentElement.style.setProperty(
+      "--toolbar-height",
+      `${Math.round(height * 100) / 100}px`
+    );
   }
 
   private updateOverflow(): void {
