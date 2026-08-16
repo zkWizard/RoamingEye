@@ -2656,21 +2656,38 @@ body {
   display: none;
 }
 
-/* Short desktop windows (issue #93): a vertically-centred toolbar collides
-   with the top-right button column (Share/Save/Compare) and steals their
-   clicks. Anchor it below the buttons and let it scroll internally. */
-@media (min-width: 541px) and (max-height: 820px) {
+/* The toolbar column (issue #93): centred vertically, so its top edge climbs
+   as the column grows, and above a certain height it reaches the top-right
+   button column (Share/Save/Compare) and steals their clicks. The rule below
+   fixed that for short windows by anchoring the bar under those buttons — but
+   it keyed the collision to a window height, and the column has since outgrown
+   that number: nine toggles stand 609px tall, so centring puts the top edge
+   above the Compare button on any window shorter than ~987px, while the rule
+   only covers 820px and down. In the gap — 1440x900 and 1280x900 among the
+   commonest laptop viewports — clicking the middle of Compare landed on HD
+   tiles and switched imagery resolution instead of opening comparison mode.
+   So state the invariant instead of guessing a breakpoint: cap the centred
+   column so centring always leaves the 200px the buttons occupy. Above
+   ~1009px tall the cap exceeds the column's natural height and nothing
+   changes; below it the top edge sits at exactly 200px, which is the anchor
+   the short-window rule already uses — the two layouts now agree instead of
+   meeting at a cliff. Bottom clearance grows to match (200px at 900px tall,
+   where the overlapping layout left 145px).
+   The fade lives here rather than in the short-window rule because both
+   scrolling column layouts need it; the phone bottom bar supplies its own,
+   running across instead of down. */
+@media (min-width: 541px) {
   .toolbar {
-    top: 200px;
-    bottom: auto;
-    transform: none;
-    max-height: calc(100vh - 530px);
+    max-height: calc(100vh - 400px);
     overflow-y: auto;
-    /* That cap hides most of the column on an ordinary laptop — four of the
-       nine toggles are on screen at 1280x800 and three at 1366x768 — and the
-       overlay scrollbar it scrolls with is painted only while scrolling, so
-       at rest the bar looked like the whole set. Same fade the phone bar
-       uses, turned to run down the column. */
+  }
+
+  /* Only mask a column that actually has toggles behind an edge: a mask
+     promotes the bar to its own composited layer, and "no mask" stays a
+     truthful signal that nothing is hidden. */
+  .toolbar[data-overflow="start"],
+  .toolbar[data-overflow="end"],
+  .toolbar[data-overflow="both"] {
     -webkit-mask-image: linear-gradient(
       to bottom,
       transparent 0,
@@ -2685,5 +2702,21 @@ body {
       #000 calc(100% - var(--toolbar-fade-end)),
       transparent 100%
     );
+  }
+}
+
+/* Short desktop windows: anchor the bar below the top-right buttons outright.
+   Centring cannot clear them here — at 820px tall the cap above would leave
+   420px of column and only 200px of room on each side, which is the point at
+   which a centred bar starts eating into the bottom overlay instead. This cap
+   is tighter (it also reserves the 330px the bottom HUD needs), which is why
+   four of the nine toggles are on screen at 1280x800 and three at 1366x768 —
+   the fade above is what tells the reader the rest are there. */
+@media (min-width: 541px) and (max-height: 820px) {
+  .toolbar {
+    top: 200px;
+    bottom: auto;
+    transform: none;
+    max-height: calc(100vh - 530px);
   }
 }

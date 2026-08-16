@@ -80,8 +80,12 @@ test.describe("toolbar overflow affordance", () => {
   test("a tall desktop window shows every toggle and fades nothing", async ({
     page,
   }) => {
-    await boot(page, 1440, 900);
-    // Premise: above the 820px breakpoint the column is uncapped.
+    // 1080, not the 900 this originally used: the column is capped whenever
+    // centring it would put its top edge over the Share/Save/Compare buttons,
+    // which at nine toggles means anything shorter than ~1009px. At 900 this
+    // spec was asserting the collision (see toolbar-collision.spec.ts) as
+    // settled behaviour. The cap lifts here because there is genuinely room.
+    await boot(page, 1440, 1080);
     expect(await offScreenLabels(page)).toEqual([]);
     await expect(page.locator(TOOLBAR)).toHaveAttribute(
       "data-overflow",
