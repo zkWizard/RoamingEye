@@ -22,6 +22,17 @@ describe("SHORTCUT_GROUPS", () => {
     }
   });
 
+  it("documents the globe bindings main.ts implements on the canvas", () => {
+    const globe = SHORTCUT_GROUPS.find((g) => g.title.startsWith("Globe"));
+    const does = globe?.items.map((i) => i.does).join(" ") ?? "";
+    const keys = globe?.items.flatMap((i) => i.keys) ?? [];
+    // Every globe gesture has a keyboard equivalent — the canvas declares
+    // role="application", which promises exactly that.
+    expect(does).toContain("←");
+    expect(does).toContain("+");
+    expect(keys).toContain("Enter");
+  });
+
   it("documents how to open and close the overlay itself", () => {
     const all = SHORTCUT_GROUPS.flatMap((g) => g.items.flatMap((i) => i.keys));
     expect(all).toContain("?");

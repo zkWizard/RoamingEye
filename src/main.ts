@@ -124,7 +124,11 @@ import { StudyRegion } from "./scene/StudyRegion";
 import { StudyChip } from "./ui/StudyChip";
 import { ShortcutsOverlay } from "./ui/ShortcutsOverlay";
 import { loadAdmin1Index, loadCountryIndex } from "./lib/countryIndex";
-import { flyToDistance, rotateSpeedForDistance } from "./lib/navigation";
+import {
+  flyToDistance,
+  rotateSpeedForDistance,
+  stepGlobeView,
+} from "./lib/navigation";
 
 /**
  * RoamingEye
@@ -754,6 +758,35 @@ controls.rotateSpeed = rotateSpeedForDistance(camera.position.length());
 controls.zoomSpeed = 0.8;
 controls.minDistance = 1.06; // get right down to a selected place boundary
 controls.maxDistance = 4.5; // furthest zoom-out
+
+// --- Keyboard globe navigation ------------------------------------------------
+// The canvas has declared `role="application"` since the first commit, which
+// tells a screen reader to stop intercepting keys and hand them to the app —
+// a promise that only makes sense if the app answers them. It answered none:
+// there was no key handler on the canvas at all, and no tabindex, so the globe
+// was the one control in the app a keyboard could not reach. Arrow keys turn
+// it, +/- zoom, and (below, with the probe) Enter charts the point in view.
+// OrbitControls' own key bindings are not an option: they pan a target this
+// app pins to the globe's centre, and `enablePan` is off for that reason.
+canvas.addEventListener("keydown", (e) => {
+  if (e.altKey || e.ctrlKey || e.metaKey) return; // leave browser chords alone
+  // Whoever disabled the controls owns the camera: the region drawer while a
+  // box is being dragged, the flyer while a search result is in flight.
+  if (!controls.enabled) return;
+  const subpoint = vector3ToLatLng(camera.position);
+  const next = stepGlobeView(
+    { ...subpoint, distance: camera.position.length() },
+    e.key,
+    { min: controls.minDistance, max: controls.maxDistance }
+  );
+  if (!next) return;
+  e.preventDefault(); // arrows would otherwise scroll the page
+  camera.position
+    .copy(latLngToVector3(next.lat, next.lon, 1))
+    .multiplyScalar(next.distance);
+  camera.lookAt(0, 0, 0);
+  controls.update(); // adopt the new position and fire `change` → hash sync
+});
 
 // --- Shareable view state (URL hash) ------------------------------------------
 // The hash always reflects the current view, so the address bar is a citable,
@@ -1651,6 +1684,24 @@ if (probeEl) {
     const hit = probeRaycaster.intersectObject(earth, false)[0];
     if (!hit) return;
     const { lat, lon } = vector3ToLatLng(hit.point);
+    runProbe(lat, lon);
+  });
+
+  // The keyboard equivalent of that click. A pointer names its own target;
+  // a keyboard has to be given one, and the only point on the globe a
+  // keyboard user has already aimed at is the one the arrow keys steer: the
+  // camera's subpoint, dead centre of the view. It is the same point the
+  // shareable hash records as the camera position, so a probe opened this way
+  // reproduces from the link like any other. The marker the search fly-to
+  // uses is shown at it, so the answer is not only in the panel — a sighted
+  // keyboard user can see which point was charted.
+  canvas.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    if (!controls.enabled) return; // the drawer or a flight owns the camera
+    e.preventDefault(); // Space would otherwise scroll the page
+    const { lat, lon } = vector3ToLatLng(camera.position);
+    highlight.show({ lat, lon, geometry: null });
     runProbe(lat, lon);
   });
 }

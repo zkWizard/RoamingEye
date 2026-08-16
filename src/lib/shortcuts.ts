@@ -28,11 +28,14 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     ],
   },
   {
-    title: "Globe",
+    title: "Globe — Tab to it first, or click it",
     items: [
-      { keys: ["Drag"], does: "Rotate the globe" },
-      { keys: ["Scroll", "Pinch"], does: "Zoom in and out" },
-      { keys: ["Click"], does: "Probe a point — chart its full record" },
+      { keys: ["Drag"], does: "Rotate the globe (also ← → ↑ ↓)" },
+      { keys: ["Scroll", "Pinch"], does: "Zoom in and out (also + / −)" },
+      {
+        keys: ["Click", "Enter"],
+        does: "Probe a point — chart its full record. Enter takes the point in the middle of the view",
+      },
       {
         keys: ["Hover"],
         does: "Read coordinates, country, and marker details",
