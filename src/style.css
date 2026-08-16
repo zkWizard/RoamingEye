@@ -385,6 +385,33 @@ body {
   backdrop-filter: blur(10px);
 }
 
+/* Short windows: give the middle of the view back to the globe.
+   The aim the keyboard turns the globe under is the camera subpoint, which
+   renders at the exact centre of the canvas and is the point Enter charts — it
+   cannot be drawn anywhere else without lying about which pixel it names. The
+   bottom panel, meanwhile, is height-invariant: 301px at 900px tall and 301px
+   at 540px. So it is the panel that climbs over the aim as the window shortens,
+   and below ~722px tall the reticle marks a point the user cannot see. At the
+   665px a 1366x768 laptop actually gets, the crosshair sits on the layer
+   selector's own label; by 600px it is on the colour ramp.
+   Nothing is hidden or shrunk here — 87px of that 301px is spacing, and taking
+   the row gaps down carries the whole reduction, so every caption, the source
+   note and the provenance line stay exactly as legible as they are at full
+   height. e2e/hud-aim-clearance.spec.ts pins the invariant (the centre of the
+   viewport hit-tests to the canvas) at the heights this buys, so the panel
+   cannot creep back over the aim as its captions grow. */
+@media (max-height: 720px) {
+  .controls {
+    gap: 0.5rem;
+    padding: 0.55rem 1.1rem 0.6rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .overlay--bottom {
+    padding-bottom: 1rem;
+  }
+}
+
 /* Layer selector (grouped dropdown) */
 .layer-selector {
   position: relative;
