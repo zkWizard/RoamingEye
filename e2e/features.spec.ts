@@ -523,8 +523,11 @@ test("an overlay whose feed fails says so and can be retried", async ({
   await expect(quakes).toHaveAttribute("aria-pressed", "false");
 
   // Sampled after the toast, so this enable's request has already settled.
-  // A delta rather than an absolute: the feed URL is shared with the place
-  // panel's seismicity context, so the count is not the overlay's alone.
+  // A delta rather than an absolute: one press is several requests, because
+  // fetchJson retries twice after the first attempt (lib/net.ts). Measured at
+  // three per press, in production and here. (An earlier version of this
+  // comment blamed a feed URL shared with the place panel; that was a guess,
+  // and it was wrong — the retry loop is the whole of it.)
   const afterFirstEnable = attempts;
   expect(afterFirstEnable).toBeGreaterThan(0);
 

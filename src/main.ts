@@ -146,6 +146,7 @@ if (!canvas) {
   throw new Error("RoamingEye: #globe canvas element not found");
 }
 const loaderEl = document.querySelector<HTMLElement>("#loader");
+const loaderSlowEl = document.querySelector<HTMLElement>("#loader-slow");
 const statusEl = document.querySelector<HTMLElement>("#timeline-status");
 const layerEl = document.querySelector<HTMLElement>("#layer-selector");
 const legendEl = document.querySelector<HTMLElement>("#legend");
@@ -363,6 +364,34 @@ if (initialView.camera) {
 
 let firstLoadDone = false;
 
+// How long the boot curtain may sit on a mute spinner before it says what it
+// is waiting on. Under a stalled upstream the first imagery request runs its
+// full 15 s timeout (lib/net.ts) before "Imagery failed to load" and the retry
+// button appear — and both of those are painted *behind* the curtain, which
+// covers the viewport at z-index 3. So the entire user-visible event for the
+// first fifteen seconds of a GIBS stall was a spinner and "Loading Earth…",
+// identical to a healthy boot that happens to be a second slow. Six seconds
+// clears an ordinary boot (2–4 s) comfortably; past it, silence is the wrong
+// answer whether the cause is NASA's service or the user's connection.
+const SLOW_BOOT_NOTICE_MS = 6000;
+
+const slowBootTimer = setTimeout(() => {
+  if (firstLoadDone || !loaderSlowEl) return;
+  const line = document.createElement("p");
+  line.className = "loader__slow-text";
+  // Names the service rather than blaming the connection: from here the two
+  // are indistinguishable, and this audience knows what GIBS is.
+  line.textContent = "NASA GIBS is slow to answer — still waiting on imagery.";
+  loaderSlowEl.appendChild(line);
+}, SLOW_BOOT_NOTICE_MS);
+
+// The curtain is coming up, either onto the globe or onto the failure message
+// it was hiding — the notice has nothing left to add in either case.
+function clearSlowBootNotice(): void {
+  clearTimeout(slowBootTimer);
+  loaderSlowEl?.replaceChildren();
+}
+
 const textures = new GlobeTextureManager(
   earth.material,
   renderer.capabilities.getMaxAnisotropy(),
@@ -373,6 +402,7 @@ const textures = new GlobeTextureManager(
       setStatus(loading ? "Loading imagery…" : "");
       if (!loading && !firstLoadDone) {
         firstLoadDone = true;
+        clearSlowBootNotice();
         loaderEl?.classList.add("is-hidden");
       }
     },

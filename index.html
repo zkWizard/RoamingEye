@@ -153,6 +153,12 @@
       <div id="loader" class="loader">
         <div class="loader__spinner" aria-hidden="true"></div>
         <p>Loading Earth…</p>
+        <!-- Stays rendered and empty; main.ts inserts the line. A live region
+             that is toggled `hidden` is outside the accessibility tree until
+             it is shown, so the text arrives unannounced (same lesson as the
+             offline banner). Out of flow, so an ordinary boot's spinner and
+             caption sit exactly where they always did. -->
+        <div id="loader-slow" class="loader__slow" role="status"></div>
       </div>
     </div>
 
