@@ -796,6 +796,7 @@ describe("buildProbeCsv", () => {
     // A stamped link from before the hash carried a sampling mode — the shape
     // still sitting in already-published CSVs. It reopens as a point probe.
     expect(restored.probe).toEqual({
+      kind: "point",
       lat: -3.4653,
       lon: -62.2159,
       mode: "point",
@@ -821,11 +822,11 @@ describe("buildProbeCsv", () => {
     );
   });
 
-  // The header block declares a statistic and then hands the reader a link to
-  // reproduce it. Those two must agree: an area mean whose `view_url` reopens
-  // as a point median is a file that contradicts itself, and it is the file a
-  // citation would travel in. The mode used to be absent from the hash, so it
-  // always disagreed for area probes.
+  // The header block declares what it sampled and then hands the reader a link
+  // to reproduce it. Those two must agree: an area mean whose `view_url`
+  // reopens as a point median is a file that contradicts itself, and it is the
+  // file a citation would travel in. The mode used to be absent from the hash,
+  // so it always disagreed for area probes.
   it("stamps a reproduction URL whose sampling mode matches the header", () => {
     for (const mode of ["point", "area"] as const) {
       const csvText = buildProbeCsv(
@@ -838,7 +839,7 @@ describe("buildProbeCsv", () => {
               : undefined,
           viewUrl: `https://roamingeye.org/#${encodeViewState({
             layer: "ndvi",
-            probe: { lat: meta.lat, lon: meta.lon, mode },
+            probe: { kind: "point", lat: meta.lat, lon: meta.lon, mode },
           })}`,
         },
         [{ year: 2001, month: 1 }],
@@ -846,8 +847,35 @@ describe("buildProbeCsv", () => {
       );
       expect(csvText).toContain(`# RoamingEye ${mode} probe`);
       const hash = csvText.match(/# view_url: [^#\n]*#(.*)/)?.[1] ?? "";
-      expect(decodeViewState(hash).probe?.mode).toBe(mode);
+      const restored = decodeViewState(hash);
+      expect(restored.probe).toMatchObject({ kind: "point", mode });
     }
+  });
+
+  // Same contract for the third kind of export. A drawn region's file declares
+  // its box in a `# region:` header, and the box is the whole identity of the
+  // mean — the link has to come back to the same one, not to a bare globe.
+  it("stamps a reproduction URL carrying the region the header declares", () => {
+    const bounds = { south: -4.5, north: -3, west: -63.25, east: -62 };
+    const regionCsv = buildProbeCsv(
+      {
+        ...meta,
+        mode: "region" as const,
+        sampledBounds: bounds,
+        viewUrl: `https://roamingeye.org/#${encodeViewState({
+          layer: "ndvi",
+          probe: { kind: "region", bounds },
+        })}`,
+      },
+      [{ year: 2001, month: 1 }],
+      [0.5]
+    );
+    expect(regionCsv).toContain("# RoamingEye region probe");
+    expect(regionCsv).toContain(
+      "# region: -4.500 -63.250 -3.000 -62.000 (S W N E)"
+    );
+    const hash = regionCsv.match(/# view_url: [^#\n]*#(.*)/)?.[1] ?? "";
+    expect(decodeViewState(hash).probe).toEqual({ kind: "region", bounds });
   });
 
   it("marks an antimeridian-crossing region unambiguously", () => {

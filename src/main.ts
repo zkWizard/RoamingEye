@@ -14,7 +14,7 @@ import {
 import {
   encodeViewState,
   decodeViewState,
-  type ProbeShareMode,
+  type ProbeShare,
 } from "./lib/viewState";
 import { latLngToVector3, vector3ToLatLng, formatLatLng } from "./lib/geo";
 import {
@@ -857,7 +857,7 @@ canvas.addEventListener("keydown", (e) => {
 // to avoid spamming session history while dragging.
 // An open probe's location, mirrored into the shareable hash — a link then
 // reproduces the analysis, not just the view. Maintained by the probe section.
-let probeShare: { lat: number; lon: number; mode: ProbeShareMode } | undefined;
+let probeShare: ProbeShare | undefined;
 
 function currentViewState() {
   const subpoint = vector3ToLatLng(camera.position);
@@ -1115,7 +1115,7 @@ if (probeEl) {
     // The mode goes into the share hash with the coordinates: it selects which
     // statistic the series reports, and the CSV this same view stamps a
     // `view_url` into names that statistic in its own header.
-    probeShare = { lat, lon, mode };
+    probeShare = { kind: "point", lat, lon, mode };
     drawer.clear(); // a point probe replaces any drawn-region chart
     scheduleHashSync();
     const where =
@@ -1428,7 +1428,11 @@ if (probeEl) {
   const runRegionProbe = (bounds: Bounds): void => {
     const layer = LAYERS[currentLayer];
     probeTarget = undefined; // the mode toggle is hidden for region charts
-    probeShare = undefined;
+    // The box travels in the link with the chart it explains. It used to be
+    // dropped here, while the CSV this same view stamps a `view_url` into
+    // declared its bounds in a `# region:` header — so the file's own
+    // reproduction link reopened the globe with no chart at all.
+    probeShare = { kind: "region", bounds };
     scheduleHashSync();
     panel.open(
       layer.label,
@@ -1737,13 +1741,22 @@ if (probeEl) {
   if (initialView.probe) {
     const target = initialView.probe;
     const restoreWhenReady = (): void => {
-      if (firstLoadDone) {
-        // Before the sampling, not after: runProbe reads the panel's mode to
-        // choose the statistic, so adopting it afterwards would chart a point
-        // median under an area caption.
-        panel.restoreMode(target.mode);
-        runProbe(target.lat, target.lon);
-      } else setTimeout(restoreWhenReady, 300);
+      if (!firstLoadDone) {
+        setTimeout(restoreWhenReady, 300);
+        return;
+      }
+      if (target.kind === "region") {
+        // Redraw the box first: nothing dragged it, and the chart's caption
+        // names those corners as what it averaged over.
+        drawer.show(target.bounds);
+        runRegionProbe(target.bounds);
+        return;
+      }
+      // Before the sampling, not after: runProbe reads the panel's mode to
+      // choose the statistic, so adopting it afterwards would chart a point
+      // median under an area caption.
+      panel.restoreMode(target.mode);
+      runProbe(target.lat, target.lon);
     };
     restoreWhenReady();
   }

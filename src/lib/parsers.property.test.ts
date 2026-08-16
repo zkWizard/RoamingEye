@@ -66,9 +66,17 @@ describe("decodeViewState (URL hash — attacker-controllable)", () => {
           expect(state.camera.alt).toBeGreaterThan(0);
           expect(state.camera.alt).toBeLessThanOrEqual(20);
         }
-        if (state.probe !== undefined) {
+        if (state.probe?.kind === "point") {
           expect(Math.abs(state.probe.lat)).toBeLessThanOrEqual(90);
           expect(Math.abs(state.probe.lon)).toBeLessThanOrEqual(180);
+        }
+        if (state.probe?.kind === "region") {
+          const b = state.probe.bounds;
+          expect(b.north).toBeGreaterThan(b.south);
+          expect(b.east).toBeGreaterThan(b.west);
+          expect(Math.abs(b.south)).toBeLessThanOrEqual(85);
+          expect(Math.abs(b.north)).toBeLessThanOrEqual(85);
+          expect(b.east - b.west).toBeLessThanOrEqual(180);
         }
       })
     );
@@ -92,11 +100,34 @@ const arbViewState: fc.Arbitrary<ViewState> = fc.record(
       lon: deg2(18000),
       alt: fc.integer({ min: 1, max: 2000 }).map((n) => n / 100),
     }),
-    probe: fc.record({
-      lat: fc.integer({ min: -900000, max: 900000 }).map((n) => n / 10000),
-      lon: fc.integer({ min: -1800000, max: 1800000 }).map((n) => n / 10000),
-      mode: fc.constantFrom("point" as const, "area" as const),
-    }),
+    probe: fc.oneof(
+      fc.record({
+        kind: fc.constant("point" as const),
+        lat: fc.integer({ min: -900000, max: 900000 }).map((n) => n / 10000),
+        lon: fc.integer({ min: -1800000, max: 1800000 }).map((n) => n / 10000),
+        mode: fc.constantFrom("point" as const, "area" as const),
+      }),
+      // A drawn box, generated the way dragBounds yields one: inside the ±85°
+      // clamp, at least the 0.2° usable span, and no wider than the short arc.
+      // The corners are built from integer ten-thousandths so they survive the
+      // encoder's 4-decimal rounding exactly rather than approximately.
+      fc
+        .record({
+          s: fc.integer({ min: -850000, max: 830000 }),
+          dLat: fc.integer({ min: 2000, max: 20000 }),
+          w: fc.integer({ min: -1800000, max: 1800000 }),
+          dLon: fc.integer({ min: 2000, max: 20000 }),
+        })
+        .map(({ s, dLat, w, dLon }) => ({
+          kind: "region" as const,
+          bounds: {
+            south: s / 10000,
+            west: w / 10000,
+            north: (s + dLat) / 10000,
+            east: (w + dLon) / 10000,
+          },
+        }))
+    ),
     pin: arbYm,
   },
   { requiredKeys: [] }
