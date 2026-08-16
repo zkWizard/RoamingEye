@@ -12,6 +12,7 @@ import {
   serializePlaceObservationExport,
   sstPlaceObservationFromSample,
 } from "./placeObservationExport";
+import { summarizeSstObservingConstraints } from "./sstObservingConstraints";
 
 const PRECIP_COLORMAP_URL =
   "https://gibs.earthdata.nasa.gov/colormaps/v1.3/GLDAS_Surface_Total_Precipitation_Rate_Monthly.xml";
@@ -494,7 +495,7 @@ describe("place observation export", () => {
     const exported = createPlaceObservationExport(input);
 
     expect(exported).toMatchObject({
-      schema: "roamingeye-place-observation-export/v8",
+      schema: "roamingeye-place-observation-export/v9",
       kind: "place-observation-export",
       boundary,
       geography: PLACE_OBSERVATION_GEOGRAPHY,
@@ -1789,3 +1790,157 @@ describe("place observation export inversion accuracy", () => {
     );
   });
 });
+
+describe("place observation export observing constraints", () => {
+  const productFor = (
+    exported: ReturnType<typeof createPlaceObservationExport>,
+    layerId: string
+  ) => exported.products.find((product) => product.layerId === layerId)!;
+
+  const sstProduct = () =>
+    placeObservationProductFromSample({
+      layerId: "sst",
+      sourceValueFactor: 1,
+      samplingStrategy: "boundary-grid",
+      sourceImageDimensions: { width: 512, height: 256 },
+      observations: [
+        sstPlaceObservationFromSample({ year: 2026, month: 4 }, 18.4, 0.42),
+      ],
+    });
+
+  it("carries the cited SST product's observing constraints verbatim", () => {
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [sstProduct()],
+    });
+    const summary = summarizeSstObservingConstraints();
+
+    // Read from the descriptor, not restated here: a correction to the module
+    // every other surface quotes must move this record too.
+    expect(productFor(exported, "sst").observingConstraints).toEqual({
+      status: "published",
+      claimScope: "product-observing-system-only",
+      notPublishedReason: null,
+      representsFullDiurnalCycle: false,
+      constraints: summary.constraints.map((entry) => ({
+        id: entry.id,
+        constraint: entry.constraint,
+        implication: entry.implication,
+        direction: entry.direction,
+      })),
+      limits: [...summary.limits],
+    });
+  });
+
+  it("names the three gates a reader must know before using an SST value", () => {
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [sstProduct()],
+    });
+    const constraints = productFor(exported, "sst").observingConstraints;
+
+    expect(constraints.constraints.map((entry) => entry.id)).toEqual([
+      "daytime-overpass-only",
+      "clear-sky-retrieval-only",
+      "near-surface-radiometric",
+    ]);
+    // The one sign the observing geometry fixes is stated; the two that depend
+    // on regime stay unasserted rather than guessed.
+    expect(
+      constraints.constraints
+        .filter((entry) => entry.direction !== "not-asserted")
+        .map((entry) => entry.id)
+    ).toEqual(["daytime-overpass-only"]);
+  });
+
+  it("asserts no magnitude, no biology and no forecast", () => {
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [sstProduct()],
+    });
+    const record = productFor(exported, "sst").observingConstraints;
+
+    // Screened over what the record ASSERTS. The limits are excluded on
+    // purpose: they name organisms and ecosystems precisely to refuse them, and
+    // a regex that cannot tell a claim from its disclaimer would delete the
+    // disclaimer.
+    expect(assertedText(record)).not.toMatch(
+      /species|habitat|ecosystem|coral|bleach|heatwave|forecast|will be|expect/i
+    );
+    expect(record.limits.join(" ")).toMatch(
+      /carry no claim about organisms, habitat, ecosystem condition, causation, or any future value/
+    );
+    // No offset magnitude anywhere: the size of a daytime-versus-daily-mean
+    // difference depends on wind, insolation and mixing this app never observes.
+    expect(constraintText(record)).not.toMatch(/\d/);
+  });
+
+  it("records an absent descriptor as absent, never as unconstrained", () => {
+    const exported = createPlaceObservationExport(input);
+
+    for (const product of exported.products) {
+      const constraints = product.observingConstraints;
+      expect(constraints.claimScope).toBe("product-observing-system-only");
+      if (product.layerId === "sst") continue;
+      expect(constraints).toEqual({
+        status: "not-published",
+        claimScope: "product-observing-system-only",
+        notPublishedReason: "no-descriptor-published-for-this-product",
+        // Deliberately null, not true: no descriptor is not an answer.
+        representsFullDiurnalCycle: null,
+        constraints: [],
+        limits: [],
+      });
+    }
+  });
+
+  it("keeps the record self-describing so absence needs no external note", () => {
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [sstProduct(), ...nonPrecipProducts()],
+    });
+
+    for (const product of exported.products) {
+      const constraints = product.observingConstraints;
+      // published and "has constraints" are the same fact, never two.
+      expect(constraints.status === "published").toBe(
+        constraints.constraints.length > 0
+      );
+      expect(constraints.notPublishedReason === null).toBe(
+        constraints.status === "published"
+      );
+      expect(constraints.representsFullDiurnalCycle === null).toBe(
+        constraints.status === "not-published"
+      );
+    }
+  });
+
+  it("survives serialization", () => {
+    const withSst = { ...input, products: [sstProduct()] };
+    const parsed = JSON.parse(serializePlaceObservationExport(withSst));
+
+    expect(parsed).toEqual(createPlaceObservationExport(withSst));
+    expect(
+      parsed.products.find(
+        (product: { layerId: string }) => product.layerId === "sst"
+      ).observingConstraints.representsFullDiurnalCycle
+    ).toBe(false);
+  });
+});
+
+interface ObservingConstraintProse {
+  constraints: readonly { constraint: string; implication: string }[];
+  limits: readonly string[];
+}
+
+/** Only what the record claims — its limits, which refuse claims, excluded. */
+function assertedText(record: ObservingConstraintProse): string {
+  return record.constraints
+    .flatMap((entry) => [entry.constraint, entry.implication])
+    .join(" ");
+}
+
+/** Every prose string in the record, with the identifiers left out. */
+function constraintText(record: ObservingConstraintProse): string {
+  return [assertedText(record), ...record.limits].join(" ");
+}

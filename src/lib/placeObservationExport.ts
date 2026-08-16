@@ -10,6 +10,10 @@ import {
   type GeometrySamplingStrategy,
 } from "./geojson";
 import { NDVI_UNIT } from "./phenology";
+import {
+  SST_OBSERVING_CONSTRAINT_LAYER_ID,
+  summarizeSstObservingConstraints,
+} from "./sstObservingConstraints";
 import { summarizeSstRampCensoring } from "./sstRampCensoring";
 import {
   LAYERS,
@@ -28,7 +32,7 @@ import {
  */
 
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
-  "roamingeye-place-observation-export/v8" as const;
+  "roamingeye-place-observation-export/v9" as const;
 
 export const PLACE_OBSERVATION_GEOGRAPHY = {
   coordinateReferenceSystem: "OGC:CRS84",
@@ -362,6 +366,120 @@ function inversionAccuracyForProduct(
   };
 }
 
+/**
+ * Which way a monthly value may sit relative to the quantity a reader is likely
+ * to assume it is, where the observing geometry fixes the sign.
+ *
+ * Declared here rather than imported from a product's own descriptor so the
+ * contract does not take its vocabulary from one layer. It widens as products
+ * are added; a sign that depends on regime is `not-asserted`, which is a
+ * refusal to guess and not a claim that the two directions are equally likely.
+ */
+export type PlaceObservationSamplingDirection = "warm-leaning" | "not-asserted";
+
+export interface PlaceObservationObservingConstraint {
+  /** Stable identifier for the constraint, from the product's descriptor. */
+  id: string;
+  /** What the product's observing system does; a property of the product. */
+  constraint: string;
+  /** What that means for reading one monthly value; never a magnitude. */
+  implication: string;
+  direction: PlaceObservationSamplingDirection;
+}
+
+/**
+ * What the product's observing system samples — which moments, through which
+ * sky, at which depth — as distinct from how well its rendered ramp inverts.
+ *
+ * `inversionAccuracy` above answers *how close is this number to the number the
+ * source published*. This answers the prior question: *what is the quantity the
+ * source published in the first place*. They are independent, and a file
+ * carrying only the first invites the reading that a perfectly inverted value is
+ * an unqualified one. For the cited SST product it is not: `MODIS Aqua L3 SST
+ * Thermal IR Monthly 9km Daytime` composites the daytime overpass alone, on
+ * cloud-screened days alone, as a radiometric temperature of the surface layer —
+ * so a monthly value is not a monthly mean sea-surface temperature, is averaged
+ * over a non-random subset of the month's days, and does not describe water
+ * below the surface layer.
+ *
+ * The app already states this in the SST legend caption, the probe status line,
+ * the probe CSV's `# sst_observing_constraint_*` headers, and the place panel's
+ * SST card. This export was the one surface of the five that dropped it — and
+ * the one most likely to be read months later, detached from the app that would
+ * otherwise have said so.
+ *
+ * Derived from `layerId` here rather than taken from the caller, for the reason
+ * `inversionAccuracy` is: these are fixed properties of a product's observing
+ * system, true of every value it publishes, so no sampling run can supply a
+ * version of them that disagrees. For the same reason nothing here is per-month;
+ * attaching them to an observation would imply they were measured from it.
+ *
+ * A product with no published descriptor records `not-published` and says so in
+ * `notPublishedReason`, rather than being omitted. An absent field reads as
+ * "unconstrained"; a present one that names its own absence cannot.
+ *
+ * Statements about an instrument and an orbit only. No organism, habitat,
+ * ecosystem, thermal-stress, causal, hazard, or forecast claim follows.
+ */
+export interface PlaceObservationObservingConstraints {
+  status: "published" | "not-published";
+  /** These describe the product's observing system, never a sampled value. */
+  claimScope: "product-observing-system-only";
+  /**
+   * Null exactly when `status === "published"`. Records that this export holds
+   * no observing-constraint descriptor for the product — never that the product
+   * observes every moment, every sky, or every depth.
+   */
+  notPublishedReason: "no-descriptor-published-for-this-product" | null;
+  /**
+   * Whether a monthly value represents the whole diurnal cycle. Null when no
+   * descriptor is published, which is not an answer of `true`.
+   */
+  representsFullDiurnalCycle: boolean | null;
+  /** Empty exactly when `status === "not-published"`. */
+  constraints: readonly PlaceObservationObservingConstraint[];
+  /** The descriptor's own limits, carried so the record reads standalone. */
+  limits: readonly string[];
+}
+
+/**
+ * Bind a product to the observing-constraint descriptor published for it.
+ *
+ * Sea surface temperature is the one product this repository publishes a
+ * descriptor for; `sstObservingConstraints` is its single source of truth and is
+ * read verbatim, so the export can never state a constraint the app's other
+ * surfaces do not. Every other layer records `not-published` — an honest gap a
+ * later descriptor fills, not a finding that the product is unconstrained.
+ */
+function observingConstraintsForProduct(
+  layerId: LayerId
+): PlaceObservationObservingConstraints {
+  if (layerId !== SST_OBSERVING_CONSTRAINT_LAYER_ID) {
+    return {
+      status: "not-published",
+      claimScope: "product-observing-system-only",
+      notPublishedReason: "no-descriptor-published-for-this-product",
+      representsFullDiurnalCycle: null,
+      constraints: [],
+      limits: [],
+    };
+  }
+  const summary = summarizeSstObservingConstraints();
+  return {
+    status: "published",
+    claimScope: "product-observing-system-only",
+    notPublishedReason: null,
+    representsFullDiurnalCycle: summary.representsFullDiurnalCycle,
+    constraints: summary.constraints.map((entry) => ({
+      id: entry.id,
+      constraint: entry.constraint,
+      implication: entry.implication,
+      direction: entry.direction,
+    })),
+    limits: [...summary.limits],
+  };
+}
+
 export interface PlaceObservationExport {
   schema: typeof PLACE_OBSERVATION_EXPORT_SCHEMA;
   kind: "place-observation-export";
@@ -429,6 +547,8 @@ export interface PlaceObservationExportProduct {
   legendCapCensoring: PlaceObservationLegendCapCensoring | null;
   /** Measured end-to-end error of the colormap inversion that produced `value`. */
   inversionAccuracy: PlaceObservationInversionAccuracy;
+  /** What the product's observing system samples, and what it does not. */
+  observingConstraints: PlaceObservationObservingConstraints;
   observations: {
     dataMonth: string;
     value: number | null;
@@ -1181,6 +1301,9 @@ function exportProducts(
         product.nativeUnit,
         product.valueMapping
       ),
+      // Derived for the same reason: the observing system is a property of the
+      // cited product, not of the sampling that read it.
+      observingConstraints: observingConstraintsForProduct(product.layerId),
       observations: product.observations
         .map((observation) => ({
           dataMonth: formatYearMonth(observation.dataMonth),

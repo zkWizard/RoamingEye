@@ -154,7 +154,7 @@ describe("place observation environmental brief", () => {
 
     expect(result.kind).toBe("place-observation-environment-brief");
     expect(result.provenance).toEqual({
-      exportSchema: "roamingeye-place-observation-export/v8",
+      exportSchema: "roamingeye-place-observation-export/v9",
       boundary: record.boundary,
       sampling: "area-weighted-grid-mean",
       imagery: record.method.imagery,
