@@ -2815,18 +2815,32 @@ body {
   }
 }
 
-/* Short desktop windows: anchor the bar below the top-right buttons outright.
-   Centring cannot clear them here — at 820px tall the cap above would leave
-   420px of column and only 200px of room on each side, which is the point at
-   which a centred bar starts eating into the bottom overlay instead. This cap
-   is tighter (it also reserves the 330px the bottom HUD needs), which is why
-   four of the nine toggles are on screen at 1280x800 and three at 1366x768 —
-   the fade above is what tells the reader the rest are there. */
+/* Short desktop windows: anchor the bar below the top-right buttons outright,
+   which is where the cap above puts it anyway once the column is taller than
+   the window allows — stating it keeps the anchor explicit rather than a
+   consequence of centring.
+   This rule used to tighten the cap as well, to `100vh - 530px`, reserving an
+   extra 130px on the grounds that the bottom HUD needed 330px of its own. It
+   did not: the HUD panel is 880px wide and centred, so at 1366px there is
+   152px of clear air between its right edge and the bar, and at the widths
+   where the two boxes do meet — 66px of overlap at 560px wide, 61px at 900px —
+   the region they share is the panel's empty right margin, not anything
+   clickable. Above the breakpoint the bar has always run 156–191px down into
+   the panel's own band at those same widths without covering one control, so
+   the reserve was buying clearance the layout never needed. What it did buy was
+   a cliff at exactly the breakpoint: 421px of column at 821px tall and 290px at
+   820px, so nudging a window one pixel shorter cost two of the nine toggles.
+   With both layouts on the same cap the column now shortens smoothly with the
+   window, and the toggle count follows it — five of nine on screen at 1366x768
+   where three were, four at 720px tall where two were. The fade above is still
+   what tells the reader the rest are there.
+   e2e/toolbar-height-continuity.spec.ts pins both halves: no step at the
+   breakpoint, and every control in the HUD panel still owns its own centre at
+   the widths where the boxes overlap. */
 @media (min-width: 541px) and (max-height: 820px) {
   .toolbar {
     top: 200px;
     bottom: auto;
     transform: none;
-    max-height: calc(100vh - 530px);
   }
 }
