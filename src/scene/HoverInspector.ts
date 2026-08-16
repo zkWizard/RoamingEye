@@ -117,7 +117,8 @@ export class HoverInspector {
    * microstates), and to bare coordinates until the indexes lazy-load.
    *
    * Public because the pointer is not the only thing that aims at the globe:
-   * `aimAt` names the point the keyboard is on, and it must read identically.
+   * `nameAim` falls back to this for the point the keyboard is on, and the two
+   * must read identically.
    */
   describe(point: { lat: number; lon: number }): string {
     let text = formatLatLng(point);
@@ -201,10 +202,43 @@ export class HoverInspector {
     this.aimed = point;
     const rect = this.canvas.getBoundingClientRect();
     this.show(
-      this.describe(point),
+      this.nameAim(point),
       rect.left + rect.width / 2,
       rect.top + rect.height / 2
     );
+  }
+
+  /**
+   * Name whatever the KEYBOARD's aim is on — an overlay record when one is
+   * under it, the coordinates otherwise. Exactly what the cursor gets.
+   *
+   * `describe` alone used to answer here, so the five registered sources —
+   * cities, volcanoes, the earthquake magnitude bands, the user's location and
+   * the plate linework — had no keyboard path at all: arrow a volcano into the
+   * middle of the view and the readout gave its latitude, never that it was a
+   * volcano, and the spoken aim said the same. That is 1,196 bundled GVP
+   * volcanoes and the live USGS feed reachable by pointer alone.
+   *
+   * The aim is the camera subpoint, and `camera.lookAt(0, 0, 0)` puts that at
+   * NDC (0, 0) by construction, so the pointer's own hit test answers for the
+   * reticle unchanged: same sources, same thresholds, same marker-over-line
+   * precedence. Sharing the ray is what keeps the two readouts from drifting.
+   *
+   * A record is named without moving the aim or qualifying it, because the hit
+   * radius IS the marker's own drawn radius — `POINT_THRESHOLD` 0.012 against
+   * markers of size 0.022–0.024 — so a hit means the reticle is inside the dot
+   * on screen, not near it. Nor does naming one promise that Enter charts it:
+   * the pointer has always named a marker while its click probed the raw
+   * surface point under the cursor (see the probe's `pointerup`), and Enter
+   * charts the subpoint the same way. The alternative — snapping the aim to
+   * the record — would move the reticle off the point the arrow keys steer and
+   * the hash records, which is the one thing about this aim that cannot move.
+   */
+  nameAim(point: { lat: number; lon: number }): string {
+    this.ndc.set(0, 0);
+    this.raycaster.setFromCamera(this.ndc, this.camera);
+    const hit = this.raycaster.intersectObject(this.earth, false)[0];
+    return this.pickMarker(hit?.distance) ?? this.describe(point);
   }
 
   /** Drop the keyboard aim — the globe has lost keyboard focus. */

@@ -124,6 +124,148 @@ test("leaving the globe takes the aim down", async ({ page }) => {
   await expect(tooltip(page)).not.toHaveClass(/is-visible/);
 });
 
+/**
+ * Piton de la Fournaise — the view `viewState.ts` uses as its own doc example,
+ * and the only GVP record within 3° of itself, so the aim cannot land on a
+ * neighbour instead. 1.24° north of it is outside the hit radius (0.012 world
+ * units on a unit globe, about 0.69°) and is the near-miss case.
+ */
+const FOURNAISE = "#lat=-21.244&lon=55.708&alt=1.2";
+const NEAR_MISS = "#lat=-20.0&lon=55.708&alt=1.2";
+
+/**
+ * Boot at `hash` with the volcanoes overlay already on, and give the globe
+ * keyboard focus.
+ *
+ * The overlay is seeded into the stored session rather than switched on from
+ * the toolbar: the aim is gated on `:focus-visible`, and a toolbar click leaves
+ * focus on the button with no keyboard route back to the canvas — blurring to
+ * the body and pressing Tab does NOT return there. Seeding keeps the focus
+ * gesture the plain `Tab` the rest of this file uses, on a globe that is the
+ * first tab stop of a freshly loaded page.
+ */
+/**
+ * Boot at `hash`, for real.
+ *
+ * The file's `beforeEach` has already loaded `/`, so `goto("/#…")` from here is
+ * a FRAGMENT-only navigation: the document is never re-fetched, no init script
+ * runs, and the camera stays wherever the first boot left it — a test written
+ * that way passes or fails on the default view while appearing to name a place.
+ * Going by way of `about:blank` forces a genuine document load.
+ */
+async function bootAt(page: Page, hash: string): Promise<void> {
+  await page.goto("about:blank");
+  await page.goto(`/${hash}`);
+  await awaitAppInteractive(page);
+}
+
+async function aimWithVolcanoes(page: Page, hash: string): Promise<void> {
+  await page.addInitScript(() => {
+    // `overlays` present is authoritative, so the defaults must be re-listed.
+    window.localStorage.setItem(
+      "roamingeye:session",
+      JSON.stringify({ overlays: ["hd", "atmosphere", "volcanoes"] })
+    );
+  });
+  await bootAt(page, hash);
+  await expect(page.getByRole("button", { name: "Volcanoes" })).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  await page.keyboard.press("Tab");
+  await expect(page.locator("#globe")).toBeFocused();
+}
+
+/**
+ * The readout, re-aimed. The overlay's records load asynchronously, and the aim
+ * is only recomputed when the camera moves — so a right/left pair, which lands
+ * back on the same point, is what makes this poll see a late arrival rather
+ * than a stale readout taken before the markers existed.
+ */
+async function reaimedReadout(page: Page): Promise<string> {
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowLeft");
+  return (await tooltip(page).textContent()) ?? "";
+}
+
+test("the aim names the overlay record under it, as the cursor does", async ({
+  page,
+}) => {
+  await aimWithVolcanoes(page, FOURNAISE);
+
+  // The readout the cursor gets, on the point the keys are on. Before this the
+  // aim called `describe` alone, so cities, volcanoes, the earthquake bands,
+  // the user's location and the plate linework — every registered source —
+  // were reachable by pointer only, and this read "21.24°S, 55.71°E".
+  await expect
+    .poll(() => reaimedReadout(page))
+    .toContain("Fournaise, Piton de la");
+  await expect(tooltip(page)).toContainText("Shield");
+
+  // And a screen-reader user hears it, which is the half a tooltip cannot do.
+  await page.evaluate(() => {
+    const region = document.querySelector(".announcer")!;
+    const seen: string[] = [];
+    (window as unknown as { __spoken: string[] }).__spoken = seen;
+    new MutationObserver(() => seen.push(region.textContent ?? "")).observe(
+      region,
+      { childList: true, subtree: true, characterData: true }
+    );
+  });
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowLeft");
+  await expect
+    .poll(
+      async () =>
+        await page.evaluate(
+          () =>
+            (window as unknown as { __spoken: string[] }).__spoken.at(-1) ?? ""
+        ),
+      { timeout: 5_000 }
+    )
+    .toContain("Fournaise, Piton de la");
+
+  // Naming the record does not move the mark: the reticle stays on the camera
+  // subpoint, which is what the arrow keys steer, what the hash records and
+  // what Enter charts. Snapping the aim to the record would break all three.
+  const offset = await page.evaluate(() => {
+    const r = document.querySelector("#globe-reticle")!.getBoundingClientRect();
+    return {
+      x: r.left + r.width / 2 - window.innerWidth / 2,
+      y: r.top + r.height / 2 - window.innerHeight / 2,
+    };
+  });
+  expect(Math.abs(offset.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(offset.y)).toBeLessThanOrEqual(1);
+});
+
+test("an overlay that is switched off is not named", async ({ page }) => {
+  // The same aim on the same volcano, with nothing seeded, so the overlay is
+  // off: the aim hit-tests what is DRAWN, not what the catalogue contains.
+  await bootAt(page, FOURNAISE);
+  await expect(page.getByRole("button", { name: "Volcanoes" })).toHaveAttribute(
+    "aria-pressed",
+    "false"
+  );
+
+  await page.keyboard.press("Tab");
+  await expect(page.locator("#globe")).toBeFocused();
+  await expect(tooltip(page)).toContainText("La Réunion");
+  await expect(tooltip(page)).not.toContainText("Fournaise");
+});
+
+test("the aim invents no record it is not on", async ({ page }) => {
+  // Same overlay, same volcano, 1.24° away — outside the hit radius. The radius
+  // is the marker's own drawn radius, so a named record means the reticle is
+  // inside the dot on screen; a readout that named a volcano a degree off would
+  // be worse than the coordinates it replaced.
+  await aimWithVolcanoes(page, NEAR_MISS);
+  // Re-aimed, so a record arriving late gets its chance to appear and doesn't
+  // leave this passing on a readout taken before the markers were drawn.
+  expect(await reaimedReadout(page)).toMatch(READOUT);
+  await expect(tooltip(page)).not.toContainText("Fournaise");
+});
+
 test("the reticle never takes a hit the globe should have had", async ({
   page,
 }) => {

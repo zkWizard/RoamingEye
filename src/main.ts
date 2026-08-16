@@ -803,7 +803,9 @@ const syncKeyboardAim = (moved: boolean): void => {
   clearTimeout(aimSpeechTimer);
   aimSpeechTimer = setTimeout(() => {
     if (!inspector || !canvas.matches(":focus-visible")) return;
-    announcer.announce(inspector.describe(vector3ToLatLng(camera.position)));
+    // `nameAim`, not `describe`: a screen-reader user arrowing a volcano into
+    // the middle of the view must hear that it is a volcano, not its latitude.
+    announcer.announce(inspector.nameAim(vector3ToLatLng(camera.position)));
   }, 700);
 };
 
