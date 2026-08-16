@@ -146,8 +146,12 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.35rem;
-  height: 1.35rem;
+  /* 1.5rem = 24px, the WCAG 2.2 AA 2.5.8 floor. At the old 1.35rem this was
+     21.6px — the only control in the app under the floor. It sits in the top
+     overlay, well clear of the bottom HUD, and the hint line box was already
+     23.8px tall, so the taller badge grows that line by ~1px. */
+  width: 1.5rem;
+  height: 1.5rem;
   margin-left: 0.35rem;
   font-size: 0.8rem;
   font-weight: 700;
@@ -2095,6 +2099,37 @@ body {
 
 .city-label--capital {
   font-weight: 700;
+}
+
+/* --- Touch tap targets ---------------------------------------------------
+   The chrome buttons are sized for a mouse: 32px for the theme toggle, 36px
+   for the icon buttons in the explore rail, 36px for the layer trigger. All
+   clear the WCAG 2.2 AA floor (24px, 2.5.8) but sit under the 44px a
+   fingertip wants (2.5.5 / platform touch guidance), so on a phone they are
+   hittable but fiddly.
+
+   Keyed to `pointer: coarse` rather than a width breakpoint: the constraint
+   is the input device, not the viewport, so a small window on a desktop keeps
+   its compact chrome while a tablet gets full-size targets. It also means the
+   e2e suite — every project runs a fine pointer — measures exactly the
+   geometry it did before.
+
+   The timeline steppers are deliberately left at 26×26: at 390px only 3.2px
+   separates them from the 44px-tall scrubber track, so a 44px hit area would
+   swallow drags meant for the slider, and their centres are 31.6px apart, so
+   two 44px targets would also overlap each other. 26px already clears AA. */
+@media (pointer: coarse) {
+  .software-link,
+  .fleet-link,
+  .theme-toggle,
+  .share-button,
+  .export__button,
+  .compare-button,
+  .draw-button,
+  .layer-selector__trigger {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 /* --- Small-phone layout (issue #24) -------------------------------------------

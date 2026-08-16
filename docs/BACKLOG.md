@@ -19,13 +19,6 @@ take one directly when no Owner's pick applies to its domain.
 
 ## Agent-verified candidates
 
-- [ ] **Sub-WCAG tap targets** (2.2 AA 2.5.8 wants ≥24×24; mobile guidance
-      44×44). `.hint__shortcuts` is 21.6px — the smallest control in the app.
-      Timeline steppers are 26×26 at 390px with centres 31.6px apart; the
-      HUD-safe fix shape is in the uiux notebook (pseudo-element negative-inset
-      hit expansion — panel height must not change). Also sub-44 at 390px: the
-      "Find software", "Fleet status", "Copy link", "Save PNG", "Imagery URL",
-      "Compare", and "Draw region" buttons plus the layer trigger.
 - [ ] **Land-cover freshness is manual.** MCD12Q1 is annual and excluded from
       the boot probe by design; once a year, verify the new product year
       against GIBS and bump `LAYERS.landcover.latest` (currently 2024).
@@ -39,6 +32,19 @@ take one directly when no Owner's pick applies to its domain.
 
 <!-- The shipping PR moves its item here, with the PR number. -->
 
+- [x] **Sub-WCAG tap targets.** (#PRNUM) `.hint__shortcuts` was 21.6px — the
+      only control in the app under the WCAG 2.2 AA floor of 24×24 (2.5.8) —
+      and is now 24×24. The chrome buttons all cleared AA but were sized for a
+      mouse (29–36px tall), so on a phone they were hittable but fiddly; they
+      now take a 44px minimum under `@media (pointer: coarse)`. The query is
+      keyed to the input device rather than a width breakpoint, so a narrow
+      desktop window keeps its compact chrome and — usefully — the e2e suite,
+      which runs a fine pointer in every project, measures the same geometry it
+      did before. Two deliberate exclusions: the timeline steppers stay 26×26
+      (they clear AA, and at 390px only 3.2px separates them from the 44px
+      scrubber track, so a taller hit area would swallow slider drags — their
+      centres are also 31.6px apart, so two 44px targets would overlap each
+      other), and the search field stays 38px. Both are asserted, not assumed.
 - [x] **The `theme-color` meta tracked the OS, not the app.** (#956) The two
       tags in `index.html` were keyed to `prefers-color-scheme`, so a phone
       browser's address bar stayed near-black when someone on a dark-preferring
