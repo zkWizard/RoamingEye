@@ -15,7 +15,7 @@ import {
 import type { ProbeMode } from "../probe/ProbeSampler";
 
 /** The user-toggleable sampling modes (regions are drawn, not toggled). */
-type PanelMode = Exclude<ProbeMode, "region">;
+export type PanelMode = Exclude<ProbeMode, "region">;
 import type { LayerId, YearMonth } from "../lib/timeline";
 import {
   inversionAccuracyClause,
@@ -681,10 +681,21 @@ export class ProbePanel {
     return group;
   }
 
-  private selectMode(mode: PanelMode): void {
+  /**
+   * Adopt a sampling mode without asking for a re-sample. The shared-link
+   * restore knows the sender's mode before there is any series to re-run, and
+   * runs the probe itself immediately after; going through `selectMode` would
+   * fire a second sampling pass over the same point.
+   */
+  restoreMode(mode: PanelMode): void {
     if (mode === this.modeValue) return;
     this.modeValue = mode;
     this.reflectToggles();
+  }
+
+  private selectMode(mode: PanelMode): void {
+    if (mode === this.modeValue) return;
+    this.restoreMode(mode);
     this.onModeChange?.(mode); // the app re-runs sampling in the new mode
   }
 

@@ -17,12 +17,27 @@ export interface CameraState {
   alt: number;
 }
 
+/**
+ * How a shared probe sampled its point. The two toggleable modes read the same
+ * rendered imagery but reduce it differently — `point` takes the median of a
+ * 3×3 pixel neighbourhood, `area` a cos(latitude)-weighted mean over a 1° box
+ * (see probe/ProbeSampler.ts) — so they are different statistics, and the CSV
+ * export names which one produced a series. Drawn regions are not a mode: they
+ * carry their own bounds and are not reproducible from a hash.
+ */
+export type ProbeShareMode = "point" | "area";
+
+const PROBE_MODES: readonly string[] = ["point", "area"];
+
 export interface ViewState {
   layer?: LayerId;
   month?: YearMonth;
   camera?: CameraState;
-  /** An open time-series probe at this point — the link reproduces the chart. */
-  probe?: { lat: number; lon: number };
+  /** An open time-series probe at this point — the link reproduces the chart.
+   * `mode` travels with the coordinates because the two modes report different
+   * statistics: a link that dropped it reopened every shared area mean as a
+   * point median, including the `view_url` stamped into that mean's own CSV. */
+  probe?: { lat: number; lon: number; mode: ProbeShareMode };
   /** An active comparison pinned to this month (the timeline month is the
    * other side) — the link reproduces the A/B view. */
   pin?: YearMonth;
@@ -53,9 +68,11 @@ export function encodeViewState(state: ViewState): string {
     params.set("alt", state.camera.alt.toFixed(2));
   }
   if (state.probe) {
+    // The mode is always written, never left to a default: the silent default
+    // is exactly how an area mean used to come back as a point median.
     params.set(
       "probe",
-      `${state.probe.lat.toFixed(4)},${state.probe.lon.toFixed(4)}`
+      `${state.probe.lat.toFixed(4)},${state.probe.lon.toFixed(4)},${state.probe.mode}`
     );
   }
   if (state.pin) {
@@ -111,16 +128,24 @@ export function decodeViewState(hash: string): ViewState {
     state.camera = { lat, lon, alt };
   }
 
+  // Two components is the pre-mode link format, still in the wild in saved
+  // bookmarks and published CSVs. Those links carry no evidence of which mode
+  // produced them, so they resolve to the app's own default rather than
+  // guessing — the one reading that cannot invent a statistic the sender may
+  // not have used.
   const probe = params.get("probe")?.split(",");
-  if (probe?.length === 2) {
-    const [plat, plon] = probe.map(Number);
+  if (probe?.length === 2 || probe?.length === 3) {
+    const plat = Number(probe[0]);
+    const plon = Number(probe[1]);
+    const mode = probe.length === 3 ? probe[2] : "point";
     if (
       Number.isFinite(plat) &&
       Number.isFinite(plon) &&
       Math.abs(plat) <= 90 &&
-      Math.abs(plon) <= 180
+      Math.abs(plon) <= 180 &&
+      PROBE_MODES.includes(mode)
     ) {
-      state.probe = { lat: plat, lon: plon };
+      state.probe = { lat: plat, lon: plon, mode: mode as ProbeShareMode };
     }
   }
 
