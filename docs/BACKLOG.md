@@ -24,6 +24,23 @@ take one directly when no Owner's pick applies to its domain.
       against GIBS and bump `LAYERS.landcover.latest` (currently 2024).
       _Checked 2026-08-15: DescribeDomains still ends at 2024-01-01
       (`2021-01-01/2024-01-01/P1Y`) — no bump due. Next check ~2026-12._
+- [ ] **The globe hover tooltip clips instead of wrapping.** `.hover-tooltip`
+      is `white-space: nowrap`, and `HoverInspector.position()` only flips the
+      box to the other side of the cursor (`left = x - pad - width`) — it never
+      clamps `left` to the viewport and never bounds the width. A readout wider
+      than the window is therefore cut off rather than wrapped, and a flipped
+      one is cut off on the **left**, which is where the record's name sits.
+      _Measured 2026-08-16 against the bundled GVP catalog (n=1196) and a live
+      USGS feed (n=669), rendering the overlays' real `describe` output:
+      volcano hovers run 136 characters at the median and 192 at the longest,
+      earthquake hovers 152 and 173. At the tooltip's 0.78rem the longest
+      volcano line is roughly 1190px, so it overflows any window narrower than
+      ~1200px and the median overflows below ~900px._ Touch devices are
+      unaffected — `@media (hover: none)` hides the tooltip entirely. The fix
+      is a `max-width` plus wrapping in `src/style.css`, or a `left` clamp in
+      `src/scene/HoverInspector.ts`; shortening the copy instead would give
+      back provenance that #862, #865 and #943 deliberately added.
+
 - [ ] **Precipitation currency.** GLDAS publishes ~5 months behind. Evaluate
       GPM IMERG monthly (`GPM_3IMERGM`, ~2-month lag) as a replacement or
       additional layer — a data-sourcing decision, not a bug fix.
