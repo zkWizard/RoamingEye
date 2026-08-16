@@ -79,11 +79,13 @@ test("phone toolbar advertises the toggles hidden past its edge", async ({
   expect(hit).toBe("My location");
 
   // A desktop window with room for the whole column has nothing hidden, so
-  // there is no fade at all. It has to be a TALL one: at 800px the column is
-  // capped and scrolls too, and this assertion used to pass at that height
-  // only because the fade was measured on the wrong axis — see
-  // e2e/toolbar-overflow.spec.ts, which covers the capped case.
-  await page.setViewportSize({ width: 1280, height: 900 });
+  // there is no fade at all. It has to be a genuinely tall one — 1080, not the
+  // 900 this used to say. The column is capped whenever centring it would put
+  // its top edge over the Share/Save/Compare buttons, and at nine toggles that
+  // is every window shorter than ~1009px, so 900 was still a capped, scrolling
+  // column. See e2e/toolbar-overflow.spec.ts for the capped case and
+  // e2e/toolbar-collision.spec.ts for the collision the cap exists to prevent.
+  await page.setViewportSize({ width: 1280, height: 1080 });
   await expect(toolbar).toHaveAttribute("data-overflow", "none");
 });
 

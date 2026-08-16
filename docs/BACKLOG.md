@@ -32,6 +32,29 @@ take one directly when no Owner's pick applies to its domain.
 
 <!-- The shipping PR moves its item here, with the PR number. -->
 
+- [x] **The overlay toolbar stole the Compare button's clicks.** (#973) The
+      column is centred vertically, so its top edge climbs as it grows. Issue
+      #93 identified this exact collision with the top-right buttons and fixed
+      it by anchoring the bar below them — but keyed that to a window height of
+      820px, and the column has since grown to nine toggles and 609px tall,
+      which puts its top edge over the Compare button on any window shorter
+      than about 987px. The band from 821 to 1008px tall was therefore left
+      unguarded, and it contains 1440x900 and 1280x900, two of the commonest
+      laptop viewports. Clicking the middle of Compare there turned the HD
+      tiles overlay off and never opened comparison mode, so the imagery
+      silently dropped to low resolution; Share and Save lost their centres to
+      the same overlap. Fixed by stating the invariant the breakpoint stood in
+      for — the centred column is capped so that centring always leaves the
+      200px the buttons occupy — which changes nothing above about 1009px tall
+      and puts the top edge at exactly 200px below it, the same anchor the
+      short-window rule already uses. Bottom clearance improves from 145px to
+      200px at 900px tall. The cost is that seven of nine toggles are on screen
+      at 1440x900 rather than nine, with the existing edge fade showing the
+      rest. Asserted at three viewports plus a sweep of every height from 830
+      to 1000, and mutation-tested. Two existing assertions had to move: both
+      were pinned at 900px tall as a window with room, which this measurement
+      shows was never true.
+
 - [x] **The overlay toolbar hid most of its toggles on a laptop.** (#972) A
       window 820px tall or shorter caps the toolbar and scrolls it internally
       so the column clears the top-right buttons (issue #93), but nothing said
