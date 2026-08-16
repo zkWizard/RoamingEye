@@ -167,6 +167,7 @@ const timelineEl = document.querySelector<HTMLElement>("#timeline");
 const toolbarEl = document.querySelector<HTMLElement>("#toolbar");
 const searchEl = document.querySelector<HTMLElement>("#search");
 const tooltipEl = document.querySelector<HTMLElement>("#hover-tooltip");
+const reticleEl = document.querySelector<HTMLElement>("#globe-reticle");
 const studyChipEl = document.querySelector<HTMLElement>("#study-chip");
 const providersPageEl = document.querySelector<HTMLElement>("#providers-page");
 const softwarePageEl = document.querySelector<HTMLElement>("#software-page");
@@ -317,23 +318,28 @@ const studyRegion = new StudyRegion(renderer.capabilities.getMaxAnisotropy(), {
 scene.add(studyRegion.object);
 
 // --- Hover inspector (coordinate + country readout) -------------------------
+// Hoisted out of the block: the pointer is not the only thing that aims at the
+// globe, and the keyboard section below puts the same readout on the point the
+// arrow keys are turning towards.
+let inspector: HoverInspector | undefined;
 if (tooltipEl) {
-  const inspector = new HoverInspector(canvas, camera, earth, tooltipEl);
-  inspector.addPointSource(() => citiesOverlay.hoverSource);
-  inspector.addPointSource(() => volcanoesOverlay.hoverSource);
+  const hover = new HoverInspector(canvas, camera, earth, tooltipEl);
+  inspector = hover;
+  hover.addPointSource(() => citiesOverlay.hoverSource);
+  hover.addPointSource(() => volcanoesOverlay.hoverSource);
   for (let index = 0; index < EARTHQUAKE_HOVER_SOURCE_COUNT; index += 1) {
-    inspector.addPointSource(() => earthquakesOverlay.hoverSources[index]);
+    hover.addPointSource(() => earthquakesOverlay.hoverSources[index]);
   }
-  inspector.addPointSource(() => userLocationOverlay.hoverSource);
-  inspector.addLineSource(() => plateBoundariesOverlay.hoverSource);
+  hover.addPointSource(() => userLocationOverlay.hoverSource);
+  hover.addLineSource(() => plateBoundariesOverlay.hoverSource);
   loadCountryIndex()
     .then((index) => {
-      inspector.setCountryIndex(index);
+      hover.setCountryIndex(index);
       // Admin-1 (province/state) is ~1.3 MB gzipped — load it only after the
       // small country index has landed, so it never competes with boot. The
       // hover upgrades in place: coords → country → province, country.
       loadAdmin1Index()
-        .then((admin1) => inspector.setAdmin1Index(admin1))
+        .then((admin1) => hover.setAdmin1Index(admin1))
         .catch((err) =>
           console.warn("RoamingEye: admin-1 index failed to load", err)
         );
@@ -766,6 +772,48 @@ controls.zoomSpeed = 0.8;
 controls.minDistance = 1.06; // get right down to a selected place boundary
 controls.maxDistance = 4.5; // furthest zoom-out
 
+// --- Keyboard aim readout -----------------------------------------------------
+// A pointer aims with a cursor, and the hover readout follows it. The keyboard
+// has no cursor: it turns the globe under a fixed aim at the middle of the
+// view, which is the point Enter charts. That point was neither drawn nor
+// named, so arrowing the globe reported nothing at all — the only way to learn
+// where you had arrived was to press Enter and read the probe that opened, and
+// a screen-reader user got silence either way. The reticle marks the point, the
+// same readout the cursor gets names it, and the live region says it out loud
+// once the turning stops.
+let aimSpeechTimer: ReturnType<typeof setTimeout> | undefined;
+
+const syncKeyboardAim = (moved: boolean): void => {
+  // `:focus-visible`, not `:focus` — clicking the globe focuses it too, and a
+  // user who is already pointing does not need a second aim on screen.
+  if (!inspector || !canvas.matches(":focus-visible")) {
+    clearTimeout(aimSpeechTimer);
+    inspector?.clearAim();
+    reticleEl?.classList.remove("is-visible");
+    tooltipEl?.classList.remove("is-aimed");
+    return;
+  }
+  inspector.aimAt(vector3ToLatLng(camera.position));
+  reticleEl?.classList.add("is-visible");
+  tooltipEl?.classList.add("is-aimed");
+  if (!moved) return;
+  // Announce where the globe came to rest, not every step of getting there: a
+  // held arrow key, and the damping that carries on after it, would otherwise
+  // narrate dozens of points the user was only passing over.
+  clearTimeout(aimSpeechTimer);
+  aimSpeechTimer = setTimeout(() => {
+    if (!inspector || !canvas.matches(":focus-visible")) return;
+    announcer.announce(inspector.describe(vector3ToLatLng(camera.position)));
+  }, 700);
+};
+
+canvas.addEventListener("focus", () => syncKeyboardAim(false));
+canvas.addEventListener("blur", () => syncKeyboardAim(false));
+// The arrow keys are not the only thing that moves the camera: a fly-to from
+// search, or a drag begun while the canvas still holds keyboard focus, would
+// otherwise leave the readout naming a point that has left the middle of view.
+controls.addEventListener("change", () => syncKeyboardAim(true));
+
 // --- Keyboard globe navigation ------------------------------------------------
 // The canvas has declared `role="application"` since the first commit, which
 // tells a screen reader to stop intercepting keys and hand them to the app —
@@ -798,6 +846,9 @@ canvas.addEventListener("keydown", (e) => {
   // With a corner already down, the box rubber-bands to the new subpoint —
   // the keyboard's version of dragging with the button held.
   regionDrawer?.stretchTo({ lat: next.lat, lon: next.lon });
+  // Draw mode holds the controls disabled, so `update()` above may not raise a
+  // `change`; re-aim here so the readout tracks the keys either way.
+  syncKeyboardAim(true);
 });
 
 // --- Shareable view state (URL hash) ------------------------------------------

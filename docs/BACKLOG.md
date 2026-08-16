@@ -32,6 +32,29 @@ take one directly when no Owner's pick applies to its domain.
 
 <!-- The shipping PR moves its item here, with the PR number. -->
 
+- [x] **The keyboard had no aim on the globe.** (#977) Arrow keys turned the
+      globe and Enter charted the point in the middle of the view, but nothing
+      said where that point was. A pointer aims with a cursor and the hover
+      readout follows it; a keyboard has no cursor, and the camera subpoint it
+      turns the globe under was neither drawn nor named. The only way to find
+      out where you had arrived was to press Enter and read the probe that
+      opened — a fetch, a panel and a dismissal, to answer which way am I
+      facing — and a screen-reader user got silence either way, because the
+      readout the cursor gets is a visual tooltip with no live region behind
+      it. A reticle now marks the point so the keys have a visible target, and
+      the same readout the cursor gets names it, offset clear so the pixel
+      being named is never covered by the thing naming it. The description is
+      shared by both paths so they cannot drift apart. The live region speaks
+      the aim once the turning stops rather than on every press, since a held
+      arrow key and the damping after it would otherwise narrate dozens of
+      points the user was only passing over. It re-aims on any camera change,
+      not just key presses, because a fly-to from search or a drag begun while
+      the canvas still holds focus would leave the readout naming a point that
+      has left the middle of the view. It appears only on focus-visible, so
+      clicking the globe raises nothing — a pointer user already has an aim —
+      and it never takes pointer events, so the mark cannot swallow a drag or
+      displace the globe in a hit test.
+
 - [x] **Drawing a study region could not be done by keyboard.** (#975) The
       "Draw region" button is an ordinary button, so a keyboard reached draw
       mode perfectly well and then hit a wall. Arming the mode disables
