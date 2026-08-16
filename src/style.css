@@ -2107,10 +2107,22 @@ body {
   width: 16px;
   height: 16px;
 }
+/* The list scrolls once it outgrows the panel — which it does at ordinary
+   window heights — and a scrolling box that nothing inside it can focus is
+   unreachable by keyboard: there is no way to bring the lower shortcuts into
+   view without a pointer. It takes focus itself (`tabindex="0"` in
+   ui/ShortcutsOverlay.ts) so the arrow keys scroll it, and carries the same
+   2px accent ring as every other stop. The offset is negative for the same
+   reason the globe's is: the box is clipped by the panel around it, so a ring
+   drawn outside would be cut off. */
 .shortcuts__body {
   flex: 1;
   overflow-y: auto;
   padding: 0.5rem 1.25rem 1.25rem;
+}
+.shortcuts__body:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 .shortcuts__group-title {
   margin-top: 0.9rem;
