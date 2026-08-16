@@ -23,6 +23,16 @@ interface Entry {
  * input and pointing `aria-activedescendant` at the highlighted option (rather
  * than moving focus into the list) is what lets typing, arrowing and selecting
  * stay one uninterrupted gesture.
+ *
+ * What came back is spoken through the shared announcer. Every search makes the
+ * user wait — a 300 ms debounce and then a network round trip — and the only
+ * thing that reported the ending was `aria-expanded`, which flips to true for
+ * all three outcomes alike: matches, "No matches", and an unreachable geocoder.
+ * "Expanded" over an empty popup is worse than silence, and the status row that
+ * was meant to cover the empty cases could not: it was built with its text
+ * already inside it and then inserted, and a live region that arrives holding
+ * its message has not changed, so there was nothing for a screen reader to
+ * observe.
  */
 export class SearchBox {
   private readonly root: HTMLElement;
@@ -36,7 +46,8 @@ export class SearchBox {
 
   constructor(
     container: HTMLElement,
-    private readonly onSelect: (result: GeoResult) => void
+    private readonly onSelect: (result: GeoResult) => void,
+    private readonly announce: (message: string) => void = () => {}
   ) {
     container.classList.add("search");
     this.root = container;
@@ -168,6 +179,9 @@ export class SearchBox {
 
     this.setActive(-1);
     this.setOpen(results.length > 0);
+    this.announce(
+      results.length === 1 ? "1 match" : `${results.length} matches`
+    );
   }
 
   /** A single non-interactive status row (failure / no matches). */
@@ -181,12 +195,14 @@ export class SearchBox {
     const li = document.createElement("li");
     li.className = "search__message";
     // Not an option: it cannot be chosen, so it must not be counted as one by
-    // anything walking the listbox.
+    // anything walking the listbox. Nor is it a live region — it is created
+    // holding its text, which announces nothing; the shared announcer speaks
+    // it instead, and a second copy here would say it twice.
     li.setAttribute("role", "presentation");
-    li.setAttribute("aria-live", "polite");
     li.textContent = text;
     this.results.appendChild(li);
     this.setOpen(true);
+    this.announce(text);
   }
 
   /** Move the highlight; `-1` clears it. Focus stays on the input throughout. */
