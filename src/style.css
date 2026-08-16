@@ -936,7 +936,10 @@ body {
   cursor: pointer;
 }
 
-.search__result:hover {
+/* One highlight for both ways in: the pointer, and the arrow keys (which keep
+   focus on the input, so there is no :focus-visible ring to rely on). */
+.search__result:hover,
+.search__result.is-active {
   background: var(--accent-soft);
 }
 
