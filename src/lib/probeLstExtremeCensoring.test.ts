@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   lstExtremeBoundPrefix,
   lstExtremeCensoringClause,
+  lstExtremeCensoringCsvHeaders,
   probeLstExtremeCensoring,
 } from "./probeLstExtremeCensoring";
 import { LST_PUBLISHED_RAMP } from "./lstRampCensoring";
@@ -199,5 +200,134 @@ describe("probeLstExtremeCensoring", () => {
     );
     expect(censoring.airTemperatureObservation).toBe(false);
     expect(censoring.isForecast).toBe(false);
+  });
+});
+
+describe("lstExtremeCensoringCsvHeaders", () => {
+  it("stays silent for every layer but LST and every uncensored record", () => {
+    expect(
+      lstExtremeCensoringCsvHeaders(
+        probeLstExtremeCensoring("sst", [FLOOR, CEILING])
+      )
+    ).toEqual([]);
+    expect(
+      lstExtremeCensoringCsvHeaders(probeLstExtremeCensoring("lst", []))
+    ).toEqual([]);
+    // An ordinary mid-latitude record leaves the file byte-identical.
+    expect(
+      lstExtremeCensoringCsvHeaders(
+        probeLstExtremeCensoring("lst", [INTERIOR, 280.4, null])
+      )
+    ).toEqual([]);
+  });
+
+  it("never emits a comma — a `#` line must not carry the CSV delimiter", () => {
+    for (const values of [
+      [FLOOR, INTERIOR],
+      [INTERIOR, CEILING],
+      [FLOOR, CEILING],
+      [CEILING],
+    ]) {
+      for (const line of lstExtremeCensoringCsvHeaders(
+        probeLstExtremeCensoring("lst", values)
+      )) {
+        expect(line).not.toContain(",");
+        expect(line.startsWith("# lst_ramp_censoring")).toBe(true);
+      }
+    }
+  });
+
+  it("counts the capped months on each side and pluralizes the denominator", () => {
+    const [summary] = lstExtremeCensoringCsvHeaders(
+      probeLstExtremeCensoring("lst", [FLOOR, 245.8, INTERIOR])
+    );
+    expect(summary).toContain("1 of 3 sampled months");
+    expect(summary).toContain("(1 at the ramp floor; 0 at its ceiling)");
+    expect(summary).toContain("one-sided bounds and not measurements");
+
+    const [single] = lstExtremeCensoringCsvHeaders(
+      probeLstExtremeCensoring("lst", [CEILING])
+    );
+    expect(single).toContain("1 of 1 sampled month ");
+    expect(single).toContain("(0 at the ramp floor; 1 at its ceiling)");
+  });
+
+  it("states the row rule inclusively on both sides, matching the classifier", () => {
+    const [, rows] = lstExtremeCensoringCsvHeaders(
+      probeLstExtremeCensoring("lst", [FLOOR, CEILING])
+    );
+    // The published detection edges, quoted so a reader can mark the rows
+    // without the app — and inclusive exactly as `lstRampBoundDirection` is.
+    expect(rows).toContain(
+      `at or below ${LST_PUBLISHED_RAMP.floorBin.hi.toFixed(2)} K`
+    );
+    expect(rows).toContain(
+      `at or above ${LST_PUBLISHED_RAMP.ceilingBin.lo.toFixed(2)} K`
+    );
+    // The caps themselves are distinct from the bins that detect them.
+    expect(rows).toContain(
+      `below ${LST_PUBLISHED_RAMP.floorBin.lo.toFixed(1)} K shares one colour`
+    );
+    expect(rows).toContain(
+      `at or above ${LST_PUBLISHED_RAMP.ceilingBin.hi.toFixed(1)} K shares one colour`
+    );
+  });
+
+  it("reads the mean sentence off the computed bound so it cannot contradict the panel", () => {
+    const derivedFor = (values: (number | null)[]) => {
+      const censoring = probeLstExtremeCensoring("lst", values);
+      const line = lstExtremeCensoringCsvHeaders(censoring)[3];
+      return { censoring, line };
+    };
+
+    const floorOnly = derivedFor([FLOOR, INTERIOR]);
+    expect(floorOnly.censoring.meanBound).toBe("upper");
+    expect(lstExtremeBoundPrefix(floorOnly.censoring, "mean")).toBe("≤ ");
+    expect(floorOnly.line).toContain("mean taken over these rows is an upper");
+
+    const ceilingOnly = derivedFor([INTERIOR, CEILING]);
+    expect(ceilingOnly.censoring.meanBound).toBe("lower");
+    expect(lstExtremeBoundPrefix(ceilingOnly.censoring, "mean")).toBe("≥ ");
+    expect(ceilingOnly.line).toContain("mean taken over these rows is a lower");
+
+    // Both caps: the biases oppose, so no bound — and the panel renders no
+    // prefix either. Silence must not be readable as an unbiased mean.
+    const both = derivedFor([FLOOR, CEILING]);
+    expect(both.censoring.meanBound).toBe("indeterminate");
+    expect(lstExtremeBoundPrefix(both.censoring, "mean")).toBe("");
+    expect(both.line).toContain("bounded in neither direction");
+    expect(both.line).toContain("not the same as an unbiased mean");
+  });
+
+  it("corrects the two header lines above that the caps falsify", () => {
+    const lines = lstExtremeCensoringCsvHeaders(
+      probeLstExtremeCensoring("lst", [FLOOR, INTERIOR])
+    );
+    expect(lines).toHaveLength(5);
+    expect(lines[2]).toContain("two-sided");
+    expect(lines[2]).toContain("uncertainty line above");
+    expect(lines[3]).toContain("anomaly column");
+    // A slope is not given a direction: a resolved cap can tilt it either way.
+    expect(lines[3]).toContain("no direction is claimed for the trend");
+  });
+
+  it("cites the published colormap it judged against", () => {
+    const source = lstExtremeCensoringCsvHeaders(
+      probeLstExtremeCensoring("lst", [CEILING])
+    )[4];
+    expect(source).toContain(LST_PUBLISHED_RAMP.colormapDoc);
+    expect(source).toMatch(/https?:\/\//);
+  });
+
+  it("claims nothing beyond the colour ramp", () => {
+    const text = lstExtremeCensoringCsvHeaders(
+      probeLstExtremeCensoring("lst", [FLOOR, CEILING])
+    ).join(" ");
+    expect(text).not.toMatch(/heat wave|hazard|health|ecosystem|drought/i);
+    expect(text).not.toMatch(/forecast|will |expected to/i);
+    expect(text).not.toMatch(/actually|true value|really/i);
+    // The skin-versus-air offset is disclosed once already, by
+    // `lstSamplingIdentityCsvHeaders`, a few lines up in the same file.
+    expect(text).not.toMatch(/air temperature|2 m/i);
   });
 });
