@@ -177,9 +177,21 @@ export function sstExtremeBoundPrefix(
  * One status-line clause naming which statistics are bounds and why, or null
  * when no sampled month reached a cap — an ordinary open-ocean record then
  * reads exactly as it did before.
+ *
+ * `trendCensored` extends the same sentence to the fourth statistic reduced
+ * from this series — the seasonal Mann-Kendall/Sen's slope (see trend.ts),
+ * fitted over the very values screened here, which an enumeration naming only
+ * min, mean and max reads as having escaped the caps. It rides inside this
+ * clause rather than trailing as a second one because it qualifies the same cap
+ * event: separated, it had to re-open by pointing back at this sentence and
+ * carried no `source` of its own to keep the line short. Merged, the caps are
+ * described once and cited once for all four statistics. No direction is
+ * offered for the trend — see `probeSstTrendCensoring`, which owns that
+ * judgement and its citations.
  */
 export function sstExtremeCensoringClause(
-  censoring: ProbeSstExtremeCensoring
+  censoring: ProbeSstExtremeCensoring,
+  trendCensored = false
 ): string | null {
   if (!censoring.applicable) return null;
   const { floorMonthCount, ceilingMonthCount, observedMonthCount, ramp } =
@@ -193,14 +205,17 @@ export function sstExtremeCensoringClause(
   const source = `source ${ramp.colormapDoc} colormap`;
   const floorCap = `every SST below ${ramp.floorBin.lo.toFixed(1)} ${ramp.unit} shares one colour`;
   const ceilingCap = `every SST at or above ${ramp.ceilingBin.hi.toFixed(1)} ${ramp.unit} shares one colour`;
+  const trend = trendCensored
+    ? ", and the trend fitted through them has a slope and p-value that are not two-sided estimates either — a substituted cap moves a seasonal median in a direction the imagery cannot say"
+    : "";
 
   if (floorMonthCount > 0 && ceilingMonthCount > 0) {
-    return `${tally} land in the SST colormap's open end caps (${floorCap}; ${ceilingCap}), so min is an upper bound, max a lower bound, and the mean is bounded in neither direction (${source})`;
+    return `${tally} land in the SST colormap's open end caps (${floorCap}; ${ceilingCap}), so min is an upper bound, max a lower bound, and the mean is bounded in neither direction${trend} (${source})`;
   }
   if (floorMonthCount > 0) {
-    return `${tally} land in the SST colormap's open low cap (${floorCap}), so min and mean are upper bounds on possibly colder water (${source})`;
+    return `${tally} land in the SST colormap's open low cap (${floorCap}), so min and mean are upper bounds on possibly colder water${trend} (${source})`;
   }
-  return `${tally} land in the SST colormap's open high cap (${ceilingCap}), so max and mean are lower bounds on possibly warmer water (${source})`;
+  return `${tally} land in the SST colormap's open high cap (${ceilingCap}), so max and mean are lower bounds on possibly warmer water${trend} (${source})`;
 }
 
 /**

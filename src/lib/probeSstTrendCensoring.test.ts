@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { probeSstExtremeCensoring } from "./probeSstExtremeCensoring";
+import {
+  probeSstExtremeCensoring,
+  sstExtremeCensoringClause,
+} from "./probeSstExtremeCensoring";
 import {
   PROBE_SST_TREND_CENSORING_LIMITATIONS,
   probeSstTrendCensoring,
-  sstTrendCensoringClause,
+  sstTrendCensored,
 } from "./probeSstTrendCensoring";
 import { LAYER_ORDER } from "./timeline";
 
@@ -18,6 +21,39 @@ const CEILING = 31.9;
 const TESTABLE = { testable: true };
 const UNTESTABLE = { testable: false };
 
+/**
+ * Exactly the text the trend judgement adds to the cap disclosure.
+ *
+ * The trend rider is no longer a clause of its own — it rides inside
+ * `sstExtremeCensoringClause` so both facts share one `source …` attribution.
+ * Rendering the clause with the flag off and on and taking the inserted segment
+ * isolates the trend's own wording, which is what these disclosure assertions
+ * are about: the surrounding sentence legitimately names bounds and prints the
+ * cap thresholds, and the rider must still claim no direction and no number.
+ */
+function trendRider(
+  values: number[],
+  trend: { testable: boolean },
+  layerId = "sst"
+): string {
+  const censoring = probeSstExtremeCensoring(
+    layerId as Parameters<typeof probeSstExtremeCensoring>[0],
+    values
+  );
+  const off = sstExtremeCensoringClause(censoring, false) ?? "";
+  const on =
+    sstExtremeCensoringClause(
+      censoring,
+      sstTrendCensored(probeSstTrendCensoring(censoring, trend))
+    ) ?? "";
+  if (on === off) return "";
+  let start = 0;
+  while (on[start] === off[start]) start += 1;
+  let end = 0;
+  while (on[on.length - 1 - end] === off[off.length - 1 - end]) end += 1;
+  return on.slice(start, on.length - end);
+}
+
 describe("probeSstTrendCensoring", () => {
   it("is inapplicable for every layer but SST", () => {
     for (const layerId of LAYER_ORDER) {
@@ -25,36 +61,52 @@ describe("probeSstTrendCensoring", () => {
       const censoring = probeSstExtremeCensoring(layerId, [FLOOR, CEILING]);
       const trendCensoring = probeSstTrendCensoring(censoring, TESTABLE);
       expect(trendCensoring.applicable, layerId).toBe(false);
-      expect(sstTrendCensoringClause(trendCensoring), layerId).toBeNull();
+      expect(sstTrendCensored(trendCensoring), layerId).toBe(false);
+      expect(trendRider([FLOOR, CEILING], TESTABLE, layerId), layerId).toBe("");
     }
   });
 
   it("stays silent for an SST record that never reached a cap", () => {
-    const censoring = probeSstExtremeCensoring("sst", [17.2, INTERIOR, 21.9]);
+    const values = [17.2, INTERIOR, 21.9];
+    const censoring = probeSstExtremeCensoring("sst", values);
     const trendCensoring = probeSstTrendCensoring(censoring, TESTABLE);
     expect(trendCensoring.applicable).toBe(false);
     expect(trendCensoring.censoredMonthCount).toBe(0);
-    expect(sstTrendCensoringClause(trendCensoring)).toBeNull();
+    expect(sstTrendCensored(trendCensoring)).toBe(false);
+    expect(trendRider(values, TESTABLE)).toBe("");
   });
 
   it("stays silent when the record is too short to report a trend", () => {
     // "trend: insufficient record" makes no numeric claim, so there is
     // nothing for the censoring to qualify.
-    const censoring = probeSstExtremeCensoring("sst", [FLOOR, INTERIOR]);
+    const values = [FLOOR, INTERIOR];
+    const censoring = probeSstExtremeCensoring("sst", values);
     const trendCensoring = probeSstTrendCensoring(censoring, UNTESTABLE);
     expect(censoring.applicable).toBe(true);
     expect(trendCensoring.censoredMonthCount).toBe(1);
     expect(trendCensoring.applicable).toBe(false);
-    expect(sstTrendCensoringClause(trendCensoring)).toBeNull();
+    expect(sstTrendCensored(trendCensoring)).toBe(false);
+    expect(trendRider(values, UNTESTABLE)).toBe("");
+    // The extremes are still disclosed — only the trend rider is absent.
+    expect(sstExtremeCensoringClause(censoring, false)).toContain(
+      "upper bound"
+    );
   });
 
   it("qualifies a testable trend fitted through floor-capped months", () => {
-    const censoring = probeSstExtremeCensoring("sst", [FLOOR, 4.5, INTERIOR]);
+    const values = [FLOOR, 4.5, INTERIOR];
+    const censoring = probeSstExtremeCensoring("sst", values);
     const trendCensoring = probeSstTrendCensoring(censoring, TESTABLE);
     expect(trendCensoring.applicable).toBe(true);
     expect(trendCensoring.censoredMonthCount).toBe(1);
     expect(trendCensoring.observedMonthCount).toBe(3);
-    expect(sstTrendCensoringClause(trendCensoring)).toContain("p-value");
+    expect(trendRider(values, TESTABLE)).toContain("p-value");
+    // The rider says the trend is not exempt, and says it inside the sentence
+    // that already cited the colormap — so the citation is not repeated.
+    const clause = sstExtremeCensoringClause(censoring, true) ?? "";
+    expect(clause).toContain("trend");
+    expect(clause.match(/source /g)).toHaveLength(1);
+    expect(clause.indexOf("trend")).toBeLessThan(clause.indexOf("source "));
   });
 
   it("qualifies a testable trend fitted through ceiling-capped months", () => {
@@ -94,37 +146,41 @@ describe("probeSstTrendCensoring", () => {
         TESTABLE
       );
       expect(trendCensoring.directionClaimable).toBe(false);
-      const clause = sstTrendCensoringClause(trendCensoring) ?? "";
-      expect(clause).not.toMatch(/≤|≥|upper bound|lower bound|attenuat/);
+      expect(trendRider(values, TESTABLE)).not.toMatch(
+        /≤|≥|upper bound|lower bound|attenuat/
+      );
     }
   });
 
   it("makes no biological, forecast or magnitude claim", () => {
+    const values = [FLOOR, 4.5, INTERIOR];
     const trendCensoring = probeSstTrendCensoring(
-      probeSstExtremeCensoring("sst", [FLOOR, 4.5, INTERIOR]),
+      probeSstExtremeCensoring("sst", values),
       TESTABLE
     );
     expect(trendCensoring.marineBiologyObservation).toBe(false);
     expect(trendCensoring.isForecast).toBe(false);
-    const clause = sstTrendCensoringClause(trendCensoring) ?? "";
-    expect(clause).not.toMatch(
+    const rider = trendRider(values, TESTABLE);
+    expect(rider).not.toMatch(
       /species|habitat|ecosystem|coral|bleach|heatwave|forecast|will |expect/i
     );
     // No recovered value or corrected slope is offered anywhere.
-    expect(clause).not.toMatch(/\d/);
+    expect(rider).not.toMatch(/\d/);
   });
 
-  it("stays a single status-line clause with no CSV-hostile characters", () => {
+  it("stays part of a single status-line clause with no CSV-hostile characters", () => {
+    const rider = trendRider([FLOOR, 4.5, INTERIOR], TESTABLE);
+    expect(rider).not.toMatch(/[\n\r]/);
+    expect(rider).not.toContain(" · ");
+    expect(rider.length).toBeLessThan(220);
+    // It is a rider, not a second clause: merging it must not have introduced a
+    // separator that would split it back onto its own line.
     const clause =
-      sstTrendCensoringClause(
-        probeSstTrendCensoring(
-          probeSstExtremeCensoring("sst", [FLOOR, 4.5, INTERIOR]),
-          TESTABLE
-        )
+      sstExtremeCensoringClause(
+        probeSstExtremeCensoring("sst", [FLOOR, 4.5, INTERIOR]),
+        true
       ) ?? "";
-    expect(clause).not.toMatch(/[\n\r]/);
     expect(clause).not.toContain(" · ");
-    expect(clause.length).toBeLessThan(220);
   });
 
   it("documents its limitations without promising a correction", () => {
