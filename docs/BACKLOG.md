@@ -24,23 +24,6 @@ take one directly when no Owner's pick applies to its domain.
       against GIBS and bump `LAYERS.landcover.latest` (currently 2024).
       _Checked 2026-08-15: DescribeDomains still ends at 2024-01-01
       (`2021-01-01/2024-01-01/P1Y`) — no bump due. Next check ~2026-12._
-- [ ] **The globe hover tooltip clips instead of wrapping.** `.hover-tooltip`
-      is `white-space: nowrap`, and `HoverInspector.position()` only flips the
-      box to the other side of the cursor (`left = x - pad - width`) — it never
-      clamps `left` to the viewport and never bounds the width. A readout wider
-      than the window is therefore cut off rather than wrapped, and a flipped
-      one is cut off on the **left**, which is where the record's name sits.
-      _Measured 2026-08-16 against the bundled GVP catalog (n=1196) and a live
-      USGS feed (n=669), rendering the overlays' real `describe` output:
-      volcano hovers run 136 characters at the median and 192 at the longest,
-      earthquake hovers 152 and 173. At the tooltip's 0.78rem the longest
-      volcano line is roughly 1190px, so it overflows any window narrower than
-      ~1200px and the median overflows below ~900px._ Touch devices are
-      unaffected — `@media (hover: none)` hides the tooltip entirely. The fix
-      is a `max-width` plus wrapping in `src/style.css`, or a `left` clamp in
-      `src/scene/HoverInspector.ts`; shortening the copy instead would give
-      back provenance that #862, #865 and #943 deliberately added.
-
 - [ ] **Precipitation currency.** GLDAS publishes ~5 months behind. Evaluate
       GPM IMERG monthly (`GPM_3IMERGM`, ~2-month lag) as a replacement or
       additional layer — a data-sourcing decision, not a bug fix.
@@ -48,6 +31,27 @@ take one directly when no Owner's pick applies to its domain.
 ## Done
 
 <!-- The shipping PR moves its item here, with the PR number. -->
+
+- [x] **The globe hover tooltip clipped instead of wrapping.** (#PR) The
+      readout was `white-space: nowrap`, and its placement only ever FLIPPED
+      the box to the far side of the cursor — never clamped it — so a line
+      wider than the window ran off the edge. Because the flip subtracts the
+      full width, the overflow landed on the **left**, which is where an
+      overlay record's name sits. Reproduced with the real bundled catalog
+      rather than a synthetic string: hovering Tecuamburro put the box's left
+      edge at −166px at 1280x800 and at −612px at 390x844, hiding the
+      volcano's name at both — so this was never a phone-only defect, and the
+      filed estimate of "narrower than ~1200px" was if anything conservative.
+      The box now takes a viewport-relative `max-width` and wraps, and the
+      offset is clamped to the viewport after the flip. The copy is untouched:
+      the provenance #862, #865 and #943 added is all still rendered, on two
+      lines at desktop and three at phone width. Offsets moved from
+      `left`/`top` to a `transform`, because an offset written to `left` also
+      shrinks the box's available width, so the width read back on the next
+      pointermove would have been the width at the previous cursor position.
+      Asserted at both widths in `e2e/hover-tooltip.spec.ts`, and both halves
+      mutation-tested — dropping the clamp fails the phone case at `-187px`,
+      restoring `nowrap` fails the wrap assertion at both.
 
 - [x] **A successful overlay enable was the silent outcome.** (#964) Pressing a
       toolbar toggle flips `aria-pressed` immediately — right for the control,
