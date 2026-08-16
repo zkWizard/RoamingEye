@@ -19,7 +19,7 @@ test("a stalled upstream says so instead of spinning silently", async ({
   test.setTimeout(60_000);
   // Hang, don't fail: a rejected request would surface the failure path early,
   // and the silent window is precisely what this is about.
-  await page.route(/gibs\.earthdata\.nasa\.gov/, () => {});
+  await page.route("**gibs.earthdata.nasa.gov**", () => {});
 
   const notice = page.locator("#loader-slow");
   // The region itself is always present and always live, so the line is
