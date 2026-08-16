@@ -300,6 +300,23 @@ body {
     visibility 0s linear 0.6s;
 }
 
+/* Slow-boot notice. Absolutely positioned rather than a flex child, so the
+   always-rendered (and usually empty) live region costs the centred stack
+   neither height nor a `gap`, and an ordinary boot looks untouched. */
+.loader__slow {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: 2rem;
+  text-align: center;
+}
+
+.loader__slow-text {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
 .loader__spinner {
   width: 42px;
   height: 42px;
