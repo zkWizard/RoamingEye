@@ -64,36 +64,46 @@ take one directly when no Owner's pick applies to its domain.
       compact panel below a height threshold — for which landscape phones are a
       sharper case than the netbook band: there the panel merely covers the
       crosshair, here it occupies three-quarters of the display.
-- [ ] **The keyboard aim names the ground but never the marker on it.** The
-      pointer readout has two modes: `pickMarker` and `pickLine` name an
-      overlay record when one is under the cursor, and only when none is does
-      it fall back to `describe`, the coordinates-plus-territory text. The
-      keyboard aim added in #977 calls `describe` alone, so the five
-      registered sources — cities, volcanoes, the earthquake magnitude bands,
-      the user's location, and the plate linework — are unreachable without a
-      pointer. A keyboard user who arrows a volcano into the middle of the
-      view reads its latitude, not that it is a volcano; the spoken aim in
-      `main.ts` calls `describe` directly too, so a screen-reader user hears
-      the same. That is 1,196 bundled GVP volcanoes, the live USGS M4.5+
-      feed, and the Bird (2003) linework carrying no keyboard path at all,
-      and the doc comment on `describe` states the invariant it breaks — that
-      the aim "must read identically" to what the cursor gets.
-      What stops this being a straight port of `pickMarker` is that the two
-      aims are not the same shape. The cursor is _on_ the marker it names, so
-      naming it asserts nothing about anywhere else. The keyboard aim is
-      pinned to the camera subpoint, and Enter charts that subpoint — but the
-      hit radius is `POINT_THRESHOLD` 0.012 against a unit globe, about 0.69°
-      or 76km at the surface (38km for lines). So a marker can be named while
-      the point Enter would chart is up to 76km away from it, and a readout
-      that named a volcano the probe then missed would be worse than the
-      silence it replaced. Closing it means deciding what the reticle marks
-      when the two disagree — snap the aim to the record, name it with its
-      offset, or tighten the radius for this path — which is a design call,
-      not a tweak, and why this is filed rather than guessed at.
 
 ## Done
 
 <!-- The shipping PR moves its item here, with the PR number. -->
+
+- [x] **The keyboard aim named the ground but never the marker on it.**
+      (#PRNUM) The pointer readout has two modes: `pickMarker` and
+      `pickLine` name an overlay record when one is under the cursor, and
+      only when none is does it fall back to `describe`, the
+      coordinates-plus-territory text. The keyboard aim added in #977 called
+      `describe` alone, so the five registered sources — cities, volcanoes,
+      the earthquake magnitude bands, the user's location and the plate
+      linework — were unreachable without a pointer: a keyboard user who
+      arrowed a volcano into the middle of the view read its latitude, never
+      that it was a volcano, and because the spoken aim called `describe`
+      directly too, a screen-reader user heard the same. That left 1,196
+      bundled GVP volcanoes, the live USGS M4.5+ feed and the Bird (2003)
+      linework with no keyboard path at all, against a doc comment on
+      `describe` asserting the aim "must read identically" to what the
+      cursor gets. The aim is the camera subpoint and `camera.lookAt(0,0,0)`
+      puts that at NDC (0, 0) by construction, so the pointer's own hit test
+      answers for the reticle unchanged — same sources, same thresholds, same
+      marker-over-line precedence — and sharing the ray is what keeps the two
+      readouts from drifting rather than a second copy of the logic. What the
+      filing left open was the offset: a record can be named while Enter
+      charts a subpoint up to 76km away. It is named without snapping or
+      qualifying, on two measurements. The hit radius IS the marker's own
+      drawn radius — `POINT_THRESHOLD` 0.012 against markers of size
+      0.022–0.024, all `sizeAttenuation` — so a hit means the reticle is
+      inside the dot on screen rather than near it. And naming a record was
+      never a promise about what gets charted: the pointer has always named a
+      marker while its own click probed the raw surface point under the
+      cursor, so Enter charting the subpoint is the existing contract, not a
+      new discrepancy. Snapping the aim instead would move the reticle off the
+      point the arrow keys steer and the hash records, which is the one thing
+      about this aim that cannot move. The assertions boot on an isolated
+      volcano and pin the record in the readout and in the live region, pin
+      the reticle still dead centre, and pin the two ways the aim must stay
+      quiet: 1.24° off the same volcano, and directly over it with the overlay
+      switched off.
 
 - [x] **The phone bottom bar sat on the credits line.** (#983) At 540px
       and under the overlay toolbar becomes a bar pinned across the bottom of
