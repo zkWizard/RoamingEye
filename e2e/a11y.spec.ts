@@ -452,3 +452,101 @@ test("browser chrome colour follows the chosen theme, not the OS", async ({
   expect(light.content).toBe(light.bg);
   expect(light.bg).not.toBe(dark.bg);
 });
+
+// --- Target size (WCAG 2.2 2.5.8 AA / 2.5.5 AAA) ---------------------------
+// The AA floor of 24px applies to every pointer, so that check runs
+// everywhere. The 44px guidance is scoped to coarse pointers in the
+// stylesheet, so it has to be asserted under an emulated touch context —
+// and how faithfully `hasTouch` maps onto the `pointer: coarse` media query
+// is an engine detail, verified here only for Chromium (the required lane).
+// The rule under test is plain `min-height`, which needs no cross-engine
+// coverage, so the advisory WebKit/Firefox lanes skip rather than assert
+// emulation behaviour that was never checked.
+
+const TOUCH_TARGETS = [
+  ".software-link",
+  ".fleet-link",
+  ".theme-toggle",
+  ".share-button",
+  ".export__button",
+  ".compare-button",
+  ".draw-button",
+  ".layer-selector__trigger",
+];
+
+test.describe("touch target size", () => {
+  test.skip(
+    ({ browserName }) => browserName !== "chromium",
+    "coarse-pointer emulation is only verified for Chromium"
+  );
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+
+  test("chrome controls are at least 44px on a coarse pointer", async ({
+    page,
+  }) => {
+    expect(
+      await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
+      "emulation must actually select the coarse-pointer rules"
+    ).toBe(true);
+
+    const undersized = await page.evaluate((sels) => {
+      const bad: string[] = [];
+      for (const sel of sels) {
+        const els = [...document.querySelectorAll<HTMLElement>(sel)];
+        if (els.length === 0) bad.push(`${sel}: not rendered`);
+        els.forEach((el, i) => {
+          const r = el.getBoundingClientRect();
+          if (r.width < 44 || r.height < 44)
+            bad.push(
+              `${sel}[${i}]: ${r.width.toFixed(1)}x${r.height.toFixed(1)}`
+            );
+        });
+      }
+      return bad;
+    }, TOUCH_TARGETS);
+
+    expect(undersized, "controls under the 44px touch guidance").toEqual([]);
+  });
+
+  // The steppers are the documented exception: they clear the AA floor but
+  // cannot grow, because a 44px box would reach into the scrubber track above
+  // them and swallow drags meant for the slider. Assert both halves of that
+  // reasoning so a later "just make them 44 too" is caught here.
+  test("timeline steppers clear AA without reaching the scrubber", async ({
+    page,
+  }) => {
+    const geo = await page.evaluate(() => {
+      const steps = [
+        ...document.querySelectorAll<HTMLElement>(".timeline__step"),
+      ].map((el) => el.getBoundingClientRect());
+      const track = document
+        .querySelector<HTMLElement>(".timeline__track")!
+        .getBoundingClientRect();
+      return {
+        sizes: steps.map((r) => [r.width, r.height] as const),
+        clearsTrack: steps.every((r) => r.top >= track.bottom),
+        overlapEachOther: steps.some((a, i) =>
+          steps.some((b, j) => j > i && a.right > b.left && b.right > a.left)
+        ),
+      };
+    });
+
+    for (const [w, h] of geo.sizes) {
+      expect(w).toBeGreaterThanOrEqual(24);
+      expect(h).toBeGreaterThanOrEqual(24);
+    }
+    expect(geo.clearsTrack, "steppers must not overlap the scrubber").toBe(
+      true
+    );
+    expect(geo.overlapEachOther, "steppers must not overlap each other").toBe(
+      false
+    );
+  });
+});
+
+test("the shortcuts badge meets the 24px AA target floor", async ({ page }) => {
+  const box = await page.locator(".hint__shortcuts").boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.width).toBeGreaterThanOrEqual(24);
+  expect(box!.height).toBeGreaterThanOrEqual(24);
+});
