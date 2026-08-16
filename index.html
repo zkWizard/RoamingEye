@@ -67,6 +67,12 @@
         role="application"
       ></canvas>
 
+      <!-- Marks the point the keyboard is aiming at — the middle of the view,
+           which is what Enter charts. Shown only while the globe holds keyboard
+           focus; the pointer has a cursor and needs no such mark. Decorative:
+           the coordinates it stands on are read out in #hover-tooltip. -->
+      <div id="globe-reticle" class="globe-reticle" aria-hidden="true"></div>
+
       <header class="overlay overlay--top">
         <h1 class="brand">Roaming<span>Eye</span></h1>
         <p class="hint">

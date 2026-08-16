@@ -36,6 +36,8 @@ export class HoverInspector {
   private countryIndex: CountryIndex | undefined;
   private admin1Index: RegionIndex<Admin1Region> | undefined;
   private pointerDown = false;
+  /** The point the keyboard is on, while the globe holds keyboard focus. */
+  private aimed: { lat: number; lon: number } | undefined;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -100,12 +102,25 @@ export class HoverInspector {
       return;
     }
 
-    const point = vector3ToLatLng(hit.point);
+    this.show(
+      this.describe(vector3ToLatLng(hit.point)),
+      event.clientX,
+      event.clientY
+    );
+  }
+
+  /**
+   * Name a point of the globe: coordinates always, plus where they fall once
+   * the lookup indexes are in. Prefer the province/state ("Ontario, Canada")
+   * — first-level admin is how field sites and records are organized; fall
+   * back to the country alone where admin-1 has no coverage (ocean, some
+   * microstates), and to bare coordinates until the indexes lazy-load.
+   *
+   * Public because the pointer is not the only thing that aims at the globe:
+   * `aimAt` names the point the keyboard is on, and it must read identically.
+   */
+  describe(point: { lat: number; lon: number }): string {
     let text = formatLatLng(point);
-    // Prefer the province/state ("Ontario, Canada") — first-level admin is
-    // how field sites and records are organized; fall back to the country
-    // alone where admin-1 has no coverage (ocean, some microstates), and to
-    // bare coordinates until the indexes lazy-load.
     const admin1 = this.admin1Index?.lookup(point.lat, point.lon);
     if (admin1) {
       text += ` · ${admin1.name}, ${admin1.country}`;
@@ -113,8 +128,7 @@ export class HoverInspector {
       const country = this.countryIndex?.lookup(point.lat, point.lon);
       if (country) text += ` · ${country}`;
     }
-
-    this.show(text, event.clientX, event.clientY);
+    return text;
   }
 
   /** Text for the nearest visible overlay marker under the cursor, if any. */
@@ -170,6 +184,35 @@ export class HoverInspector {
     return best?.text;
   }
 
+  /**
+   * Show the readout for the point the KEYBOARD is aiming at, anchored to the
+   * middle of the canvas.
+   *
+   * The pointer carries its own aim: wherever the cursor is, that is the point,
+   * and the readout follows it. A keyboard has no cursor — it turns the globe
+   * under a fixed aim, the camera subpoint, which is exactly the middle of the
+   * view and exactly what Enter charts. That point was never drawn or named, so
+   * arrowing the globe reported nothing at all and the only way to find out
+   * where you had arrived was to press Enter and read the probe that opened.
+   * Anchoring here puts the same text the cursor gets on the point the keys are
+   * actually on; `position()` then offsets it clear so the point stays visible.
+   */
+  aimAt(point: { lat: number; lon: number }): void {
+    this.aimed = point;
+    const rect = this.canvas.getBoundingClientRect();
+    this.show(
+      this.describe(point),
+      rect.left + rect.width / 2,
+      rect.top + rect.height / 2
+    );
+  }
+
+  /** Drop the keyboard aim — the globe has lost keyboard focus. */
+  clearAim(): void {
+    this.aimed = undefined;
+    this.hide();
+  }
+
   private show(text: string, x: number, y: number): void {
     this.tooltip.textContent = text;
     this.tooltip.classList.add("is-visible");
@@ -205,7 +248,18 @@ export class HoverInspector {
     this.tooltip.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
   }
 
+  /**
+   * Take the readout down — unless the keyboard is still aiming, in which case
+   * fall back to its point rather than blanking. Every pointer path that hides
+   * (cursor off the globe, cursor pressed to drag) says nothing about the
+   * keyboard, and a user who is arrowing with a hand resting on the mouse
+   * should not lose the readout to a stray pointer event.
+   */
   private hide(): void {
+    if (this.aimed) {
+      this.aimAt(this.aimed);
+      return;
+    }
     this.tooltip.classList.remove("is-visible");
     this.tooltip.setAttribute("aria-hidden", "true");
   }
