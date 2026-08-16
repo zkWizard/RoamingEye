@@ -8,7 +8,12 @@ import {
   LABEL_COUNT,
 } from "../lib/cities";
 import { ICONS } from "../ui/icons";
-import { GLOBE_RADIUS, type HoverPointSource, type MapOverlay } from "./types";
+import {
+  GLOBE_RADIUS,
+  once,
+  type HoverPointSource,
+  type MapOverlay,
+} from "./types";
 
 /** A label must face the camera at least this much to show (hides the limb). */
 const FRONT_FACING_DOT = 0.25;
@@ -31,7 +36,6 @@ export class CitiesOverlay implements MapOverlay {
   readonly icon = ICONS.cities;
   readonly object = new THREE.Group();
 
-  private loadPromise: Promise<void> | undefined;
   /** Set once loaded — lets the HoverInspector name the dot under the cursor. */
   hoverSource: HoverPointSource | undefined;
 
@@ -48,8 +52,10 @@ export class CitiesOverlay implements MapOverlay {
     this.object.visible = false;
   }
 
+  private readonly loadOnce = once(() => this.load());
+
   ensureLoaded(): Promise<void> {
-    return (this.loadPromise ??= this.load());
+    return this.loadOnce();
   }
 
   /** Project the label positions for the current view (render-loop hook). */

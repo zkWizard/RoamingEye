@@ -1,5 +1,10 @@
 import * as THREE from "three";
-import { GLOBE_RADIUS, type HoverPointSource, type MapOverlay } from "./types";
+import {
+  GLOBE_RADIUS,
+  once,
+  type HoverPointSource,
+  type MapOverlay,
+} from "./types";
 import { ICONS } from "../ui/icons";
 import { latLngToVector3 } from "../lib/geo";
 import { fetchJson } from "../lib/net";
@@ -53,7 +58,6 @@ export class EarthquakesOverlay implements MapOverlay {
   readonly icon = ICONS.quakes;
   readonly object = new THREE.Group();
 
-  private loadPromise: Promise<void> | undefined;
   /** One hover source per magnitude-size bucket, in rendered point order. */
   readonly hoverSources: Array<HoverPointSource | undefined> = new Array(
     SIZE_BUCKETS.length
@@ -67,8 +71,10 @@ export class EarthquakesOverlay implements MapOverlay {
     this.object.visible = false;
   }
 
+  private readonly loadOnce = once(() => this.load());
+
   ensureLoaded(): Promise<void> {
-    return (this.loadPromise ??= this.load());
+    return this.loadOnce();
   }
 
   /** The source-aware snapshot retained after a successful fetch and parse. */

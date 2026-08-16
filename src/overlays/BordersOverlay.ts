@@ -3,7 +3,7 @@ import { latLngToVector3 } from "../lib/geo";
 import { geometryToRings, type GeoGeometry } from "../lib/geojson";
 import { fetchJson } from "../lib/net";
 import { ICONS } from "../ui/icons";
-import { GLOBE_RADIUS, type MapOverlay } from "./types";
+import { GLOBE_RADIUS, once, type MapOverlay } from "./types";
 
 interface FeatureCollection {
   features: { geometry: GeoGeometry }[];
@@ -19,8 +19,6 @@ export class BordersOverlay implements MapOverlay {
   readonly icon = ICONS.borders;
   readonly object = new THREE.Group();
 
-  private loadPromise: Promise<void> | undefined;
-
   constructor(
     // BASE_URL-aware so the fetch works when the site is hosted on a subpath.
     private readonly url = `${import.meta.env.BASE_URL}data/countries.geojson`,
@@ -29,8 +27,10 @@ export class BordersOverlay implements MapOverlay {
     this.object.visible = false;
   }
 
+  private readonly loadOnce = once(() => this.load());
+
   ensureLoaded(): Promise<void> {
-    return (this.loadPromise ??= this.load());
+    return this.loadOnce();
   }
 
   private async load(): Promise<void> {

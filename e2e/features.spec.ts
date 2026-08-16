@@ -499,6 +499,49 @@ test("uncaught errors surface a dismissible toast", async ({ page }) => {
   await expect(toast).toBeHidden();
 });
 
+test("an overlay whose feed fails says so and can be retried", async ({
+  page,
+}) => {
+  // Before this was fixed the catch in toggleOverlay swallowed the failure
+  // into console.warn, so the toggle snapped back with no explanation — and
+  // the rejected load was memoized, so no later click ever refetched.
+  let attempts = 0;
+  await page.route("**earthquake.usgs.gov**", (route) => {
+    attempts += 1;
+    return route.abort();
+  });
+
+  const quakes = page.locator('.toolbar__item[title="Quakes"]');
+  await expect(quakes).toHaveAttribute("aria-pressed", "false");
+
+  await quakes.click();
+
+  const toast = page.locator(".error-toast");
+  await expect(toast).toBeVisible();
+  await expect(toast).toContainText("Couldn't load Quakes");
+  // The button must not claim to be showing data it never received.
+  await expect(quakes).toHaveAttribute("aria-pressed", "false");
+
+  // Sampled after the toast, so this enable's request has already settled.
+  // A delta rather than an absolute: the feed URL is shared with the place
+  // panel's seismicity context, so the count is not the overlay's alone.
+  const afterFirstEnable = attempts;
+  expect(afterFirstEnable).toBeGreaterThan(0);
+
+  await toast.locator(".error-toast__close").click();
+  await expect(toast).toBeHidden();
+
+  // The retry the toast offers has to be real. Before the fix the memoized
+  // rejection answered this click instantly and no request left the browser,
+  // so the count is the assertion that matters — and counting rather than
+  // requiring success keeps the spec independent of whether USGS is up.
+  await quakes.click();
+  await expect(async () => {
+    expect(attempts).toBeGreaterThan(afterFirstEnable);
+  }).toPass({ timeout: 10_000 });
+  await expect(toast).toBeVisible();
+});
+
 test("search shows failure and no-results states", async ({ page }) => {
   // Force a network failure without touching the real geocoder.
   await page.route("**nominatim**", (route) => route.abort());

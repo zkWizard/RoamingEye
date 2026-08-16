@@ -13,7 +13,12 @@ import {
   type Volcano,
 } from "../lib/volcanoes";
 import { ICONS } from "../ui/icons";
-import { GLOBE_RADIUS, type HoverPointSource, type MapOverlay } from "./types";
+import {
+  GLOBE_RADIUS,
+  once,
+  type HoverPointSource,
+  type MapOverlay,
+} from "./types";
 
 /**
  * Holocene volcanoes from the Smithsonian Global Volcanism Program.
@@ -38,7 +43,6 @@ export class VolcanoesOverlay implements MapOverlay {
   readonly icon = ICONS.volcanoes;
   readonly object = new THREE.Group();
 
-  private loadPromise: Promise<void> | undefined;
   /** Set once loaded — lets the HoverInspector describe the marker under the cursor. */
   hoverSource: HoverPointSource | undefined;
   /** Source and parser coverage for the exact records rendered by this load. */
@@ -52,8 +56,10 @@ export class VolcanoesOverlay implements MapOverlay {
     this.object.visible = false;
   }
 
+  private readonly loadOnce = once(() => this.load());
+
   ensureLoaded(): Promise<void> {
-    return (this.loadPromise ??= this.load());
+    return this.loadOnce();
   }
 
   private async load(): Promise<void> {

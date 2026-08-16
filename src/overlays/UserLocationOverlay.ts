@@ -55,6 +55,9 @@ export class UserLocationOverlay implements MapOverlay {
   readonly icon = ICONS.pin;
   readonly object = new THREE.Group();
   readonly ephemeral = true;
+  // `onError` below already words the failure — a permission denial, a browser
+  // without geolocation — better than a generic "couldn't load" ever could.
+  readonly reportsOwnLoadErrors = true;
 
   /** Set once located — lets the HoverInspector show "You are here!". */
   hoverSource: HoverPointSource | undefined;
