@@ -979,6 +979,24 @@ body {
   border: 1px solid var(--control-border);
   border-radius: 14px;
   backdrop-filter: blur(10px);
+  --toolbar-fade-start: 0px;
+  --toolbar-fade-end: 0px;
+}
+
+/* Both scrolling layouts — the phone bottom bar and the short-desktop column —
+   fade whichever edge still has toggles behind it, so the bar reads as
+   scrollable rather than finished. Only the axis differs, so the sizes live
+   here and each layout supplies its own gradient direction below. Toolbar.ts
+   keeps `data-overflow` in step with the real scroll position, so the fade is
+   gone once you reach that end. */
+.toolbar[data-overflow="end"],
+.toolbar[data-overflow="both"] {
+  --toolbar-fade-end: 2rem;
+}
+
+.toolbar[data-overflow="start"],
+.toolbar[data-overflow="both"] {
+  --toolbar-fade-start: 2rem;
 }
 
 .toolbar__item {
@@ -2216,12 +2234,9 @@ body {
     /* A sideways swipe on the bar must not chain into the browser's
        back-navigation gesture and leave the app. */
     overscroll-behavior-x: contain;
-    /* Nine toggles need ~516px; a 390px phone shows six. Fade whichever edge
-       still has items behind it so the strip reads as scrollable instead of
-       finished — Toolbar.ts keeps `data-overflow` in step with the real
-       scroll position, so the fade is gone once you reach the end. */
-    --toolbar-fade-start: 0px;
-    --toolbar-fade-end: 0px;
+    /* Nine toggles need ~516px; a 390px phone shows six. Fade sizes are
+       shared with the short-desktop column (see `--toolbar-fade-*`); here the
+       hidden items are off to the side, so the gradient runs across. */
     -webkit-mask-image: linear-gradient(
       to right,
       transparent 0,
@@ -2236,16 +2251,6 @@ body {
       #000 calc(100% - var(--toolbar-fade-end)),
       transparent 100%
     );
-  }
-
-  .toolbar[data-overflow="end"],
-  .toolbar[data-overflow="both"] {
-    --toolbar-fade-end: 2rem;
-  }
-
-  .toolbar[data-overflow="start"],
-  .toolbar[data-overflow="both"] {
-    --toolbar-fade-start: 2rem;
   }
 
   .toolbar__item {
@@ -2661,5 +2666,24 @@ body {
     transform: none;
     max-height: calc(100vh - 530px);
     overflow-y: auto;
+    /* That cap hides most of the column on an ordinary laptop — four of the
+       nine toggles are on screen at 1280x800 and three at 1366x768 — and the
+       overlay scrollbar it scrolls with is painted only while scrolling, so
+       at rest the bar looked like the whole set. Same fade the phone bar
+       uses, turned to run down the column. */
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 var(--toolbar-fade-start),
+      #000 calc(100% - var(--toolbar-fade-end)),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 var(--toolbar-fade-start),
+      #000 calc(100% - var(--toolbar-fade-end)),
+      transparent 100%
+    );
   }
 }
