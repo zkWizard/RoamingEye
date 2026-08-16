@@ -2878,3 +2878,45 @@ body {
     transform: none;
   }
 }
+
+/* The cap above reserves 400px, and it is easy to read that as two decisions —
+   200px for the top-right buttons and 200px for something at the bottom. It is
+   one: the column is centred, so reserving the 200px the buttons occupy
+   necessarily mirrors it below, and the lower 200px is a consequence rather
+   than a clearance anything asked for. Nothing lives there. The credits line
+   sits in the last 48px of the window, the HUD panel is 880px wide and centred,
+   and a hit test across the strip returns the globe for its whole run.
+   So say what the band actually is — from under the buttons to clear of the
+   credits — and let the column have the rest of it. The bar keeps its centring
+   inside that band, which is what `margin-block: auto` between two insets does,
+   so a tall window still centres the column and only windows too short to
+   centre it above 200px anchor it there. `height: fit-content` is what keeps
+   the box its content's height instead of stretching to fill the band.
+   Two more toggles reach the screen on the common laptop viewports: seven of
+   nine at 1366x768 and 1280x800 where five and six were, six at 720px tall
+   where four were, and all nine at 900px tall where seven were.
+   The width gate is arithmetic, not taste. The panel is a fixed 880px centred
+   and the bar's left edge sits at `100vw - 91px`, so the two boxes overlap by
+   `531 - 100vw/2` px — clear only above 1062px wide. Below that a longer column
+   runs down the panel's flank: at 1024x600 the timeline steppers span x 879-937
+   against a bar edge at 934, so three pixels of a real control are at stake.
+   1100px keeps a 19px margin over the crossover. Under it nothing moves, which
+   leaves a 1024x600 netbook at the three toggles it has today.
+   The `@supports` guard is load-bearing rather than decorative: the box is
+   given both a top and a bottom inset, so without `fit-content` its height
+   resolves to `auto` and stretches to fill the band, turning the bar into a
+   tall translucent slab with the toggles bunched at its top. A browser that
+   cannot do the centring is better off keeping the centred cap it has.
+   e2e/toolbar-height-continuity.spec.ts holds the band at both ends. */
+@supports (height: fit-content) {
+  @media (min-width: 1100px) {
+    .toolbar {
+      top: 200px;
+      bottom: 80px;
+      transform: none;
+      height: fit-content;
+      margin-block: auto;
+      max-height: calc(100vh - 280px);
+    }
+  }
+}
