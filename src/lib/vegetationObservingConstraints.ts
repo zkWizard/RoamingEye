@@ -266,6 +266,105 @@ export const VEGETATION_OBSERVING_CONSTRAINT_GIBS_LAYERS: Record<
 };
 
 /**
+ * Whether these constraints may be asserted for what the app currently renders
+ * as `layerId`.
+ *
+ * Two separate questions, and both have to answer yes: is this one of the two
+ * layers the descriptor is written for, and is that layer still pointed at the
+ * GIBS identifier the descriptor was written against. The second is the refusal
+ * `VEGETATION_OBSERVING_CONSTRAINT_GIBS_LAYERS` exists for — a maximum-value-
+ * composite claim attached to some other product would be worse than no claim,
+ * and an exported file cannot be corrected after the fact.
+ *
+ * Exported so every surface that speaks these constraints asks one question
+ * rather than each repeating the drift check with its own idea of what counts.
+ */
+export function vegetationObservingConstraintsApply(
+  layerId: LayerId | undefined
+): layerId is VegetationObservingConstraintLayerId {
+  if (!isConstrainedLayer(layerId)) return false;
+  return (
+    LAYERS[layerId].wmsLayer ===
+    VEGETATION_OBSERVING_CONSTRAINT_GIBS_LAYERS[layerId]
+  );
+}
+
+/**
+ * False for both vegetation-index layers, and not an inference about magnitude.
+ *
+ * A vegetation index is a ratio of reflected red and near-infrared light, so it
+ * cannot be observed without sunlight at all — `clear-sky-optical-only` above
+ * states the product needs a clear, *sunlit* view and drops low-sun days — and
+ * the eligible observations come from Terra's single mid-morning descending
+ * overpass. A monthly value therefore describes selected mid-morning moments,
+ * never every moment of the month. That is the observing geometry restated,
+ * exactly as the daytime gate fixes the same field to `false` for the SST
+ * product; how far a mid-morning index sits from any all-hours quantity is a
+ * magnitude, and no magnitude is asserted anywhere in this module.
+ */
+export const VEGETATION_REPRESENTS_FULL_DIURNAL_CYCLE = false;
+
+export interface VegetationObservingConstraintsSummary {
+  kind: "vegetation-index-observing-constraints";
+  /** Explicitly prevents consumers from treating this as a forecast. */
+  isForecast: false;
+  claimScope: "product-observing-system-only";
+  /** Prevents these constraints from being mistaken for an ecological finding. */
+  ecologicalConditionObservation: false;
+  layerId: VegetationObservingConstraintLayerId;
+  source: DatasetRef;
+  constraints: readonly VegetationObservingConstraint[];
+  /** False for this product; see the constant's own reasoning. */
+  representsFullDiurnalCycle: typeof VEGETATION_REPRESENTS_FULL_DIURNAL_CYCLE;
+  /** Constraints whose sign the selection rule fixes; empty for EVI. */
+  directionalConstraintIds: VegetationObservingConstraintId[];
+  /** Honest, source-carrying sentence, ready for a screen reader. */
+  statement: string;
+  limits: typeof VEGETATION_OBSERVING_CONSTRAINT_LIMITS;
+}
+
+/**
+ * Describe what the cited monthly vegetation-index product's compositing
+ * algorithm does and does not sample, for one of the two layers it is asserted
+ * for.
+ *
+ * This takes no observation: the constraints hold for every value the product
+ * publishes, so applying them to one month would imply they were derived from
+ * it. Mirrors `summarizeSstObservingConstraints` so a consumer holding both
+ * reads one shape — the place export is the surface that needs exactly that.
+ */
+export function summarizeVegetationObservingConstraints(
+  layerId: VegetationObservingConstraintLayerId
+): VegetationObservingConstraintsSummary {
+  const constraints = VEGETATION_OBSERVING_CONSTRAINTS[layerId];
+  return {
+    kind: "vegetation-index-observing-constraints",
+    isForecast: false,
+    claimScope: "product-observing-system-only",
+    ecologicalConditionObservation: false,
+    layerId,
+    source: VEGETATION_OBSERVING_CONSTRAINT_SOURCES[layerId],
+    constraints,
+    representsFullDiurnalCycle: VEGETATION_REPRESENTS_FULL_DIURNAL_CYCLE,
+    directionalConstraintIds: constraints
+      .filter((entry) => entry.direction !== "not-asserted")
+      .map((entry) => entry.id),
+    statement: vegetationObservingConstraintStatement(layerId),
+    limits: VEGETATION_OBSERVING_CONSTRAINT_LIMITS,
+  };
+}
+
+function vegetationObservingConstraintStatement(
+  layerId: VegetationObservingConstraintLayerId
+): string {
+  const source = VEGETATION_OBSERVING_CONSTRAINT_SOURCES[layerId];
+  const clauses = VEGETATION_OBSERVING_CONSTRAINTS[layerId]
+    .map((entry) => `${entry.constraint} — ${entry.implication}`)
+    .join("; ");
+  return `Vegetation-index observing constraints: this product is ${clauses}. Source: ${source.shortName} v${source.version}. These describe the product's compositing algorithm, not vegetation cover, condition, or any ecological state.`;
+}
+
+/**
  * Each sampling gate written out for the exported CSV, keyed by layer and then
  * by constraint id.
  *
@@ -387,13 +486,7 @@ function samplingDirectionHeader(
 export function vegetationSamplingIdentityCsvHeaders(
   layerId: LayerId | undefined
 ): string[] {
-  if (!isConstrainedLayer(layerId)) return [];
-  if (
-    LAYERS[layerId].wmsLayer !==
-    VEGETATION_OBSERVING_CONSTRAINT_GIBS_LAYERS[layerId]
-  ) {
-    return [];
-  }
+  if (!vegetationObservingConstraintsApply(layerId)) return [];
   // No commas anywhere below: a `#` line must never contain a CSV delimiter
   // (see the header discipline documented on `csvHeaderText` in probe.ts).
   return [

@@ -6,6 +6,9 @@ import {
   VEGETATION_OBSERVING_CONSTRAINT_SOURCES,
   VEGETATION_OBSERVING_CONSTRAINT_GIBS_LAYERS,
   VEGETATION_SAMPLING_GATE_NOTES,
+  VEGETATION_REPRESENTS_FULL_DIURNAL_CYCLE,
+  summarizeVegetationObservingConstraints,
+  vegetationObservingConstraintsApply,
   probeVegetationSamplingGateClause,
   vegetationSamplingIdentityCsvHeaders,
   vegetationCaptionConstraintOmissions,
@@ -448,6 +451,87 @@ describe("vegetationCaptionConstraintOmissions", () => {
     // record.
     for (const layerId of VEGETATION_OBSERVING_CONSTRAINT_LAYER_IDS) {
       expect(LAYERS[layerId].description.length).toBeLessThanOrEqual(71);
+    }
+  });
+});
+
+describe("summarizeVegetationObservingConstraints", () => {
+  it("carries the module's own constraints rather than a restated copy", () => {
+    for (const id of VEGETATION_OBSERVING_CONSTRAINT_LAYER_IDS) {
+      const summary = summarizeVegetationObservingConstraints(id);
+      expect(summary.constraints).toEqual(VEGETATION_OBSERVING_CONSTRAINTS[id]);
+      expect(summary.source).toBe(VEGETATION_OBSERVING_CONSTRAINT_SOURCES[id]);
+      expect(summary.limits).toBe(VEGETATION_OBSERVING_CONSTRAINT_LIMITS);
+      expect(summary.layerId).toBe(id);
+    }
+  });
+
+  it("answers the diurnal question with false, never by staying silent", () => {
+    // A vegetation index is a reflectance ratio, so it cannot be observed
+    // without sunlight at all, and the eligible observations come from one
+    // mid-morning overpass. Null here would read as "not asked".
+    for (const id of VEGETATION_OBSERVING_CONSTRAINT_LAYER_IDS) {
+      expect(
+        summarizeVegetationObservingConstraints(id).representsFullDiurnalCycle
+      ).toBe(false);
+    }
+    expect(VEGETATION_REPRESENTS_FULL_DIURNAL_CYCLE).toBe(false);
+  });
+
+  it("reports NDVI's signed selection and no sign at all for EVI", () => {
+    // The one substantive difference between the layers: the compositing
+    // decision is made on NDVI, so only NDVI's kept value carries an
+    // inequality against the candidates it was chosen from.
+    expect(
+      summarizeVegetationObservingConstraints("ndvi").directionalConstraintIds
+    ).toEqual(["maximum-value-selection"]);
+    expect(
+      summarizeVegetationObservingConstraints("evi").directionalConstraintIds
+    ).toEqual([]);
+  });
+
+  it("refuses every claim the module refuses: no forecast, no ecology", () => {
+    for (const id of VEGETATION_OBSERVING_CONSTRAINT_LAYER_IDS) {
+      const summary = summarizeVegetationObservingConstraints(id);
+      expect(summary.isForecast).toBe(false);
+      expect(summary.ecologicalConditionObservation).toBe(false);
+      expect(summary.claimScope).toBe("product-observing-system-only");
+      // No magnitude in the constraint prose: how far a composite sits above
+      // its candidates' average depends on eligibility and contamination this
+      // app never sees. Scoped to the constraints rather than the whole
+      // statement, whose cited `MOD13A3 v061` carries digits of its own.
+      const prose = summary.constraints
+        .map((entry) => `${entry.constraint} ${entry.implication}`)
+        .join(" ");
+      expect(prose).not.toMatch(/\d/);
+      expect(summary.statement).toContain(
+        VEGETATION_OBSERVING_CONSTRAINT_SOURCES[id].shortName
+      );
+      expect(summary.statement).toMatch(/not vegetation cover, condition/i);
+    }
+  });
+});
+
+describe("vegetationObservingConstraintsApply", () => {
+  it("applies to the two vegetation indices and to nothing else", () => {
+    for (const id of LAYER_ORDER) {
+      expect(vegetationObservingConstraintsApply(id)).toBe(
+        (
+          VEGETATION_OBSERVING_CONSTRAINT_LAYER_IDS as readonly string[]
+        ).includes(id)
+      );
+    }
+    expect(vegetationObservingConstraintsApply(undefined)).toBe(false);
+  });
+
+  it("gates on the GIBS identity the descriptor was written against", () => {
+    // The refusal VEGETATION_OBSERVING_CONSTRAINT_GIBS_LAYERS exists for: a
+    // repointed layer must silence the claim rather than carry it into an
+    // exported file that cannot be corrected afterwards.
+    for (const id of VEGETATION_OBSERVING_CONSTRAINT_LAYER_IDS) {
+      expect(LAYERS[id].wmsLayer).toBe(
+        VEGETATION_OBSERVING_CONSTRAINT_GIBS_LAYERS[id]
+      );
     }
   });
 });
