@@ -2372,6 +2372,40 @@ body {
     padding-bottom: 0.4rem;
   }
 
+  /* The bar is pinned across the bottom here, and this overlay clears it by a
+     flat 3.6rem — 57.6px against a bar that measures 76px. The 18px shortfall
+     left the attribution's last line under the bar: the "Data providers"
+     button, the repository link and the feedback link all rendered there and
+     the toolbar took the taps aimed at them. They were still drawn, faintly,
+     through the bar's translucent panel, so the row read as a styling choice
+     rather than three dead controls; only a hit test named what received the
+     tap.
+
+     The lift goes on the credits line alone rather than on the reserve above,
+     because this overlay is bottom-anchored: raising it would carry the HUD
+     panel up by the same 18px, and at this width the panel's top edge is
+     already within ~20px of the globe point e2e/hover-tooltip.spec.ts hovers a
+     volcano marker at — CI's wider text metrics make the panel taller than it
+     is locally, so that margin is thinner than it looks here. Only the credits
+     line reaches down to the bar, so only the credits line moves; `position:
+     relative` takes it out of the sibling's way without moving the sibling.
+     The gap it leaves behind is transparent overlay over the globe.
+
+     The distance is the shortfall itself — the bar's measured height, which
+     Toolbar.ts publishes as `--toolbar-height`, less the reserve already
+     applied — so it stays correct as the bar's contents change, and a notched
+     phone comes along for free: `env(safe-area-inset-bottom)` sits inside the
+     bar's own padding and so inside that number, which grows the bar and the
+     lift together. The fallback resolves to zero, leaving the boot frame
+     before the first ResizeObserver callback exactly as it renders today.
+     e2e/phone-attribution-clearance.spec.ts hit-tests every control in the row
+     at four phone sizes, taps the one that opens a panel, and pins the panel
+     above it as unmoved. */
+  .attribution {
+    position: relative;
+    bottom: calc(var(--toolbar-height, 3.6rem) - 3.6rem);
+  }
+
   .controls {
     gap: 0.6rem;
     padding: 0.7rem 0.8rem 0.8rem;
