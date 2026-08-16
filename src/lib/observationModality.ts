@@ -46,7 +46,7 @@ export type ObservationModality =
 /** How a value was produced: sensed from the surface, or produced by a model. */
 export type ObservationBasis = "remote-sensing" | "model" | "unknown";
 
-interface ModalityInfo {
+export interface ModalityInfo {
   /** Short human phrase for a statement, e.g. "land-surface-model field". */
   description: string;
   /** The coarse production basis this modality falls under. */
@@ -134,7 +134,7 @@ export interface ObservationModalityOptions {
   include?: "available" | "all";
 }
 
-const MODALITY_LIMITS = [
+export const MODALITY_LIMITS = [
   "Modality is a fixed property of the cited source product, not of any individual value.",
   "Model and reanalysis fields are constrained by observations but are not direct measurements; agreement across them is not independent measurement confirmation.",
   "A product absent from the modality table is reported as unclassified, never inferred from its value.",
@@ -147,6 +147,20 @@ const MODALITY_LIMITS = [
  */
 export function classifyModality(source: DatasetRef): ObservationModality {
   return PRODUCT_MODALITY[source.shortName] ?? "unclassified";
+}
+
+/**
+ * Read the fixed description and production basis a modality stands for.
+ *
+ * Exported so a surface outside the environment brief can name a modality in
+ * the brief's own words rather than keeping a second copy of them. The place
+ * export needs exactly this and nothing else from the module: it classifies one
+ * cited product at a time, so it has no signal list to summarize. Returning the
+ * table's own entry is what keeps the export's wording and the place card's
+ * wording — both ultimately this table's — from drifting apart.
+ */
+export function describeModality(modality: ObservationModality): ModalityInfo {
+  return MODALITY_INFO[modality];
 }
 
 /**

@@ -9,6 +9,13 @@ import {
   type GeoGeometry,
   type GeometrySamplingStrategy,
 } from "./geojson";
+import {
+  classifyModality,
+  describeModality,
+  MODALITY_LIMITS,
+  type ObservationBasis,
+  type ObservationModality,
+} from "./observationModality";
 import { NDVI_UNIT } from "./phenology";
 import {
   SST_OBSERVING_CONSTRAINT_LAYER_ID,
@@ -32,7 +39,7 @@ import {
  */
 
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
-  "roamingeye-place-observation-export/v9" as const;
+  "roamingeye-place-observation-export/v10" as const;
 
 export const PLACE_OBSERVATION_GEOGRAPHY = {
   coordinateReferenceSystem: "OGC:CRS84",
@@ -443,6 +450,95 @@ export interface PlaceObservationObservingConstraints {
 }
 
 /**
+ * How the cited product produced the value — sensed from the surface, or
+ * computed by a model — as distinct from what its observing system samples and
+ * from how well its rendered ramp inverts.
+ *
+ * The three product-level blocks answer three different questions, and this is
+ * the most basic of them. `inversionAccuracy` asks *how close is this number to
+ * the number the source published*; `observingConstraints` asks *which moments,
+ * skies and depths did the source observe*; both presuppose that the source
+ * observed anything at all. For half this app's place products it did not:
+ * rainfall and soil moisture are fields of the GLDAS Noah **land-surface
+ * model** and 2 m air temperature is a **MERRA-2 reanalysis** state, so those
+ * numbers are model estimates constrained by observations rather than
+ * measurements of the sampled cell.
+ *
+ * The place panel's own card already says so — `climateInsightText` renders
+ * "model-derived, not a direct measurement" in every branch it can take, from
+ * the same table read here. This export was the surface that dropped it, and it
+ * is the one read months later detached from the app that would have said so:
+ * a reader opening the file sees a precise native-unit number, a DOI, a
+ * measured inversion RMSE and a coverage share, every one of which describes a
+ * modelled field exactly as faithfully as it would describe a measured one.
+ * Nothing in the file distinguished the two.
+ *
+ * Derived from the product's own cited `source` here rather than taken from the
+ * caller, for the reason `inversionAccuracy` and `observingConstraints` are:
+ * modality is a fixed property of the published product, true of every value it
+ * carries, so no sampling run can supply a version of it that disagrees. For
+ * the same reason nothing here is per-month — attaching it to an observation
+ * would imply it had been measured from that observation.
+ *
+ * A product absent from the modality table records `unclassified` with basis
+ * `unknown`, which is never a finding that its value was measured. It reports
+ * how the value was produced and nothing further: no condition, quality,
+ * agreement, causation, or forecast claim follows from it.
+ */
+export interface PlaceObservationProductModality {
+  /** Modality of the cited product, keyed by the product, never by a value. */
+  modality: ObservationModality;
+  /** The coarse production basis that modality falls under. */
+  basis: ObservationBasis;
+  /**
+   * True exactly when `basis === "model"`. False for a remotely-sensed product
+   * and for an unclassified one, whose basis is not asserted — a false here is
+   * never a claim that the value is a direct measurement.
+   */
+  modelDerived: boolean;
+  /** Honest, source-carrying sentence; no condition, quality, or value claim. */
+  statement: string;
+  /** The axis's own limits, carried so the record reads standalone. */
+  limits: readonly string[];
+}
+
+/**
+ * Classify a product by how it produces a value, in the modality table's own
+ * words.
+ *
+ * `observationModality.ts` is the single place this repository asserts a
+ * product's modality, and it is already what the place card renders, so reading
+ * it here is what stops the download and the card on screen from disagreeing
+ * about the same product.
+ */
+function productModalityFor(
+  source: DatasetRef
+): PlaceObservationProductModality {
+  const modality = classifyModality(source);
+  const info = describeModality(modality);
+  const modelDerived = info.basis === "model";
+  return {
+    modality,
+    basis: info.basis,
+    modelDerived,
+    statement: `${source.shortName} v${source.version} is a ${info.description} (${modality}); ${modalityReadingClause(info.basis)}.`,
+    limits: [...MODALITY_LIMITS],
+  };
+}
+
+/** How a basis must be read, stated without sharpening what it can support. */
+function modalityReadingClause(basis: ObservationBasis): string {
+  switch (basis) {
+    case "model":
+      return "model-derived, not a direct measurement of the sampled cell";
+    case "remote-sensing":
+      return "remotely sensed, not a direct in-situ measurement";
+    case "unknown":
+      return "production basis not asserted for this product";
+  }
+}
+
+/**
  * Bind a product to the observing-constraint descriptor published for it.
  *
  * Sea surface temperature is the one product this repository publishes a
@@ -528,6 +624,7 @@ export interface PlaceObservationExport {
     "An observation's valueBound marks that value as a bound the rendered ramp could not resolve past, never as a measurement; a null bound records that this observation was not assessed for one, which is not evidence its value was resolved.",
     "A product's inversionAccuracy is the measured end-to-end error of RoamingEye's UI legend gradient inverted against the published GIBS colormap, pooled over the whole ramp and stated in the product's native unit; it is not the source product's validation against in-situ measurement, and a layer recorded as uncharacterized carries an unmeasured inversion error rather than none.",
     "That figure does not always describe the inversion a product's values came from: inversionAccuracy.scope reports measures-a-different-inversion where the values were read through GIBS's published colormap rather than the UI legend gradient, and no validation run measures that inversion, so the quoted figure is neither this product's error nor evidence of a larger or smaller one.",
+    "Not every product measured what it reports: observationModality.modelDerived marks a value produced by a land-surface model or an atmospheric reanalysis rather than sensed, and such a value is an estimate for the sampled cell rather than a measurement of it; an unclassified product's basis is not asserted, which is not a finding that it was measured.",
   ];
 }
 
@@ -549,6 +646,8 @@ export interface PlaceObservationExportProduct {
   inversionAccuracy: PlaceObservationInversionAccuracy;
   /** What the product's observing system samples, and what it does not. */
   observingConstraints: PlaceObservationObservingConstraints;
+  /** Whether the cited product measured the value or modelled it. */
+  observationModality: PlaceObservationProductModality;
   observations: {
     dataMonth: string;
     value: number | null;
@@ -764,6 +863,7 @@ const LIMITATIONS = [
   "An observation's valueBound marks that value as a bound the rendered ramp could not resolve past, never as a measurement; a null bound records that this observation was not assessed for one, which is not evidence its value was resolved.",
   "A product's inversionAccuracy is the measured end-to-end error of RoamingEye's UI legend gradient inverted against the published GIBS colormap, pooled over the whole ramp and stated in the product's native unit; it is not the source product's validation against in-situ measurement, and a layer recorded as uncharacterized carries an unmeasured inversion error rather than none.",
   "That figure does not always describe the inversion a product's values came from: inversionAccuracy.scope reports measures-a-different-inversion where the values were read through GIBS's published colormap rather than the UI legend gradient, and no validation run measures that inversion, so the quoted figure is neither this product's error nor evidence of a larger or smaller one.",
+  "Not every product measured what it reports: observationModality.modelDerived marks a value produced by a land-surface model or an atmospheric reanalysis rather than sensed, and such a value is an estimate for the sampled cell rather than a measurement of it; an unclassified product's basis is not asserted, which is not a finding that it was measured.",
 ] as const;
 
 /** Create a JSON-ready, whitelist-only reproducibility record. */
@@ -1304,6 +1404,10 @@ function exportProducts(
       // Derived for the same reason: the observing system is a property of the
       // cited product, not of the sampling that read it.
       observingConstraints: observingConstraintsForProduct(product.layerId),
+      // And for the same reason again, from the product's own citation: whether
+      // the source measured this quantity or modelled it is fixed by the
+      // product, so it is read from the cited `source` rather than supplied.
+      observationModality: productModalityFor(product.source),
       observations: product.observations
         .map((observation) => ({
           dataMonth: formatYearMonth(observation.dataMonth),
