@@ -37,6 +37,32 @@ take one directly when no Owner's pick applies to its domain.
       the globe's rendered centre upward (which issue #93 argues against).
       A design decision rather than a tweak, which is why #980 stopped here
       instead of guessing at one.
+- [ ] **The keyboard aim names the ground but never the marker on it.** The
+      pointer readout has two modes: `pickMarker` and `pickLine` name an
+      overlay record when one is under the cursor, and only when none is does
+      it fall back to `describe`, the coordinates-plus-territory text. The
+      keyboard aim added in #977 calls `describe` alone, so the five
+      registered sources — cities, volcanoes, the earthquake magnitude bands,
+      the user's location, and the plate linework — are unreachable without a
+      pointer. A keyboard user who arrows a volcano into the middle of the
+      view reads its latitude, not that it is a volcano; the spoken aim in
+      `main.ts` calls `describe` directly too, so a screen-reader user hears
+      the same. That is 1,196 bundled GVP volcanoes, the live USGS M4.5+
+      feed, and the Bird (2003) linework carrying no keyboard path at all,
+      and the doc comment on `describe` states the invariant it breaks — that
+      the aim "must read identically" to what the cursor gets.
+      What stops this being a straight port of `pickMarker` is that the two
+      aims are not the same shape. The cursor is _on_ the marker it names, so
+      naming it asserts nothing about anywhere else. The keyboard aim is
+      pinned to the camera subpoint, and Enter charts that subpoint — but the
+      hit radius is `POINT_THRESHOLD` 0.012 against a unit globe, about 0.69°
+      or 76km at the surface (38km for lines). So a marker can be named while
+      the point Enter would chart is up to 76km away from it, and a readout
+      that named a volcano the probe then missed would be worse than the
+      silence it replaced. Closing it means deciding what the reticle marks
+      when the two disagree — snap the aim to the record, name it with its
+      offset, or tighten the radius for this path — which is a design call,
+      not a tweak, and why this is filed rather than guessed at.
 
 ## Done
 
