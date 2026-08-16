@@ -32,6 +32,23 @@ take one directly when no Owner's pick applies to its domain.
 
 <!-- The shipping PR moves its item here, with the PR number. -->
 
+- [x] **A successful overlay enable was the silent outcome.** (#964) Pressing a
+      toolbar toggle flips `aria-pressed` immediately — right for the control,
+      but it claims the overlay is drawn before its data exists. Measured
+      against a feed held for 1.5 s, the button read `pressed` at t=250ms and
+      the markers arrived at t=1500ms with no live region changing at all:
+      `aria-busy` (#933) covered the wait and then simply vanished. Since the
+      arrival of the markers is a change on the globe, and a screen reader
+      cannot read the globe, the only outcome a non-sighted user could hear was
+      the failure — which #961 had given a toast. A shared visually-hidden
+      `role="status"` announcer now reports the result on exactly the enables
+      that admitted to waiting, reusing the pending-indicator threshold: if the
+      app said "waiting", it owes an ending. Instant cached toggles stay silent,
+      because `aria-pressed` already carried that state and a second voice on
+      all nine toolbar buttons would be chatter. Both halves are asserted, and
+      both were mutation-tested — dropping the announcement fails the positive
+      spec, announcing unconditionally fails the negative one with a spurious
+      pair including a _disable_ that claims "shown".
 - [x] **Sub-WCAG tap targets.** (#960) `.hint__shortcuts` was 21.6px — the
       only control in the app under the WCAG 2.2 AA floor of 24×24 (2.5.8) —
       and is now 24×24. The chrome buttons all cleared AA but were sized for a
