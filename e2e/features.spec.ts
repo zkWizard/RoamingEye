@@ -78,8 +78,12 @@ test("phone toolbar advertises the toggles hidden past its edge", async ({
   );
   expect(hit).toBe("My location");
 
-  // Desktop keeps the vertical bar, which never overflows: no fade at all.
-  await page.setViewportSize({ width: 1280, height: 800 });
+  // A desktop window with room for the whole column has nothing hidden, so
+  // there is no fade at all. It has to be a TALL one: at 800px the column is
+  // capped and scrolls too, and this assertion used to pass at that height
+  // only because the fade was measured on the wrong axis — see
+  // e2e/toolbar-overflow.spec.ts, which covers the capped case.
+  await page.setViewportSize({ width: 1280, height: 900 });
   await expect(toolbar).toHaveAttribute("data-overflow", "none");
 });
 

@@ -44,12 +44,16 @@ export class Toolbar {
       container.appendChild(button);
     }
 
-    // Phone widths turn this column into a horizontally scrolling bottom bar
-    // (style.css, "Small-phone layout"), and at 390px three of the nine
-    // toggles — Volcanoes, Quakes, My location — start past the right edge.
-    // Tab reaches them because focus scrolls them into view; a thumb only
-    // finds them by accident. `data-overflow` lets the stylesheet fade
-    // whichever edge still has items behind it.
+    // The bar scrolls in both layouts, on different axes. Phone widths turn
+    // this column into a horizontally scrolling bottom bar (style.css,
+    // "Small-phone layout"), where at 390px three of the nine toggles —
+    // Volcanoes, Quakes, My location — start past the right edge. Short
+    // desktop windows keep the column but cap and scroll it vertically
+    // (style.css, "Short desktop windows"), which hides far more: at
+    // 1366x768, the most common laptop resolution, only three toggles are on
+    // screen. Tab reaches the rest either way because focus scrolls them into
+    // view; a mouse or thumb only finds them by accident. `data-overflow`
+    // lets the stylesheet fade whichever edge still has items behind it.
     container.addEventListener("scroll", () => this.updateOverflow(), {
       passive: true,
     });
@@ -63,7 +67,14 @@ export class Toolbar {
 
   private updateOverflow(): void {
     const el = this.container;
-    const max = el.scrollWidth - el.clientWidth;
+    // Measure whichever axis actually overflows rather than assuming one:
+    // the same bar is a horizontal scroller on a phone and a vertical one in
+    // a short desktop window. Comparing the two (instead of testing only the
+    // larger dimension) keeps the layout's own flex direction out of it.
+    const down = el.scrollHeight - el.clientHeight;
+    const across = el.scrollWidth - el.clientWidth;
+    const vertical = down > across;
+    const max = vertical ? down : across;
     // Sub-pixel layout leaves a fractional remainder even with nothing to
     // scroll, so treat anything under 2px as "no hidden items" — a fade over
     // half a pixel of content would be a lie.
@@ -71,8 +82,9 @@ export class Toolbar {
       el.dataset.overflow = "none";
       return;
     }
-    const atStart = el.scrollLeft <= 2;
-    const atEnd = el.scrollLeft >= max - 2;
+    const pos = vertical ? el.scrollTop : el.scrollLeft;
+    const atStart = pos <= 2;
+    const atEnd = pos >= max - 2;
     el.dataset.overflow = atStart ? "end" : atEnd ? "start" : "both";
   }
 

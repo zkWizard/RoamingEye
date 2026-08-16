@@ -32,6 +32,25 @@ take one directly when no Owner's pick applies to its domain.
 
 <!-- The shipping PR moves its item here, with the PR number. -->
 
+- [x] **The overlay toolbar hid most of its toggles on a laptop.** (#972) A
+      window 820px tall or shorter caps the toolbar and scrolls it internally
+      so the column clears the top-right buttons (issue #93), but nothing said
+      so: four of the nine toggles are on screen at 1280x800, three at
+      1366x768 and two at 1512x700, and the column scrolls with an overlay
+      scrollbar that is painted only while scrolling — so at rest the bar
+      looked like the whole set and Volcanoes and Quakes appeared not to
+      exist. The edge fade that answers this already shipped for the phone
+      bottom bar, but the code behind it measured only the horizontal axis,
+      which in the capped column is exactly zero, and the gradient was scoped
+      to the phone breakpoint. The measurement now picks whichever axis
+      actually overflows and the short-window layout gets the same fade turned
+      to run down the column. Asserted at three viewports, each checking its
+      own premise that the bar overflows at that size, and both halves
+      mutation-tested. One existing assertion had to change: the phone spec
+      closed by requiring no fade at 1280x800 on the grounds that the desktop
+      bar "never overflows", which was the defect recorded as expected
+      behaviour — it now makes that point at a height with genuine room.
+
 - [x] **The globe hover tooltip clipped instead of wrapping.** (#970) The
       readout was `white-space: nowrap`, and its placement only ever FLIPPED
       the box to the far side of the cursor — never clamped it — so a line
