@@ -3,6 +3,7 @@ import {
   GLDAS_RAMP_SATURATION,
   GLDAS_RAMP_SATURATION_LIMITATIONS,
   classifyGldasRampSample,
+  gldasCensoredObservationBound,
   gldasRampSaturationNote,
   summarizeGldasRampSaturation,
   type GldasRampLayerId,
@@ -390,6 +391,93 @@ describe("gldasRampSaturationNote", () => {
       "expect",
     ]) {
       expect(note).not.toContain(word);
+    }
+  });
+});
+
+describe("gldasCensoredObservationBound", () => {
+  const positions = (
+    ceiling: number,
+    interior: number
+  ): GldasRampSamplePosition[] => [
+    ...Array<GldasRampSamplePosition>(ceiling).fill("at-or-above-ceiling"),
+    ...Array<GldasRampSamplePosition>(interior).fill("interior"),
+  ];
+
+  it("marks a saturated month's value as a lower bound", () => {
+    expect(
+      gldasCensoredObservationBound(
+        summarizeGldasRampSaturation("soil", positions(4, 36)),
+        12.5
+      )
+    ).toBe("at-or-above");
+  });
+
+  it("marks a saturated month whose every valued cell capped", () => {
+    // The mean is then a mean of bounds; it is still at or above the cap, and
+    // is exactly the case that must not travel as a plain number.
+    expect(
+      gldasCensoredObservationBound(
+        summarizeGldasRampSaturation("precip", positions(9, 0)),
+        43.2
+      )
+    ).toBe("at-or-above");
+  });
+
+  it("leaves an unsaturated month unqualified", () => {
+    // The export reads an absent bound as "not assessed", so this must stay
+    // null rather than assert a resolved value; the file's own censoring tally
+    // is what records that the assessment ran.
+    expect(
+      gldasCensoredObservationBound(
+        summarizeGldasRampSaturation("precip", positions(0, 40)),
+        3.1
+      )
+    ).toBeNull();
+  });
+
+  it("stays null when there were no colours to classify at all", () => {
+    expect(gldasCensoredObservationBound(null, 8)).toBeNull();
+    expect(gldasCensoredObservationBound(undefined, 8)).toBeNull();
+    expect(
+      gldasCensoredObservationBound(summarizeGldasRampSaturation("soil", []), 8)
+    ).toBeNull();
+  });
+
+  it("never bounds a month that carries no value", () => {
+    // `buildPlaceObservationExport` throws on a bound without a number, and a
+    // bound on nothing would imply a value the file does not hold.
+    const saturated = summarizeGldasRampSaturation("soil", positions(5, 5));
+    expect(gldasCensoredObservationBound(saturated, null)).toBeNull();
+    expect(gldasCensoredObservationBound(saturated, undefined)).toBeNull();
+  });
+
+  it("only ever bounds upward, because the low end is closed", () => {
+    // "< 0" is model fill, not a censored measurement, so a footprint full of
+    // it yields no bound in either direction.
+    const fill = summarizeGldasRampSaturation("precip", [
+      "below-zero-fill",
+      "below-zero-fill",
+      "interior",
+    ]);
+    expect(gldasCensoredObservationBound(fill, 0.4)).toBeNull();
+  });
+
+  it("agrees with the card's clause on when a month is censored", () => {
+    // The downloaded record and the rendered card must not disagree about
+    // whether the month the card leads with was capped.
+    for (const [ceiling, interior] of [
+      [0, 40],
+      [1, 39],
+      [20, 20],
+      [40, 0],
+    ] as const) {
+      const summary = summarizeGldasRampSaturation(
+        "soil",
+        positions(ceiling, interior)
+      );
+      const stated = gldasRampSaturationNote(summary) !== "";
+      expect(gldasCensoredObservationBound(summary, 7) !== null).toBe(stated);
     }
   });
 });
