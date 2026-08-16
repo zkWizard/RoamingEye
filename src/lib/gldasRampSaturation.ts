@@ -311,6 +311,43 @@ export function gldasRampSaturationNote(
   return `; ${summary.ceilingCount} of ${summary.consideredSamples} sampled cells sat at the ${bound} legend cap, where the value is known only to be at or above the cap, so ${mean}`;
 }
 
+/**
+ * How a saturated month's recorded value must be read in the downloaded record.
+ *
+ * The place export already carries a per-observation `valueBound`, and its own
+ * limitations define an absent one as an observation that was *not assessed*
+ * for a bound — deliberately not as one whose value resolved. For the two GLDAS
+ * water-cycle layers that statement was untrue: the panel classifies both
+ * sampled months against the published colormap (it must, because the censored
+ * *difference* clause needs each endpoint), so every exported month had been
+ * assessed, on these exact values, for the card — and still left the file with
+ * `valueBound: null`. The layer-level `legendCapCensoring` tally names a single
+ * `assessedDataMonth`, so it can only ever speak for the month the card leads
+ * with; the earlier month's mean travelled as a plain number with nothing
+ * marking it at all. SST and column AOD already mark their capped months this
+ * way (`sstPlaceObservationFromSample`, `aerosolPlaceObservationFromSample`);
+ * these two did not.
+ *
+ * Only the top cap censors these ramps. Their low end is closed at 0 and the
+ * "< 0" bin is model fill rather than a measurement (see the module comment),
+ * so the one direction a capped month can be wrong in is upward.
+ *
+ * The number is unchanged. This marks how to read it, never re-estimates it,
+ * never guesses how far past the cap the true value lies, and names no
+ * condition — a saturated cell is ground wetter than the ramp can resolve, not
+ * a flood or a drought. `null` is returned when nothing saturated, when the
+ * caller had no colours to classify, and when the month carries no value at
+ * all: the export forbids bounding an absent value, and a bound on nothing
+ * would imply a number the file does not hold.
+ */
+export function gldasCensoredObservationBound(
+  summary: GldasRampSaturationSummary | null | undefined,
+  value: number | null | undefined
+): "at-or-above" | null {
+  if (!summary || summary.ceilingCount === 0) return null;
+  return value === null || value === undefined ? null : "at-or-above";
+}
+
 function saturationStatement(
   facts: GldasRampSaturationFacts,
   considered: number,

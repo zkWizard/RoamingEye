@@ -59,6 +59,7 @@ import {
 } from "../lib/meteorology";
 import {
   classifyGldasRampSample,
+  gldasCensoredObservationBound,
   gldasRampSaturationNote,
   summarizeGldasRampSaturation,
   GLDAS_RAMP_SATURATION,
@@ -514,7 +515,22 @@ export function runPlaceInsights(result: GeoResult): void {
                       geometrySamplingStrategy,
                     },
                     months[1]
-                  )
+                  ).map((observation, index) => {
+                    // Marked per observation, not once per product: the layer's
+                    // `legendCapCensoring` names one assessed month, so it can
+                    // only speak for the month the card leads with, while the
+                    // file carries both. Both were classified above for the
+                    // censored-difference clause, so both can say how to be
+                    // read (lib/gldasRampSaturation). Index-aligned because the
+                    // builder maps over the same `months` the classifier keyed.
+                    const valueBound = gldasCensoredObservationBound(
+                      saturationFor(index),
+                      observation.value
+                    );
+                    return valueBound
+                      ? { ...observation, valueBound }
+                      : observation;
+                  })
                 : months.map((dataMonth, index) => {
                     const value = values[index] ?? null;
                     if (value === null) {
