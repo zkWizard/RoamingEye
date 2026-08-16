@@ -18,6 +18,10 @@ import {
   MODALITY_LIMITS,
 } from "./observationModality";
 import { summarizeSstObservingConstraints } from "./sstObservingConstraints";
+import {
+  VEGETATION_OBSERVING_CONSTRAINTS,
+  VEGETATION_OBSERVING_CONSTRAINT_LIMITS,
+} from "./vegetationObservingConstraints";
 
 const PRECIP_COLORMAP_URL =
   "https://gibs.earthdata.nasa.gov/colormaps/v1.3/GLDAS_Surface_Total_Precipitation_Rate_Monthly.xml";
@@ -500,7 +504,7 @@ describe("place observation export", () => {
     const exported = createPlaceObservationExport(input);
 
     expect(exported).toMatchObject({
-      schema: "roamingeye-place-observation-export/v10",
+      schema: "roamingeye-place-observation-export/v11",
       kind: "place-observation-export",
       boundary,
       geography: PLACE_OBSERVATION_GEOGRAPHY,
@@ -1880,14 +1884,23 @@ describe("place observation export observing constraints", () => {
     expect(constraintText(record)).not.toMatch(/\d/);
   });
 
+  // The layers this repo publishes an observing-constraint descriptor for. A
+  // product outside this set records absence; a product inside it must not,
+  // which is the direction this test used to have backwards — it asserted
+  // absence for every layer but SST while `vegetationObservingConstraints`
+  // was already published, rendered in the probe status line, the probe CSV
+  // and both vegetation captions.
+  const DESCRIBED_LAYERS = ["sst", "ndvi", "evi"];
+
   it("records an absent descriptor as absent, never as unconstrained", () => {
     const exported = createPlaceObservationExport(input);
+    const undescribed = exported.products.filter(
+      (product) => !DESCRIBED_LAYERS.includes(product.layerId)
+    );
+    expect(undescribed.length).toBeGreaterThan(0);
 
-    for (const product of exported.products) {
-      const constraints = product.observingConstraints;
-      expect(constraints.claimScope).toBe("product-observing-system-only");
-      if (product.layerId === "sst") continue;
-      expect(constraints).toEqual({
+    for (const product of undescribed) {
+      expect(product.observingConstraints).toEqual({
         status: "not-published",
         claimScope: "product-observing-system-only",
         notPublishedReason: "no-descriptor-published-for-this-product",
@@ -1896,6 +1909,67 @@ describe("place observation export observing constraints", () => {
         constraints: [],
         limits: [],
       });
+    }
+  });
+
+  it("records what the vegetation product composited, in its own words", () => {
+    const record = productFor(
+      createPlaceObservationExport(input),
+      "ndvi"
+    ).observingConstraints;
+
+    expect(record.status).toBe("published");
+    expect(record.notPublishedReason).toBeNull();
+    // A reflectance ratio needs sunlight to exist, and the eligible views come
+    // from one mid-morning overpass — so a month is selected moments, not all
+    // of them. Null here would have read as "not asked".
+    expect(record.representsFullDiurnalCycle).toBe(false);
+    expect(record.constraints.map((entry) => entry.id)).toEqual([
+      "clear-sky-optical-only",
+      "maximum-value-selection",
+      "composite-not-monthly-mean",
+    ]);
+    // Taken from the descriptor rather than restated, so the file and the
+    // probe status line cannot disagree about the same product.
+    expect(record.constraints).toEqual(
+      VEGETATION_OBSERVING_CONSTRAINTS.ndvi.map((entry) => ({
+        id: entry.id,
+        constraint: entry.constraint,
+        implication: entry.implication,
+        direction: entry.direction,
+      }))
+    );
+    expect(record.limits).toEqual([...VEGETATION_OBSERVING_CONSTRAINT_LIMITS]);
+  });
+
+  it("carries NDVI's selection sign, the one thing the values cannot show", () => {
+    const record = productFor(
+      createPlaceObservationExport(input),
+      "ndvi"
+    ).observingConstraints;
+    const directions = Object.fromEntries(
+      record.constraints.map((entry) => [entry.id, entry.direction])
+    );
+
+    // A maximum cannot fall below the mean of the candidates it was drawn
+    // from: the selection rule restated, not an estimated offset.
+    expect(directions["maximum-value-selection"]).toBe("green-leaning");
+    expect(directions["clear-sky-optical-only"]).toBe("not-asserted");
+    expect(directions["composite-not-monthly-mean"]).toBe("not-asserted");
+    // No magnitude, and no ecological reading, survives into the file.
+    expect(constraintText(record)).not.toMatch(/\d/);
+    expect(record.limits.join(" ")).toMatch(
+      /carry no claim about vegetation cover, biomass, condition, habitat, ecological health, drought, causation, or any future value/
+    );
+  });
+
+  it("claims a product-observing-system scope for every product", () => {
+    const exported = createPlaceObservationExport(input);
+
+    for (const product of exported.products) {
+      expect(product.observingConstraints.claimScope).toBe(
+        "product-observing-system-only"
+      );
     }
   });
 

@@ -28,6 +28,11 @@ import {
   type LayerId,
   type YearMonth,
 } from "./timeline";
+import {
+  summarizeVegetationObservingConstraints,
+  vegetationObservingConstraintsApply,
+  type VegetationSamplingDirection,
+} from "./vegetationObservingConstraints";
 
 /**
  * A deliberately small, provenance-first JSON contract for sharing sampled
@@ -39,7 +44,7 @@ import {
  */
 
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
-  "roamingeye-place-observation-export/v10" as const;
+  "roamingeye-place-observation-export/v11" as const;
 
 export const PLACE_OBSERVATION_GEOGRAPHY = {
   coordinateReferenceSystem: "OGC:CRS84",
@@ -382,7 +387,8 @@ function inversionAccuracyForProduct(
  * are added; a sign that depends on regime is `not-asserted`, which is a
  * refusal to guess and not a claim that the two directions are equally likely.
  */
-export type PlaceObservationSamplingDirection = "warm-leaning" | "not-asserted";
+export type PlaceObservationSamplingDirection =
+  "warm-leaning" | "green-leaning" | "sparse-leaning" | "not-asserted";
 
 export interface PlaceObservationObservingConstraint {
   /** Stable identifier for the constraint, from the product's descriptor. */
@@ -408,6 +414,15 @@ export interface PlaceObservationObservingConstraint {
  * so a monthly value is not a monthly mean sea-surface temperature, is averaged
  * over a non-random subset of the month's days, and does not describe water
  * below the surface layer.
+ *
+ * Nor is it for the cited vegetation-index product. MOD13A3 needs a clear,
+ * sunlit, snow-free view for an observation to exist at all, and each
+ * compositing window then keeps the single eligible observation with the
+ * highest NDVI rather than averaging them — so a monthly value is a selected
+ * within-month state rather than that month's average greenness, and for NDVI
+ * the selection rule fixes the sign of the difference. Averaging the exported
+ * column averages selected states, which is the reading the rows alone invite
+ * and cannot correct.
  *
  * The app already states this in the SST legend caption, the probe status line,
  * the probe CSV's `# sst_observing_constraint_*` headers, and the place panel's
@@ -547,32 +562,82 @@ function modalityReadingClause(basis: ObservationBasis): string {
  * surfaces do not. Every other layer records `not-published` — an honest gap a
  * later descriptor fills, not a finding that the product is unconstrained.
  */
+/**
+ * The vegetation descriptor's own direction vocabulary in the contract's terms.
+ *
+ * A `Record` rather than a cast so the two vocabularies cannot silently diverge:
+ * the day the vegetation module adds a sign, this fails to compile until the
+ * contract decides what that sign means to a reader. Mapping an asserted sign
+ * onto `not-asserted` to keep the union narrow would drop a published finding,
+ * so every member maps to a member that means the same thing.
+ */
+const VEGETATION_EXPORT_DIRECTIONS: Record<
+  VegetationSamplingDirection,
+  PlaceObservationSamplingDirection
+> = {
+  "green-leaning": "green-leaning",
+  "sparse-leaning": "sparse-leaning",
+  "not-asserted": "not-asserted",
+};
+
 function observingConstraintsForProduct(
   layerId: LayerId
 ): PlaceObservationObservingConstraints {
-  if (layerId !== SST_OBSERVING_CONSTRAINT_LAYER_ID) {
-    return {
-      status: "not-published",
-      claimScope: "product-observing-system-only",
-      notPublishedReason: "no-descriptor-published-for-this-product",
-      representsFullDiurnalCycle: null,
-      constraints: [],
-      limits: [],
-    };
+  if (layerId === SST_OBSERVING_CONSTRAINT_LAYER_ID) {
+    const summary = summarizeSstObservingConstraints();
+    return publishedConstraints(
+      summary.representsFullDiurnalCycle,
+      summary.constraints.map((entry) => ({
+        id: entry.id,
+        constraint: entry.constraint,
+        implication: entry.implication,
+        direction: entry.direction,
+      })),
+      summary.limits
+    );
   }
-  const summary = summarizeSstObservingConstraints();
+  // The vegetation-index descriptor is published for the two MOD13A3 layers and
+  // refuses to speak for a layer repointed off the GIBS identifier it was
+  // written against, which is the question `vegetationObservingConstraintsApply`
+  // answers. Only `ndvi` reaches this export today; `evi` is handled because the
+  // descriptor asserts a genuinely different selection claim for it, and a
+  // branch that quietly covered one of the two would be the omission this fixes.
+  if (vegetationObservingConstraintsApply(layerId)) {
+    const summary = summarizeVegetationObservingConstraints(layerId);
+    return publishedConstraints(
+      summary.representsFullDiurnalCycle,
+      summary.constraints.map((entry) => ({
+        id: entry.id,
+        constraint: entry.constraint,
+        implication: entry.implication,
+        direction: VEGETATION_EXPORT_DIRECTIONS[entry.direction],
+      })),
+      summary.limits
+    );
+  }
+  return {
+    status: "not-published",
+    claimScope: "product-observing-system-only",
+    notPublishedReason: "no-descriptor-published-for-this-product",
+    representsFullDiurnalCycle: null,
+    constraints: [],
+    limits: [],
+  };
+}
+
+/** Assemble a published record, so each descriptor states only its own facts. */
+function publishedConstraints(
+  representsFullDiurnalCycle: boolean,
+  constraints: PlaceObservationObservingConstraint[],
+  limits: readonly string[]
+): PlaceObservationObservingConstraints {
   return {
     status: "published",
     claimScope: "product-observing-system-only",
     notPublishedReason: null,
-    representsFullDiurnalCycle: summary.representsFullDiurnalCycle,
-    constraints: summary.constraints.map((entry) => ({
-      id: entry.id,
-      constraint: entry.constraint,
-      implication: entry.implication,
-      direction: entry.direction,
-    })),
-    limits: [...summary.limits],
+    representsFullDiurnalCycle,
+    constraints,
+    limits: [...limits],
   };
 }
 
