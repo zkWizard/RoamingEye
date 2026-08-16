@@ -94,22 +94,13 @@ export function probeSstTrendCensoring(
 }
 
 /**
- * One status-line clause extending the censoring statement to the trend, or
- * null when there is no capped month or no testable trend — an ordinary
- * open-ocean record then reads exactly as it did before.
- *
- * Deliberately carries no `source …` attribution of its own: it is always
- * rendered directly after `sstExtremeCensoringClause`, which names the
- * colormap the caps were read from, and repeating it would push a long line
- * further up over the globe for no added provenance.
+ * Whether the status line must extend its cap disclosure to the trend. The
+ * wording lives in `sstExtremeCensoringClause`, which states it beside the
+ * extremes it already describes, under the one `source …` attribution they
+ * share; this module owns only the judgement.
  */
-export function sstTrendCensoringClause(
+export function sstTrendCensored(
   trendCensoring: ProbeSstTrendCensoring
-): string | null {
-  if (!trendCensoring.applicable) return null;
-  return (
-    "the same censored series carries the trend, so its slope and p-value " +
-    "are not two-sided estimates either; a substituted cap moves a seasonal " +
-    "median in a direction the imagery cannot say"
-  );
+): boolean {
+  return trendCensoring.applicable;
 }

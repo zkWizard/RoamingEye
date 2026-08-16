@@ -28,7 +28,7 @@ import {
 } from "../lib/probeSstExtremeCensoring";
 import {
   probeSstTrendCensoring,
-  sstTrendCensoringClause,
+  sstTrendCensored,
 } from "../lib/probeSstTrendCensoring";
 import {
   probeSstColdEndAccuracy,
@@ -319,194 +319,119 @@ export class ProbePanel {
       v === null ? null : scaleValue(v, s)
     );
     const trend = trendSummary(this.months, physical, s);
-    // Two different accuracy claims, both needed. The quantization step is how
-    // finely a gradient position resolves; the measured inversion RMSE is
-    // whether that position lands on the right value — for SST the second is
-    // ~17x the first, so quoting only the step overstates precision badly.
+    // Each clause below is silent unless its own layer and record conditions
+    // hold — every one returns "" or null otherwise, so an ordinary readout is
+    // unchanged and only the applicable clauses reach the line. Each module's
+    // own doc comment carries the full argument and its citations; the notes
+    // here say only why the call sits where it does.
+    //
+    // Two accuracy claims, both needed: the quantization step is how finely a
+    // gradient position resolves, the measured inversion RMSE whether that
+    // position lands on the right value — for SST the second is ~17x the first.
     const inversionAccuracy = this.context
       ? probeInversionAccuracy(this.context.layerId, s)
       : null;
     const accuracy = inversionAccuracy
       ? inversionAccuracyClause(inversionAccuracy)
       : "";
-    // That clause is keyed to the calibrated colormap-inverted layers, and one
-    // layer falls outside it while still having a committed measurement: EVI's
-    // ramp ends in pure black, which the JPEG transport cannot tell from an
-    // undrawn pixel, so no stop placement calibrates it — but its error against
-    // GIBS's published MOD13A3 ramp is measured all the same and re-asserted
-    // against the live documents. Without this the panel showed EVI only the
-    // quantization floor, i.e. the index with the larger end-to-end error was
-    // the one displaying no error figure at all. Silent for every layer the
-    // clause above already characterizes, so nothing on a calibrated readout
-    // changes and the two can never both quote a figure.
+    // EVI falls outside that clause — its ramp ends in pure black, which JPEG
+    // cannot tell from an undrawn pixel, so no stop placement calibrates it —
+    // but its error against GIBS's MOD13A3 ramp is measured all the same. The
+    // two can never both quote a figure.
     const uncalibratedVegetationAccuracy = inversionAccuracy
       ? uncalibratedVegetationAccuracyClause(
           inversionAccuracy.layerId,
           inversionAccuracy.status
         )
       : null;
-    // NASA's published SST colormap ends in two OPEN caps, and the months that
-    // land in them are exactly the ones that set the extremes — so for this one
-    // layer `min`, `mean` and `max` can be one-sided bounds rather than
-    // estimates. The mean is bounded too because it contains the censored month:
-    // it is the statistic a reader carries away, and it sits between two
-    // inequality-marked extremes, so leaving it bare reads as the only reliable
-    // number on the line. Show the inequality with each number and say which
-    // statistics it applies to. Silent for every other layer and for any SST
-    // record that stays inside the finite ramp, so an ordinary readout is
-    // unchanged.
+    // NASA's SST colormap ends in two OPEN caps, and the months landing in them
+    // are the ones that set the extremes, so min, mean and max can be one-sided
+    // bounds. The trend rides inside the same clause: it is fitted over the very
+    // same series, and an enumeration naming only the three extremes reads as a
+    // claim that it escaped the caps. Merged, the caps are described once under
+    // the one `source …` attribution all four statistics share.
     const sstCensoring = probeSstExtremeCensoring(
       this.context?.layerId,
       physical
     );
-    const sstCensoringClause = sstExtremeCensoringClause(sstCensoring);
-    // That second figure is a whole-ramp RMSE, and for SST the repository has
-    // already measured that the error is not uniform across the ramp it
-    // summarizes: below ~4 °C it is 2.8 °C, against 0.1–0.4 °C elsewhere,
-    // because the legend anchors its cold stop at GIBS's ~2 °C hue so that the
-    // black GIBS renders for an absent retrieval stays rejected. Quoting only
-    // the pooled number beside a polar reading understates that reading's error
-    // roughly threefold, so name the band figure beside it. Silent for every
-    // other layer, for an empty record, and for any SST record that stays out
-    // of the cold band.
-    //
-    // It is computed after the ramp screen because the screen answers a
-    // question this clause would otherwise get wrong. Both accuracy figures are
-    // two-sided residuals for a colour that resolves to one value; the low cap
-    // resolves to none, and a capped month is always inside this band, so on
-    // exactly the coldest records the two co-fire and an unqualified ± would
-    // stand over rows whose cold-side error is unbounded. Passing the screen
-    // costs nothing — it is already computed above for its own clause.
+    const sstCensoringClause = sstExtremeCensoringClause(
+      sstCensoring,
+      sstTrendCensored(probeSstTrendCensoring(sstCensoring, trend))
+    );
+    // The RMSE above is pooled over the whole ramp; SST's error is not uniform
+    // across it (2.8 °C below ~4 °C against 0.1–0.4 °C elsewhere), so a polar
+    // reading needs the band figure beside it. Computed after the ramp screen
+    // because a capped month is always inside this band, and an unqualified ±
+    // must not stand over rows whose cold-side error is unbounded.
     const sstColdEnd = sstColdEndAccuracyClause(
       probeSstColdEndAccuracy(this.context?.layerId, physical, sstCensoring)
     );
-    // That clause names min, mean and max — and stops there, while the trend
-    // reported a few fields earlier is fitted over the very same series. An
-    // enumeration that lists which statistics are bounds reads as a claim that
-    // the ones it omits are not, so say the trend inherits the censoring too.
-    // Unlike the mean it gets no direction: a capped month sits in some
-    // within-season pairs as the earlier member and in others as the later
-    // one, so correcting it moves Sen's median whichever way the record's
-    // shape decides — which is what the cap destroyed. Silent for every other
-    // layer, for a record inside the finite ramp, and for one too short to
-    // report a trend at all.
-    const sstTrendCensoring = sstTrendCensoringClause(
-      probeSstTrendCensoring(sstCensoring, trend)
-    );
-    // Both clauses above screen the CHARTED values. That is exact for a point
-    // probe, whose value is a median of a tight pixel block and so is one of
-    // the decoded pixels. An area or drawn-region value is a weighted mean of
-    // per-pixel decodes instead, and a mean is not one of its members: a
-    // footprint holding both capped and resolved pixels averages to a number
-    // inside the finite ramp while still carrying the cap's one-sided error.
-    // Nothing the sampler returns can reveal that, so no direction is claimed
-    // — only that an unmarked averaged value is not an uncensored one. Silent
-    // for the point probe, for every other layer, and for an empty record.
+    // That screen reads the CHARTED values — exact for a point probe, blind on
+    // an averaged one, whose value is a mean of per-pixel decodes and so lands
+    // inside the finite ramp even when it holds capped pixels. No direction is
+    // claimable, only that an unmarked averaged value is not an uncensored one.
     const sstAveragedCensoring = averagedSstCensoringNote(
       averagedFootprint,
       sstCensoring
     );
-    // Ramp censoring says which of these statistics are bounds; it does not say
-    // which water, or which moments, they describe. The cited SST product
-    // composites Aqua's daytime overpass on cloud-screened days only, so the
-    // mean beside it is not a monthly-mean sea-surface temperature and the trend
-    // is fitted through daytime clear-sky values — neither recoverable from the
-    // numbers. The place panel already states this for a single month; the
-    // series surface did not. Silent for every other layer.
+    // Ramp censoring says which statistics are bounds, not which water or which
+    // moments they describe: the cited product composites Aqua's daytime
+    // overpass on cloud-screened days only, so this is not a monthly-mean SST.
     const sstSamplingGate = probeSstSamplingGateClause(
       this.context?.layerId,
       stats.count > 0
     );
-    // The denominator above is the *distributed* record, not the calendar span:
-    // monthRangeForLayer drops each layer's declared distribution gaps, so for
-    // SST, snow, NDVI and EVI a full read prints "M of M months" while months
-    // inside the span carry no composite at all. Name them, or the fraction
-    // reads as complete coverage. Silent for every layer with no pinned gap.
+    // The denominator is the *distributed* record, not the calendar span —
+    // monthRangeForLayer drops declared distribution gaps, so a full read prints
+    // "M of M months" while months inside the span carry no composite at all.
     const recordGapsClause = probeRecordGapsClause(
       probeRecordGaps(this.context?.layerId, this.months)
     );
-    // SST is not the only layer NASA renders with an open terminal bin. The
-    // aerosol colormap's final bin is `≥ 0.900`, and dust and smoke columns
-    // routinely sit above it, so this layer's max — and, because there is no
-    // opposing cap, its mean — are one-sided bounds whenever a sampled month
-    // lands there. Its min is genuinely two-sided (the ramp closes at 0 and
-    // AOD cannot be negative), which is why the prefix is asked for per
-    // statistic rather than applied to the group. Silent for every other layer
-    // and for any aerosol record that stays inside the finite ramp.
+    // The aerosol colormap's final bin is `≥ 0.900` and dust and smoke columns
+    // routinely sit above it, so max — and, with no opposing cap, mean — are
+    // one-sided bounds. Its min stays two-sided (the ramp closes at 0 and AOD
+    // cannot be negative), which is why the prefix is asked per statistic.
     const aerosolCensoring = probeAerosolCeilingCensoring(
       this.context?.layerId,
       physical
     );
-    // The trend goes in for the same reason the SST clause takes one: this
-    // clause qualifies the trend printed a few fields earlier, so it must know
-    // whether one was fitted at all. It also stops the direction there. Having
-    // just called max and mean LOWER bounds, saying the trend inherits "that
-    // censoring" would hand the reader a signed slope the estimator cannot
-    // support — a capped month sits in some within-season pairs as the earlier
-    // member and in others as the later one. The downloaded CSV has refused
-    // that direction since the export headers landed; the status line had not.
+    // Takes the trend for the reason the SST clause does — it qualifies the
+    // trend printed above, so it must know whether one was fitted — and stops
+    // the direction there, for the same reason.
     const aerosolCensoringClause = aerosolCeilingCensoringClause(
       aerosolCensoring,
       trend
     );
-    // And that screen has the same blind spot on an averaged footprint that the
-    // SST one does, for the same reason: it reads the region's monthly MEANS,
-    // and a mean of capped and resolved pixels lands inside the finite ramp.
-    // Two things make it worse here. Averaging dilutes exactly the signal the
-    // cap marks — the columns reaching 0.9 are dust and smoke plumes, routinely
-    // narrower than a drawn box — so a surviving mark means the whole footprint
-    // averaged past the ceiling, and its absence says less the bigger the box.
-    // But the DIRECTION is knowable, unlike SST's: this ramp is open at one end
-    // only, so a capped pixel always averages in below the loading it had. Say
-    // both, and still render no inequality — presence stays undetectable.
-    // Silent for the point probe, for every other layer, and for an empty record.
+    // Same averaged-footprint blind spot as SST's, but worse and one-sided:
+    // averaging dilutes exactly the plumes the cap marks, so absence says less
+    // the bigger the box — while a capped pixel always averages in below the
+    // loading it had, because this ramp is open at one end only.
     const aerosolAveragedCensoring = averagedAerosolCensoringNote(
       averagedFootprint,
       aerosolCensoring
     );
-    // SST is likewise not the only layer whose statistics are gated by when and
-    // through what the instrument looked. The land-surface-temperature layer
-    // renders MODIS/Terra's DAYTIME monthly composite: mid-morning overpass,
-    // clear-sky days only, and a radiometric skin temperature rather than the
-    // 2 m air temperature the app offers as a sibling layer in the same
-    // category. So the same point can be probed on both and the two series set
-    // side by side, and neither the numbers nor the panel's title says they are
-    // different quantities. The place panel's LST card states all three limits;
-    // the series surface stated none. Silent for every other layer.
+    // LST renders MODIS/Terra's DAYTIME composite: mid-morning overpass,
+    // clear-sky days only, and a radiometric skin temperature — not the 2 m air
+    // temperature offered as a sibling layer, which the same point can be probed
+    // on and set side by side without the numbers saying they differ.
     const lstSamplingGate = probeLstSamplingGateClause(
       this.context?.layerId,
       stats.count > 0
     );
-    // Nor is the marine ramp the only one that ends in open caps. GIBS renders
-    // LST on a closed 200.0–350.0 K legend and then closes both ends with a
-    // catch-all colour, and — unlike the MERRA-2 air-temperature caps, which sit
-    // far enough off the ramp to be rejected and empty the record — these two
-    // sit 3–4 RGB units from their adjacent finite bins, so a capped pixel
-    // decodes into the terminal bin and prints as an ordinary number. The place
-    // panel's card has marked such a value as a bound since it landed; this
-    // series surface had not, and it is the worse exposure of the two, because
-    // the months that hit a cap are exactly the ones that set min and max.
-    // Silent for every other layer and for any LST record that stays inside the
-    // finite ramp.
+    // GIBS closes LST's 200.0–350.0 K legend with a catch-all colour at each
+    // end, and — unlike the MERRA-2 air-temperature caps, far enough off-ramp to
+    // be rejected — these sit 3–4 RGB units from their adjacent finite bins, so
+    // a capped pixel decodes into the terminal bin and prints as a number.
     const lstCensoring = probeLstExtremeCensoring(
       this.context?.layerId,
       physical
     );
     const lstCensoringClause = lstExtremeCensoringClause(lstCensoring);
-    // And SST and LST are not the only layers whose statistics are gated by how
-    // the product reduced each month. The two vegetation-index layers are the
-    // sharper case: their monthly value is not an average at all. An optical
-    // index exists only where the sensor got a clear, sunlit, snow-free view, so
-    // cloudy and snow-covered days are left out rather than averaged in; each
-    // compositing window is then reduced by a constrained-view MAXIMUM-value
-    // composite, which keeps its least-contaminated observation instead of
-    // averaging the eligible ones. So the mean printed above averages selected
-    // within-month states, and the trend is fitted through them — the one
-    // reduction in the app that a reader is most likely to take for a monthly
-    // average. The clause distinguishes the two layers: the selection maximizes
-    // NDVI, and the observation it keeps merely supplies that window's EVI, so
-    // only NDVI's value carries the not-below-their-average inequality. Silent
-    // for every other layer and for an empty record.
+    // The vegetation indices are the sharper case: their monthly value is not an
+    // average at all. Only clear, sunlit, snow-free views are eligible, and each
+    // window is reduced by a constrained-view MAXIMUM-value composite. So the
+    // mean averages selected within-month states. Only NDVI's value carries the
+    // not-below-their-average inequality — EVI merely rides the NDVI selection.
     const vegetationSamplingGate = probeVegetationSamplingGateClause(
       this.context?.layerId,
       stats.count > 0
@@ -517,52 +442,43 @@ export class ProbePanel {
       sstExtremeBoundPrefix(sstCensoring, statistic) ||
       aerosolCeilingBoundPrefix(aerosolCensoring, statistic) ||
       lstExtremeBoundPrefix(lstCensoring, statistic);
-    // The trend is seasonally corrected, but the mean beside it is not: it
-    // averages whichever months returned data. When those months are unevenly
-    // spread across the calendar the mean carries a seasonal-sampling bias,
-    // so measure it and say so. Silent whenever the record is balanced or the
-    // bias falls below the inversion's own resolution.
-    //
-    // It is computed here, after the two ramp screens, because the balanced
-    // mean it prints is a fourth statistic reduced from the very same series —
-    // and on SST that series can hold months the published colormap collapsed
-    // into an open end cap. A re-weighting of capped values is as censored as
-    // the mean it is differenced against, so it takes the same inequality the
-    // mean already carries rather than appearing beside two marked extremes as
-    // the one unqualified number on the line. The offset itself gets no
-    // inequality: both means are bounds over the same months, so the sign of
-    // the difference between their two errors is exactly what the cap
-    // destroyed. Passing "" — every uncensored record, every layer whose ramp
-    // closes at both ends — leaves the clause as it was.
+    // The trend is seasonally corrected; the mean beside it is not, so an
+    // unevenly spread record biases it. Computed after the ramp screens because
+    // the balanced mean it prints is reduced from the same possibly-capped
+    // series, and must carry the same inequality the mean already does rather
+    // than stand unqualified between two marked extremes. The offset itself
+    // takes none: both means are bounds over the same months.
     const seasonal = seasonalSamplingClause(
       seasonalSamplingBalance(this.months, physical),
       s,
       boundPrefix("mean")
     );
-    const stat =
-      `${stats.count} of ${this.months.length} months` +
-      (recordGapsClause ? ` · ${recordGapsClause}` : "") +
-      ` · min ${boundPrefix("min")}${fmt(stats.min)}` +
-      ` · mean ${boundPrefix("mean")}${fmt(stats.mean)}` +
-      ` · max ${boundPrefix("max")}${fmt(stats.max)}` +
-      ` · ${uncertaintyText(s)} per value` +
-      (accuracy ? ` · ${accuracy}` : "") +
-      (uncalibratedVegetationAccuracy
-        ? ` · ${uncalibratedVegetationAccuracy}`
-        : "") +
-      (sstColdEnd ? ` · ${sstColdEnd}` : "") +
-      ` · ${trendClause(trend)}` +
-      (seasonal ? ` · ${seasonal}` : "") +
-      (sstCensoringClause ? ` · ${sstCensoringClause}` : "") +
-      (sstTrendCensoring ? ` · ${sstTrendCensoring}` : "") +
-      (sstAveragedCensoring ? ` · ${sstAveragedCensoring}` : "") +
-      (sstSamplingGate ? ` · ${sstSamplingGate}` : "") +
-      (lstSamplingGate ? ` · ${lstSamplingGate}` : "") +
-      (lstCensoringClause ? ` · ${lstCensoringClause}` : "") +
-      (vegetationSamplingGate ? ` · ${vegetationSamplingGate}` : "") +
-      (aerosolCensoringClause ? ` · ${aerosolCensoringClause}` : "") +
-      (aerosolAveragedCensoring ? ` · ${aerosolAveragedCensoring}` : "") +
-      (spatialSupportNote ? ` · ${spatialSupportNote}` : "");
+    // The reading first, then its accuracy, then what the product's caps and
+    // observing system do to it.
+    const stat = [
+      `${stats.count} of ${this.months.length} months`,
+      recordGapsClause,
+      `min ${boundPrefix("min")}${fmt(stats.min)}`,
+      `mean ${boundPrefix("mean")}${fmt(stats.mean)}`,
+      `max ${boundPrefix("max")}${fmt(stats.max)}`,
+      `${uncertaintyText(s)} per value`,
+      accuracy,
+      uncalibratedVegetationAccuracy,
+      sstColdEnd,
+      trendClause(trend),
+      seasonal,
+      sstCensoringClause,
+      sstAveragedCensoring,
+      sstSamplingGate,
+      lstSamplingGate,
+      lstCensoringClause,
+      vegetationSamplingGate,
+      aerosolCensoringClause,
+      aerosolAveragedCensoring,
+      spatialSupportNote,
+    ]
+      .filter(Boolean)
+      .join(" · ");
     this.setStatus(stat);
     this.appendPeakGreenness(stat, physical);
   }
