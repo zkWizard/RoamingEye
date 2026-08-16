@@ -32,7 +32,7 @@ take one directly when no Owner's pick applies to its domain.
 
 <!-- The shipping PR moves its item here, with the PR number. -->
 
-- [x] **The globe hover tooltip clipped instead of wrapping.** (#PR) The
+- [x] **The globe hover tooltip clipped instead of wrapping.** (#970) The
       readout was `white-space: nowrap`, and its placement only ever FLIPPED
       the box to the far side of the cursor — never clamped it — so a line
       wider than the window ran off the edge. Because the flip subtracts the
