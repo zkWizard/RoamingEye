@@ -11,7 +11,11 @@ import {
   type LayerId,
   type YearMonth,
 } from "./lib/timeline";
-import { encodeViewState, decodeViewState } from "./lib/viewState";
+import {
+  encodeViewState,
+  decodeViewState,
+  type ProbeShareMode,
+} from "./lib/viewState";
 import { latLngToVector3, vector3ToLatLng, formatLatLng } from "./lib/geo";
 import {
   buildProbeCsv,
@@ -757,7 +761,7 @@ controls.maxDistance = 4.5; // furthest zoom-out
 // to avoid spamming session history while dragging.
 // An open probe's location, mirrored into the shareable hash — a link then
 // reproduces the analysis, not just the view. Maintained by the probe section.
-let probeShare: { lat: number; lon: number } | undefined;
+let probeShare: { lat: number; lon: number; mode: ProbeShareMode } | undefined;
 
 function currentViewState() {
   const subpoint = vector3ToLatLng(camera.position);
@@ -999,7 +1003,10 @@ if (probeEl) {
     const layer = LAYERS[currentLayer];
     const mode = panel.mode;
     probeTarget = { lat, lon };
-    probeShare = { lat, lon };
+    // The mode goes into the share hash with the coordinates: it selects which
+    // statistic the series reports, and the CSV this same view stamps a
+    // `view_url` into names that statistic in its own header.
+    probeShare = { lat, lon, mode };
     drawer.clear(); // a point probe replaces any drawn-region chart
     scheduleHashSync();
     const where =
@@ -1607,8 +1614,13 @@ if (probeEl) {
   if (initialView.probe) {
     const target = initialView.probe;
     const restoreWhenReady = (): void => {
-      if (firstLoadDone) runProbe(target.lat, target.lon);
-      else setTimeout(restoreWhenReady, 300);
+      if (firstLoadDone) {
+        // Before the sampling, not after: runProbe reads the panel's mode to
+        // choose the statistic, so adopting it afterwards would chart a point
+        // median under an area caption.
+        panel.restoreMode(target.mode);
+        runProbe(target.lat, target.lon);
+      } else setTimeout(restoreWhenReady, 300);
     };
     restoreWhenReady();
   }

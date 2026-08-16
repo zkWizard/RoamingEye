@@ -95,6 +95,7 @@ const arbViewState: fc.Arbitrary<ViewState> = fc.record(
     probe: fc.record({
       lat: fc.integer({ min: -900000, max: 900000 }).map((n) => n / 10000),
       lon: fc.integer({ min: -1800000, max: 1800000 }).map((n) => n / 10000),
+      mode: fc.constantFrom("point" as const, "area" as const),
     }),
     pin: arbYm,
   },

@@ -40,7 +40,7 @@ import {
 } from "./probe";
 import { LEGENDS, type GradientLegendSpec } from "./legend";
 import { LAYERS } from "./timeline";
-import { decodeViewState } from "./viewState";
+import { decodeViewState, encodeViewState } from "./viewState";
 import {
   latLonToRegionPixel,
   pointProbePixels,
@@ -793,7 +793,13 @@ describe("buildProbeCsv", () => {
     const restored = decodeViewState(hash);
     expect(restored.layer).toBe("ndvi");
     expect(restored.month).toEqual({ year: 2026, month: 5 });
-    expect(restored.probe).toEqual({ lat: -3.4653, lon: -62.2159 });
+    // A stamped link from before the hash carried a sampling mode — the shape
+    // still sitting in already-published CSVs. It reopens as a point probe.
+    expect(restored.probe).toEqual({
+      lat: -3.4653,
+      lon: -62.2159,
+      mode: "point",
+    });
     // Headers stay optional — a meta without them produces no empty lines.
     expect(csv).not.toContain("# tool_version");
     expect(csv).not.toContain("# view_url");
@@ -813,6 +819,35 @@ describe("buildProbeCsv", () => {
     expect(areaCsv).toContain(
       "# region: -4.000 -63.000 -3.000 -62.000 (S W N E)"
     );
+  });
+
+  // The header block declares a statistic and then hands the reader a link to
+  // reproduce it. Those two must agree: an area mean whose `view_url` reopens
+  // as a point median is a file that contradicts itself, and it is the file a
+  // citation would travel in. The mode used to be absent from the hash, so it
+  // always disagreed for area probes.
+  it("stamps a reproduction URL whose sampling mode matches the header", () => {
+    for (const mode of ["point", "area"] as const) {
+      const csvText = buildProbeCsv(
+        {
+          ...meta,
+          mode,
+          sampledBounds:
+            mode === "area"
+              ? { south: -4, north: -3, west: -63, east: -62 }
+              : undefined,
+          viewUrl: `https://roamingeye.org/#${encodeViewState({
+            layer: "ndvi",
+            probe: { lat: meta.lat, lon: meta.lon, mode },
+          })}`,
+        },
+        [{ year: 2001, month: 1 }],
+        [0.5]
+      );
+      expect(csvText).toContain(`# RoamingEye ${mode} probe`);
+      const hash = csvText.match(/# view_url: [^#\n]*#(.*)/)?.[1] ?? "";
+      expect(decodeViewState(hash).probe?.mode).toBe(mode);
+    }
   });
 
   it("marks an antimeridian-crossing region unambiguously", () => {
