@@ -65,12 +65,43 @@ take one directly when no Owner's pick applies to its domain.
       sharper case than the netbook band: there the panel merely covers the
       crosshair, here it occupies three-quarters of the display.
 
+- [ ] **A phone drops the layer's caption, and with it the caveat.** The legend
+      hides `.legend__caption` below 541px wide. The rule's comment gives the
+      reason — "the caption repeats what the scale already shows, so it's the
+      first thing to go" — and that was once true, but the caption is
+      `LAYERS[id].description`, and none of the eleven now restates the scale.
+      They carry the instrument and the qualifier: "clear-sky max-value
+      composite, not a monthly mean", "Surface soil moisture, 0-10 cm (GLDAS
+      Noah) — not root zone", "Near-surface air temperature (MERRA-2
+      reanalysis)". The source note that stays is not a substitute: it names
+      the product ID and the no-data semantics, not how the month was
+      composited. So a phone reader gets the colour bar and the citation while
+      the compositing caveat is silently dropped — the one class of text this
+      app should never drop, and on the widths where a reader is least likely
+      to check twice.
+      Un-hiding it is one line, and the measured cost is why it is filed
+      instead: the panel grows 19px at 390px wide and 34px at 375 and 360,
+      where eight of the eleven captions wrap to two lines. The phone HUD has
+      no such room — `hover-tooltip.spec.ts` at 390px runs about 18px from red
+      on CI, whose text metrics already stack the panel ~35-50px taller than a
+      local Windows run — so the naive fix trades a dropped caveat for a red
+      required check.
+      The cheapest place to find the height looks like the scale's end labels:
+      at 390px `.legend__row` is 54px because `.legend__measures`
+      ("Vegetation greenness (NDVI)") wraps above the bar, and the ends then
+      repeat the same word a third time ("lower NDVI" / "higher NDVI") over a
+      numeric axis that already reads 0.000 → 1.000 left to right. Dropping
+      those two at phone width should return ~28px, which pays for the
+      caption at every width measured. That wants its own verification pass —
+      the direction semantics they carry for a screen reader have to land
+      somewhere first — which is the run this file is reserving.
+
 ## Done
 
 <!-- The shipping PR moves its item here, with the PR number. -->
 
 - [x] **The keyboard aim named the ground but never the marker on it.**
-      (#PRNUM) The pointer readout has two modes: `pickMarker` and
+      (#988) The pointer readout has two modes: `pickMarker` and
       `pickLine` name an overlay record when one is under the cursor, and
       only when none is does it fall back to `describe`, the
       coordinates-plus-territory text. The keyboard aim added in #977 called
