@@ -175,6 +175,23 @@ export class HoverInspector {
     this.tooltip.classList.add("is-visible");
     this.tooltip.setAttribute("aria-hidden", "false");
 
+    this.position(x, y);
+  }
+
+  /**
+   * Place the readout near the cursor, preferring below-right and flipping to
+   * the far side when that would run past an edge — then clamping, so a box
+   * too wide to flip cleanly stays on screen. Flipping alone used to push the
+   * left edge negative, cutting off the start of the text, which is where an
+   * overlay record's name sits.
+   *
+   * Offsets go to `transform`, not `left`/`top`: the box is `position: fixed`
+   * with `width: auto`, so writing an offset to `left` also shrinks the space
+   * it may lay out in, and the width read back on the next move would be the
+   * width at the PREVIOUS cursor position. Anchored at the origin, the
+   * measurement below is always against the full viewport.
+   */
+  private position(x: number, y: number): void {
     const pad = 14;
     const width = this.tooltip.offsetWidth;
     const height = this.tooltip.offsetHeight;
@@ -182,14 +199,21 @@ export class HoverInspector {
     let top = y + pad;
     if (left + width > window.innerWidth) left = x - pad - width;
     if (top + height > window.innerHeight) top = y - pad - height;
-    this.tooltip.style.left = `${left}px`;
-    this.tooltip.style.top = `${top}px`;
+    left = clamp(left, pad, window.innerWidth - width - pad);
+    top = clamp(top, pad, window.innerHeight - height - pad);
+    // Whole pixels — a fractional translate blurs the text.
+    this.tooltip.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
   }
 
   private hide(): void {
     this.tooltip.classList.remove("is-visible");
     this.tooltip.setAttribute("aria-hidden", "true");
   }
+}
+
+/** Keep `v` within [lo, hi]; a box wider than its axis pins to `lo`. */
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(v, hi));
 }
 
 /** Overlays toggle visibility on their group, so check the whole ancestry. */
