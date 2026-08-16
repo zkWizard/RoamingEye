@@ -108,6 +108,7 @@ import { HoverInspector } from "./scene/HoverInspector";
 import { RegionDrawer } from "./scene/RegionDrawer";
 import { RegionButton } from "./ui/RegionButton";
 import { ErrorToast } from "./ui/ErrorToast";
+import { Announcer } from "./ui/Announcer";
 import {
   SESSION_STORAGE_KEY,
   serializeSession,
@@ -260,6 +261,7 @@ const hdTiles = new TiledImageryOverlay(
 
 // Surfaced early so the geolocation overlay can report a denied permission.
 const errorToast = new ErrorToast();
+const announcer = new Announcer();
 
 const citiesOverlay = new CitiesOverlay();
 const plateBoundariesOverlay = new PlateBoundariesOverlay();
@@ -695,11 +697,14 @@ if (toolbarEl) {
       // only once the wait is long enough to be worth reporting, so an
       // already-cached overlay never flashes a spinner on its way to instant.
       let pendingTimer: ReturnType<typeof setTimeout> | undefined;
+      // Whether we actually told the user to wait, as opposed to merely
+      // scheduling to. Only a wait that was announced needs an ending.
+      let saidWaiting = false;
       if (on && overlay.ensureLoaded) {
-        pendingTimer = setTimeout(
-          () => toolbar.setPending(overlay.id, true),
-          PENDING_INDICATOR_DELAY_MS
-        );
+        pendingTimer = setTimeout(() => {
+          saidWaiting = true;
+          toolbar.setPending(overlay.id, true);
+        }, PENDING_INDICATOR_DELAY_MS);
       }
 
       void toggleOverlay(overlay, on, true).then((ok) => {
@@ -710,7 +715,18 @@ if (toolbarEl) {
           // button back and drop the (already-toasted) key.
           toolbar.setPressed(overlay.id, false);
           legend?.setOverlayKey(overlay.id, false);
+          return;
         }
+        // The press flipped `aria-pressed` immediately, which is right for the
+        // control but claims the overlay is drawn before its data exists — on
+        // a slow feed, seconds before. `aria-busy` then said "waiting", and
+        // its removal said nothing at all: the arrival of the markers is a
+        // change on the globe, and the globe is not something a screen reader
+        // can read. Only failure had a voice (the toast), so the one outcome a
+        // user could hear was the bad one. Say when it worked, on exactly the
+        // enables that admitted to waiting — announcing the instant, cached
+        // ones would be chatter over a state `aria-pressed` already carried.
+        if (saidWaiting) announcer.announce(`${overlay.label} shown`);
       });
     },
     (overlay) => overlayState.has(overlay.id)
