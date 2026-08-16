@@ -1,3 +1,4 @@
+import { colormapUrl } from "./colormap";
 import {
   LST_PUBLISHED_RAMP,
   lstRampBoundDirection,
@@ -195,6 +196,87 @@ export function lstExtremeCensoringClause(
     return `${tally} in the LST colormap's open low cap (${floorCap}), so ${boundedStatistics(censoring, "upper")} on a possibly colder surface (${source})`;
   }
   return `${tally} in the LST colormap's open high cap (${ceilingCap}), so ${boundedStatistics(censoring, "lower")} on a possibly hotter surface (${source})`;
+}
+
+/**
+ * Provenance lines disclosing the ramp's open end caps in the exported CSV, or
+ * an empty list for every layer but LST and for any LST record that stayed
+ * inside the finite ramp — those files stay byte-identical.
+ *
+ * The status line marks each censored statistic with an inequality the moment
+ * it is rendered (see `lstExtremeBoundPrefix`). The CSV cannot: it writes one
+ * row per month under a column headed `value`, and a capped month's cell is an
+ * ordinary decimal. Nothing in the file separates it from a month the ramp
+ * actually resolved, so the reader who opens the download later gets a bound
+ * presented as a measurement — the same gap `sstExtremeCensoringCsvHeaders` and
+ * `aerosolCeilingCensoringCsvHeaders` already close for the other two capped
+ * ramps in the app, and the reason this file's `censoringHeaders` list is no
+ * longer an SST-or-aerosol pair.
+ *
+ * Two of the header lines already above are actively misleading over those
+ * months and are corrected by name rather than left to be inferred. The
+ * `# uncertainty` line states a symmetric quantization figure, which is a
+ * two-sided claim and false at a cap; and the anomaly column is computed from
+ * this very series, so it inherits the censoring.
+ *
+ * The bin edges are quoted rather than the count alone, because they are what
+ * makes the file self-describing: a reader can apply them to the `value` column
+ * and mark the affected rows without the app. They are the *detection* edges
+ * (the lowest and highest finite bins) and are deliberately distinct from the
+ * caps themselves — the cap is what the colormap collapses, the bin is what a
+ * decoded number lands in. The comparisons are stated inclusively on both
+ * sides because that is exactly how `lstRampBoundDirection` classifies, so a
+ * reader applying the rule by hand reproduces the app's own row set.
+ *
+ * The skin-versus-air offset is not restated here: `lst_sampling_direction`
+ * already carries it a few lines up in the same file, and one disclosure of a
+ * fixed property of the observing system is enough.
+ *
+ * Recovers nothing and estimates nothing behind a cap.
+ */
+export function lstExtremeCensoringCsvHeaders(
+  censoring: ProbeLstExtremeCensoring
+): string[] {
+  if (!censoring.applicable) return [];
+  const { floorMonthCount, ceilingMonthCount, observedMonthCount, ramp } =
+    censoring;
+  const capped = floorMonthCount + ceilingMonthCount;
+  if (capped === 0) return [];
+
+  const unit = ramp.unit;
+  const doc = ramp.colormapDoc;
+  // No commas anywhere below: a `#` line must never contain a CSV delimiter
+  // (see the header discipline documented on `csvHeaderText` in probe.ts).
+  return [
+    `# lst_ramp_censoring: ${capped} of ${observedMonthCount} sampled ${
+      observedMonthCount === 1 ? "month" : "months"
+    } (${floorMonthCount} at the ramp floor; ${ceilingMonthCount} at its ceiling) decode into the published LST colormap's open end caps — those values are one-sided bounds and not measurements`,
+    `# lst_ramp_censoring_rows: mark them in the value column below — a value at or below ${ramp.floorBin.hi.toFixed(2)} ${unit} sits in the ramp's lowest bin where every land surface below ${ramp.floorBin.lo.toFixed(1)} ${unit} shares one colour (an upper bound on a possibly colder surface) and a value at or above ${ramp.ceilingBin.lo.toFixed(2)} ${unit} sits in its highest where every surface at or above ${ramp.ceilingBin.hi.toFixed(1)} ${unit} shares one colour (a lower bound on a possibly hotter surface)`,
+    `# lst_ramp_censoring_uncertainty: the quantization figure on the uncertainty line above is two-sided and does not describe those months — beyond the cap their true surface temperature is unbounded and none is estimated here`,
+    `# lst_ramp_censoring_derived: the anomaly column and any trend stated above are computed over this same series so they inherit the censoring; ${meanSentence(
+      censoring
+    )} and no direction is claimed for the trend because a resolved cap tilts a slope whichever way the record's shape decides`,
+    `# lst_ramp_censoring_source: ${doc} colormap — ${colormapUrl(doc)}`,
+  ];
+}
+
+/**
+ * What the capped rows do to a mean taken over them, read off the computed
+ * `meanBound` rather than the cap counts so this sentence can never contradict
+ * the inequality the status line renders on the same statistic.
+ *
+ * The two-cap case is the one worth spelling out: the biases oppose, which
+ * leaves the mean unbounded rather than unbiased, and a reader who averages the
+ * value column anyway must not read silence as a clean number.
+ */
+function meanSentence(censoring: ProbeLstExtremeCensoring): string {
+  if (censoring.meanBound === "upper") {
+    return "a mean taken over these rows is an upper bound for the same reason because a capped cold month can bias it only upward";
+  }
+  if (censoring.meanBound === "lower") {
+    return "a mean taken over these rows is a lower bound for the same reason because a capped hot month can bias it only downward";
+  }
+  return "a mean taken over these rows is bounded in neither direction because both caps were reached and their biases oppose — which is not the same as an unbiased mean";
 }
 
 /**
