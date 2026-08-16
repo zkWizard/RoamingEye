@@ -861,6 +861,13 @@ body {
   pointer-events: auto;
 }
 
+/* An open popup hangs over the share and export buttons, which sit at the same
+   z-index; only while it is open does the whole field rise above them, so the
+   rows it draws are the rows the pointer actually hits. */
+.search.is-open {
+  z-index: 5;
+}
+
 .search__field {
   display: flex;
   align-items: center;
