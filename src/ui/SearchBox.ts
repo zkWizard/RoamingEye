@@ -25,6 +25,7 @@ interface Entry {
  * stay one uninterrupted gesture.
  */
 export class SearchBox {
+  private readonly root: HTMLElement;
   private readonly input: HTMLInputElement;
   private readonly results: HTMLUListElement;
   private debounceTimer: ReturnType<typeof setTimeout> | undefined;
@@ -38,6 +39,7 @@ export class SearchBox {
     private readonly onSelect: (result: GeoResult) => void
   ) {
     container.classList.add("search");
+    this.root = container;
     // A <label>, not a <div>: the input is only ~20px tall, so on a phone the
     // icon and the field's padding — roughly half its visible height — were
     // dead pixels that swallowed the tap. Implicit label association makes the
@@ -215,6 +217,14 @@ export class SearchBox {
 
   private setOpen(open: boolean): void {
     this.results.classList.toggle("is-open", open);
+    // The popup overhangs the share and export buttons stacked below the field.
+    // Those are siblings at the same z-index, and `.search` is first in the DOM,
+    // so an equal-priority tie handed the overlap to them: a click on the right
+    // end of the FIRST match landed on "Share view". The list cannot win that on
+    // its own — `.search` is a stacking context, so a child's z-index is sealed
+    // inside it — hence the lift belongs on the root, and only while it is open,
+    // which keeps the collapsed field in its usual place in the stack.
+    this.root.classList.toggle("is-open", open);
     this.input.setAttribute("aria-expanded", String(open));
   }
 
