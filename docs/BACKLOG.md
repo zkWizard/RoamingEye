@@ -27,10 +27,40 @@ take one directly when no Owner's pick applies to its domain.
 - [ ] **Precipitation currency.** GLDAS publishes ~5 months behind. Evaluate
       GPM IMERG monthly (`GPM_3IMERGM`, ~2-month lag) as a replacement or
       additional layer — a data-sourcing decision, not a bug fix.
+- [ ] **The bottom HUD still covers the aim below ~610px of viewport.** #980
+      moved the collision threshold from ~722px down to ~610px by taking the
+      panel's spacing out at short heights, which clears every ordinary laptop.
+      What remains is the band under it — a 1024x600 netbook, or a desktop
+      window dragged short — where the crosshair lands back on the layer
+      selector. The spacing is spent, so closing the rest means ~101px from
+      content: a collapsible or compact panel below the threshold, or biasing
+      the globe's rendered centre upward (which issue #93 argues against).
+      A design decision rather than a tweak, which is why #980 stopped here
+      instead of guessing at one.
 
 ## Done
 
 <!-- The shipping PR moves its item here, with the PR number. -->
+
+- [x] **The reticle marked a point the panel was covering.** (#980) The aim the
+      keyboard turns the globe under is the camera subpoint — it renders at the
+      exact centre of the canvas and it is the point Enter charts, so unlike a
+      cursor it cannot be moved somewhere roomier without lying about which
+      pixel it names. The bottom panel is the half of that pair that could have
+      moved and did not: it measured 301px tall at 900px of viewport and 301px
+      at 540px, height-invariant, so it was the panel that climbed over the aim
+      as the window shortened. Below about 722px tall the crosshair was drawn
+      over the HUD, naming a pixel of the globe the HUD was covering; at the
+      665px a 1366x768 laptop leaves after browser chrome it sat on the layer
+      selector's own label, and by 600px on the colour ramp. Since a third of
+      the panel's height was the spacing between its rows rather than anything
+      written in them, that spacing carries the fix and the words do not: every
+      caption, the legend source note and the provenance line render at full
+      size and full length, and no claim or citation moved. The threshold is
+      pinned by assertions rather than by the measurement that motivated it,
+      because the panel's captions accrete and a purely visual fix would have
+      been eaten by the next clause added to the source note without anything
+      going red.
 
 - [x] **The keyboard had no aim on the globe.** (#977) Arrow keys turned the
       globe and Enter charted the point in the middle of the view, but nothing
