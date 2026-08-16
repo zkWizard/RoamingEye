@@ -12,6 +12,11 @@ import {
   serializePlaceObservationExport,
   sstPlaceObservationFromSample,
 } from "./placeObservationExport";
+import {
+  classifyModality,
+  describeModality,
+  MODALITY_LIMITS,
+} from "./observationModality";
 import { summarizeSstObservingConstraints } from "./sstObservingConstraints";
 
 const PRECIP_COLORMAP_URL =
@@ -495,7 +500,7 @@ describe("place observation export", () => {
     const exported = createPlaceObservationExport(input);
 
     expect(exported).toMatchObject({
-      schema: "roamingeye-place-observation-export/v9",
+      schema: "roamingeye-place-observation-export/v10",
       kind: "place-observation-export",
       boundary,
       geography: PLACE_OBSERVATION_GEOGRAPHY,
@@ -1925,6 +1930,160 @@ describe("place observation export observing constraints", () => {
         (product: { layerId: string }) => product.layerId === "sst"
       ).observingConstraints.representsFullDiurnalCycle
     ).toBe(false);
+  });
+});
+
+describe("place observation export observation modality", () => {
+  const productFor = (
+    exported: ReturnType<typeof createPlaceObservationExport>,
+    layerId: string
+  ) => exported.products.find((product) => product.layerId === layerId)!;
+
+  const gldasProduct = (layerId: "precip" | "soil") =>
+    placeObservationProductFromSample({
+      layerId,
+      sourceValueFactor: 1,
+      samplingStrategy: "boundary-grid",
+      sourceImageDimensions: { width: 512, height: 256 },
+      observations: [
+        { dataMonth: { year: 2026, month: 3 }, value: 4.2, validFraction: 0.9 },
+      ],
+    });
+
+  const sstSample = () =>
+    placeObservationProductFromSample({
+      layerId: "sst",
+      sourceValueFactor: 1,
+      samplingStrategy: "boundary-grid",
+      sourceImageDimensions: { width: 512, height: 256 },
+      observations: [
+        sstPlaceObservationFromSample({ year: 2026, month: 4 }, 18.4, 0.42),
+      ],
+    });
+
+  it("marks the two GLDAS fields as modelled, not measured", () => {
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [gldasProduct("precip"), gldasProduct("soil")],
+    });
+
+    // The defect this closes: the place card renders "model-derived, not a
+    // direct measurement" for both of these, and the download said nothing.
+    for (const layerId of ["precip", "soil"] as const) {
+      const modality = productFor(exported, layerId).observationModality;
+      expect(modality.modality).toBe("land-surface-model");
+      expect(modality.basis).toBe("model");
+      expect(modality.modelDerived).toBe(true);
+      expect(modality.statement).toMatch(
+        /model-derived, not a direct measurement of the sampled cell/
+      );
+      // The citation travels with the claim, so the record reads standalone.
+      expect(modality.statement).toContain("GLDAS_NOAH025_M v2.1");
+    }
+  });
+
+  it("gives the two GLDAS fields one modality, because they are one product", () => {
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [gldasProduct("precip"), gldasProduct("soil")],
+    });
+
+    // Rainfall is a flux and soil moisture a state, but modality is keyed by
+    // the product both are delivered in — so they must not disagree here.
+    expect(productFor(exported, "precip").observationModality).toEqual(
+      productFor(exported, "soil").observationModality
+    );
+  });
+
+  it("reads the modality table rather than restating it", () => {
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [gldasProduct("precip"), ...nonPrecipProducts()],
+    });
+
+    // Read from the module every other surface quotes: a correction there must
+    // move this record too, which is the whole point of deriving it.
+    for (const product of exported.products) {
+      const expected = classifyModality(product.source);
+      expect(product.observationModality.modality).toBe(expected);
+      expect(product.observationModality.basis).toBe(
+        describeModality(expected).basis
+      );
+      expect(product.observationModality.statement).toContain(
+        describeModality(expected).description
+      );
+      expect(product.observationModality.limits).toEqual([...MODALITY_LIMITS]);
+    }
+  });
+
+  it("keeps modelDerived exactly the model basis, never a measurement claim", () => {
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [
+        gldasProduct("precip"),
+        gldasProduct("soil"),
+        sstSample(),
+        ...nonPrecipProducts(),
+      ],
+    });
+
+    for (const product of exported.products) {
+      const modality = product.observationModality;
+      expect(modality.modelDerived).toBe(modality.basis === "model");
+    }
+
+    // NDVI is sensed, so it is not model-derived — but a false here says
+    // "remotely sensed", not "measured in situ".
+    const ndvi = productFor(exported, "ndvi").observationModality;
+    expect(ndvi.modality).toBe("satellite-derived-index");
+    expect(ndvi.modelDerived).toBe(false);
+    expect(ndvi.statement).toMatch(/not a direct in-situ measurement/);
+  });
+
+  it("records an untabled product as unasserted, never as measured", () => {
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [sstSample()],
+    });
+    const modality = productFor(exported, "sst").observationModality;
+
+    // SST is absent from the modality table. The false modelDerived that
+    // follows must not read as a finding that the value was measured.
+    expect(modality.modality).toBe("unclassified");
+    expect(modality.basis).toBe("unknown");
+    expect(modality.modelDerived).toBe(false);
+    expect(modality.statement).toMatch(/production basis not asserted/);
+    expect(modality.limits.join(" ")).toMatch(/never inferred from its value/);
+  });
+
+  it("asserts production basis and nothing further", () => {
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [gldasProduct("precip"), gldasProduct("soil")],
+    });
+
+    for (const product of exported.products) {
+      // Screened over the statement alone: the limits name confirmation and
+      // independence precisely to refuse them.
+      expect(product.observationModality.statement).not.toMatch(
+        /drought|flood|wet|dry|risk|condition|forecast|will be|expect|because/i
+      );
+    }
+    expect(exported.limitations.join(" ")).toMatch(
+      /observationModality\.modelDerived marks a value produced by a land-surface model/
+    );
+  });
+
+  it("survives serialization", () => {
+    const withGldas = { ...input, products: [gldasProduct("soil")] };
+    const parsed = JSON.parse(serializePlaceObservationExport(withGldas));
+
+    expect(parsed).toEqual(createPlaceObservationExport(withGldas));
+    expect(
+      parsed.products.find(
+        (product: { layerId: string }) => product.layerId === "soil"
+      ).observationModality.modelDerived
+    ).toBe(true);
   });
 });
 
