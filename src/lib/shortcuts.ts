@@ -43,6 +43,16 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     ],
   },
   {
+    title: "Draw region — press the Draw region button first",
+    items: [
+      {
+        keys: ["Drag", "Enter"],
+        does: "Sweep a study region. By key: Enter takes a corner, arrows turn to the opposite one, Enter again charts it",
+      },
+      { keys: ["Esc"], does: "Leave draw mode without charting anything" },
+    ],
+  },
+  {
     title: "General",
     items: [
       { keys: ["?"], does: "Open this overlay" },

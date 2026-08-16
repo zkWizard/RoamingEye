@@ -8,6 +8,9 @@ import { GLOBE_RADIUS } from "../overlays/types";
 const EDGE_SEGMENTS = 24;
 const OUTLINE_RADIUS = GLOBE_RADIUS * 1.006;
 
+/** What a keyboard corner press did, so the host can say so in the HUD. */
+export type CornerOutcome = "anchored" | "completed" | "rejected";
+
 /**
  * "Draw a study region" interaction: while armed, a pointer drag on the globe
  * sweeps out a lat/lon bounding box, outlined live on the surface. On release
@@ -16,6 +19,10 @@ const OUTLINE_RADIUS = GLOBE_RADIUS * 1.006;
  *
  * The host disables OrbitControls while armed (see onModeChange), so the drag
  * belongs to the drawer alone.
+ *
+ * A drag is two corners and the travel between them, which a keyboard cannot
+ * express in one gesture — so `markCorner`/`stretchTo` split it into the two
+ * corners alone, taken from wherever the arrow keys have aimed the camera.
  */
 export class RegionDrawer {
   readonly object = new THREE.Group();
@@ -53,6 +60,49 @@ export class RegionDrawer {
     this.anchor = undefined;
     this.canvas.style.cursor = on ? "crosshair" : "";
     this.callbacks.onModeChange(on);
+  }
+
+  /** Whether a first corner is down and the box is waiting on its opposite. */
+  get anchored(): boolean {
+    return this.armed && this.anchor !== undefined;
+  }
+
+  /**
+   * Keyboard equivalent of `pointermove`: with a corner already down, stretch
+   * the box out to `point`. The arrow keys steer the camera, so its subpoint
+   * is the keyboard's cursor, and this is what makes the outline follow it.
+   */
+  stretchTo(point: LatLng): void {
+    if (!this.anchored) return;
+    this.showOutline(dragBounds(this.anchor as LatLng, point));
+  }
+
+  /**
+   * Keyboard equivalent of the drag: the first press puts a corner down at
+   * `point`, the second takes the box.
+   *
+   * A rejected second corner keeps the first one — one arrow press moves in a
+   * single axis, so the box a user gets by pressing Enter, arrow, Enter is
+   * flat and unusable, and dropping them back out of draw mode for it would
+   * punish the likeliest honest mistake. They stay armed and are told to turn
+   * further, which is the one thing that fixes it.
+   */
+  markCorner(point: LatLng): CornerOutcome {
+    if (!this.armed) return "rejected";
+    if (!this.anchor) {
+      this.clear();
+      this.anchor = point;
+      return "anchored";
+    }
+    this.showOutline(dragBounds(this.anchor, point));
+    const bounds = this.outline?.userData.bounds as Bounds | undefined;
+    if (!bounds || !boundsUsable(bounds)) {
+      this.clear();
+      return "rejected";
+    }
+    this.setArmed(false);
+    this.callbacks.onComplete(bounds);
+    return "completed";
   }
 
   /** Remove the drawn outline (the region's chart was dismissed). */

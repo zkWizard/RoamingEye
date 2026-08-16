@@ -499,6 +499,9 @@ hdTiles.onVisibleCoverageChange(({ requested, loaded, failed }) => {
 // Assigned by the probe/compare sections below; the layer selector closes
 // both because their contents belong to the previous layer.
 let closeProbe: (() => void) | undefined;
+// Set once the probe section builds it. The globe's key handler lives at module
+// scope, above the drawer, and has to ask whether draw mode owns the arrows.
+let regionDrawer: RegionDrawer | undefined;
 let compareControls: CompareControls | undefined;
 // The pinned month behind the divider, for surfaces that run before the
 // comparison controller is constructed (it needs the renderer and the globe
@@ -770,9 +773,11 @@ controls.maxDistance = 4.5; // furthest zoom-out
 // app pins to the globe's centre, and `enablePan` is off for that reason.
 canvas.addEventListener("keydown", (e) => {
   if (e.altKey || e.ctrlKey || e.metaKey) return; // leave browser chords alone
-  // Whoever disabled the controls owns the camera: the region drawer while a
-  // box is being dragged, the flyer while a search result is in flight.
-  if (!controls.enabled) return;
+  // Whoever disabled the controls owns the camera — the flyer, while a search
+  // result is in flight. The region drawer disables them too, but only so a
+  // *drag* sweeps a box instead of rotating; the arrows are still the way its
+  // keyboard corners are aimed, so they keep working while it is armed.
+  if (!controls.enabled && !regionDrawer?.active) return;
   const subpoint = vector3ToLatLng(camera.position);
   const next = stepGlobeView(
     { ...subpoint, distance: camera.position.length() },
@@ -786,6 +791,9 @@ canvas.addEventListener("keydown", (e) => {
     .multiplyScalar(next.distance);
   camera.lookAt(0, 0, 0);
   controls.update(); // adopt the new position and fire `change` → hash sync
+  // With a corner already down, the box rubber-bands to the new subpoint —
+  // the keyboard's version of dragging with the button held.
+  regionDrawer?.stretchTo({ lat: next.lat, lon: next.lon });
 });
 
 // --- Shareable view state (URL hash) ------------------------------------------
@@ -934,10 +942,19 @@ if (probeEl) {
     onModeChange: (armed) => {
       controls.enabled = !armed;
       regionButton?.setActive(armed);
-      setStatus(armed ? "Drag on the globe to draw a region" : "");
+      // Naming both gestures: the button that arms this is an ordinary button,
+      // so a keyboard reaches draw mode perfectly well, and used to land on an
+      // instruction it could not carry out.
+      setStatus(armed ? "Drag a box, or press Enter at two corners" : "");
+      // Every gesture this mode accepts happens on the globe, and arming it
+      // leaves focus on the button — so hand focus over, the way opening a
+      // dialog does. Disarming leaves focus alone: Escape should not yank it
+      // away from whatever the user moved on to.
+      if (armed) canvas.focus();
     },
     onComplete: (bounds) => runRegionProbe(bounds),
   });
+  regionDrawer = drawer;
   scene.add(drawer.object);
   if (drawEl) {
     regionButton = new RegionButton(drawEl, (on) => drawer.setArmed(on));
@@ -1698,9 +1715,26 @@ if (probeEl) {
   canvas.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" && e.key !== " ") return;
     if (e.altKey || e.ctrlKey || e.metaKey) return;
-    if (!controls.enabled) return; // the drawer or a flight owns the camera
-    e.preventDefault(); // Space would otherwise scroll the page
     const { lat, lon } = vector3ToLatLng(camera.position);
+    // In draw mode the same key takes a corner instead of a point: two
+    // presses, with the arrows between them, are a drag a keyboard can make.
+    if (drawer.active) {
+      e.preventDefault();
+      const outcome = drawer.markCorner({ lat, lon });
+      if (outcome === "anchored") {
+        // Nothing is outlined yet — one corner is not a box — so the marker
+        // is what a sighted keyboard user sees the corner land on.
+        highlight.show({ lat, lon, geometry: null });
+        setStatus("Corner set — turn the globe, then Enter");
+      } else if (outcome === "rejected") {
+        setStatus("Too small — turn further, then Enter");
+      } else {
+        highlight.clear(); // the outline is the region's own mark now
+      }
+      return;
+    }
+    if (!controls.enabled) return; // a flight owns the camera
+    e.preventDefault(); // Space would otherwise scroll the page
     highlight.show({ lat, lon, geometry: null });
     runProbe(lat, lon);
   });

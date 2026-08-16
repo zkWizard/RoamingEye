@@ -25,7 +25,7 @@ export class ShortcutsOverlay {
           <h2 class="shortcuts__title">Keyboard shortcuts</h2>
           <button class="shortcuts__close" type="button" aria-label="Close">${ICONS.close}</button>
         </header>
-        <div class="shortcuts__body"></div>
+        <div class="shortcuts__body" tabindex="0"></div>
       </div>`;
 
     const body = container.querySelector(".shortcuts__body") as HTMLElement;
