@@ -32,6 +32,36 @@ take one directly when no Owner's pick applies to its domain.
 
 <!-- The shipping PR moves its item here, with the PR number. -->
 
+- [x] **The globe could not be operated by keyboard at all.** (#974) The canvas
+      has declared `role="application"` since the first commit — a role that
+      tells a screen reader to stop intercepting keystrokes and hand them to
+      the app, on the understanding that the app has its own bindings. It had
+      none: no `tabindex` on the canvas and no `keydown` listener anywhere on
+      it, so the globe, the primary control, was the one thing in the app a
+      keyboard could not reach, and the role was turning a user's reading mode
+      off in exchange for nothing. The help overlay was honest about the gap
+      rather than hiding it, listing Drag, Scroll, Click and Hover — four
+      pointer gestures and no keys. The canvas now takes focus and paints the
+      same 2px accent ring every other control gets, arrow keys turn the globe,
+      plus and minus zoom between the bounds the wheel already uses, and Enter
+      charts the point in the middle of the view. That point is the camera
+      subpoint: a pointer names its own target and a keyboard has to be given
+      one, and the only point a keyboard user has already aimed at is the one
+      the arrows steer. It is also what the shareable hash records as the
+      camera position, so a probe opened this way reproduces from its link like
+      any other, and the search fly-to marker is drawn there so the charted
+      point is visible and not only readable. The rotation step scales with
+      altitude on the same ratio a drag uses, because six degrees reads as a
+      nudge in orbit and crosses a continent near the surface; latitude stops
+      at 85°, where a viewpoint still has a heading; longitude is left
+      unwrapped so stepping east past the antimeridian continues. The keys are
+      inert while something else owns the camera — the region drawer mid-drag,
+      the flyer mid-flight — and inert while the search field has focus, which
+      is asserted, since typing a place name must not fly the camera
+      underneath it. Verified by reading the view back out of the shareable
+      hash rather than the scene, which also proves a keyboard-driven view is
+      reproducible from its link.
+
 - [x] **The overlay toolbar stole the Compare button's clicks.** (#973) The
       column is centred vertically, so its top edge climbs as it grows. Issue
       #93 identified this exact collision with the top-right buttons and fixed

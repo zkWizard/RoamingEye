@@ -56,9 +56,14 @@
   </head>
   <body>
     <div id="app">
+      <!-- role="application" tells a screen reader to hand keystrokes
+           straight to the app, so the globe has to answer them: it is
+           focusable, arrow keys turn it, +/- zoom, and Enter charts the point
+           in the middle of the view (see the keyboard section of main.ts). -->
       <canvas
         id="globe"
-        aria-label="Interactive 3D globe — drag to rotate, scroll to zoom"
+        tabindex="0"
+        aria-label="Interactive 3D globe — drag or use the arrow keys to turn it, scroll or press plus and minus to zoom, click or press Enter to chart the point in view"
         role="application"
       ></canvas>
 
