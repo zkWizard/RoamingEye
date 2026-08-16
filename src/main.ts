@@ -613,13 +613,31 @@ const PENDING_INDICATOR_DELAY_MS = 150;
 // lazy load fails (e.g. geolocation denied) stays off so the caller can revert.
 async function toggleOverlay(
   overlay: MapOverlay,
-  on: boolean
+  on: boolean,
+  // Whether a failed enable is worth a toast. True for a press the user just
+  // made; false while restoring a saved session, where the toolbar leaves the
+  // button pressed, so "turn it on again" would name a gesture that isn't
+  // available — and a cold boot on a bad connection would open with an error
+  // over the globe. The offline banner covers that case honestly enough.
+  reportFailure = false
 ): Promise<boolean> {
   if (on && overlay.ensureLoaded) {
     try {
       await overlay.ensureLoaded();
     } catch (err) {
       console.warn(`RoamingEye: overlay "${overlay.id}" failed to load`, err);
+      // Say so. The toggle is about to snap itself back off, and until now
+      // that was the only evidence the user got: a button that flicked on and
+      // returned, with the reason left in a console nobody in the field has
+      // open. The catch here also keeps the failure away from the global
+      // unhandledrejection toast, so nothing else was ever going to report it.
+      // Geolocation is the exception — it words its own denial (see
+      // `reportsOwnLoadErrors`), and a second toast would just talk over it.
+      if (reportFailure && !overlay.reportsOwnLoadErrors) {
+        errorToast.show(
+          `Couldn't load ${overlay.label}. Turn it on again to retry.`
+        );
+      }
       overlay.object.visible = false;
       return false;
     }
@@ -654,7 +672,7 @@ if (toolbarEl) {
         );
       }
 
-      void toggleOverlay(overlay, on).then((ok) => {
+      void toggleOverlay(overlay, on, true).then((ok) => {
         if (pendingTimer !== undefined) clearTimeout(pendingTimer);
         toolbar.setPending(overlay.id, false);
         if (on && !ok) {

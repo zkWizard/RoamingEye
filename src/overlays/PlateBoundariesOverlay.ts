@@ -4,7 +4,12 @@ import { plateBoundarySegmentHoverLabel } from "../lib/plateBoundaryHover";
 import { plateBoundaryRenderGeometry } from "../lib/plateBoundaryRendering";
 import { parsePlateBoundaries } from "../lib/plates";
 import { ICONS } from "../ui/icons";
-import { GLOBE_RADIUS, type HoverLineSource, type MapOverlay } from "./types";
+import {
+  GLOBE_RADIUS,
+  once,
+  type HoverLineSource,
+  type MapOverlay,
+} from "./types";
 
 /**
  * Tectonic plate boundaries (Bird 2003). Together with the earthquakes and
@@ -26,8 +31,6 @@ export class PlateBoundariesOverlay implements MapOverlay {
    */
   hoverSource: HoverLineSource | undefined;
 
-  private loadPromise: Promise<void> | undefined;
-
   constructor(
     // BASE_URL-aware so the fetch works when the site is hosted on a subpath.
     private readonly url = `${import.meta.env.BASE_URL}data/plate-boundaries.geojson`,
@@ -36,8 +39,10 @@ export class PlateBoundariesOverlay implements MapOverlay {
     this.object.visible = false;
   }
 
+  private readonly loadOnce = once(() => this.load());
+
   ensureLoaded(): Promise<void> {
-    return (this.loadPromise ??= this.load());
+    return this.loadOnce();
   }
 
   private async load(): Promise<void> {

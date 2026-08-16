@@ -20,7 +20,17 @@ export interface MapOverlay {
    * not prompt without a user gesture and shouldn't surprise a returning user.
    */
   readonly ephemeral?: boolean;
-  /** Lazily fetch/build whatever the overlay needs (called once, on first enable). */
+  /**
+   * The overlay tells the user about its own load failures, so the toolbar
+   * must not report them a second time. Only geolocation does: a denial is a
+   * browser-level outcome with its own wording, not a fetch that can be
+   * retried by toggling.
+   */
+  readonly reportsOwnLoadErrors?: boolean;
+  /**
+   * Lazily fetch/build whatever the overlay needs. Called on every enable;
+   * implementations memoize with `once()` so the work happens one time.
+   */
   ensureLoaded?(): Promise<void>;
   /** Per-frame hook for view-dependent overlays (throttle internally). */
   update?(camera: PerspectiveCamera, viewportHeightPx: number): void;
@@ -47,6 +57,30 @@ export interface HoverLineSource {
   readonly lines: LineSegments;
   /** Tooltip text for the segment at `segmentIndex`, or undefined to skip it. */
   describe(segmentIndex: number): string | undefined;
+}
+
+/**
+ * Memoize a lazy load, keeping only a SUCCESSFUL result.
+ *
+ * The obvious `promise ??= load()` caches the rejection too, which quietly
+ * costs the user their retry: one dropped connection or one 503 from an
+ * upstream feed, and the enable fails — then every later attempt re-rejects
+ * instantly from cache, off the same dead promise, even once the network is
+ * back. The toggle looks like it is trying and can only really recover with a
+ * page reload. Dropping the memo on failure makes the next enable a genuine
+ * second attempt, which is what "turn it on again" has to mean for the
+ * toolbar's retry wording to be true.
+ *
+ * Concurrent callers still share one in-flight load: the memo is assigned
+ * synchronously, and it is only cleared later, when the rejection settles.
+ */
+export function once(load: () => Promise<void>): () => Promise<void> {
+  let pending: Promise<void> | undefined;
+  return () =>
+    (pending ??= load().catch((err: unknown) => {
+      pending = undefined;
+      throw err;
+    }));
 }
 
 /** Globe radius (unit sphere). Overlays sit just above it to avoid z-fighting. */
