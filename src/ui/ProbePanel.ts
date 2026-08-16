@@ -45,6 +45,11 @@ import type { MarineAveragedSstFootprint } from "../lib/marineAveragedSstSupport
 import { probeRecordGaps, probeRecordGapsClause } from "../lib/probeRecordGaps";
 import { probeSstSamplingGateClause } from "../lib/sstObservingConstraints";
 import { probeLstSamplingGateClause } from "../lib/lstObservingConstraints";
+import {
+  lstExtremeBoundPrefix,
+  lstExtremeCensoringClause,
+  probeLstExtremeCensoring,
+} from "../lib/probeLstExtremeCensoring";
 import { probeVegetationSamplingGateClause } from "../lib/vegetationObservingConstraints";
 import { uncalibratedVegetationAccuracyClause } from "../lib/vegetationIndexRamp";
 import { ICONS } from "./icons";
@@ -472,6 +477,22 @@ export class ProbePanel {
       this.context?.layerId,
       stats.count > 0
     );
+    // Nor is the marine ramp the only one that ends in open caps. GIBS renders
+    // LST on a closed 200.0–350.0 K legend and then closes both ends with a
+    // catch-all colour, and — unlike the MERRA-2 air-temperature caps, which sit
+    // far enough off the ramp to be rejected and empty the record — these two
+    // sit 3–4 RGB units from their adjacent finite bins, so a capped pixel
+    // decodes into the terminal bin and prints as an ordinary number. The place
+    // panel's card has marked such a value as a bound since it landed; this
+    // series surface had not, and it is the worse exposure of the two, because
+    // the months that hit a cap are exactly the ones that set min and max.
+    // Silent for every other layer and for any LST record that stays inside the
+    // finite ramp.
+    const lstCensoring = probeLstExtremeCensoring(
+      this.context?.layerId,
+      physical
+    );
+    const lstCensoringClause = lstExtremeCensoringClause(lstCensoring);
     // And SST and LST are not the only layers whose statistics are gated by how
     // the product reduced each month. The two vegetation-index layers are the
     // sharper case: their monthly value is not an average at all. An optical
@@ -490,11 +511,12 @@ export class ProbePanel {
       this.context?.layerId,
       stats.count > 0
     );
-    // At most one of the two ramps can apply — a series belongs to one layer —
-    // so the first non-empty prefix is the whole answer.
+    // At most one of the three ramps can apply — a series belongs to one layer
+    // — so the first non-empty prefix is the whole answer.
     const boundPrefix = (statistic: "min" | "mean" | "max"): string =>
       sstExtremeBoundPrefix(sstCensoring, statistic) ||
-      aerosolCeilingBoundPrefix(aerosolCensoring, statistic);
+      aerosolCeilingBoundPrefix(aerosolCensoring, statistic) ||
+      lstExtremeBoundPrefix(lstCensoring, statistic);
     // The trend is seasonally corrected, but the mean beside it is not: it
     // averages whichever months returned data. When those months are unevenly
     // spread across the calendar the mean carries a seasonal-sampling bias,
@@ -536,6 +558,7 @@ export class ProbePanel {
       (sstAveragedCensoring ? ` · ${sstAveragedCensoring}` : "") +
       (sstSamplingGate ? ` · ${sstSamplingGate}` : "") +
       (lstSamplingGate ? ` · ${lstSamplingGate}` : "") +
+      (lstCensoringClause ? ` · ${lstCensoringClause}` : "") +
       (vegetationSamplingGate ? ` · ${vegetationSamplingGate}` : "") +
       (aerosolCensoringClause ? ` · ${aerosolCensoringClause}` : "") +
       (aerosolAveragedCensoring ? ` · ${aerosolAveragedCensoring}` : "") +
