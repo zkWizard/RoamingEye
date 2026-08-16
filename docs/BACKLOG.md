@@ -32,7 +32,7 @@ take one directly when no Owner's pick applies to its domain.
 
 <!-- The shipping PR moves its item here, with the PR number. -->
 
-- [x] **Sub-WCAG tap targets.** (#PRNUM) `.hint__shortcuts` was 21.6px — the
+- [x] **Sub-WCAG tap targets.** (#960) `.hint__shortcuts` was 21.6px — the
       only control in the app under the WCAG 2.2 AA floor of 24×24 (2.5.8) —
       and is now 24×24. The chrome buttons all cleared AA but were sized for a
       mouse (29–36px tall), so on a phone they were hittable but fiddly; they
