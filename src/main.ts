@@ -809,22 +809,26 @@ const flyer = new CameraFlyer(
 controls.addEventListener("change", scheduleHashSync);
 
 if (searchEl) {
-  new SearchBox(searchEl, (result) => {
-    closeProbe?.();
-    flyer.flyTo(result.lat, result.lon, flyToDistance(result.boundingBox));
-    highlight.show({
-      lat: result.lat,
-      lon: result.lon,
-      geometry: result.geometry,
-    });
-    // A search result can be a postcode, city, state, or country. Nominatim
-    // already returns its polygon when one is mapped, and LocationHighlight
-    // traces that exact geometry. Do not drape the old fixed 1.2° study patch:
-    // its rectangular footprint obscures the boundary the user asked for.
-    studyRegion.hide();
-    studyChip?.hide();
-    runPlaceInsights(result);
-  });
+  new SearchBox(
+    searchEl,
+    (result) => {
+      closeProbe?.();
+      flyer.flyTo(result.lat, result.lon, flyToDistance(result.boundingBox));
+      highlight.show({
+        lat: result.lat,
+        lon: result.lon,
+        geometry: result.geometry,
+      });
+      // A search result can be a postcode, city, state, or country. Nominatim
+      // already returns its polygon when one is mapped, and LocationHighlight
+      // traces that exact geometry. Do not drape the old fixed 1.2° study patch:
+      // its rectangular footprint obscures the boundary the user asked for.
+      studyRegion.hide();
+      studyChip?.hide();
+      runPlaceInsights(result);
+    },
+    (message) => announcer.announce(message)
+  );
 }
 
 // --- Comparison mode (A/B of two months) ---------------------------------------
