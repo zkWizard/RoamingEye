@@ -1135,10 +1135,72 @@ body {
   opacity: 1;
 }
 
-/* Touch devices have no hover — don't show a stuck readout. */
+/* Touch devices have no hover — don't show a stuck readout. A keyboard is not
+   a pointer, though: a tablet with one attached still matches `hover: none`,
+   and the readout is that user's only way of knowing where the arrow keys have
+   landed, so a keyboard aim overrides the rule. */
 @media (hover: none) {
-  .hover-tooltip {
+  .hover-tooltip:not(.is-aimed) {
     display: none;
+  }
+}
+
+/* --- Keyboard aim reticle --------------------------------------------------
+   The pointer aims with a cursor; the keyboard turns the globe under a fixed
+   aim at the middle of the view, and that point is what Enter charts. Nothing
+   drew it, so the keys had no visible target. Shown only while the globe holds
+   keyboard focus (`:focus-visible`, so a mouse click on the globe does not
+   raise it), and never interactive — `pointer-events: none` keeps it out of
+   both the globe drag and `document.elementFromPoint`, which the hover specs
+   assert against. */
+.globe-reticle {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 6;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s ease;
+}
+
+.globe-reticle.is-visible {
+  opacity: 1;
+}
+
+/* Two hairlines crossing, with a gap at the centre so the pixel being named is
+   never covered by the thing naming it. The outer glow carries the mark over
+   both bright ice and dark ocean without a fill. */
+.globe-reticle::before,
+.globe-reticle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* The transparent band is the centre gap; the arms are the accent. */
+  --arm: var(--accent) 0 34%, transparent 34% 66%, var(--accent) 66% 100%;
+  filter: drop-shadow(0 0 1px rgb(0 0 0 / 70%));
+}
+
+.globe-reticle::before {
+  width: 22px;
+  height: 2px;
+  margin: -1px 0 0 -11px;
+  background: linear-gradient(to right, var(--arm));
+}
+
+.globe-reticle::after {
+  width: 2px;
+  height: 22px;
+  margin: -11px 0 0 -1px;
+  background: linear-gradient(to bottom, var(--arm));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .globe-reticle {
+    transition: none;
   }
 }
 
