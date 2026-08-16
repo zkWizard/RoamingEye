@@ -42,6 +42,28 @@ take one directly when no Owner's pick applies to its domain.
 
 <!-- The shipping PR moves its item here, with the PR number. -->
 
+- [x] **A pixel of window height cost two layer toggles.** (#981) The toolbar
+      column is capped so that centring it always leaves the 200px the
+      Share/Save/Compare buttons occupy, and short windows anchored it at that
+      200px outright — but the short-window rule also tightened the cap by a
+      further 130px, reserving room it said the bottom HUD needed. The HUD panel
+      is 880px wide and centred, so it was never in the bar's column: at 1366px
+      there is 152px of clear air between them, and at the narrow desktop widths
+      where the boxes do meet, the 18–66px they share is the panel's empty right
+      margin. Above the breakpoint the bar had always run 156–191px down into
+      the panel's band at those widths without covering a single control, so the
+      reserve bought clearance the layout did not need. What it did buy was a
+      step at the breakpoint: 421px of column at 821px tall and 290px at 820px,
+      so dragging a window one pixel shorter dropped two of the nine toggles and
+      a third of the layer switcher went behind the fade. Both layouts now share
+      the one cap, so the column shortens smoothly with the window instead —
+      five of nine toggles on screen at 1366x768 where three were, four at 720px
+      tall where two were, and two at 560px tall where the old cap left 30px of
+      column and no whole toggle at all. Nothing moved horizontally and no
+      control changed size; the assertions pin the absence of the step and the
+      panel's clicks at the widths where the boxes overlap, since the honest
+      risk here is a future panel growing wide enough to reach the bar.
+
 - [x] **The reticle marked a point the panel was covering.** (#980) The aim the
       keyboard turns the globe under is the camera subpoint — it renders at the
       exact centre of the canvas and it is the point Enter charts, so unlike a
