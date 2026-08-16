@@ -32,6 +32,39 @@ take one directly when no Owner's pick applies to its domain.
 
 <!-- The shipping PR moves its item here, with the PR number. -->
 
+- [x] **Drawing a study region could not be done by keyboard.** (#975) The
+      "Draw region" button is an ordinary button, so a keyboard reached draw
+      mode perfectly well and then hit a wall. Arming the mode disables
+      OrbitControls, so that a drag sweeps a box instead of turning the globe,
+      and both of the canvas key handlers bailed out on exactly that flag —
+      which meant the arrow keys and Enter the globe had just been given went
+      dead the moment draw mode came on. The one instruction in the HUD was to
+      drag on the globe, a gesture the user who had just arrived there could
+      not make, and Escape, which nothing mentioned at that moment, was the
+      only way back out. A drag is two corners plus the travel between them,
+      and a keyboard cannot express that as a single gesture, so it splits
+      into the two corners alone, taken from wherever the arrow keys have
+      aimed the camera. That is the model the globe already uses: Enter acts
+      on the point in the middle of the view, and while draw mode is armed it
+      means a corner goes here. The outline rubber-bands off the camera
+      subpoint on every arrow press, so the box can be seen while it is being
+      framed rather than only once it has been taken, which is what a drag
+      gives a pointer user. A second corner landing on the first keeps the
+      first one rather than cancelling: a single arrow press moves in one axis
+      only, so pressing Enter, an arrow, then Enter produces a flat box the
+      usable-bounds check turns down, and that is the likeliest honest
+      mistake — dropping someone out of the mode for it would cost them the
+      corner they had already placed, so they stay armed and are told to turn
+      further. Arming also hands focus to the canvas, the way opening a dialog
+      does, because every gesture the mode accepts happens on the globe and
+      focus was being left behind on the button; disarming leaves focus alone,
+      so Escape does not pull it away from whatever the user has moved on to.
+      Documenting the keys added a fourth group to the help overlay, which
+      surfaced a separate defect it had been carrying: the shortcut list
+      scrolls once it outgrows the panel and held nothing focusable, so there
+      was no way to reach the lower shortcuts without a pointer. It now takes
+      focus itself and carries the same accent ring as every other stop.
+
 - [x] **The globe could not be operated by keyboard at all.** (#974) The canvas
       has declared `role="application"` since the first commit — a role that
       tells a screen reader to stop intercepting keystrokes and hand them to

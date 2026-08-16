@@ -33,6 +33,17 @@ describe("SHORTCUT_GROUPS", () => {
     expect(keys).toContain("Enter");
   });
 
+  it("documents the keyboard half of the draw-region gesture", () => {
+    const draw = SHORTCUT_GROUPS.find((g) => g.title.startsWith("Draw region"));
+    const does = draw?.items.map((i) => i.does).join(" ") ?? "";
+    // scene/RegionDrawer.markCorner: two Enter presses with arrows between
+    // them are the drag a keyboard can make. If that ever stops working, this
+    // group is a promise the app no longer keeps.
+    expect(draw, "no draw-region group").toBeDefined();
+    expect(does).toContain("corner");
+    expect(draw?.items.flatMap((i) => i.keys)).toContain("Enter");
+  });
+
   it("documents how to open and close the overlay itself", () => {
     const all = SHORTCUT_GROUPS.flatMap((g) => g.items.flatMap((i) => i.keys));
     expect(all).toContain("?");
