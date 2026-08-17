@@ -41,6 +41,7 @@ import {
 } from "../lib/probeAerosolCeilingCensoring";
 import { averagedSstCensoringNote } from "../lib/marineAveragedSstCensoring";
 import { averagedAerosolCensoringNote } from "../lib/probeAerosolAveragedCensoring";
+import { averagedLstCensoringNote } from "../lib/probeLstAveragedCensoring";
 import type { MarineAveragedSstFootprint } from "../lib/marineAveragedSstSupport";
 import { probeRecordGaps, probeRecordGapsClause } from "../lib/probeRecordGaps";
 import { probeSstSamplingGateClause } from "../lib/sstObservingConstraints";
@@ -471,6 +472,16 @@ export class ProbePanel {
       physical
     );
     const lstCensoringClause = lstExtremeCensoringClause(lstCensoring);
+    // The same averaged-footprint blind spot the two siblings above already
+    // correct, and the last of the three capped ramps still missing it: the
+    // screen above reads the CHARTED value, a median in point mode but a mean
+    // of per-pixel decodes on an area, which lands inside the finite ramp even
+    // when the footprint held capped ground. Both caps being open leaves the
+    // direction unclaimable, as on the marine ramp and unlike aerosol's.
+    const lstAveragedCensoring = averagedLstCensoringNote(
+      averagedFootprint,
+      lstCensoring
+    );
     // The vegetation indices are the sharper case: their monthly value is not an
     // average at all. Only clear, sunlit, snow-free views are eligible, and each
     // window is reduced by a constrained-view MAXIMUM-value composite. So the
@@ -514,6 +525,7 @@ export class ProbePanel {
       sstSamplingGate,
       lstSamplingGate,
       lstCensoringClause,
+      lstAveragedCensoring,
       vegetationSamplingGate,
       aerosolCensoringClause,
       aerosolAveragedCensoring,
