@@ -98,6 +98,9 @@ export class TimeSlider {
     btn.setAttribute("aria-label", label);
     btn.title = label;
     btn.addEventListener("click", () => {
+      // At the ends the button is aria-disabled rather than disabled, so it
+      // still receives the press — and has to decline it here.
+      if (btn.getAttribute("aria-disabled") === "true") return;
       const next = this.index + delta;
       this.update(Math.min(this.months.length - 1, Math.max(0, next)), true);
     });
@@ -206,9 +209,15 @@ export class TimeSlider {
     this.readout.textContent = this.formatLabel(ym);
     this.track.setAttribute("aria-valuenow", String(index));
     this.track.setAttribute("aria-valuetext", this.formatLabel(ym));
-    this.prevBtn.disabled = index === 0;
+    // `disabled` would drop the stepper out of the tab ring at the very moment
+    // the user's own press reached the end of the record: the browser blurs a
+    // control it disables, so focus fell to <body> and the explanation below
+    // went with it — unreachable, since Tab skips disabled buttons. Grey it out
+    // with `aria-disabled` instead: same announced state, but the button keeps
+    // focus and the reason stays where the user just pressed.
+    this.prevBtn.setAttribute("aria-disabled", String(index === 0));
     const atRecordEnd = index === this.months.length - 1;
-    this.nextBtn.disabled = atRecordEnd;
+    this.nextBtn.setAttribute("aria-disabled", String(atRecordEnd));
     // A stepper that greys out with no reason reads as a broken control —
     // the end of the scrubber is where "why is there no July?" starts. Say
     // that the record simply stops here, on the control the user just pressed.
