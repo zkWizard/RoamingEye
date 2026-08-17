@@ -61,6 +61,7 @@ import { averagedSstSupportNote } from "./lib/marineAveragedSstSupport";
 import { sstNativeSupportNote } from "./lib/sstNativeSupport";
 import { vegetationAveragedSupportNote } from "./lib/vegetationAveragedSupport";
 import { gldasAveragedSupportNote } from "./lib/gldasAveragedSupport";
+import { gldasChartedRecordNote } from "./lib/gldasChartedRecord";
 import { snowAveragedSupportNote } from "./lib/snowAveragedSupport";
 import { snowChartedRecordNote } from "./lib/snowChartedRecord";
 import { emptyMarineProbeNote } from "./lib/marineProbeDomain";
@@ -1290,12 +1291,22 @@ if (probeEl) {
         // the drawn cells alone. Unlike snow's undrawn pixels — all at the low
         // end — the discarded set here holds the box's WETTEST cells too, so
         // the clause refuses the dry reading rather than damping a swing.
-        const gldasSupportNote = gldasAveragedSupportNote(
-          layer.id,
-          "sampled-area",
-          values,
-          mode === "area" ? validFractions : null
-        );
+        // And the same question along the OTHER axis, which no mode stated for
+        // either water-cycle layer: those three exclusions drop whole MONTHS
+        // out of the series too, so the statistics beside the chart cover the
+        // charted months alone — and because the discarded set includes any
+        // month at or above the open top bin, the maximum need not be the
+        // record's. The share clause above already names the mechanism for an
+        // averaged footprint, so this defers to it and speaks for the point
+        // probe, which passes no shares and so had no clause in any partial
+        // case at all. Same composition as snow's pair, one line above.
+        const gldasSupportNote =
+          gldasAveragedSupportNote(
+            layer.id,
+            "sampled-area",
+            values,
+            mode === "area" ? validFractions : null
+          ) ?? gldasChartedRecordNote(layer.id, values);
         // An area value is a mean of per-pixel decodes and a point value a
         // median, so only the area footprint carries censoring the end-cap
         // screen cannot see. Shared by the status line and the export.
@@ -1615,12 +1626,17 @@ if (probeEl) {
         // does: GLDAS carries no value off land, and its ramp's discarded caps
         // sit at both ends, so the share the mean covers is not a share of the
         // box and its remainder is not dry ground.
-        const gldasSupportNote = gldasAveragedSupportNote(
-          layer.id,
-          "drawn-region",
-          values,
-          validFractions
-        );
+        // And along the time axis, exactly as in the point/area path: the same
+        // three exclusions drop whole months out, so the statistics cover the
+        // charted months alone and a month at or above the open top bin is
+        // among the discarded. Defers to the share clause when that spoke.
+        const gldasSupportNote =
+          gldasAveragedSupportNote(
+            layer.id,
+            "drawn-region",
+            values,
+            validFractions
+          ) ?? gldasChartedRecordNote(layer.id, values);
         // The physical series the file writes, not the 0..1 gradient positions
         // held here. Shared by the status line and the export.
         const physical = values.map((v) =>
