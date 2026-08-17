@@ -610,7 +610,16 @@ if (exportEl) {
           renderer.render(scene, camera);
         }
         canvas.toBlob((blob) => {
-          if (!blob) return;
+          // A successful save reports itself through the browser's own download
+          // chrome, so it needs no message of ours. A failed encode fires no
+          // download at all — without this the press is answered by nothing
+          // whatsoever, on every channel. The toast is `role="alert"`, so the
+          // one line covers both the user who would have seen the file appear
+          // and the one who would have heard it.
+          if (!blob) {
+            errorToast.show("Couldn't save the PNG. Try again.");
+            return;
+          }
           const ym = months[currentIndex];
           const a = document.createElement("a");
           a.href = URL.createObjectURL(blob);
