@@ -44,6 +44,7 @@ import {
   probeAerosolCeilingCensoring,
 } from "./lib/probeAerosolCeilingCensoring";
 import {
+  lstExtremeBoundPrefix,
   lstExtremeCensoringCsvHeaders,
   probeLstExtremeCensoring,
 } from "./lib/probeLstExtremeCensoring";
@@ -1380,7 +1381,8 @@ if (probeEl) {
                   seasonalSamplingBalance(probeMonths, physical),
                   scale,
                   sstExtremeBoundPrefix(sstCensoring, "mean") ||
-                    aerosolCeilingBoundPrefix(aerosolCensoring, "mean")
+                    aerosolCeilingBoundPrefix(aerosolCensoring, "mean") ||
+                    lstExtremeBoundPrefix(lstCensoring, "mean")
                 ),
               },
               probeMonths,
@@ -1690,7 +1692,8 @@ if (probeEl) {
                   seasonalSamplingBalance(probeMonths, physical),
                   scale,
                   sstExtremeBoundPrefix(sstCensoring, "mean") ||
-                    aerosolCeilingBoundPrefix(aerosolCensoring, "mean")
+                    aerosolCeilingBoundPrefix(aerosolCensoring, "mean") ||
+                    lstExtremeBoundPrefix(lstCensoring, "mean")
                 ),
               },
               probeMonths,

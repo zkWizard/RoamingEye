@@ -7,6 +7,11 @@ import {
 } from "./probeLstExtremeCensoring";
 import { LST_PUBLISHED_RAMP } from "./lstRampCensoring";
 import { PROBE_SCALES } from "./probe";
+import {
+  seasonalSamplingBalance,
+  seasonalSamplingCsvHeaders,
+} from "./seasonalSamplingBalance";
+import type { YearMonth } from "./timeline";
 
 /** An interior land-surface temperature that no cap can claim. */
 const INTERIOR = 295.15;
@@ -329,5 +334,94 @@ describe("lstExtremeCensoringCsvHeaders", () => {
     // The skin-versus-air offset is disclosed once already, by
     // `lstSamplingIdentityCsvHeaders`, a few lines up in the same file.
     expect(text).not.toMatch(/air temperature|2 m/i);
+  });
+});
+
+describe("lstExtremeBoundPrefix feeding the seasonal-sampling header", () => {
+  /**
+   * Three years of monthly LST whose every July saturates the ramp's open high
+   * cap, with two Januaries dropped so the record samples the calendar
+   * unevenly. That is the branch `seasonalSamplingCsvHeaders` quotes two means
+   * in, and the same months `probeLstExtremeCensoring` reports as capped.
+   */
+  function cappedUnevenRecord() {
+    const months: YearMonth[] = [];
+    for (let y = 0; y < 3; y++)
+      for (let m = 1; m <= 12; m++) months.push({ year: 2001 + y, month: m });
+    const values: (number | null)[] = months.map((ym) =>
+      ym.month === 7
+        ? CEILING
+        : 300 + 20 * Math.cos(((ym.month - 7) / 12) * 2 * Math.PI)
+    );
+    let droppedJan = 0;
+    months.forEach((ym, i) => {
+      if (ym.month === 1 && droppedJan++ < 2) values[i] = null;
+    });
+    return { balance: seasonalSamplingBalance(months, values), values };
+  }
+
+  it("speaks the exact prefix vocabulary the header matches on", () => {
+    // `seasonalSamplingCsvHeaders` compares the prefix against these two
+    // literals and treats anything else as no bound at all, so a censored mean
+    // would silently export as a plain decimal if the spacing ever drifted.
+    const censoring = probeLstExtremeCensoring("lst", [INTERIOR, CEILING]);
+    expect(lstExtremeBoundPrefix(censoring, "mean")).toBe("≥ ");
+    expect(
+      lstExtremeBoundPrefix(
+        probeLstExtremeCensoring("lst", [FLOOR, INTERIOR]),
+        "mean"
+      )
+    ).toBe("≤ ");
+  });
+
+  it("marks both quoted means as bounds for a capped LST record", () => {
+    const { balance, values } = cappedUnevenRecord();
+    // The bias branch, not the absent-months one: every calendar month keeps a
+    // sample, so the header quotes two numbers for the cap to qualify.
+    expect(balance.absentCalendarMonths).toEqual([]);
+
+    const censoring = probeLstExtremeCensoring("lst", values);
+    expect(censoring.meanBound).toBe("lower");
+    const headers = seasonalSamplingCsvHeaders(
+      balance,
+      PROBE_SCALES.lst,
+      lstExtremeBoundPrefix(censoring, "mean")
+    );
+
+    // Without LST in the prefix chain this record exported these two means as
+    // plain decimals while the censoring lines a few rows above the same file
+    // reported its months as capped — one file stating both.
+    expect(headers).toHaveLength(3);
+    expect(headers[0]).toContain("averages at least ");
+    expect(headers[0]).toContain("gives at least ");
+    expect(headers[2]).toContain("# seasonal_sampling_bias_censoring:");
+  });
+
+  it("leaves an uncensored LST record's header untouched", () => {
+    const { balance } = cappedUnevenRecord();
+    const uncensored = probeLstExtremeCensoring("lst", [INTERIOR, INTERIOR]);
+    expect(
+      seasonalSamplingCsvHeaders(
+        balance,
+        PROBE_SCALES.lst,
+        lstExtremeBoundPrefix(uncensored, "mean")
+      )
+    ).toEqual(seasonalSamplingCsvHeaders(balance, PROBE_SCALES.lst));
+  });
+
+  it("asserts no direction when opposing caps leave the mean unbounded", () => {
+    const { balance } = cappedUnevenRecord();
+    // Both caps reached: the biases oppose, so the mean is a bound in neither
+    // direction and the header must not gain an inequality it cannot support.
+    const both = probeLstExtremeCensoring("lst", [FLOOR, CEILING]);
+    expect(both.meanBound).toBe("indeterminate");
+    const headers = seasonalSamplingCsvHeaders(
+      balance,
+      PROBE_SCALES.lst,
+      lstExtremeBoundPrefix(both, "mean")
+    );
+    expect(headers).toHaveLength(2);
+    expect(headers[0]).not.toContain("at least");
+    expect(headers[0]).not.toContain("at most");
   });
 });
