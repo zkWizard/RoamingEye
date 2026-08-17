@@ -1903,12 +1903,18 @@ if (probeEl) {
 // The providers, software and fleet panels are reference material: none of it is
 // needed to render the globe, and each drags in its own catalog and formatting
 // code. They are loaded on first open instead of at boot, which keeps that code
-// out of the entry chunk (see scripts/check-bundle-size.mjs). A failed chunk
-// load clears the cache so the next click retries, and rejects so the global
-// error surface reports it.
+// out of the entry chunk (see scripts/check-bundle-size.mjs).
+//
+// Clearing the cache on failure only gives the panel's own construction a second
+// chance. It does NOT make a failed chunk fetch retry: a dynamic import that
+// fails stays rejected in the browser's module map, so a later click re-requests
+// nothing (measured in Chromium). Reloading is the only honest remedy, which is
+// what `name` is here to say — before this, the whole report was the global
+// unhandled-rejection toast quoting a hashed bundle URL.
 function lazyPanel(
   container: HTMLElement,
   link: HTMLElement,
+  name: string,
   load: () => Promise<new (el: HTMLElement) => { open(): void }>
 ): void {
   let panel: Promise<{ open(): void }> | null = null;
@@ -1919,12 +1925,17 @@ function lazyPanel(
         panel = null;
       });
     }
-    void panel.then((p) => p.open());
+    void panel.then(
+      (p) => p.open(),
+      () => {
+        errorToast.show(`Couldn't load ${name}. Reload the page to try again.`);
+      }
+    );
   });
 }
 
 if (providersPageEl && providersLinkEl) {
-  lazyPanel(providersPageEl, providersLinkEl, () =>
+  lazyPanel(providersPageEl, providersLinkEl, "the data providers", () =>
     import("./ui/ProvidersPage").then((m) => m.ProvidersPage)
   );
 }
@@ -1932,13 +1943,13 @@ if (providersPageEl && providersLinkEl) {
 // Software discovery is static and review-gated: the finder reads only the
 // approved catalog artifact produced by the catalog agent fleet.
 if (softwarePageEl && softwareLinkEl) {
-  lazyPanel(softwarePageEl, softwareLinkEl, () =>
+  lazyPanel(softwarePageEl, softwareLinkEl, "the software finder", () =>
     import("./ui/SoftwareFinder").then((m) => m.SoftwareFinder)
   );
 }
 
 if (fleetPageEl && fleetLinkEl) {
-  lazyPanel(fleetPageEl, fleetLinkEl, () =>
+  lazyPanel(fleetPageEl, fleetLinkEl, "the fleet status", () =>
     import("./ui/FleetDashboard").then((m) => m.FleetDashboard)
   );
 }
