@@ -38,34 +38,21 @@ import { MEASURED_INVERSION } from "./validation";
  * error by roughly a factor of three — in exactly the water a marine reader is
  * most likely to be probing deliberately.
  *
- * Scope discipline:
- *  - Nothing here re-measures, corrects, or improves an inversion. It reports a
- *    committed figure next to the committed figure it qualifies.
- *  - Only the SST layer is classified. Every other layer returns a
- *    non-applicable reading, so this module never speaks for a ramp it has not
- *    measured.
- *  - The screen reads the values the probe *reports*, which in this band are
- *    themselves imprecise. A true cold-band value can therefore surface just
- *    above the threshold and go unflagged, so the clause marks a lower bound on
- *    when the caveat applies, never an exhaustive one. It is not widened to
- *    compensate: silently claiming the caveat for ordinary water would be the
- *    larger error.
- *  - A cold reading is a physical observation only. Nothing here implies sea
- *    ice, marine organisms, habitat, ecosystem condition, hazard, cause, or
- *    future ocean state.
+ * Scope discipline: nothing here re-measures, corrects, or improves an
+ * inversion — it reports a committed figure beside the committed figure it
+ * qualifies — and only the SST layer is classified, so this module never speaks
+ * for a ramp it has not measured. The limits a reader carries away are stated
+ * once, in `SST_COLD_END_ACCURACY_LIMITATIONS` below, and rendered from there;
+ * they are not restated here.
  *
  * One band the split does NOT describe: the coldest water of all. Both figures
- * above are two-sided RMSEs — they say how far a *resolved* colour lands from
- * the value it stands for. The same colormap ends in an OPEN low cap, where
- * every SST below 0.00 °C shares one colour, and a month decoded into it is a
- * bound rather than a measurement (`probeSstExtremeCensoring`). Such a month is
- * always inside this band — it decodes to about 0.1 °C, far under the 4 °C
- * threshold — so the two screens do not merely overlap, they co-fire on every
- * record that reaches the cap. Quoting `±2.8 °C` over rows whose cold-side
- * error is unbounded replaces one understatement with another, so when the
- * caller supplies the censoring screen this module names the capped months and
- * withholds the band from them. Passing no censoring leaves every caller's
- * output exactly as it was.
+ * above are two-sided RMSEs, and the same colormap ends in an OPEN low cap
+ * where every SST below 0.00 °C shares one colour, so a month decoded into it
+ * is a bound rather than a measurement (`probeSstExtremeCensoring`). Such a
+ * month is always inside this band — it decodes to about 0.1 °C, far under the
+ * 4 °C threshold — so the two screens co-fire on every record that reaches the
+ * cap, and this module names the capped months and withholds the band from them
+ * whenever the caller supplies the screen.
  */
 
 /**
@@ -189,24 +176,34 @@ export function probeSstColdEndAccuracy(
 }
 
 /**
- * Short clause for the probe panel status line, sitting beside the whole-ramp
- * accuracy figure it qualifies. Empty for every other layer, for an empty
- * record, and for any SST record that stays out of the cold band — so an
- * ordinary readout is unchanged.
+ * Short clause for the probe panel status line, *replacing* the whole-ramp
+ * accuracy figure it qualifies rather than following it. Empty for every other
+ * layer, for an empty record, and for any SST record that stays out of the cold
+ * band — so an ordinary readout is unchanged and the caller falls back to the
+ * unqualified accuracy clause.
+ *
+ * `wholeRampClause` is the accuracy clause this one supersedes, e.g.
+ * `±1.0 °C vs GIBS colormap`. Rendering both printed that figure twice in one
+ * line — once as the reading's accuracy, again inside the correction naming it
+ * — so it is taken as an argument instead, keeping its attribution and stating
+ * it once. Omitting it falls back to the bare figure, unchanged.
  *
  * A capped month adds a short trailing parenthesis rather than a second clause:
- * it corrects the very band this clause just quoted, so it belongs inside it,
- * and the whole line is silent unless the record both enters the cold band and
- * reaches the low cap.
+ * it corrects the very band this clause just quoted, so it belongs inside it.
  */
 export function sstColdEndAccuracyClause(
-  reading: SstColdEndAccuracyReading
+  reading: SstColdEndAccuracyReading,
+  wholeRampClause = ""
 ): string {
   if (!reading.applies || reading.coldBandRmseC === null) return "";
-  const whole =
+  // A layer that inverts no colour has no pooled figure to name, and its clause
+  // is a sentence rather than a band — never splice that in behind "not".
+  const pooled =
     reading.wholeRampRmseC === null
-      ? "the whole-ramp figure"
-      : `the whole-ramp ±${reading.wholeRampRmseC.toFixed(1)} ${SST_COLD_END_ACCURACY.unit}`;
+      ? ""
+      : wholeRampClause ||
+        `±${reading.wholeRampRmseC.toFixed(1)} ${SST_COLD_END_ACCURACY.unit}`;
+  const whole = pooled ? `the whole-ramp ${pooled}` : "the whole-ramp figure";
   // Neither band is a two-sided residual for a month the colormap capped, so
   // name the exception instead of letting the ± read as covering every row in
   // the band. No corrected value is offered: none exists.
