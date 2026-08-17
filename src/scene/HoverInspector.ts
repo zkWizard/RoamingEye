@@ -9,7 +9,7 @@ import type { HoverLineSource, HoverPointSource } from "../overlays/types";
 
 // Hit radius around a point marker, in world units — a little wider than the
 // markers themselves (~0.022) feel, so they don't demand pixel-perfect aim.
-const POINT_THRESHOLD = 0.012;
+export const POINT_THRESHOLD = 0.012;
 
 // Hit radius around a line, in world units. Tighter than the point threshold:
 // plate linework spans the whole globe, so a generous radius would shadow the
@@ -138,6 +138,16 @@ export class HoverInspector {
     for (const get of this.sources) {
       const source = get();
       if (!source || !isShown(source.points)) continue;
+      // Markers are not all one size: the quake overlay draws its magnitude
+      // buckets at 0.02–0.055, so one radius for every source would leave an
+      // M6.5+ marker nameable only near its centre while the smallest answers
+      // past its own edge. Sources that vary size carry their own radius.
+      // The default stays a floor, so declaring a radius can only widen a hit
+      // region, never tighten one below the aim these markers already accept.
+      this.raycaster.params.Points.threshold = Math.max(
+        source.hitRadius ?? 0,
+        POINT_THRESHOLD
+      );
       // Intersections come back sorted nearest-first.
       for (const hit of this.raycaster.intersectObject(source.points, false)) {
         if (hit.index === undefined) continue;

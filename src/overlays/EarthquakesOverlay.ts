@@ -95,6 +95,10 @@ export class EarthquakesOverlay implements MapOverlay {
       this.object.add(points);
       this.hoverSources[bucketIndex] = {
         points,
+        // Magnitude is drawn as marker size, so each bucket answers over its
+        // own radius. Without this the largest events — the ones the size
+        // channel exists to make prominent — are the hardest to name.
+        hitRadius: bucket.size / 2,
         describe: (pointIndex) => {
           const quake = inBucket[pointIndex];
           if (!quake) return undefined;

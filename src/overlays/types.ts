@@ -43,6 +43,15 @@ export interface MapOverlay {
  */
 export interface HoverPointSource {
   readonly points: Points;
+  /**
+   * The markers' own drawn radius, in world units — omit to accept the
+   * inspector's default, which is sized for the ~0.022 markers most overlays
+   * draw. Supply it when the overlay varies marker size per record: one radius
+   * for every source leaves a marker drawn larger than it nameable only near
+   * its centre. The inspector keeps its default as a floor, so this widens a
+   * hit region and never tightens one.
+   */
+  readonly hitRadius?: number;
   /** Tooltip text for the point at `index`, or undefined to skip it. */
   describe(index: number): string | undefined;
 }
