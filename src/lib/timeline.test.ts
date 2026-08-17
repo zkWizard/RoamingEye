@@ -16,10 +16,12 @@ import {
   monthRangeForLayer,
   nearestMonthIndex,
   formatTimelineLabel,
+  utcYearMonth,
   LAYERS,
   DATA_LATEST,
+  type YearMonth,
 } from "./timeline";
-import { FRESHNESS_FAMILIES } from "./freshness";
+import { FRESHNESS_FAMILIES, isObservableMonth } from "./freshness";
 
 describe("year/month arithmetic", () => {
   it("round-trips index <-> year/month", () => {
@@ -536,5 +538,70 @@ describe("compiled freshness baselines", () => {
       // A pin landing on an undistributed month would enumerate a 404.
       expect(isUnpublished(layer, layer.latest!)).toBe(false);
     }
+  });
+});
+
+describe("utcYearMonth", () => {
+  /**
+   * An instant whose two calendars disagree, stated directly rather than by
+   * moving the process onto another time zone: `process.env.TZ` is re-read
+   * per worker at best, and vitest runs these files in a pool where the zone
+   * is already cached, so a TZ-switching test passes alone and fails in the
+   * suite. Reading the pair of getters apart is also the sharper assertion —
+   * it says which clock the function is on, on a runner in any zone, where a
+   * real Date can only show a difference if the runner is not already on UTC.
+   *
+   * `local` is the calendar a reader east of the meridian sees during the
+   * first hours of their month, while UTC — the clock GIBS files its domains
+   * under — is still on the previous one.
+   */
+  function instant(utc: YearMonth, local: YearMonth): Date {
+    return {
+      getUTCFullYear: () => utc.year,
+      getUTCMonth: () => utc.month - 1,
+      getFullYear: () => local.year,
+      getMonth: () => local.month - 1,
+    } as unknown as Date;
+  }
+
+  it("reads the UTC calendar where the local one has already turned", () => {
+    // UTC+14 at 2026-09-01 03:00 local: UTC is still 2026-08-31.
+    const now = instant({ year: 2026, month: 8 }, { year: 2026, month: 9 });
+    expect(utcYearMonth(now)).toEqual({ year: 2026, month: 8 });
+  });
+
+  it("reads the UTC calendar where the local one has not turned yet", () => {
+    // UTC-10 at 2026-08-31 19:00 local: UTC is already 2026-09-01.
+    const now = instant({ year: 2026, month: 9 }, { year: 2026, month: 8 });
+    expect(utcYearMonth(now)).toEqual({ year: 2026, month: 9 });
+  });
+
+  it("crosses the year boundary in UTC, not locally", () => {
+    // The annual branch of the currency note derives "the newest year that
+    // could have published" from this, so a local read advances it a year
+    // early and reports a year as overdue while it is still running.
+    const now = instant({ year: 2026, month: 12 }, { year: 2027, month: 1 });
+    expect(utcYearMonth(now)).toEqual({ year: 2026, month: 12 });
+  });
+
+  it("agrees with the freshness gate about which month is current", () => {
+    // The defect this authority closes: the status row measured the record's
+    // lag against a local "today" while `isObservableMonth` refused answers
+    // against a UTC one, so the two could name different current months.
+    const now = instant({ year: 2026, month: 8 }, { year: 2026, month: 9 });
+    const current = utcYearMonth(now);
+    expect(isObservableMonth(current, now)).toBe(true);
+    expect(isObservableMonth(addMonths(current, 1), now)).toBe(false);
+    // The month the local clock would have named is exactly the one the
+    // freshness gate rejects as not yet observable.
+    expect(isObservableMonth({ year: 2026, month: 9 }, now)).toBe(false);
+  });
+
+  it("defaults to the real clock, in UTC", () => {
+    const before = new Date();
+    const got = utcYearMonth();
+    const after = new Date();
+    // Non-injected calls must still read UTC; the run may straddle a boundary.
+    expect([before, after].map((d) => utcYearMonth(d))).toContainEqual(got);
   });
 });
