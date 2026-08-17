@@ -100,6 +100,13 @@ export class ProbePanel {
   private csvFilename = "probe.csv";
   private view: ProbeView = "values";
   private modeValue: PanelMode = "point";
+  /**
+   * Whatever had focus when the panel opened — the globe, for both gestures
+   * that open it (Enter on the aim, or a click). The panel is `display:none`
+   * when closed, so dismissing it from a control inside itself destroys the
+   * focused element and drops focus on `<body>`; this is where it goes back.
+   */
+  private opener: HTMLElement | null = null;
 
   constructor(
     container: HTMLElement,
@@ -129,11 +136,19 @@ export class ProbePanel {
     closeBtn.setAttribute("aria-label", "Close probe");
     closeBtn.innerHTML = ICONS.close;
     closeBtn.addEventListener("click", () => {
-      this.close();
-      this.onClose?.();
+      this.dismiss();
     });
 
     header.append(heading, closeBtn);
+
+    // `role="dialog"` promises Escape dismisses this, and it did not — the only
+    // way out was to find the close button, 20 Tabs along the ring. The handler
+    // sits on the panel, not the document, so it fires only while focus is
+    // inside: from the globe, Escape keeps its existing meaning (disarming the
+    // region drawer), which a document-level listener would have swallowed.
+    this.root.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") this.dismiss();
+    });
 
     // Mode (re-samples) and view (re-renders) segmented toggles.
     const options = document.createElement("div");
@@ -223,14 +238,43 @@ export class ProbePanel {
     this.copyBtn.disabled = true;
     this.copyBtn.textContent = "Copy CSV";
     this.setStatus("Sampling…");
+    // Remember the opener once per opening, not per re-probe: switching mode
+    // re-opens the panel for the same visit, and by then focus is on the mode
+    // button inside it — which would make the panel its own opener.
+    if (!this.isOpen) {
+      this.opener =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
+    }
     this.root.classList.add("is-open");
     this.root.setAttribute("aria-hidden", "false");
     this.draw();
   }
 
-  close(): void {
+  /**
+   * Close the panel. `restoreFocus` hands focus back to whatever opened it, and
+   * belongs to the gestures that dismiss the panel *itself* — its close button
+   * and Escape. The programmatic closes (switching layer, taking a search
+   * result) pass nothing: focus is on the control the user actually used, and
+   * pulling it to the globe would undo their own gesture.
+   */
+  close({ restoreFocus = false }: { restoreFocus?: boolean } = {}): void {
+    if (!this.isOpen) return;
+    // Only reclaim focus we are about to destroy. An outside pointerdown is
+    // already on its way to focusing its own target; stealing it back would
+    // fight the user.
+    const hadFocusInside = this.root.contains(document.activeElement);
     this.root.classList.remove("is-open");
     this.root.setAttribute("aria-hidden", "true");
+    if (restoreFocus && hadFocusInside) this.opener?.focus();
+    this.opener = null;
+  }
+
+  /** The panel dismissing itself — close button and Escape share this path. */
+  private dismiss(): void {
+    this.close({ restoreFocus: true });
+    this.onClose?.();
   }
 
   setStatus(text: string): void {
