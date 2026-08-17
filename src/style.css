@@ -1129,9 +1129,11 @@ body {
      restated the scale, which made it the cheapest thing to drop; it now holds
      the layer's instrument and qualifier ("not a monthly mean", "not root
      zone"), so what this saves is a caveat rather than a repetition. It stays
-     only because the height has nowhere to come from yet — see the phone
-     caption item in docs/BACKLOG.md for the measured cost and the candidate
-     fix. Don't re-justify this rule; retire it. */
+     only because the height has nowhere to come from yet: the end labels that
+     looked like the donor were measured and do not cover it, and the two other
+     places worth taking it from carry qualifiers of their own — see the phone
+     caption item in docs/BACKLOG.md for the per-layer arithmetic and what has
+     been ruled out. Don't re-justify this rule; retire it. */
   .legend__caption {
     display: none;
   }
