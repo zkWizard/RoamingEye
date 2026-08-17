@@ -1109,6 +1109,31 @@ if (probeEl) {
   };
 
   /**
+   * The on-demand chunk leg of a land-cover read, tagged so its failure can be
+   * told apart from the sampler fetch beside it.
+   *
+   * Both legs of the `Promise.all` below can fail, but they need OPPOSITE
+   * remedies, and until now one sentence answered for both. A rejected dynamic
+   * import stays rejected in the browser's module map, so probing again
+   * re-requests nothing and repeats the same failure for the life of the page —
+   * measured in Chromium: with the chunk aborted, a first probe fetches it once
+   * and a second adds no attempt at all. The sampler fetch is an ordinary
+   * request a second probe really does re-issue (measured: 2 attempts, then 4).
+   * So "check the connection and retry" is honest for the sampler and a false
+   * promise for the chunk, which needs a reload.
+   *
+   * When both legs fail, `Promise.all` rejects with whichever lost the race;
+   * either message then describes a real failure, and the sampler's advice is
+   * the cheaper first move.
+   */
+  class ChunkLoadError extends Error {}
+
+  const onDemand = <T>(chunk: Promise<T>): Promise<T> =>
+    chunk.catch((err) => {
+      throw new ChunkLoadError(String(err));
+    });
+
+  /**
    * Read the IGBP class at a point on the class-coded land-cover layer.
    *
    * Class codes are categorical, so the pixels are decoded through the source
@@ -1132,7 +1157,7 @@ if (probeEl) {
         mode,
         signal: abort.signal,
       }),
-      import("./probe/landCoverClassRead"),
+      onDemand(import("./probe/landCoverClassRead")),
     ])
       .then(([pixels, { readLandCoverClassText }]) => {
         if (abort.signal.aborted) return;
@@ -1142,7 +1167,9 @@ if (probeEl) {
         if (isAbortError(err)) return;
         console.warn("RoamingEye: land-cover class read failed", err);
         panel.setStatus(
-          "Reading the land-cover class failed — check the connection and retry."
+          err instanceof ChunkLoadError
+            ? "Reading the land-cover class failed — reload the page to try again."
+            : "Reading the land-cover class failed — check the connection and retry."
         );
       });
   };
@@ -1161,7 +1188,7 @@ if (probeEl) {
       sampler.sampleRenderedRegionPixels(layer, ym, bounds, {
         signal: abort.signal,
       }),
-      import("./probe/landCoverRegionRead"),
+      onDemand(import("./probe/landCoverRegionRead")),
     ])
       .then(([{ pixels, sampling }, { readLandCoverRegionText }]) => {
         if (abort.signal.aborted) return;
@@ -1171,7 +1198,9 @@ if (probeEl) {
         if (isAbortError(err)) return;
         console.warn("RoamingEye: land-cover region read failed", err);
         panel.setStatus(
-          "Reading the land-cover classes failed — check the connection and retry."
+          err instanceof ChunkLoadError
+            ? "Reading the land-cover classes failed — reload the page to try again."
+            : "Reading the land-cover classes failed — check the connection and retry."
         );
       });
   };
