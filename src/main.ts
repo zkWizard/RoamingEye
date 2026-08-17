@@ -50,6 +50,7 @@ import {
   probeLstExtremeCensoring,
 } from "./lib/probeLstExtremeCensoring";
 import { averagedAerosolCensoringCsvHeaders } from "./lib/probeAerosolAveragedCensoring";
+import { averagedLstCensoringCsvHeaders } from "./lib/probeLstAveragedCensoring";
 import {
   probeRecordGaps,
   probeRecordGapsCsvHeaders,
@@ -1385,6 +1386,10 @@ if (probeEl) {
                     averagedFootprint,
                     aerosolCensoring
                   ),
+                  ...averagedLstCensoringCsvHeaders(
+                    averagedFootprint,
+                    lstCensoring
+                  ),
                 ],
                 // And the same for the record's calendar composition: the panel
                 // says a mean over 11 of 12 calendar months is not an annual
@@ -1698,6 +1703,10 @@ if (probeEl) {
                   ...averagedAerosolCensoringCsvHeaders(
                     "drawn-region",
                     aerosolCensoring
+                  ),
+                  ...averagedLstCensoringCsvHeaders(
+                    "drawn-region",
+                    lstCensoring
                   ),
                 ],
                 // A drawn box spans latitudes and can straddle hemispheres, so
