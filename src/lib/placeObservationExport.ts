@@ -44,7 +44,7 @@ import {
  */
 
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
-  "roamingeye-place-observation-export/v12" as const;
+  "roamingeye-place-observation-export/v13" as const;
 
 export const PLACE_OBSERVATION_GEOGRAPHY = {
   coordinateReferenceSystem: "OGC:CRS84",
@@ -651,12 +651,51 @@ function publishedConstraints(
   };
 }
 
+/**
+ * Why a product the place panel reads carries no record in `products`.
+ *
+ * `display-ramp-only` — GIBS renders the layer through a discrete display
+ * legend rather than one of the authoritative physical colormaps this export
+ * cites as its value mapping, so there is no published ramp to invert against
+ * and no native unit to promise. The panel still shows the layer, because a
+ * percentage read off that legend is a usable thing to put on screen next to
+ * its own caveats; it is not a thing this contract can hand a consumer as a
+ * native-unit measurement.
+ */
+export type PlaceObservationWithheldReason = "display-ramp-only";
+
+/**
+ * A place-panel product deliberately absent from `products`.
+ *
+ * Without this record the omission is silent, and silence is what this export
+ * declines everywhere else: a reader who sees a snow-cover card on screen and
+ * no snow product in the file cannot tell a withheld product from a place with
+ * no snow, from a month the source never published, or from an app that never
+ * carried the layer. Naming the product and the reason separates those, and
+ * `appliesTo` settles the ambiguity that would otherwise send a reader
+ * sampling elsewhere to find the missing rows — the withholding follows from
+ * how the product is rendered, so it holds at every place and no boundary will
+ * produce one.
+ *
+ * This is a scope declaration, never an observation: it carries no value, no
+ * month and no coverage, and records nothing about conditions at the place.
+ */
+export interface PlaceObservationWithheldProduct {
+  layerId: LayerId;
+  /** Carried so a withheld product stays as fully cited as an exported one. */
+  source: DatasetRef;
+  reason: PlaceObservationWithheldReason;
+  appliesTo: "every-place";
+}
+
 export interface PlaceObservationExport {
   schema: typeof PLACE_OBSERVATION_EXPORT_SCHEMA;
   kind: "place-observation-export";
   boundary: GeoGeometry;
   geography: typeof PLACE_OBSERVATION_GEOGRAPHY;
   products: PlaceObservationExportProduct[];
+  /** Place-panel products this export cannot represent, and why. */
+  withheldProducts: readonly PlaceObservationWithheldProduct[];
   method: {
     sampling: PlaceObservationSampling;
     imagery: typeof GIBS_IMAGERY_SOURCE;
@@ -700,6 +739,7 @@ export interface PlaceObservationExport {
     "A product's inversionAccuracy is the measured end-to-end error of RoamingEye's UI legend gradient inverted against the published GIBS colormap, pooled over the whole ramp and stated in the product's native unit; it is not the source product's validation against in-situ measurement, and a layer recorded as uncharacterized carries an unmeasured inversion error rather than none.",
     "That figure does not always describe the inversion a product's values came from: inversionAccuracy.scope reports measures-a-different-inversion where the values were read through GIBS's published colormap rather than the UI legend gradient, and no validation run measures that inversion, so the quoted figure is neither this product's error nor evidence of a larger or smaller one.",
     "Not every product measured what it reports: observationModality.modelDerived marks a value produced by a land-surface model or an atmospheric reanalysis rather than sensed, and such a value is an estimate for the sampled cell rather than a measurement of it; an unclassified product's basis is not asserted, which is not a finding that it was measured.",
+    "This export does not cover every product the place panel displays: withheldProducts names those it withholds and why, and a product listed there is absent from products at every place, so its absence is a limit of this file rather than evidence about conditions at this one.",
   ];
 }
 
@@ -939,7 +979,43 @@ const LIMITATIONS = [
   "A product's inversionAccuracy is the measured end-to-end error of RoamingEye's UI legend gradient inverted against the published GIBS colormap, pooled over the whole ramp and stated in the product's native unit; it is not the source product's validation against in-situ measurement, and a layer recorded as uncharacterized carries an unmeasured inversion error rather than none.",
   "That figure does not always describe the inversion a product's values came from: inversionAccuracy.scope reports measures-a-different-inversion where the values were read through GIBS's published colormap rather than the UI legend gradient, and no validation run measures that inversion, so the quoted figure is neither this product's error nor evidence of a larger or smaller one.",
   "Not every product measured what it reports: observationModality.modelDerived marks a value produced by a land-surface model or an atmospheric reanalysis rather than sensed, and such a value is an estimate for the sampled cell rather than a measurement of it; an unclassified product's basis is not asserted, which is not a finding that it was measured.",
+  "This export does not cover every product the place panel displays: withheldProducts names those it withholds and why, and a product listed there is absent from products at every place, so its absence is a limit of this file rather than evidence about conditions at this one.",
 ] as const;
+
+/**
+ * Place-panel products this export withholds.
+ *
+ * Snow cover is the only one, and `exportableLayerId` in the place controller
+ * is where the decision is made: GIBS renders MOD10CM through the discrete
+ * MODIS_NDSI_Snow_Cover legend rather than one of the authoritative physical
+ * colormaps, so there is no `PLACE_COLORMAP_DOCS` entry to cite as the value
+ * mapping and no native unit to promise. Withholding the layer is right —
+ * publishing a percentage under an invented mapping would be worse — but that
+ * reasoning lived only in the source, so the file itself gave a consumer no
+ * way to tell a withheld product from a place that simply has no snow.
+ *
+ * The list is static because the reason is a property of how the product is
+ * rendered, not of any one boundary, month, or sampling run. A product missing
+ * its citation is dropped rather than published half-cited; `LAYERS.snow`
+ * carries a complete `DatasetRef`, and a test pins that it still does.
+ */
+const WITHHELD_PRODUCT_LAYER_IDS: readonly LayerId[] = ["snow"];
+
+function withheldProducts(): PlaceObservationWithheldProduct[] {
+  return WITHHELD_PRODUCT_LAYER_IDS.flatMap((layerId) => {
+    const source = LAYERS[layerId].dataset;
+    return source
+      ? [
+          {
+            layerId,
+            source: canonicalDatasetRef(source),
+            reason: "display-ramp-only" as const,
+            appliesTo: "every-place" as const,
+          },
+        ]
+      : [];
+  });
+}
 
 /** Create a JSON-ready, whitelist-only reproducibility record. */
 export function createPlaceObservationExport(
@@ -955,6 +1031,7 @@ export function createPlaceObservationExport(
     boundary: cloneGeometry(input.boundary),
     geography: PLACE_OBSERVATION_GEOGRAPHY,
     products,
+    withheldProducts: withheldProducts(),
     method: {
       sampling: input.method.sampling,
       imagery: { ...GIBS_IMAGERY_SOURCE },

@@ -11,6 +11,7 @@ import {
   placeObservationProductFromSample,
   serializePlaceObservationExport,
   sstPlaceObservationFromSample,
+  type PlaceObservationWithheldProduct,
 } from "./placeObservationExport";
 import {
   classifyModality,
@@ -504,7 +505,7 @@ describe("place observation export", () => {
     const exported = createPlaceObservationExport(input);
 
     expect(exported).toMatchObject({
-      schema: "roamingeye-place-observation-export/v12",
+      schema: "roamingeye-place-observation-export/v13",
       kind: "place-observation-export",
       boundary,
       geography: PLACE_OBSERVATION_GEOGRAPHY,
@@ -727,6 +728,7 @@ describe("place observation export", () => {
       "products",
       "reproducibility",
       "schema",
+      "withheldProducts",
     ]);
     expect(exported.privacy).toEqual({
       includesPersonalData: false,
@@ -745,6 +747,86 @@ describe("place observation export", () => {
     expect(JSON.stringify(dataBearingExport)).not.toMatch(
       /account|session|device|search-query/i
     );
+  });
+
+  it("names the place-panel product it withholds instead of dropping it silently", () => {
+    const exported = createPlaceObservationExport(input);
+
+    // The panel renders a snow-cover card; the download has never carried a
+    // snow product, because MOD10CM is drawn through the discrete NDSI legend
+    // and there is no published physical colormap to cite as its value
+    // mapping. Withholding it is correct. Saying nothing was not: a consumer
+    // could not separate a withheld product from a snow-free boundary.
+    expect(exported.withheldProducts).toEqual([
+      {
+        layerId: "snow",
+        source: LAYERS.snow.dataset,
+        reason: "display-ramp-only",
+        appliesTo: "every-place",
+      },
+    ]);
+    // A withheld product is a scope declaration, never an observation: no
+    // value, no month, no coverage, nothing about conditions at the place.
+    for (const withheld of exported.withheldProducts) {
+      expect(Object.keys(withheld).sort()).toEqual([
+        "appliesTo",
+        "layerId",
+        "reason",
+        "source",
+      ]);
+    }
+  });
+
+  it("keeps the withheld product out of products at the same time as naming it", () => {
+    const exported = createPlaceObservationExport(input);
+    const withheldIds = exported.withheldProducts.map(
+      (withheld) => withheld.layerId
+    );
+
+    // The two lists answer different questions and must never overlap: a
+    // product cannot be both exported and declared absent.
+    for (const product of exported.products) {
+      expect(withheldIds).not.toContain(product.layerId);
+    }
+    expect(exported.reproducibility.dataMonthMatrix).not.toContainEqual(
+      expect.objectContaining({ layerId: "snow" })
+    );
+  });
+
+  it("cites a withheld product as fully as an exported one", () => {
+    // The drop-if-uncited guard in `withheldProducts` means an incomplete
+    // citation would remove snow from the declaration and restore the silence
+    // this record exists to end. Pin the citation that keeps it listed.
+    expect(LAYERS.snow.dataset).toEqual({
+      shortName: "MOD10CM",
+      version: "61",
+      doi: "10.5067/MODIS/MOD10CM.061",
+      title: "MODIS/Terra Snow Cover Monthly L3 Global 0.05Deg CMG",
+    });
+    const exported = createPlaceObservationExport(input);
+    expect(exported.withheldProducts).toHaveLength(1);
+  });
+
+  it("blocks reading a withheld product's absence as evidence about the place", () => {
+    const exported = createPlaceObservationExport(input);
+
+    expect(exported.limitations.join(" ")).toMatch(
+      /withheldProducts names those it withholds and why.*absent from products at every place/i
+    );
+    expect(exported.limitations.join(" ")).toMatch(
+      /limit of this file rather than evidence about conditions at this one/i
+    );
+  });
+
+  it("detaches each export's withheld-product record from the layer registry", () => {
+    const first = createPlaceObservationExport(input);
+    (first.withheldProducts as PlaceObservationWithheldProduct[]).pop();
+    const firstSource = createPlaceObservationExport(input).withheldProducts[0];
+    firstSource.source.shortName = "mutated";
+
+    const second = createPlaceObservationExport(input);
+    expect(second.withheldProducts).toHaveLength(1);
+    expect(second.withheldProducts[0]?.source).toEqual(LAYERS.snow.dataset);
   });
 
   it("declares boundary CRS, axis order, and requested-footprint semantics", () => {
