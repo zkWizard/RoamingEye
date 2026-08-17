@@ -23,7 +23,21 @@ import type { DatasetRef } from "./timeline";
  *  - Air temperature (M2TMNXSLV) is an atmospheric *reanalysis* field — a model
  *    state assimilating many observations, not a thermometer reading.
  *
- * None of the four are direct in-situ measurements. This helper classifies each
+ * The table is also read one product at a time by the place export, which
+ * carries products the brief never composes. One of them needs a class the four
+ * brief signals do not:
+ *
+ *  - Sea surface temperature (MODIS Aqua L3 SST Thermal IR) is a *retrieval* —
+ *    a geophysical variable in physical units inverted from calibrated
+ *    thermal-infrared radiances by a published split-window algorithm. It is
+ *    remotely sensed like NDVI, but unlike a spectral index it reports a
+ *    quantity that also exists as an in-situ measurement, which is why it is
+ *    classified apart from one rather than folded into it. Calling it
+ *    "remotely sensed" still refuses the stronger reading: a retrieval is not
+ *    an in-situ measurement of the sampled cell.
+ *
+ * None of the four brief signals are direct in-situ measurements. This helper
+ * classifies each
  * signal by its observation modality so agreement between two model-derived
  * fields is never read as independent measurement confirmation. It reports
  * provenance structure only; it never combines the values, weights them, or
@@ -36,6 +50,13 @@ import type { DatasetRef } from "./timeline";
 export type ObservationModality =
   /** Remotely-sensed spectral index (e.g. NDVI); an observation, but derived. */
   | "satellite-derived-index"
+  /**
+   * Geophysical variable in physical units inverted from calibrated radiances
+   * by a published retrieval algorithm (e.g. MODIS SST from thermal infrared).
+   * Remotely sensed rather than modelled, and distinct from a spectral index:
+   * a retrieval reports a quantity that also exists as an in-situ measurement.
+   */
+  | "satellite-radiometric-retrieval"
   /** Field from a land-surface model (e.g. GLDAS Noah); not measured. */
   | "land-surface-model"
   /** Field from an atmospheric reanalysis (e.g. MERRA-2); not measured. */
@@ -56,6 +77,10 @@ export interface ModalityInfo {
 const MODALITY_INFO: Record<ObservationModality, ModalityInfo> = {
   "satellite-derived-index": {
     description: "satellite-derived spectral index",
+    basis: "remote-sensing",
+  },
+  "satellite-radiometric-retrieval": {
+    description: "satellite radiometric retrieval",
     basis: "remote-sensing",
   },
   "land-surface-model": {
@@ -86,6 +111,10 @@ const PRODUCT_MODALITY: Record<string, ObservationModality> = {
   GLDAS_NOAH025_M: "land-surface-model",
   // MERRA-2 monthly single-level diagnostics (2 m air temperature).
   M2TMNXSLV: "atmospheric-reanalysis",
+  // MODIS/Aqua L3 SST Thermal IR Monthly 9km Daytime: a split-window retrieval
+  // of sea surface skin temperature from calibrated thermal-infrared radiances.
+  "MODIS_AQUA_L3_SST_THERMAL_MONTHLY_9KM_DAYTIME_V2019.0":
+    "satellite-radiometric-retrieval",
 };
 
 /** One signal classified by how its cited product produces a value. */
@@ -222,6 +251,7 @@ export function summarizeObservationModality(
 /** Fixed modality order for reporting, so no modality is silently dropped. */
 const MODALITIES: readonly ObservationModality[] = [
   "satellite-derived-index",
+  "satellite-radiometric-retrieval",
   "land-surface-model",
   "atmospheric-reanalysis",
   "unclassified",

@@ -6,8 +6,10 @@ import {
 } from "./environmentBrief";
 import {
   classifyModality,
+  describeModality,
   summarizeObservationModality,
 } from "./observationModality";
+import { LAYERS } from "./timeline";
 
 /** A fully-usable four-signal brief, all observations within availability. */
 const USABLE_INPUT: EnvironmentBriefInput = {
@@ -51,6 +53,19 @@ describe("classifyModality", () => {
     expect(byId["air-temperature"]).toBe("atmospheric-reanalysis");
   });
 
+  it("classifies the live SST product as a radiometric retrieval", () => {
+    // Read from LAYERS rather than a literal: the table is keyed by the cited
+    // short name, so a product-ID change must fail here rather than silently
+    // return the SST record to "basis not asserted" in the place export.
+    const modality = classifyModality(LAYERS.sst.dataset!);
+
+    expect(modality).toBe("satellite-radiometric-retrieval");
+    expect(describeModality(modality).basis).toBe("remote-sensing");
+    // Distinct from NDVI's class: a retrieval reports a physical quantity, an
+    // index reports a normalized reflectance ratio.
+    expect(modality).not.toBe(classifyModality(LAYERS.ndvi.dataset!));
+  });
+
   it("returns unclassified for a product not in the modality table", () => {
     expect(
       classifyModality({
@@ -76,6 +91,7 @@ describe("summarizeObservationModality", () => {
     ]);
     expect(summary.modalityCounts).toEqual({
       "satellite-derived-index": 1,
+      "satellite-radiometric-retrieval": 0,
       "land-surface-model": 2,
       "atmospheric-reanalysis": 1,
       unclassified: 0,
