@@ -125,6 +125,52 @@ describe("probeSstExtremeCensoring", () => {
     expect(sstExtremeBoundPrefix(censoring, "max")).toBe("≥ ");
   });
 
+  // A polar record whose every usable month decodes into the floor bin has its
+  // MAXIMUM censored too — the warmest month is as unresolved as the coldest —
+  // and marking only the minimum printed the same number twice with an
+  // inequality and once without, handing the reader the unmarked one as a
+  // measurement. The warm-pool record is the mirror image.
+  it("censors both extremes when every month sat in one cap", () => {
+    const floorOnly = probeSstExtremeCensoring("sst", [FLOOR, 0.02, 0.14]);
+    expect(floorOnly.floorMonthCount).toBe(3);
+    expect(floorOnly.ceilingMonthCount).toBe(0);
+    expect(floorOnly.minBound).toBe("upper");
+    expect(floorOnly.maxBound).toBe("upper");
+    expect(floorOnly.meanBound).toBe("upper");
+    expect(sstExtremeBoundPrefix(floorOnly, "min")).toBe("≤ ");
+    expect(sstExtremeBoundPrefix(floorOnly, "mean")).toBe("≤ ");
+    expect(sstExtremeBoundPrefix(floorOnly, "max")).toBe("≤ ");
+    // The sentence enumerates exactly the statistics the prefixes marked.
+    expect(sstExtremeCensoringClause(floorOnly)).toContain(
+      "min, mean and max are upper bounds on possibly colder water"
+    );
+
+    const ceilingOnly = probeSstExtremeCensoring("sst", [CEILING, 31.85]);
+    expect(ceilingOnly.minBound).toBe("lower");
+    expect(ceilingOnly.maxBound).toBe("lower");
+    expect(ceilingOnly.meanBound).toBe("lower");
+    expect(sstExtremeBoundPrefix(ceilingOnly, "min")).toBe("≥ ");
+    expect(sstExtremeCensoringClause(ceilingOnly)).toContain(
+      "min, mean and max are lower bounds on possibly warmer water"
+    );
+  });
+
+  // The ordinary mixed record keeps the sentence it always had: only the
+  // extreme on the capped side and the mean are bounds, and the far extreme
+  // stays a two-sided estimate that must not be swept into the enumeration.
+  it("names only the bounded statistics when one extreme stayed interior", () => {
+    expect(
+      sstExtremeCensoringClause(
+        probeSstExtremeCensoring("sst", [FLOOR, 4.5, INTERIOR])
+      )
+    ).toContain("min and mean are upper bounds on possibly colder water");
+    expect(
+      sstExtremeCensoringClause(
+        probeSstExtremeCensoring("sst", [INTERIOR, CEILING])
+      )
+    ).toContain("mean and max are lower bounds on possibly warmer water");
+  });
+
   it("counts a single sampled month in the singular", () => {
     const clause = sstExtremeCensoringClause(
       probeSstExtremeCensoring("sst", [CEILING])

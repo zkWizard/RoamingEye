@@ -134,10 +134,17 @@ export function probeSstExtremeCensoring(
     applicable: true,
     min,
     max,
-    // Only the floor can censor a minimum and only the ceiling a maximum: a
-    // series whose smallest value sits at the ceiling has every month there.
-    minBound: min.status === "at-ramp-floor" ? "upper" : null,
-    maxBound: max.status === "at-ramp-ceiling" ? "lower" : null,
+    // Classify each extreme by the bin it actually landed in rather than by
+    // which cap the series reached. A record that sat in ONE terminal bin every
+    // month — a polar point whose every usable month decodes to the floor, or a
+    // warm-pool point at the ceiling — has its maximum and its minimum censored
+    // alike, and reading only the far cap left the other extreme unmarked: the
+    // status line then printed the same number three times and called one of
+    // them a measurement. `boundDirection` is the ramp screen's own judgement of
+    // the value it was handed, so a statistic and the per-month screen can never
+    // disagree about the same number.
+    minBound: min.boundDirection,
+    maxBound: max.boundDirection,
     meanBound: meanBoundFor(floorMonthCount, ceilingMonthCount),
     floorMonthCount,
     ceilingMonthCount,
@@ -213,9 +220,38 @@ export function sstExtremeCensoringClause(
     return `${tally} land in the SST colormap's open end caps (${floorCap}; ${ceilingCap}), so min is an upper bound, max a lower bound, and the mean is bounded in neither direction${trend} (${source})`;
   }
   if (floorMonthCount > 0) {
-    return `${tally} land in the SST colormap's open low cap (${floorCap}), so min and mean are upper bounds on possibly colder water${trend} (${source})`;
+    return `${tally} land in the SST colormap's open low cap (${floorCap}), so ${boundedStatistics(censoring, "upper")} on possibly colder water${trend} (${source})`;
   }
-  return `${tally} land in the SST colormap's open high cap (${ceilingCap}), so max and mean are lower bounds on possibly warmer water${trend} (${source})`;
+  return `${tally} land in the SST colormap's open high cap (${ceilingCap}), so ${boundedStatistics(censoring, "lower")} on possibly warmer water${trend} (${source})`;
+}
+
+/**
+ * "min and mean are upper bounds" — the subject and verb for the statistics
+ * actually carrying `direction`, so the sentence enumerates exactly the numbers
+ * the status line marked with an inequality and no others. A record entirely
+ * inside one cap reaches all three; the ordinary mixed record reaches two, and
+ * the sentence is then the one this clause has always written.
+ *
+ * Named in rendered order (min, mean, max) so the reader meets the statistics
+ * in the order the line above printed them.
+ */
+function boundedStatistics(
+  censoring: ProbeSstExtremeCensoring,
+  direction: "upper" | "lower"
+): string {
+  const named = (
+    [
+      ["min", censoring.minBound],
+      ["mean", censoring.meanBound],
+      ["max", censoring.maxBound],
+    ] as const
+  )
+    .filter(([, bound]) => bound === direction)
+    .map(([name]) => name);
+  // Both single-cap branches always reach the mean and the extreme on that
+  // side, so there are never fewer than two.
+  const subject = `${named.slice(0, -1).join(", ")} and ${named[named.length - 1]}`;
+  return `${subject} are ${direction} bounds`;
 }
 
 /**
