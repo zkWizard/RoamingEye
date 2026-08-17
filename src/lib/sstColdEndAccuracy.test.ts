@@ -10,6 +10,7 @@ import {
 import { MEASURED_INVERSION } from "./validation";
 import { csvHeaderText, PROBE_SCALES } from "./probe";
 import {
+  inversionAccuracyClause,
   inversionAccuracyCsvHeaders,
   probeInversionAccuracy,
 } from "./probeInversionAccuracy";
@@ -96,6 +97,49 @@ describe("sstColdEndAccuracyClause", () => {
     expect(clause).toContain(
       `±${(MEASURED_INVERSION.sst.rmse as number).toFixed(1)} °C`
     );
+  });
+
+  it("absorbs the accuracy clause it supersedes, printing it once", () => {
+    // What the panel does: the pooled clause is handed over rather than
+    // rendered beside this one, so the reader gets one accuracy statement and
+    // the pooled figure — with its attribution — appears exactly once.
+    const wholeRamp = inversionAccuracyClause(probeInversionAccuracy("sst"));
+    expect(wholeRamp).toBe("±1.0 °C vs GIBS colormap");
+    const merged = sstColdEndAccuracyClause(
+      probeSstColdEndAccuracy("sst", [COLD]),
+      wholeRamp
+    );
+    expect(merged).toBe(
+      "±2.8 °C below 4 °C, not the whole-ramp ±1.0 °C vs GIBS colormap"
+    );
+    expect(merged.split("±1.0 °C")).toHaveLength(2);
+    // The attribution rides along rather than being dropped with the separate
+    // clause, so the band is never left unsourced.
+    expect(merged).toContain("vs GIBS colormap");
+  });
+
+  it("keeps the capped-month exception outside the absorbed clause", () => {
+    const values = [FLOOR, COLD, INTERIOR];
+    const merged = sstColdEndAccuracyClause(
+      probeSstColdEndAccuracy(
+        "sst",
+        values,
+        probeSstExtremeCensoring("sst", values)
+      ),
+      inversionAccuracyClause(probeInversionAccuracy("sst"))
+    );
+    expect(merged).toBe(
+      "±2.8 °C below 4 °C, not the whole-ramp ±1.0 °C vs GIBS colormap" +
+        " (neither band describes the 1 capped month)"
+    );
+  });
+
+  it("falls back to the bare figure when no accuracy clause is supplied", () => {
+    // Callers that still render the accuracy clause separately — and every
+    // existing test — read exactly as they did.
+    expect(
+      sstColdEndAccuracyClause(probeSstColdEndAccuracy("sst", [COLD]), "")
+    ).toBe("±2.8 °C below 4 °C, not the whole-ramp ±1.0 °C");
   });
 });
 

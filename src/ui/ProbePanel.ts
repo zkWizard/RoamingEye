@@ -372,22 +372,20 @@ export class ProbePanel {
     // Two accuracy claims, both needed: the quantization step is how finely a
     // gradient position resolves, the measured inversion RMSE whether that
     // position lands on the right value — for SST the second is ~17x the first.
+    // Three modules can state that second one, exclusive by construction — each
+    // is silent exactly when another speaks — so the line holds ONE accuracy
+    // slot: pooled RMSE, else an uncalibrated index's fidelity, else SST's band.
     const inversionAccuracy = this.context
       ? probeInversionAccuracy(this.context.layerId, s)
       : null;
-    const accuracy = inversionAccuracy
-      ? inversionAccuracyClause(inversionAccuracy)
-      : "";
-    // EVI falls outside that clause — its ramp ends in pure black, which JPEG
-    // cannot tell from an undrawn pixel, so no stop placement calibrates it —
-    // but its error against GIBS's MOD13A3 ramp is measured all the same. The
-    // two can never both quote a figure.
-    const uncalibratedVegetationAccuracy = inversionAccuracy
-      ? uncalibratedVegetationAccuracyClause(
+    const wholeRampAccuracy = inversionAccuracy
+      ? inversionAccuracyClause(inversionAccuracy) ||
+        uncalibratedVegetationAccuracyClause(
           inversionAccuracy.layerId,
           inversionAccuracy.status
-        )
-      : null;
+        ) ||
+        ""
+      : "";
     // NASA's SST colormap ends in two OPEN caps, and the months landing in them
     // are the ones that set the extremes, so min, mean and max can be one-sided
     // bounds. The trend rides inside the same clause: it is fitted over the very
@@ -402,14 +400,16 @@ export class ProbePanel {
       sstCensoring,
       sstTrendCensored(probeSstTrendCensoring(sstCensoring, trend))
     );
-    // The RMSE above is pooled over the whole ramp; SST's error is not uniform
-    // across it (2.8 °C below ~4 °C against 0.1–0.4 °C elsewhere), so a polar
-    // reading needs the band figure beside it. Computed after the ramp screen
-    // because a capped month is always inside this band, and an unqualified ±
-    // must not stand over rows whose cold-side error is unbounded.
-    const sstColdEnd = sstColdEndAccuracyClause(
-      probeSstColdEndAccuracy(this.context?.layerId, physical, sstCensoring)
-    );
+    // SST's error is not uniform across its ramp (2.8 °C below ~4 °C against
+    // 0.1–0.4 °C elsewhere), so a polar reading takes the band figure, which
+    // absorbs the pooled clause it corrects rather than printing that ± twice.
+    // After the ramp screen: a capped month is always inside this band, and an
+    // unqualified ± must not stand over rows whose cold-side error is unbounded.
+    const accuracy =
+      sstColdEndAccuracyClause(
+        probeSstColdEndAccuracy(this.context?.layerId, physical, sstCensoring),
+        wholeRampAccuracy
+      ) || wholeRampAccuracy;
     // That screen reads the CHARTED values — exact for a point probe, blind on
     // an averaged one, whose value is a mean of per-pixel decodes and so lands
     // inside the finite ramp even when it holds capped pixels. No direction is
@@ -507,8 +507,6 @@ export class ProbePanel {
       `max ${boundPrefix("max")}${fmt(stats.max)}`,
       `${uncertaintyText(s)} per value`,
       accuracy,
-      uncalibratedVegetationAccuracy,
-      sstColdEnd,
       trendClause(trend),
       seasonal,
       sstCensoringClause,
