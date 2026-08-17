@@ -1147,6 +1147,11 @@ function climateModalityText(summary: MonthlyClimateSummary): {
         field: "satellite-derived field",
         limit: "remotely sensed, not a direct in-situ measurement",
       };
+    case "satellite-radiometric-retrieval":
+      return {
+        field: "satellite radiometric retrieval",
+        limit: "remotely sensed, not a direct in-situ measurement",
+      };
     case "unclassified":
       return {
         field: "source field",

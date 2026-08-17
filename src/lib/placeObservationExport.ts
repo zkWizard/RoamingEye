@@ -44,7 +44,7 @@ import {
  */
 
 export const PLACE_OBSERVATION_EXPORT_SCHEMA =
-  "roamingeye-place-observation-export/v11" as const;
+  "roamingeye-place-observation-export/v12" as const;
 
 export const PLACE_OBSERVATION_GEOGRAPHY = {
   coordinateReferenceSystem: "OGC:CRS84",
@@ -536,9 +536,19 @@ function productModalityFor(
     modality,
     basis: info.basis,
     modelDerived,
-    statement: `${source.shortName} v${source.version} is a ${info.description} (${modality}); ${modalityReadingClause(info.basis)}.`,
+    statement: `${source.shortName} v${source.version} is ${indefiniteArticle(info.description)} ${info.description} (${modality}); ${modalityReadingClause(info.basis)}.`,
     limits: [...MODALITY_LIMITS],
   };
+}
+
+/**
+ * The article a modality description takes, so a statement built from the
+ * table's own words still reads as English ("is an unclassified product", not
+ * "is a unclassified product"). Chosen from the leading letter because every
+ * description is a plain noun phrase written in this repository.
+ */
+function indefiniteArticle(description: string): string {
+  return /^[aeiou]/i.test(description) ? "an" : "a";
 }
 
 /** How a basis must be read, stated without sharpening what it can support. */
