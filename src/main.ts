@@ -669,10 +669,11 @@ async function toggleOverlay(
   overlay: MapOverlay,
   on: boolean,
   // Whether a failed enable is worth a toast. True for a press the user just
-  // made; false while restoring a saved session, where the toolbar leaves the
-  // button pressed, so "turn it on again" would name a gesture that isn't
-  // available — and a cold boot on a bad connection would open with an error
-  // over the globe. The offline banner covers that case honestly enough.
+  // made; false while restoring a saved session, because a cold boot on a bad
+  // connection would otherwise open with an error over the globe, and the
+  // offline banner covers that case honestly enough. The restore stays silent
+  // but no longer stays wrong: its caller un-presses the button and drops the
+  // legend key, so the bar reports what the globe is actually drawing.
   reportFailure = false
 ): Promise<boolean> {
   if (on && overlay.ensureLoaded) {
@@ -700,8 +701,12 @@ async function toggleOverlay(
   return true;
 }
 
+// Hoisted out of the `if` below so the session restore that follows can correct
+// the bar it built: a restored overlay whose load fails has to un-press its own
+// button, and the restore loop runs after this block.
+let toolbar: Toolbar | null = null;
 if (toolbarEl) {
-  const toolbar = new Toolbar(
+  toolbar = new Toolbar(
     toolbarEl,
     overlays,
     (overlay, on) => {
@@ -725,17 +730,17 @@ if (toolbarEl) {
       if (on && overlay.ensureLoaded) {
         pendingTimer = setTimeout(() => {
           saidWaiting = true;
-          toolbar.setPending(overlay.id, true);
+          toolbar?.setPending(overlay.id, true);
         }, PENDING_INDICATOR_DELAY_MS);
       }
 
       void toggleOverlay(overlay, on, true).then((ok) => {
         if (pendingTimer !== undefined) clearTimeout(pendingTimer);
-        toolbar.setPending(overlay.id, false);
+        toolbar?.setPending(overlay.id, false);
         if (on && !ok) {
           // The enable didn't take (permission denied, load error) — snap the
           // button back and drop the (already-toasted) key.
-          toolbar.setPressed(overlay.id, false);
+          toolbar?.setPressed(overlay.id, false);
           legend?.setOverlayKey(overlay.id, false);
           return;
         }
@@ -757,7 +762,24 @@ if (toolbarEl) {
 for (const overlay of overlays) {
   if (overlayState.has(overlay.id)) {
     legend?.setOverlayKey(overlay.id, true);
-    void toggleOverlay(overlay, true);
+    void toggleOverlay(overlay, true).then((ok) => {
+      if (ok) return;
+      // The restore didn't take. Until now this branch was discarded, so the
+      // failure showed up only as an absence: the button the toolbar built
+      // from the stored session stayed pressed and the legend kept the key
+      // that was set optimistically one line above — on the earthquakes feed,
+      // a two-channel key naming depth bands and magnitude sizes for markers
+      // that are not on the globe. A press that fails already snaps itself
+      // back (see the toggle handler above); a restore has exactly the same
+      // obligation, and more reason to meet it, because the user did not make
+      // the gesture and so has nothing to explain what they are looking at.
+      // The stored session is deliberately left alone: the id stays in
+      // `overlayState`, so a feed that was merely unreachable this once comes
+      // back on the next boot rather than being silently forgotten. That also
+      // makes the button an honest retry — pressing it re-runs the load.
+      toolbar?.setPressed(overlay.id, false);
+      legend?.setOverlayKey(overlay.id, false);
+    });
   }
 }
 
