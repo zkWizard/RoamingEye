@@ -78,11 +78,17 @@ describe("summarizeBriefRecordDepth", () => {
     expect(byId["rainfall"].tier).toBe("two-decades");
     expect(byId["soil-moisture"].spanMonths).toBe(315);
 
-    // NDVI (MOD13A3) carries a verified catalog end too (2026-08-15), so it
-    // is measured to that, not to the horizon: 2000-03 to 2026-06 = 316.
+    // NDVI (MOD13A3) carries a verified catalog end too, so it is measured to
+    // that, not to the horizon. Derived from the pin rather than restated:
+    // MOD13A3 publishes on its own schedule, and a bumped pin must move this
+    // expectation with it instead of failing a test that only ever restated it.
+    const ndviLatest = LAYERS.ndvi.latest as YearMonth;
     expect(byId["vegetation"].endIsHorizon).toBe(false);
-    expect(byId["vegetation"].endMonth).toEqual({ year: 2026, month: 6 });
-    expect(byId["vegetation"].spanMonths).toBe(316);
+    expect(byId["vegetation"].endMonth).toEqual(ndviLatest);
+    // 2000-03 through the pinned end, inclusive.
+    expect(byId["vegetation"].spanMonths).toBe(
+      ndviLatest.year * 12 + ndviLatest.month - (2000 * 12 + 3) + 1
+    );
   });
 
   it("identifies the deepest and shallowest archives and their spread", () => {
