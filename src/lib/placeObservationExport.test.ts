@@ -504,7 +504,7 @@ describe("place observation export", () => {
     const exported = createPlaceObservationExport(input);
 
     expect(exported).toMatchObject({
-      schema: "roamingeye-place-observation-export/v11",
+      schema: "roamingeye-place-observation-export/v12",
       kind: "place-observation-export",
       boundary,
       geography: PLACE_OBSERVATION_GEOGRAPHY,
@@ -2117,17 +2117,59 @@ describe("place observation export observation modality", () => {
   it("records an untabled product as unasserted, never as measured", () => {
     const exported = createPlaceObservationExport({
       ...input,
-      products: [sstSample()],
+      products: [
+        placeObservationProductFromSample({
+          layerId: "lst",
+          sourceValueFactor: 1,
+          samplingStrategy: "boundary-grid",
+          sourceImageDimensions: { width: 512, height: 256 },
+          observations: [
+            {
+              dataMonth: { year: 2026, month: 3 },
+              value: 21.5,
+              validFraction: 0.8,
+            },
+          ],
+        }),
+      ],
     });
-    const modality = productFor(exported, "sst").observationModality;
+    const modality = productFor(exported, "lst").observationModality;
 
-    // SST is absent from the modality table. The false modelDerived that
+    // MOD11C3 is absent from the modality table. The false modelDerived that
     // follows must not read as a finding that the value was measured.
     expect(modality.modality).toBe("unclassified");
     expect(modality.basis).toBe("unknown");
     expect(modality.modelDerived).toBe(false);
     expect(modality.statement).toMatch(/production basis not asserted/);
     expect(modality.limits.join(" ")).toMatch(/never inferred from its value/);
+    // The table's own words, kept grammatical by the export's article.
+    expect(modality.statement).toMatch(/is an unclassified product/);
+  });
+
+  it("classifies SST as a retrieval: sensed, and not a spectral index", () => {
+    const exported = createPlaceObservationExport({
+      ...input,
+      products: [sstSample()],
+    });
+    const modality = productFor(exported, "sst").observationModality;
+
+    // The defect this closes: SST was absent from the modality table, so the
+    // download declined to assert a basis for the one product here whose basis
+    // is not in doubt — a thermal-infrared retrieval, not a modelled field.
+    expect(modality.modality).toBe("satellite-radiometric-retrieval");
+    expect(modality.basis).toBe("remote-sensing");
+    expect(modality.modelDerived).toBe(false);
+    expect(modality.statement).toMatch(/is a satellite radiometric retrieval/);
+
+    // Sensed still refuses the stronger reading, and stays distinct from the
+    // spectral index NDVI carries.
+    expect(modality.statement).toMatch(/not a direct in-situ measurement/);
+    expect(modality.modality).not.toBe("satellite-derived-index");
+
+    // Provenance only: no condition, quality, or biological claim follows.
+    expect(modality.statement).not.toMatch(
+      /species|habitat|ecosystem|heatwave|bleaching|healthy|warming|risk/i
+    );
   });
 
   it("asserts production basis and nothing further", () => {
