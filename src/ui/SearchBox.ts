@@ -43,6 +43,7 @@ export class SearchBox {
   private options: HTMLLIElement[] = [];
   private entries: Entry[] = [];
   private activeIndex = -1;
+  private pendingAnnounce: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     container: HTMLElement,
@@ -136,6 +137,7 @@ export class SearchBox {
     this.controller?.abort();
     const controller = new AbortController();
     this.controller = controller;
+    this.renderPending();
     try {
       const results = await geocode(query, controller.signal);
       if (controller.signal.aborted) return;
@@ -150,6 +152,7 @@ export class SearchBox {
   }
 
   private render(results: GeoResult[]): void {
+    this.clearPending();
     this.results.innerHTML = "";
     this.options = [];
     this.entries = [];
@@ -184,8 +187,44 @@ export class SearchBox {
     );
   }
 
-  /** A single non-interactive status row (failure / no matches). */
-  private renderMessage(text: string): void {
+  /**
+   * The in-flight state. Every search makes the user wait — a 300 ms debounce,
+   * then a rate gate that spaces Nominatim hits ≥1 s apart, then the round trip
+   * itself — and until this the popup stayed shut for all of it: no row, and
+   * `aria-expanded` still false. A slow network showed nothing for ~2.5 s, and
+   * an unreachable geocoder showed nothing for as long as `fetchJson` takes to
+   * exhaust a 12 s timeout and its one retry, so the "Search unavailable" row
+   * that does exist could be ~24 s behind the keystroke that earned it. Silence
+   * that long reads as a dead control, and retyping to check restarts the whole
+   * wait, which is the one thing that cannot help.
+   *
+   * `aria-busy` marks the listbox as updating rather than empty. The row itself
+   * is not announced on arrival: a cache hit resolves within microtasks, before
+   * a paint, so speaking here would talk over its own result. The announcement
+   * is deferred instead, and only a wait long enough to be worth reporting ever
+   * reaches it — after which the outcome replaces it as it always did.
+   */
+  private renderPending(): void {
+    this.renderMessage("Searching…", false);
+    this.results.setAttribute("aria-busy", "true");
+    clearTimeout(this.pendingAnnounce);
+    this.pendingAnnounce = setTimeout(() => this.announce("Searching…"), 600);
+  }
+
+  /** Drop the in-flight marks — every terminal path passes through here. */
+  private clearPending(): void {
+    clearTimeout(this.pendingAnnounce);
+    this.pendingAnnounce = undefined;
+    this.results.removeAttribute("aria-busy");
+  }
+
+  /**
+   * A single non-interactive status row (in flight / failure / no matches).
+   * `speak` is false only for the in-flight row, which defers its own
+   * announcement rather than making one on arrival.
+   */
+  private renderMessage(text: string, speak = true): void {
+    this.clearPending();
     this.results.innerHTML = "";
     this.options = [];
     this.entries = [];
@@ -202,7 +241,7 @@ export class SearchBox {
     li.textContent = text;
     this.results.appendChild(li);
     this.setOpen(true);
-    this.announce(text);
+    if (speak) this.announce(text);
   }
 
   /** Move the highlight; `-1` clears it. Focus stays on the input throughout. */
@@ -244,7 +283,17 @@ export class SearchBox {
     this.input.setAttribute("aria-expanded", String(open));
   }
 
+  /**
+   * Dismissal — Escape, a click outside, or backspacing under two characters.
+   * It abandons the request too. Closing only the popup left the flight running
+   * against a `signal.aborted` check that a dismissal never tripped, so a query
+   * the user had already walked away from reopened the list on top of a field
+   * they had just cleared. Aborting a settled controller is a no-op, so the one
+   * caller that closes AFTER a result (`choose`) is unaffected.
+   */
   private closeResults(): void {
+    this.controller?.abort();
+    this.clearPending();
     this.results.innerHTML = "";
     this.options = [];
     this.entries = [];
