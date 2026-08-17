@@ -251,10 +251,11 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     },
     wmts: { set: "1km", maxLevel: 6, ext: "png" },
     start: { year: 2000, month: 3 },
-    // Verified against GIBS DescribeDomains 2026-08-15. MOD13A3 trails the
-    // MODIS thermal products by a month, so this pin is what keeps an
-    // unpublished July off the vegetation timeline.
-    latest: { year: 2026, month: 6 },
+    // Verified against GIBS DescribeDomains 2026-08-17: the advertised domain
+    // now ends 2026-07-01. MOD13A3 trailed the MODIS thermal products by a
+    // month until July published and closed the gap; this pin is what keeps
+    // the *next* unpublished month off the vegetation timeline.
+    latest: { year: 2026, month: 7 },
     unpublished: MOD13A3_UNPUBLISHED_MONTHS,
     // Named gates, not a flourish: a MOD13A3 month is the highest eligible
     // observation of its compositing window, so calling this "the classic
@@ -279,8 +280,8 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     wmts: { set: "1km", maxLevel: 6, ext: "png" },
     start: { year: 2000, month: 3 },
     // Same granule as ndvi — same verified end (GIBS DescribeDomains,
-    // 2026-08-15); the two extend together as one family.
-    latest: { year: 2026, month: 6 },
+    // 2026-08-17); the two extend together as one family.
+    latest: { year: 2026, month: 7 },
     unpublished: MOD13A3_UNPUBLISHED_MONTHS,
     // No "max-value" here, deliberately: the composite selects on NDVI and this
     // layer inherits the kept observation, so an EVI maximum is an inequality
