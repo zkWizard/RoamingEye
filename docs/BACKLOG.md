@@ -86,15 +86,46 @@ take one directly when no Owner's pick applies to its domain.
       on CI, whose text metrics already stack the panel ~35-50px taller than a
       local Windows run — so the naive fix trades a dropped caveat for a red
       required check.
-      The cheapest place to find the height looks like the scale's end labels:
-      at 390px `.legend__row` is 54px because `.legend__measures`
-      ("Vegetation greenness (NDVI)") wraps above the bar, and the ends then
-      repeat the same word a third time ("lower NDVI" / "higher NDVI") over a
-      numeric axis that already reads 0.000 → 1.000 left to right. Dropping
-      those two at phone width should return ~28px, which pays for the
-      caption at every width measured. That wants its own verification pass —
-      the direction semantics they carry for a screen reader have to land
-      somewhere first — which is the run this file is reserving.
+      The candidate this item proposed — pay for the caption by dropping the
+      scale's end labels — has now had its verification pass, and it does not
+      pay. The screen-reader half of it holds: the labels are already spoken
+      by the bar's own accessible name, which `setLayer` builds as "Color
+      scale from lower NDVI (0.000) to higher NDVI (1.000)" in the same call
+      that writes them, so hiding them visually costs assistive technology
+      nothing. What fails is the arithmetic. The ~28px is the height of the
+      wrapped `.legend__measures` line, so it is returned only on the layers
+      whose row was wrapping in the first place, and those are not the
+      expensive ones. Measured across all eleven layers at five phone widths,
+      one boot per width: at 390px, six layers do come out ahead at -9px
+      (both vegetation indices, land surface temperature, soil moisture,
+      aerosols, snow), terrain lands at +7, air temperature, sea surface
+      temperature and precipitation at +19 — they have short measures that
+      never wrapped, so there is nothing to trade — and land cover at +34.
+      Land cover sets the ceiling at every width, +34 below 430px and +19
+      above, because its scale row is hidden entirely, so it has no end
+      labels to give up and its two-line caption is pure addition to a legend
+      already 221px tall. The worst case therefore stays exactly where the
+      naive fix left it, +34 on small phones and +19 at 430 and 540.
+      Two follow-on sources were checked and both are closed. The end labels
+      are load-bearing on terrain specifically: it is the one uncalibrated
+      layer, so `legendTicks` returns null and the numeric axis is hidden,
+      and dropping its ends would leave an unlabelled gradient rather than a
+      redundant one. And `.legend__measures` is not the alternative donor it
+      looks like — it reads close enough to the layer selector's own label to
+      seem like a repetition, but it carries qualifiers that appear in
+      neither the label nor the caption: "(day)" on land surface
+      temperature, "550 nm" on aerosols, "(monthly average)" on snow,
+      "(underground)" on soil moisture. Dropping it would repeat this item's
+      own mistake one line further up. Nor is there spacing left to take: the
+      panel's phone gaps are already tightened to 9.6px against the desktop's
+      13.6px, and the 30px the phone timeline carries over the desktop one is
+      the steppers leaving their absolute corner to sit under the track, so
+      that they do not cover the centred provenance line — the same class of
+      defect #983 fixed, not slack.
+      So this item converges on the decision the two above it already need: a
+      collapsible or compact panel below a size threshold. Three items now
+      wait on that one call, and this is the cheapest of the three to finish
+      once it is made — the fix is a deleted CSS rule.
 
 ## Done
 
