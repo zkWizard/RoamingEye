@@ -743,13 +743,20 @@ body {
   height: 16px;
 }
 
-.timeline__step:hover:not(:disabled) {
+.timeline__step:hover:not([aria-disabled="true"]) {
   border-color: var(--control-border-hover);
 }
 
-.timeline__step:disabled {
-  opacity: 0.4;
+/* At the ends the stepper is aria-disabled, not disabled, so that it keeps
+   focus and stays in the tab ring. Dim the glyph rather than the button:
+   opacity on the button fades its focus outline too, and a 40 %-opacity
+   outline is not a focus indicator. */
+.timeline__step[aria-disabled="true"] {
   cursor: default;
+}
+
+.timeline__step[aria-disabled="true"] svg {
+  opacity: 0.4;
 }
 
 .timeline__step:focus-visible {

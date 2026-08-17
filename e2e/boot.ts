@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 declare global {
   interface Window {
@@ -42,4 +42,33 @@ export async function awaitAppInteractive(
     null,
     { timeout }
   );
+}
+
+/**
+ * Wait until every debounced write to `location.hash` has flushed.
+ *
+ * The hash is the app's own record of the view, but main.ts writes it 400ms
+ * after the camera moves — and a freshly booted page ALREADY CARRIES ONE, so
+ * the presence of a hash proves nothing about whether a key press has reached
+ * it yet. A test that reads its baseline the moment a hash exists captures the
+ * value from BEFORE its own priming press, and every later assertion then
+ * measures one press too many: a single 6° arrow step reads as 12°, and a
+ * camera that never moved reads as having drifted under the search box.
+ *
+ * Two identical samples 500ms apart — longer than the debounce — mean no write
+ * is still in flight, so the hash now describes the camera.
+ */
+export async function awaitHashSettled(page: Page): Promise<void> {
+  let previous: string | null = null;
+  await expect
+    .poll(
+      async () => {
+        const hash = await page.evaluate(() => location.hash);
+        const settled = hash.length > 1 && hash === previous;
+        previous = hash;
+        return settled;
+      },
+      { intervals: [500], timeout: 10_000 }
+    )
+    .toBe(true);
 }
