@@ -973,25 +973,34 @@ const compare = new CompareController(
 pinnedComparisonMonth = () => (compare.showing ? compare.pinned : undefined);
 
 if (compareEl && compareDividerEl) {
-  compareControls = new CompareControls(compareEl, compareDividerEl, {
-    onEnable: () => {
-      const layer = LAYERS[currentLayer];
-      if (layer.static) return false; // one image regardless of month
-      compare.enable(layer, months[currentIndex]);
-      compareControls?.showDivider(layer, months[currentIndex], compare.split);
-      compareControls?.setLiveMonth(layer, months[currentIndex]);
-      scheduleHashSync();
-      return true;
+  compareControls = new CompareControls(
+    compareEl,
+    compareDividerEl,
+    {
+      onEnable: () => {
+        const layer = LAYERS[currentLayer];
+        if (layer.static) return false; // one image regardless of month
+        compare.enable(layer, months[currentIndex]);
+        compareControls?.showDivider(
+          layer,
+          months[currentIndex],
+          compare.split
+        );
+        compareControls?.setLiveMonth(layer, months[currentIndex]);
+        scheduleHashSync();
+        return true;
+      },
+      onDisable: () => {
+        compare.disable();
+        updateProvenance();
+        scheduleHashSync();
+      },
+      onSplitChange: (fraction) => {
+        compare.split = fraction;
+      },
     },
-    onDisable: () => {
-      compare.disable();
-      updateProvenance();
-      scheduleHashSync();
-    },
-    onSplitChange: (fraction) => {
-      compare.split = fraction;
-    },
-  });
+    (message) => announcer.announce(message)
+  );
 
   // Restore a shared comparison: the pinned month from the URL, snapped to a
   // slot the active layer actually publishes, when its record covers it.

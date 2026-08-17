@@ -66,7 +66,13 @@ export class CompareControls {
   constructor(
     buttonMount: HTMLElement,
     dividerMount: HTMLElement,
-    private readonly callbacks: CompareCallbacks
+    private readonly callbacks: CompareCallbacks,
+    /**
+     * Voice for the refusal path only. A press that TAKES flips `aria-pressed`
+     * on the button under focus, which assistive tech reads by itself; a press
+     * that is turned away changes no state at all (see `flash`).
+     */
+    private readonly announce?: (message: string) => void
   ) {
     this.button = document.createElement("button");
     this.button.type = "button";
@@ -262,10 +268,28 @@ export class CompareControls {
     this.applySplit(splitFromPointer(clientX, window.innerWidth), true);
   }
 
+  /**
+   * Report a press the mode refused, by swapping the button's own label for
+   * 1.6 s ("Compare" → "No time dimension").
+   *
+   * That swap was the whole answer, and it is a purely visual one. The refusal
+   * changes nothing else: `aria-pressed` stays "false", no divider appears,
+   * and focus stays on the button — so there is no state change for assistive
+   * tech to read, and rewriting the accessible name of the element that
+   * already holds focus is not re-announced. A screen-reader user pressing
+   * Compare on the one static layer got silence, which is indistinguishable
+   * from a dead button; they would press it again.
+   *
+   * So the refusal gets the same voice the label gives sighted users, carrying
+   * the visible string verbatim so the two channels cannot drift. Only this
+   * path speaks — a press that succeeds is already carried by `aria-pressed`,
+   * and announcing there too would be chatter over a state the control holds.
+   */
   private flash(text: string): void {
     const label = this.button.querySelector(".compare-button__label");
     if (!label) return;
     label.textContent = text;
+    this.announce?.(`Compare: ${text}`);
     clearTimeout(this.resetTimer);
     this.resetTimer = setTimeout(() => {
       label.textContent = "Compare";
