@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { awaitAppInteractive } from "./boot";
+import { awaitAppInteractive, awaitHashSettled } from "./boot";
 
 /**
  * The globe is keyboard-operable.
@@ -45,15 +45,16 @@ async function probed(
 /**
  * Focus the globe and make the app state its view.
  *
- * A fresh load has no hash at all: it is written from OrbitControls' `change`
- * event, so nothing is recorded until the camera first moves. One arrow press
- * both proves the binding is live and produces the baseline the test then
- * measures against — and the write is debounced 400ms, so it is polled for.
+ * One arrow press both proves the binding is live and produces the baseline
+ * the test then measures against. Waiting for that press to REACH the hash is
+ * the whole job here: a booted page already carries a hash describing where
+ * the camera started, so "a hash exists" is true before the press has landed
+ * and would hand back a baseline one 6° step stale.
  */
 async function primed(page: Page): Promise<void> {
   await page.locator("#globe").focus();
   await page.keyboard.press("ArrowRight");
-  await expect.poll(async () => (await view(page)).alt).toBeGreaterThan(0);
+  await awaitHashSettled(page);
 }
 
 test.beforeEach(async ({ page }) => {

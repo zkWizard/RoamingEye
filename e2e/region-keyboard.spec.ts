@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { awaitAppInteractive } from "./boot";
+import { awaitAppInteractive, awaitHashSettled } from "./boot";
 
 /**
  * Drawing a study region is keyboard-operable.
@@ -34,14 +34,16 @@ function corner({ lat, lon }: { lat: number; lon: number }): string {
 
 /**
  * Arm draw mode the way a keyboard user does — by pressing the button — and
- * settle the first hash write, which only happens once the camera has moved.
+ * settle the hash so the corners the test reads describe where the camera
+ * actually is.
  */
 async function armed(page: Page): Promise<void> {
   await page.locator("#globe").focus();
   await page.keyboard.press("ArrowRight");
-  // A fresh load writes no hash at all until the camera first moves, and the
-  // write is debounced — poll for it rather than assume it is there.
-  await expect.poll(async () => (await view(page)).lon).toBeLessThan(0);
+  // The booted page already has a hash, so waiting for one to merely be there
+  // (or to be west of Greenwich, as the boot view is) proves nothing about
+  // this press — wait for the write it triggers to flush.
+  await awaitHashSettled(page);
   await drawButton(page).focus();
   await page.keyboard.press("Enter");
   await expect(drawButton(page)).toHaveAttribute("aria-pressed", "true");
