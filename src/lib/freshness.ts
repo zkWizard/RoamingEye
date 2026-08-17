@@ -6,6 +6,7 @@ import {
   extendDataLatest,
   setLayerLatest,
   compareYm,
+  utcYearMonth,
   type LayerId,
   type YearMonth,
 } from "./timeline";
@@ -139,11 +140,11 @@ export function parseLatestFromDomains(xml: string): YearMonth | null {
  *
  * Only the physically impossible region is rejected. Whether the *current*
  * month has published yet is exactly what the probe is asked to find out, so
- * it is left to the answer. Judged in UTC, as GIBS dates its domains.
+ * it is left to the answer. Judged in UTC, as GIBS dates its domains — through
+ * `utcYearMonth`, which is that convention's one authority (lib/timeline.ts).
  */
 export function isObservableMonth(ym: YearMonth, now: Date): boolean {
-  const current = { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 };
-  return compareYm(ym, current) <= 0;
+  return compareYm(ym, utcYearMonth(now)) <= 0;
 }
 
 /**

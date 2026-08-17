@@ -553,6 +553,28 @@ export function ymEqual(a: YearMonth, b: YearMonth): boolean {
 }
 
 /**
+ * The calendar month a wall-clock instant falls in, **judged in UTC** — the
+ * app's single answer to "what month is it?".
+ *
+ * The convention is not a preference: GIBS dates its time domains in UTC, so
+ * every month on the timeline is a UTC month, and a reader's local calendar is
+ * simply a different clock from the one the data is filed under. The two
+ * disagree for the offset's worth of hours at each month boundary — up to 14 in
+ * the far east of the zone map, and 4–10 across the Americas — and reading the
+ * local one there let the app hold two answers at once: `isObservableMonth`
+ * (lib/freshness.ts) would refuse a month as not yet observable while the
+ * status row, computing "today" locally, named that same month as the calendar
+ * to measure the record's lag against. So the row could report a lag one month
+ * too large against a month UTC says has not begun — or, west of the meridian,
+ * one month too small — for the last (or first) hours of a month.
+ *
+ * Injectable for tests; a real clock in a unit test is a time bomb.
+ */
+export function utcYearMonth(now: Date = new Date()): YearMonth {
+  return { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 };
+}
+
+/**
  * Build a list of consecutive months, oldest → newest, of length `count`,
  * ending at `end` (inclusive).
  */
