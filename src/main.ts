@@ -7,6 +7,7 @@ import {
   nearestMonthIndex,
   formatTimelineLabel,
   ymEqual,
+  utcYearMonth,
   type LayerConfig,
   type LayerId,
   type YearMonth,
@@ -2088,7 +2089,7 @@ function setStatus(text: string): void {
   const note = dataCurrencyNote(
     LAYERS[currentLayer],
     months[months.length - 1],
-    currentYearMonth()
+    utcYearMonth()
   );
   const next = text || note.text;
   // The row is aria-live: rewriting identical text re-announces it, and this
@@ -2096,12 +2097,6 @@ function setStatus(text: string): void {
   if (statusEl.textContent !== next) statusEl.textContent = next;
   const detail = text ? "" : note.detail;
   if (statusEl.title !== detail) statusEl.title = detail;
-}
-
-/** The real-world current month, as the timeline's own YearMonth shape. */
-function currentYearMonth(): YearMonth {
-  const now = new Date();
-  return { year: now.getFullYear(), month: now.getMonth() + 1 };
 }
 
 function createStarfield(): THREE.Points {

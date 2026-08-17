@@ -44,6 +44,19 @@ describe("SHORTCUT_GROUPS", () => {
     expect(draw?.items.flatMap((i) => i.keys)).toContain("Enter");
   });
 
+  it("documents the compare-divider bindings ui/CompareControls.ts implements", () => {
+    const compare = SHORTCUT_GROUPS.find((g) => g.title.startsWith("Compare"));
+    const keys = compare?.items.flatMap((i) => i.keys) ?? [];
+    // The handle is a focusable role="separator" (a window splitter), so the
+    // sweep has a keyboard equivalent. If that ever stops working, this group
+    // is a promise the app no longer keeps.
+    expect(compare, "no compare group").toBeDefined();
+    expect(compare?.title).toContain("Tab");
+    for (const key of ["←", "→", "Home", "End"]) {
+      expect(keys, `missing "${key}"`).toContain(key);
+    }
+  });
+
   it("documents how to open and close the overlay itself", () => {
     const all = SHORTCUT_GROUPS.flatMap((g) => g.items.flatMap((i) => i.keys));
     expect(all).toContain("?");

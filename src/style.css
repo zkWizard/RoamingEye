@@ -1394,6 +1394,14 @@ body {
   backdrop-filter: blur(8px);
 }
 
+/* Same ring, same offset as every other control (see "Focus ring parity"). The
+   handle is the splitter's only visible affordance, so a keyboard sweep needs
+   it to read as focused against whatever imagery is behind it. */
+.compare-divider__handle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 .compare-divider__handle::after {
   content: "⇄";
   position: absolute;

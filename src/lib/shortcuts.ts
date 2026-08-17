@@ -53,6 +53,17 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     ],
   },
   {
+    title: "Compare months — press Compare, then Tab to the divider",
+    items: [
+      {
+        keys: ["←", "→"],
+        does: "Sweep the divider a step at a time (hold Shift for a tenth of the width)",
+      },
+      { keys: ["PgDn", "PgUp"], does: "Sweep left / right in bigger jumps" },
+      { keys: ["Home", "End"], does: "Sweep as far left / right as it goes" },
+    ],
+  },
+  {
     title: "General",
     items: [
       { keys: ["?"], does: "Open this overlay" },
