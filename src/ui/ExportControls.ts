@@ -3,6 +3,12 @@
  * and slides) and copy the raw GIBS imagery URL for every month the view is
  * built from — one normally, one per side while comparing (for pipelines and
  * citations). main.ts supplies both via callbacks.
+ *
+ * The copy button's confirmation needs a voice for the same reason the share
+ * button's does: a copy flips no state, the accessible name is pinned by
+ * `aria-label`, and the clipboard is silent, so the "Copied!" swap reaches
+ * sighted users only. The announcement names what was copied — once the label
+ * is not the accessible name, a bare "Copied!" has lost its subject.
  */
 
 const DOWNLOAD_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>`;
@@ -18,7 +24,11 @@ export interface ExportActions {
 export class ExportControls {
   private resetTimer: ReturnType<typeof setTimeout> | undefined;
 
-  constructor(container: HTMLElement, actions: ExportActions) {
+  constructor(
+    container: HTMLElement,
+    actions: ExportActions,
+    private readonly announce?: (message: string) => void
+  ) {
     container.classList.add("export");
 
     const png = this.makeButton(
@@ -60,6 +70,7 @@ export class ExportControls {
     const label = button.querySelector(".export__label");
     try {
       await navigator.clipboard.writeText(text);
+      this.announce?.("Imagery URL copied");
       if (label) {
         label.textContent = "Copied!";
         clearTimeout(this.resetTimer);
