@@ -597,39 +597,43 @@ function updateProvenance(): void {
 }
 
 if (exportEl) {
-  new ExportControls(exportEl, {
-    downloadPng: () => {
-      // Render a fresh frame and read the canvas in the same task — the
-      // drawing buffer isn't preserved between frames. An active comparison
-      // exports exactly what's on screen, divider split included.
-      if (compare.showing) {
-        compare.renderSplit(renderer, scene, camera, [hdTiles.object]);
-      } else {
-        renderer.render(scene, camera);
-      }
-      canvas.toBlob((blob) => {
-        if (!blob) return;
-        const ym = months[currentIndex];
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        // Version in the filename: a figure in a slide deck stays traceable
-        // to the software that rendered it, months later. `showing` (not
-        // `active`) is the right gate here — it is the pinned texture landing
-        // that puts a second month into the pixels being read back.
-        a.download = `roamingeye_${currentLayer}_${exportMonthStamp(ym, compare.showing ? compare.pinned : undefined)}_v${__APP_VERSION__}.png`;
-        a.click();
-        URL.revokeObjectURL(a.href);
-      }, "image/png");
+  new ExportControls(
+    exportEl,
+    {
+      downloadPng: () => {
+        // Render a fresh frame and read the canvas in the same task — the
+        // drawing buffer isn't preserved between frames. An active comparison
+        // exports exactly what's on screen, divider split included.
+        if (compare.showing) {
+          compare.renderSplit(renderer, scene, camera, [hdTiles.object]);
+        } else {
+          renderer.render(scene, camera);
+        }
+        canvas.toBlob((blob) => {
+          if (!blob) return;
+          const ym = months[currentIndex];
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          // Version in the filename: a figure in a slide deck stays traceable
+          // to the software that rendered it, months later. `showing` (not
+          // `active`) is the right gate here — it is the pinned texture landing
+          // that puts a second month into the pixels being read back.
+          a.download = `roamingeye_${currentLayer}_${exportMonthStamp(ym, compare.showing ? compare.pinned : undefined)}_v${__APP_VERSION__}.png`;
+          a.click();
+          URL.revokeObjectURL(a.href);
+        }, "image/png");
+      },
+      // A comparison is built from two GetMap requests, so the copied URL has
+      // to name both months — `showing` again, for the same reason as the PNG.
+      imageryUrl: () =>
+        imageryUrlExport(
+          LAYERS[currentLayer],
+          months[currentIndex],
+          compare.showing ? compare.pinned : undefined
+        ),
     },
-    // A comparison is built from two GetMap requests, so the copied URL has
-    // to name both months — `showing` again, for the same reason as the PNG.
-    imageryUrl: () =>
-      imageryUrlExport(
-        LAYERS[currentLayer],
-        months[currentIndex],
-        compare.showing ? compare.pinned : undefined
-      ),
-  });
+    (message) => announcer.announce(message)
+  );
 }
 
 // Intended overlay on/off state — tracked separately from object.visible
@@ -919,7 +923,9 @@ function currentShareUrl(): string {
 
 const shareEl = document.querySelector<HTMLElement>("#share");
 if (shareEl) {
-  new ShareButton(shareEl, currentShareUrl);
+  new ShareButton(shareEl, currentShareUrl, (message) =>
+    announcer.announce(message)
+  );
 }
 
 // --- Search + fly-to --------------------------------------------------------
