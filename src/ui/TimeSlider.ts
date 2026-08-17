@@ -35,7 +35,11 @@ export class TimeSlider {
     // Annual layers label entries "2024" rather than "Jan 2024".
     private readonly formatLabel: (ym: YearMonth) => string = formatYm,
     // Annual layers step by year, so the buttons say so.
-    stepUnit: "month" | "year" = "month"
+    stepUnit: "month" | "year" = "month",
+    // The scrubbed value lives on the TRACK, so a screen reader reads it back
+    // from `aria-valuetext` only while the track holds focus. The steppers move
+    // that same value from outside it, where nothing reports the result.
+    private readonly announce?: (message: string) => void
   ) {
     this.months = months;
     this.onChange = onChange;
@@ -101,8 +105,17 @@ export class TimeSlider {
       // At the ends the button is aria-disabled rather than disabled, so it
       // still receives the press — and has to decline it here.
       if (btn.getAttribute("aria-disabled") === "true") return;
+      const before = this.index;
       const next = this.index + delta;
       this.update(Math.min(this.months.length - 1, Math.max(0, next)), true);
+      // Focus is on this button, not the track, so the slider's own value is
+      // never read back: the month the press produced reached only the pixels
+      // of the readout. Say exactly what the readout now shows, and only when
+      // the press actually moved — a clamped press at the end of the record
+      // has its own explanation on the button's label.
+      if (this.index !== before) {
+        this.announce?.(this.formatLabel(this.months[this.index]));
+      }
     });
     return btn;
   }
