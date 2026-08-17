@@ -494,7 +494,8 @@ function buildTimeline(): void {
       scheduleHashSync();
     },
     (ym) => formatTimelineLabel(LAYERS[currentLayer], ym),
-    LAYERS[currentLayer].cadence === "annual" ? "year" : "month"
+    LAYERS[currentLayer].cadence === "annual" ? "year" : "month",
+    (message) => announcer.announce(message)
   );
   // The record end (and so how far behind the calendar it is) belongs to the
   // layer, so the resting caption is re-stated wherever the slider is rebuilt:
