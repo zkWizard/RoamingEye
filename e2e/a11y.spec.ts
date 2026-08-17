@@ -550,3 +550,63 @@ test("the shortcuts badge meets the 24px AA target floor", async ({ page }) => {
   expect(box!.width).toBeGreaterThanOrEqual(24);
   expect(box!.height).toBeGreaterThanOrEqual(24);
 });
+
+/**
+ * The layer panel is `display: none` when closed, so focus left on an option
+ * falls to `<body>` and the tab ring restarts at the top of the document —
+ * 28 Tabs back to the trigger at this viewport. A keyboard-driven close hands
+ * focus back to the trigger; a pointer press outside must not, because that
+ * press is already on its way to focusing its own target.
+ */
+test.describe("layer picker focus return", () => {
+  const openByKeyboard = async (page: Page): Promise<void> => {
+    await page.evaluate(() => document.body.focus());
+    for (let i = 0; i < 60; i++) {
+      await page.keyboard.press("Tab");
+      const at = await page.evaluate(() =>
+        document.activeElement?.classList.contains("layer-selector__trigger")
+      );
+      if (at) break;
+    }
+    await expect(page.locator(".layer-selector__trigger")).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".layer-selector__panel")).toHaveClass(/is-open/);
+    // The premise of every assertion below: focus really is inside the panel.
+    expect(
+      await page.evaluate(() =>
+        document
+          .querySelector(".layer-selector__panel")!
+          .contains(document.activeElement)
+      ),
+      "opening must move focus into the panel"
+    ).toBe(true);
+  };
+
+  test("choosing a layer returns focus to the trigger", async ({ page }) => {
+    await openByKeyboard(page);
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".layer-selector__panel")).not.toHaveClass(
+      /is-open/
+    );
+    await expect(page.locator(".layer-selector__trigger")).toBeFocused();
+  });
+
+  test("Escape returns focus to the trigger", async ({ page }) => {
+    await openByKeyboard(page);
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".layer-selector__panel")).not.toHaveClass(
+      /is-open/
+    );
+    await expect(page.locator(".layer-selector__trigger")).toBeFocused();
+  });
+
+  test("a click outside keeps focus on what was clicked", async ({ page }) => {
+    await openByKeyboard(page);
+    await page.locator(".search__input").click();
+    await expect(page.locator(".layer-selector__panel")).not.toHaveClass(
+      /is-open/
+    );
+    await expect(page.locator(".search__input")).toBeFocused();
+  });
+});

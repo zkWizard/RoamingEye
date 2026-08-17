@@ -60,7 +60,7 @@ export class LayerSelector {
         option.title = LAYERS[id].description;
         option.addEventListener("click", () => {
           this.select(id);
-          this.close();
+          this.close({ restoreFocus: true });
           onChange(id);
         });
         this.options.set(id, option);
@@ -99,11 +99,13 @@ export class LayerSelector {
       e.preventDefault();
       this.optionOrder[next]?.focus();
     });
+    // A pointer press outside closes, but must NOT claim focus: the press is
+    // on its way to focusing whatever was clicked.
     document.addEventListener("pointerdown", (e) => {
       if (!container.contains(e.target as Node)) this.close();
     });
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") this.close();
+      if (e.key === "Escape") this.close({ restoreFocus: true });
     });
 
     this.select(initial);
@@ -120,9 +122,20 @@ export class LayerSelector {
     this.options.get(this.selected)?.focus();
   }
 
-  private close(): void {
+  /**
+   * Close the panel. The panel is `display: none` when closed, so focus left
+   * inside it falls to `<body>` and the tab ring restarts from the top of the
+   * document — 28 Tabs back to this trigger, measured at 1280x900. Any close
+   * the keyboard drove (Esc, or activating an option) therefore hands focus
+   * back to the trigger that opened the panel; a pointer press outside does
+   * not, because that press is already on its way to focusing its own target.
+   */
+  private close({ restoreFocus = false } = {}): void {
+    if (!this.panel.classList.contains("is-open")) return;
+    const hadFocusInside = this.panel.contains(document.activeElement);
     this.panel.classList.remove("is-open");
     this.trigger.setAttribute("aria-expanded", "false");
+    if (restoreFocus && hadFocusInside) this.trigger.focus();
   }
 
   private select(id: LayerId): void {
