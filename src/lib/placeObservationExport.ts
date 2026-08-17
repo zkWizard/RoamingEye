@@ -665,7 +665,7 @@ function publishedConstraints(
 export type PlaceObservationWithheldReason = "display-ramp-only";
 
 /**
- * A place-panel product deliberately absent from `products`.
+ * A sampled imagery product deliberately absent from `products`.
  *
  * Without this record the omission is silent, and silence is what this export
  * declines everywhere else: a reader who sees a snow-cover card on screen and
@@ -694,7 +694,7 @@ export interface PlaceObservationExport {
   boundary: GeoGeometry;
   geography: typeof PLACE_OBSERVATION_GEOGRAPHY;
   products: PlaceObservationExportProduct[];
-  /** Place-panel products this export cannot represent, and why. */
+  /** Sampled imagery products this export cannot represent, and why. */
   withheldProducts: readonly PlaceObservationWithheldProduct[];
   method: {
     sampling: PlaceObservationSampling;
@@ -739,7 +739,8 @@ export interface PlaceObservationExport {
     "A product's inversionAccuracy is the measured end-to-end error of RoamingEye's UI legend gradient inverted against the published GIBS colormap, pooled over the whole ramp and stated in the product's native unit; it is not the source product's validation against in-situ measurement, and a layer recorded as uncharacterized carries an unmeasured inversion error rather than none.",
     "That figure does not always describe the inversion a product's values came from: inversionAccuracy.scope reports measures-a-different-inversion where the values were read through GIBS's published colormap rather than the UI legend gradient, and no validation run measures that inversion, so the quoted figure is neither this product's error nor evidence of a larger or smaller one.",
     "Not every product measured what it reports: observationModality.modelDerived marks a value produced by a land-surface model or an atmospheric reanalysis rather than sensed, and such a value is an estimate for the sampled cell rather than a measurement of it; an unclassified product's basis is not asserted, which is not a finding that it was measured.",
-    "This export does not cover every product the place panel displays: withheldProducts names those it withholds and why, and a product listed there is absent from products at every place, so its absence is a limit of this file rather than evidence about conditions at this one.",
+    "This export does not cover every imagery product the place panel samples: withheldProducts names those it withholds and why, and a product listed there is absent from products at every place, so its absence is a limit of this file rather than evidence about conditions at this one.",
+    "Sampled imagery is the whole of this contract, so the place panel's record sections — Holocene volcanoes (Smithsonian GVP), recent earthquakes (USGS) and plate boundaries (Bird 2003) — are outside it and appear in neither products nor withheldProducts; their absence here is a limit of this file, never a finding that none were recorded near the place.",
   ];
 }
 
@@ -979,11 +980,12 @@ const LIMITATIONS = [
   "A product's inversionAccuracy is the measured end-to-end error of RoamingEye's UI legend gradient inverted against the published GIBS colormap, pooled over the whole ramp and stated in the product's native unit; it is not the source product's validation against in-situ measurement, and a layer recorded as uncharacterized carries an unmeasured inversion error rather than none.",
   "That figure does not always describe the inversion a product's values came from: inversionAccuracy.scope reports measures-a-different-inversion where the values were read through GIBS's published colormap rather than the UI legend gradient, and no validation run measures that inversion, so the quoted figure is neither this product's error nor evidence of a larger or smaller one.",
   "Not every product measured what it reports: observationModality.modelDerived marks a value produced by a land-surface model or an atmospheric reanalysis rather than sensed, and such a value is an estimate for the sampled cell rather than a measurement of it; an unclassified product's basis is not asserted, which is not a finding that it was measured.",
-  "This export does not cover every product the place panel displays: withheldProducts names those it withholds and why, and a product listed there is absent from products at every place, so its absence is a limit of this file rather than evidence about conditions at this one.",
+  "This export does not cover every imagery product the place panel samples: withheldProducts names those it withholds and why, and a product listed there is absent from products at every place, so its absence is a limit of this file rather than evidence about conditions at this one.",
+  "Sampled imagery is the whole of this contract, so the place panel's record sections — Holocene volcanoes (Smithsonian GVP), recent earthquakes (USGS) and plate boundaries (Bird 2003) — are outside it and appear in neither products nor withheldProducts; their absence here is a limit of this file, never a finding that none were recorded near the place.",
 ] as const;
 
 /**
- * Place-panel products this export withholds.
+ * Sampled imagery products this export withholds.
  *
  * Snow cover is the only one, and `exportableLayerId` in the place controller
  * is where the decision is made: GIBS renders MOD10CM through the discrete
