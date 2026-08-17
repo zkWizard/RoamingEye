@@ -533,7 +533,22 @@ let placeInsightsModule:
  */
 function runPlaceInsights(result: GeoResult): void {
   placeInsightsModule ??= import("./place/placeInsightsController");
-  void placeInsightsModule.then((m) => m.runPlaceInsights(result));
+  void placeInsightsModule.then(
+    (m) => m.runPlaceInsights(result),
+    () => {
+      // A chunk fetch can fail on a flaky connection, and until now the only
+      // report was the global unhandled-rejection toast quoting a hashed
+      // bundle URL — which names nothing a reader in the field can act on.
+      // Reloading is the honest remedy, not searching again: a dynamic import
+      // that fails stays rejected in the browser's module map, so a later
+      // search re-requests nothing (measured in Chromium — the retry the
+      // secondary panels attempt by clearing their cache never reaches the
+      // network either).
+      errorToast.show(
+        "Couldn't load place details. Reload the page to try again."
+      );
+    }
+  );
 }
 
 if (layerEl) {
