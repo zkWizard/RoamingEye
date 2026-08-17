@@ -818,6 +818,59 @@ describe("place observation export", () => {
     );
   });
 
+  it("puts the panel's vector record sections outside the contract by name", () => {
+    const exported = createPlaceObservationExport(input);
+    const limitations = exported.limitations.join(" ");
+
+    // The panel renders three cited record sections directly above the
+    // download button, and this file has never carried one. Before the scope
+    // line existed, withheldProducts read as the enumeration of everything the
+    // panel shows that the file does not — snow was named, and three whole
+    // datasets fell through the gap unnamed.
+    expect(limitations).toMatch(/Holocene volcanoes \(Smithsonian GVP\)/);
+    expect(limitations).toMatch(/recent earthquakes \(USGS\)/);
+    expect(limitations).toMatch(/plate boundaries \(Bird 2003\)/);
+    expect(limitations).toMatch(
+      /appear in neither products nor withheldProducts/
+    );
+  });
+
+  it("refuses the absence of a vector section as a finding about the place", () => {
+    const exported = createPlaceObservationExport(input);
+    const limitations = exported.limitations.join(" ");
+
+    // Same inference this export blocks everywhere else, and the one a reader
+    // is most likely to draw: no volcano rows in the file is a limit of the
+    // file, never evidence that no volcano was recorded near the place.
+    expect(limitations).toMatch(
+      /limit of this file, never a finding that none were recorded near the place/
+    );
+    // A scope declaration only — it counts nothing and locates nothing.
+    // Screened over the scope line alone: the surrounding limitations name
+    // risks and conditions precisely in order to refuse them.
+    const scopeLine = exported.limitations.find((limitation) =>
+      limitation.startsWith("Sampled imagery is the whole of this contract")
+    );
+    expect(scopeLine).toBeDefined();
+    expect(scopeLine).not.toMatch(
+      /volcanoes within|earthquakes within|nearest boundary|km|hazard|risk|active|due|overdue/i
+    );
+  });
+
+  it("scopes the withheld-product line to sampled imagery", () => {
+    const exported = createPlaceObservationExport(input);
+
+    // withheldProducts is keyed by LayerId and sourced from LAYERS, so it can
+    // only ever enumerate imagery products. The line says that now, instead of
+    // claiming to cover every product the panel displays.
+    expect(exported.limitations.join(" ")).toMatch(
+      /does not cover every imagery product the place panel samples/
+    );
+    for (const withheld of exported.withheldProducts) {
+      expect(Object.keys(LAYERS)).toContain(withheld.layerId);
+    }
+  });
+
   it("detaches each export's withheld-product record from the layer registry", () => {
     const first = createPlaceObservationExport(input);
     (first.withheldProducts as PlaceObservationWithheldProduct[]).pop();
