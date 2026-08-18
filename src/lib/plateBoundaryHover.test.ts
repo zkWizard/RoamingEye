@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { latLngToVector3 } from "./geo";
 import {
+  plateBoundaryDelimiterClause,
   plateBoundaryHoverLabel,
   plateBoundaryPairLabel,
   plateBoundarySegmentHoverLabel,
@@ -201,5 +202,33 @@ describe("hover integration with the rendered LineSegments", () => {
         )
       ).toContain(expected);
     }
+  });
+});
+
+describe("plateBoundaryDelimiterClause", () => {
+  it("reads a subducting label's delimiter back", () => {
+    expect(plateBoundaryDelimiterClause("AM/PS")).toBe(
+      " · delimiter: Philippine Sea subducts beneath Amur"
+    );
+    expect(plateBoundaryDelimiterClause("AN\\AF")).toBe(
+      " · delimiter: Antarctica subducts beneath Africa"
+    );
+  });
+
+  it("stays empty where the source records no subduction", () => {
+    // PB2002 marks subduction steps only, so a "-" step has no assignment to
+    // report — not a measured absence of subduction.
+    expect(plateBoundaryDelimiterClause("AF-AN")).toBe("");
+    expect(plateBoundaryDelimiterClause(null)).toBe("");
+    expect(plateBoundaryDelimiterClause("not a pair")).toBe("");
+  });
+
+  it("is the clause the hover label appends, so both surfaces read alike", () => {
+    // The place panel's matched-boundary list appends this same string, so the
+    // two surfaces cannot drift into two wordings of one convention.
+    const name = "AM/PS";
+    expect(plateBoundaryHoverLabel(boundary(name, []))).toBe(
+      plateBoundaryPairLabel(name) + plateBoundaryDelimiterClause(name)
+    );
   });
 });
