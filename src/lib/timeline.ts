@@ -160,9 +160,8 @@ export const MONTH_NAMES = [
  * cloud, snow, or the quality screen — a statement about a surface nobody
  * measured that month. Other layers advertise interior gaps too; those belong
  * to their own product catalogs and are not asserted here — see
- * MODIS_AQUA_SST_DAY_UNPUBLISHED_MONTHS and MOD10CM_UNPUBLISHED_MONTHS. Air
- * temperature also splits into several ranges upstream and is not yet
- * catalogued.
+ * MODIS_AQUA_SST_DAY_UNPUBLISHED_MONTHS, MOD10CM_UNPUBLISHED_MONTHS and
+ * MERRA2_2M_AIR_TEMP_UNPUBLISHED_MONTHS.
  */
 const MOD13A3_UNPUBLISHED_MONTHS: readonly YearMonth[] = [
   { year: 2025, month: 4 },
@@ -201,6 +200,39 @@ const MODIS_AQUA_SST_DAY_UNPUBLISHED_MONTHS: readonly YearMonth[] = [
   { year: 2023, month: 6 },
   { year: 2023, month: 10 },
   { year: 2025, month: 12 },
+];
+
+/**
+ * Months the MERRA-2 monthly 2 m air temperature layer never distributed,
+ * inside its own record.
+ *
+ * GIBS advertises this layer's time dimension as three disjoint ranges —
+ * 1980-01/2023-11, 2024-02/2024-04 and 2024-06/2026-05, all P1M
+ * (WMTS DescribeDomains, verified 2026-08-18). Each of the three months below
+ * sits between two of them and answers HTTP 404 at the tile endpoint, while
+ * every month on either side of every gap serves 200.
+ *
+ * A gap here cannot be a property of the atmosphere, and that is checkable
+ * two ways. MERRA-2 is a *reanalysis*: the assimilation produces a value for
+ * every grid cell of every month by construction, so it has no retrieval to
+ * fail and no cloud to withhold one. And the sibling MERRA-2 layer this app
+ * renders from the same production stream
+ * (MERRA2_Total_Aerosol_Optical_Thickness_550nm_Extinction_Monthly) advertises
+ * the identical 1980-01/2026-05 span as a *single* contiguous range. No
+ * property of the air is missing in December 2023 for temperature and present
+ * for aerosol. These months are distribution artifacts.
+ *
+ * That makes offering them worse than for a satellite product, not better: a
+ * reader who knows the layer is reanalysis knows it cannot have holes, so a
+ * blank month would read as a rendering fault or — worse — as a real
+ * excursion. Two of the three (2023-12 and 2024-01) are consecutive and
+ * straddle a year boundary, so they also thin the December and January
+ * same-calendar-month baselines an anomaly is measured against.
+ */
+const MERRA2_2M_AIR_TEMP_UNPUBLISHED_MONTHS: readonly YearMonth[] = [
+  { year: 2023, month: 12 },
+  { year: 2024, month: 1 },
+  { year: 2024, month: 5 },
 ];
 
 /**
@@ -320,9 +352,10 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     },
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 1980, month: 1 },
-    // Verified against GIBS DescribeDomains 2026-08-15. MERRA-2 runs ~3
+    // Verified against GIBS DescribeDomains 2026-08-18. MERRA-2 runs ~3
     // months behind the calendar; this is its own end, not the global one.
     latest: { year: 2026, month: 5 },
+    unpublished: MERRA2_2M_AIR_TEMP_UNPUBLISHED_MONTHS,
     description: "Near-surface air temperature (MERRA-2 reanalysis).",
   },
   sst: {
