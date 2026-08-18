@@ -61,7 +61,7 @@ take one directly when no Owner's pick applies to its domain.
 <!-- The shipping PR moves its item here, with the PR number. -->
 
 - [x] **A phone held in landscape reached none of the nine map overlays.**
-      (#PRNUM) Closed by keying the bottom-bar layout on height as well as
+      (#1027) Closed by keying the bottom-bar layout on height as well as
       width, which is the fix the item itself named, and by paying the vertical
       budget that had stopped it. The overlay column is capped so centring
       always clears the top-right buttons, and a toggle stands 60.6px, so the
