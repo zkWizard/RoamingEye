@@ -610,3 +610,53 @@ test.describe("layer picker focus return", () => {
     await expect(page.locator(".search__input")).toBeFocused();
   });
 });
+
+/**
+ * The imagery-failure retry is a keyboard stop that only exists after an error.
+ *
+ * `.status-retry` is created at boot but stays `hidden` until a GIBS fetch
+ * fails, so on a healthy run it is not in the tab order at all. That is why its
+ * missing focus ring surfaced as an intermittent failure of the walk above
+ * rather than a standing one: the walk can only judge the stops that happen to
+ * exist. Revealing the button directly makes the check deterministic, and the
+ * moment it matters — a reader tabbing to recover from failed imagery — is
+ * exactly when a lost cursor costs the most.
+ *
+ * This asserts the RENDERED ring rather than the stylesheet text, so it still
+ * fails if a later rule overrides the outline. Note the Tab press before the
+ * programmatic focus: `:focus-visible` tracks interaction modality, so focusing
+ * straight from script can leave it unmatched and paint no ring at all.
+ */
+test("the imagery-failure retry paints the app's focus ring", async ({
+  page,
+}) => {
+  const retry = page.locator(".status-retry");
+  await expect(retry).toBeHidden();
+
+  // Reveal it the way the onError path does, without faking a GIBS outage.
+  await retry.evaluate((el: HTMLElement) => {
+    el.hidden = false;
+  });
+  await expect(retry).toBeVisible();
+
+  // Establish keyboard modality first, then move focus to the button.
+  await page.keyboard.press("Tab");
+  await retry.focus();
+  await expect(retry).toBeFocused();
+
+  const ring = await retry.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return {
+      matchesFocusVisible: el.matches(":focus-visible"),
+      style: cs.outlineStyle,
+      width: parseFloat(cs.outlineWidth),
+    };
+  });
+
+  expect(ring.matchesFocusVisible).toBe(true);
+  // Same bar the keyboard-stop walk applies: an app-authored ring, not the UA
+  // hairline (`auto`) and not absent.
+  expect(ring.style).not.toBe("none");
+  expect(ring.style).not.toBe("auto");
+  expect(ring.width).toBeGreaterThanOrEqual(2);
+});
