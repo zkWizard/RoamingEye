@@ -92,7 +92,9 @@ test.describe("phone", () => {
     });
     await expect(terrain).toHaveCount(1);
     await terrain.click();
-    await expect(page.locator(".layer-selector__current")).toHaveText(
+    // The trigger shows the full label, parenthetical and all
+    // ("Terrain (shaded relief)"), so this is a containment check by design.
+    await expect(page.locator(".layer-selector__current")).toContainText(
       "Terrain"
     );
   });
