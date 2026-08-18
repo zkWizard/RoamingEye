@@ -64,6 +64,7 @@ import { vegetationChartedRecordNote } from "./lib/vegetationChartedRecord";
 import { gldasAveragedSupportNote } from "./lib/gldasAveragedSupport";
 import { gldasChartedRecordNote } from "./lib/gldasChartedRecord";
 import { airTemperatureAveragedSupportNote } from "./lib/airTemperatureAveragedSupport";
+import { airTemperatureChartedRecordNote } from "./lib/airTemperatureChartedRecord";
 import { snowAveragedSupportNote } from "./lib/snowAveragedSupport";
 import { snowChartedRecordNote } from "./lib/snowChartedRecord";
 import { emptyMarineProbeNote } from "./lib/marineProbeDomain";
@@ -1358,14 +1359,26 @@ if (probeEl) {
         // Unlike snow's undrawn pixels, all at the low end, the discarded set
         // here can hold the box's coldest and hottest cells at once, so the
         // clause refuses a cool reading and a warm one alike rather than
-        // damping a swing. No charted-record companion: emptyAtmosphereProbeNote
-        // already owns the empty record for this layer with the same refusal.
-        const airtempSupportNote = airTemperatureAveragedSupportNote(
-          layer.id,
-          "sampled-area",
-          values,
-          mode === "area" ? validFractions : null
-        );
+        // damping a swing.
+        // And the same question along the OTHER axis, which no air-temperature
+        // mode stated: those two open caps drop whole MONTHS out of the series
+        // too, so the statistics beside the chart cover the charted months
+        // alone — and because both discarded ends are physically reachable
+        // monthly means, unlike GLDAS's nonphysical sub-zero fill, the record
+        // is bracketed inward from both sides: the maximum need not be its
+        // warmest month nor the minimum its coldest. `emptyAtmosphereProbeNote`
+        // owns only the WHOLLY empty record, so the partial one had no clause
+        // here at all. The share clause above already names the mechanism for
+        // an averaged footprint, so this defers to it and speaks for the point
+        // probe, which passes no shares. Same composition as the three pairs
+        // above.
+        const airtempSupportNote =
+          airTemperatureAveragedSupportNote(
+            layer.id,
+            "sampled-area",
+            values,
+            mode === "area" ? validFractions : null
+          ) ?? airTemperatureChartedRecordNote(layer.id, values);
         // An area value is a mean of per-pixel decodes and a point value a
         // median, so only the area footprint carries censoring the end-cap
         // screen cannot see. Shared by the status line and the export.
@@ -1707,12 +1720,16 @@ if (probeEl) {
         // clause for the same reason a sampled one does: the rendered ramp is
         // closed at both ends, so the share the mean covers is not a share of
         // the box, and its remainder is evidence in neither direction.
-        const airtempSupportNote = airTemperatureAveragedSupportNote(
-          layer.id,
-          "drawn-region",
-          values,
-          validFractions
-        );
+        // And the temporal companion, as on the point/area path: the same two
+        // caps drop whole months out of the charted series, and a drawn region
+        // whose share clause is silent still charts a partial record.
+        const airtempSupportNote =
+          airTemperatureAveragedSupportNote(
+            layer.id,
+            "drawn-region",
+            values,
+            validFractions
+          ) ?? airTemperatureChartedRecordNote(layer.id, values);
         // The physical series the file writes, not the 0..1 gradient positions
         // held here. Shared by the status line and the export.
         const physical = values.map((v) =>
