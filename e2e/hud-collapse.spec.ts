@@ -100,6 +100,47 @@ test("a phone in landscape can give the middle of the view back to the globe", a
     .toBe("globe");
 });
 
+// The landscape phone is both the case this control exists for and a coarse
+// pointer, so it takes the 44px the rest of the chrome takes. It cannot go in
+// a11y.spec.ts's TOUCH_TARGETS list: that suite runs at 390x844, where this
+// button is deliberately not rendered, and it counts "not rendered" as a
+// failure. So the guarantee is pinned here, at a size where it does render.
+test.describe("on a phone in landscape", () => {
+  test.use({ hasTouch: true, viewport: LANDSCAPE_PHONE });
+
+  test("the fold control meets the 44px touch target the chrome uses", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await awaitAppInteractive(page);
+
+    expect(
+      await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
+      "emulation must actually select the coarse-pointer rules"
+    ).toBe(true);
+
+    const geometry = await page.evaluate(() => {
+      const button = document
+        .querySelector("#hud-collapse")!
+        .getBoundingClientRect();
+      const pill = document
+        .querySelector(".layer-selector__trigger")!
+        .getBoundingClientRect();
+      return {
+        width: Math.round(button.width),
+        height: Math.round(button.height),
+        // The corner the button reserves has to grow with it, or the bigger box
+        // lands on the layer selector — the one control the fold always keeps.
+        clearOfPill: Math.round(button.left - pill.right),
+      };
+    });
+
+    expect(geometry.width).toBeGreaterThanOrEqual(44);
+    expect(geometry.height).toBeGreaterThanOrEqual(44);
+    expect(geometry.clearOfPill).toBeGreaterThan(0);
+  });
+});
+
 test("the fold costs the expanded panel no height, and cannot strand a row", async ({
   page,
 }) => {

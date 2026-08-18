@@ -479,6 +479,26 @@ body {
   }
 }
 
+/* A phone held in landscape is the case this control was added for, and it is
+   also a coarse pointer — so the button takes the same 44px the rest of the
+   chrome does under `@media (pointer: coarse)` below, and the corner reserved
+   for it grows to match. Scoped to both conditions: on a mouse the 28px box is
+   already comfortable, and above the height threshold nothing renders at all.
+   The steppers' documented exception does not apply here — this button is in
+   the opposite corner from the scrubber track, so a 44px box reaches nothing. */
+@media (max-height: 720px) and (pointer: coarse) {
+  .controls__collapse {
+    width: 44px;
+    height: 44px;
+    top: 0.1rem;
+    right: 0.2rem;
+  }
+
+  #layer-selector {
+    padding: 0 3rem;
+  }
+}
+
 /* Layer selector (grouped dropdown) */
 .layer-selector {
   position: relative;
