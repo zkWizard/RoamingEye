@@ -25,9 +25,28 @@ const CYCLES = Number(process.env.SOAK_CYCLES ?? 6);
  * tiles capped; the scrub cache holds a window of months) — the budget
  * absorbs those caches filling, while an unbounded leak (per-cycle growth)
  * blows straight past it by cycle 3–4.
+ *
+ * Sized from the caches this session actually exercises, not from a round
+ * number: GlobeTextureManager holds `previewCacheSize` = 120 month previews
+ * plus `sharpCacheSize` = 8 settled months, and the marker/region sprites add
+ * a handful more. Layers start as far back as 1980-01, so the timeline always
+ * offers far more months than the preview cache can hold — it fills to its cap
+ * and stays there. The budget deliberately excludes a full HD tile LRU (~70–140
+ * textures): this session never zooms to the HD threshold, so those never load.
+ *
+ * This is a runaway detector, not a cache-fill detector. The tight bound on a
+ * real leak is LATE_TEXTURE_GROWTH_BUDGET below — a bounded cache goes flat
+ * once filled, while a per-cycle leak keeps climbing.
  */
-const TEXTURE_BUDGET = 80;
+const TEXTURE_BUDGET = 160;
 const GEOMETRY_BUDGET = 60;
+/**
+ * Second-half texture growth. This is the assertion that actually catches a
+ * leak, so it is pinned independently of TEXTURE_BUDGET — deriving it from
+ * that (it was TEXTURE_BUDGET / 2) meant every widening of the absolute cap
+ * silently blunted the leak check too.
+ */
+const LATE_TEXTURE_GROWTH_BUDGET = 40;
 
 test("resource footprint stays bounded through a working session", async ({
   page,
@@ -116,7 +135,7 @@ test("resource footprint stays bounded through a working session", async ({
   expect(
     last.textures - mid.textures,
     `late-session texture growth (${mid.textures} → ${last.textures})`
-  ).toBeLessThanOrEqual(TEXTURE_BUDGET / 2);
+  ).toBeLessThanOrEqual(LATE_TEXTURE_GROWTH_BUDGET);
 
   // Rendering is still alive, and the session threw nothing, ever.
   await expect
