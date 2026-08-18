@@ -190,6 +190,13 @@ const provenanceEl = document.querySelector<HTMLElement>("#provenance");
 const controlsEl = document.querySelector<HTMLElement>("#controls");
 const exportEl = document.querySelector<HTMLElement>("#export");
 
+// Set by the fold block near the bottom of this file, and called when an
+// overlay opens on top of the panel. It is a `let` rather than a direct call
+// because the two live at opposite ends of the module: the probe is wired
+// during boot and the fold afterwards, and the probe only ever fires it on a
+// gesture that happens long after both have run.
+let foldHudForOverlay: (() => void) | null = null;
+
 // --- Renderer ---------------------------------------------------------------
 // WebGL can be unavailable (blocked by policy, ancient drivers, disabled
 // hardware acceleration) — the constructor throws. Show a human explanation
@@ -1228,7 +1235,10 @@ if (probeEl) {
     // in, so a polar-winter gap — or a filled dark-month value — is not read
     // as a snow measurement. Null, and free, everywhere equatorward of 63.3°.
     const darkness = layer.id === "snow" ? snowIlluminationNote(lat) : null;
+    // The panel yields the space on the way IN only — see foldHudForOverlay.
+    const probeWasOpen = panel.isOpen;
     panel.open(layer.label, darkness ? `${where} · ${darkness}` : where);
+    if (!probeWasOpen) foldHudForOverlay?.();
     panel.setModeToggleVisible(true);
     if (layer.static) {
       panel.setStatus(
@@ -1590,6 +1600,7 @@ if (probeEl) {
     // reproduction link reopened the globe with no chart at all.
     probeShare = { kind: "region", bounds };
     scheduleHashSync();
+    const regionProbeWasOpen = panel.isOpen;
     panel.open(
       layer.label,
       // normalizeLon: a box drawn across the antimeridian carries continuous
@@ -1597,6 +1608,7 @@ if (probeEl) {
       `Drawn region · mean over ${formatLatLng({ lat: bounds.south, lon: normalizeLon(bounds.west) })} → ` +
         formatLatLng({ lat: bounds.north, lon: normalizeLon(bounds.east) })
     );
+    if (!regionProbeWasOpen) foldHudForOverlay?.();
     panel.setModeToggleVisible(false);
     if (layer.static) {
       panel.setStatus(
@@ -2092,6 +2104,29 @@ if (hudCollapseEl && controlsEl) {
   hudCollapseEl.addEventListener("click", () =>
     applyCollapsed(!controlsEl.classList.contains("is-collapsed"))
   );
+
+  // An overlay opening on top of the panel is the other case where the panel
+  // has to yield, and on a phone held upright it is the sharper one. The probe
+  // is a 346px dialog and the panel is 373px tall in a 844px viewport, so the
+  // two cannot both have the middle of the screen: measured at 390x844 the
+  // probe covers the panel from 347px to its own 620px bottom, which is exactly
+  // where this button and the layer selector sit. Both were unreachable — a hit
+  // test on the button returned the probe panel, and on the selector the
+  // probe's chart canvas. Folding is what the panel already does when it is
+  // short of room, and folded it sits at 625px, clear of the probe entirely.
+  //
+  // Scoped to the width where the collision is real. The probe is bottom-centred
+  // and takes `bottom: 14rem` only below 540px; wider than that it is anchored
+  // to the left at `top: 50%` and never reaches the bottom-centre panel. 540px
+  // is also the fold's own width arm, so the gesture is offered exactly where
+  // it is available — no new breakpoint, and a no-op if the reader has already
+  // folded it.
+  const CROWDED_VIEWPORT = "(max-width: 540px)";
+  foldHudForOverlay = () => {
+    if (!window.matchMedia?.(CROWDED_VIEWPORT).matches) return;
+    if (controlsEl.classList.contains("is-collapsed")) return;
+    applyCollapsed(true);
+  };
   // Rotating a phone into landscape is the same event as booting into it, and
   // it arrives at a panel that is already off the top of the screen. Only the
   // crossing INTO the short viewport folds: coming back out leaves the reader's
