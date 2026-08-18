@@ -185,6 +185,7 @@ const providersLinkEl = document.querySelector<HTMLElement>("#providers-link");
 const softwareLinkEl = document.querySelector<HTMLElement>("#software-link");
 const fleetLinkEl = document.querySelector<HTMLElement>("#fleet-link");
 const provenanceEl = document.querySelector<HTMLElement>("#provenance");
+const controlsEl = document.querySelector<HTMLElement>("#controls");
 const exportEl = document.querySelector<HTMLElement>("#export");
 
 // --- Renderer ---------------------------------------------------------------
@@ -1995,6 +1996,40 @@ function lazyPanel(
       }
     );
   });
+}
+
+// --- Folding the data panel away -------------------------------------------
+// Short windows are where the panel and the globe compete for the middle of the
+// view, and style.css has already spent the spacing buying that back; what is
+// left can only come out of content, which is the reader's call to make rather
+// than a threshold to guess at. The button is rendered only inside the same
+// media query as the collapsed state, so nothing here needs to watch the
+// viewport: growing the window past it restores every row on its own.
+const hudCollapseEl = document.querySelector<HTMLElement>("#hud-collapse");
+if (hudCollapseEl && controlsEl) {
+  // The chevron points the way the panel will move, so it reads as a direction
+  // rather than as a state the label is already carrying.
+  const CHEVRON_DOWN = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`;
+  const CHEVRON_UP = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>`;
+
+  const applyCollapsed = (collapsed: boolean): void => {
+    controlsEl.classList.toggle("is-collapsed", collapsed);
+    hudCollapseEl.innerHTML = collapsed ? CHEVRON_UP : CHEVRON_DOWN;
+    hudCollapseEl.setAttribute("aria-expanded", String(!collapsed));
+    const label = collapsed
+      ? "Show the scale and timeline"
+      : "Hide the scale and timeline";
+    hudCollapseEl.setAttribute("aria-label", label);
+    hudCollapseEl.title = label;
+    // No announcement: `aria-expanded` already carries this, and announcing
+    // what a state attribute reports is the chatter the overlay toggles
+    // deliberately avoid.
+  };
+
+  applyCollapsed(false);
+  hudCollapseEl.addEventListener("click", () =>
+    applyCollapsed(!controlsEl.classList.contains("is-collapsed"))
+  );
 }
 
 if (providersPageEl && providersLinkEl) {
