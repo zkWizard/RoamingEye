@@ -178,7 +178,7 @@ export function precipitationSeasonalTiming(
   const cosSum = neumaierSum(cosTerms);
   const sinSum = neumaierSum(sinTerms);
   const resultant = Math.hypot(cosSum, sinSum);
-  const concentration = clamp01(resultant / totalMm);
+  const concentration = clampResultantToUnit(resultant / totalMm);
 
   const monthCount = ordered.length;
   const base: Omit<
@@ -217,16 +217,31 @@ export function precipitationSeasonalTiming(
   const phaseRadians = Math.atan2(sinSum, cosSum);
   const phaseDegrees = ((phaseRadians * 180) / Math.PI + 360) % 360;
 
-  // Invert the mid-month placement: month m sat at DEGREES_PER_MONTH·(m − 0.5),
-  // so the continuous centroid month is phase/DEGREES_PER_MONTH + 0.5, wrapped
-  // into (0.5, 12.5].
+  return { ...base, ...precipitationSeasonalCentroid(phaseDegrees) };
+}
+
+/**
+ * Invert the mid-month angular placement onto the calendar: month m sat at
+ * DEGREES_PER_MONTH·(m − 0.5), so the continuous centroid month is
+ * phase/DEGREES_PER_MONTH + 0.5, wrapped into (0.5, 12.5].
+ *
+ * Exported because the multi-year aggregator in
+ * precipitationSeasonalTimingSeries.ts pools per-year resultant vectors and must
+ * land on exactly the same calendar position for the same phase; a second copy
+ * of this arithmetic is how the two readings would silently drift apart.
+ */
+export function precipitationSeasonalCentroid(phaseDegrees: number): {
+  phaseDegrees: number;
+  centroidMonth: number;
+  centroidCalendarMonth: number;
+  centroidMonthName: string;
+} {
   let centroidMonth = phaseDegrees / DEGREES_PER_MONTH + 0.5;
   if (centroidMonth <= 0.5) centroidMonth += PRECIP_SEASONAL_TIMING_MONTHS;
 
   const centroidCalendarMonth = wrapCalendarMonth(Math.round(centroidMonth));
 
   return {
-    ...base,
     phaseDegrees,
     centroidMonth,
     centroidCalendarMonth,
@@ -235,7 +250,7 @@ export function precipitationSeasonalTiming(
 }
 
 /** Clamp a value to [0, 1], guarding tiny floating-point overshoots. */
-function clamp01(value: number): number {
+export function clampResultantToUnit(value: number): number {
   if (value < 0) return 0;
   if (value > 1) return 1;
   return value;

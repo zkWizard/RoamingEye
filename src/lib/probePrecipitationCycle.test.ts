@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   precipitationCycleClause,
   probePrecipitationCycle,
+  probePrecipitationSeasonalTiming,
 } from "./probePrecipitationCycle";
 import { SECONDS_PER_DAY } from "./precipitationAccumulation";
 import { MINIMUM_PRECIP_ANNUAL_CYCLE_YEARS_PER_MONTH } from "./precipitationAnnualCycle";
@@ -157,5 +158,92 @@ describe("precipitationCycleClause", () => {
     expect(clause).toContain("wettest Jul 310 mm");
     expect(clause).toContain("driest Jan 0 mm");
     expect(clause).toContain("range 310 mm");
+  });
+});
+
+describe("probePrecipitationSeasonalTiming", () => {
+  it("returns null for every layer but precipitation", () => {
+    const { months, values } = series(5, ONE_WET_MONTH);
+    for (const layer of ["soil", "snow", "ndvi", "airtemp", "sst"] as const) {
+      expect(
+        probePrecipitationSeasonalTiming(layer, months, values)
+      ).toBeNull();
+    }
+    expect(
+      probePrecipitationSeasonalTiming(undefined, months, values)
+    ).toBeNull();
+    expect(
+      probePrecipitationSeasonalTiming("precip", months, values)
+    ).not.toBeNull();
+  });
+
+  it("returns null when the series carries no months", () => {
+    expect(probePrecipitationSeasonalTiming("precip", [], [])).toBeNull();
+  });
+
+  it("converts mm/day to the native rate before pooling, as the cycle does", () => {
+    // Getting this wrong is silent: the timing still resolves, just weighted by
+    // depths 86 400x too large. A wrong factor would not move the centroid, so
+    // assert the pooled water instead — 5 years of 1 mm/day with one 10 mm/day
+    // July is (365.25-ish days + 9 x 31 extra July mm) per year.
+    const { months, values } = series(5, ONE_WET_MONTH);
+    const timing = probePrecipitationSeasonalTiming("precip", months, values);
+    expect(timing?.totalMm).toBeGreaterThan(5 * 600);
+    expect(timing?.totalMm).toBeLessThan(5 * 700);
+  });
+});
+
+describe("precipitationCycleClause seasonal timing", () => {
+  it("extends the same reading with the centroid month and R", () => {
+    const { months, values } = series(5, ONE_WET_MONTH);
+    const clause = precipitationCycleClause(
+      probePrecipitationCycle("precip", months, values),
+      probePrecipitationSeasonalTiming("precip", months, values)
+    );
+    expect(clause).toContain("mean annual cycle: wettest Jul");
+    expect(clause).toContain("centred on Jul");
+    expect(clause).toMatch(
+      /timing concentration R 0[.]\d\d of 1 centred on Jul [(]Markham, 5 complete yr[)]/
+    );
+    // One reading, not two: no second separator opens a new clause.
+    expect(clause?.split(" · ")).toHaveLength(1);
+  });
+
+  it("prints a low R for two rainy seasons the wettest month alone would hide", () => {
+    const twoSeasons = [1, 1, 1, 10, 1, 1, 1, 1, 1, 10, 1, 1];
+    const { months, values } = series(5, twoSeasons);
+    const clause = precipitationCycleClause(
+      probePrecipitationCycle("precip", months, values),
+      probePrecipitationSeasonalTiming("precip", months, values)
+    );
+    expect(clause).toContain("wettest Oct");
+    expect(clause).toMatch(/timing concentration R 0[.]0\d of 1/);
+  });
+
+  it("keeps the cycle reading intact when no timing is available", () => {
+    // The floor is complete calendar years; a record below it must not silence
+    // the cycle itself, and must not append a partial timing either.
+    const { months, values } = series(4, ONE_WET_MONTH);
+    const withoutTiming = precipitationCycleClause(
+      probePrecipitationCycle("precip", months, values)
+    );
+    expect(withoutTiming).toContain("mean annual cycle: wettest Jul");
+    expect(withoutTiming).not.toContain("Markham");
+    expect(
+      precipitationCycleClause(
+        probePrecipitationCycle("precip", months, values),
+        null
+      )
+    ).toBe(withoutTiming);
+  });
+
+  it("says nothing at all when the cycle itself is withheld", () => {
+    const { months, values } = series(5, ONE_WET_MONTH);
+    expect(
+      precipitationCycleClause(
+        null,
+        probePrecipitationSeasonalTiming("precip", months, values)
+      )
+    ).toBeNull();
   });
 });
