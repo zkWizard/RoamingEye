@@ -127,6 +127,25 @@ take one directly when no Owner's pick applies to its domain.
       wait on that one call, and this is the cheapest of the three to finish
       once it is made — the fix is a deleted CSS rule.
 
+- [ ] **The call the three items above wait on has been made (#1023): the panel
+      is collapsible below the existing 720px height threshold.** The reader
+      folds it; nothing folds on its own, and the fold keeps the layer selector
+      and the provenance line, so the product ID and the month survive it. An
+      expanded panel is unchanged in height, which is why none of the three is
+      closed by that PR alone — it shipped the affordance and nothing else.
+      What each still needs, now that the mechanism exists:
+      the netbook band gets a recoverable view rather than a fixed one, so what
+      is left there is whether the panel should also open folded below some
+      height, which is a second decision and a smaller one.
+      Landscape phones are unblocked in the way the item asked for: with the
+      panel folded the vertical budget that stopped the bottom-bar toolbar
+      layout is no longer spent, so the ≤540px bar can now be tried on short
+      viewports and re-measured against a folded panel — the nine overlays stay
+      unreachable until someone does.
+      The phone caption is untouched and still the cheapest of the three; its
+      +34px worst case should be re-measured against the folded panel, where
+      the legend is not rendered at all.
+
 ## Done
 
 <!-- The shipping PR moves its item here, with the PR number. -->

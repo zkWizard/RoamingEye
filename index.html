@@ -120,6 +120,16 @@
 
       <div class="overlay overlay--bottom">
         <div id="controls" class="controls">
+          <!-- Shown only below the height threshold the panel already declares
+               itself crowded at; style.css keeps both the button and the
+               collapsed state inside that one media query, so widening the
+               window restores every row without the class being cleared. -->
+          <button
+            id="hud-collapse"
+            type="button"
+            class="controls__collapse"
+            aria-expanded="true"
+          ></button>
           <div id="layer-selector"></div>
           <div id="legend"></div>
           <div id="timeline"></div>

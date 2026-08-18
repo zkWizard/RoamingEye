@@ -283,6 +283,7 @@ body {
  */
 .hint__shortcuts:focus-visible,
 .toolbar__item:focus-visible,
+.controls__collapse:focus-visible,
 .layer-selector__trigger:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
@@ -400,6 +401,13 @@ body {
    height. e2e/hud-aim-clearance.spec.ts pins the invariant (the centre of the
    viewport hit-tests to the canvas) at the heights this buys, so the panel
    cannot creep back over the aim as its captions grow. */
+/* Above the threshold the button is not rendered at all, so it is out of the
+   tab ring rather than merely invisible. Declared before the query that shows
+   it: the two rules have equal specificity, so source order is what decides. */
+.controls__collapse {
+  display: none;
+}
+
 @media (max-height: 720px) {
   .controls {
     gap: 0.5rem;
@@ -409,6 +417,91 @@ body {
 
   .overlay--bottom {
     padding-bottom: 1rem;
+  }
+
+  /* The spacing above is spent, so the rest of the panel's height can only come
+     out of content — which is a call about what a reader may put away, not a
+     number to tune. It is theirs to make: the panel keeps every row it has ever
+     had and gains a way to fold the two tall ones out of the view.
+     What collapsing keeps is the point. The layer selector names what is on the
+     globe and the provenance line carries the product ID and the month, so the
+     citation and the date survive the fold — what goes is the colour ramp and
+     the timeline, which are the height (about 200px of roughly 266px) and which
+     the reader has just said they are not reading. Nothing is dropped without
+     the gesture that asks for it, unlike the phone caption in docs/BACKLOG.md.
+     Both this button and the collapsed state live inside this query, so a
+     window growing past the threshold restores every row on its own — a user
+     who folds the panel at 600px tall and then maximises cannot end up with
+     rows hidden and no visible control to bring them back. */
+  .controls__collapse {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* Out of flow, so the affordance costs the crowded layout no height.
+       LEFT, not right: the panel's right margin is the strip the overlay bar
+       reaches into at narrow desktop widths — 66px of overlap at 560px wide —
+       and toolbar-height-continuity.spec.ts exists to say that strip must stay
+       empty. A first draft put the button there and that spec caught it. The
+       left corner is clear of both the bar and the steppers, which hold the
+       bottom right (.timeline__steps). */
+    position: absolute;
+    top: 0.35rem;
+    left: 0.5rem;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    z-index: 1;
+  }
+
+  .controls__collapse:hover {
+    color: var(--fg);
+    background: var(--control-bg);
+  }
+
+  .controls__collapse svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Everything except the button itself and the two rows named above. Stated as
+     an exclusion so a row added later folds by default: leaving a new row
+     showing would put it back over the aim, which is the defect this exists to
+     answer. */
+  .controls.is-collapsed
+    > :not(.controls__collapse):not(#layer-selector):not(#provenance) {
+    display: none;
+  }
+
+  /* The pill is centred in the full width of the panel, so at the narrow end of
+     the band it would run under the button. Reserving the corner on both sides
+     keeps it centred and clear. */
+  #layer-selector {
+    padding: 0 2rem;
+  }
+}
+
+/* A phone held in landscape is the case this control was added for, and it is
+   also a coarse pointer — so the button takes the same 44px the rest of the
+   chrome does under `@media (pointer: coarse)` below, and the corner reserved
+   for it grows to match. Scoped to both conditions: on a mouse the 28px box is
+   already comfortable, and above the height threshold nothing renders at all.
+   The steppers' documented exception does not apply here — this button is in
+   the opposite corner from the scrubber track, so a 44px box reaches nothing. */
+@media (max-height: 720px) and (pointer: coarse) {
+  .controls__collapse {
+    width: 44px;
+    height: 44px;
+    top: 0.1rem;
+    left: 0.2rem;
+  }
+
+  #layer-selector {
+    padding: 0 3rem;
   }
 }
 
