@@ -52,7 +52,10 @@ import {
   suppliedRepeatText,
   type PlateBoundaryExtentContext,
 } from "../lib/plateBoundaryContext";
-import { plateBoundaryPairLabel } from "../lib/plateBoundaryHover";
+import {
+  plateBoundaryDelimiterClause,
+  plateBoundaryPairLabel,
+} from "../lib/plateBoundaryHover";
 import {
   nearestPlateBoundaryStatement,
   type PlateProximityContext,
@@ -694,7 +697,14 @@ export class PlaceInsights {
     for (const boundary of context.matchingBoundaries.slice(0, 5)) {
       const item = document.createElement("li");
       const segmentCount = boundary.matchedSegmentCount;
-      item.textContent = `${plateBoundaryPairLabel(boundary.name)}: ${segmentCount} ${segmentCount === 1 ? "segment" : "segments"} in extent`;
+      // The row prints the PB2002 label verbatim, delimiter and all, so it
+      // reads the delimiter back the way the globe tooltip does. The polarity
+      // paragraph above cannot stand in for this: it names the two or three
+      // descents covering the most matched segments, while this list is
+      // alphabetical by plate-pair label, so a listed row's own descent is
+      // routinely absent from it. Silent for the non-subducting majority.
+      const delimiter = plateBoundaryDelimiterClause(boundary.name);
+      item.textContent = `${plateBoundaryPairLabel(boundary.name)}: ${segmentCount} ${segmentCount === 1 ? "segment" : "segments"} in extent${delimiter}`;
       this.plateRecords.appendChild(item);
     }
     if (count > 5) {
