@@ -56,7 +56,24 @@ export class LayerSelector {
         option.type = "button";
         option.className = "layer-selector__option";
         option.setAttribute("role", "option");
-        option.textContent = LAYERS[id].label;
+        const name = document.createElement("span");
+        name.className = "layer-selector__option-name";
+        name.textContent = LAYERS[id].label;
+        // The layer's caption is its instrument and its qualifier — "not a
+        // monthly mean", "not root zone" — and `.legend__caption` drops it
+        // below 541px wide, where the HUD has no room for it. `title` was the
+        // only other copy, and a touch screen cannot hover, so a phone reader
+        // could not reach it at all. This second line is that same string,
+        // shown at exactly the widths the legend drops it (style.css). It
+        // costs the HUD nothing: the panel is absolutely positioned and
+        // scrolls itself, so the height goes to the dropdown, not the globe.
+        // It stays inside the button rather than moving to aria-describedby so
+        // the qualifier is announced with the choice it qualifies, and so the
+        // visible text and the accessible name stay identical.
+        const description = document.createElement("span");
+        description.className = "layer-selector__option-desc";
+        description.textContent = LAYERS[id].description;
+        option.append(name, description);
         option.title = LAYERS[id].description;
         option.addEventListener("click", () => {
           this.select(id);

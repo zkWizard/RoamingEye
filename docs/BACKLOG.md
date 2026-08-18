@@ -65,73 +65,11 @@ take one directly when no Owner's pick applies to its domain.
       sharper case than the netbook band: there the panel merely covers the
       crosshair, here it occupies three-quarters of the display.
 
-- [ ] **A phone drops the layer's caption, and with it the caveat.** The legend
-      hides `.legend__caption` below 541px wide. The rule's comment gives the
-      reason — "the caption repeats what the scale already shows, so it's the
-      first thing to go" — and that was once true, but the caption is
-      `LAYERS[id].description`, and none of the eleven now restates the scale.
-      They carry the instrument and the qualifier: "clear-sky max-value
-      composite, not a monthly mean", "Surface soil moisture, 0-10 cm (GLDAS
-      Noah) — not root zone", "Near-surface air temperature (MERRA-2
-      reanalysis)". The source note that stays is not a substitute: it names
-      the product ID and the no-data semantics, not how the month was
-      composited. So a phone reader gets the colour bar and the citation while
-      the compositing caveat is silently dropped — the one class of text this
-      app should never drop, and on the widths where a reader is least likely
-      to check twice.
-      Un-hiding it is one line, and the measured cost is why it is filed
-      instead: the panel grows 19px at 390px wide and 34px at 375 and 360,
-      where eight of the eleven captions wrap to two lines. The phone HUD has
-      no such room — `hover-tooltip.spec.ts` at 390px runs about 18px from red
-      on CI, whose text metrics already stack the panel ~35-50px taller than a
-      local Windows run — so the naive fix trades a dropped caveat for a red
-      required check.
-      The candidate this item proposed — pay for the caption by dropping the
-      scale's end labels — has now had its verification pass, and it does not
-      pay. The screen-reader half of it holds: the labels are already spoken
-      by the bar's own accessible name, which `setLayer` builds as "Color
-      scale from lower NDVI (0.000) to higher NDVI (1.000)" in the same call
-      that writes them, so hiding them visually costs assistive technology
-      nothing. What fails is the arithmetic. The ~28px is the height of the
-      wrapped `.legend__measures` line, so it is returned only on the layers
-      whose row was wrapping in the first place, and those are not the
-      expensive ones. Measured across all eleven layers at five phone widths,
-      one boot per width: at 390px, six layers do come out ahead at -9px
-      (both vegetation indices, land surface temperature, soil moisture,
-      aerosols, snow), terrain lands at +7, air temperature, sea surface
-      temperature and precipitation at +19 — they have short measures that
-      never wrapped, so there is nothing to trade — and land cover at +34.
-      Land cover sets the ceiling at every width, +34 below 430px and +19
-      above, because its scale row is hidden entirely, so it has no end
-      labels to give up and its two-line caption is pure addition to a legend
-      already 221px tall. The worst case therefore stays exactly where the
-      naive fix left it, +34 on small phones and +19 at 430 and 540.
-      Two follow-on sources were checked and both are closed. The end labels
-      are load-bearing on terrain specifically: it is the one uncalibrated
-      layer, so `legendTicks` returns null and the numeric axis is hidden,
-      and dropping its ends would leave an unlabelled gradient rather than a
-      redundant one. And `.legend__measures` is not the alternative donor it
-      looks like — it reads close enough to the layer selector's own label to
-      seem like a repetition, but it carries qualifiers that appear in
-      neither the label nor the caption: "(day)" on land surface
-      temperature, "550 nm" on aerosols, "(monthly average)" on snow,
-      "(underground)" on soil moisture. Dropping it would repeat this item's
-      own mistake one line further up. Nor is there spacing left to take: the
-      panel's phone gaps are already tightened to 9.6px against the desktop's
-      13.6px, and the 30px the phone timeline carries over the desktop one is
-      the steppers leaving their absolute corner to sit under the track, so
-      that they do not cover the centred provenance line — the same class of
-      defect #983 fixed, not slack.
-      So this item converges on the decision the two above it already need: a
-      collapsible or compact panel below a size threshold. Three items now
-      wait on that one call, and this is the cheapest of the three to finish
-      once it is made — the fix is a deleted CSS rule.
-
-- [ ] **The call the three items above wait on has been made (#1023): the panel
+- [ ] **The call the two items above wait on has been made (#1023): the panel
       is collapsible below the existing 720px height threshold.** The reader
       folds it; nothing folds on its own, and the fold keeps the layer selector
       and the provenance line, so the product ID and the month survive it. An
-      expanded panel is unchanged in height, which is why none of the three is
+      expanded panel is unchanged in height, which is why neither of the two is
       closed by that PR alone — it shipped the affordance and nothing else.
       What each still needs, now that the mechanism exists:
       the netbook band gets a recoverable view rather than a fixed one, so what
@@ -142,13 +80,39 @@ take one directly when no Owner's pick applies to its domain.
       layout is no longer spent, so the ≤540px bar can now be tried on short
       viewports and re-measured against a folded panel — the nine overlays stay
       unreachable until someone does.
-      The phone caption is untouched and still the cheapest of the three; its
-      +34px worst case should be re-measured against the folded panel, where
-      the legend is not rendered at all.
+      The phone caption, which was the third of these, is closed instead by
+      #NEWPR and did not need the fold: the caveat moved to a surface that is
+      out of flow, so it never spent the height the fold frees.
 
 ## Done
 
 <!-- The shipping PR moves its item here, with the PR number. -->
+
+- [x] **A phone drops the layer's caption, and with it the caveat.** (#NEWPR)
+      Closed by moving the caption rather than by finding it height. The item
+      had converged on "wait for a collapsible panel", and the re-measurement
+      that #1023 asked for confirmed the fold does not reach this case: the
+      fold is `max-height: 720px` and the caption hide is `max-width: 540px`,
+      so a 390x844 portrait phone — the viewport `hover-tooltip.spec.ts`
+      guards — gets the caption dropped and no fold control to pay for it.
+      The height arithmetic re-ran the same way it did before: +19px on nine
+      layers and +34px on the widest two, against 53px of clearance between
+      the panel and the volcano point at 390x844, which CI's taller text
+      metrics (~35-50px) already spend. So the naive un-hide is still red, and
+      `landcover` at that width already covers the point with the caption off.
+      What the item had not questioned was the assumption that the caption must
+      live under the color bar. Its other copy was `option.title` on each
+      dropdown entry, which is the right place and the wrong mechanism: a
+      touch screen cannot hover, so on exactly the widths that drop the caption
+      the `title` is inert. Rendering that same string as a visible second
+      line inside each option costs the HUD nothing — the dropdown panel is
+      `position: absolute` with `max-height: 46vh; overflow-y: auto`, and it is
+      already single-column below 540px, which is the same boundary the legend
+      hides at. So all eleven captions are readable on a phone, in the place a
+      reader is choosing a layer, and the panel over the globe is byte-identical
+      in height — pinned by an assertion that the panel's top is unchanged
+      across opening the dropdown. The legend rule stays, with its comment
+      rewritten from "retire it" to where the caveat went.
 
 - [x] **The keyboard aim named the ground but never the marker on it.**
       (#988) The pointer readout has two modes: `pickMarker` and
