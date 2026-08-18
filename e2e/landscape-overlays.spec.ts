@@ -37,22 +37,35 @@ const LANDSCAPE = [
 /** The count is the assertion: nine is the whole overlay set. */
 const OVERLAY_COUNT = 9;
 
+/* A control is reached when a tap aimed at it lands on it. The point aimed at
+   is the centre of a LINE box rather than the centre of the union box
+   `getBoundingClientRect` returns, because the credits row is inline text that
+   wraps: an <a> that straddles the wrap has a union box spanning from where it
+   starts on one line to where it ends on the next, and the centre of that box
+   is the empty middle of the row — over the HUD panel, which is centred there.
+   CI's wider text metrics wrap that row where local metrics do not, so the
+   union-box form of this test named one link dead at 844x390 and another at
+   932x430 while every glyph of both was tappable on both of its lines. Any line
+   box reaching the element is the honest answer; a control genuinely under the
+   bar has none. The nine toggles are block-level and yield a single rect, so
+   they read exactly as before. */
 const hitTest = (page: import("@playwright/test").Page, selector: string) =>
   page.evaluate((sel) => {
     const out: { label: string; reached: boolean }[] = [];
     for (const el of Array.from(document.querySelectorAll(sel))) {
-      const box = el.getBoundingClientRect();
       const label =
         el.getAttribute("aria-label") ?? el.textContent?.trim() ?? "(unnamed)";
-      if (box.width === 0 || box.height === 0) {
-        out.push({ label, reached: false });
-        continue;
-      }
-      const at = document.elementFromPoint(
-        Math.round(box.left + box.width / 2),
-        Math.round(box.top + box.height / 2)
+      const lines = Array.from(el.getClientRects()).filter(
+        (r) => r.width > 0 && r.height > 0
       );
-      out.push({ label, reached: Boolean(at && el.contains(at)) });
+      const reached = lines.some((line) => {
+        const at = document.elementFromPoint(
+          Math.round(line.left + line.width / 2),
+          Math.round(line.top + line.height / 2)
+        );
+        return Boolean(at && el.contains(at));
+      });
+      out.push({ label, reached });
     }
     return out;
   }, selector);
