@@ -24,6 +24,7 @@ import { awaitAppInteractive } from "./boot";
 
 const SHORT = { width: 1280, height: 620 };
 const LANDSCAPE_PHONE = { width: 844, height: 390 };
+const PORTRAIT_PHONE = { width: 390, height: 844 };
 const ROOMY = { width: 1280, height: 900 };
 
 const centreId = (page: import("@playwright/test").Page) =>
@@ -114,10 +115,11 @@ test("a phone in landscape opens with the middle of the view on the globe", asyn
 });
 
 // The landscape phone is both the case this control exists for and a coarse
-// pointer, so it takes the 44px the rest of the chrome takes. It cannot go in
-// a11y.spec.ts's TOUCH_TARGETS list: that suite runs at 390x844, where this
-// button is deliberately not rendered, and it counts "not rendered" as a
-// failure. So the guarantee is pinned here, at a size where it does render.
+// pointer, so it takes the 44px the rest of the chrome takes. The guarantee is
+// pinned here rather than in a11y.spec.ts's TOUCH_TARGETS list because the
+// reasoning for the size lives with the control — and it is asserted at both
+// orientations, since the two reach the rule through different arms of the
+// query and only a size that holds either way is worth calling a guarantee.
 test.describe("on a phone in landscape", () => {
   test.use({ hasTouch: true, viewport: LANDSCAPE_PHONE });
 
@@ -153,6 +155,95 @@ test.describe("on a phone in landscape", () => {
     expect(geometry.width).toBeGreaterThanOrEqual(44);
     expect(geometry.height).toBeGreaterThanOrEqual(44);
     expect(geometry.clearOfPill).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * A phone held UPRIGHT is 844-932px tall, so it clears the 720px height
+ * threshold the fold was originally scoped to and reads as a roomy viewport.
+ * The panel is a fixed 373px regardless, which is 40.7% of a 412x915 Pixel and
+ * 46.6% of a 360x800 Android, and at 390x844 the centre of the view hit-tests
+ * the legend rather than the globe — so the form factor with the worst ratio
+ * was the only one that could not reach the control that fixes it.
+ *
+ * These tests are about REACHABILITY, not about a new default: the panel still
+ * opens expanded at exactly the height it always did, and the first assertion
+ * below says so. What changed is that the gesture a short window already had
+ * now exists here too.
+ */
+test.describe("on a phone held upright", () => {
+  test.use({ hasTouch: true, viewport: PORTRAIT_PHONE });
+
+  test("the fold is reachable, and folding gives the aim back", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await awaitAppInteractive(page);
+
+    const button = page.locator("#hud-collapse");
+    await expect(button).toBeVisible();
+    // The default is unchanged: nothing folds on its own here, which is what
+    // separates this from the landscape case above.
+    await expect(button).toHaveAttribute("aria-expanded", "true");
+
+    // The citation and the date are read before the fold so the assertion
+    // after is that they SURVIVED it.
+    const provenance = page.locator("#provenance");
+    const cited = (await provenance.textContent())?.trim() ?? "";
+    expect(cited).not.toBe("");
+
+    await button.click();
+
+    await expect(page.locator("#legend")).toBeHidden();
+    await expect(page.locator("#timeline")).toBeHidden();
+    await expect(page.locator("#layer-selector")).toBeVisible();
+    await expect(provenance).toBeVisible();
+    await expect(provenance).toHaveText(cited);
+
+    // The point of the whole exercise: the middle of the screen is the globe.
+    await expect
+      .poll(() => centreId(page), {
+        message: "folding in portrait did not clear the aim point",
+      })
+      .toBe("globe");
+
+    // And it is a fold, not a one-way door.
+    await button.click();
+    await expect(page.locator("#legend")).toBeVisible();
+    await expect(page.locator("#timeline")).toBeVisible();
+  });
+
+  test("the control meets the 44px touch target here too", async ({ page }) => {
+    await page.goto("/");
+    await awaitAppInteractive(page);
+
+    expect(
+      await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
+      "emulation must actually select the coarse-pointer rules"
+    ).toBe(true);
+
+    const box = await page.locator("#hud-collapse").boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+  });
+
+  test("widening past the query takes the control and the fold together", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await awaitAppInteractive(page);
+
+    // The invariant the stylesheet promises, now reached through the width arm
+    // rather than the height one: a reader who folds the panel on a phone and
+    // then lands on a desktop-width viewport must not be left with rows hidden
+    // and no visible control to bring them back.
+    await page.locator("#hud-collapse").click();
+    await expect(page.locator("#legend")).toBeHidden();
+
+    await page.setViewportSize(ROOMY);
+    await expect(page.locator("#hud-collapse")).toBeHidden();
+    await expect(page.locator("#legend")).toBeVisible();
+    await expect(page.locator("#timeline")).toBeVisible();
   });
 });
 
