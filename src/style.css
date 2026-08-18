@@ -283,6 +283,7 @@ body {
  */
 .hint__shortcuts:focus-visible,
 .toolbar__item:focus-visible,
+.controls__collapse:focus-visible,
 .layer-selector__trigger:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
@@ -436,11 +437,16 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    /* Out of flow, so the affordance costs the crowded layout no height. The
-       steppers hold the bottom corner (.timeline__steps), this takes the top. */
+    /* Out of flow, so the affordance costs the crowded layout no height.
+       LEFT, not right: the panel's right margin is the strip the overlay bar
+       reaches into at narrow desktop widths — 66px of overlap at 560px wide —
+       and toolbar-height-continuity.spec.ts exists to say that strip must stay
+       empty. A first draft put the button there and that spec caught it. The
+       left corner is clear of both the bar and the steppers, which hold the
+       bottom right (.timeline__steps). */
     position: absolute;
     top: 0.35rem;
-    right: 0.5rem;
+    left: 0.5rem;
     width: 28px;
     height: 28px;
     padding: 0;
@@ -491,7 +497,7 @@ body {
     width: 44px;
     height: 44px;
     top: 0.1rem;
-    right: 0.2rem;
+    left: 0.2rem;
   }
 
   #layer-selector {

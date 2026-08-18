@@ -131,7 +131,9 @@ test.describe("on a phone in landscape", () => {
         height: Math.round(button.height),
         // The corner the button reserves has to grow with it, or the bigger box
         // lands on the layer selector — the one control the fold always keeps.
-        clearOfPill: Math.round(button.left - pill.right),
+        // The button is in the LEFT corner (the right strip belongs to the
+        // overlay bar), so the gap is measured from the pill's left edge.
+        clearOfPill: Math.round(pill.left - button.right),
       };
     });
 
@@ -159,23 +161,35 @@ test("the fold costs the expanded panel no height, and cannot strand a row", asy
   // expanded panel measures exactly what it did before the affordance existed.
   // This is the assertion that stops the control from pushing the panel back
   // over the aim it was added to uncover.
+  // Growing the window past the threshold takes the button away with it, so the
+  // collapsed state must not outlive the control that undoes it — otherwise a
+  // reader who folds the panel and then maximises is left with rows hidden and
+  // nothing on screen to bring them back.
+  await page.locator("#hud-collapse").click();
+  await expect(page.locator("#legend")).toBeHidden();
+
+  await page.setViewportSize(ROOMY);
+  await expect(page.locator("#hud-collapse")).toBeHidden();
+  await expect(page.locator("#legend")).toBeVisible();
+  await expect(page.locator("#timeline")).toBeVisible();
+
+  // Height neutrality goes last: it injects a stylesheet that cannot be taken
+  // back, and an earlier draft paid for that with a second boot to undo it —
+  // which is the one thing in this spec that ever flaked.
+  // Back to a short window, where the class is live again — and it IS still
+  // set, since the roomy layout overrode it rather than clearing it. Unfold
+  // before measuring, or this would compare a folded panel against itself.
+  await page.setViewportSize(SHORT);
+  await expect(page.locator("#hud-collapse")).toHaveAttribute(
+    "aria-expanded",
+    "false"
+  );
+  await page.locator("#hud-collapse").click();
+  await expect(page.locator("#legend")).toBeVisible();
+
   const withButton = await panelHeight();
   await page.addStyleTag({
     content: `.controls__collapse{display:none !important}#layer-selector{padding:0 !important}`,
   });
   expect(await panelHeight()).toBe(withButton);
-
-  await page.reload();
-  await awaitAppInteractive(page);
-  await page.locator("#hud-collapse").click();
-  await expect(page.locator("#legend")).toBeHidden();
-
-  // Growing the window past the threshold takes the button away with it, so the
-  // collapsed state must not outlive the control that undoes it — otherwise a
-  // reader who folds the panel and then maximises is left with rows hidden and
-  // nothing on screen to bring them back.
-  await page.setViewportSize(ROOMY);
-  await expect(page.locator("#hud-collapse")).toBeHidden();
-  await expect(page.locator("#legend")).toBeVisible();
-  await expect(page.locator("#timeline")).toBeVisible();
 });
