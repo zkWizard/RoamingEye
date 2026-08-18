@@ -535,6 +535,7 @@ export class ProbePanel {
       .join(" · ");
     this.setStatus(stat);
     this.appendPeakGreenness(stat, physical);
+    this.appendPrecipitationCycle(stat, physical);
   }
 
   /**
@@ -622,6 +623,45 @@ export class ProbePanel {
           );
         }
       )
+      .catch(() => {
+        // A failed chunk load must leave the stats already on screen intact.
+      });
+  }
+
+  /**
+   * Append the precipitation calendar clause: which calendar month of the
+   * probed record holds the most water on average, which the least, and the
+   * depth between the two. The stats above summarize the record as a whole and
+   * say nothing seasonal — worse, the trend beside them is deliberately
+   * seasonally corrected, so it removes exactly this signal — while a monsoonal
+   * site and an evenly-watered one with the same mean print identically today.
+   *
+   * Loaded on demand for the same reason the greenness clause is: the cycle
+   * pulls in per-calendar-month bucketing and the accumulation integrator, and
+   * the status line already fills in progressively. A newer series invalidates
+   * an in-flight load.
+   *
+   * This cannot race the greenness append: that clause is NDVI-only and this
+   * one precipitation-only, so at most one of the two ever rebuilds the line
+   * from `stat`.
+   */
+  private appendPrecipitationCycle(
+    stat: string,
+    physical: (number | null)[]
+  ): void {
+    const context = this.context;
+    if (!context) return;
+    const months = this.months;
+    const token = this.seriesToken;
+    void import("../lib/probePrecipitationCycle")
+      .then(({ precipitationCycleClause, probePrecipitationCycle }) => {
+        if (token !== this.seriesToken) return; // superseded by a newer probe
+        const clause = precipitationCycleClause(
+          probePrecipitationCycle(context.layerId, months, physical)
+        );
+        if (!clause) return;
+        this.setStatus(`${stat} · ${clause}`);
+      })
       .catch(() => {
         // A failed chunk load must leave the stats already on screen intact.
       });
