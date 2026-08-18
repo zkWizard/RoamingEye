@@ -64,6 +64,7 @@ import { vegetationChartedRecordNote } from "./lib/vegetationChartedRecord";
 import { gldasAveragedSupportNote } from "./lib/gldasAveragedSupport";
 import { gldasChartedRecordNote } from "./lib/gldasChartedRecord";
 import { airTemperatureAveragedSupportNote } from "./lib/airTemperatureAveragedSupport";
+import { airTemperatureChartedRecordNote } from "./lib/airTemperatureChartedRecord";
 import { snowAveragedSupportNote } from "./lib/snowAveragedSupport";
 import { snowChartedRecordNote } from "./lib/snowChartedRecord";
 import { emptyMarineProbeNote } from "./lib/marineProbeDomain";
@@ -1358,14 +1359,26 @@ if (probeEl) {
         // Unlike snow's undrawn pixels, all at the low end, the discarded set
         // here can hold the box's coldest and hottest cells at once, so the
         // clause refuses a cool reading and a warm one alike rather than
-        // damping a swing. No charted-record companion: emptyAtmosphereProbeNote
-        // already owns the empty record for this layer with the same refusal.
-        const airtempSupportNote = airTemperatureAveragedSupportNote(
-          layer.id,
-          "sampled-area",
-          values,
-          mode === "area" ? validFractions : null
-        );
+        // damping a swing.
+        // And the same question along the OTHER axis, which no air-temperature
+        // mode stated: those two open caps drop whole MONTHS out of the series
+        // too, so the statistics beside the chart cover the charted months
+        // alone — and because both discarded ends are physically reachable
+        // monthly means, unlike GLDAS's nonphysical sub-zero fill, the record
+        // is bracketed inward from both sides: the maximum need not be its
+        // warmest month nor the minimum its coldest. `emptyAtmosphereProbeNote`
+        // owns only the WHOLLY empty record, so the partial one had no clause
+        // here at all. The share clause above already names the mechanism for
+        // an averaged footprint, so this defers to it and speaks for the point
+        // probe, which passes no shares. Same composition as the three pairs
+        // above.
+        const airtempSupportNote =
+          airTemperatureAveragedSupportNote(
+            layer.id,
+            "sampled-area",
+            values,
+            mode === "area" ? validFractions : null
+          ) ?? airTemperatureChartedRecordNote(layer.id, values);
         // An area value is a mean of per-pixel decodes and a point value a
         // median, so only the area footprint carries censoring the end-cap
         // screen cannot see. Shared by the status line and the export.
@@ -1707,12 +1720,16 @@ if (probeEl) {
         // clause for the same reason a sampled one does: the rendered ramp is
         // closed at both ends, so the share the mean covers is not a share of
         // the box, and its remainder is evidence in neither direction.
-        const airtempSupportNote = airTemperatureAveragedSupportNote(
-          layer.id,
-          "drawn-region",
-          values,
-          validFractions
-        );
+        // And the temporal companion, as on the point/area path: the same two
+        // caps drop whole months out of the charted series, and a drawn region
+        // whose share clause is silent still charts a partial record.
+        const airtempSupportNote =
+          airTemperatureAveragedSupportNote(
+            layer.id,
+            "drawn-region",
+            values,
+            validFractions
+          ) ?? airTemperatureChartedRecordNote(layer.id, values);
         // The physical series the file writes, not the 0..1 gradient positions
         // held here. Shared by the status line and the export.
         const physical = values.map((v) =>
@@ -2055,10 +2072,34 @@ if (hudCollapseEl && controlsEl) {
     // deliberately avoid.
   };
 
-  applyCollapsed(false);
+  // Everywhere the reader has room, the panel opens with every row showing and
+  // nothing folds on its own — that is the whole of the decision above. The one
+  // exception is the height at which the panel stops fitting the window at all:
+  // expanded it measures 266px against a viewport of 360 to 430px, so a phone
+  // held in landscape does not merely lose the middle of the view, it pushes
+  // the panel's own top off the screen — to -33px at 740x360 and -18px at
+  // 667x375, which takes this very button with it and leaves no way back.
+  // A default that cannot be reversed is not an offer, so below that height the
+  // panel opens folded and the button is on screen to open it. Folding keeps
+  // the layer selector and the provenance line, so the product ID and the month
+  // are still rendered in the default state and no citation is behind a
+  // gesture. This is the same media query the bottom app bar takes over at,
+  // shared deliberately: the bar is what reserves the space the panel is short
+  // of, so the two belong to one layout rather than to two thresholds.
+  const SHORT_VIEWPORT = "(max-height: 460px)";
+  const shortViewport = window.matchMedia?.(SHORT_VIEWPORT);
+  applyCollapsed(shortViewport?.matches ?? false);
   hudCollapseEl.addEventListener("click", () =>
     applyCollapsed(!controlsEl.classList.contains("is-collapsed"))
   );
+  // Rotating a phone into landscape is the same event as booting into it, and
+  // it arrives at a panel that is already off the top of the screen. Only the
+  // crossing INTO the short viewport folds: coming back out leaves the reader's
+  // own choice alone, and above 720px the roomy layout ignores the state
+  // anyway, so nothing has to be undone here.
+  shortViewport?.addEventListener("change", (event) => {
+    if (event.matches) applyCollapsed(true);
+  });
 }
 
 if (providersPageEl && providersLinkEl) {

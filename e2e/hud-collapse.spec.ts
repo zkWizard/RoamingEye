@@ -80,19 +80,32 @@ test("folding the panel keeps the layer, the product ID and the month", async ({
   await expect(page.locator("#timeline")).toBeVisible();
 });
 
-test("a phone in landscape can give the middle of the view back to the globe", async ({
+test("a phone in landscape opens with the middle of the view on the globe", async ({
   page,
 }) => {
   await page.setViewportSize(LANDSCAPE_PHONE);
   await page.goto("/");
   await awaitAppInteractive(page);
 
-  // The defect, stated as a measurement: at this size the panel is most of the
-  // screen and the aim point is inside it.
-  expect(await centreId(page)).not.toBe("globe");
+  // This test used to state the defect as a measurement — at this size the
+  // panel was most of the screen and the aim point was inside it — and then
+  // fold it away by hand. The fold is now the default here rather than the
+  // remedy: expanded, the panel's own top is off the screen at the shorter
+  // landscape sizes, which takes the control that would fold it, so a default
+  // that cannot be reversed is not an offer. See landscape-overlays.spec.ts,
+  // which owns the layout that decision belongs to.
+  expect(await centreId(page)).toBe("globe");
+
+  // What is asserted here is the round trip: the reader can still have every
+  // row, and can still put them away again.
+  await page.locator("#hud-collapse").click();
+  await expect
+    .poll(() => centreId(page), {
+      message: "unfolding in landscape did not bring the panel back",
+    })
+    .not.toBe("globe");
 
   await page.locator("#hud-collapse").click();
-
   await expect
     .poll(() => centreId(page), {
       message: "the folded panel still covers the aim point in landscape",
