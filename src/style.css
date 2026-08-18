@@ -426,8 +426,26 @@ body {
   .overlay--bottom {
     padding-bottom: 1rem;
   }
+}
 
-  /* The spacing above is spent, so the rest of the panel's height can only come
+/* The width arm is why this is a separate query from the spacing above. A phone
+   in portrait is 844-932px tall, so it clears the height threshold and reads as
+   a roomy viewport — but the panel is a fixed 373px against 800-915px, which is
+   40.7% of a Pixel and 46.6% of a 360x800 Android, and the aim sits inside it:
+   at 390x844 the centre of the viewport hit-tests the legend, not the globe.
+   The proportion is what the height threshold cannot see, and it gets worse as
+   the phone gets smaller, so the one form factor that most needs the fold was
+   the only one that could not reach it — the button was display:none there and
+   the collapsed state was inert.
+   Only the fold moves. The spacing trim stays height-only, so the panel opens
+   at exactly the height it does today and nothing folds on its own; what a
+   narrow viewport gains is the same gesture a short one already had. Keeping
+   both the button and the collapsed state in this one query preserves the
+   invariant the note below names: the two arms enter and leave together, so a
+   viewport that grows out of the query restores every row and takes the control
+   away in the same breath. */
+@media (max-height: 720px), (max-width: 540px) {
+  /* The spacing is spent, so the rest of the panel's height can only come
      out of content — which is a call about what a reader may put away, not a
      number to tune. It is theirs to make: the panel keeps every row it has ever
      had and gains a way to fold the two tall ones out of the view.
@@ -499,8 +517,14 @@ body {
    for it grows to match. Scoped to both conditions: on a mouse the 28px box is
    already comfortable, and above the height threshold nothing renders at all.
    The steppers' documented exception does not apply here — this button is in
-   the opposite corner from the scrubber track, so a 44px box reaches nothing. */
-@media (max-height: 720px) and (pointer: coarse) {
+   the opposite corner from the scrubber track, so a 44px box reaches nothing.
+   The width arm carries the same pairing for a phone held upright: it is the
+   same coarse pointer and the same thumb, so the box it gets is the same 44px.
+   Both arms are repeated with the pointer condition because `and` binds tighter
+   than the comma — a bare `(max-width: 540px)` here would hand the 44px box to
+   a narrow mouse window, which the 28px default already fits. */
+@media (max-height: 720px) and (pointer: coarse),
+  (max-width: 540px) and (pointer: coarse) {
   .controls__collapse {
     width: 44px;
     height: 44px;
