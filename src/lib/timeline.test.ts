@@ -164,12 +164,15 @@ describe("monthRangeForLayer", () => {
 
   it("respects a layer's own latest month", () => {
     // MERRA-2 trails the MODIS composites, so airtemp's record must stop at
-    // its own pin. Both the end and the length are read off that pin.
+    // its own pin. Both the end and the length are read off that pin — the
+    // length net of the months MERRA-2 never distributed, which are dropped
+    // from the enumerated record (asserted in full below).
     const end = LAYERS.airtemp.latest!;
+    const gaps = LAYERS.airtemp.unpublished?.length ?? 0;
     const range = monthRangeForLayer(LAYERS.airtemp); // 1980-01 → end
     expect(range[0]).toEqual({ year: 1980, month: 1 });
     expect(range[range.length - 1]).toEqual(end);
-    expect(range.length).toBe((end.year - 1980) * 12 + end.month);
+    expect(range.length).toBe((end.year - 1980) * 12 + end.month - gaps);
   });
 
   it("is consecutive for a layer with no declared distribution gaps", () => {
@@ -200,7 +203,11 @@ describe("MOD13A3 distribution gap (NDVI/EVI, April 2025)", () => {
     const alsoDeclaring = Object.values(LAYERS)
       .filter((layer) => layer.unpublished?.length)
       .filter((layer) => layer.id !== "ndvi" && layer.id !== "evi");
-    expect(alsoDeclaring.map((layer) => layer.id)).toEqual(["sst", "snow"]);
+    expect(alsoDeclaring.map((layer) => layer.id)).toEqual([
+      "airtemp",
+      "sst",
+      "snow",
+    ]);
     for (const layer of alsoDeclaring) {
       expect(isUnpublished(layer, GAP)).toBe(false);
     }
@@ -452,6 +459,71 @@ describe("MOD10CM distribution gaps (monthly snow cover)", () => {
   });
 });
 
+describe("MERRA-2 distribution gaps (2 m air temperature)", () => {
+  // GIBS advertises this layer's time dimension as three disjoint ranges —
+  // 1980-01/2023-11, 2024-02/2024-04 and 2024-06/2026-05 — so three months
+  // inside the record were never distributed and their tiles 404.
+  //
+  // A reanalysis cannot have an observational hole: MERRA-2 assimilates to a
+  // value for every cell of every month, and the sibling MERRA-2 layer this
+  // app renders (aerosol) advertises the identical 1980-01/2026-05 span as a
+  // single contiguous range. These months are distribution artifacts, not air.
+  const GAPS = [
+    { year: 2023, month: 12 },
+    { year: 2024, month: 1 },
+    { year: 2024, month: 5 },
+  ];
+  const airtempLatest = LAYERS.airtemp.latest ?? DATA_LATEST;
+
+  it("declares exactly the three months GIBS omits, in order", () => {
+    expect(LAYERS.airtemp.unpublished).toEqual(GAPS);
+  });
+
+  it("reports every gap as unavailable but interior to the record", () => {
+    for (const gap of GAPS) {
+      expect(isUnpublished(LAYERS.airtemp, gap)).toBe(true);
+      expect(isAvailable(LAYERS.airtemp, gap)).toBe(false);
+      expect(compareYm(gap, LAYERS.airtemp.start)).toBeGreaterThan(0);
+      expect(compareYm(gap, airtempLatest)).toBeLessThan(0);
+    }
+  });
+
+  it("keeps the published month on each side of every gap available", () => {
+    // 2023-12 and 2024-01 are consecutive, so a neighbour may itself be a
+    // gap; every neighbour that is not one must serve.
+    const isGap = (ym: { year: number; month: number }) =>
+      GAPS.some((gap) => ymEqual(gap, ym));
+    for (const gap of GAPS) {
+      for (const side of [-1, 1]) {
+        const neighbour = addMonths(gap, side);
+        if (isGap(neighbour)) continue;
+        expect(isAvailable(LAYERS.airtemp, neighbour)).toBe(true);
+      }
+    }
+  });
+
+  it("drops the gaps from the enumerated record and nothing else", () => {
+    const range = monthRangeForLayer(LAYERS.airtemp);
+    for (const gap of GAPS) {
+      expect(range.some((ym) => ymEqual(ym, gap))).toBe(false);
+    }
+    expect(range[0]).toEqual({ year: 1980, month: 1 });
+    expect(range[range.length - 1]).toEqual(airtempLatest);
+    const span = ymToIndex(airtempLatest) - ymToIndex(LAYERS.airtemp.start) + 1;
+    expect(range.length).toBe(span - GAPS.length);
+  });
+
+  it("leaves the sibling MERRA-2 layer's contiguous record intact", () => {
+    // Aerosol comes off the same reanalysis and spans the same months, but
+    // GIBS distributes it without a break — so it must lose nothing here.
+    expect(LAYERS.aerosol.unpublished).toBeUndefined();
+    for (const gap of GAPS) {
+      expect(isUnpublished(LAYERS.aerosol, gap)).toBe(false);
+      expect(isAvailable(LAYERS.aerosol, gap)).toBe(true);
+    }
+  });
+});
+
 describe("annual cadence (land cover)", () => {
   it("builds one January entry per year, oldest → newest", () => {
     const range = monthRangeForLayer(LAYERS.landcover); // 2001 → 2024, P1Y
@@ -495,10 +567,15 @@ describe("nearestMonthIndex", () => {
   });
 
   it("is exact for consecutive monthly ranges", () => {
-    const range = monthRangeForLayer(LAYERS.airtemp);
-    expect(nearestMonthIndex(range, { year: 1980, month: 1 })).toBe(0);
-    expect(nearestMonthIndex(range, { year: 1985, month: 7 })).toBe(
-      ymToIndex({ year: 1985, month: 7 }) - ymToIndex({ year: 1980, month: 1 })
+    // Was asserted on airtemp, whose record is not in fact contiguous: GIBS
+    // advertises MERRA-2 2 m air temperature as three disjoint ranges. lst
+    // declares no gaps, so it is the honest fixture for the consecutive case.
+    expect(LAYERS.lst.unpublished).toBeUndefined();
+    const start = LAYERS.lst.start;
+    const range = monthRangeForLayer(LAYERS.lst);
+    expect(nearestMonthIndex(range, start)).toBe(0);
+    expect(nearestMonthIndex(range, { year: 2005, month: 7 })).toBe(
+      ymToIndex({ year: 2005, month: 7 }) - ymToIndex(start)
     );
   });
 });
