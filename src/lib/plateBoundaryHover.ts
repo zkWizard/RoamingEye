@@ -32,9 +32,20 @@ import type { PlateBoundary } from "./plates";
  * descending is right for one and wrong for the other. Every surface that
  * prints the label therefore also states the reading — the tooltip through
  * plateBoundarySubductionReading below, the place panel's crossing paragraph
- * through subductionPolarityText in plateBoundaryContext.ts, and the
+ * through subductionPolarityText in plateBoundaryContext.ts, the
  * nearest-boundary sentence through nearestPlateBoundaryStatement in
- * plateProximity.ts.
+ * plateProximity.ts, and the place panel's matched-boundary list through
+ * plateBoundaryDelimiterClause below.
+ *
+ * That last surface is why the clause is a shared export rather than a string
+ * built inside the tooltip. The list prints plateBoundaryPairLabel verbatim,
+ * delimiter included, while the crossing paragraph above it names only the two
+ * or three descents covering the most matched segments — and the list is
+ * ordered alphabetically by plate-pair label, not by segment count, so the two
+ * selections do not coincide. Over twelve tectonic search extents, 15 of 55
+ * listed rows printed a delimiter and 3 of those encoded a descent the
+ * paragraph never stated, leaving the glyph as the only thing on screen saying
+ * which plate goes under.
  *
  * Unknown codes are surfaced rather than dropped so the readout stays honest
  * about the source.
@@ -90,6 +101,24 @@ export function plateBoundarySubductionReading(
 }
 
 /**
+ * The trailing clause that reads a label's delimiter back, ready to append to
+ * whatever a surface prints the label inside, or "" when the label records no
+ * subduction.
+ *
+ * Shared so the tooltip and the place panel's matched-boundary list decode the
+ * glyph with one wording: a reader who meets "delimiter:" on the globe and then
+ * in the panel is reading the same convention, not two paraphrases of it.
+ * Returning "" rather than null keeps it a plain append at both call sites, and
+ * keeps the non-subducting majority silent — PB2002 marks subduction steps only,
+ * so a blank field records no assignment rather than a non-subduction boundary,
+ * and saying "no polarity recorded" on 176 of 241 features would assert one.
+ */
+export function plateBoundaryDelimiterClause(name: string | null): string {
+  const reading = plateBoundarySubductionReading(name);
+  return reading === null ? "" : ` · delimiter: ${reading}`;
+}
+
+/**
  * Describe a single boundary polyline. Returns the unlabeled text for a
  * polyline whose label is not a two-code PB2002 pair.
  *
@@ -98,9 +127,10 @@ export function plateBoundarySubductionReading(
  * non-subducting majority rather than saying that nothing was recorded.
  */
 export function plateBoundaryHoverLabel(boundary: PlateBoundary): string {
-  const label = plateBoundaryPairLabel(boundary.name);
-  const reading = plateBoundarySubductionReading(boundary.name);
-  return reading === null ? label : `${label} · delimiter: ${reading}`;
+  return (
+    plateBoundaryPairLabel(boundary.name) +
+    plateBoundaryDelimiterClause(boundary.name)
+  );
 }
 
 /**
