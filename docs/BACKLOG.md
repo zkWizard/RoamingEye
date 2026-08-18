@@ -81,14 +81,14 @@ take one directly when no Owner's pick applies to its domain.
       viewports and re-measured against a folded panel — the nine overlays stay
       unreachable until someone does.
       The phone caption, which was the third of these, is closed instead by
-      #NEWPR and did not need the fold: the caveat moved to a surface that is
+      #1025 and did not need the fold: the caveat moved to a surface that is
       out of flow, so it never spent the height the fold frees.
 
 ## Done
 
 <!-- The shipping PR moves its item here, with the PR number. -->
 
-- [x] **A phone drops the layer's caption, and with it the caveat.** (#NEWPR)
+- [x] **A phone drops the layer's caption, and with it the caveat.** (#1025)
       Closed by moving the caption rather than by finding it height. The item
       had converged on "wait for a collapsible panel", and the re-measurement
       that #1023 asked for confirmed the fold does not reach this case: the
