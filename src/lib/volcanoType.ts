@@ -140,12 +140,24 @@ export function volcanoTypeCompositionText(
       ? ""
       : ` ${summary.recordsWithoutType} matched ` +
         `${records(summary.recordsWithoutType)} supplied no landform label.`;
+  // Agreement here runs off two different counts: the noun names the tallied
+  // set, the verbs name the folded subset inside it. Reading both off the
+  // folded count printed "1 of the tallied record carry ... and are counted".
+  // Neither singular is an edge case — 223 of the 1196 bundled records carry a
+  // marker, so a small extent routinely folds exactly one, and that one is
+  // often the extent's only tallied record.
+  const talliedCount = summary.totalCount - summary.recordsWithoutType;
+  const oneFolded = summary.foldedRecordCount === 1;
   const folded =
     summary.foldedRecordCount === 0
       ? ""
-      : ` ${summary.foldedRecordCount} of the tallied ` +
-        `${records(summary.foldedRecordCount)} carry GVP's multiplicity or ` +
-        `uncertainty marker and are counted under the base landform.`;
+      : talliedCount === 1
+        ? " The single tallied record carries GVP's multiplicity or " +
+          "uncertainty marker and is counted under the base landform."
+        : ` ${summary.foldedRecordCount} of the tallied records ` +
+          `${oneFolded ? "carries" : "carry"} GVP's multiplicity or ` +
+          `uncertainty marker and ${oneFolded ? "is" : "are"} counted under ` +
+          `the base landform.`;
   // A single landform has no order to describe.
   const order = summary.tallies.length === 1 ? "" : ", ordered by count";
 

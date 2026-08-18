@@ -247,6 +247,24 @@ describe("volcanoTypeCompositionText", () => {
     );
   });
 
+  it("agrees the folded clause when exactly one tallied record is folded", () => {
+    const text = volcanoTypeCompositionText(
+      types(["Shield(s)", "Caldera", "Maar"])
+    );
+    expect(text).toContain(
+      "1 of the tallied records carries GVP's multiplicity or uncertainty marker and is counted under the base landform."
+    );
+    expect(text).not.toContain("tallied record carry");
+  });
+
+  it("names the lone tallied record rather than counting it against itself", () => {
+    const text = volcanoTypeCompositionText(types(["Stratovolcano?"]));
+    expect(text).toContain(
+      "The single tallied record carries GVP's multiplicity or uncertainty marker and is counted under the base landform."
+    );
+    expect(text).not.toContain("1 of the tallied");
+  });
+
   it("reports records that supplied no landform label", () => {
     const text = volcanoTypeCompositionText(types(["Shield", null]));
     expect(text).toContain("1 matched record supplied no landform label");
