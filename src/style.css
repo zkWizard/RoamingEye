@@ -280,11 +280,19 @@ body {
  * accent ring: same ring, same offsets as everywhere else, and consistent
  * rather than UA-dependent. Outlines don't participate in layout, so the HUD
  * stack is untouched.
+ *
+ * The retry button is in this list for a reason worth writing down: it renders
+ * only when imagery fails (issue #88), so it is absent from the tab order on
+ * every healthy run and its missing ring surfaced as an intermittent failure of
+ * the keyboard-stop walk rather than a standing one. A control that is usually
+ * hidden is still a keyboard stop when it appears, and that is exactly when the
+ * reader is recovering from an error and least able to lose the cursor.
  */
 .hint__shortcuts:focus-visible,
 .toolbar__item:focus-visible,
 .controls__collapse:focus-visible,
-.layer-selector__trigger:focus-visible {
+.layer-selector__trigger:focus-visible,
+.status-retry:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
