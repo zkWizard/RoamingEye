@@ -2072,10 +2072,34 @@ if (hudCollapseEl && controlsEl) {
     // deliberately avoid.
   };
 
-  applyCollapsed(false);
+  // Everywhere the reader has room, the panel opens with every row showing and
+  // nothing folds on its own — that is the whole of the decision above. The one
+  // exception is the height at which the panel stops fitting the window at all:
+  // expanded it measures 266px against a viewport of 360 to 430px, so a phone
+  // held in landscape does not merely lose the middle of the view, it pushes
+  // the panel's own top off the screen — to -33px at 740x360 and -18px at
+  // 667x375, which takes this very button with it and leaves no way back.
+  // A default that cannot be reversed is not an offer, so below that height the
+  // panel opens folded and the button is on screen to open it. Folding keeps
+  // the layer selector and the provenance line, so the product ID and the month
+  // are still rendered in the default state and no citation is behind a
+  // gesture. This is the same media query the bottom app bar takes over at,
+  // shared deliberately: the bar is what reserves the space the panel is short
+  // of, so the two belong to one layout rather than to two thresholds.
+  const SHORT_VIEWPORT = "(max-height: 460px)";
+  const shortViewport = window.matchMedia?.(SHORT_VIEWPORT);
+  applyCollapsed(shortViewport?.matches ?? false);
   hudCollapseEl.addEventListener("click", () =>
     applyCollapsed(!controlsEl.classList.contains("is-collapsed"))
   );
+  // Rotating a phone into landscape is the same event as booting into it, and
+  // it arrives at a panel that is already off the top of the screen. Only the
+  // crossing INTO the short viewport folds: coming back out leaves the reader's
+  // own choice alone, and above 720px the roomy layout ignores the state
+  // anyway, so nothing has to be undone here.
+  shortViewport?.addEventListener("change", (event) => {
+    if (event.matches) applyCollapsed(true);
+  });
 }
 
 if (providersPageEl && providersLinkEl) {

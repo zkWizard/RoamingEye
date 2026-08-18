@@ -37,34 +37,6 @@ take one directly when no Owner's pick applies to its domain.
       the globe's rendered centre upward (which issue #93 argues against).
       A design decision rather than a tweak, which is why #980 stopped here
       instead of guessing at one.
-- [ ] **A phone held in landscape reaches none of the nine map overlays.** The
-      overlay bar is a vertical column capped at `calc(100vh - 400px)`, so that
-      centring it always clears the top-right buttons. A toggle stands 60.6px,
-      so the column shows its first one only above 460px of height — and a
-      phone in landscape is 360–430px tall. The cap resolves to 0px at 390,
-      375 and 360, and to 30px at 430, leaving a 15px sliver of bar with the
-      "more items this way" fade still on it. A hit test at 844x390, 932x430,
-      740x360 and 667x375 reached 0 of 9 toggles at every one. Nothing else on
-      screen substitutes: the layer selector in the HUD chooses the base data
-      layer, while borders, cities, earthquakes, volcanoes, plate boundaries,
-      the graticule, the atmosphere, HD tiles and "my location" are on this bar
-      alone — so the set is unreachable rather than merely cramped, and
-      landscape is the orientation a globe invites.
-      The obvious fix is to trigger the existing ≤540px bottom-bar layout on
-      short viewports as well as narrow ones, and it does restore 9 of 9 at all
-      four sizes with every viewport at/above 501px tall left byte-identical.
-      What stops it is the vertical budget: the HUD panel measures 266px at
-      768px wide and up, 281px below that, against a 360–430px viewport — 62%
-      to 78% of the screen — so the 3.6rem the bottom overlay reserves for the
-      bar pushes the panel's own top off the screen, to `-23px` at 740x360 and
-      `-8px` at 667x375, landing the layer selector under the search box, and
-      burying four header controls at 932x430. That trades one unreachable
-      control set for another, which is why this is filed rather than shipped.
-      It closes with the same decision the item above needs — a collapsible or
-      compact panel below a height threshold — for which landscape phones are a
-      sharper case than the netbook band: there the panel merely covers the
-      crosshair, here it occupies three-quarters of the display.
-
 - [ ] **The call the two items above wait on has been made (#1023): the panel
       is collapsible below the existing 720px height threshold.** The reader
       folds it; nothing folds on its own, and the fold keeps the layer selector
@@ -74,12 +46,12 @@ take one directly when no Owner's pick applies to its domain.
       What each still needs, now that the mechanism exists:
       the netbook band gets a recoverable view rather than a fixed one, so what
       is left there is whether the panel should also open folded below some
-      height, which is a second decision and a smaller one.
-      Landscape phones are unblocked in the way the item asked for: with the
-      panel folded the vertical budget that stopped the bottom-bar toolbar
-      layout is no longer spent, so the ≤540px bar can now be tried on short
-      viewports and re-measured against a folded panel — the nine overlays stay
-      unreachable until someone does.
+      height, which is a second decision and a smaller one. Landscape phones
+      have since answered it for their own case only: the panel opens folded
+      below 460px, where expanded it does not fit the window at all. The netbook
+      band is not that case — at 1024x600 the panel fits and merely covers the
+      crosshair — so the question there is still open, and it is now a question
+      about a reader's default rather than about whether the mechanism exists.
       The phone caption, which was the third of these, is closed instead by
       #1025 and did not need the fold: the caveat moved to a surface that is
       out of flow, so it never spent the height the fold frees.
@@ -87,6 +59,33 @@ take one directly when no Owner's pick applies to its domain.
 ## Done
 
 <!-- The shipping PR moves its item here, with the PR number. -->
+
+- [x] **A phone held in landscape reached none of the nine map overlays.**
+      (#1027) Closed by keying the bottom-bar layout on height as well as
+      width, which is the fix the item itself named, and by paying the vertical
+      budget that had stopped it. The overlay column is capped so centring
+      always clears the top-right buttons, and a toggle stands 60.6px, so the
+      column shows its first one only above 460px: at 844x390, 932x430, 740x360
+      and 667x375 a hit test reached 0 of 9, against a 15px sliver of bar still
+      wearing its "more items this way" fade. With the bar across the bottom it
+      is 9 of 9 at all four, and the row's scroll width is inside its client
+      width, so none of them needs a sideways swipe either.
+      What the item filed as the blocker was the panel: 266px against a
+      360-430px viewport, whose top went to -33px at 740x360 and -18px at
+      667x375 once the bar took its 3.6rem. #1023's fold is what pays for it,
+      and the second decision that item left open is made here in the narrowest
+      form it can be — the panel opens folded below the same 460px the bar takes
+      over at, and nowhere else. The reason it is defensible is what the fold
+      keeps: the layer selector and the provenance line, so the product ID and
+      the month are rendered in the default state and no citation sits behind a
+      gesture. Panel tops are now 228, 268, 182 and 197px, the fold control is
+      on screen at each, and the centre of the view hit-tests to the globe.
+      Rotating into landscape is treated as the same event as booting into it,
+      since it arrives at the same off-screen panel; rotating back out leaves
+      the reader's own choice alone. The 461px arm on the column rules is what
+      keeps the two layouts exclusive: 1024x600 and every taller viewport is
+      byte-identical, which e2e/landscape-overlays.spec.ts pins alongside the
+      four landscape sizes.
 
 - [x] **A phone drops the layer's caption, and with it the caveat.** (#1025)
       Closed by moving the caption rather than by finding it height. The item
