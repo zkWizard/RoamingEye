@@ -63,6 +63,7 @@ import { vegetationAveragedSupportNote } from "./lib/vegetationAveragedSupport";
 import { vegetationChartedRecordNote } from "./lib/vegetationChartedRecord";
 import { gldasAveragedSupportNote } from "./lib/gldasAveragedSupport";
 import { gldasChartedRecordNote } from "./lib/gldasChartedRecord";
+import { airTemperatureAveragedSupportNote } from "./lib/airTemperatureAveragedSupport";
 import { snowAveragedSupportNote } from "./lib/snowAveragedSupport";
 import { snowChartedRecordNote } from "./lib/snowChartedRecord";
 import { emptyMarineProbeNote } from "./lib/marineProbeDomain";
@@ -1348,6 +1349,22 @@ if (probeEl) {
             values,
             mode === "area" ? validFractions : null
           ) ?? gldasChartedRecordNote(layer.id, values);
+        // And air temperature, the last averaged layer charting a bare mean.
+        // Nothing is missing by domain here — MERRA-2 spans land and ocean —
+        // but its ramp is closed at BOTH ends and both open catch-alls are
+        // dropped by the inversion, so a box holding polar-winter or
+        // desert-summer cells averages the rest and reads as a mean of the box.
+        // Unlike snow's undrawn pixels, all at the low end, the discarded set
+        // here can hold the box's coldest and hottest cells at once, so the
+        // clause refuses a cool reading and a warm one alike rather than
+        // damping a swing. No charted-record companion: emptyAtmosphereProbeNote
+        // already owns the empty record for this layer with the same refusal.
+        const airtempSupportNote = airTemperatureAveragedSupportNote(
+          layer.id,
+          "sampled-area",
+          values,
+          mode === "area" ? validFractions : null
+        );
         // An area value is a mean of per-pixel decodes and a point value a
         // median, so only the area footprint carries censoring the end-cap
         // screen cannot see. Shared by the status line and the export.
@@ -1534,7 +1551,8 @@ if (probeEl) {
           sstSupportNote ??
             vegetationSupportNote ??
             snowSupportNote ??
-            gldasSupportNote,
+            gldasSupportNote ??
+            airtempSupportNote,
           // Area mode charts a weighted mean of per-pixel decodes; point mode
           // charts a median, which the SST end-cap screen already catches.
           averagedFootprint
@@ -1684,6 +1702,16 @@ if (probeEl) {
             values,
             validFractions
           ) ?? gldasChartedRecordNote(layer.id, values);
+        // And air temperature — see the point/area path. A drawn box gets the
+        // clause for the same reason a sampled one does: the rendered ramp is
+        // closed at both ends, so the share the mean covers is not a share of
+        // the box, and its remainder is evidence in neither direction.
+        const airtempSupportNote = airTemperatureAveragedSupportNote(
+          layer.id,
+          "drawn-region",
+          values,
+          validFractions
+        );
         // The physical series the file writes, not the 0..1 gradient positions
         // held here. Shared by the status line and the export.
         const physical = values.map((v) =>
@@ -1862,7 +1890,8 @@ if (probeEl) {
           [sstSupportNote, sstNativeNote].filter(Boolean).join(" · ") ||
             vegetationSupportNote ||
             snowSupportNote ||
-            gldasSupportNote,
+            gldasSupportNote ||
+            airtempSupportNote,
           // Every drawn-region value is a weighted mean of per-pixel decodes.
           "drawn-region"
         );
