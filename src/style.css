@@ -2467,11 +2467,12 @@ body {
 }
 
 /* --- Small-phone layout (issue #24) -------------------------------------------
-   At ≤540px the vertical right-side toolbar becomes a horizontal, scrollable
-   bottom app bar (thumb-reachable, and it can no longer overlap the controls
-   panel), the bottom overlay shifts up to make room, the brand shrinks so the
-   search box fits beside it, and the keyboard hint line (meaningless on
-   touch) disappears. */
+   At ≤540px the brand shrinks so the search box fits beside it, the keyboard
+   hint line (meaningless on touch) disappears, and the panel and probe tighten.
+   The bar itself moved to the block below, which a short viewport now shares:
+   turning the right-hand column into a bottom app bar is thumb-reachable at
+   this width, but at a landscape height it is the only way the toggles are
+   reachable at all. */
 @media (max-width: 540px) {
   .brand {
     font-size: 1.15rem;
@@ -2484,7 +2485,30 @@ body {
   .search {
     width: min(320px, 62vw);
   }
+}
 
+/* The bar, and the room the bottom overlay gives it, belong to two cases rather
+   than to the narrow one alone. A phone held in landscape is 360-430px tall,
+   and the column layout below needs 460px before its first toggle clears the
+   top-right buttons the cap reserves: it resolves to 0px of column at 390, 375
+   and 360 and to 30px at 430, leaving a sliver of bar still wearing its
+   "more items this way" fade. A hit test across all nine toggles at 844x390,
+   932x430, 740x360 and 667x375 reached none of them. Nothing else on screen
+   substitutes — borders, cities, earthquakes, volcanoes, plate boundaries, the
+   graticule, the atmosphere, HD tiles and "my location" are on this bar alone —
+   so the set was unreachable rather than merely cramped, in the orientation a
+   globe invites.
+   Keyed on height as well as width, the bar runs across the bottom at those
+   sizes and all nine are hit-testable, with the row's scroll width already
+   inside its client width so none of them needs a sideways swipe either.
+   The column rules further down carry the matching `min-height`, which is what
+   keeps the two layouts exclusive instead of letting the later one win. The
+   number is arithmetic rather than taste: a toggle stands 60.6px, so 460px is
+   where the centred column stops showing even one, and it sits clear of the
+   1024x600 netbook that e2e/toolbar-height-continuity.spec.ts holds at exactly
+   the column it has today.
+   e2e/landscape-overlays.spec.ts hit-tests all nine at the four sizes above. */
+@media (max-width: 540px), (max-height: 460px) {
   .toolbar {
     top: auto;
     bottom: 0;
@@ -2561,7 +2585,9 @@ body {
     position: relative;
     bottom: calc(var(--toolbar-height, 3.6rem) - 3.6rem);
   }
+}
 
+@media (max-width: 540px) {
   .controls {
     gap: 0.6rem;
     padding: 0.7rem 0.8rem 0.8rem;
@@ -2976,7 +3002,7 @@ body {
    The fade lives here rather than in the short-window rule because both
    scrolling column layouts need it; the phone bottom bar supplies its own,
    running across instead of down. */
-@media (min-width: 541px) {
+@media (min-width: 541px) and (min-height: 461px) {
   .toolbar {
     max-height: calc(100vh - 400px);
     overflow-y: auto;
@@ -3027,7 +3053,7 @@ body {
    e2e/toolbar-height-continuity.spec.ts pins both halves: no step at the
    breakpoint, and every control in the HUD panel still owns its own centre at
    the widths where the boxes overlap. */
-@media (min-width: 541px) and (max-height: 820px) {
+@media (min-width: 541px) and (min-height: 461px) and (max-height: 820px) {
   .toolbar {
     top: 200px;
     bottom: auto;
@@ -3065,7 +3091,7 @@ body {
    cannot do the centring is better off keeping the centred cap it has.
    e2e/toolbar-height-continuity.spec.ts holds the band at both ends. */
 @supports (height: fit-content) {
-  @media (min-width: 1100px) {
+  @media (min-width: 1100px) and (min-height: 461px) {
     .toolbar {
       top: 200px;
       bottom: 80px;
