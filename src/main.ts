@@ -60,6 +60,7 @@ import { marineAveragedSstCensoringCsvHeaders } from "./lib/marineAveragedSstCen
 import { averagedSstSupportNote } from "./lib/marineAveragedSstSupport";
 import { sstNativeSupportNote } from "./lib/sstNativeSupport";
 import { vegetationAveragedSupportNote } from "./lib/vegetationAveragedSupport";
+import { vegetationChartedRecordNote } from "./lib/vegetationChartedRecord";
 import { gldasAveragedSupportNote } from "./lib/gldasAveragedSupport";
 import { gldasChartedRecordNote } from "./lib/gldasChartedRecord";
 import { snowAveragedSupportNote } from "./lib/snowAveragedSupport";
@@ -1288,12 +1289,23 @@ if (probeEl) {
         // are their lowest-index ones rather than a domain boundary — so the
         // share qualifies the direction of the mean, not just its extent.
         // Both layers pass through the same gate: no shares, no clause.
-        const vegetationSupportNote = vegetationAveragedSupportNote(
-          layer.id,
-          "sampled-area",
-          values,
-          mode === "area" ? validFractions : null
-        );
+        // And the same question along the OTHER axis, which no vegetation mode
+        // stated: that transparent below-ramp band drops whole MONTHS out of
+        // the series too, so the statistics beside the chart cover the drawn
+        // months alone — and because the surfaces it excludes are the
+        // lowest-index ones, the mean reads high and the min is the lowest
+        // drawn value rather than the record's. The share clause above already
+        // names the mechanism for an averaged footprint, so this defers to it
+        // and speaks for the point probe, which passes no shares and so had no
+        // clause in any partial case at all. Same composition as the snow and
+        // GLDAS pairs below.
+        const vegetationSupportNote =
+          vegetationAveragedSupportNote(
+            layer.id,
+            "sampled-area",
+            values,
+            mode === "area" ? validFractions : null
+          ) ?? vegetationChartedRecordNote(layer.id, values);
         // And once more for snow, where the undrawn pixels are the percent-0
         // ones GIBS leaves transparent — so an area mean is the mean where
         // snow was drawn, and the undrawn share moves with the melt season
@@ -1630,12 +1642,18 @@ if (probeEl) {
         // its lowest-index ones, which the CSV's per-month share records but
         // the panel did not. The place panel already states this for a single
         // month; the series surface did not.
-        const vegetationSupportNote = vegetationAveragedSupportNote(
-          layer.id,
-          "drawn-region",
-          values,
-          validFractions
-        );
+        // And the same other axis here. A drawn region always supplies shares,
+        // so the clause above usually speaks — but it reads shares only from
+        // months that charted, so a box whose drawn months each covered it
+        // fully still reports nothing about the months that dropped out
+        // entirely. This covers exactly that case and defers otherwise.
+        const vegetationSupportNote =
+          vegetationAveragedSupportNote(
+            layer.id,
+            "drawn-region",
+            values,
+            validFractions
+          ) ?? vegetationChartedRecordNote(layer.id, values);
         // And the same for snow: GIBS leaves percent 0 transparent, so a box's
         // snow-free ground is rejected rather than averaged in as 0% — the
         // charted mean covers the drawn patches only, and the share it covers
