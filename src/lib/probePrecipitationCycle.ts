@@ -3,6 +3,10 @@ import {
   type PrecipitationAnnualCycle,
 } from "./precipitationAnnualCycle";
 import { SECONDS_PER_DAY } from "./precipitationAccumulation";
+import {
+  describePrecipitationSeasonalTimingSeries,
+  type PrecipitationSeasonalTimingSeries,
+} from "./precipitationSeasonalTimingSeries";
 import type { MonthlyClimateObservation } from "./climate";
 import { MONTH_NAMES, type LayerId, type YearMonth } from "./timeline";
 
@@ -17,6 +21,16 @@ import { MONTH_NAMES, type LayerId, type YearMonth } from "./timeline";
  * and the trend is explicitly seasonally corrected, so it removes exactly the
  * signal this states. `precipitationAnnualCycle.ts` already derives that cycle,
  * audited and tested; nothing had ever called it.
+ *
+ * The cycle names the wettest and driest calendar months, which answers *which*
+ * month is the peak but not *how much of the year's water that peak actually
+ * carries*: a place with a 40 mm spread between a gentle wettest and driest
+ * month reads the same shape as a monsoon that lands almost everything in one
+ * season, and a place with two rainy seasons has a wettest month that hides the
+ * second one entirely. `precipitationSeasonalTimingSeries.ts` closes that gap
+ * with the Markham circular resultant length R, which is a whole-distribution
+ * measure rather than a two-month difference, so it is stated beside the cycle
+ * as part of the same reading.
  *
  * Scope is deliberately narrow, for three separate reasons:
  *
@@ -35,33 +49,37 @@ import { MONTH_NAMES, type LayerId, type YearMonth } from "./timeline";
  *  - Description, never diagnosis. A mean annual cycle is not a wet-season
  *    onset date, monsoon index, drought signal, runoff, water-balance closure,
  *    anomaly against an external baseline, attribution, or forecast, and the
- *    wording infers none of them.
+ *    wording infers none of them. R measures only how the observed water is
+ *    distributed around the calendar; it classifies nothing.
  */
 
 /** The probe layer whose sampled values are GLDAS precipitation. */
 const PRECIP_PROBE_LAYER = "precip";
 
 /**
- * Summarize the mean annual precipitation cycle from a probe series, or null
- * when the layer is not precipitation or the series carries no months.
+ * Convert a probe series into published-frontier-tagged climate observations,
+ * or null when the layer is not precipitation or the series carries no months.
  *
  * `values` are the probe's PHYSICAL series in mm/day — the units the panel and
  * the CSV report — while `MonthlyClimateObservation` is defined in the metric's
  * native `kg/m²/s`, so each value is divided back by {@link SECONDS_PER_DAY}
- * before it is handed over. The cycle module then re-integrates it over the
- * month's own calendar length, which is why an mm/day rate can become a monthly
- * depth without the 28-vs-31-day error a fixed month length would introduce.
+ * before it is handed over. Consumers then re-integrate it over each month's own
+ * calendar length, which is why an mm/day rate can become a monthly depth
+ * without the 28-vs-31-day error a fixed month length would introduce.
  *
  * `availableThrough` is the LATEST month the probe actually supplied. The probe
  * requests only months the layer publishes, so the series' own last month is a
  * safe publication frontier: it can never admit a month the product has not
  * released, and every earlier sampled month stays eligible.
  */
-export function probePrecipitationCycle(
+function probePrecipitationObservations(
   layerId: LayerId | undefined,
   months: readonly YearMonth[],
   values: readonly (number | null)[]
-): PrecipitationAnnualCycle | null {
+): {
+  observations: MonthlyClimateObservation[];
+  availableThrough: YearMonth;
+} | null {
   if (layerId !== PRECIP_PROBE_LAYER) return null;
 
   const observations: MonthlyClimateObservation[] = [];
@@ -86,7 +104,42 @@ export function probePrecipitationCycle(
   }
   if (availableThrough === null) return null;
 
-  return describePrecipitationAnnualCycle(observations, availableThrough);
+  return { observations, availableThrough };
+}
+
+/**
+ * Summarize the mean annual precipitation cycle from a probe series, or null
+ * when the layer is not precipitation or the series carries no months.
+ */
+export function probePrecipitationCycle(
+  layerId: LayerId | undefined,
+  months: readonly YearMonth[],
+  values: readonly (number | null)[]
+): PrecipitationAnnualCycle | null {
+  const prepared = probePrecipitationObservations(layerId, months, values);
+  if (!prepared) return null;
+  return describePrecipitationAnnualCycle(
+    prepared.observations,
+    prepared.availableThrough
+  );
+}
+
+/**
+ * Pool the Markham seasonal-timing vectors of every complete calendar year in a
+ * probe series, or null when the layer is not precipitation, the series carries
+ * no months, or too few whole years survive the aggregator's guards.
+ */
+export function probePrecipitationSeasonalTiming(
+  layerId: LayerId | undefined,
+  months: readonly YearMonth[],
+  values: readonly (number | null)[]
+): PrecipitationSeasonalTimingSeries | null {
+  const prepared = probePrecipitationObservations(layerId, months, values);
+  if (!prepared) return null;
+  return describePrecipitationSeasonalTimingSeries(
+    prepared.observations,
+    prepared.availableThrough
+  );
 }
 
 /**
@@ -109,9 +162,19 @@ export function probePrecipitationCycle(
  * here rather than decorative: these are means over the years the probe happened
  * to sample, not the WMO 30-year normal a reader may assume a "mean annual
  * cycle" to be, and a short record shifts with the years it contains.
+ *
+ * `timing` extends the same reading rather than opening a second one. It is
+ * appended only when the pooled vector actually defines a centroid month; a
+ * record whose water is spread evenly enough to leave the direction undefined
+ * says nothing rather than naming a spurious month. R is printed immediately
+ * BEFORE that month precisely so it qualifies it: no threshold is invented to
+ * sort places into "seasonal" and "not", because the literature fixes no such
+ * boundary — the number carries its own strength, and the complete-year count
+ * states how much record stands behind it.
  */
 export function precipitationCycleClause(
-  cycle: PrecipitationAnnualCycle | null
+  cycle: PrecipitationAnnualCycle | null,
+  timing: PrecipitationSeasonalTimingSeries | null = null
 ): string | null {
   if (!cycle) return null;
   if (cycle.status !== "available") return null;
@@ -130,7 +193,25 @@ export function precipitationCycleClause(
     `mean annual cycle: wettest ${wet} ${formatDepth(wettestMonth.meanMm)}, ` +
     `driest ${dry} ${formatDepth(driestMonth.meanMm)} ` +
     `(range ${formatDepth(amplitudeMm)}; ≥${years} yr per calendar month, ` +
-    `means not a climate normal)`
+    `means not a climate normal)` +
+    seasonalTimingSuffix(timing)
+  );
+}
+
+/**
+ * The pooled-timing tail of the cycle clause, or "" when no centroid is defined.
+ * Kept as a suffix of the one reading so the panel never grows a second
+ * precipitation sentence.
+ */
+function seasonalTimingSuffix(
+  timing: PrecipitationSeasonalTimingSeries | null
+): string {
+  if (!timing) return "";
+  const month = timing.centroidMonthName;
+  if (!month) return "";
+  return (
+    `, timing concentration R ${timing.concentration.toFixed(2)} of 1 ` +
+    `centred on ${month} (Markham, ${timing.yearsUsed} complete yr)`
   );
 }
 

@@ -654,14 +654,21 @@ export class ProbePanel {
     const months = this.months;
     const token = this.seriesToken;
     void import("../lib/probePrecipitationCycle")
-      .then(({ precipitationCycleClause, probePrecipitationCycle }) => {
-        if (token !== this.seriesToken) return; // superseded by a newer probe
-        const clause = precipitationCycleClause(
-          probePrecipitationCycle(context.layerId, months, physical)
-        );
-        if (!clause) return;
-        this.setStatus(`${stat} · ${clause}`);
-      })
+      .then(
+        ({
+          precipitationCycleClause,
+          probePrecipitationCycle,
+          probePrecipitationSeasonalTiming,
+        }) => {
+          if (token !== this.seriesToken) return; // superseded by a newer probe
+          const clause = precipitationCycleClause(
+            probePrecipitationCycle(context.layerId, months, physical),
+            probePrecipitationSeasonalTiming(context.layerId, months, physical)
+          );
+          if (!clause) return;
+          this.setStatus(`${stat} · ${clause}`);
+        }
+      )
       .catch(() => {
         // A failed chunk load must leave the stats already on screen intact.
       });
