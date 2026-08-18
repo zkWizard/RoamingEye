@@ -1756,6 +1756,19 @@ body {
   font-size: 0.8rem;
   line-height: 1.6;
   color: var(--muted);
+  /* Dataset short names are single unbreakable tokens — underscores are not
+     break opportunities — and the longest, MODIS_AQUA_L3_SST_THERMAL_MONTHLY_
+     9KM_DAYTIME_V2019.0, lays out 388px wide. That is wider than this list
+     gets on a phone, and .providers__body scrolls horizontally whether it
+     means to or not: overflow-y: auto computes overflow-x to auto, so one
+     over-wide line makes a sideways scroller of the whole citation list.
+     Focusing the link then dragged everything right by 72px at 390px and
+     clipped the left edge of every other line — the list bullets and the
+     first characters of the paragraph above went off-screen. Breaking the
+     token inside the column keeps the ID whole on one screen. Last resort
+     only, so it fires on this token and leaves ordinary prose alone; above
+     540px nothing overflows and the list is byte-identical either way. */
+  overflow-wrap: break-word;
 }
 
 .providers__datasets a {
