@@ -578,6 +578,18 @@ body {
   cursor: pointer;
 }
 
+/* The layer's caption, shown inside the option it belongs to. Hidden here
+   because above 540px `.legend__caption` is on screen and this would be a
+   second copy of the same sentence; the phone query below turns it on at
+   exactly the widths the legend drops it. */
+.layer-selector__option-desc {
+  display: none;
+  margin-top: 0.15rem;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
 .layer-selector__option:hover {
   background: var(--control-bg);
 }
@@ -588,9 +600,23 @@ body {
   font-weight: 600;
 }
 
+/* --muted is tuned for the panel background and disappears on the accent fill,
+   so the selected option's caption follows the option's own color instead. */
+.layer-selector__option[aria-selected="true"] .layer-selector__option-desc {
+  color: inherit;
+  font-weight: 400;
+}
+
 @media (max-width: 540px) {
   .layer-selector__panel {
     grid-template-columns: 1fr;
+  }
+
+  /* One column already, and the panel is out of flow with its own scroll, so
+     the caption costs the HUD no height here — which is the whole reason it
+     lives in the dropdown on a phone rather than under the color bar. */
+  .layer-selector__option-desc {
+    display: block;
   }
 }
 
@@ -1225,15 +1251,17 @@ body {
   .toolbar__label {
     font-size: 0.6rem;
   }
-  /* Keep the panel compact on small phones. This was written when the caption
-     restated the scale, which made it the cheapest thing to drop; it now holds
-     the layer's instrument and qualifier ("not a monthly mean", "not root
-     zone"), so what this saves is a caveat rather than a repetition. It stays
-     only because the height has nowhere to come from yet: the end labels that
-     looked like the donor were measured and do not cover it, and the two other
-     places worth taking it from carry qualifiers of their own — see the phone
-     caption item in docs/BACKLOG.md for the per-layer arithmetic and what has
-     been ruled out. Don't re-justify this rule; retire it. */
+  /* Keep the panel compact on small phones. The height this saves is real and
+     still unaffordable: showing the caption here adds 19px on nine layers and
+     34px on the widest two, against 53px of clearance between the panel and
+     the aim at 390x844 — and CI's text metrics stack the panel some 35-50px
+     taller than a local run, so the naive un-hide lands the default layer on
+     top of the point hover-tooltip.spec.ts asserts is globe.
+     What has changed is what the rule costs: the caption is no longer dropped,
+     only moved. Every layer's caption now renders as the second line of its
+     own option in the layer dropdown at these same widths — out of flow, with
+     its own scroll, so it costs this panel nothing. Keep the two boundaries
+     equal: whatever width hides the caption here must show it there. */
   .legend__caption {
     display: none;
   }
