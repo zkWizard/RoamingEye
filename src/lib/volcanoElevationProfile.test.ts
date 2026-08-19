@@ -253,9 +253,20 @@ describe("summitDatumText", () => {
   it("reads a wholly submarine set without implying any land summit", () => {
     const text = summitDatumText(counts(0, 0, 4));
     expect(text).toBe(
-      "Of the 4 reported summit elevations, 4 below sea level (submarine summits)."
+      "All 4 reported summit elevations are below sea level (submarine summits)."
     );
     expect(text).not.toContain("above sea level");
+  });
+
+  it("states uniformity instead of splitting a set into itself", () => {
+    // "Of the 4 …, 4 …" reports a split with no other side, and repeats a total
+    // the preceding panel sentence already gave.
+    for (const text of [
+      summitDatumText(counts(0, 0, 4)),
+      summitDatumText(counts(0, 3, 0)),
+    ]) {
+      expect(text).not.toContain("Of the");
+    }
   });
 
   it("names the datum outright when no earlier clause introduces it", () => {
@@ -284,9 +295,20 @@ describe("summitDatumText", () => {
     );
   });
 
-  it("agrees singular for a single reported summit", () => {
+  it("names a lone reported summit rather than counting it", () => {
+    // A single record has no uniformity to report, so it is named — the
+    // treatment crustalThicknessBasisText already gives its own lone record.
     expect(summitDatumText(counts(0, 0, 1))).toBe(
-      "Of the 1 reported summit elevation, 1 below sea level (submarine summit)."
+      "The one reported summit elevation is below sea level (submarine summit)."
+    );
+    expect(summitDatumText(counts(0, 1, 0))).toBe(
+      "The one reported summit elevation is at the 0 m datum."
+    );
+  });
+
+  it("keeps the split wording once a second datum band is present", () => {
+    expect(summitDatumText(counts(1, 0, 1))).toBe(
+      "Of the 2 reported summit elevations, 1 above sea level and 1 below it (submarine summit)."
     );
   });
 
