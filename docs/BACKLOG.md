@@ -91,7 +91,7 @@ take one directly when no Owner's pick applies to its domain.
       one the netbook band and the upright phone are already waiting on — and
       note that the netbook itself is no longer an instance of it, since
       1024x600 is inside the 720px band where the probe now top-anchors.
-      _The control half is closed (#PRNUM): above 720px of height the probe
+      _The control half is closed (#1049): above 720px of height the probe
       top-anchors between 541 and 880px of width, so the layer selector is
       reachable at every width that measured blocked, and the panel clears
       by 26-187px. Above 780px of height it costs nothing, because the
