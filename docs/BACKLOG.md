@@ -72,6 +72,26 @@ take one directly when no Owner's pick applies to its domain.
       fold default is HUD-trap territory, so whoever takes it owes a full
       local e2e run.
 
+- [ ] **An open probe still covers a stretch of the legend on a TALL window
+      wider than a phone.** Found while measuring the short-window collision,
+      and left open for the same reason the two questions above are: it is a
+      decision about a reader's default, not a missing mechanism. Above 720px
+      of height the probe keeps its centred position, and above 540px of width
+      no fold control is rendered at all — by the design the style.css note
+      calls "the two arms enter and leave together" — so the panel cannot fold
+      and folding it anyway would strand the reader with no way back. Measured
+      on main with a probe open at 900px of height, the probe overlapped the
+      panel by 227px at 560px of width, 215px at 640, 116px at 700, 105px at
+      820, 91px at 900 and 96px at 1280. What it covers is the colour ramp
+      rather than a control, with one exception: between 541px and about 880px
+      of width the layer selector is covered too (the probe's chart canvas at
+      560-640px, the probe itself at 820px), and there the reader cannot change
+      the layer without dismissing the probe. That narrow band may deserve
+      closing on its own terms. The wider question of the legend is the same
+      one the netbook band and the upright phone are already waiting on — and
+      note that the netbook itself is no longer an instance of it, since
+      1024x600 is inside the 720px band where the probe now top-anchors.
+
 ## Done
 
 <!-- The shipping PR moves its item here, with the PR number. -->
