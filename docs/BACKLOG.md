@@ -55,6 +55,22 @@ take one directly when no Owner's pick applies to its domain.
       The phone caption, which was the third of these, is closed instead by
       #1025 and did not need the fold: the caveat moved to a surface that is
       out of flow, so it never spent the height the fold frees.
+- [ ] **Should the panel also open folded on a phone held upright?** The
+      question above has been asked twice about viewports that are SHORT. The
+      case it has never covered is narrow and TALL, and there the outcome
+      inverts: the bigger the phone, the smaller the globe. Measured on the
+      live site at 390x844, the panel opens expanded at a top of 347px and
+      stands 373px — 44.2% of the window — and the viewport centre hit-tests
+      the legend rather than the globe, so the aim has to move 80px up to
+      reach it. Neither existing rule fires: the spacing trim of #980 is gated
+      at 720px of height and the auto-fold of #1027 at 460px, and every modern
+      phone in portrait is 844-932px tall, clearing both. This is a decision
+      about a reader's default rather than a missing mechanism — #1023 shipped
+      the fold and #1039 already folds on the way into a probe — which is why
+      it is filed here rather than guessed at. Same shape as the netbook-band
+      question above, and worth answering alongside it. Changing a boot-time
+      fold default is HUD-trap territory, so whoever takes it owes a full
+      local e2e run.
 
 ## Done
 
