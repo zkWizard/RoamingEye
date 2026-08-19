@@ -8,6 +8,7 @@ import {
   soilMoistureDepthText,
 } from "./soilMoistureDepth";
 import { LAYERS } from "./timeline";
+import { LEGENDS } from "./legend";
 import { CLIMATE_METRICS } from "./climate";
 import { PROBE_SCALES } from "./probe";
 
@@ -34,7 +35,7 @@ describe("soil-moisture sampling depth", () => {
 });
 
 describe("every soil surface cites the same depth", () => {
-  // The depth reaches users through four independent strings. A reader who
+  // The depth reaches users through five independent strings. A reader who
   // sees one without the depth — or with a different one — cannot tell which
   // GLDAS column the kg/m² value integrates.
   it("labels the probe scale (and therefore the CSV value header)", () => {
@@ -52,11 +53,30 @@ describe("every soil surface cites the same depth", () => {
     // literal. This is the pin that keeps that literal honest.
     expect(LAYERS.soil.description).toContain(SOIL_MOISTURE_DEPTH_LABEL);
   });
+
+  it("states the depth on the legend's own measures line", () => {
+    // The fourth string, and the one #733 missed: `Legend.setLayer` paints
+    // LEGENDS[id].measures and LAYERS[id].description into the SAME panel, so
+    // a measures line that omitted the depth sat directly above a caption
+    // saying "not root zone" — the panel contradicting itself about which
+    // GLDAS column the scale below it reads.
+    expect(LEGENDS.soil.measures).toContain(SOIL_MOISTURE_DEPTH_LABEL);
+  });
+
+  it("stops echoing the GIBS identifier's own word for the column", () => {
+    // GIBS names the layer GLDAS_Underground_Soil_Moisture_Monthly. "Under-
+    // ground" spans every Noah column from 0-10 cm to 0-200 cm, so it is the
+    // vaguer half of the same mislabel: true of the rendered layer and of the
+    // root zone alike, which is exactly the distinction the depth exists to
+    // draw. The identifier stays in wmsLayer, where it addresses tiles.
+    expect(LEGENDS.soil.measures).not.toMatch(/underground/i);
+  });
 });
 
 describe("the retired root-zone claim does not come back", () => {
   const shipped = [
     "src/lib/timeline.ts",
+    "src/lib/legend.ts",
     "src/lib/climate.ts",
     "src/lib/probe.ts",
     "src/lib/soilMoistureChange.ts",

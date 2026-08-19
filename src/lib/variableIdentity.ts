@@ -1,4 +1,5 @@
 import { LAYERS, LAYER_ORDER } from "./timeline";
+import { LEGENDS } from "./legend";
 import { HIRES_LAYER } from "./imagery";
 
 /**
@@ -12,13 +13,18 @@ import { HIRES_LAYER } from "./imagery";
  * authoritative statement of the rendered variable is the layer's own
  * `<ows:Title>` in the GIBS WMTS capabilities, which nothing in this repo read.
  *
- * That gap is not hypothetical. `GLDAS_Underground_Soil_Moisture_Monthly` is
- * described here as root-zone soil moisture; GIBS's title says "Soil Moisture
- * (Monthly, 0-10 cm, Noah LSM, GLDAS)" — a different Noah variable holding
- * roughly an order of magnitude less water. Every existing guard passed,
- * because every existing guard checks that an identifier still EXISTS
- * (contract/gibs-catalog) or that its dataset mapping still holds
- * (contract/data-citations), never what quantity it IS.
+ * That gap is not hypothetical, and it recurred once inside this very module.
+ * `GLDAS_Underground_Soil_Moisture_Monthly` was described here as root-zone
+ * soil moisture; GIBS's title says "Soil Moisture (Monthly, 0-10 cm, Noah LSM,
+ * GLDAS)" — a different Noah variable holding roughly an order of magnitude
+ * less water. Every existing guard passed, because every existing guard checks
+ * that an identifier still EXISTS (contract/gibs-catalog) or that its dataset
+ * mapping still holds (contract/data-citations), never what quantity it IS.
+ * #733 then corrected the caption but not the legend's `measures` line, which
+ * kept echoing the identifier's own word — "Soil moisture (underground)" — in
+ * the same panel as a caption reading "not root zone", because this audit read
+ * only the caption. Hence `ourCopy` below spans every rendered statement: a
+ * guard that reads one surface certifies one surface.
  *
  * So: pin each rendered layer's advertised title, parse the qualifiers that
  * change what the number means (measurement depth or height, wavelength, grid
@@ -286,7 +292,13 @@ export interface RenderedLayerIdentity {
   wmsLayer: string;
   /** GIBS's `<ows:Title>` (pinned above). */
   gibsTitle: string;
-  /** Our own user-facing copy for the same layer: label plus description. */
+  /**
+   * Every statement the app makes about this layer's variable, concatenated:
+   * the selector label, the caption, and the legend's own `measures` line.
+   * All three are rendered — `Legend.setLayer` paints the measures line and the
+   * caption into the same panel — so a qualifier stated in any of them is
+   * stated to the reader, and one missing from all three is missing.
+   */
   ourCopy: string;
 }
 
@@ -295,13 +307,20 @@ export interface RenderedLayerIdentity {
  * Built from LAYER_ORDER plus the high-res study patch, so a layer added to the
  * catalog without a pinned title is a missing entry the tests catch rather than
  * a silent omission.
+ *
+ * `ourCopy` spans all three rendered statements rather than the caption alone.
+ * Reading only the caption made this audit wrong in both directions: it flagged
+ * the aerosol band as unstated when the legend states it, and — the expensive
+ * half — it never read the legend's `measures` line at all, which is how that
+ * line went on calling the 0-10 cm GLDAS layer "underground" for the whole time
+ * the caption beside it said "not root zone".
  */
 export function renderedLayerIdentities(): RenderedLayerIdentity[] {
   const entries = [
     ...LAYER_ORDER.map((id) => ({
       id: id as string,
       wmsLayer: LAYERS[id].wmsLayer,
-      ourCopy: `${LAYERS[id].label} ${LAYERS[id].description}`,
+      ourCopy: `${LAYERS[id].label} ${LAYERS[id].description} ${LEGENDS[id].measures}`,
     })),
     {
       id: HIRES_LAYER.id as string,
@@ -339,21 +358,28 @@ export function unstatedQualifiers(
 }
 
 /**
- * The identity gaps measured across the catalog on 2026-08-11, layer id to the
- * reason each is still open. This is a committed measurement in the same spirit
- * as MEASURED_INVERSION: the unit test asserts the live catalog's gaps are a
+ * The identity gaps measured across the catalog, layer id to the reason each is
+ * still open. This is a committed measurement in the same spirit as
+ * MEASURED_INVERSION: the unit test asserts the live catalog's gaps are a
  * SUBSET of this list, so closing one of these never breaks CI while a NEW
  * mislabel — the next `soil` — fails immediately, naming the layer and the
  * qualifier our copy dropped.
+ *
+ * A subset assertion makes every entry here a standing *permission*, which is
+ * why a closed gap has to be deleted rather than left as history: for as long
+ * as `soil` sat in this list, the caption #733 had already fixed was free to
+ * regress to "root-zone" with CI green. Re-measured 2026-08-19 against all
+ * three rendered statements (label, caption, legend `measures`): two of the
+ * original three are closed, and the remaining one is narrower than it was.
  */
 export const UNSTATED_IDENTITY_GAPS: Record<string, string> = {
-  // GIBS: "0-10 cm"; our copy says root-zone, a different Noah variable.
-  // Being corrected in the soil-moisture depth work (#733).
-  soil: "depth: source says 0-10 cm, our copy says root-zone",
-  // GIBS: "Day, ... 9 km". Daytime-only sampling and the 9 km native bin are
-  // both material to a coastal or diurnal reading, and neither is in our copy.
-  sst: "observationTime + resolution: daytime-only overpass, 9 km native grid",
-  // GIBS: "550nm". Aerosol optical thickness is wavelength-dependent — an AOD
-  // with no band stated is not a complete quantity.
-  aerosol: "wavelength: optical thickness is defined at 550 nm",
+  // GIBS: "Day, ... 9 km". The daytime-only overpass IS stated ("Daytime
+  // clear-sky ocean surface temperature"); the 9 km native bin is not, and it
+  // is material to a coastal reading — the bin straddles the shoreline.
+  sst: "resolution: the 9 km native grid bin is unstated in our copy",
+  // Closed and deliberately removed, not commented out — see above:
+  //   soil    #733 corrected the caption, and the legend measures line now
+  //           states "0-10 cm" instead of the identifier's "underground".
+  //   aerosol the legend states "Aerosol optical thickness (550 nm)"; the gap
+  //           was an artefact of this audit reading only the caption.
 };
