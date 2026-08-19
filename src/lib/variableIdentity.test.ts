@@ -10,6 +10,7 @@ import {
   variableQualifiers,
 } from "./variableIdentity";
 import { LAYERS, LAYER_ORDER } from "./timeline";
+import { LEGENDS } from "./legend";
 import { HIRES_LAYER } from "./imagery";
 
 describe("variableQualifiers", () => {
@@ -183,13 +184,18 @@ describe("catalog identity coverage", () => {
 
 describe("UNSTATED_IDENTITY_GAPS", () => {
   /**
-   * The committed measurement (2026-08-11): three layers describe their
-   * variable less completely than GIBS does. Asserting a SUBSET rather than an
-   * equality means closing one of these never breaks CI — the owning
-   * specialist just fixes the copy — while a NEW mislabel fails here at once,
-   * naming the layer and the qualifier that went missing. That is the guard
-   * the soil-moisture depth error (#733) got past: nothing checked what
-   * quantity an identifier IS, only that it still existed.
+   * The committed measurement, re-taken 2026-08-19 across all three rendered
+   * statements: ONE layer now describes its variable less completely than GIBS
+   * does. Asserting a SUBSET rather than an equality means closing a gap never
+   * breaks CI — the owning specialist just fixes the copy — while a NEW
+   * mislabel fails here at once, naming the layer and the qualifier that went
+   * missing. That is the guard the soil-moisture depth error (#733) got past:
+   * nothing checked what quantity an identifier IS, only that it still existed.
+   *
+   * The corollary the subset direction carries: a gap that closes must be
+   * DELETED from the list, because every surviving entry is a live permission
+   * to omit. `soil` outlived its own fix here, which is how the legend's
+   * measures line kept saying "underground" with CI green.
    */
   it("reports no identity gap outside the known, documented set", () => {
     const found = renderedLayerIdentities()
@@ -204,6 +210,47 @@ describe("UNSTATED_IDENTITY_GAPS", () => {
       "a layer's user-facing copy dropped a qualifier its GIBS title states — " +
         "either state it, or add it to UNSTATED_IDENTITY_GAPS with a reason"
     ).toEqual([]);
+  });
+
+  it("reads every rendered statement, not the caption alone", () => {
+    // `Legend.setLayer` paints LEGENDS[id].measures and LAYERS[id].description
+    // into one panel, so both are copy the reader sees. Auditing only the
+    // caption made this report wrong in both directions at once — a false
+    // positive on aerosol, whose band the legend states, and a blind spot over
+    // the measures line itself, which is where the soil mislabel outlived the
+    // caption fix.
+    const soil = renderedLayerIdentities().find((i) => i.id === "soil");
+    expect(soil?.ourCopy).toContain(LEGENDS.soil.measures);
+    expect(soil?.ourCopy).toContain(LAYERS.soil.description);
+
+    const aerosol = renderedLayerIdentities().find((i) => i.id === "aerosol");
+    expect(aerosol?.ourCopy).toContain(LEGENDS.aerosol.measures);
+  });
+
+  it("has no open gap on the two layers whose copy now states the qualifier", () => {
+    // These are the closures that let their entries be deleted above. Asserting
+    // them here is what makes the deletion a tightening rather than a loss: the
+    // subset test turns a regression into a failure, and this names the layer.
+    const byId = new Map(renderedLayerIdentities().map((i) => [i.id, i]));
+    for (const id of ["soil", "aerosol"]) {
+      const identity = byId.get(id);
+      expect(identity, `${id} is not a rendered layer`).toBeDefined();
+      expect(
+        unstatedQualifiers(identity!).map((q) => `${q.kind}=${q.text}`),
+        `${id} closed its identity gap; our copy must keep stating the qualifier`
+      ).toEqual([]);
+    }
+  });
+
+  it("still reports the one qualifier no soil-, sst- or aerosol-copy states", () => {
+    // The daytime overpass IS stated ("Daytime clear-sky ocean surface
+    // temperature"); the 9 km native bin is not. Pinning the exact remainder
+    // keeps the surviving entry honest about what is actually missing.
+    const sst = renderedLayerIdentities().find((i) => i.id === "sst");
+    expect(unstatedQualifiers(sst!).map((q) => `${q.kind}=${q.text}`)).toEqual([
+      "resolution=9 km",
+    ]);
+    expect(Object.keys(UNSTATED_IDENTITY_GAPS)).toEqual(["sst"]);
   });
 
   it("excuses only real layers, with a reason each", () => {
