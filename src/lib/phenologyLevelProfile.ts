@@ -275,8 +275,8 @@ function profileForYear(
 
 /**
  * The p-th quantile (0 ≤ p ≤ 1) of a pre-sorted ascending array by linear
- * interpolation between the closest ranks — the R-7 / NumPy-default method,
- * matching {@link seismicDepthProfile}. The caller guarantees a non-empty array.
+ * interpolation between the closest ranks — the R-7 / NumPy-default method. The
+ * caller guarantees a non-empty array.
  */
 function quantileSorted(sorted: readonly number[], p: number): number {
   const lastIndex = sorted.length - 1;
