@@ -3,11 +3,13 @@
  * value in any sampled month.
  *
  * The panel's default sentence for that case is "No data at this point for this
- * layer." Five sibling modules exist precisely because that sentence is wrong
+ * layer." Six sibling modules exist precisely because that sentence is wrong
  * for a product whose *domain of definition* excludes the probed point:
  * `marineProbeDomain` (SST is an ocean-only L3 field, so an inland point
  * carries no value by construction), `atmosphereProbeDomain`, `soilProbeDomain`,
- * `snowProbeAbsence`, and `vegetationProbeAbsence`. Each returns a domain note
+ * `snowProbeAbsence`, `vegetationProbeAbsence`, and `lstProbeDomain` (MOD11C3
+ * is retrieved over land only, and is a clear-sky composite besides, so it is
+ * two-sided like the marine note). Each returns a domain note
  * that states what the product covers and what an absence does and does not
  * imply, and `ProbePanel.finish()` documents that note as *replacing* the bare
  * line.
