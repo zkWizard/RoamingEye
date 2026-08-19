@@ -142,6 +142,9 @@ function joinClauses(parts: readonly string[]): string {
  * finite elevation, or when every reported summit is subaerial and the plain
  * metres-above-sea-level reading is already unambiguous.
  *
+ * The datum is named by whichever clause comes first, so the sentence never
+ * refers back to a surface it has not introduced.
+ *
  * This reads the sign GVP reports. It is not a claim about eruption style,
  * edifice relief, or whether an edifice currently breaches the sea surface.
  */
@@ -157,8 +160,14 @@ export function summitDatumText(
   if (subaerial > 0) parts.push(`${subaerial} above sea level`);
   if (atDatum > 0) parts.push(`${atDatum} at the 0 m datum`);
   if (submarine > 0) {
+    // "below it" leans on a datum an earlier clause names — "above sea level",
+    // or "at the 0 m datum", which is the same surface. An arc, ridge, or
+    // seamount extent can match submarine summits and nothing else, and there
+    // both clauses are absent, leaving the pronoun pointing at nothing. Name
+    // the datum outright when this clause leads.
+    const datum = parts.length === 0 ? "below sea level" : "below it";
     parts.push(
-      `${submarine} below it (submarine ${submarine === 1 ? "summit" : "summits"})`
+      `${submarine} ${datum} (submarine ${submarine === 1 ? "summit" : "summits"})`
     );
   }
   return `Of the ${reported} reported summit ${
