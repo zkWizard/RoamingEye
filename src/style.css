@@ -1788,6 +1788,74 @@ body {
   }
 }
 
+/* A TALL window wider than a phone is the last place the probe still lands on a
+   control, and there the collision is horizontal rather than vertical. Above
+   720px of height the probe keeps the centred position the two rules above
+   override, and above 540px of width no fold control is rendered at all — "the
+   two arms enter and leave together" — so the panel cannot fold, and folding it
+   anyway would strand the reader with no way back.
+
+   Mostly what the probe covers there is the colour ramp, which is a question
+   about a reader's default that docs/BACKLOG.md is holding open. The part that
+   is not a question is the layer selector. Measured on main with a probe open
+   at 900px of height, a tap aimed at `.layer-selector__trigger` returned
+   CANVAS.probe__chart at 560, 600 and 640px of width, P.probe__status at 660,
+   700 and 760, and DIV#probe-panel at 820 — seven widths at which the reader
+   cannot change the layer without dismissing the probe, and no fold control to
+   recover it with. It clears at 840, where the trigger's centre passes the
+   probe's right edge by 3px, and comfortably by 880.
+
+   The probe yields again, and above 780px of height it yields for free. The
+   panel's height does not vary with the window's — it stands 330px at 560 wide,
+   315 at 660 and 301 at 820, over a constant 61px bottom inset — so the room
+   above it is 391px or more at every height in this band, against the 346px the
+   probe stands. Top-anchored, nothing scrolls and the chart keeps its 150px.
+
+   Below 780px it is not free, and 780 is where the arithmetic turns: the probe's
+   own 358px bottom against the panel's top at `100vh - 391px` leaves 11px at
+   760 and 31px at 780. So the chart gives up its fixed 150px there, exactly as
+   it does in the two rules around this one — the space is bought from the plot,
+   never from a citation — which brings the dialog to 292px and the clearance to
+   26px at the 721px floor. Without it the margin at 560x721 was 4px between the
+   probe's bottom edge and the centre of the trigger, which is the kind of
+   number CI's taller text metrics turn over.
+
+   26rem is a guard rather than a budget: the panel's 391px worst case plus the
+   probe's inset and clearance. It allows 305px at 721px of height against the
+   292px the folded-chart dialog stands, and 365px at 781 against 346 — so it
+   never bites in this band, and catches only a probe whose content grows past
+   it.
+
+   Bounded at 880px on purpose. It is the smallest round width clear of every
+   measured failure, and past it the trigger is reachable on main already. The
+   probe's column still crosses the trigger's left edge out to about 1010px, but
+   a control whose centre is tappable is not the defect this closes, and
+   widening the rule to chase it would answer the legend question BACKLOG.md is
+   holding — which is the maintainer's call, not this rule's.
+
+   Held below the width arm above for the same reason that one is: a phone has
+   an answer it needs and this must not undo it. */
+@media (min-width: 541px) and (max-width: 880px) and (min-height: 721px) {
+  .probe {
+    top: 0.75rem;
+    bottom: auto;
+    /* Both arms, or neither — the 640px rule bottom-centres the probe with
+       `left: 50%` plus a translate, so dropping the transform alone would push
+       the dialog off the right of a 541-640px window. */
+    left: clamp(0.75rem, 2vw, 1.25rem);
+    transform: none;
+    max-height: calc(100vh - 26rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+@media (min-width: 541px) and (max-width: 880px) and (min-height: 721px) and (max-height: 780px) {
+  .probe__chart {
+    height: 96px;
+  }
+}
+
 /* A short window is the one case where the panel cannot be the one to yield.
    Below 460px of height it already opens folded to its 75px floor (the
    landscape default #1023 shipped), so the fold that rescues a portrait phone
