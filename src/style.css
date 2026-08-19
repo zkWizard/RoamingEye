@@ -2815,6 +2815,30 @@ body {
   pointer-events: auto;
 }
 
+/* A coarse pointer at a landscape-phone height puts two 44px boxes in the same
+   corner. `@media (pointer: coarse)` grows this button to a 44px target, and the
+   block near the top of this file gives #hud-collapse the same 44px box at the
+   panel top-left corner — but the 150px this button reserves above itself is a
+   fixed number, and the chrome it reserves for grew with the pointer while the
+   number did not. It lands across that corner instead of above it.
+
+   Measured on main at 667x375 and 740x360, #hud-collapse hit-tested to
+   BUTTON.draw-button at its centre: the only way back to the legend and the
+   timeline was covered by a control that arms region drawing instead, so the
+   tap did not merely miss — it did something else.
+
+   The corner is one 44px box plus its 0.2rem inset, so clearing it horizontally
+   is enough. The button keeps its row and its label, and the panel keeps the
+   corner it documents. Scoped to the band that already opens the panel folded
+   (460px), because that is where the column has no vertical room left; above it
+   the two boxes never meet — 844x390 and 932x430 measured clear before this
+   rule and are unchanged by it. */
+@media (pointer: coarse) and (max-height: 460px) {
+  .draw {
+    left: calc(clamp(1rem, 3vw, 2rem) + 52px);
+  }
+}
+
 .draw-button {
   display: inline-flex;
   align-items: center;
