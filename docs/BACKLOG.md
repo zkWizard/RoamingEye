@@ -91,6 +91,16 @@ take one directly when no Owner's pick applies to its domain.
       one the netbook band and the upright phone are already waiting on — and
       note that the netbook itself is no longer an instance of it, since
       1024x600 is inside the 720px band where the probe now top-anchors.
+      _The control half is closed (#PRNUM): above 720px of height the probe
+      top-anchors between 541 and 880px of width, so the layer selector is
+      reachable at every width that measured blocked, and the panel clears
+      by 26-187px. Above 780px of height it costs nothing, because the
+      panel height does not follow the window height and the probe fits
+      above it at full size; below 780 the chart gives up its fixed 150px,
+      as it does in the rules on either side. The legend half is untouched
+      and still open: past 880px the probe keeps its centred position, and
+      what it covers there is the colour ramp, which is the same
+      reader-default question as the two items above._
 
 ## Done
 
