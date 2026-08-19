@@ -1,6 +1,13 @@
 import { AEROSOL_SOURCE } from "./aerosolLoading";
-import { LAYERS, compareYm, ymToIndex, type YearMonth } from "./timeline";
+import {
+  LAYERS,
+  compareYm,
+  ymToIndex,
+  type LayerId,
+  type YearMonth,
+} from "./timeline";
 import type { DatasetRef } from "./timeline";
+import type { TrendSummary } from "./trend";
 
 /**
  * Observing-system epochs of the MERRA-2 aerosol reanalysis, and whether a span
@@ -319,4 +326,72 @@ function isYearMonth(value: YearMonth): boolean {
 
 function formatMonth(month: YearMonth): string {
   return `${month.year}-${String(month.month).padStart(2, "0")}`;
+}
+
+/** The probe layer whose series is MERRA-2 assimilated aerosol optical depth. */
+const AEROSOL_PROBE_LAYER = "aerosol";
+
+/**
+ * The observing-epoch span behind a probe series, or null for every layer but
+ * aerosol and for a series carrying no months.
+ *
+ * The layer gate sits here rather than in the caller because the epoch table
+ * describes one product: MERRA-2's assimilated AOD. The sibling atmosphere
+ * layer ships from the same reanalysis stream and would classify without
+ * complaint, yet its 2 m air temperature is constrained by an entirely
+ * different observing system, so routing it through this table would label a
+ * temperature series with an aerosol assimilation history.
+ */
+export function probeAerosolObservingEpoch(
+  layerId: LayerId | undefined,
+  months: readonly YearMonth[]
+): AerosolObservingHomogeneity | null {
+  if (layerId !== AEROSOL_PROBE_LAYER) return null;
+  return describeAerosolObservingHomogeneity(months);
+}
+
+/**
+ * The status-line clause qualifying a fitted aerosol trend with the observing
+ * system it was fitted across, or null when there is nothing to qualify.
+ *
+ * Silent in three cases, each because the claim it corrects is absent:
+ *
+ *  - Not aerosol, or no months — `result` is null and no epoch is stated.
+ *  - A span sitting inside one epoch. The homogeneous case is a fact about the
+ *    record, not a caveat on a reading, and `formatAerosolObservingHomogeneity`
+ *    already states it for a surface that wants the full breakdown.
+ *  - No testable trend. This qualifies the *trend* printed beside it — the one
+ *    statistic on the line that reads across the transition rather than
+ *    summarizing months one at a time — so with no trend fitted there is no
+ *    misattributable claim and the clause stays off. Same reason
+ *    `aerosolCeilingCensoringClause` takes the trend.
+ *
+ * It states what the trend was fitted across and stops. It does not adjust,
+ * homogenize, or withhold the trend, does not claim a discontinuity exists at
+ * the probed point, and does not say the record's epochs disagree there — only
+ * that the span cannot rule the change out, which is why the direction is not
+ * attributable to the atmosphere alone.
+ */
+export function aerosolObservingEpochClause(
+  result: AerosolObservingHomogeneity | null,
+  trend: Pick<TrendSummary, "testable">
+): string | null {
+  if (!result || !result.crossesTransition || !trend.testable) return null;
+
+  const source = `${result.source.shortName} v${result.source.version}`;
+  const window = `${result.firstMonth.year}-${result.lastMonth.year}`;
+  // Named from the epoch table rather than written out, so a boundary edit
+  // cannot leave this sentence describing epochs the span no longer touches.
+  const named = result.spans.map((span) => span.epoch.label).join(", then ");
+  // The pre-EOS gap is over LAND only, and this helper does not know where the
+  // caller sampled — so the arm is offered as the reason the change matters,
+  // never as a statement about the probed point.
+  const landGap = result.includesUnconstrainedOverLand
+    ? ", and over land the earliest of those had no assimilated AOD at all"
+    : "";
+  return (
+    `the ${window} record spans ${result.spans.length} MERRA-2 observing-system epochs ` +
+    `(${named})${landGap}, so the trend fitted across them is not attributable to the ` +
+    `atmosphere alone (source ${source})`
+  );
 }
