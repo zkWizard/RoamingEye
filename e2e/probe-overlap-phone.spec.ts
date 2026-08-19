@@ -21,9 +21,12 @@ import { awaitAppInteractive } from "./boot";
  * and the month are still rendered — the same invariant hud-collapse.spec.ts
  * pins for the manual gesture.
  *
- * Scoped to `max-width: 540px`, where the probe is bottom-centred at
- * `bottom: 14rem`. Wider than that the probe is anchored left at `top: 50%` and
- * never reaches the panel, which the last test here pins.
+ * Scoped to `max-width: 540px`, where the probe is bottom-centred and the panel
+ * has no room to keep its rows. Wider than that the probe is anchored left at
+ * `top: 50%` — which does still reach the panel on a short window, but there the
+ * answer is to move the probe rather than fold a panel that has the room
+ * (probe-overlap-short-window.spec.ts). The last test here holds a window roomy
+ * enough for neither remedy to apply.
  */
 
 const PHONE = { width: 390, height: 844 };
@@ -136,8 +139,9 @@ test.describe("a roomy window is untouched", () => {
     await page.goto("/");
     await awaitAppInteractive(page);
     await probeAPoint(page);
-    // Above 540px the probe is anchored left and never reaches the panel, so
-    // there is nothing to yield — and no fold control rendered to yield with.
+    // 1280x900 clears both arms of the fold's query, so no fold control is
+    // rendered and nothing may fold on its own — folding here would strand the
+    // reader with no way to bring the rows back.
     await expect(page.locator("#controls")).not.toHaveClass(/is-collapsed/);
   });
 });

@@ -4,9 +4,17 @@ import {
   AEROSOL_OBSERVING_EPOCHS,
   aerosolObservingEpochForMonth,
   describeAerosolObservingHomogeneity,
+  aerosolObservingEpochClause,
+  probeAerosolObservingEpoch,
   formatAerosolObservingHomogeneity,
 } from "./aerosolObservingEpoch";
-import { LAYERS, compareYm, type YearMonth } from "./timeline";
+import {
+  DATA_LATEST,
+  LAYERS,
+  compareYm,
+  monthRangeForLayer,
+  type YearMonth,
+} from "./timeline";
 
 /** Every July from `startYear` to `endYear` inclusive — a baseline's months. */
 function julys(startYear: number, endYear: number): YearMonth[] {
@@ -237,5 +245,94 @@ describe("aerosol observing-epoch readout", () => {
 
     expect(text).toContain("1 month across one observing-system epoch");
     expect(text).toContain("(1 month)");
+  });
+});
+
+describe("probe observing-epoch gate", () => {
+  const testable = { testable: true };
+
+  it("classifies only the aerosol layer", () => {
+    const months = julys(1998, 2004);
+
+    expect(probeAerosolObservingEpoch("aerosol", months)).not.toBeNull();
+    // Same MERRA-2 stream, entirely different observing system: air
+    // temperature must not inherit an aerosol assimilation history.
+    expect(probeAerosolObservingEpoch("airtemp", months)).toBeNull();
+    expect(probeAerosolObservingEpoch("ndvi", months)).toBeNull();
+    expect(probeAerosolObservingEpoch(undefined, months)).toBeNull();
+  });
+
+  it("stays null for an empty series", () => {
+    expect(probeAerosolObservingEpoch("aerosol", [])).toBeNull();
+  });
+
+  it("qualifies a trend fitted across the EOS transition", () => {
+    const clause = aerosolObservingEpochClause(
+      probeAerosolObservingEpoch("aerosol", julys(1998, 2004)),
+      testable
+    );
+
+    expect(clause).toContain("1998-2004 record spans 3 MERRA-2");
+    expect(clause).toContain("pre-EOS");
+    expect(clause).toContain("not attributable to the atmosphere alone");
+    expect(clause).toContain("over land the earliest of those had no");
+    expect(clause).toContain(
+      `source ${AEROSOL_SOURCE.shortName} v${AEROSOL_SOURCE.version}`
+    );
+  });
+
+  it("drops the land arm when the span starts after EOS began", () => {
+    // 2000-2004 crosses the transition but never reaches the ocean-only epoch,
+    // so the clause must not claim an unconstrained land column it does not have.
+    const clause = aerosolObservingEpochClause(
+      probeAerosolObservingEpoch("aerosol", julys(2000, 2004)),
+      testable
+    );
+
+    expect(clause).toContain("spans 2 MERRA-2");
+    expect(clause).not.toContain("over land the earliest");
+  });
+
+  it("is silent for a span inside one epoch", () => {
+    expect(
+      aerosolObservingEpochClause(
+        probeAerosolObservingEpoch("aerosol", julys(2005, 2020)),
+        testable
+      )
+    ).toBeNull();
+  });
+
+  it("is silent when no trend was fitted", () => {
+    // Nothing on the line reads across the transition, so there is no claim
+    // to qualify — the clause must not appear merely because the record is long.
+    expect(
+      aerosolObservingEpochClause(
+        probeAerosolObservingEpoch("aerosol", julys(1998, 2004)),
+        { testable: false }
+      )
+    ).toBeNull();
+  });
+
+  it("is silent for every non-aerosol layer even across the same months", () => {
+    expect(
+      aerosolObservingEpochClause(
+        probeAerosolObservingEpoch("airtemp", julys(1998, 2004)),
+        testable
+      )
+    ).toBeNull();
+  });
+
+  it("speaks for the record the probe actually enumerates", () => {
+    // The probe hands over monthRangeForLayer(aerosol), which runs from the
+    // layer's first published month — so this clause is not a hypothetical:
+    // every aerosol probe with a testable trend crosses all three epochs.
+    const clause = aerosolObservingEpochClause(
+      probeAerosolObservingEpoch("aerosol", monthRangeForLayer(LAYERS.aerosol)),
+      testable
+    );
+
+    expect(clause).toContain(
+      `${LAYERS.aerosol.start.year}-${(LAYERS.aerosol.latest ?? DATA_LATEST).year} record spans 3 MERRA-2`
+    );
   });
 });
