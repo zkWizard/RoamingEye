@@ -659,6 +659,7 @@ export class ProbePanel {
         ({
           describePrecipitationCycleDrySpell,
           precipitationCycleClause,
+          probePrecipitationAnnualTotals,
           probePrecipitationCycle,
           probePrecipitationSeasonalTiming,
         }) => {
@@ -673,7 +674,8 @@ export class ProbePanel {
           const clause = precipitationCycleClause(
             cycle,
             probePrecipitationSeasonalTiming(context.layerId, months, physical),
-            describePrecipitationCycleDrySpell(cycle)
+            describePrecipitationCycleDrySpell(cycle),
+            probePrecipitationAnnualTotals(context.layerId, months, physical)
           );
           if (!clause) return;
           this.setStatus(`${stat} · ${clause}`);
