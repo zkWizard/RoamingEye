@@ -1737,6 +1737,57 @@ body {
   }
 }
 
+/* A window that is short but not narrow is the other case where the probe has
+   to be the one to move, and for the opposite reason to the phone's.
+
+   Vertically centred, the probe is 346px on the middle of the viewport, and on
+   any window this short the panel's top is above that middle — so it lands on
+   the panel however wide the window is. Measured on a probe opened at 1280x720,
+   1366x700, 1024x680, 1440x640, 1024x600 and 800x700, #hud-collapse returned
+   CANVAS.probe__chart at six of six, and at 800x700 the layer selector went
+   with it. That button is the only way back to the legend and the timeline.
+
+   The panel cannot answer this one. Below 540px of width it folds and the probe
+   is welcome to the middle, because a phone has no room for both. Here it does:
+   the probe is 400px against a window 800-1440px wide, and folding the panel to
+   buy space it does not need would take the colour ramp and the timeline away
+   from a reader on an ordinary laptop every time they clicked the globe. So the
+   probe takes the room above the panel instead — the same move the 460px rule
+   below makes, for the same reason, and it keeps every row of the panel on
+   screen.
+
+   24rem is what the EXPANDED panel needs, which is why it is larger than the
+   13.5rem the folded one takes below: the panel's own 3.6rem reserve, plus the
+   279-308px it stands, plus the probe's own inset. It has to cover the tallest
+   of them, because the panel grows as the window narrows — 279px at 1280 and
+   308px at 560 — and the arithmetic has to hold at the worst of the two. And
+   the chart gives up its fixed 150px first, exactly as it does below: the space
+   is bought from the plot, never from a citation. At 96px the dialog stands
+   292px, so at 680-720px of height nothing scrolls at all; below that it
+   scrolls, and clearance to the panel measures 34-99px across the band.
+
+   Held above the width arm on purpose. A phone already has an answer it needs
+   and this would undo it. */
+@media (min-width: 541px) and (max-height: 720px) {
+  .probe {
+    top: 0.75rem;
+    bottom: auto;
+    /* Both arms, or neither — the same restoration the 460px rule spells out
+       below: the 640px rule bottom-centres the probe with `left: 50%` plus a
+       translate, so dropping the transform alone would push the dialog off the
+       right of a 541-640px window. */
+    left: clamp(0.75rem, 2vw, 1.25rem);
+    transform: none;
+    max-height: calc(100vh - 24rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .probe__chart {
+    height: 96px;
+  }
+}
+
 /* A short window is the one case where the panel cannot be the one to yield.
    Below 460px of height it already opens folded to its 75px floor (the
    landscape default #1023 shipped), so the fold that rescues a portrait phone
