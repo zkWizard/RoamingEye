@@ -253,9 +253,29 @@ describe("summitDatumText", () => {
   it("reads a wholly submarine set without implying any land summit", () => {
     const text = summitDatumText(counts(0, 0, 4));
     expect(text).toBe(
-      "Of the 4 reported summit elevations, 4 below it (submarine summits)."
+      "Of the 4 reported summit elevations, 4 below sea level (submarine summits)."
     );
     expect(text).not.toContain("above sea level");
+  });
+
+  it("names the datum outright when no earlier clause introduces it", () => {
+    // "below it" has an antecedent only while some clause before it names the
+    // datum. A wholly submarine match drops every such clause, so the pronoun
+    // would point at nothing.
+    for (const text of [
+      summitDatumText(counts(0, 0, 1)),
+      summitDatumText(counts(0, 0, 4)),
+    ]) {
+      expect(text).toContain("below sea level");
+      expect(text).not.toContain("below it");
+    }
+  });
+
+  it("keeps the pronoun once the 0 m datum has been named", () => {
+    // "at the 0 m datum" is that same surface, so it carries the reference.
+    expect(summitDatumText(counts(0, 2, 3))).toBe(
+      "Of the 5 reported summit elevations, 2 at the 0 m datum and 3 below it (submarine summits)."
+    );
   });
 
   it("uses a serial comma when all three datum positions are present", () => {
@@ -266,7 +286,7 @@ describe("summitDatumText", () => {
 
   it("agrees singular for a single reported summit", () => {
     expect(summitDatumText(counts(0, 0, 1))).toBe(
-      "Of the 1 reported summit elevation, 1 below it (submarine summit)."
+      "Of the 1 reported summit elevation, 1 below sea level (submarine summit)."
     );
   });
 
