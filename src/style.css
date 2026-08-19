@@ -1737,6 +1737,43 @@ body {
   }
 }
 
+/* A short window is the one case where the panel cannot be the one to yield.
+   Below 460px of height it already opens folded to its 75px floor (the
+   landscape default #1023 shipped), so the fold that rescues a portrait phone
+   has nothing left to give. The probe is 346px against a 360-430px window, and
+   vertically centred it lands squarely on that floor: measured at 667x375,
+   740x360, 844x390 and 932x430 it covered the folded panel over 391-393px of
+   width and the whole of its 75px height, and #hud-collapse — the only control
+   that brings the legend and the timeline back — was unreachable at all four.
+   At 667x375 and 740x360 the layer selector and #provenance went with it, so a
+   reader who probed a point lost the product ID and the month as well.
+
+   The probe yields instead: it anchors to the top and takes only the room above
+   the bottom overlay, scrolling for the rest. 13.5rem is that overlay's own
+   3.6rem reserve plus the 132-142px it stands, and the chart gives up its fixed
+   150px first — the space is bought from the plot, never from a citation. */
+@media (max-height: 460px) {
+  .probe {
+    top: 0.75rem;
+    bottom: auto;
+    /* Both arms, or neither: the 640px rule above bottom-centres the probe with
+       `left: 50%` plus a translate, so dropping the transform alone leaves the
+       left edge at the middle of the screen and pushes the dialog off the right
+       of it — measured at 568x320, where the close button landed at x=654 in a
+       568px window. A narrow short window gets both rules, so this one restores
+       the anchor it overrides. */
+    left: clamp(0.75rem, 2vw, 1.25rem);
+    transform: none;
+    max-height: calc(100vh - 13.5rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .probe__chart {
+    height: 96px;
+  }
+}
+
 /* --- Attribution link button ----------------------------------------------- */
 .attribution__link {
   font: inherit;
