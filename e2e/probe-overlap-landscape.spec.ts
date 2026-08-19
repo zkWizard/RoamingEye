@@ -175,11 +175,12 @@ test("a narrow short window keeps the probe on screen", async ({ page }) => {
 });
 
 test("a window with the room for it is untouched", async ({ page }) => {
-  // 1024x600 is the netbook toolbar-height-continuity.spec.ts holds at exactly
-  // the layout it has today, and it is above the 460px arm. The probe stays
-  // vertically centred there — this rule does not leak upward into the band
-  // where the panel opens expanded and the fold question is still open.
-  await page.setViewportSize({ width: 1024, height: 600 });
+  // Above the 460px arm the probe keeps its full height and its centred
+  // position, so this rule does not leak upward. 1024x760 rather than the
+  // netbook this once used: 1024x600 is inside the 720px band that
+  // probe-overlap-short-window.spec.ts now owns, where the probe top-anchors
+  // for the expanded panel's sake. 760 is clear of both arms.
+  await page.setViewportSize({ width: 1024, height: 760 });
   await page.goto("/");
   await awaitAppInteractive(page);
   await probeAPoint(page);
@@ -188,7 +189,7 @@ test("a window with the room for it is untouched", async ({ page }) => {
     const s = getComputedStyle(document.querySelector(".probe")!);
     return { top: s.top, maxHeight: s.maxHeight, overflowY: s.overflowY };
   });
-  expect(style.top).toBe("300px");
+  expect(style.top).toBe("380px"); // still `top: 50%` of the window
   expect(style.maxHeight).toBe("none");
   expect(style.overflowY).toBe("visible");
 });
