@@ -6,7 +6,7 @@ import {
   uncertaintyText,
   type ProbeScale,
 } from "../lib/probe";
-import { trendSummary, trendClause } from "../lib/trend";
+import { trendSummary, trendClause, type TrendSummary } from "../lib/trend";
 import { probeAbsenceStatusLine } from "../lib/probeAbsenceStatus";
 import {
   seasonalSamplingBalance,
@@ -536,6 +536,7 @@ export class ProbePanel {
     this.setStatus(stat);
     this.appendPeakGreenness(stat, physical);
     this.appendPrecipitationCycle(stat, physical);
+    this.appendAerosolObservingEpoch(stat, trend);
   }
 
   /**
@@ -669,6 +670,49 @@ export class ProbePanel {
           this.setStatus(`${stat} · ${clause}`);
         }
       )
+      .catch(() => {
+        // A failed chunk load must leave the stats already on screen intact.
+      });
+  }
+
+  /**
+   * Append what the aerosol trend was fitted across.
+   *
+   * The caps clause above says which VALUES the colormap bounds; this is the
+   * separate question of what the SERIES was observed by. MERRA-2 assimilates
+   * aerosol optical depth from instruments that came and went, and the probe
+   * enumerates aerosol from the layer's first published month in 1980, so
+   * every aerosol reading fits its trend straight across the arrival of EOS:
+   * before 2000 the only assimilated AOD was AVHRR retrieved over ocean,
+   * leaving the column over land to the underlying model.
+   *
+   * Loaded on demand for the reason the two clauses above are — the epoch
+   * table and its readout are dead weight on every other layer, and the status
+   * line already fills in progressively. A newer series invalidates an
+   * in-flight load.
+   *
+   * This cannot race either clause above: that pair is NDVI-only and
+   * precipitation-only and this one aerosol-only, so at most one of the three
+   * ever rebuilds the line from `stat`.
+   */
+  private appendAerosolObservingEpoch(
+    stat: string,
+    trend: Pick<TrendSummary, "testable">
+  ): void {
+    const context = this.context;
+    if (!context) return;
+    const months = this.months;
+    const token = this.seriesToken;
+    void import("../lib/aerosolObservingEpoch")
+      .then(({ aerosolObservingEpochClause, probeAerosolObservingEpoch }) => {
+        if (token !== this.seriesToken) return; // superseded by a newer probe
+        const clause = aerosolObservingEpochClause(
+          probeAerosolObservingEpoch(context.layerId, months),
+          trend
+        );
+        if (!clause) return;
+        this.setStatus(`${stat} · ${clause}`);
+      })
       .catch(() => {
         // A failed chunk load must leave the stats already on screen intact.
       });
