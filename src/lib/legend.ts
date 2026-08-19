@@ -256,7 +256,7 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
     ],
   },
   soil: {
-    measures: "Soil moisture (underground)",
+    measures: "Soil moisture (0-10 cm)",
     minLabel: "dry",
     maxLabel: "saturated",
     // Taken from the colormap GIBS actually renders the layer with
