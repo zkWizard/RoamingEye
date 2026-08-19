@@ -11,7 +11,11 @@ import {
   describePrecipitationCycleDrySpell,
   type PrecipitationCycleDrySpell,
 } from "./precipitationCycleDrySpell";
-import type { MonthlyClimateObservation } from "./climate";
+import {
+  summarizeMonthlyClimate,
+  type MonthlyClimateObservation,
+} from "./climate";
+import { precipitationAnnualTotal } from "./precipitationAnnualTotal";
 import { MONTH_NAMES, type LayerId, type YearMonth } from "./timeline";
 
 /**
@@ -56,6 +60,17 @@ import { MONTH_NAMES, type LayerId, type YearMonth } from "./timeline";
  *    wording infers none of them. R measures only how the observed water is
  *    distributed around the calendar; it classifies nothing.
  */
+
+/** Calendar months a year must supply before it can carry an annual total. */
+const MONTHS_IN_YEAR = 12;
+
+/** Mean observed annual precipitation total behind a probe series. */
+export interface ProbePrecipitationAnnualTotals {
+  /** Complete calendar years that contributed a total. */
+  yearsUsed: number;
+  /** Mean of those years total depths, in mm water-equivalent. */
+  meanTotalMm: number;
+}
 
 /** The probe layer whose sampled values are GLDAS precipitation. */
 const PRECIP_PROBE_LAYER = "precip";
@@ -186,7 +201,8 @@ export function probePrecipitationSeasonalTiming(
 export function precipitationCycleClause(
   cycle: PrecipitationAnnualCycle | null,
   timing: PrecipitationSeasonalTimingSeries | null = null,
-  drySpell: PrecipitationCycleDrySpell | null = null
+  drySpell: PrecipitationCycleDrySpell | null = null,
+  annualTotals: ProbePrecipitationAnnualTotals | null = null
 ): string | null {
   if (!cycle) return null;
   if (cycle.status !== "available") return null;
@@ -202,13 +218,38 @@ export function precipitationCycleClause(
   const wet = MONTH_NAMES[wettestMonth.calendarMonth - 1];
   const dry = MONTH_NAMES[driestMonth.calendarMonth - 1];
   return (
-    `mean annual cycle: wettest ${wet} ${formatDepth(wettestMonth.meanMm)}, ` +
+    `mean annual cycle${annualTotalSuffix(annualTotals)}: ` +
+    `wettest ${wet} ${formatDepth(wettestMonth.meanMm)}, ` +
     `driest ${dry} ${formatDepth(driestMonth.meanMm)} ` +
     `(range ${formatDepth(amplitudeMm)}; ≥${years} yr per calendar month, ` +
     `means not a climate normal)` +
     seasonalTimingSuffix(timing) +
     drySpellSuffix(drySpell)
   );
+}
+
+/**
+ * The whole-year total that qualifies the cycle, or "" when no complete
+ * calendar year stands behind one.
+ *
+ * It reads as a parenthetical ON the words "mean annual cycle" rather than as
+ * another comma-separated fact, because that is what it is: the cycle names
+ * which months are the peak and the trough, and this says how much water the
+ * year those months belong to actually brings. Without it the reading gives
+ * two monthly means and the gap between them, from which the annual total
+ * cannot be recovered at all — a place taking 40 mm every month and a place
+ * taking it in two months share every number the clause printed.
+ *
+ * Its own year count is printed rather than borrowed from the cycle: the two
+ * count different things (see probePrecipitationAnnualTotals) and a record can
+ * satisfy the cycle in every calendar month while completing fewer whole
+ * years, so reusing the cycle number would overstate the total.
+ */
+function annualTotalSuffix(
+  totals: ProbePrecipitationAnnualTotals | null
+): string {
+  if (!totals) return "";
+  return ` (${formatDepth(totals.meanTotalMm)}/yr over ${totals.yearsUsed} complete yr)`;
 }
 
 /**
@@ -283,3 +324,62 @@ function drySpellSuffix(drySpell: PrecipitationCycleDrySpell | null): string {
 
 export { describePrecipitationCycleDrySpell };
 export type { PrecipitationCycleDrySpell };
+
+/**
+ * The mean of every COMPLETE calendar year's precipitation total in a probe
+ * series, or null when the layer is not precipitation, the series carries no
+ * months, or no single calendar year is complete.
+ *
+ * This is deliberately NOT the sum of the mean annual cycle's twelve monthly
+ * means. Those means may each stand on a different set of years — the cycle
+ * requires only a floor per calendar month, not the same years in every one —
+ * so adding them composes a year that was never observed. Summing whole
+ * observed years instead and averaging those totals keeps every reported
+ * number a mean of things that actually happened, and `precipitationAnnual
+ * Total.ts` already enforces exactly that: a year missing, duplicating, or
+ * failing to resolve any one of its twelve months yields no total at all and
+ * is skipped here rather than counted as a short year.
+ *
+ * `yearsUsed` is therefore its own count and not the cycle's years-per-month
+ * floor: a record whose Februaries are patchy can cover all twelve calendar
+ * months at three years each while completing far fewer whole years, and the
+ * reader is owed the number that actually stands behind the total.
+ *
+ * The mean is an average of observed annual totals over the years the probe
+ * happened to sample — not a WMO 30-year normal, not a return period, and not
+ * a water balance. Nothing here infers runoff, storage, or any future year.
+ */
+export function probePrecipitationAnnualTotals(
+  layerId: LayerId | undefined,
+  months: readonly YearMonth[],
+  values: readonly (number | null)[]
+): ProbePrecipitationAnnualTotals | null {
+  const prepared = probePrecipitationObservations(layerId, months, values);
+  if (!prepared) return null;
+
+  const byYear = new Map<number, MonthlyClimateObservation[]>();
+  for (const observation of prepared.observations) {
+    const year = observation.dataMonth.year;
+    const bucket = byYear.get(year);
+    if (bucket) bucket.push(observation);
+    else byYear.set(year, [observation]);
+  }
+
+  let totalOfTotalsMm = 0;
+  let yearsUsed = 0;
+  for (const [year, group] of byYear) {
+    if (group.length !== MONTHS_IN_YEAR) continue;
+    const annual = precipitationAnnualTotal(
+      group.map((observation) =>
+        summarizeMonthlyClimate(observation, prepared.availableThrough)
+      ),
+      year
+    );
+    if (!annual) continue;
+    totalOfTotalsMm += annual.totalMm;
+    yearsUsed++;
+  }
+
+  if (yearsUsed === 0) return null;
+  return { yearsUsed, meanTotalMm: totalOfTotalsMm / yearsUsed };
+}

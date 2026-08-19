@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   precipitationCycleClause,
+  probePrecipitationAnnualTotals,
   probePrecipitationCycle,
   probePrecipitationSeasonalTiming,
 } from "./probePrecipitationCycle";
@@ -243,6 +244,127 @@ describe("precipitationCycleClause seasonal timing", () => {
       precipitationCycleClause(
         null,
         probePrecipitationSeasonalTiming("precip", months, values)
+      )
+    ).toBeNull();
+  });
+});
+
+describe("probePrecipitationAnnualTotals", () => {
+  /** Blank one calendar month of one year, the way a no-data month arrives. */
+  function withoutMonth(
+    built: { months: YearMonth[]; values: (number | null)[] },
+    year: number,
+    month: number
+  ): { months: YearMonth[]; values: (number | null)[] } {
+    const values = built.values.map((value, index) =>
+      built.months[index]?.year === year && built.months[index]?.month === month
+        ? null
+        : value
+    );
+    return { months: built.months, values };
+  }
+
+  it("returns null for every layer but precipitation", () => {
+    const { months, values } = series(4, ONE_WET_MONTH);
+    for (const layer of ["soil", "snow", "ndvi", "airtemp", "sst"] as const) {
+      expect(probePrecipitationAnnualTotals(layer, months, values)).toBeNull();
+    }
+    expect(
+      probePrecipitationAnnualTotals(undefined, months, values)
+    ).toBeNull();
+  });
+
+  it("returns null when no calendar year is complete", () => {
+    const { months, values } = series(1, ONE_WET_MONTH);
+    // Six months of one year: a real record start, and no year to total.
+    expect(
+      probePrecipitationAnnualTotals(
+        "precip",
+        months.slice(0, 6),
+        values.slice(0, 6)
+      )
+    ).toBeNull();
+    expect(probePrecipitationAnnualTotals("precip", [], [])).toBeNull();
+  });
+
+  it("means whole observed years, integrating each month's own length", () => {
+    // 1 mm/day every month but July at 10 gives 365 + 9 x 31 = 644 mm in a
+    // common year and one millimetre more across a leap February. Averaging
+    // 2000-2003 is therefore (645 + 644 x 3) / 4 = 644.25 mm.
+    const { months, values } = series(4, ONE_WET_MONTH);
+    const totals = probePrecipitationAnnualTotals("precip", months, values);
+    expect(totals?.yearsUsed).toBe(4);
+    expect(totals?.meanTotalMm).toBeCloseTo(644.25, 6);
+  });
+
+  it("skips an incomplete year rather than totalling it as a short one", () => {
+    // Losing July costs that year 310 mm. Counting the remainder as a year
+    // would drag the mean far below any year the place actually had.
+    const built = withoutMonth(series(4, ONE_WET_MONTH), 2001, 7);
+    const totals = probePrecipitationAnnualTotals(
+      "precip",
+      built.months,
+      built.values
+    );
+    expect(totals?.yearsUsed).toBe(3);
+    expect(totals?.meanTotalMm).toBeCloseTo((645 + 644 * 2) / 3, 6);
+  });
+
+  it("counts whole years, not the cycle's years-per-calendar-month floor", () => {
+    // Two different years each lose one month. Every calendar month still
+    // stands on four years, so the cycle prints four; only three years are
+    // whole, so the total must print three. Borrowing the cycle's number
+    // here would claim a year of record the total never had.
+    const built = withoutMonth(
+      withoutMonth(series(5, ONE_WET_MONTH), 2001, 7),
+      2002,
+      1
+    );
+    const cycle = probePrecipitationCycle("precip", built.months, built.values);
+    const perMonthYears = Math.min(
+      ...(cycle?.monthlyClimatology ?? []).map((month) => month.yearsUsed)
+    );
+    const totals = probePrecipitationAnnualTotals(
+      "precip",
+      built.months,
+      built.values
+    );
+    expect(perMonthYears).toBe(4);
+    expect(totals?.yearsUsed).toBe(3);
+  });
+
+  it("qualifies the cycle with the total and stays one reading", () => {
+    const { months, values } = series(4, ONE_WET_MONTH);
+    const clause = precipitationCycleClause(
+      probePrecipitationCycle("precip", months, values),
+      null,
+      null,
+      probePrecipitationAnnualTotals("precip", months, values)
+    );
+    expect(clause).toContain(
+      "mean annual cycle (644 mm/yr over 4 complete yr):"
+    );
+    expect(clause).toContain("wettest Jul");
+    // One reading on the status line, never a second sentence.
+    expect(clause?.split(" · ")).toHaveLength(1);
+  });
+
+  it("leaves the cycle clause exactly as it was without a total", () => {
+    const { months, values } = series(4, ONE_WET_MONTH);
+    const cycle = probePrecipitationCycle("precip", months, values);
+    const bare = precipitationCycleClause(cycle);
+    expect(bare).toContain("mean annual cycle: wettest Jul");
+    expect(precipitationCycleClause(cycle, null, null, null)).toBe(bare);
+  });
+
+  it("says nothing when the cycle itself is withheld", () => {
+    const { months, values } = series(4, ONE_WET_MONTH);
+    expect(
+      precipitationCycleClause(
+        null,
+        null,
+        null,
+        probePrecipitationAnnualTotals("precip", months, values)
       )
     ).toBeNull();
   });
