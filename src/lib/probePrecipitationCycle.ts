@@ -7,6 +7,10 @@ import {
   describePrecipitationSeasonalTimingSeries,
   type PrecipitationSeasonalTimingSeries,
 } from "./precipitationSeasonalTimingSeries";
+import {
+  describePrecipitationCycleDrySpell,
+  type PrecipitationCycleDrySpell,
+} from "./precipitationCycleDrySpell";
 import type { MonthlyClimateObservation } from "./climate";
 import { MONTH_NAMES, type LayerId, type YearMonth } from "./timeline";
 
@@ -163,6 +167,13 @@ export function probePrecipitationSeasonalTiming(
  * to sample, not the WMO 30-year normal a reader may assume a "mean annual
  * cycle" to be, and a short record shifts with the years it contains.
  *
+ * `drySpell` extends it once more, and answers the question neither the cycle
+ * nor R can: both of those are permutation-invariant, so a year with one dry
+ * season and a year whose dry months are scattered read identically in each.
+ * Run lengths separate them. It is stated only when the cycle itself is, so
+ * the twelve gap-free calendar months the descriptor needs are already
+ * guaranteed by the guard above.
+ *
  * `timing` extends the same reading rather than opening a second one. It is
  * appended only when the pooled vector actually defines a centroid month; a
  * record whose water is spread evenly enough to leave the direction undefined
@@ -174,7 +185,8 @@ export function probePrecipitationSeasonalTiming(
  */
 export function precipitationCycleClause(
   cycle: PrecipitationAnnualCycle | null,
-  timing: PrecipitationSeasonalTimingSeries | null = null
+  timing: PrecipitationSeasonalTimingSeries | null = null,
+  drySpell: PrecipitationCycleDrySpell | null = null
 ): string | null {
   if (!cycle) return null;
   if (cycle.status !== "available") return null;
@@ -194,7 +206,8 @@ export function precipitationCycleClause(
     `driest ${dry} ${formatDepth(driestMonth.meanMm)} ` +
     `(range ${formatDepth(amplitudeMm)}; ≥${years} yr per calendar month, ` +
     `means not a climate normal)` +
-    seasonalTimingSuffix(timing)
+    seasonalTimingSuffix(timing) +
+    drySpellSuffix(drySpell)
   );
 }
 
@@ -223,3 +236,50 @@ function seasonalTimingSuffix(
 function formatDepth(mm: number): string {
   return `${Number(mm.toPrecision(3))} mm`;
 }
+
+/** Calendar months in the mean annual cycle the dry-month suffix reads. */
+const CALENDAR_MONTHS_IN_CYCLE = 12;
+
+/**
+ * The dry-month tail of the cycle clause, or "" when nothing can be said.
+ *
+ * Kept as a further suffix of the SAME reading rather than a second sentence:
+ * it qualifies the cycle the clause has already named, so the panel still grows
+ * one precipitation statement and not two.
+ *
+ * The wording is chosen so no invented threshold ever decides what the reader
+ * is told. Every branch reports the observed count and lets the number carry
+ * its own weight; the only classification in play is the Köppen–Geiger 60 mm
+ * dry-month break, which is named in the text precisely because it is a
+ * convention rather than something this app fixed. The branches differ only in
+ * what is actually TRUE of the cycle, never in confidence:
+ *
+ *  - No dry month at all, and every month dry, are both real and interesting
+ *    readings, and each would be mangled by the generic phrasing ("dry season
+ *    0 mo", "dry season 12 mo" — a year with no season at all).
+ *  - One contiguous spell is the Köppen dry-season case, so it is named as
+ *    such; the descriptor's own docstring licenses that reading at, and only
+ *    at, the twelve-month window this clause always uses.
+ *  - Several spells is the case every other precipitation index on this line is
+ *    blind to, so the spell count leads and the longest run follows it.
+ */
+function drySpellSuffix(drySpell: PrecipitationCycleDrySpell | null): string {
+  if (!drySpell) return "";
+  const { dryMonthCount, drySpellCount, longestDryRun } = drySpell;
+  const threshold = `${Number(drySpell.dryMonthThresholdMm.toPrecision(3))} mm`;
+
+  if (dryMonthCount === 0) return `, no calendar month below ${threshold}`;
+  if (dryMonthCount === CALENDAR_MONTHS_IN_CYCLE) {
+    return `, every calendar month below ${threshold}`;
+  }
+  if (drySpellCount === 1) {
+    return `, dry season ${dryMonthCount} mo (Köppen, below ${threshold})`;
+  }
+  return (
+    `, ${dryMonthCount} dry mo in ${drySpellCount} spells, ` +
+    `longest ${longestDryRun} mo (Köppen, below ${threshold})`
+  );
+}
+
+export { describePrecipitationCycleDrySpell };
+export type { PrecipitationCycleDrySpell };

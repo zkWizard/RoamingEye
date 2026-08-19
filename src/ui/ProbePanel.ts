@@ -656,14 +656,23 @@ export class ProbePanel {
     void import("../lib/probePrecipitationCycle")
       .then(
         ({
+          describePrecipitationCycleDrySpell,
           precipitationCycleClause,
           probePrecipitationCycle,
           probePrecipitationSeasonalTiming,
         }) => {
           if (token !== this.seriesToken) return; // superseded by a newer probe
+          // The cycle is derived once: the dry-month sequence reads it rather
+          // than the raw series, so a second pass over the months is not needed.
+          const cycle = probePrecipitationCycle(
+            context.layerId,
+            months,
+            physical
+          );
           const clause = precipitationCycleClause(
-            probePrecipitationCycle(context.layerId, months, physical),
-            probePrecipitationSeasonalTiming(context.layerId, months, physical)
+            cycle,
+            probePrecipitationSeasonalTiming(context.layerId, months, physical),
+            describePrecipitationCycleDrySpell(cycle)
           );
           if (!clause) return;
           this.setStatus(`${stat} · ${clause}`);
