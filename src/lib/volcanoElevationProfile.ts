@@ -17,8 +17,7 @@ import {
  * reported summit heights — so a place panel, an in-view extent summary, or an
  * export can distinguish, say, a cluster of high subaerial stratovolcanoes from
  * a field of submarine seamounts whose datum-relative extremes alone would look
- * similar. It parallels seismicDepthProfile.ts, which does the same for
- * hypocentral depth.
+ * similar.
  *
  * Summit elevation is a linear physical quantity in metres relative to the sea-
  * level datum (negative below it), so order statistics (median, quartiles,
@@ -86,8 +85,7 @@ const LIMITATIONS = [
 
 /**
  * The p-th quantile (0 ≤ p ≤ 1) of a pre-sorted ascending array by linear
- * interpolation between the closest ranks — the R-7 / NumPy-default method,
- * matching seismicDepthProfile.ts so the two profiles read consistently. The
+ * interpolation between the closest ranks — the R-7 / NumPy-default method. The
  * caller guarantees a non-empty array.
  */
 function quantileSorted(sorted: readonly number[], p: number): number {
