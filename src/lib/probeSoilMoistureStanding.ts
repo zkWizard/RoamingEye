@@ -2,6 +2,10 @@ import {
   describeSoilMoisturePercentile,
   type SoilMoisturePercentileResult,
 } from "./soilMoisturePercentile";
+import {
+  describeSoilMoistureRecordMargin,
+  type SoilMoistureRecordMargin,
+} from "./soilMoistureRecordMargin";
 import type { SoilMoistureObservation } from "./soilMoistureChange";
 import { MONTH_NAMES, type LayerId, type YearMonth } from "./timeline";
 
@@ -47,6 +51,26 @@ import { MONTH_NAMES, type LayerId, type YearMonth } from "./timeline";
 /** The probe layer whose sampled values are GLDAS column soil water. */
 const SOIL_PROBE_LAYER = "soil";
 
+/**
+ * How finely the probe actually resolved the values a margin is differenced
+ * from, supplied by the caller rather than read from `probe.ts` here.
+ *
+ * The numbers are `quantizationStep` and `csvDecimals` of the probed layer's
+ * scale — the repository's single value-precision rule — but this module is
+ * lazily imported, and pulling `probe.ts` into its chunk re-factors Rollup's
+ * shared chunks and moves ~1.9 kB into the entry bundle. The caller already
+ * holds the scale in the eager bundle, so it derives both there and passes
+ * them as data.
+ */
+export interface ProbeValuePrecision {
+  /** One LUT step on the layer's scale: the finest difference it resolves. */
+  resolution: number;
+  /** Decimals the probe renders this layer's values with. */
+  decimals: number;
+  /** Unit those values are rendered in; must match the record's own. */
+  unit: string;
+}
+
 /** Later of two months, used to track the series' own publication frontier. */
 function isAfter(month: YearMonth, other: YearMonth): boolean {
   return (
@@ -80,6 +104,40 @@ export function probeSoilMoistureStanding(
   values: readonly (number | null)[],
   validFractions: readonly (number | null)[] | null
 ): SoilMoisturePercentileResult | null {
+  const series = probeSoilMoistureSeries(
+    layerId,
+    months,
+    values,
+    validFractions
+  );
+  if (!series) return null;
+  return describeSoilMoisturePercentile(
+    series.target,
+    series.priors,
+    series.availableThrough
+  );
+}
+
+/**
+ * The target, the prior candidates and the publication frontier the two
+ * soil-moisture descriptions below are both built from, or null when the layer
+ * is not soil moisture or the series carries no observed month.
+ *
+ * Extracted so the percentile and the record margin rank the SAME sample set:
+ * both delegate to `compareMonthlyClimateToSeasonalBaseline`, so feeding them
+ * from one reduction is what lets the clause state a rank and a margin as facts
+ * about a single record rather than about two independently assembled ones.
+ */
+function probeSoilMoistureSeries(
+  layerId: LayerId | undefined,
+  months: readonly YearMonth[],
+  values: readonly (number | null)[],
+  validFractions: readonly (number | null)[] | null
+): {
+  target: SoilMoistureObservation;
+  priors: SoilMoistureObservation[];
+  availableThrough: YearMonth;
+} | null {
   if (layerId !== SOIL_PROBE_LAYER) return null;
   // The baseline screens both the target and every candidate on its usable
   // footprint share, and rejects an observation that carries none at any
@@ -115,9 +173,44 @@ export function probeSoilMoistureStanding(
   }
   if (availableThrough === null || targetIndex === null) return null;
 
-  const target = observations[targetIndex];
-  const priors = observations.filter((_, index) => index !== targetIndex);
-  return describeSoilMoisturePercentile(target, priors, availableThrough);
+  return {
+    target: observations[targetIndex],
+    priors: observations.filter((_, index) => index !== targetIndex),
+    availableThrough,
+  };
+}
+
+/**
+ * Place the probe series' most recent observed month against the prior
+ * same-calendar-month extreme, or null on the same conditions as the rank
+ * above.
+ *
+ * This is the one question the rank cannot answer. An empirical percentile
+ * saturates: it can never leave the range it was sampled from, so a month that
+ * tops or bottoms the chart reads as "driest of 12 prior same-month
+ * observations" whether it undercut the prior low by a hair or by half the
+ * record's spread. The margin — and the month that actually held the record —
+ * is the difference between those two readings, and it is recoverable from
+ * nothing else the panel prints.
+ */
+export function probeSoilMoistureRecordMargin(
+  layerId: LayerId | undefined,
+  months: readonly YearMonth[],
+  values: readonly (number | null)[],
+  validFractions: readonly (number | null)[] | null
+): SoilMoistureRecordMargin | null {
+  const series = probeSoilMoistureSeries(
+    layerId,
+    months,
+    values,
+    validFractions
+  );
+  if (!series) return null;
+  return describeSoilMoistureRecordMargin(
+    series.target,
+    series.priors,
+    series.availableThrough
+  );
 }
 
 /** English ordinal suffix for a whole percentile rank (1st, 2nd, 13th, 21st). */
@@ -134,6 +227,65 @@ function ordinal(value: number): string {
     default:
       return `${value}th`;
   }
+}
+
+/**
+ * "1.4 kg/m² drier than Mar 2014" — how far a NEW same-month record beat the
+ * month that held it, or "" when no margin can honestly be quoted.
+ *
+ * Three separate conditions have to hold, and each drops the phrase in silence
+ * rather than softening it:
+ *
+ *  - The standing is a STRICT new record. A tie breaches nothing, so there is
+ *    no margin to state; the flat-record case ties both extremes at once and is
+ *    already worded as the tie it is. Months strictly inside the range keep the
+ *    rank alone — a margin to an extreme neither of them reached would be a
+ *    second number on the ordinary case, which is most of them.
+ *
+ *  - The margin clears the probe's own value resolution. Each end of the
+ *    difference is a colormap inversion carrying half a LUT step (±0.1 kg/m² on
+ *    soil's 0-50 scale), so a record won by less than one step is not something
+ *    this method resolved — the record standing still holds, but its size does
+ *    not, and quoting "0.0 kg/m² drier" from a ±0.1 measurement would claim a
+ *    precision the probe does not have.
+ *
+ *  - The record's native unit is still the probe's. The resolution floor is
+ *    measured on the probe scale, so the two are only comparable while soil
+ *    moisture needs no conversion (asserted in probeSoilMoistureStanding.test.ts).
+ *
+ * The month named is the EARLIEST holder of the breached extreme, which is the
+ * tie convention the seasonal helpers already use, and it is named as a
+ * comparison against that month rather than as a claim about the record as a
+ * whole.
+ */
+function recordMarginPhrase(
+  margin: SoilMoistureRecordMargin | null,
+  precision: ProbeValuePrecision | null
+): string {
+  if (!margin || !precision) return "";
+  const { standing, recordExceedanceMargin } = margin;
+  if (recordExceedanceMargin === null) return "";
+
+  if (margin.unit !== precision.unit) return "";
+  if (recordExceedanceMargin < precision.resolution) return "";
+
+  let direction: string;
+  let heldBy: YearMonth | null;
+  if (standing === "driest-in-record") {
+    direction = "drier";
+    heldBy = margin.priorDriestMonth;
+  } else if (standing === "wettest-in-record") {
+    direction = "wetter";
+    heldBy = margin.priorWettestMonth;
+  } else {
+    return "";
+  }
+  if (!heldBy) return "";
+  const heldByName = MONTH_NAMES[heldBy.month - 1];
+  if (!heldByName) return "";
+
+  const size = recordExceedanceMargin.toFixed(precision.decimals);
+  return `${size} ${precision.unit} ${direction} than ${heldByName} ${heldBy.year}`;
 }
 
 /**
@@ -154,11 +306,18 @@ function ordinal(value: number): string {
  * equal to the target — saturates at BOTH ends, and is reported as the tie it
  * is rather than as a record in either direction.
  *
+ * A new record additionally states how far it beat the month that held it, the
+ * one fact the saturating rank above cannot carry. It is a FACT about the same
+ * reading, not a further qualifier on it, so it joins the rank inside the
+ * existing sentence and the reading keeps its single parenthetical.
+ *
  * The single parenthetical carries the provenance and the scope limit together
  * rather than appending a second qualifier to the same reading.
  */
 export function soilMoistureStandingClause(
-  standing: SoilMoisturePercentileResult | null
+  standing: SoilMoisturePercentileResult | null,
+  recordMargin: SoilMoistureRecordMargin | null = null,
+  precision: ProbeValuePrecision | null = null
 ): string {
   if (!standing || standing.percentileRank === null) return "";
   const { baseline, sampleCount, isDriestInRecord, isWettestInRecord } =
@@ -192,5 +351,12 @@ export function soilMoistureStandingClause(
     standingText = `at the ${ordinal(rounded)} percentile of ${priors}`;
   }
 
-  return `soil moisture ${label} ${standingText} (empirical rank in this record only, GLDAS-Noah modeled column water, not a drought index)`;
+  // Only a strict record yields a phrase here, and the rank above already reads
+  // as that record whenever one is set: `isDriestInRecord` is "no sampled month
+  // was drier", which a strict new low always satisfies. The two can therefore
+  // never disagree about which record is being described.
+  const margin = recordMarginPhrase(recordMargin, precision);
+  const reading = margin ? `${standingText}, ${margin}` : standingText;
+
+  return `soil moisture ${label} ${reading} (empirical rank in this record only, GLDAS-Noah modeled column water, not a drought index)`;
 }
