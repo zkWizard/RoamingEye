@@ -151,6 +151,24 @@ body {
   text-align: center;
 }
 
+/* The layer dropdown draws upward out of the HUD and over the top-right
+   chrome, but it cannot win that overlap on its own: `.controls` carries a
+   `backdrop-filter`, which makes a stacking context, so the panel's
+   `z-index: 6` is spent *inside* the HUD and the overlay's own `z-index: 2`
+   is what actually competes with `.search` (4-5) and `.export` (4). The
+   result was that at 667x375 the export buttons painted over the right-hand
+   column and four layer options could not be tapped at their centre.
+
+   So raise the overlay itself while the panel is open — the same move, and
+   the same reason, as `.search.is-open` below: the rows it draws should be
+   the rows the pointer actually hits. Scoped to the open state so the HUD
+   keeps its usual place in the stack the rest of the time. 6 ties with the
+   floating panels (`.probe`, `.place-insights`, `.hover-tooltip`) and wins
+   on DOM order, which is what an open dropdown should do. */
+.overlay--bottom:has(.layer-selector__panel.is-open) {
+  z-index: 6;
+}
+
 .brand {
   font-size: clamp(1.4rem, 4vw, 2rem);
   font-weight: 600;
@@ -2685,6 +2703,34 @@ body {
     right: -11px;
     bottom: -1px;
     left: -11px;
+  }
+
+  /* The layer options are the last coarse target still on the AA floor rather
+     than the touch guidance: measured 197x30.2 at 667x375, 768x1024, 820x1180
+     and 1024x1366 — every size that gets the two-column panel. The phone
+     layout was already fine (47.3-61.9 at 390x844 and 360x740) because one
+     column turns the caption on, which is why a width-keyed check never saw
+     this; the miss is exactly the widths where the caption is off.
+
+     Unlike the badge above, a transparent `::after` buys nothing here. The
+     options are block children of `.layer-selector__group` with no gap
+     between them, so the vertical pitch IS the 30px box: any area grown
+     downward is taken straight back by the next option, which comes later in
+     the DOM and wins. The height has to be real.
+
+     Growing it is free of the HUD trap that usually makes this expensive:
+     `.layer-selector__panel` is absolutely positioned with its own
+     `max-height: 46vh` and `overflow-y: auto`, so the 14px per option goes
+     to the dropdown's scroll height and never to the globe's chrome — the
+     same reasoning LayerSelector.ts already cites for putting the caption in
+     here. Centring keeps the label optically where it was inside the taller
+     box, and the column direction preserves the caption stacking under it at
+     phone widths. */
+  .layer-selector__option {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 44px;
   }
 }
 
