@@ -29,25 +29,30 @@ import { awaitAppInteractive } from "./boot";
  */
 
 /**
- * Widths the rule covers, bracketing the vw-clamped column: 800/812 are its
- * longest. 640 is the rule's own lower bound and the narrowest width the
- * collision was measured at.
+ * Widths the rule covers. 740 is its lower bound; 800/812 are where the
+ * vw-clamped column runs longest and the collision persists highest (330, 335).
  */
-const WIDTHS = [640, 667, 740, 800, 812, 932, 1280];
+const WIDTHS = [740, 800, 812, 932, 1280];
 
 /**
- * Below the rule's 640px bound the toggle keeps its own row on purpose.
+ * Below the rule's 740px bound the toggle keeps its own row on purpose.
  *
  * Inlining trades vertical space for horizontal reach, and the header overlay
  * is `pointer-events: none` with only its controls interactive — so once the
  * row is long enough, the toggle is what a hit test over the globe finds.
- * probe-overlap-landscape.spec.ts aims at (width/2, height*0.3), which is
- * (284, 96) at 568x320, and there the inlined row's right edge sat at 258:
- * 26px of margin, which CI's wider fonts spent outright. 568-639 therefore
- * stays on the old layout, and 568x310/315 stay blocked — a knowingly accepted
- * gap, not an oversight.
+ * probe-overlap-landscape.spec.ts aims at (width/2, height*0.3).
+ *
+ * The bound was 640 first, chosen from a local model that widened the links
+ * with letter-spacing. CI measured the real fonts and returned 18px of margin
+ * there against the 35px the model promised — it understated them by about
+ * half. The row reaches x=302 at 640 on CI and its width barely moves with the
+ * viewport, so the margin is ~18px at 640, ~30px at 667 and ~65px at 740.
+ * 740 is the first width with room a font change cannot quietly eat.
+ *
+ * 568-739 therefore keeps the old layout and stays blocked at 300-335 — a
+ * knowingly accepted trade, not an oversight.
  */
-const BELOW_THE_BOUND = 568;
+const BELOW_THE_BOUND = 667;
 
 /** The band the collision was measured across, plus a clear size above it. */
 const HEIGHTS = [310, 320, 330, 335, 340, 400];
