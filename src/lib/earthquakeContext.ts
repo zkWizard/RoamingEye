@@ -630,8 +630,9 @@ export function comparedEventPopulationText(
  * that stopped advancing when the page loaded.
  *
  * The sibling volcano section already dates its own snapshot ("Bundled GVP
- * snapshot retrieved 2026-05 (UTC)"); this is the same disclosure for the one
- * geology source that is live rather than bundled. A missing stamp is reported
+ * snapshot retrieved <month> (UTC)", read from the bundled file's provenance
+ * rather than pasted here, so this comment cannot drift); this is the same
+ * disclosure for the one geology source that is live rather than bundled. A missing stamp is reported
  * rather than skipped, for the same reason that section reports a missing
  * retrieval month.
  *

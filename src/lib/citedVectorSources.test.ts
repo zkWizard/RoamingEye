@@ -112,8 +112,19 @@ describe("citedVectorSources", () => {
 
   it("dates the bundled volcano extract rather than implying live data", () => {
     expect(byKey("dataset_GVPVolcanoesOfTheWorld").note).toContain(
-      GVP_VOLCANO_SOURCE.dataDate
+      GVP_VOLCANO_SOURCE.extractRetrievedDate
     );
+  });
+
+  it("dates that extract from the file it ships, not the database version", () => {
+    // The place panel stamps the same snapshot from the bundled file's own
+    // provenance. Quoting `dataDate` here — a constant that predates the
+    // extract — gave one file two dates depending on which surface a reader
+    // looked at, so the note must not fall back to it.
+    const note = byKey("dataset_GVPVolcanoesOfTheWorld").note ?? "";
+
+    expect(note).not.toContain(GVP_VOLCANO_SOURCE.dataDate);
+    expect(note).not.toContain(GVP_VOLCANO_SOURCE.dataMonth);
   });
 
   it("cites the Natural Earth basemap the globe draws borders and cities from", () => {

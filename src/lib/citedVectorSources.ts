@@ -87,9 +87,12 @@ export function citedVectorSources(): VectorSourceCitation[] {
       doi: GVP_VOLCANO_SOURCE.doi,
       url: GVP_VOLCANO_SOURCE.url,
       usedBy: ["Volcanoes overlay", "Volcano records"],
-      // The bundled extract's own data date, not today's database state: the
-      // overlay ships a snapshot prepared by scripts/prepare-data.mjs.
-      note: `Bundled extract dated ${GVP_VOLCANO_SOURCE.dataDate}; the live database moves on.`,
+      // The date the bundled extract records for itself, not today's database
+      // state: the overlay ships a snapshot prepared by prepare-data.mjs, and
+      // the place panel already dates it from that file's own provenance. Using
+      // `dataDate` here quoted a constant committed before the extract existed,
+      // so the two surfaces gave one snapshot two dates two months apart.
+      note: `Bundled extract retrieved ${GVP_VOLCANO_SOURCE.extractRetrievedDate}; the live database moves on.`,
     },
     {
       key: "dataset_USGSSeismicityFeed",
