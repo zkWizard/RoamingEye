@@ -2962,6 +2962,57 @@ body {
   }
 }
 
+/* The same collision, reached with a mouse. The rule above was scoped to a
+   coarse pointer because a coarse pointer is what grows the column's controls
+   to 44px, and the reasoning stopped there: with the smaller mouse chrome the
+   column is 52px shorter, so it looked like it could not reach the panel.
+
+   It reaches. The column's height follows the WIDTH and the panel's top
+   follows the HEIGHT, and a mouse only moves where the two meet — it does not
+   stop them meeting. Measured on main under the suite's own fine-pointer
+   context, `.theme-toggle` lost its centre to DIV#controls or to
+   BUTTON#hud-collapse across a CONTIGUOUS 300-335px band of viewport height:
+   nine of eleven widths at 300, 310 and 315, eight at 320, seven at 325, and
+   the last stragglers at 330 and 335 (800 and 812 wide, the widths where the
+   vw-clamped brand runs longest). 340 and above are clear. So a click there
+   folded the HUD or hit the panel instead of switching the theme — the same
+   "did something else" failure the coarse rule was written for, on the pointer
+   that cannot even be blamed for the 44px boxes.
+
+   This band is a desktop window dragged short, not a device: no phone is
+   320px tall in portrait, and a phone in landscape is coarse and already
+   covered above. e2e/probe-overlap-landscape.spec.ts already drives 568x320
+   through a fine-pointer context, so this is live regression surface for the
+   suite rather than a hypothetical.
+
+   The mechanism is the one that worked above and it spends no space either:
+   #software-link and #fleet-link already share a row, the toggle's mount is
+   the only block among the three, and inlining it returns its 38px box plus
+   the 0.5rem margin — 46px under mouse chrome — to the gap above the panel.
+   The row then runs to x=273 at its longest against 568px of width at the
+   narrowest size in this band, so nothing wraps and the toggle keeps its full
+   38px box. `vertical-align` is set on all three because the toggle is 38px
+   against the links' 29 and a bare baseline would hang its icon off theirs.
+
+   Scoped to 340px rather than to the 335 the measurement ends at, so the rule
+   covers the band with a pixel of margin; 340 and 345 measured clear both with
+   and without it. Scoped to `pointer: fine` so the coarse layout #1064 shipped
+   is provably untouched — the two queries are disjoint, and
+   e2e/coarse-pointer-header-row.spec.ts still owns that side.
+   e2e/fine-pointer-short-window.spec.ts holds this one. */
+@media (pointer: fine) and (max-height: 340px) {
+  .software-link,
+  .fleet-link,
+  .theme-toggle-mount {
+    vertical-align: middle;
+  }
+
+  .theme-toggle-mount {
+    display: inline-block;
+    margin-left: 0.5rem;
+  }
+}
+
 /* The same fixed 150px, the other axis. The rule above clears the corner
    sideways because a landscape phone has no vertical room to give; a tablet
    has nothing but vertical room, and there the reserve simply runs short.
