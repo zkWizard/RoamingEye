@@ -93,6 +93,8 @@ export class ProbePanel {
 
   private months: YearMonth[] = [];
   private values: (number | null)[] = [];
+  /** Per-month usable footprint share; null when the mode measures none. */
+  private validFractions: (number | null)[] | null = null;
   private scale: ProbeScale | undefined;
   private context: ProbeSeriesContext | undefined;
   /** Bumped per series so a late lazy summary of an old probe is discarded. */
@@ -338,8 +340,16 @@ export class ProbePanel {
     filename: string,
     emptySeriesNote?: string | null,
     spatialSupportNote?: string | null,
-    averagedFootprint?: MarineAveragedSstFootprint | null
+    averagedFootprint?: MarineAveragedSstFootprint | null,
+    /**
+     * Per-month usable share of the sampled footprint, when the mode measures
+     * one. Null for a point probe, whose value is a median of a tight pixel
+     * block rather than a footprint mean — the same reason every other
+     * share-dependent note on this panel is silent for a point.
+     */
+    validFractions?: (number | null)[] | null
   ): void {
+    this.validFractions = validFractions ?? null;
     this.csv = csv;
     this.csvFilename = filename;
     this.downloadBtn.disabled = false;
@@ -537,6 +547,51 @@ export class ProbePanel {
     this.appendPeakGreenness(stat, physical);
     this.appendPrecipitationCycle(stat, physical);
     this.appendAerosolObservingEpoch(stat, trend);
+    this.appendSoilMoistureStanding(stat, physical);
+  }
+
+  /**
+   * Append where the probe's latest observed month stands against the same
+   * calendar month in the other years the probe sampled.
+   *
+   * The panel already prints the record's min, mean, max and trend, but column
+   * soil water carries a large seasonal cycle, so a whole-record mean is not
+   * the comparison that says whether the latest month's ground is ordinary for
+   * that place at that time of year. `soilMoisturePercentile.ts` derives that
+   * rank against the same calendar month only, which is the comparison that
+   * holds; nothing had ever called it.
+   *
+   * Loaded on demand for the reason the three clauses above are — the seasonal
+   * baseline machinery is dead weight on every other layer, and the status line
+   * already fills in progressively. A newer series invalidates an in-flight
+   * load.
+   *
+   * This cannot race any clause above: that set is NDVI-only,
+   * precipitation-only and aerosol-only and this one soil-only, so at most one
+   * of the four ever rebuilds the line from `stat`.
+   */
+  private appendSoilMoistureStanding(
+    stat: string,
+    physical: (number | null)[]
+  ): void {
+    const context = this.context;
+    if (!context) return;
+    const months = this.months;
+    const shares = this.validFractions;
+    if (!shares) return; // a point probe measures no footprint share
+    const token = this.seriesToken;
+    void import("../lib/probeSoilMoistureStanding")
+      .then(({ probeSoilMoistureStanding, soilMoistureStandingClause }) => {
+        if (token !== this.seriesToken) return; // superseded by a newer probe
+        const clause = soilMoistureStandingClause(
+          probeSoilMoistureStanding(context.layerId, months, physical, shares)
+        );
+        if (!clause) return;
+        this.setStatus(`${stat} · ${clause}`);
+      })
+      .catch(() => {
+        // A failed chunk load must leave the stats already on screen intact.
+      });
   }
 
   /**
