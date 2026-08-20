@@ -30,6 +30,10 @@ import {
   type Bounds,
 } from "../lib/imagery";
 import { fetchBlob } from "../lib/net";
+import {
+  classifyProbeLoadFailure,
+  type ProbeMonthLoadFailure,
+} from "../lib/probeRetrievalFailure";
 import type { LayerId } from "../lib/timeline";
 import {
   geometryBounds,
@@ -79,6 +83,12 @@ export interface SampleResult {
    * whose image failed to load) — coverage honesty for the CSV's
    * valid_fraction column. */
   validFractions: number[];
+  /** How many months produced no value because their image never arrived —
+   * offline, timed out, a 5xx, or a body that failed to decode. A month the
+   * source *declined* is excluded: that absence is the record, not a failure.
+   * Consumers use it to keep an unreachable server from being reported as the
+   * product's answer. See lib/probeRetrievalFailure.ts. */
+  transportFailureMonths: number;
   /** Dimensions of the rendered GIBS image actually sampled. These describe
    * the source imagery, not a ground-resolution measurement. */
   sourceImageDimensions: { width: number; height: number };
@@ -504,10 +514,12 @@ export class ProbeSampler {
     const { signal, onProgress, onValue, onSampledColors } = options;
     const values: (number | null)[] = new Array(months.length).fill(null);
     const validFractions: number[] = new Array(months.length).fill(0);
+    let transportFailureMonths = 0;
     if (months.length === 0) {
       return {
         values,
         validFractions,
+        transportFailureMonths,
         sourceImageDimensions: { ...this.imageSize },
       };
     }
@@ -537,6 +549,7 @@ export class ProbeSampler {
         );
         values[index] = month.value;
         validFractions[index] = month.validFraction;
+        if (month.loadFailure === "transport-failed") transportFailureMonths++;
         done++;
         onValue?.(index, values[index]);
         // A month whose imagery failed to load read no colours at all, which
@@ -553,6 +566,7 @@ export class ProbeSampler {
     return {
       values,
       validFractions,
+      transportFailureMonths,
       sourceImageDimensions: { ...this.imageSize },
       geometrySamplingStrategy,
     };
@@ -611,6 +625,9 @@ export class ProbeSampler {
     value: number | null;
     validFraction: number;
     colors?: Rgb[];
+    /** Set only when the month's image never loaded, saying which kind of
+     * absence produced the null. */
+    loadFailure?: ProbeMonthLoadFailure;
   }> {
     let source: ImageSource;
     try {
@@ -619,8 +636,16 @@ export class ProbeSampler {
         : await this.loadGlobalSource(layer, ym, signal);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") throw err;
-      // A missing month is a gap in the chart, not a failure.
-      return { value: null, validFraction: 0 };
+      // A month the source *declined* is a gap in the chart, not a failure.
+      // Anything else — offline, a timeout, a 5xx, a body that never decoded —
+      // is a failure, and returning it as an indistinguishable null let the
+      // panel report an unreachable server as the product's own answer. See
+      // lib/probeRetrievalFailure.ts.
+      return {
+        value: null,
+        validFraction: 0,
+        loadFailure: classifyProbeLoadFailure(err),
+      };
     }
 
     // Copy each source pixel into a 1-px-tall strip and read it in one call.
