@@ -191,7 +191,18 @@ export const LEGENDS: Record<LayerId, LegendSpec> = {
     ],
   },
   sst: {
-    measures: "Sea surface temperature",
+    // The 9 km native bin is stated here for the same reason soil moisture
+    // states "0-10 cm" and aerosol states "550 nm": GIBS's own title carries
+    // the qualifier, and dropping it lets a coastal reading pass for a
+    // shoreline measurement when the bin straddles the coast. See
+    // variableIdentity.ts.
+    //
+    // Worded "(9 km)" rather than "(9 km grid)" because this line is
+    // white-space: nowrap inside a wrapping row: at 171px it matches the
+    // existing "Land surface temperature (day)" and stays under the widest
+    // line the legend already renders, so it adds no wrap — and therefore no
+    // upward HUD growth — at any viewport. "9 km" is also GIBS's own text.
+    measures: "Sea surface temperature (9 km)",
     minLabel: "polar",
     maxLabel: "tropical",
     // Taken from the ramp GIBS renders MODIS_Sea_Surface_Temperature with
