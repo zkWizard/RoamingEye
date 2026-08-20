@@ -1,17 +1,19 @@
 import { SEISMICITY_SOURCE } from "./earthquakes";
+import { NATURAL_EARTH_SOURCE } from "./naturalEarthSource";
 import { BIRD_2003_PLATE_BOUNDARY_SOURCE } from "./plateBoundaryContext";
 import { GVP_VOLCANO_SOURCE } from "./volcanoContext";
 
 /**
  * Citations for the vector datasets the globe renders alongside the GIBS
- * imagery: Smithsonian GVP volcanoes, USGS seismicity, and the Bird (2003)
- * plate-boundary model.
+ * imagery: Smithsonian GVP volcanoes, USGS seismicity, the Bird (2003)
+ * plate-boundary model, and the Natural Earth basemap behind the borders,
+ * regions and cities.
  *
  * `citedDatasets()` (providers.ts) enumerates only the layers backed by a CMR
  * `DatasetRef` — a NASA product with a short name, a product version, and a
- * product DOI. The three sources below are rendered just as prominently (an
- * overlay each, plus place-panel readouts), and two of them carry a real DOI,
- * but none is a CMR product: forcing them into a `DatasetRef` would invent a
+ * product DOI. The four sources below are rendered just as prominently — on the
+ * globe itself, plus place-panel and hover readouts — and two of them carry a
+ * real DOI, but none is a CMR product: forcing them into a `DatasetRef` would invent a
  * short name and a version no archive publishes. They are modelled separately
  * here instead, and the citation bundle emits both groups.
  *
@@ -123,6 +125,23 @@ export function citedVectorSources(): VectorSourceCitation[] {
       // the author's original supplementary file; crediting only the article
       // would hide where the rendered geometry actually came from.
       note: `Rendered from the ${BIRD_2003_PLATE_BOUNDARY_SOURCE.digitization} (${BIRD_2003_PLATE_BOUNDARY_SOURCE.digitizationUrl}).`,
+    },
+    {
+      key: "dataset_NaturalEarthVector",
+      title: NATURAL_EARTH_SOURCE.name,
+      publisher: NATURAL_EARTH_SOURCE.org,
+      type: "dataset",
+      url: NATURAL_EARTH_SOURCE.url,
+      usedBy: ["Borders overlay", "Cities overlay", "Place and region names"],
+      // Natural Earth issues numbered releases, but prepare-data.mjs fetches an
+      // unpinned branch of the mirror, so this repo does not know which one the
+      // shipped extract came from. No version is emitted rather than a guessed
+      // one; the theme files are named instead, because those the repo does
+      // record and they are what makes the extract reproducible.
+      note:
+        `Public-domain basemap, cited without a version: the bundled extract ` +
+        `was taken from ${NATURAL_EARTH_SOURCE.mirrorUrl} at an unpinned ` +
+        `branch (${NATURAL_EARTH_SOURCE.themes.join(", ")}).`,
     },
   ];
 }

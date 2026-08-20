@@ -69,9 +69,10 @@ export class ProvidersPage {
     citingIntro.className = "providers__desc";
     citingIntro.textContent =
       "Publishing work made with RoamingEye? Cite every source dataset you " +
-      "used — the imagery products and the volcano, earthquake and " +
-      "plate-boundary sources alike (a DOI resolves to its own citation; the " +
-      "one source without a DOI says what to add) — and acknowledge the " +
+      "used — the imagery products and the volcano, earthquake, " +
+      "plate-boundary and basemap sources alike (a DOI resolves to its own " +
+      "citation; the two sources without one say what to add) — and " +
+      "acknowledge the " +
       "imagery service:";
     const list = document.createElement("ul");
     list.className = "providers__datasets";
@@ -95,9 +96,9 @@ export class ProvidersPage {
       list.appendChild(item);
     }
     // The vector overlays are rendered just as prominently as the imagery but
-    // are not CMR products, so they are listed from their own registry. One of
-    // them has no DOI: it is linked by its landing page and carries the note
-    // saying what the reader must add (see citedVectorSources.ts).
+    // are not CMR products, so they are listed from their own registry. Two of
+    // them have no DOI: each is linked by its landing page and carries the
+    // note saying what the reader must add (see citedVectorSources.ts).
     for (const source of citedVectorSources()) {
       const item = document.createElement("li");
       const link = document.createElement("a");

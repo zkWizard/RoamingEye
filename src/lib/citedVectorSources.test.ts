@@ -1,7 +1,9 @@
+import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import { citedVectorSources } from "./citedVectorSources";
 import { SEISMICITY_SOURCE } from "./earthquakes";
 import { BIRD_2003_PLATE_BOUNDARY_SOURCE } from "./plateBoundaryContext";
+import { NATURAL_EARTH_SOURCE } from "./naturalEarthSource";
 import { GVP_VOLCANO_SOURCE } from "./volcanoContext";
 
 const byKey = (key: string) => {
@@ -12,11 +14,14 @@ const byKey = (key: string) => {
 
 describe("citedVectorSources", () => {
   it("covers each vector dataset the globe renders", () => {
-    // One entry per rendered overlay: volcanoes, seismicity, plate boundaries.
+    // One entry per rendered vector dataset: volcanoes, seismicity, plate
+    // boundaries, and the Natural Earth basemap behind the borders overlay,
+    // the cities overlay and the hover readout's country/region names.
     expect(citedVectorSources().map((s) => s.key)).toEqual([
       "dataset_GVPVolcanoesOfTheWorld",
       "dataset_USGSSeismicityFeed",
       "article_Bird2003PlateBoundaries",
+      "dataset_NaturalEarthVector",
     ]);
   });
 
@@ -120,5 +125,52 @@ describe("citedVectorSources", () => {
 
     expect(note).not.toContain(GVP_VOLCANO_SOURCE.dataDate);
     expect(note).not.toContain(GVP_VOLCANO_SOURCE.dataMonth);
+  });
+
+  it("cites the Natural Earth basemap the globe draws borders and cities from", () => {
+    // countries.geojson, admin1.geojson and cities.json are three themes of
+    // one public-domain collection, and every one of them is on screen: the
+    // borders overlay, the cities overlay, and the hover readout's region
+    // name. Before this entry existed the citation bundle named none of them,
+    // so a reader who copied it credited the imagery and silently dropped the
+    // basemap underneath it.
+    const ne = byKey("dataset_NaturalEarthVector");
+    expect(ne.type).toBe("dataset");
+    expect(ne.title).toBe(NATURAL_EARTH_SOURCE.name);
+    expect(ne.publisher).toBe(NATURAL_EARTH_SOURCE.org);
+    expect(ne.url).toBe(NATURAL_EARTH_SOURCE.url);
+    expect(ne.usedBy).toEqual([
+      "Borders overlay",
+      "Cities overlay",
+      "Place and region names",
+    ]);
+  });
+
+  it("emits no Natural Earth version, because the repo pins none", () => {
+    // prepare-data.mjs fetches the mirror's `master` branch, so no release is
+    // recorded anywhere in the repo. A plausible-looking "v5.1.2" would be an
+    // invented fact of exactly the kind this registry exists to prevent — and
+    // it would be worse than no version, since a reader would trust it.
+    const ne = byKey("dataset_NaturalEarthVector");
+    expect(ne.version).toBeUndefined();
+    expect(ne.doi).toBeUndefined();
+    // What IS recorded travels instead, so the extract stays reproducible.
+    expect(ne.note).toContain("unpinned");
+    for (const theme of NATURAL_EARTH_SOURCE.themes) {
+      expect(ne.note, `note names ${theme}`).toContain(theme);
+    }
+  });
+
+  it("the theme files named in the citation are the ones the app loads", () => {
+    // Guards the transcription: if prepare-data.mjs is repointed at a
+    // different scale or theme, the citation must move with it rather than
+    // describing an extract the app no longer ships.
+    const script = readFileSync(
+      new URL("../../scripts/prepare-data.mjs", import.meta.url),
+      "utf8"
+    );
+    for (const theme of NATURAL_EARTH_SOURCE.themes) {
+      expect(script, `prepare-data.mjs fetches ${theme}`).toContain(theme);
+    }
   });
 });

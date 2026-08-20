@@ -253,7 +253,7 @@ export function cslJson(items: readonly CslItem[]): string {
 /**
  * The formatters above are specific to a CMR `DatasetRef`: they look the
  * publisher up by DOI in the NASA archive registry (datasetArchives.ts) and
- * assume a short name, a version, and a DOI. The globe also renders three
+ * assume a short name, a version, and a DOI. The globe also renders four
  * vector datasets that are none of those things (see citedVectorSources.ts),
  * and none of them is archived by a NASA DAAC, so they get their own formatters
  * carrying their own publishers rather than being squeezed into a shape built
