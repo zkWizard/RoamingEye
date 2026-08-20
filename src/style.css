@@ -2919,6 +2919,49 @@ body {
   }
 }
 
+/* The same corner, reached from the other side. The rule above cleared the
+   DRAW button off #hud-collapse sideways; the theme toggle sits in the header
+   column directly above that corner and arrives there vertically, because the
+   column's height is a function of WIDTH — the brand and hint fonts are
+   vw-clamped — while the panel's top is a function of HEIGHT. Below ~360px of
+   height the two meet.
+
+   Measured on main under touch emulation, .theme-toggle hit-tested to
+   BUTTON#hud-collapse at its centre at 568x320, a size this suite already
+   drives: the tap folded the HUD instead of switching the theme, which is the
+   same "did something else" failure the two rules above were written for. A
+   10-width x 13-height sweep found the dead band contiguous — every width
+   tested at 320 and 340, eight of ten at 350, and 800x360 — and at 740x360 the
+   centre survives while the reachable area clips to ~23px tall, under the WCAG
+   2.5.8 24px floor.
+
+   The fix spends no space and moves nothing else. #software-link and
+   #fleet-link are already inline-block and already share one row; the toggle's
+   mount is the only block in that group, so it takes a row of its own. Making
+   it inline puts it on the row its two siblings already occupy, returning the
+   44px button plus its 0.5rem margin — 52px — to the gap above the panel. The
+   three run ~238px against 534px of available width at the narrowest size in
+   this band, so nothing wraps and the toggle keeps its full 44px box.
+   `vertical-align` is set on all three because a bare baseline would hang the
+   toggle's icon off the links' text baseline.
+
+   Scoped to the same band as the corner rule above: a coarse pointer is what
+   grows these three to 44px in the first place, and every other project in the
+   e2e suite runs a fine pointer, whose smaller chrome this leaves untouched.
+   e2e/coarse-pointer-header-row.spec.ts holds the toggle and both links. */
+@media (pointer: coarse) and (max-height: 460px) {
+  .software-link,
+  .fleet-link,
+  .theme-toggle-mount {
+    vertical-align: middle;
+  }
+
+  .theme-toggle-mount {
+    display: inline-block;
+    margin-left: 0.5rem;
+  }
+}
+
 /* The same fixed 150px, the other axis. The rule above clears the corner
    sideways because a landscape phone has no vertical room to give; a tablet
    has nothing but vertical room, and there the reserve simply runs short.
