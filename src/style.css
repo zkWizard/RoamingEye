@@ -2999,8 +2999,26 @@ body {
    and without it. Scoped to `pointer: fine` so the coarse layout #1064 shipped
    is provably untouched — the two queries are disjoint, and
    e2e/coarse-pointer-header-row.spec.ts still owns that side.
+
+   And scoped to 640px of WIDTH, which is the part that cost a CI run. Inlining
+   trades vertical space for horizontal reach: the row grows from x=55 to about
+   x=260, and the header overlay is `pointer-events: none` with only these
+   controls interactive, so past a point the toggle itself is what a hit test
+   over the globe finds. e2e/probe-overlap-landscape.spec.ts aims its probe at
+   (width/2, height*0.3) — (284, 96) at 568x320 — and the toggle's right edge
+   sits at 258 there: 26px of margin, which CI's wider fonts spend. It failed
+   exactly that way. Widening the links with letter-spacing to model those
+   fonts, 568 collapses 26px -> 1px while every width from 640 up keeps 35px or
+   more at the same widening, so 640 is where the mechanism stops being a trade
+   and starts being free.
+
+   That leaves 568-639 UNFIXED at 300-335, and it is the right call rather than
+   a gap: 568x320 was already one of only two sizes that passed on main, and
+   buying the rest of that width band would mean putting a control back over
+   the globe's aim to save a row. 568x310 and 568x315 stay blocked and are
+   recorded in the spec.
    e2e/fine-pointer-short-window.spec.ts holds this one. */
-@media (pointer: fine) and (max-height: 340px) {
+@media (pointer: fine) and (max-height: 340px) and (min-width: 640px) {
   .software-link,
   .fleet-link,
   .theme-toggle-mount {

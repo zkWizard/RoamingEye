@@ -28,8 +28,26 @@ import { awaitAppInteractive } from "./boot";
  * context via setViewportSize — a fresh context per size costs ~1 minute.
  */
 
-/** Widths that bracket the vw-clamped column: 800/812 are its longest. */
-const WIDTHS = [568, 667, 740, 800, 812, 932, 1280];
+/**
+ * Widths the rule covers, bracketing the vw-clamped column: 800/812 are its
+ * longest. 640 is the rule's own lower bound and the narrowest width the
+ * collision was measured at.
+ */
+const WIDTHS = [640, 667, 740, 800, 812, 932, 1280];
+
+/**
+ * Below the rule's 640px bound the toggle keeps its own row on purpose.
+ *
+ * Inlining trades vertical space for horizontal reach, and the header overlay
+ * is `pointer-events: none` with only its controls interactive — so once the
+ * row is long enough, the toggle is what a hit test over the globe finds.
+ * probe-overlap-landscape.spec.ts aims at (width/2, height*0.3), which is
+ * (284, 96) at 568x320, and there the inlined row's right edge sat at 258:
+ * 26px of margin, which CI's wider fonts spent outright. 568-639 therefore
+ * stays on the old layout, and 568x310/315 stay blocked — a knowingly accepted
+ * gap, not an oversight.
+ */
+const BELOW_THE_BOUND = 568;
 
 /** The band the collision was measured across, plus a clear size above it. */
 const HEIGHTS = [310, 320, 330, 335, 340, 400];
@@ -133,6 +151,14 @@ const reachable = (page: import("@playwright/test").Page, selector: string) =>
 test("the theme toggle and its row survive a short desktop window", async ({
   page,
 }) => {
+  // 43 viewport changes, each waiting for the layout to settle and then walking
+  // four hit tests out from a centre. That does not fit the 30s default: the
+  // first version measured 25.3s locally and one more assertion per size tipped
+  // it over, which surfaces as a resize timeout rather than as anything about
+  // the layout. One context for all of them is still far cheaper than a fresh
+  // context per size (~1 minute each).
+  test.setTimeout(180_000);
+
   await page.goto("/");
   await awaitAppInteractive(page);
 
@@ -204,6 +230,23 @@ test("the theme toggle and its row survive a short desktop window", async ({
       const [link, tog] = rows;
       expect(link && tog, `${name}: a header control is missing`).toBeTruthy();
       const shares = tog!.top < link!.bottom && link!.top < tog!.bottom;
+
+      // The invariant the 640px bound exists to protect, asserted here so a
+      // future change that lengthens this row fails THIS spec by name rather
+      // than probe-overlap-landscape.spec.ts by side effect. That spec aims a
+      // probe at (width/2, height*0.3); the overlay is pointer-events: none,
+      // so anything of ours reaching that x is what the hit test finds. 24px
+      // is the smallest margin worth shipping — the measured worst case at
+      // 640 under widened fonts is 35px.
+      const right = await page.evaluate(
+        () =>
+          document.querySelector(".theme-toggle")!.getBoundingClientRect().right
+      );
+      expect(
+        Math.round(width / 2) - right,
+        `${name}: the header row reaches x=${Math.round(right)}, within 24px of the probe's aim at x=${Math.round(width / 2)} — inlining is no longer free at this width`
+      ).toBeGreaterThanOrEqual(24);
+
       if (height <= 340) {
         expect(
           shares,
@@ -221,6 +264,29 @@ test("the theme toggle and its row survive a short desktop window", async ({
       }
     }
   }
+
+  // Below the bound the rule must NOT fire: the toggle keeps its own row, so
+  // nothing of ours grows toward the globe where probe-overlap-landscape.spec.ts
+  // aims. This is the assertion that keeps the exclusion deliberate — widen the
+  // rule's width range and this fails before that spec does.
+  await page.setViewportSize({ width: BELOW_THE_BOUND, height: 320 });
+  await page.waitForFunction((w) => window.innerWidth === w, BELOW_THE_BOUND, {
+    timeout: 5_000,
+  });
+  await settled(page);
+  const below = await page.evaluate(() => {
+    const link = document
+      .querySelector("#software-link")!
+      .getBoundingClientRect();
+    const tog = document
+      .querySelector(".theme-toggle")!
+      .getBoundingClientRect();
+    return { linkBottom: link.bottom, togTop: tog.top, togRight: tog.right };
+  });
+  expect(
+    below.togTop,
+    `${BELOW_THE_BOUND}x320: the toggle joined the links' row below the 640px bound — that is the layout that put it over the probe's aim`
+  ).toBeGreaterThanOrEqual(below.linkBottom);
 
   // And the control still does its job, at a size that was blocked on main.
   await page.setViewportSize({ width: 812, height: 320 });
