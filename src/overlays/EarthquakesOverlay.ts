@@ -20,6 +20,7 @@ import {
   type EarthquakeFeedSnapshot,
 } from "../lib/earthquakes";
 import { reportedDepthBasisNote } from "../lib/seismicFixedDepth";
+import { networkGeometryNote } from "../lib/seismicNetworkGeometry";
 
 /**
  * Live seismicity: the last 30 days of M4.5+ earthquakes from the USGS feed.
@@ -105,7 +106,14 @@ export class EarthquakesOverlay implements MapOverlay {
           // The marker's color already asserts a depth class. Where the feed's
           // depth is one of the conventional operator defaults, say so rather
           // than let the readout imply an independently resolved hypocenter.
-          const note = reportedDepthBasisNote(quake.depthKm);
+          //
+          // A station gap past the one threshold USGS publishes qualifies the
+          // whole location solution — the place and the depth together, and so
+          // the marker's own position — which is strictly more than the
+          // default-depth clause says. So it takes the slot when both apply,
+          // rather than trailing a second qualifier on one readout.
+          const note =
+            networkGeometryNote(quake) ?? reportedDepthBasisNote(quake.depthKm);
           const observation = formatEarthquakeObservation(quake);
           return note ? `${observation} · ${note}` : observation;
         },
