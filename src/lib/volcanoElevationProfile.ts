@@ -17,8 +17,7 @@ import {
  * reported summit heights — so a place panel, an in-view extent summary, or an
  * export can distinguish, say, a cluster of high subaerial stratovolcanoes from
  * a field of submarine seamounts whose datum-relative extremes alone would look
- * similar. It parallels seismicDepthProfile.ts, which does the same for
- * hypocentral depth.
+ * similar.
  *
  * Summit elevation is a linear physical quantity in metres relative to the sea-
  * level datum (negative below it), so order statistics (median, quartiles,
@@ -86,8 +85,7 @@ const LIMITATIONS = [
 
 /**
  * The p-th quantile (0 ≤ p ≤ 1) of a pre-sorted ascending array by linear
- * interpolation between the closest ranks — the R-7 / NumPy-default method,
- * matching seismicDepthProfile.ts so the two profiles read consistently. The
+ * interpolation between the closest ranks — the R-7 / NumPy-default method. The
  * caller guarantees a non-empty array.
  */
 function quantileSorted(sorted: readonly number[], p: number): number {
@@ -143,7 +141,9 @@ function joinClauses(parts: readonly string[]): string {
  * metres-above-sea-level reading is already unambiguous.
  *
  * The datum is named by whichever clause comes first, so the sentence never
- * refers back to a surface it has not introduced.
+ * refers back to a surface it has not introduced. When a single datum band
+ * covers every reported summit there is no split to report, so the sentence
+ * states that uniformity rather than partitioning the set into itself.
  *
  * This reads the sign GVP reports. It is not a claim about eruption style,
  * edifice relief, or whether an edifice currently breaches the sea surface.
@@ -156,23 +156,40 @@ export function summitDatumText(
   const reported = subaerial + atDatum + submarine;
   if (reported === 0 || submarine + atDatum === 0) return null;
 
-  const parts: string[] = [];
-  if (subaerial > 0) parts.push(`${subaerial} above sea level`);
-  if (atDatum > 0) parts.push(`${atDatum} at the 0 m datum`);
+  const bands: { count: number; datum: string }[] = [];
+  if (subaerial > 0) bands.push({ count: subaerial, datum: "above sea level" });
+  if (atDatum > 0) bands.push({ count: atDatum, datum: "at the 0 m datum" });
   if (submarine > 0) {
     // "below it" leans on a datum an earlier clause names — "above sea level",
     // or "at the 0 m datum", which is the same surface. An arc, ridge, or
     // seamount extent can match submarine summits and nothing else, and there
     // both clauses are absent, leaving the pronoun pointing at nothing. Name
     // the datum outright when this clause leads.
-    const datum = parts.length === 0 ? "below sea level" : "below it";
-    parts.push(
-      `${submarine} ${datum} (submarine ${submarine === 1 ? "summit" : "summits"})`
-    );
+    const datum = bands.length === 0 ? "below sea level" : "below it";
+    bands.push({
+      count: submarine,
+      datum: `${datum} (submarine ${submarine === 1 ? "summit" : "summits"})`,
+    });
   }
-  return `Of the ${reported} reported summit ${
-    reported === 1 ? "elevation" : "elevations"
-  }, ${joinClauses(parts)}.`;
+
+  // "Of the N …, N …" partitions a set into itself: it repeats a total the
+  // preceding panel sentence already gave and reports a split with no other
+  // side. One band covering every reported summit is the majority rendering at
+  // probe zoom, so state that uniformity instead, the way
+  // crustalThicknessBasisText does. A lone summit has no uniformity to report,
+  // so it is named rather than counted.
+  if (bands.length === 1) {
+    const [only] = bands;
+    return reported === 1
+      ? `The one reported summit elevation is ${only.datum}.`
+      : `All ${reported} reported summit elevations are ${only.datum}.`;
+  }
+  // Two or more bands need at least one summit each, so the plural is not a
+  // choice here — the lone-summit reading is the branch above.
+  return (
+    `Of the ${reported} reported summit elevations, ` +
+    `${joinClauses(bands.map((band) => `${band.count} ${band.datum}`))}.`
+  );
 }
 
 /**

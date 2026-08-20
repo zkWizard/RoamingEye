@@ -71,6 +71,7 @@ import { emptyMarineProbeNote } from "./lib/marineProbeDomain";
 import { emptySnowProbeNote } from "./lib/snowProbeAbsence";
 import { emptyVegetationProbeNote } from "./lib/vegetationProbeAbsence";
 import { emptySoilProbeNote } from "./lib/soilProbeDomain";
+import { emptyLstProbeNote } from "./lib/lstProbeDomain";
 import {
   seasonalSamplingBalance,
   seasonalSamplingCsvHeaders,
@@ -1565,7 +1566,13 @@ if (probeEl) {
           // Soil moisture is precipitation's sibling field in one GLDAS run, so
           // it empties off land for the same reason — and again at the ramp's
           // dropped top bin, which is why its note refuses the dry reading.
+          // Land surface temp was the last probeable family with no note at
+          // all: MOD11C3 is retrieved over land only, so open water empties it
+          // by construction — but it is also a clear-sky composite, so a month
+          // that never cleared empties it over land as well. Its note is the
+          // only two-sided one besides SST's, and for the mirror reason.
           emptyAtmosphereProbeNote(layer.id, values) ??
+            emptyLstProbeNote(layer.id, values) ??
             emptyMarineProbeNote(layer.id, values, sstSupportNote) ??
             emptySnowProbeNote(layer.id, values, snowSupportNote) ??
             emptyVegetationProbeNote(layer.id, values, vegetationSupportNote) ??
@@ -1905,7 +1912,12 @@ if (probeEl) {
           // clause is deliberately silent on an empty record, because this note
           // and the atmosphere one already own that sentence and both already
           // refuse the dry reading. So it reads the same here as it always did.
+          // The LST note is passed no share for the same reason as soil: no
+          // averaged-support clause speaks for this layer on either path, so
+          // there is nothing for it to defer to and the region behaves as the
+          // point probe does.
           emptyAtmosphereProbeNote(layer.id, values) ??
+            emptyLstProbeNote(layer.id, values) ??
             emptyMarineProbeNote(layer.id, values, sstSupportNote) ??
             emptySnowProbeNote(layer.id, values, snowSupportNote) ??
             emptyVegetationProbeNote(layer.id, values, vegetationSupportNote) ??
