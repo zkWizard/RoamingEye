@@ -67,12 +67,18 @@ const AA_FLOOR = 24;
  * window blames whatever happens to be mid-reflow, which is how this spec
  * first failed against a fix that was working.
  *
- * Two consecutive identical samples of every box this spec asserts on mean no
- * reflow is still in flight, so the geometry now describes the settled page.
+ * TWO consecutive identical samples 100ms apart were not enough. CI reflows
+ * more slowly than a local run, the transient outlived that window, and the
+ * spec failed again at its first size — `640x310: ... belongs to DIV#timeline`.
+ * "Unchanged for 100ms" is not "finished"; only sustained quiescence is. So
+ * require FOUR consecutive identical samples at 150ms, ~600ms of stillness,
+ * against a transient measured to resolve inside ~900ms of the resize.
  */
+const SETTLE_SAMPLES = 4;
+
 const settled = (page: import("@playwright/test").Page) =>
   page.waitForFunction(
-    () => {
+    (needed) => {
       const key = [
         "#software-link",
         "#fleet-link",
@@ -87,14 +93,39 @@ const settled = (page: import("@playwright/test").Page) =>
           return `${b.top}|${b.left}|${b.width}|${b.height}`;
         })
         .join(";");
-      const store = window as unknown as { __settleKey?: string };
-      const previous = store.__settleKey;
+      const store = window as unknown as {
+        __settleKey?: string;
+        __settleRun?: number;
+      };
+      store.__settleRun =
+        store.__settleKey === key ? (store.__settleRun ?? 1) + 1 : 1;
       store.__settleKey = key;
-      return previous === key;
+      return (store.__settleRun ?? 1) >= needed;
     },
-    null,
-    { timeout: 10_000, polling: 100 }
+    SETTLE_SAMPLES,
+    { timeout: 30_000, polling: 150 }
   );
+
+/**
+ * What #timeline is doing right now, for the failure message.
+ *
+ * It has been the thief twice, and the log could not say whether it was still
+ * mid-reflow or had genuinely parked over the header — which are different
+ * bugs with different fixes. Reporting its box at the moment of failure, and
+ * again after a second of grace, settles that from the CI log alone.
+ */
+const timelineReport = async (page: import("@playwright/test").Page) => {
+  const box = () =>
+    page.evaluate(() => {
+      const el = document.querySelector("#timeline");
+      if (!el) return "absent";
+      const b = el.getBoundingClientRect();
+      return `${b.top.toFixed(0)}-${b.bottom.toFixed(0)} x${b.left.toFixed(0)}-${b.right.toFixed(0)}`;
+    });
+  const now = await box();
+  await page.waitForTimeout(1_000);
+  return `#timeline at failure ${now}, one second later ${await box()}`;
+};
 
 /**
  * What can actually be pressed, not how big the box is — a boundingBox check
@@ -170,6 +201,17 @@ test("the theme toggle and its row survive a short desktop window", async ({
     "the context is not emulating a fine pointer"
   ).toBe(true);
 
+  // Absorb the one-time boot reflow before anything is measured. The HUD keeps
+  // assembling after the app reports interactive, and it is the FIRST resize
+  // that catches it mid-flight — which is why both CI failures landed on the
+  // first size in the loop and none on any later one. Spend it here, on a size
+  // nothing is asserted at.
+  await page.setViewportSize({ width: 1024, height: 700 });
+  await page.waitForFunction((w) => window.innerWidth === w, 1024, {
+    timeout: 5_000,
+  });
+  await settled(page);
+
   for (const height of HEIGHTS) {
     for (const width of WIDTHS) {
       const name = `${width}x${height}`;
@@ -183,7 +225,10 @@ test("the theme toggle and its row survive a short desktop window", async ({
       expect(toggle.found, `${name}: no theme toggle`).toBe(true);
       expect(
         toggle.centre,
-        `${name}: the theme toggle's centre belongs to ${toggle.thief} — a click there does something else`
+        `${name}: the theme toggle's centre belongs to ${toggle.thief} — a click there does something else` +
+          (toggle.thief.includes("timeline")
+            ? ` [${await timelineReport(page)}] — if the box shrinks in that second this is the boot reflow outrunning the settle wait, not a layout defect`
+            : "")
       ).toBe(true);
       expect(
         toggle.height,
