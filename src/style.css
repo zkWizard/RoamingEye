@@ -2839,6 +2839,36 @@ body {
   }
 }
 
+/* The same fixed 150px, the other axis. The rule above clears the corner
+   sideways because a landscape phone has no vertical room to give; a tablet
+   has nothing but vertical room, and there the reserve simply runs short.
+   The column it reserves for is the brand, the two links and the theme
+   toggle, and a coarse pointer grows two of those three: the links 29px -> 44
+   and the toggle 38px -> 44, so the column needs 21px more than the number
+   says. The draw button lands on the theme toggle, and because it is 112px
+   wide against the toggle's 44 it covers the toggle's centre outright.
+
+   Measured on main under touch emulation, .theme-toggle hit-tested to
+   BUTTON.draw-button at its centre at 820x1180, 834x1112, 1024x1366, 1180x820
+   and 1024x600 — every mainstream tablet viewport bar the 768-wide one, which
+   survives on two pixels of sub-pixel rounding rather than on any design. The
+   tap does not miss quietly: it arms region drawing instead of switching the
+   theme, the same way the corner collision did before the rule above.
+
+   180px is the toggle's own bottom edge (172px under a coarse pointer) plus
+   the 8px gap the column already sets between the links row and the toggle,
+   so the button keeps the rhythm of the rail it hangs from rather than
+   restoring the 1px overlap the mouse layout happens to tolerate. Scoped to
+   the complement of the rule above so the two never both apply: below 461px
+   the column has no room to push into and the corner rule governs instead.
+   390x844, 360x740 and 768x1024 measured clear before this rule and stay
+   clear under it, with the button still well above #controls at every size. */
+@media (pointer: coarse) and (min-height: 461px) {
+  .draw {
+    top: calc(clamp(1rem, 3vw, 2rem) + 180px);
+  }
+}
+
 .draw-button {
   display: inline-flex;
   align-items: center;
