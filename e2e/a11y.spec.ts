@@ -544,6 +544,13 @@ test.describe("touch target size", () => {
   });
 });
 
+/**
+ * NOTE: this measures the badge's BOX, which is not the same question as what
+ * the box can receive. Under a coarse pointer between 541 and ~600px wide the
+ * search field overhangs its top edge and takes 3.8px of it, so the box read
+ * 24 here while the reachable area was 21. Reachability is asserted in
+ * `coarse-pointer-hint-badge.spec.ts`; do not treat this test as covering it.
+ */
 test("the shortcuts badge meets the 24px AA target floor", async ({ page }) => {
   const box = await page.locator(".hint__shortcuts").boundingBox();
   expect(box).not.toBeNull();
