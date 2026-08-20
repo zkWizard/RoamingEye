@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  probeSoilMoistureRecordMargin,
   probeSoilMoistureStanding,
   soilMoistureStandingClause,
 } from "./probeSoilMoistureStanding";
 import { CLIMATE_METRICS } from "./climate";
-import { PROBE_SCALES } from "./probe";
+import { csvDecimals, PROBE_SCALES, quantizationStep } from "./probe";
 import type { YearMonth } from "./timeline";
 
 interface ProbeSeries {
@@ -50,8 +51,24 @@ const rank = (series: ProbeSeries) =>
     series.shares
   );
 
+const margin = (series: ProbeSeries) =>
+  probeSoilMoistureRecordMargin(
+    "soil",
+    series.months,
+    series.values,
+    series.shares
+  );
+
+/** The value precision ProbePanel derives from the soil scale it holds. */
+const SOIL_PRECISION = {
+  resolution: quantizationStep(PROBE_SCALES.soil),
+  decimals: csvDecimals(PROBE_SCALES.soil),
+  unit: PROBE_SCALES.soil.unit,
+};
+
+/** Exactly the triple ProbePanel hands the clause in production. */
 const clauseFor = (series: ProbeSeries) =>
-  soilMoistureStandingClause(rank(series));
+  soilMoistureStandingClause(rank(series), margin(series), SOIL_PRECISION);
 
 /** Twelve prior Marches at 10..21 kg/m², clearing the ten-sample floor. */
 const TWELVE_PRIORS = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21];
@@ -210,5 +227,191 @@ describe("soilMoistureStandingClause", () => {
     expect(
       clauseFor(marchSeries(TWELVE_PRIORS, 15)).length
     ).toBeLessThanOrEqual(200);
+  });
+});
+
+describe("probeSoilMoistureRecordMargin", () => {
+  it("is silent for every layer that is not soil moisture, and for a point probe", () => {
+    const { months, values, shares } = marchSeries(TWELVE_PRIORS, 1);
+    for (const layerId of ["precip", "snow", "ndvi", "sst", "lst"] as const) {
+      expect(
+        probeSoilMoistureRecordMargin(layerId, months, values, shares)
+      ).toBeNull();
+    }
+    expect(
+      probeSoilMoistureRecordMargin(undefined, months, values, shares)
+    ).toBeNull();
+    // A point probe measures no footprint share, so it can carry no standing.
+    expect(
+      probeSoilMoistureRecordMargin("soil", months, values, null)
+    ).toBeNull();
+  });
+
+  it("ranks the identical sample set the percentile ranks", () => {
+    // The two descriptions share one reduction precisely so a clause can state
+    // a rank and a margin as facts about the SAME record.
+    const series = marchSeries(TWELVE_PRIORS, 1);
+    expect(margin(series)?.sampleCount).toBe(rank(series)?.sampleCount);
+    expect(margin(series)?.dataMonth).toEqual(
+      rank(series)?.baseline.target.dataMonth
+    );
+  });
+
+  it("measures a new dry record against the earliest month that held it", () => {
+    // Priors run 10..21 from 2000; the record low is 10, held by Mar 2000.
+    const result = margin(marchSeries(TWELVE_PRIORS, 8));
+    expect(result?.standing).toBe("driest-in-record");
+    expect(result?.priorDriestValue).toBe(10);
+    expect(result?.priorDriestMonth).toEqual({ year: 2000, month: 3 });
+    expect(result?.recordExceedanceMargin).toBeCloseTo(2, 10);
+    expect(result?.unit).toBe("kg/m²");
+  });
+
+  it("measures a new wet record against the earliest month that held it", () => {
+    const result = margin(marchSeries(TWELVE_PRIORS, 24));
+    expect(result?.standing).toBe("wettest-in-record");
+    expect(result?.priorWettestValue).toBe(21);
+    expect(result?.priorWettestMonth).toEqual({ year: 2011, month: 3 });
+    expect(result?.recordExceedanceMargin).toBeCloseTo(3, 10);
+  });
+
+  it("breaches nothing on a tie or inside the range", () => {
+    for (const [target, standing] of [
+      [10, "ties-driest-in-record"],
+      [21, "ties-wettest-in-record"],
+      [15, "within-record-range"],
+    ] as const) {
+      const result = margin(marchSeries(TWELVE_PRIORS, target));
+      expect(result?.standing).toBe(standing);
+      expect(result?.recordExceedanceMargin).toBeNull();
+    }
+  });
+});
+
+describe("soilMoistureStandingClause record margin", () => {
+  it("says how far a new dry record beat the month that held it", () => {
+    const clause = clauseFor(marchSeries(TWELVE_PRIORS, 8));
+    expect(clause).toContain("driest of 12 prior same-month observations");
+    expect(clause).toContain("2.0 kg/m² drier than Mar 2000");
+    // The margin joins the reading; it does not open a second parenthetical.
+    expect(clause.split("(")).toHaveLength(2);
+  });
+
+  it("says how far a new wet record beat the month that held it", () => {
+    const clause = clauseFor(marchSeries(TWELVE_PRIORS, 24));
+    expect(clause).toContain("wettest of 12 prior same-month observations");
+    expect(clause).toContain("3.0 kg/m² wetter than Mar 2011");
+  });
+
+  it("quotes the margin at the probe's own value precision", () => {
+    // csvDecimals is the repository's single value-precision rule; the margin
+    // is a difference of two probe values and may not be printed finer.
+    const clause = clauseFor(marchSeries(TWELVE_PRIORS, 8));
+    const quoted = /(\d+\.?\d*) kg\/m² drier/.exec(clause)?.[1];
+    expect(quoted).toBe((2).toFixed(csvDecimals(PROBE_SCALES.soil)));
+  });
+
+  it("withholds a margin the probe's resolution cannot support", () => {
+    // Each end of the difference is a colormap inversion carrying half a LUT
+    // step, so a record won by less than one step was not resolved by this
+    // method. The record STANDING still holds and is still stated.
+    const step = quantizationStep(PROBE_SCALES.soil);
+    const clause = clauseFor(marchSeries(TWELVE_PRIORS, 10 - step / 2));
+    expect(clause).toContain("driest of 12 prior same-month observations");
+    expect(clause).not.toContain("drier than");
+    expect(clause).not.toContain("0.0 kg/m²");
+  });
+
+  it("states the smallest margin that clears the resolution floor", () => {
+    // Just over one LUT step: the narrowest record this method actually
+    // resolved, and the first that is allowed to quote its size.
+    const step = quantizationStep(PROBE_SCALES.soil);
+    const clause = clauseFor(marchSeries(TWELVE_PRIORS, 10 - step * 1.5));
+    expect(clause).toContain("drier than Mar 2000");
+    expect(clause).toContain("0.3 kg/m²");
+  });
+
+  it("states no margin for a tie, a flat record, or an ordinary month", () => {
+    for (const target of [10, 21, 15]) {
+      const clause = clauseFor(marchSeries(TWELVE_PRIORS, target));
+      expect(clause).not.toContain("drier than");
+      expect(clause).not.toContain("wetter than");
+    }
+    const flat = clauseFor(marchSeries(new Array(12).fill(14), 14));
+    expect(flat).toContain("matches all 12 prior same-month observations");
+    expect(flat).not.toContain("drier than");
+    expect(flat).not.toContain("wetter than");
+  });
+
+  it("never contradicts the rank it is appended to", () => {
+    // A strict record always satisfies "no sampled month was drier", so the
+    // saturating wording and the margin can only ever describe one record.
+    for (const target of [8, 24]) {
+      const series = marchSeries(TWELVE_PRIORS, target);
+      const standing = rank(series);
+      const result = margin(series);
+      if (result?.standing === "driest-in-record") {
+        expect(standing?.isDriestInRecord).toBe(true);
+      }
+      if (result?.standing === "wettest-in-record") {
+        expect(standing?.isWettestInRecord).toBe(true);
+      }
+    }
+  });
+
+  it("is unchanged when no margin is supplied at all", () => {
+    const series = marchSeries(TWELVE_PRIORS, 8);
+    expect(soilMoistureStandingClause(rank(series))).not.toContain(
+      "drier than"
+    );
+    expect(soilMoistureStandingClause(rank(series))).toContain(
+      "driest of 12 prior same-month observations"
+    );
+  });
+
+  it("withholds the margin when the caller supplies no value precision", () => {
+    // The floor the margin is screened against comes from the caller, so
+    // without it the size cannot be shown to have been resolved at all.
+    const series = marchSeries(TWELVE_PRIORS, 8);
+    const clause = soilMoistureStandingClause(rank(series), margin(series));
+    expect(clause).toContain("driest of 12 prior same-month observations");
+    expect(clause).not.toContain("drier than");
+  });
+
+  it("withholds the margin when the record's unit is not the probe's", () => {
+    // The resolution floor is measured on the probe scale, so the two are only
+    // comparable while soil moisture needs no conversion.
+    const series = marchSeries(TWELVE_PRIORS, 8);
+    const clause = soilMoistureStandingClause(rank(series), margin(series), {
+      ...SOIL_PRECISION,
+      unit: "mm",
+    });
+    expect(clause).not.toContain("drier than");
+  });
+
+  it("keeps the caller's precision in step with the probe's own rule", () => {
+    // If this ever diverges the panel is quoting margins at a precision the
+    // method does not resolve; both sides read the same two functions.
+    expect(SOIL_PRECISION.unit).toBe(
+      CLIMATE_METRICS["soil-moisture"].nativeUnit
+    );
+    expect(SOIL_PRECISION.decimals).toBe(csvDecimals(PROBE_SCALES.soil));
+    expect(SOIL_PRECISION.resolution).toBe(quantizationStep(PROBE_SCALES.soil));
+  });
+
+  it("keeps a record-setting clause inside the status line's headroom", () => {
+    expect(clauseFor(marchSeries(TWELVE_PRIORS, 8)).length).toBeLessThanOrEqual(
+      230
+    );
+  });
+
+  it("claims no drought category, normal, or forecast with a margin present", () => {
+    const clause = clauseFor(marchSeries(TWELVE_PRIORS, 8));
+    for (const forbidden of ["drought", "normal", "expect", "will "]) {
+      const claimed =
+        clause.toLowerCase().includes(forbidden) &&
+        !clause.includes("not a drought index");
+      expect(claimed).toBe(false);
+    }
   });
 });

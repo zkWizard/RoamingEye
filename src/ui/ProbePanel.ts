@@ -1,6 +1,8 @@
 import {
   anomalySeries,
+  csvDecimals,
   formatProbeValue,
+  quantizationStep,
   seriesStats,
   scaleValue,
   uncertaintyText,
@@ -561,6 +563,12 @@ export class ProbePanel {
    * rank against the same calendar month only, which is the comparison that
    * holds; nothing had ever called it.
    *
+   * When that month sets a new same-month record the clause also says by how
+   * much, and over which year. The rank alone cannot: an empirical percentile
+   * saturates at the edge of its own sample, so every record-setting month
+   * reads identically whether it undercut the prior low by a hair or by half
+   * the record's spread.
+   *
    * Loaded on demand for the reason the three clauses above are — the seasonal
    * baseline machinery is dead weight on every other layer, and the status line
    * already fills in progressively. A newer series invalidates an in-flight
@@ -579,16 +587,44 @@ export class ProbePanel {
     const months = this.months;
     const shares = this.validFractions;
     if (!shares) return; // a point probe measures no footprint share
+    const scale = this.scale;
+    if (!scale) return;
+    // Derived HERE rather than inside the lazy module: `probe.ts` is already in
+    // the eager bundle for this panel, while importing it from the lazy chunk
+    // re-factors Rollup's shared chunks and pushes ~1.9 kB into the entry.
+    const precision = {
+      resolution: quantizationStep(scale),
+      decimals: csvDecimals(scale),
+      unit: scale.unit,
+    };
     const token = this.seriesToken;
     void import("../lib/probeSoilMoistureStanding")
-      .then(({ probeSoilMoistureStanding, soilMoistureStandingClause }) => {
-        if (token !== this.seriesToken) return; // superseded by a newer probe
-        const clause = soilMoistureStandingClause(
-          probeSoilMoistureStanding(context.layerId, months, physical, shares)
-        );
-        if (!clause) return;
-        this.setStatus(`${stat} · ${clause}`);
-      })
+      .then(
+        ({
+          probeSoilMoistureStanding,
+          probeSoilMoistureRecordMargin,
+          soilMoistureStandingClause,
+        }) => {
+          if (token !== this.seriesToken) return; // superseded by a newer probe
+          const clause = soilMoistureStandingClause(
+            probeSoilMoistureStanding(
+              context.layerId,
+              months,
+              physical,
+              shares
+            ),
+            probeSoilMoistureRecordMargin(
+              context.layerId,
+              months,
+              physical,
+              shares
+            ),
+            precision
+          );
+          if (!clause) return;
+          this.setStatus(`${stat} · ${clause}`);
+        }
+      )
       .catch(() => {
         // A failed chunk load must leave the stats already on screen intact.
       });
