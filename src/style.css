@@ -151,6 +151,24 @@ body {
   text-align: center;
 }
 
+/* The layer dropdown draws upward out of the HUD and over the top-right
+   chrome, but it cannot win that overlap on its own: `.controls` carries a
+   `backdrop-filter`, which makes a stacking context, so the panel's
+   `z-index: 6` is spent *inside* the HUD and the overlay's own `z-index: 2`
+   is what actually competes with `.search` (4-5) and `.export` (4). The
+   result was that at 667x375 the export buttons painted over the right-hand
+   column and four layer options could not be tapped at their centre.
+
+   So raise the overlay itself while the panel is open — the same move, and
+   the same reason, as `.search.is-open` below: the rows it draws should be
+   the rows the pointer actually hits. Scoped to the open state so the HUD
+   keeps its usual place in the stack the rest of the time. 6 ties with the
+   floating panels (`.probe`, `.place-insights`, `.hover-tooltip`) and wins
+   on DOM order, which is what an open dropdown should do. */
+.overlay--bottom:has(.layer-selector__panel.is-open) {
+  z-index: 6;
+}
+
 .brand {
   font-size: clamp(1.4rem, 4vw, 2rem);
   font-weight: 600;
