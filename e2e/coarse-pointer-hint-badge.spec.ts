@@ -18,36 +18,37 @@ import { awaitAppInteractive } from "./boot";
  * 24px floor, on the only control in the app that was already at the floor.
  *
  * The fix gives the button a transparent `::after` hit area instead of a bigger
- * box, so the layout is untouched, and grows it strictly downward — away from
- * the search field that was already taking from it.
+ * box, so the layout is untouched.
  *
  * Both halves are asserted here, because either one alone is a regression
  * waiting to happen: the target has to be 44px under the thumb, AND it must not
  * have bought that by eating the search field or by growing the header.
  *
- * SCOPE — why 541-660 is not asserted here. The badge sits at the END of the
- * hint sentence, so its x position is a function of how wide that sentence
- * RENDERS. As text metrics widen (CI's fonts are wider than a typical local
- * box), it drifts right into the `#share` control's lane and is then squeezed
- * from BOTH sides — search field above, share button below. Measured across
- * letter-spacing 0/0.5/1.0/1.5px as a proxy for that spread: 560 and 600 lose
- * it by 1.0px, 620-660 by 1.5px, and >=667 never does. Where it collides the
- * reachable height falls to ~12.5px, and at the widest metrics the badge's own
- * CENTRE is covered.
+ * THE 541-660 BAND, and why it is now asserted rather than filed. This spec
+ * originally promised 44px only at >=667, because the badge sat at the END of
+ * the hint sentence: its x was a pure function of how wide that sentence
+ * RENDERED, so as text metrics widened (CI's fonts are wider than a typical
+ * local box) it drifted right into the absolutely positioned search/share
+ * column and was squeezed from both sides at once — search field above, share
+ * button below. Measured across letter-spacing 0/0.5/1.0/1.5px as a proxy for
+ * that spread, the badge's own CENTRE hit-tested to `.share-button` at 620-660.
+ * No hit area can fix an occlusion from both directions.
  *
- * No hit area can fix that — both directions are blocked, so it needs a layout
- * change in that band, tracked separately. This CSS still helps there (it is
- * purely additive and cannot make any width worse), it just cannot be promised
- * to reach 44, so this spec promises it only where it holds.
+ * The layout change that fixed it: the badge now LEADS the hint sentence, so
+ * it is anchored to the header's left padding and its x no longer depends on
+ * the text at all. That is what makes the band assertable, and it is why the
+ * sweep below is part of this spec rather than a separate one — the promise
+ * being made is that no text metric can move this control into another
+ * control's lane.
  */
 
 /**
- * Widths where a 44px target is actually ACHIEVABLE, which is not every width
- * that renders the hint — see the band note above. These three hold at every
- * text metric tried (letter-spacing 0 to 1.5px, which brackets CI's wider
- * fonts); 541-660 does not, and is filed rather than asserted.
+ * Sizes booted individually, spanning the band floor (541, the narrowest width
+ * that still renders the hint) to a large tablet. Each pays a full boot, so the
+ * width sweep across the rest of the band shares a single context instead.
  */
 const SIZES = [
+  { name: "541x800 (band floor)", width: 541, height: 800 },
   { name: "667x375 (landscape phone)", width: 667, height: 375 },
   { name: "768x1024 (tablet portrait)", width: 768, height: 1024 },
   { name: "1024x1366 (large tablet)", width: 1024, height: 1366 },
@@ -173,3 +174,64 @@ for (const size of SIZES) {
     }
   });
 }
+
+/**
+ * The band, swept in ONE context. Every width here used to fail at some text
+ * metric, and 620-660 failed outright at the widest: the badge's centre landed
+ * on `.share-button`, so a tap opened the share menu instead of the shortcuts
+ * overlay.
+ *
+ * Resizing rather than re-booting is deliberate: each fresh context re-pays the
+ * GIBS boot gate (~1 min), which is what keeps this affordable in the required
+ * smoke suite. Layout here is a pure function of viewport width, so a resize
+ * measures the same thing a boot would.
+ *
+ * `letter-spacing` stands in for CI's wider font metrics — the same proxy that
+ * originally exposed the defect, and the reason a local-only check would have
+ * called this band healthy.
+ */
+const BAND = [541, 560, 580, 600, 620, 640, 660];
+const METRICS = [0, 0.5, 1, 1.5];
+
+test("the shortcuts badge clears the search/share column across 541-660", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    viewport: { width: 700, height: 800 },
+    hasTouch: true,
+  });
+  const page = await context.newPage();
+  try {
+    await page.goto("/");
+    await awaitAppInteractive(page);
+
+    const failures: string[] = [];
+    for (const spacing of METRICS) {
+      await page.evaluate((value) => {
+        const id = "metric-proxy";
+        let style = document.querySelector<HTMLStyleElement>(`#${id}`);
+        if (!style) {
+          style = document.createElement("style");
+          style.id = id;
+          document.head.appendChild(style);
+        }
+        style.textContent = `.hint { letter-spacing: ${value}px; }`;
+      }, spacing);
+
+      for (const width of BAND) {
+        await page.setViewportSize({ width, height: 800 });
+        const reach = await reachableThroughCentre(page);
+        const at = `${width}px @ letter-spacing ${spacing}px`;
+        if (reach.centreBlockedBy) {
+          failures.push(`${at}: centre covered by ${reach.centreBlockedBy}`);
+        } else if (reach.width < 44 || reach.height < 44) {
+          failures.push(`${at}: only ${reach.width}x${reach.height} reachable`);
+        }
+      }
+    }
+
+    expect(failures, "the badge is occluded somewhere in the band").toEqual([]);
+  } finally {
+    await context.close();
+  }
+});

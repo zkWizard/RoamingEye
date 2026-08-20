@@ -76,7 +76,12 @@
       <header class="overlay overlay--top">
         <h1 class="brand">Roaming<span>Eye</span></h1>
         <p class="hint">
-          Drag to rotate · scrub the timeline · ←/→ keys step months
+          <!-- Leads the sentence rather than trailing it. At the end, the
+               badge's x was a pure function of how wide the hint TEXT rendered,
+               which slid it under the absolutely positioned search/share
+               column between 541px and 660px. At the start it is anchored to
+               the header's left padding and cannot reach that column at any
+               width or text metric. See e2e/coarse-pointer-hint-badge.spec.ts. -->
           <button
             id="shortcuts-link"
             type="button"
@@ -86,6 +91,7 @@
           >
             ?
           </button>
+          Drag to rotate · scrub the timeline · ←/→ keys step months
         </p>
         <button id="software-link" type="button" class="software-link">
           Find software
