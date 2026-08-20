@@ -1586,7 +1586,12 @@ if (probeEl) {
             airtempSupportNote,
           // Area mode charts a weighted mean of per-pixel decodes; point mode
           // charts a median, which the SST end-cap screen already catches.
-          averagedFootprint
+          averagedFootprint,
+          // Only an area probe measures a per-month footprint share, and the
+          // same-calendar-month baseline screens on one, so a point probe is
+          // passed none and stays silent — as every other share-dependent
+          // clause on this panel already does for a point.
+          mode === "area" ? validFractions : null
         );
       })
       .catch((err) => {
@@ -1935,7 +1940,10 @@ if (probeEl) {
             gldasSupportNote ||
             airtempSupportNote,
           // Every drawn-region value is a weighted mean of per-pixel decodes.
-          "drawn-region"
+          "drawn-region",
+          // A drawn region always supplies shares, so the standing clause can
+          // screen coverage the way the baseline requires.
+          validFractions
         );
       })
       .catch((err) => {
