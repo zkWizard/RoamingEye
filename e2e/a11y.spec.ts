@@ -546,10 +546,14 @@ test.describe("touch target size", () => {
 
 /**
  * NOTE: this measures the badge's BOX, which is not the same question as what
- * the box can receive. Under a coarse pointer between 541 and ~600px wide the
- * search field overhangs its top edge and takes 3.8px of it, so the box read
- * 24 here while the reachable area was 21. Reachability is asserted in
- * `coarse-pointer-hint-badge.spec.ts`; do not treat this test as covering it.
+ * the box can receive, and the two genuinely disagree. Under a coarse pointer
+ * the badge sits at the end of the hint sentence, so it drifts right as the
+ * text renders wider; between 541 and 660px it lands in the `#share` lane and
+ * is squeezed by the search field above and the share button below, down to
+ * ~12-21px reachable while the box still reads a clean 24 here. That band is a
+ * known open defect. Reachability is asserted, at the widths where 44px is
+ * achievable, in `coarse-pointer-hint-badge.spec.ts`. Do not treat this test
+ * as covering either question.
  */
 test("the shortcuts badge meets the 24px AA target floor", async ({ page }) => {
   const box = await page.locator(".hint__shortcuts").boundingBox();
