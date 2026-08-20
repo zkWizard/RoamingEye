@@ -368,18 +368,21 @@ export function unstatedQualifiers(
  * A subset assertion makes every entry here a standing *permission*, which is
  * why a closed gap has to be deleted rather than left as history: for as long
  * as `soil` sat in this list, the caption #733 had already fixed was free to
- * regress to "root-zone" with CI green. Re-measured 2026-08-19 against all
- * three rendered statements (label, caption, legend `measures`): two of the
- * original three are closed, and the remaining one is narrower than it was.
+ * regress to "root-zone" with CI green. Re-measured 2026-08-20 against all
+ * three rendered statements (label, caption, legend `measures`): the list is
+ * now EMPTY, so the subset assertion has tightened into "no layer under-states
+ * its variable at all", and the next omission fails CI the day it lands.
  */
 export const UNSTATED_IDENTITY_GAPS: Record<string, string> = {
-  // GIBS: "Day, ... 9 km". The daytime-only overpass IS stated ("Daytime
-  // clear-sky ocean surface temperature"); the 9 km native bin is not, and it
-  // is material to a coastal reading — the bin straddles the shoreline.
-  sst: "resolution: the 9 km native grid bin is unstated in our copy",
-  // Closed and deliberately removed, not commented out — see above:
-  //   soil    #733 corrected the caption, and the legend measures line now
-  //           states "0-10 cm" instead of the identifier's "underground".
+  // Empty, and that is the assertion: as of 2026-08-20 every rendered layer
+  // states each discriminating qualifier its GIBS title states. Closed here in
+  // order, each by restating the variable rather than by weakening the audit:
+  //   soil    #733 corrected the caption; the legend measures line now states
+  //           "0-10 cm" instead of the identifier's "underground".
   //   aerosol the legend states "Aerosol optical thickness (550 nm)"; the gap
   //           was an artefact of this audit reading only the caption.
+  //   sst     the legend measures line now states the 9 km native grid, which
+  //           only the caption's daytime clear-sky wording had covered before.
+  // An entry added back here is a permission to omit, so it needs a reason a
+  // reader would accept — not a placeholder for copy nobody got to.
 };

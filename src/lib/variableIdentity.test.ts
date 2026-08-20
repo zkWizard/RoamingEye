@@ -227,12 +227,12 @@ describe("UNSTATED_IDENTITY_GAPS", () => {
     expect(aerosol?.ourCopy).toContain(LEGENDS.aerosol.measures);
   });
 
-  it("has no open gap on the two layers whose copy now states the qualifier", () => {
+  it("has no open gap on any layer whose copy states its qualifier", () => {
     // These are the closures that let their entries be deleted above. Asserting
     // them here is what makes the deletion a tightening rather than a loss: the
     // subset test turns a regression into a failure, and this names the layer.
     const byId = new Map(renderedLayerIdentities().map((i) => [i.id, i]));
-    for (const id of ["soil", "aerosol"]) {
+    for (const id of ["soil", "aerosol", "sst"]) {
       const identity = byId.get(id);
       expect(identity, `${id} is not a rendered layer`).toBeDefined();
       expect(
@@ -242,15 +242,33 @@ describe("UNSTATED_IDENTITY_GAPS", () => {
     }
   });
 
-  it("still reports the one qualifier no soil-, sst- or aerosol-copy states", () => {
-    // The daytime overpass IS stated ("Daytime clear-sky ocean surface
-    // temperature"); the 9 km native bin is not. Pinning the exact remainder
-    // keeps the surviving entry honest about what is actually missing.
+  it("states every discriminating qualifier the catalog's titles carry", () => {
+    // The list is empty, so this is now a statement about the whole catalog
+    // rather than about one survivor: no rendered layer describes its variable
+    // less completely than GIBS does. Asserting emptiness directly — rather
+    // than leaving only the subset test — is what stops a future run from
+    // "closing" a gap by adding an excuse instead of fixing the copy.
+    const open = renderedLayerIdentities()
+      .filter((i) => unstatedQualifiers(i).length > 0)
+      .map((i) => `${i.id}: ${unstatedQualifiers(i).map((q) => q.text)}`);
+    expect(open).toEqual([]);
+    expect(Object.keys(UNSTATED_IDENTITY_GAPS)).toEqual([]);
+  });
+
+  it("states the 9 km native grid in sst's copy, not just the overpass", () => {
+    // The last gap to close, and the one a coastal reader most needs: the
+    // daytime overpass was already stated in the caption ("Daytime clear-sky
+    // ocean surface temperature"), while the 9 km bin — which straddles a
+    // shoreline — was stated nowhere. Pinning the surface form here means a
+    // future reword of the measures line cannot silently drop it again.
     const sst = renderedLayerIdentities().find((i) => i.id === "sst");
-    expect(unstatedQualifiers(sst!).map((q) => `${q.kind}=${q.text}`)).toEqual([
-      "resolution=9 km",
-    ]);
-    expect(Object.keys(UNSTATED_IDENTITY_GAPS)).toEqual(["sst"]);
+    expect(sst?.ourCopy).toContain(LEGENDS.sst.measures);
+    expect(unstatedQualifiers(sst!)).toEqual([]);
+    const grid = variableQualifiers(sst!.gibsTitle).find(
+      (q) => q.kind === "resolution"
+    );
+    expect(grid?.text).toBe("9 km");
+    expect(statesQualifier(LEGENDS.sst.measures, grid!)).toBe(true);
   });
 
   it("excuses only real layers, with a reason each", () => {
