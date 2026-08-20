@@ -55,6 +55,7 @@ import {
   probeRecordGaps,
   probeRecordGapsCsvHeaders,
 } from "./lib/probeRecordGaps";
+import { probeRetrievalFailureNote } from "./lib/probeRetrievalFailure";
 import { emptyAtmosphereProbeNote } from "./lib/atmosphereProbeDomain";
 import { marineAveragedSstCensoringCsvHeaders } from "./lib/marineAveragedSstCensoring";
 import { averagedSstSupportNote } from "./lib/marineAveragedSstSupport";
@@ -1286,7 +1287,7 @@ if (probeEl) {
           }
         },
       })
-      .then(({ values, validFractions }) => {
+      .then(({ values, validFractions, transportFailureMonths }) => {
         if (abort.signal.aborted) return;
         // An area mean over a coastal box averages only the pixels that
         // carried SST; say what share of the box those were. A point probe
@@ -1571,7 +1572,12 @@ if (probeEl) {
           // by construction — but it is also a clear-sky composite, so a month
           // that never cleared empties it over land as well. Its note is the
           // only two-sided one besides SST's, and for the mirror reason.
-          emptyAtmosphereProbeNote(layer.id, values) ??
+          // Ranked above every domain note: those explain what a product
+          // covers, and a record whose imagery never arrived is no evidence
+          // about the product at all. Silent unless the record is empty AND a
+          // month failed on transport, so at most one of the two is rendered.
+          probeRetrievalFailureNote(values, transportFailureMonths) ??
+            emptyAtmosphereProbeNote(layer.id, values) ??
             emptyLstProbeNote(layer.id, values) ??
             emptyMarineProbeNote(layer.id, values, sstSupportNote) ??
             emptySnowProbeNote(layer.id, values, snowSupportNote) ??
@@ -1666,7 +1672,11 @@ if (probeEl) {
           }
         },
       })
-      .then(({ values, validFractions, regionSampling }) => {
+      .then((sampled) => {
+        // Unpacked here rather than in the parameter list: a fourth field
+        // wraps the pattern, and reflowing it reindents this whole handler.
+        const { values, validFractions, regionSampling } = sampled;
+        const { transportFailureMonths } = sampled;
         if (abort.signal.aborted) return;
         // The header names the drawn box, but SST is undefined over land and
         // those pixels are rejected rather than averaged in — so a coastal
@@ -1921,7 +1931,12 @@ if (probeEl) {
           // averaged-support clause speaks for this layer on either path, so
           // there is nothing for it to defer to and the region behaves as the
           // point probe does.
-          emptyAtmosphereProbeNote(layer.id, values) ??
+          // Ranked above every domain note: those explain what a product
+          // covers, and a record whose imagery never arrived is no evidence
+          // about the product at all. Silent unless the record is empty AND a
+          // month failed on transport, so at most one of the two is rendered.
+          probeRetrievalFailureNote(values, transportFailureMonths) ??
+            emptyAtmosphereProbeNote(layer.id, values) ??
             emptyLstProbeNote(layer.id, values) ??
             emptyMarineProbeNote(layer.id, values, sstSupportNote) ??
             emptySnowProbeNote(layer.id, values, snowSupportNote) ??
