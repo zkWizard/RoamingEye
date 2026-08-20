@@ -2686,6 +2686,34 @@ body {
     bottom: -1px;
     left: -11px;
   }
+
+  /* The layer options are the last coarse target still on the AA floor rather
+     than the touch guidance: measured 197x30.2 at 667x375, 768x1024, 820x1180
+     and 1024x1366 — every size that gets the two-column panel. The phone
+     layout was already fine (47.3-61.9 at 390x844 and 360x740) because one
+     column turns the caption on, which is why a width-keyed check never saw
+     this; the miss is exactly the widths where the caption is off.
+
+     Unlike the badge above, a transparent `::after` buys nothing here. The
+     options are block children of `.layer-selector__group` with no gap
+     between them, so the vertical pitch IS the 30px box: any area grown
+     downward is taken straight back by the next option, which comes later in
+     the DOM and wins. The height has to be real.
+
+     Growing it is free of the HUD trap that usually makes this expensive:
+     `.layer-selector__panel` is absolutely positioned with its own
+     `max-height: 46vh` and `overflow-y: auto`, so the 14px per option goes
+     to the dropdown's scroll height and never to the globe's chrome — the
+     same reasoning LayerSelector.ts already cites for putting the caption in
+     here. Centring keeps the label optically where it was inside the taller
+     box, and the column direction preserves the caption stacking under it at
+     phone widths. */
+  .layer-selector__option {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 44px;
+  }
 }
 
 /* --- Small-phone layout (issue #24) -------------------------------------------
