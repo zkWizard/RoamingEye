@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parseVolcanoList, type Volcano } from "./volcanoes";
+import {
+  parseVolcanoDataset,
+  parseVolcanoList,
+  type Volcano,
+} from "./volcanoes";
 import {
   GVP_VOLCANO_SOURCE,
   VOLCANO_CONTEXT_UNITS,
@@ -142,6 +146,7 @@ describe("selectedVolcanoContext", () => {
       databaseVersion: "5.3.6",
       dataDate: "2026-05-26",
       dataMonth: "2026-05",
+      extractRetrievedDate: "2026-07-28",
       doi: "10.5479/si.GVP.VOTW5-2025.5.3",
     });
     expect(context.selected).toMatchObject({
@@ -171,6 +176,30 @@ describe("GVP volcano source citation", () => {
   it("keeps the database version and data month visible to users", () => {
     expect(gvpVolcanoSourceLabel()).toBe(
       "Smithsonian Institution Global Volcanism Program — Volcanoes of the World v5.3.6 (2026-05)"
+    );
+  });
+
+  it("dates the extract from the bundled file rather than by hand", () => {
+    // The place panel stamps this snapshot from the file's own provenance, so
+    // any surface citing a retrieval date has to agree with that file. Pinning
+    // the constant here means regenerating the data fails until it moves too,
+    // which is what let the citation note drift two months in the first place.
+    const bundled = JSON.parse(
+      readFileSync(
+        join(__dirname, "..", "..", "public", "data", "volcanoes.json"),
+        "utf8"
+      )
+    ) as { provenance?: { retrievedAt?: string } };
+    const retrievedAt = bundled.provenance?.retrievedAt;
+
+    expect(retrievedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(GVP_VOLCANO_SOURCE.extractRetrievedDate).toBe(
+      (retrievedAt as string).slice(0, 10)
+    );
+    // The panel prints the month of this same instant; keeping the two in step
+    // is the invariant, not merely that the constant parses.
+    expect(GVP_VOLCANO_SOURCE.extractRetrievedDate.slice(0, 7)).toBe(
+      parseVolcanoDataset(bundled).dataMonth
     );
   });
 });

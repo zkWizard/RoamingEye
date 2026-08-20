@@ -15,6 +15,18 @@ export const GVP_VOLCANO_SOURCE = {
   databaseVersion: "5.3.6",
   dataDate: "2026-05-26",
   dataMonth: "2026-05",
+  /**
+   * UTC date the bundled extract in `localFile` records for itself, transcribed
+   * from the provenance scripts/prepare-data.mjs writes into that file.
+   *
+   * Distinct from `dataDate`, which was committed before this extract was
+   * prepared and therefore cannot date it. The place panel already dates the
+   * shipped records from the file's own provenance, so anything that claims to
+   * date the extract has to read the same source or the two surfaces disagree.
+   * Pinned to the file by a test, so regenerating the data fails until this
+   * moves with it.
+   */
+  extractRetrievedDate: "2026-07-28",
   doi: "10.5479/si.GVP.VOTW5-2025.5.3",
   preparedBy: "scripts/prepare-data.mjs",
   localFile: "public/data/volcanoes.json",
