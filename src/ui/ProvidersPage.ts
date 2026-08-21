@@ -8,6 +8,7 @@ import {
 import { citationBundle, type CitationFormat } from "../lib/citation";
 import { datasetArchive } from "../lib/datasetArchives";
 import { citedVectorSources } from "../lib/citedVectorSources";
+import { dataAvailabilityStatement } from "../lib/dataAvailability";
 import { doiResolverUrl } from "../lib/doiLink";
 import { FocusTrap } from "./modal";
 import { ICONS } from "./icons";
@@ -133,14 +134,18 @@ export class ProvidersPage {
     // guidelines): the tool + every source dataset, DOIs and all.
     const actions = document.createElement("div");
     actions.className = "providers__cite-actions";
-    const makeCopyBtn = (label: string, format: CitationFormat): void => {
+    // `compose` is read at click time, not now: the statement and the bundles
+    // are built from the same registries this list just rendered, so composing
+    // eagerly would put four full strings on the clipboard path for a reader
+    // who copies none of them.
+    const makeCopyBtn = (label: string, compose: () => string): void => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "providers__cite-btn";
       btn.textContent = label;
       btn.addEventListener("click", () => {
         navigator.clipboard
-          .writeText(citationBundle(format))
+          .writeText(compose())
           .then(() => {
             const was = btn.textContent;
             btn.textContent = "Copied ✓";
@@ -152,9 +157,22 @@ export class ProvidersPage {
       });
       actions.appendChild(btn);
     };
-    makeCopyBtn("Copy BibTeX", "bibtex");
-    makeCopyBtn("Copy RIS", "ris");
-    makeCopyBtn("Copy CSL-JSON", "csljson");
+    const makeBundleBtn = (label: string, format: CitationFormat): void =>
+      makeCopyBtn(label, () => citationBundle(format));
+    makeBundleBtn("Copy BibTeX", "bibtex");
+    makeBundleBtn("Copy RIS", "ris");
+    makeBundleBtn("Copy CSL-JSON", "csljson");
+    // A reference list is not a Data Availability Statement: most journals now
+    // require the statement in its own right, and it is the one artifact that
+    // says where the data can be obtained and on whose terms. Every input it
+    // needs was already here — the DOIs above, the GIBS access path, the
+    // acknowledgment — but nothing composed them, so a reader had to write it
+    // by hand from this page. No access date is passed: only the reader knows
+    // when they pulled the imagery, and the statement says so rather than
+    // stamping today's date onto a figure made last month.
+    makeCopyBtn("Copy availability statement", () =>
+      dataAvailabilityStatement()
+    );
 
     citing.append(citingTitle, citingIntro, list, ack, actions);
     body.appendChild(citing);
