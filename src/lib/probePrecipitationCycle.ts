@@ -20,6 +20,7 @@ import {
   describePrecipitationRecordMargin,
   type PrecipitationRecordMargin,
 } from "./precipitationRecordMargin";
+import type { PrecipitationObservation } from "./precipitationPercentile";
 // Type only, so nothing of the soil bridge reaches this chunk: the interface is
 // the probe's own value-precision contract (see probeSoilMoistureStanding.ts),
 // and both bridges need the caller to derive it in the eager bundle rather than
@@ -443,7 +444,10 @@ export function probePrecipitationRecordMargin(
   // so a mode that measures no share cannot be ranked through this helper.
   if (!validFractions) return null;
 
-  const observations: MonthlyClimateObservation[] = [];
+  // Stored WITHOUT a metricId: the descriptor forces every candidate and the
+  // target onto the precipitation-rate metric itself, so stamping one here
+  // would only have to be stripped again before handing them over.
+  const observations: PrecipitationObservation[] = [];
   let availableThrough: YearMonth | null = null;
   let targetIndex: number | null = null;
   for (let index = 0; index < months.length; index++) {
@@ -453,7 +457,6 @@ export function probePrecipitationRecordMargin(
     const share = validFractions[index] ?? null;
     const value = perDay === null ? null : perDay / SECONDS_PER_DAY;
     observations.push({
-      metricId: "precipitation-rate",
       dataMonth: month,
       value,
       ...(share === null ? {} : { validFraction: share }),
@@ -473,12 +476,9 @@ export function probePrecipitationRecordMargin(
   }
   if (availableThrough === null || targetIndex === null) return null;
 
-  const { metricId: _targetMetric, ...target } = observations[targetIndex];
   return describePrecipitationRecordMargin(
-    target,
-    observations
-      .filter((_, index) => index !== targetIndex)
-      .map(({ metricId: _priorMetric, ...prior }) => prior),
+    observations[targetIndex],
+    observations.filter((_, index) => index !== targetIndex),
     availableThrough
   );
 }
