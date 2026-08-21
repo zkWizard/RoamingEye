@@ -98,3 +98,51 @@ export function probeRetrievalFailureNote(
   if (values.some((value) => value !== null)) return null;
   return PROBE_RETRIEVAL_FAILURE_LINE;
 }
+
+/**
+ * Fail a place card whose leading month's imagery never arrived.
+ *
+ * The place panel runs the same sampler as the probe and inherited the same
+ * defect from the other end. Each card leads with one month, and when that
+ * month's image fails on transport the card still renders: the summary reaches
+ * `climateInsightText` as a published month with a null value and zero
+ * coverage, so `unavailableReason` returns the contract's `missing-value` and
+ * the card reads "No usable <month> ... (missing-value); ...; 0% sampled
+ * coverage". The download says it more plainly still — `exportUnavailableReason`
+ * maps the same month to `source-no-data`, a machine-readable assertion that
+ * NASA published nothing for the place. Neither is established by a request
+ * that never completed, and both name the source for a fault that is the
+ * reader's connection or an upstream stall.
+ *
+ * Rather than add a fourth sentence to a card that already carries its
+ * provenance and coverage clauses, this routes the month into the failure path
+ * the controller already has. Every place block resolves its published
+ * colormap first and throws when that step fails; its catch then renders the
+ * step-attributed wording — for the shared terrestrial cards,
+ * `placeMetricUnavailableDetail("boundary-sampling-failed")`, whose own
+ * documentation already declares that it covers "a failed tile request" — and
+ * the export placeholder installed before sampling already states
+ * `sampling-failed`. So a failure that was being described as an observation
+ * becomes one the existing copy describes correctly, with no new wording and
+ * no added qualifier.
+ *
+ * Only the leading month is judged. An earlier month that failed on transport
+ * leaves the card's own value honest; it costs the month-on-month difference,
+ * which is simply absent, exactly as it is for an earlier month the source
+ * never published. Discarding a good leading reading to report that would
+ * trade a real measurement for a caveat.
+ *
+ * @param layerId names the card in the console warning the catch logs
+ * @param transportFailureByMonth month-aligned, from `SampleResult`
+ */
+export function assertLeadingMonthRetrieved(
+  layerId: string,
+  transportFailureByMonth: readonly boolean[]
+): void {
+  // An empty series indexes to undefined and is left alone: there is no
+  // leading month to have failed, and the caller's own emptiness rules apply.
+  if (!transportFailureByMonth[transportFailureByMonth.length - 1]) return;
+  throw new Error(
+    `RoamingEye: ${layerId} place sampling could not retrieve the leading month's imagery`
+  );
+}

@@ -89,6 +89,12 @@ export interface SampleResult {
    * Consumers use it to keep an unreachable server from being reported as the
    * product's answer. See lib/probeRetrievalFailure.ts. */
   transportFailureMonths: number;
+  /** The same judgement as `transportFailureMonths`, kept month-aligned so a
+   * consumer can ask about one particular month rather than the series. The
+   * place cards need this: they lead with a single month, and a count of one
+   * across a two-month pair cannot say whether that month is the missing one.
+   * True only for a transport failure — a declined month stays false. */
+  transportFailureByMonth: boolean[];
   /** Dimensions of the rendered GIBS image actually sampled. These describe
    * the source imagery, not a ground-resolution measurement. */
   sourceImageDimensions: { width: number; height: number };
@@ -515,11 +521,15 @@ export class ProbeSampler {
     const values: (number | null)[] = new Array(months.length).fill(null);
     const validFractions: number[] = new Array(months.length).fill(0);
     let transportFailureMonths = 0;
+    const transportFailureByMonth: boolean[] = new Array(months.length).fill(
+      false
+    );
     if (months.length === 0) {
       return {
         values,
         validFractions,
         transportFailureMonths,
+        transportFailureByMonth,
         sourceImageDimensions: { ...this.imageSize },
       };
     }
@@ -549,7 +559,10 @@ export class ProbeSampler {
         );
         values[index] = month.value;
         validFractions[index] = month.validFraction;
-        if (month.loadFailure === "transport-failed") transportFailureMonths++;
+        if (month.loadFailure === "transport-failed") {
+          transportFailureMonths++;
+          transportFailureByMonth[index] = true;
+        }
         done++;
         onValue?.(index, values[index]);
         // A month whose imagery failed to load read no colours at all, which
@@ -567,6 +580,7 @@ export class ProbeSampler {
       values,
       validFractions,
       transportFailureMonths,
+      transportFailureByMonth,
       sourceImageDimensions: { ...this.imageSize },
       geometrySamplingStrategy,
     };

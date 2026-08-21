@@ -11,6 +11,7 @@ import {
 } from "../lib/placeObservationExport";
 import { SCALE_CONVERSIONS, colormapUrl } from "../lib/colormap";
 import { environmentUnavailableSample } from "../lib/environmentUnavailableSample";
+import { assertLeadingMonthRetrieved } from "../lib/probeRetrievalFailure";
 import {
   PLACE_METRICS,
   PLACE_COLORMAP_DOCS,
@@ -380,8 +381,13 @@ export function runPlaceInsights(result: GeoResult): void {
           sourceImageDimensions,
           geometrySampling,
           geometrySamplingStrategy,
+          transportFailureByMonth,
         } = await sample;
         if (abort.signal.aborted) return;
+        // An image that never arrived is not a month the source left blank.
+        // Fail the card into the catch below so it says which step failed,
+        // rather than rendering `missing-value` against MERRA-2 or GLDAS.
+        assertLeadingMonthRetrieved(metric.layerId, transportFailureByMonth);
         const climateMetricId = climateMetricForLayer(metric.layerId);
         const climateReading =
           colormap && climateMetricId
@@ -596,6 +602,7 @@ export function runPlaceInsights(result: GeoResult): void {
           { signal: abort.signal }
         );
         if (abort.signal.aborted) return;
+        assertLeadingMonthRetrieved("lst", sample.transportFailureByMonth);
         placeInsights.setReading(
           lstBoundaryTemperatureReading({
             months: lstMonths,
@@ -788,6 +795,7 @@ export function runPlaceInsights(result: GeoResult): void {
           { signal: abort.signal }
         );
         if (abort.signal.aborted) return;
+        assertLeadingMonthRetrieved("aerosol", sample.transportFailureByMonth);
         placeInsights.setReading(
           aerosolBoundaryLoadingReading({
             months: aerosolMonths,
