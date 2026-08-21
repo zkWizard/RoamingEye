@@ -16,6 +16,15 @@ import {
   type MonthlyClimateObservation,
 } from "./climate";
 import { precipitationAnnualTotal } from "./precipitationAnnualTotal";
+import {
+  describePrecipitationRecordMargin,
+  type PrecipitationRecordMargin,
+} from "./precipitationRecordMargin";
+// Type only, so nothing of the soil bridge reaches this chunk: the interface is
+// the probe's own value-precision contract (see probeSoilMoistureStanding.ts),
+// and both bridges need the caller to derive it in the eager bundle rather than
+// importing `probe.ts` into a lazy chunk.
+import type { ProbeValuePrecision } from "./probeSoilMoistureStanding";
 import { MONTH_NAMES, type LayerId, type YearMonth } from "./timeline";
 
 /**
@@ -39,6 +48,13 @@ import { MONTH_NAMES, type LayerId, type YearMonth } from "./timeline";
  * with the Markham circular resultant length R, which is a whole-distribution
  * measure rather than a two-month difference, so it is stated beside the cycle
  * as part of the same reading.
+ *
+ * Every reading above is climatology, and none of them says anything about the
+ * month the reader actually probed. `precipitationRecordMargin.ts` answers that
+ * one question — whether the probed month topped or bottomed its own calendar
+ * month's record here, and by how much — and had never been called. It is
+ * bridged below and stated only when a strict record was set, so the ordinary
+ * probe gains nothing and the extraordinary one stops hiding behind a mean.
  *
  * Scope is deliberately narrow, for three separate reasons:
  *
@@ -383,3 +399,196 @@ export function probePrecipitationAnnualTotals(
   if (yearsUsed === 0) return null;
   return { yearsUsed, meanTotalMm: totalOfTotalsMm / yearsUsed };
 }
+
+// --- Same-calendar-month record standing ------------------------------------
+
+/**
+ * Place the probe series' most recent observed month against the prior
+ * same-calendar-month extreme at the same place, or null when the layer is not
+ * precipitation, the mode measures no footprint share, or the series carries no
+ * observed month.
+ *
+ * This is the one question every reading above is blind to. The cycle, the
+ * annual total, R and the dry-month run are all CLIMATOLOGY — means and shapes
+ * over the whole record — so none of them says anything about the month the
+ * reader actually probed. The panel's own `max` is the record's high across
+ * every calendar month at once, which in a seasonal place is simply the wettest
+ * month of the wet season and can never be beaten by a probed dry-season month
+ * however extreme that month was for the time of year.
+ *
+ * The TARGET is the latest month with a usable value rather than the latest
+ * month requested: GLDAS publishes months whose footprint can still be wholly
+ * unusable at a given place, and ranking a null would report a standing against
+ * nothing. Every other sampled month becomes a candidate;
+ * `compareMonthlyClimateToSeasonalBaseline` (inside the descriptor) does all the
+ * calendar-month matching, deduplication, coverage filtering, target-year
+ * exclusion and the ten-sample floor, so months of the wrong calendar month or
+ * of the target's own year are dropped there rather than here.
+ *
+ * `values` are the probe's PHYSICAL series in mm/day, so each is divided back by
+ * {@link SECONDS_PER_DAY} into the metric's native kg/m²/s exactly as the cycle
+ * bridge above does. Every value the descriptor returns — the margin included —
+ * is therefore native, which is why the clause below converts it back before
+ * printing or comparing it to anything measured on the probe's own scale.
+ */
+export function probePrecipitationRecordMargin(
+  layerId: LayerId | undefined,
+  months: readonly YearMonth[],
+  values: readonly (number | null)[],
+  validFractions: readonly (number | null)[] | null
+): PrecipitationRecordMargin | null {
+  if (layerId !== PRECIP_PROBE_LAYER) return null;
+  // The baseline screens both the target and every candidate on its usable
+  // footprint share and rejects an observation carrying none at any threshold,
+  // so a mode that measures no share cannot be ranked through this helper.
+  if (!validFractions) return null;
+
+  const observations: MonthlyClimateObservation[] = [];
+  let availableThrough: YearMonth | null = null;
+  let targetIndex: number | null = null;
+  for (let index = 0; index < months.length; index++) {
+    const month = months[index];
+    if (!month) continue;
+    const perDay = values[index] ?? null;
+    const share = validFractions[index] ?? null;
+    const value = perDay === null ? null : perDay / SECONDS_PER_DAY;
+    observations.push({
+      metricId: "precipitation-rate",
+      dataMonth: month,
+      value,
+      ...(share === null ? {} : { validFraction: share }),
+    });
+    if (availableThrough === null || isAfter(month, availableThrough)) {
+      availableThrough = month;
+    }
+    // The series is not guaranteed to arrive in calendar order, so the latest
+    // OBSERVED month is tracked by comparison rather than by position.
+    if (
+      value !== null &&
+      (targetIndex === null ||
+        isAfter(month, observations[targetIndex].dataMonth))
+    ) {
+      targetIndex = observations.length - 1;
+    }
+  }
+  if (availableThrough === null || targetIndex === null) return null;
+
+  const { metricId: _targetMetric, ...target } = observations[targetIndex];
+  return describePrecipitationRecordMargin(
+    target,
+    observations
+      .filter((_, index) => index !== targetIndex)
+      .map(({ metricId: _priorMetric, ...prior }) => prior),
+    availableThrough
+  );
+}
+
+/** Later of two months, used to track the series' own publication frontier. */
+function isAfter(month: YearMonth, other: YearMonth): boolean {
+  return (
+    month.year > other.year ||
+    (month.year === other.year && month.month > other.month)
+  );
+}
+
+/**
+ * "precipitation Mar 2012 wettest of 24 prior same-month observations, 0.4 mm/day
+ * wetter than Mar 2003 (this record only, GLDAS-Noah modeled rate)" — or "" when
+ * no record standing can honestly be quoted.
+ *
+ * SILENT BY DEFAULT, and deliberately so: it appears only when the probed month
+ * strictly beat every prior same-calendar-month observation the probe sampled,
+ * which is the minority of probes. A month inside the range keeps the reading
+ * the panel already prints — a margin to an extreme it never reached would put a
+ * second number on the ordinary case, and the standing itself would be no news.
+ * Ties breach nothing, so there is no margin to state and nothing is said.
+ *
+ * The margin clears the probe's own value resolution before it is quoted. Each
+ * end of the difference is an independent colormap inversion carrying half a LUT
+ * step (±0.08 mm/day on precipitation's 0–43.2 scale), so a record won by less
+ * than one step is not something this method resolved: the record STANDING still
+ * holds — it is an ordering, and an ordering survives a shared offset — but its
+ * SIZE does not, and quoting "0.1 mm/day wetter" from a ±0.08 measurement would
+ * claim a precision the probe does not have. In that case the standing is stated
+ * without the margin rather than softened.
+ *
+ * THE UNIT IS THE TRAP HERE, and it is why this does not simply reuse the soil
+ * bridge's phrase. The descriptor works in the metric's native kg/m²/s while the
+ * resolution floor and the reader's number are both mm/day, so the margin is
+ * converted BEFORE it is compared to the floor. Comparing a native margin
+ * (~1e-6) against an mm/day floor (~0.17) would pass every value through and
+ * make the gate meaningless. The native unit is asserted rather than assumed, so
+ * a metric redefinition drops the phrase instead of silently mis-scaling it.
+ *
+ * The month named is the EARLIEST holder of the breached extreme — the tie
+ * convention the seasonal helpers already use — and it is named as a comparison
+ * against that month rather than as a claim about the record as a whole. The
+ * parenthetical carries the scope limit and the provenance together, so the
+ * reading takes one qualifier and not two.
+ */
+export function precipitationRecordClause(
+  margin: PrecipitationRecordMargin | null,
+  precision: ProbeValuePrecision | null
+): string {
+  if (!margin || !precision) return "";
+  const { standing, recordExceedanceMargin, sampleCount } = margin;
+
+  let direction: string;
+  let heldBy: YearMonth | null;
+  if (standing === "wettest-in-record") {
+    direction = "wetter";
+    heldBy = margin.priorWettestMonth;
+  } else if (standing === "driest-in-record") {
+    direction = "drier";
+    heldBy = margin.priorDriestMonth;
+  } else {
+    return "";
+  }
+
+  const dataMonth = margin.dataMonth;
+  const monthName = MONTH_NAMES[dataMonth.month - 1];
+  if (!monthName) return "";
+  // The repo's established phrasing for a same-calendar-month record (see
+  // standardizedAnomalyNarrative.ts): it states the calendar-month restriction
+  // that makes the standing meaningful, and avoids pluralising an abbreviated
+  // month name, where "24 prior Mars" would name a planet.
+  const priors = `${sampleCount} prior same-month observation${sampleCount === 1 ? "" : "s"}`;
+  const standingText = `${direction === "wetter" ? "wettest" : "driest"} of ${priors}`;
+
+  const reading = `${marginPhrase(margin, precision, recordExceedanceMargin, direction, heldBy)}`;
+  return (
+    `precipitation ${monthName} ${dataMonth.year} ${standingText}${reading} ` +
+    `(this record only, GLDAS-Noah modeled rate)`
+  );
+}
+
+/**
+ * ", 0.4 mm/day wetter than Mar 2003" — the size of a resolved record margin, or
+ * "" when the probe did not resolve it (see `precipitationRecordClause`).
+ */
+function marginPhrase(
+  margin: PrecipitationRecordMargin,
+  precision: ProbeValuePrecision,
+  recordExceedanceMargin: number | null,
+  direction: string,
+  heldBy: YearMonth | null
+): string {
+  if (recordExceedanceMargin === null || !heldBy) return "";
+  // The descriptor reports in the metric's native unit; the floor and the
+  // printed number are on the probe's scale. Convert, never compare across.
+  if (margin.unit !== PRECIPITATION_NATIVE_UNIT) return "";
+  if (precision.unit !== PROBE_PRECIPITATION_UNIT) return "";
+  const marginPerDay = recordExceedanceMargin * SECONDS_PER_DAY;
+  if (marginPerDay < precision.resolution) return "";
+
+  const heldByName = MONTH_NAMES[heldBy.month - 1];
+  if (!heldByName) return "";
+  const size = marginPerDay.toFixed(precision.decimals);
+  return `, ${size} ${precision.unit} ${direction} than ${heldByName} ${heldBy.year}`;
+}
+
+/** Native unit every descriptor value arrives in; asserted, never assumed. */
+const PRECIPITATION_NATIVE_UNIT = "kg/m²/s";
+
+/** Unit the probe renders precipitation in, and the resolution floor's own. */
+const PROBE_PRECIPITATION_UNIT = "mm/day";
