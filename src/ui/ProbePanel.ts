@@ -728,6 +728,16 @@ export class ProbePanel {
    * seasonally corrected, so it removes exactly this signal — while a monsoonal
    * site and an evenly-watered one with the same mean print identically today.
    *
+   * It also appends where the probed month itself stands against the same
+   * calendar month in the other years the probe sampled — but only when that
+   * month strictly beat every one of them, and only with a margin the probe
+   * actually resolved. Every other reading on this line is climatology: the
+   * cycle, the annual total, R and the dry-month run are all means and shapes
+   * over the whole record, and the `max` in the stats above is the record's
+   * high across all twelve calendar months at once, which in a seasonal place
+   * is just the peak of the wet season and can never be beaten by a probed
+   * dry-season month however extreme it was for the time of year.
+   *
    * Loaded on demand for the same reason the greenness clause is: the cycle
    * pulls in per-calendar-month bucketing and the accumulation integrator, and
    * the status line already fills in progressively. A newer series invalidates
@@ -735,7 +745,10 @@ export class ProbePanel {
    *
    * This cannot race the greenness append: that clause is NDVI-only and this
    * one precipitation-only, so at most one of the two ever rebuilds the line
-   * from `stat`.
+   * from `stat`. The record standing rides this SAME load rather than an append
+   * of its own precisely so it cannot race the cycle either — two
+   * precipitation-only appends would both rebuild from `stat` and the later one
+   * would drop the earlier clause.
    */
   private appendPrecipitationCycle(
     stat: string,
@@ -744,14 +757,29 @@ export class ProbePanel {
     const context = this.context;
     if (!context) return;
     const months = this.months;
+    const shares = this.validFractions;
+    const scale = this.scale;
+    // Derived HERE rather than inside the lazy module, for the reason the soil
+    // append states: `probe.ts` is already eager for this panel, while importing
+    // it from the lazy chunk re-factors Rollup's shared chunks and pushes ~1.9 kB
+    // into the entry.
+    const precision = scale
+      ? {
+          resolution: quantizationStep(scale),
+          decimals: csvDecimals(scale),
+          unit: scale.unit,
+        }
+      : null;
     const token = this.seriesToken;
     void import("../lib/probePrecipitationCycle")
       .then(
         ({
           describePrecipitationCycleDrySpell,
           precipitationCycleClause,
+          precipitationRecordClause,
           probePrecipitationAnnualTotals,
           probePrecipitationCycle,
+          probePrecipitationRecordMargin,
           probePrecipitationSeasonalTiming,
         }) => {
           if (token !== this.seriesToken) return; // superseded by a newer probe
@@ -768,8 +796,22 @@ export class ProbePanel {
             describePrecipitationCycleDrySpell(cycle),
             probePrecipitationAnnualTotals(context.layerId, months, physical)
           );
-          if (!clause) return;
-          this.setStatus(`${stat} · ${clause}`);
+          // Both readings ride this one load, so the record standing can never
+          // race the cycle clause for the line: they are appended together, in
+          // climatology-then-this-month order, and each is silent on its own
+          // terms — a record with no cycle behind it still states its standing.
+          const record = precipitationRecordClause(
+            probePrecipitationRecordMargin(
+              context.layerId,
+              months,
+              physical,
+              shares
+            ),
+            precision
+          );
+          const appended = [clause, record].filter(Boolean).join(" · ");
+          if (!appended) return;
+          this.setStatus(`${stat} · ${appended}`);
         }
       )
       .catch(() => {
