@@ -102,6 +102,43 @@ take one directly when no Owner's pick applies to its domain.
       what it covers there is the colour ramp, which is the same
       reader-default question as the two items above._
 
+- [ ] **The panel's fold control is covered by the draw button on a short
+      window under a fine pointer, and the fix is structural rather than a
+      breakpoint.** Measured on main at `b91e09e` by hit-testing
+      `#hud-collapse`'s centre across 42 viewports: the centre is lost
+      outright at 932x320, at 568/667/740/932 x330, at
+      568/667/740/812/932/1024/1100 x340, at 568/667/740/812 x350 and at
+      740x355, and is kept but left under the 24px reach floor at a further
+      fourteen sizes between 310 and 365px of height. Every width at 300px
+      and everything at 370px and above is clear, as is every viewport wider
+      than 1200px. So the band is heights 310-365 at widths 568-1100, not the
+      320-340 an earlier pass recorded.
+      What makes it structural is that the two controls are pinned in
+      different coordinate systems: `.draw` takes the viewport's left inset
+      (`clamp(1rem, 3vw, 2rem)`) while `#hud-collapse` takes the left edge of
+      `#controls`, which is capped near 880px and centred. The gap between
+      them is therefore not a constant — the fold control's left edge runs
+      26px at 568 wide to 169px at 1200, while the draw button's right edge
+      barely moves — which is why the one-liner that already fixes the coarse
+      case does not transfer: under a coarse pointer every viewport is
+      narrower than the cap, so the panel's left edge IS the viewport inset.
+      Three one-line candidates were measured and eliminated. A fixed
+      sideways offset cannot cover the band (+44px clears 568-932 and leaves
+      1024 and 1100 blocked; the +115px that clears 1100 puts the pill into
+      the globe's aim at 568). Moving `.draw` up has no room — at 568 and 667
+      the header column bottoms out 3-6px above the draw button's top, and
+      clearing the fold control would land the draw button on the theme
+      toggle. Raising the fold control's `z-index` is not merely unwise but
+      impossible: `#draw` is a sibling of `.overlay--bottom`, `.overlay`
+      establishes a stacking context at `z-index: 2`, and no child value can
+      escape a parent stacking context — the only lever is raising the whole
+      bottom overlay past 4, which puts the panel over `#search`, `#export`,
+      `#compare` and `#draw`.
+      What is left is a design decision of the same class as the netbook band
+      above: either `.draw`'s x follows the panel's left edge, or the draw
+      button leaves that corner below roughly 370px of height. Filed rather
+      than guessed at, and filed with the numbers so it is not re-derived.
+
 ## Done
 
 <!-- The shipping PR moves its item here, with the PR number. -->
