@@ -33,6 +33,7 @@ import {
   sstColdEndAccuracyCsvHeaders,
 } from "./lib/sstColdEndAccuracy";
 import { uncalibratedVegetationAccuracyCsvHeaders } from "./lib/vegetationIndexRamp";
+import { unvalidatedInversionCsvHeaders } from "./lib/unvalidatedInversionAccuracy";
 import { vegetationSamplingIdentityCsvHeaders } from "./lib/vegetationObservingConstraints";
 import {
   probeSstExtremeCensoring,
@@ -1458,6 +1459,16 @@ if (probeEl) {
                     layer.id,
                     probeInversionAccuracy(layer.id, scale).status
                   ),
+                  // Neither builder above covers snow: it is ramp-inverted on a
+                  // calibrated scale but no colormap document has ever been
+                  // measured for it. Silence there reads as "nothing to
+                  // declare" beside a file that states an RMSE, so the absence
+                  // is written out rather than left to be inferred. Empty for
+                  // every layer either line above speaks for.
+                  ...unvalidatedInversionCsvHeaders(
+                    layer.id,
+                    probeInversionAccuracy(layer.id, scale).status
+                  ),
                   ...sstColdEndAccuracyCsvHeaders(
                     probeSstColdEndAccuracy(layer.id, physical, sstCensoring)
                   ),
@@ -1822,6 +1833,16 @@ if (probeEl) {
                   // it more. Empty for every layer the line above speaks for,
                   // so the two can never both state an accuracy.
                   ...uncalibratedVegetationAccuracyCsvHeaders(
+                    layer.id,
+                    probeInversionAccuracy(layer.id, scale).status
+                  ),
+                  // Neither builder above covers snow: it is ramp-inverted on a
+                  // calibrated scale but no colormap document has ever been
+                  // measured for it. Silence there reads as "nothing to
+                  // declare" beside a file that states an RMSE, so the absence
+                  // is written out rather than left to be inferred. Empty for
+                  // every layer either line above speaks for.
+                  ...unvalidatedInversionCsvHeaders(
                     layer.id,
                     probeInversionAccuracy(layer.id, scale).status
                   ),
