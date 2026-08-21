@@ -540,9 +540,15 @@ export class PlaceInsights {
     this.seismicityDepthBasis.textContent =
       reportedDepthBasisText(context) ?? "";
     // Likewise silent unless a matched event exceeds the one azimuthal-gap
-    // threshold USGS documents for these fields.
+    // threshold USGS documents for these fields. It is told how many rows this
+    // section renders because it qualifies those rows: the list is ordered by
+    // distance and these events are picked by gap, so which of them a reader
+    // can actually see is not something the formatter can assume.
     this.seismicityEpicenterConstraint.textContent =
-      epicenterConstraintText(context) ?? "";
+      epicenterConstraintText(
+        context,
+        Math.min(context.observations.length, SEISMICITY_LIST_LIMIT)
+      ) ?? "";
     const { coverage, query } = context;
 
     if (coverage.status === "invalid-query") {
