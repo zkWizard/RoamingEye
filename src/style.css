@@ -281,6 +281,61 @@ body {
   margin-top: 0.35rem;
   font-size: 0.75rem;
   color: var(--muted);
+  /* Shrink the row's box to the credits it holds instead of the overlay's full
+     width. The text was always centred, so nothing moves; what changes is that
+     the plate below can hug the line rather than slab the whole footer. This is
+     `fit-content`, not `max-content`, so when the credits are longer than the
+     window the box is the window and the wrap is exactly what it is today —
+     which is why the row's height is identical at every width, plate or no
+     plate, and the bottom-anchored HUD above it cannot be pushed into the
+     globe's aim. */
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  position: relative;
+  z-index: 0;
+}
+
+/* The credits row is the only HUD surface with nothing painted under it, so its
+   backdrop is whatever the globe canvas — which spans the whole viewport, under
+   every overlay — happens to be showing there.
+ *
+ * In light theme that is safe and stays safe: the canvas clears to the page
+ * colour and the globe's pale limb stops above the row, so the backdrop
+ * measures a flat 5.54:1 at every width AND every height tried (1280x900,
+ * 1280x700, 1440x760, 1024x600, 768x600 — 0% of the row below AA in all of
+ * them). In dark theme the same geometry puts the atmosphere's bright blue limb
+ * straight through the line: worst pixel 1.37-2.22:1 against the 4.5:1 AA floor
+ * for 12px text, with 6-16% of the row's backdrop below it, at every one of
+ * those sizes. What goes unread is the provenance line itself — the four
+ * data-source credits and the "Data providers", repository and feedback
+ * controls beside them.
+ *
+ * So the plate is declared once here and switched on where the globe actually
+ * reaches the row: in dark theme at any size, and at phone widths in both
+ * themes, where the layout lifts the row onto the imagery (see the 540px block
+ * near the end of this file). It is an absolutely positioned pseudo-element and
+ * not padding, precisely so it costs the row no height — the HUD-trap failure
+ * this suite has hit three times. `z-index: 0` on the row makes the stacking
+ * context that keeps the `-1` plate behind the text but above the imagery.
+ * e2e/attribution-contrast.spec.ts measures the composite in both themes. */
+.attribution::before {
+  content: none;
+  position: absolute;
+  inset: -0.3rem -0.55rem;
+  z-index: -1;
+  border-radius: 10px;
+  background: var(--panel-bg-strong);
+  backdrop-filter: blur(10px);
+}
+
+/* Out-specifies the phone block's switch below (an attribute selector beats a
+   media query, which adds no specificity), so in dark theme this is the rule
+   that lands at every width. Both set the same value, so the plate is on either
+   way — but anything that wants to turn it back OFF for a size in dark theme
+   has to say so here, not there. */
+:root[data-theme="dark"] .attribution::before {
+  content: "";
 }
 
 .attribution a {
@@ -2871,25 +2926,15 @@ body {
      asserted the row could be READ.
 
      Every other panel already answers this with `--panel-bg` and a blur, so the
-     row gets the same treatment rather than a new idiom. The plate is an
-     absolutely positioned pseudo-element, which takes no room in flow: the
-     row's own box is identical before and after, so the bottom-anchored HUD
-     above it cannot be pushed up and the globe's aim is untouched — the whole
-     reason this is a ::before and not padding. `z-index: 0` makes the stacking
-     context that keeps the `-1` plate behind the text but above the imagery. */
-  .attribution {
-    position: relative;
-    z-index: 0;
-  }
-
+     row gets the same treatment rather than a new idiom. The plate itself is
+     declared once beside `.attribution` near the top of this file, together
+     with the reason it is a pseudo-element and not padding; all this block does
+     is switch it on for the phone layout in BOTH themes. Dark theme turns it on
+     at every width, because there the globe reaches the row at desktop sizes
+     too — light theme is the one that needs the breakpoint, since above 540px
+     its backdrop is the flat page colour at 5.54:1. */
   .attribution::before {
     content: "";
-    position: absolute;
-    inset: -0.3rem -0.55rem;
-    z-index: -1;
-    border-radius: 10px;
-    background: var(--panel-bg-strong);
-    backdrop-filter: blur(10px);
   }
   .controls {
     gap: 0.6rem;
