@@ -691,6 +691,9 @@ export function runPlaceInsights(result: GeoResult): void {
         }
       );
       if (abort.signal.aborted) return;
+      // Index 0 is the prior-year sample, judged by no one: its failure costs
+      // only the year-over-year line, absent for an unpublished prior year too.
+      assertLeadingMonthRetrieved("sst", sample.transportFailureByMonth);
       const sstReadings = sstSampleMonths.slice(sstPairStart).map((month, i) =>
         marineBoundarySstReading({
           geographyLabel: result.name,
