@@ -145,9 +145,29 @@ describe("assertLeadingMonthRetrieved", () => {
 
   it("names the layer so the caught warning says which card failed", () => {
     // Every place block shares one catch shape; the message is what tells the
-    // three of them apart in the console.
+    // four of them apart in the console.
     expect(() => assertLeadingMonthRetrieved("aerosol", [true])).toThrow(
       /aerosol/
     );
+  });
+
+  it("spares the SST card when only its prior-year sample failed", () => {
+    // The marine block samples three months — prior year, then the pair — so
+    // its leading month is index 2. A prior-year image lost on transport must
+    // not fail a card whose own month arrived: the year-over-year line is then
+    // simply absent, exactly as it is for a prior year GIBS never published.
+    expect(() =>
+      assertLeadingMonthRetrieved("sst", [true, false, false])
+    ).not.toThrow();
+  });
+
+  it("fails the SST card when its leading month never arrived", () => {
+    // Otherwise the null reaches marineBoundarySstReading as zero coverage,
+    // and the card states "No usable sea-surface-temperature samples were
+    // supplied." — a claim about the searched boundary, attributed to
+    // MODIS/Aqua, that a request which never completed cannot establish.
+    expect(() =>
+      assertLeadingMonthRetrieved("sst", [false, false, true])
+    ).toThrow(/sst/);
   });
 });
