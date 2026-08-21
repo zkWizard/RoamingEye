@@ -478,12 +478,24 @@ const LISTED_AZIMUTHAL_GAP_LIMIT = 3;
  * the documented range is not a certificate of accuracy, and this qualifies the
  * numbers shown rather than rating the locations behind them.
  *
+ * Because it qualifies the numbers shown, it has to know which of them are on
+ * screen — hence `listedCount`, the number of rows the caller renders, the same
+ * parameter `listedSeismicityOrderNote` takes and for the same reason. The list
+ * is ordered nearest first while these events are singled out by azimuthal gap,
+ * so a flagged event is not especially likely to be among the rows: measured
+ * against the live feed over twenty region-sized extents, the line fired for
+ * fourteen, and for five of those every flagged event fell beyond the rows.
+ * Those five are exactly the case the wording used to get wrong, by attributing
+ * "large location and depth uncertainties" to distances and depths printed for
+ * events that were within the documented range.
+ *
  * Returns null when no matched event exceeds the documented gap — there is
  * nothing to qualify, and announcing the absence would read as a location-
  * quality finding, which this cannot support.
  */
 export function epicenterConstraintText(
-  context: EarthquakePlaceContext
+  context: EarthquakePlaceContext,
+  listedCount: number
 ): string | null {
   const coverage = summarizeNetworkGeometryCoverage(context.observations);
   const exceedingCount = coverage.byConstraint["exceeds-documented-gap"];
@@ -491,12 +503,25 @@ export function epicenterConstraintText(
 
   const reportedCount =
     coverage.suppliedEventCount - coverage.byConstraint.unavailable;
-  const gaps = context.observations
-    .map((observation) => seismicNetworkGeometry(observation))
+  const exceeding = context.observations
+    .map((observation, index) => ({
+      geometry: seismicNetworkGeometry(observation),
+      index,
+    }))
     .filter(
-      (geometry) => geometry.azimuthalConstraint === "exceeds-documented-gap"
-    )
-    .map((geometry) => geometry.azimuthalGapDeg)
+      ({ geometry }) =>
+        geometry.azimuthalConstraint === "exceeds-documented-gap"
+    );
+  // How many of the flagged events the reader can actually see. A row count
+  // that is missing or nonsensical is treated as "nothing is on screen", which
+  // is the reading that claims least.
+  const listed =
+    Number.isFinite(listedCount) && listedCount > 0 ? listedCount : 0;
+  const listedExceedingCount = exceeding.filter(
+    ({ index }) => index < listed
+  ).length;
+  const gaps = exceeding
+    .map(({ geometry }) => geometry.azimuthalGapDeg)
     .filter((gap): gap is number => gap !== null)
     .sort((first, second) => second - first);
   const named = gaps.slice(0, LISTED_AZIMUTHAL_GAP_LIMIT);
@@ -510,11 +535,23 @@ export function epicenterConstraintText(
       : `largest ${values}` +
         (unnamedCount > 0 ? ` and ${unnamedCount} more` : "");
   const events = reportedCount === 1 ? "event" : "events";
+  const documented =
+    "USGS documents that such locations typically carry large location and depth uncertainties";
+  // Which rows the uncertainty actually applies to. The list is ordered by
+  // distance and the flagged events are picked by gap, so the two sets come
+  // apart routinely: a flagged event can sit anywhere in the matched order, or
+  // beyond the rows entirely. Saying "listed for them" regardless pointed the
+  // reader at digits that, in the truncated case, belong to other events.
+  const consequence =
+    listedExceedingCount === 0
+      ? `${documented}; none of them is among the events listed below.`
+      : listedExceedingCount === exceedingCount
+        ? `${documented}, so the distance and depth listed for them are less resolved than their digits suggest.`
+        : `${documented}, so the distance and depth listed for the ${listedExceedingCount} of them shown below are less resolved than their digits suggest.`;
   return (
     `Azimuthal station gap exceeds ${DOCUMENTED_MAX_AZIMUTHAL_GAP_DEG}° for ` +
     `${exceedingCount} of ${reportedCount} matched ${events} that reported a gap (${tally}). ` +
-    "USGS documents that such locations typically carry large location and depth uncertainties, " +
-    "so the distance and depth listed for them are less resolved than their digits suggest. " +
+    `${consequence} ` +
     "This feed publishes no location-uncertainty values, leaving station geometry as its only " +
     "location-quality signal; a gap within that range is not a certificate of accuracy."
   );

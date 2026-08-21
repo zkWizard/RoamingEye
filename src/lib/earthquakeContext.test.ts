@@ -709,7 +709,8 @@ describe("epicenterConstraintText", () => {
           withGap(0.4, 120),
         ],
         query
-      )
+      ),
+      4
     );
 
     expect(text).toContain(
@@ -724,7 +725,8 @@ describe("epicenterConstraintText", () => {
 
   it("names the reason this is the only location-quality signal available", () => {
     const text = epicenterConstraintText(
-      nearbyEarthquakeContext([withGap(0.1, 200)], query)
+      nearbyEarthquakeContext([withGap(0.1, 200)], query),
+      1
     );
 
     expect(text).toContain("for 1 of 1 matched event that reported a gap");
@@ -746,7 +748,8 @@ describe("epicenterConstraintText", () => {
           withGap(0.5, 185),
         ],
         query
-      )
+      ),
+      5
     );
 
     expect(text).toContain("(largest 280°, 260°, 210° and 2 more)");
@@ -757,7 +760,8 @@ describe("epicenterConstraintText", () => {
       nearbyEarthquakeContext(
         [withGap(0.1, 240), withGap(0.2, null), earthquake({ lat: 0.3 })],
         query
-      )
+      ),
+      3
     );
 
     expect(text).toContain("for 1 of 1 matched event that reported a gap");
@@ -766,7 +770,8 @@ describe("epicenterConstraintText", () => {
   it("stays silent when every reported gap is within the documented range", () => {
     expect(
       epicenterConstraintText(
-        nearbyEarthquakeContext([withGap(0.1, 179), withGap(0.2, 90)], query)
+        nearbyEarthquakeContext([withGap(0.1, 179), withGap(0.2, 90)], query),
+        2
       )
     ).toBeNull();
   });
@@ -774,15 +779,76 @@ describe("epicenterConstraintText", () => {
   it("treats a gap of exactly 180° as within the documented range", () => {
     expect(
       epicenterConstraintText(
-        nearbyEarthquakeContext([withGap(0.1, 180)], query)
+        nearbyEarthquakeContext([withGap(0.1, 180)], query),
+        1
       )
     ).toBeNull();
   });
 
   it("stays silent when nothing matched", () => {
     expect(
-      epicenterConstraintText(nearbyEarthquakeContext([], query))
+      epicenterConstraintText(nearbyEarthquakeContext([], query), 0)
     ).toBeNull();
+  });
+
+  // The list is ordered by distance and these events are singled out by
+  // azimuthal gap, so the flagged set and the rendered rows come apart. The
+  // three tests below pin one branch each, because the sentence used to claim
+  // the first of them in all three cases.
+  it("qualifies the listed rows only when every flagged event is on one", () => {
+    const text = epicenterConstraintText(
+      nearbyEarthquakeContext([withGap(0.1, 240), withGap(0.2, 90)], query),
+      2
+    );
+
+    expect(text).toContain(
+      "so the distance and depth listed for them are less resolved"
+    );
+    expect(text).not.toContain("shown below");
+    expect(text).not.toContain("none of them");
+  });
+
+  it("says so when no flagged event reached the listed rows", () => {
+    // Nearest first: the two within-range events take both rows, and the
+    // flagged one sits third.
+    const context = nearbyEarthquakeContext(
+      [withGap(0.9, 240), withGap(0.1, 90), withGap(0.2, 120)],
+      query
+    );
+    const text = epicenterConstraintText(context, 2);
+
+    expect(context.observations[2].sourceRecord?.azimuthalGapDeg).toBe(240);
+    expect(text).toContain("for 1 of 3 matched events that reported a gap");
+    expect(text).toContain("none of them is among the events listed below");
+    // The retraction that matters: no claim about the digits on screen, which
+    // belong to events within the documented range.
+    expect(text).not.toContain("listed for them");
+    expect(text).not.toContain("less resolved");
+  });
+
+  it("counts how many flagged events reached the rows when only some did", () => {
+    const context = nearbyEarthquakeContext(
+      [withGap(0.1, 240), withGap(0.9, 220), withGap(0.2, 90)],
+      query
+    );
+    const text = epicenterConstraintText(context, 2);
+
+    expect(text).toContain("for 2 of 3 matched events that reported a gap");
+    expect(text).toContain(
+      "the distance and depth listed for the 1 of them shown below are less resolved"
+    );
+    // The tally still names both gaps: it reports the matched set, not the
+    // rows, and the two counts are deliberately different populations.
+    expect(text).toContain("(largest 240°, 220°)");
+  });
+
+  it("claims nothing about the rows when the caller renders none", () => {
+    const text = epicenterConstraintText(
+      nearbyEarthquakeContext([withGap(0.1, 240)], query),
+      0
+    );
+
+    expect(text).toContain("none of them is among the events listed below");
   });
 });
 
