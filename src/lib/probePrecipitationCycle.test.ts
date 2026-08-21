@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   precipitationCycleClause,
+  precipitationRecordClause,
   probePrecipitationAnnualTotals,
   probePrecipitationCycle,
+  probePrecipitationRecordMargin,
   probePrecipitationSeasonalTiming,
 } from "./probePrecipitationCycle";
 import { SECONDS_PER_DAY } from "./precipitationAccumulation";
+import { PROBE_SCALES, csvDecimals, quantizationStep } from "./probe";
 import { MINIMUM_PRECIP_ANNUAL_CYCLE_YEARS_PER_MONTH } from "./precipitationAnnualCycle";
 import type { YearMonth } from "./timeline";
 
@@ -367,5 +370,206 @@ describe("probePrecipitationAnnualTotals", () => {
         probePrecipitationAnnualTotals("precip", months, values)
       )
     ).toBeNull();
+  });
+});
+
+/**
+ * Marches only, which is all the same-calendar-month record needs: `priors`
+ * oldest-first from 2000, then the target as the latest month. Every month
+ * carries a full footprint share, because the seasonal baseline rejects an
+ * observation that measures none at any threshold.
+ */
+function marchSeries(
+  priorsMmPerDay: readonly number[],
+  targetMmPerDay: number | null
+): {
+  months: YearMonth[];
+  values: (number | null)[];
+  shares: (number | null)[];
+} {
+  const months: YearMonth[] = [];
+  const values: (number | null)[] = [];
+  for (let index = 0; index < priorsMmPerDay.length; index++) {
+    months.push({ year: 2000 + index, month: 3 });
+    values.push(priorsMmPerDay[index]);
+  }
+  months.push({ year: 2000 + priorsMmPerDay.length, month: 3 });
+  values.push(targetMmPerDay);
+  return { months, values, shares: months.map(() => 1) };
+}
+
+/** Thirteen flat 2 mm/day prior Marches: the record has a single holder. */
+const FLAT_PRIOR_MARCHES = Array.from({ length: 13 }, () => 2);
+
+const PRECIP_STEP_MM_PER_DAY = quantizationStep(PROBE_SCALES.precip);
+
+/** The precision the panel derives and hands to the clause. */
+const PRECIP_PRECISION = {
+  resolution: PRECIP_STEP_MM_PER_DAY,
+  decimals: csvDecimals(PROBE_SCALES.precip),
+  unit: PROBE_SCALES.precip.unit,
+};
+
+describe("probePrecipitationRecordMargin", () => {
+  it("returns null for every layer but precipitation", () => {
+    const { months, values, shares } = marchSeries(FLAT_PRIOR_MARCHES, 3);
+    for (const layer of ["soil", "snow", "ndvi", "airtemp", "sst"] as const) {
+      expect(
+        probePrecipitationRecordMargin(layer, months, values, shares)
+      ).toBeNull();
+    }
+    expect(
+      probePrecipitationRecordMargin(undefined, months, values, shares)
+    ).toBeNull();
+    expect(
+      probePrecipitationRecordMargin("precip", months, values, shares)
+    ).not.toBeNull();
+  });
+
+  it("returns null when the mode measured no footprint share", () => {
+    // A point probe supplies no shares at all, and the seasonal baseline
+    // rejects an observation carrying none at any threshold — so the standing
+    // is withheld here rather than fabricated from an unscreened record.
+    const { months, values } = marchSeries(FLAT_PRIOR_MARCHES, 3);
+    expect(
+      probePrecipitationRecordMargin("precip", months, values, null)
+    ).toBeNull();
+  });
+
+  it("returns null when the series carries no observed month", () => {
+    const { months, shares } = marchSeries(FLAT_PRIOR_MARCHES, null);
+    expect(
+      probePrecipitationRecordMargin(
+        "precip",
+        months,
+        months.map(() => null),
+        shares
+      )
+    ).toBeNull();
+  });
+
+  it("converts the probe's mm/day series into the metric's native unit", () => {
+    // The descriptor is defined in kg/m²/s while the probe reports mm/day, so
+    // the bridge must divide by the day length on the way in. If it did not,
+    // every value would be 86 400x too large and the reported record values
+    // would be nonsense even though the ORDERING — and so the standing — would
+    // survive unchanged. Assert the values, not just the standing.
+    const { months, values, shares } = marchSeries(FLAT_PRIOR_MARCHES, 3);
+    const margin = probePrecipitationRecordMargin(
+      "precip",
+      months,
+      values,
+      shares
+    );
+    expect(margin?.unit).toBe("kg/m²/s");
+    expect(margin?.targetValue).toBeCloseTo(3 / SECONDS_PER_DAY, 12);
+    expect(margin?.priorWettestValue).toBeCloseTo(2 / SECONDS_PER_DAY, 12);
+    expect(margin?.standing).toBe("wettest-in-record");
+    expect((margin?.recordExceedanceMargin ?? 0) * SECONDS_PER_DAY).toBeCloseTo(
+      1,
+      9
+    );
+  });
+});
+
+describe("precipitationRecordClause", () => {
+  function clauseFor(
+    priors: readonly number[],
+    target: number,
+    precision: typeof PRECIP_PRECISION | null = PRECIP_PRECISION
+  ): string {
+    const { months, values, shares } = marchSeries(priors, target);
+    return precipitationRecordClause(
+      probePrecipitationRecordMargin("precip", months, values, shares),
+      precision
+    );
+  }
+
+  it("states a new wet record, its margin, and the month that held it", () => {
+    expect(clauseFor(FLAT_PRIOR_MARCHES, 3)).toBe(
+      "precipitation Mar 2013 wettest of 13 prior same-month observations, " +
+        "1.0 mm/day wetter than Mar 2000 (this record only, GLDAS-Noah modeled rate)"
+    );
+  });
+
+  it("states a new dry record in the opposite direction", () => {
+    expect(clauseFor(FLAT_PRIOR_MARCHES, 1)).toBe(
+      "precipitation Mar 2013 driest of 13 prior same-month observations, " +
+        "1.0 mm/day drier than Mar 2000 (this record only, GLDAS-Noah modeled rate)"
+    );
+  });
+
+  it("keeps the standing but drops a margin the probe did not resolve", () => {
+    // Each end of the difference is an independent colormap inversion carrying
+    // half a LUT step, so a record won by less than one step is real as an
+    // ORDERING but unresolved as a SIZE. The standing survives; the number does
+    // not, and it is dropped rather than printed as "0.1 mm/day".
+    const margin = PRECIP_STEP_MM_PER_DAY / 2;
+    expect(margin).toBeLessThan(PRECIP_STEP_MM_PER_DAY);
+    expect(clauseFor(FLAT_PRIOR_MARCHES, 2 + margin)).toBe(
+      "precipitation Mar 2013 wettest of 13 prior same-month observations " +
+        "(this record only, GLDAS-Noah modeled rate)"
+    );
+  });
+
+  it("compares the margin against the floor in mm/day, not in native units", () => {
+    // The regression this pins: a native margin is ~1e-6 while the floor is
+    // ~0.17 mm/day, so comparing the two without converting would pass EVERY
+    // record through the gate and make it meaningless. A margin of one and a
+    // half steps must survive; a quarter step must not.
+    const resolved = PRECIP_STEP_MM_PER_DAY * 1.5;
+    expect(clauseFor(FLAT_PRIOR_MARCHES, 2 + resolved)).toContain(
+      `${resolved.toFixed(PRECIP_PRECISION.decimals)} mm/day wetter than Mar 2000`
+    );
+    expect(
+      clauseFor(FLAT_PRIOR_MARCHES, 2 + PRECIP_STEP_MM_PER_DAY / 4)
+    ).not.toContain("wetter than");
+  });
+
+  it("says nothing for a month inside the record's range", () => {
+    // Most probes land here, and a margin to an extreme this month never
+    // reached would put a second number on the ordinary case.
+    const varied = [1, 1.5, 2, 2.5, 3, 1.2, 1.8, 2.2, 2.8, 1.4, 2.6, 1.6, 2.4];
+    expect(clauseFor(varied, 2)).toBe("");
+  });
+
+  it("says nothing when the target merely ties an extreme", () => {
+    // A tie breaches nothing, so there is no margin to state and no record to
+    // claim — the flat record ties both ends at once.
+    expect(clauseFor(FLAT_PRIOR_MARCHES, 2)).toBe("");
+  });
+
+  it("says nothing without a resolved precision to gate the margin", () => {
+    expect(clauseFor(FLAT_PRIOR_MARCHES, 3, null)).toBe("");
+    expect(precipitationRecordClause(null, PRECIP_PRECISION)).toBe("");
+  });
+
+  it("says nothing when the record is too short to rank against", () => {
+    // The ten-sample floor lives in the seasonal baseline; the bridge must not
+    // route around it. Nine prior Marches cannot carry a record standing.
+    expect(clauseFor([2, 2, 2, 2, 2, 2, 2, 2, 2], 3)).toBe("");
+  });
+
+  it("withholds the margin if the probe scale stops being mm/day", () => {
+    // The floor is measured on the probe's own scale, so the two are only
+    // comparable while precipitation renders in mm/day. A unit change must drop
+    // the phrase rather than silently mis-scale it.
+    expect(
+      clauseFor(FLAT_PRIOR_MARCHES, 3, {
+        ...PRECIP_PRECISION,
+        unit: "kg/m²/s",
+      })
+    ).toBe(
+      "precipitation Mar 2013 wettest of 13 prior same-month observations " +
+        "(this record only, GLDAS-Noah modeled rate)"
+    );
+  });
+
+  it("pins the probe scale the resolution floor is derived from", () => {
+    // Every number above is a consequence of this scale; if it moves, the
+    // fixtures above are measuring the wrong floor.
+    expect(PROBE_SCALES.precip.unit).toBe("mm/day");
+    expect(PRECIP_PRECISION.decimals).toBe(1);
+    expect(PRECIP_STEP_MM_PER_DAY).toBeCloseTo(43.2 / 255, 10);
   });
 });
