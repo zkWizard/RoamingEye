@@ -185,6 +185,9 @@ export class ProbePanel {
 
     this.status = document.createElement("p");
     this.status.className = "probe__status";
+    // Politeness is set per WRITE, not once here — see setStatus. The attribute
+    // still has to exist from the start: a live region has to be in the tree
+    // before the mutation it announces, or the first message is missed.
     this.status.setAttribute("aria-live", "polite");
 
     const footer = document.createElement("div");
@@ -282,7 +285,34 @@ export class ProbePanel {
     this.onClose?.();
   }
 
-  setStatus(text: string): void {
+  /**
+   * Write the status line, and say whether the write is worth announcing.
+   *
+   * The line is one element carrying two different kinds of message: the
+   * settled result, with its provenance and uncertainty clauses, and — while a
+   * long record streams in — a per-month progress counter. `onProgress` fires
+   * once per month, so a 316-month record wrote 316 times into a region marked
+   * `aria-live="polite"`. Polite announcements QUEUE rather than replace, so a
+   * screen reader read "Sampling 1 of 316 months" through "Sampling 316 of 316
+   * months" one after another, and the answer the reader actually probed for
+   * arrived at the back of that queue.
+   *
+   * The counter is a sighted affordance: it says the panel is alive, which a
+   * reader who cannot see it learns from the "Sampling…" that opens the run and
+   * from the result that ends it. So progress writes set `aria-live="off"` —
+   * the ARIA value that means exactly "update this without announcing it" — and
+   * every other write restores `polite`. The attribute is set BEFORE the text
+   * because politeness is read when the mutation is processed, not when the
+   * region was registered.
+   *
+   * The visible text is unchanged at every step, and so is the DOM: no node is
+   * added, hidden, or duplicated, so nothing here can move a pixel of the HUD.
+   */
+  setStatus(text: string, options?: { announce?: boolean }): void {
+    this.status.setAttribute(
+      "aria-live",
+      options?.announce === false ? "off" : "polite"
+    );
     this.status.textContent = text;
   }
 
