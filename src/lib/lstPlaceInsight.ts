@@ -321,12 +321,65 @@ function coverageText(validFraction: number | null): string {
   ) {
     return "sampled coverage not supplied";
   }
-  const percent = Math.round(validFraction * 100);
-  const gap =
-    validFraction < 1
-      ? " — an optical clear-sky product, so cloud routinely leaves part of a boundary unobserved"
-      : "";
-  return `${percent}% sampled boundary coverage${gap}`;
+  // The clause and the number must answer to the same decision. Gating the
+  // clause on `validFraction < 1` while rounding the number separately let a
+  // sample print `100%` and a shortfall note in one breath, and let a sample
+  // one representation error short of complete carry a note about a gap it
+  // does not have.
+  const gap = isCompleteCoverage(validFraction)
+    ? ""
+    : " — an optical clear-sky product, so cloud routinely leaves part of a boundary unobserved";
+  return `${formatCoverageShare(validFraction)} sampled boundary coverage${gap}`;
+}
+
+/**
+ * Complete coverage is a ratio of two compensated area sums, so a boundary the
+ * sensor covered outright can land a representation error below one rather
+ * than exactly on it. Treating such a share as complete keeps it out of the
+ * bounded wording below, which exists for genuinely incomplete samples.
+ */
+const PERCENT_SNAP_EPSILON = 1e-9;
+
+function isCompleteCoverage(fraction: number): boolean {
+  return fraction >= 1 - PERCENT_SNAP_EPSILON;
+}
+
+/**
+ * Whole percent, except at the two endpoints where nearest rounding would
+ * state something the share does not say.
+ *
+ * Rounding an incomplete share to `100%` claims the boundary mean covers the
+ * whole searched area when part of it went unobserved — and on this product
+ * the unobserved part is the opposite of a random scatter. The rendered layer
+ * composites clear-sky retrievals alone, so the missing share IS the cloudy
+ * pixels, and cloud is associated with the cooler, wetter surface states it
+ * hides. The share is therefore the only cue on the card that the mean is
+ * drawn from a clear-sky subsample rather than the whole month; rounding it
+ * away removes it, which is exactly what this module's header undertakes to
+ * state "where the coverage number is shown".
+ *
+ * The floor case is the mirror. A positive share below half a percent rounds
+ * to `0%`, which reads as a boundary the source never covered — but a positive
+ * share is direct evidence it covered part of one and `weightedMeanValid`
+ * declined to average what it got. `placeObservationExport` splits exactly
+ * there, deriving `insufficient-valid-coverage` from a positive share and
+ * reserving `source-no-data` for a zero one, so printing `0%` here would put
+ * this card and the download it accompanies in disagreement about the same
+ * month. A share of exactly zero keeps `0%` — there the card is reporting no
+ * coverage, not contradicting itself.
+ *
+ * Both endpoint cases are written as bounds because that is what they are.
+ * Shares away from the endpoints keep nearest rounding, which is the useful
+ * reading of a known share. `aerosolPlaceInsight` states the same rule for the
+ * same reason, and `marineBoundarySstSupport` the "<1%" half of it.
+ */
+function formatCoverageShare(fraction: number): string {
+  if (fraction <= 0) return "0%";
+  if (isCompleteCoverage(fraction)) return "100%";
+  const percent = Math.round(fraction * 100);
+  if (percent >= 100) return ">99%";
+  if (percent <= 0) return "<1%";
+  return `${percent}%`;
 }
 
 function imageProvenance(dimensions?: {

@@ -121,6 +121,52 @@ describe("land-surface-temperature place-panel reading", () => {
     expect(full.detail).not.toContain("cloud routinely leaves");
   });
 
+  it("never rounds an incomplete boundary up to complete coverage", () => {
+    // The missing share on a clear-sky composite is the cloudy pixels, not a
+    // random scatter, so it is the only cue the mean is drawn from a clear-sky
+    // subsample. Rounding it away would state complete coverage of a boundary
+    // part of which went unobserved — and would print that beside the very
+    // clause saying part of it did.
+    const nearlyComplete = lstBoundaryTemperatureReading(
+      sample({ validFractions: [0.9, 0.998] })
+    );
+    expect(nearlyComplete.detail).toContain(">99% sampled boundary coverage");
+    expect(nearlyComplete.detail).not.toContain("100% sampled");
+    expect(nearlyComplete.detail).toContain(
+      "cloud routinely leaves part of a boundary"
+    );
+  });
+
+  it("keeps a positive share off the zero the export reserves for no data", () => {
+    // `placeObservationExport` derives `insufficient-valid-coverage` from a
+    // positive share and reserves `source-no-data` for a zero one. Printing
+    // `0%` for a sliver the source did cover would put this card and the
+    // download it accompanies in disagreement about the same month.
+    const sliver = lstBoundaryTemperatureReading(
+      sample({ validFractions: [0.9, 0.004] })
+    );
+    expect(sliver.detail).toContain("<1% sampled boundary coverage");
+    expect(sliver.detail).not.toContain("0% sampled");
+
+    // Exactly zero is not the contradictory case — there the card reports no
+    // coverage and means it.
+    const none = lstBoundaryTemperatureReading(
+      sample({ validFractions: [0.9, 0] })
+    );
+    expect(none.detail).toContain("0% sampled boundary coverage");
+  });
+
+  it("does not demote a complete boundary over a representation error", () => {
+    // Coverage is a ratio of two compensated area sums, so a boundary the
+    // sensor covered outright can land just under one. It is complete, and
+    // must not pick up a note about a gap it does not have.
+    const complete = lstBoundaryTemperatureReading(
+      sample({ validFractions: [1, 1 - 1e-12] })
+    );
+    expect(complete.detail).toContain("100% sampled boundary coverage");
+    expect(complete.detail).not.toContain("cloud routinely leaves");
+  });
+
   it("reports unsupplied or invalid coverage rather than inventing a share", () => {
     const fractions: (number | null)[] = [null, Number.NaN, 1.4, -0.2];
     for (const fraction of fractions) {
