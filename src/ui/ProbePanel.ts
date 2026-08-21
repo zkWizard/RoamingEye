@@ -580,6 +580,74 @@ export class ProbePanel {
     this.appendPrecipitationCycle(stat, physical);
     this.appendAerosolObservingEpoch(stat, trend);
     this.appendSoilMoistureStanding(stat, physical);
+    this.appendSnowCoverStanding(stat, physical);
+  }
+
+  /**
+   * Append the one fact the snow status line has never carried: whether the
+   * month on screen set a new same-calendar-month snow record here, and by how
+   * much it beat the month that held it.
+   *
+   * Everything the panel already prints for snow is climatology — the returned
+   * month count, the record's min, mean and max, the per-value uncertainty, the
+   * accuracy, the seasonally corrected trend, the spatial-support note — and
+   * none of it says anything about the probed month itself. The `max` beside it
+   * looks like it should: it does not, because it is the high across all twelve
+   * calendar months at once, so in a seasonal place it is just the mid-winter
+   * peak and a record-setting May beats nothing on screen.
+   *
+   * Only the SNOWIEST standing is appended, and the reason is a property of the
+   * imagery rather than a preference: GIBS draws percent 0 as transparent, so a
+   * snow-free month is never drawn, inverts to null, and drops out of the
+   * record. The retained years are therefore biased upward, which makes a
+   * low-snow standing (and the empirical rank built from the same samples)
+   * unreportable, while leaving the maximum — and the margin to it — untouched.
+   * probeSnowCoverStanding.ts carries the argument in full.
+   *
+   * Loaded on demand for the reason the four clauses above are: the
+   * same-calendar-month baseline machinery is dead weight on every other layer,
+   * and the status line already fills in progressively. A newer series
+   * invalidates an in-flight load.
+   *
+   * This cannot race any clause above: that set is NDVI-only,
+   * precipitation-only, aerosol-only and soil-only and this one snow-only, so at
+   * most one of the five ever rebuilds the line from `stat`.
+   */
+  private appendSnowCoverStanding(
+    stat: string,
+    physical: (number | null)[]
+  ): void {
+    const context = this.context;
+    if (!context) return;
+    const scale = this.scale;
+    if (!scale) return;
+    const months = this.months;
+    // A point probe measures no footprint share, and snow's baseline treats an
+    // absent share as "none was supplied" rather than as failing the coverage
+    // floor, so unlike the soil clause this one is not gated on having them.
+    const shares = this.validFractions;
+    // Derived HERE rather than inside the lazy module: `probe.ts` is already in
+    // the eager bundle for this panel, while importing it from the lazy chunk
+    // re-factors Rollup's shared chunks and pushes ~1.9 kB into the entry.
+    const precision = {
+      resolution: quantizationStep(scale),
+      decimals: csvDecimals(scale),
+      unit: scale.unit,
+    };
+    const token = this.seriesToken;
+    void import("../lib/probeSnowCoverStanding")
+      .then(({ probeSnowCoverRecordMargin, snowCoverStandingClause }) => {
+        if (token !== this.seriesToken) return; // superseded by a newer probe
+        const clause = snowCoverStandingClause(
+          probeSnowCoverRecordMargin(context.layerId, months, physical, shares),
+          precision
+        );
+        if (!clause) return;
+        this.setStatus(`${stat} · ${clause}`);
+      })
+      .catch(() => {
+        // A failed chunk load must leave the stats already on screen intact.
+      });
   }
 
   /**
