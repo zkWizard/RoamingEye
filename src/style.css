@@ -2857,6 +2857,40 @@ body {
 }
 
 @media (max-width: 540px) {
+  /* The credits row is the only HUD surface with nothing painted under it, and
+     the phone layout is where the globe reaches it: above 540px the row sits on
+     the page background and measures a uniform 5.54:1, while at 540px and below
+     it is lifted onto the imagery and its backdrop becomes whatever pixels
+     happen to be behind it. Measured over the boot view, the worst pixel falls
+     to 1.01:1 and 33-64% of the row's backdrop sits under the 4.5:1 AA
+     threshold for 12px text (360px is the worst case, 540px the mildest). What
+     goes unread is the provenance line itself — the four data-source credits
+     plus the "Data providers", repository and feedback controls that
+     phone-attribution-clearance.spec.ts already keeps tappable. That spec is
+     hit tests by design ("the row was always *drawn*"), so nothing until now
+     asserted the row could be READ.
+
+     Every other panel already answers this with `--panel-bg` and a blur, so the
+     row gets the same treatment rather than a new idiom. The plate is an
+     absolutely positioned pseudo-element, which takes no room in flow: the
+     row's own box is identical before and after, so the bottom-anchored HUD
+     above it cannot be pushed up and the globe's aim is untouched — the whole
+     reason this is a ::before and not padding. `z-index: 0` makes the stacking
+     context that keeps the `-1` plate behind the text but above the imagery. */
+  .attribution {
+    position: relative;
+    z-index: 0;
+  }
+
+  .attribution::before {
+    content: "";
+    position: absolute;
+    inset: -0.3rem -0.55rem;
+    z-index: -1;
+    border-radius: 10px;
+    background: var(--panel-bg-strong);
+    backdrop-filter: blur(10px);
+  }
   .controls {
     gap: 0.6rem;
     padding: 0.7rem 0.8rem 0.8rem;
