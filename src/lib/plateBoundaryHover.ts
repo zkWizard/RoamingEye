@@ -85,13 +85,15 @@ export function plateBoundaryPairLabel(name: string | null): string {
  * Returns null when the label records no subduction ("-", PB2002's marking for
  * a non-subducting step) or cannot be decoded at all, so a caller renders
  * nothing rather than implying a polarity the model did not write. 176 of the
- * 241 bundled features return null.
+ * 241 bundled features return null, every one of them for a hyphen rather than
+ * a decode failure.
  *
  * This is a categorical passthrough of byte 3 of the label. It measures
  * nothing and adds no convergence rate, slab depth, deformation, activity, or
- * hazard, and it is not a boundary-type classification: PB2002 marks
- * subduction steps only and leaves the field blank elsewhere, so a null here
- * records no assignment rather than a non-subduction boundary.
+ * hazard. A null is not an absence of information — the hyphen is PB2002's
+ * positive mark for a non-subducting segment — but it is not a boundary-type
+ * classification either: the model's 7-way class code lives in the steps file
+ * this app does not bundle, so a hyphen says only "not subduction".
  */
 export function plateBoundarySubductionReading(
   name: string | null
@@ -109,9 +111,12 @@ export function plateBoundarySubductionReading(
  * glyph with one wording: a reader who meets "delimiter:" on the globe and then
  * in the panel is reading the same convention, not two paraphrases of it.
  * Returning "" rather than null keeps it a plain append at both call sites, and
- * keeps the non-subducting majority silent — PB2002 marks subduction steps only,
- * so a blank field records no assignment rather than a non-subduction boundary,
- * and saying "no polarity recorded" on 176 of 241 features would assert one.
+ * keeps the non-subducting majority silent. The hyphen those 176 of 241 labels
+ * carry is a real reading — PB2002's mark for a non-subducting segment — so the
+ * silence is a space decision, not a claim that nothing was recorded: the panel
+ * states the tally once in subductionMarkingText rather than repeating it on
+ * every hovered segment. A clause here would also have to carry the limit that
+ * a hyphen names no non-subducting class, which the panel has room for.
  */
 export function plateBoundaryDelimiterClause(name: string | null): string {
   const reading = plateBoundarySubductionReading(name);
