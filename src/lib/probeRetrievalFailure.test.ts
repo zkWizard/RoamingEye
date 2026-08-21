@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { HttpError, OfflineError } from "./net";
 import {
   PROBE_RETRIEVAL_FAILURE_LINE,
+  assertLeadingMonthRetrieved,
   classifyProbeLoadFailure,
   probeRetrievalFailureNote,
 } from "./probeRetrievalFailure";
@@ -102,5 +103,51 @@ describe("probeRetrievalFailureNote", () => {
       expect(line).not.toContain(forbidden);
     }
     expect(line).toContain("not a reading");
+  });
+});
+
+describe("assertLeadingMonthRetrieved", () => {
+  it("fails the card when the month it leads with never arrived", () => {
+    // The place cards lead with the last month of the pair. Its image failing
+    // on transport is what used to render as "(missing-value)" beside "0%
+    // sampled coverage", attributed to the named product.
+    expect(() => assertLeadingMonthRetrieved("airtemp", [false, true])).toThrow(
+      /airtemp/
+    );
+  });
+
+  it("keeps a good leading reading when only the earlier month failed", () => {
+    // The value the card states is honest; only the month-on-month difference
+    // is lost, and it is lost the same way an unpublished earlier month loses
+    // it. Throwing here would trade a real measurement for a caveat.
+    expect(() =>
+      assertLeadingMonthRetrieved("precip", [true, false])
+    ).not.toThrow();
+  });
+
+  it("stays silent for a pair that arrived, however it read", () => {
+    // A declined month is false here, so a genuinely blank month still reaches
+    // the card's own no-data wording rather than the failure path.
+    expect(() =>
+      assertLeadingMonthRetrieved("aerosol", [false, false])
+    ).not.toThrow();
+  });
+
+  it("leaves an empty series to the caller's own emptiness rules", () => {
+    // No leading month exists to have failed; indexing past the end must not
+    // read as a failure.
+    expect(() => assertLeadingMonthRetrieved("lst", [])).not.toThrow();
+  });
+
+  it("throws for a single-month series whose only month failed", () => {
+    expect(() => assertLeadingMonthRetrieved("lst", [true])).toThrow();
+  });
+
+  it("names the layer so the caught warning says which card failed", () => {
+    // Every place block shares one catch shape; the message is what tells the
+    // three of them apart in the console.
+    expect(() => assertLeadingMonthRetrieved("aerosol", [true])).toThrow(
+      /aerosol/
+    );
   });
 });
