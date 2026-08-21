@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { PlateBoundary, PlateBoundaryStep } from "./plates";
 import { parsePlateBoundaries } from "./plates";
+import { decodePlatePair } from "./platePairs";
 import {
   BIRD_2003_PLATE_BOUNDARY_SOURCE,
   PLATE_BOUNDARY_CONTEXT_UNITS,
@@ -228,15 +229,27 @@ describe("subductionMarkingText", () => {
       [39, 42, -126, -123]
     );
 
-  it("names the marked count and denies the non-subduction reading", () => {
+  it("names the marked count and points at the label for the rest", () => {
     const text = subductionMarkingText(matched("subduction", null, null));
 
     expect(text).toContain("subduction marking to 1 of 3 matched boundaries");
-    // The whole point of the line: a blank is an absent marking, not a
-    // measurement that the boundary is something else.
+    // The point of the line: the blank field is not the model's silence. PB2002
+    // records non-subducting steps in the label's byte 3, and withholds only
+    // which non-subducting class applies.
     expect(text).toContain(
-      "records no assignment rather than a non-subduction boundary"
+      "records non-subducting steps in the label's byte 3"
     );
+    expect(text).toContain("without naming which non-subducting class applies");
+  });
+
+  it("never tells the reader PB2002 recorded no assignment", () => {
+    const text = subductionMarkingText(matched("subduction", null, null));
+
+    // The superseded wording denied the non-subduction reading outright, which
+    // understates the shipped data: every blank-field feature carries PB2002's
+    // hyphen. Guard the retraction so it cannot drift back.
+    expect(text).not.toContain("records no assignment");
+    expect(text).not.toContain("rather than a non-subduction boundary");
   });
 
   it("still reports the caveat when the source marked none of them", () => {
@@ -296,6 +309,48 @@ describe("subductionMarkingText", () => {
         `${context.coverage.matchedSubductionBoundaryCount} of ` +
         `${context.coverage.matchedBoundaryCount} matched boundaries`
     );
+  });
+
+  it("pins the byte-3 claim to the shipped linework", () => {
+    const data = JSON.parse(
+      readFileSync(
+        join(
+          __dirname,
+          "..",
+          "..",
+          "public",
+          "data",
+          "plate-boundaries.geojson"
+        ),
+        "utf8"
+      )
+    ) as { features: { properties: { name: string; type: string } }[] };
+
+    // The sentence tells the reader that a blank Type field is not the model's
+    // silence, because PB2002 records the non-subducting case in the label. That
+    // is only honest while the shipped file's two encodings actually agree, so
+    // assert the correspondence rather than trusting the prose: every blank
+    // field carries a hyphen, every marked field carries a polarity glyph, and
+    // nothing fails to decode.
+    let blankWithHyphen = 0;
+    let markedWithPolarity = 0;
+    for (const feature of data.features) {
+      const decoded = decodePlatePair(feature.properties.name);
+      expect(decoded).not.toBeNull();
+      const separator = decoded?.separator;
+      if (feature.properties.type === "subduction") {
+        expect(separator === "/" || separator === "\\").toBe(true);
+        markedWithPolarity += 1;
+      } else {
+        expect(feature.properties.type).toBe("");
+        expect(separator).toBe("-");
+        blankWithHyphen += 1;
+      }
+    }
+
+    expect(blankWithHyphen).toBeGreaterThan(0);
+    expect(markedWithPolarity).toBeGreaterThan(0);
+    expect(blankWithHyphen + markedWithPolarity).toBe(data.features.length);
   });
 });
 

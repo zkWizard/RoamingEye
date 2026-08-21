@@ -239,11 +239,19 @@ function isSameAttribution(
  * Say how many matched boundaries carry the source's own subduction marking.
  *
  * PB2002 sets its `Type` field to "subduction" on subduction steps and leaves
- * it blank on every other step, so the blank is the absence of a marking, not
- * a measurement of a non-subduction boundary. The sentence states that second
- * half explicitly: a reader given only "2 of 5" would otherwise complete the
- * dichotomy themselves and read the other three as divergent or transform,
- * which the supplied model does not say.
+ * it blank on every other step, but that blank is not the model's silence: the
+ * readme quoted in PB2002_LABEL_CONVENTION states that "all non-subducting
+ * plate boundary segments have a hyphen '-' in byte 3" of the label, so the
+ * model records the non-subducting case in the label instead of the field. All
+ * 176 of the 241 bundled features whose field is blank carry that hyphen, and
+ * every one of the other 65 carries a polarity glyph — the two encodings agree
+ * exactly, so the sentence must not tell a reader that nothing was recorded.
+ *
+ * What PB2002 withholds is the class, not the fact: a hyphen says only "not
+ * subduction", never which of CRB/CTF/CCB/OSR/OTF/OCB applies, and that 7-way
+ * code lives in the steps file this app does not bundle. The sentence states
+ * that limit, which is also why "non-subducting" must not be read as
+ * "divergent or transform" — CCB and OCB are convergent without subducting.
  *
  * Returns null when no boundary matched, or when every matched feature carried
  * no step attributes at all (a hand-built or older file), so the panel never
@@ -263,7 +271,7 @@ export function subductionMarkingText(
   }
   const total = coverage.matchedBoundaryCount;
   const noun = total === 1 ? "boundary" : "boundaries";
-  return `Bird (2003) applies its subduction marking to ${coverage.matchedSubductionBoundaryCount} of ${total} matched ${noun}; PB2002 marks subduction steps only and leaves the field blank elsewhere, so an unmarked boundary records no assignment rather than a non-subduction boundary.`;
+  return `Bird (2003) applies its subduction marking to ${coverage.matchedSubductionBoundaryCount} of ${total} matched ${noun}; PB2002 uses that field for subduction only and records non-subducting steps in the label's byte 3 instead, without naming which non-subducting class applies.`;
 }
 
 /**
