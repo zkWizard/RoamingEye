@@ -1,26 +1,20 @@
 import { COLORMAP_DOCS } from "./colormap";
+import {
+  AVERAGED_RAMP_MEAN_DEFEATS_SCREEN_LIMITATION,
+  AVERAGED_RAMP_SCOPE_LIMITATION,
+  averagedFootprintLabel,
+  type AveragedFootprint,
+} from "./averagedRampCensoring";
 import type { ProbeAerosolCeilingCensoring } from "./probeAerosolCeilingCensoring";
 
 /**
  * Why the aerosol end-cap marks cannot see censoring in an AVERAGED footprint —
  * a drawn study region, or the ~1° area around a probed point.
  *
- * `probeAerosolCeilingCensoring` screens the charted series: a month decoded at
- * or above the ramp's open top bin (`≥ 0.900` at 550 nm) is rendered with a `≥`
- * prefix, because every heavier column shares one colour. That screen is exact
- * in point mode, where the charted value is a MEDIAN of a tight pixel block — a
- * median returns one of the decoded pixel values, so a capped result is itself
- * in the terminal bin and is caught.
- *
- * Area and region mode combine differently. `ProbeSampler` inverts every sampled
- * pixel on its own and then takes a cos(lat)-weighted MEAN of the usable ones
- * (`weightedMeanValid`). A mean is not one of its members. A footprint holding
- * both capped pixels and pixels the ramp resolved therefore averages to a value
- * that can sit anywhere inside the finite ramp, while still carrying the cap's
- * error: the capped pixels entered the average at the bin they were collapsed
- * into, not at the loading they had. Screening that mean finds nothing, no
- * inequality is drawn, and a censored area mean is presented as an ordinary
- * estimate.
+ * The averaging mechanism is the one stated once in `averagedRampCensoring.ts`:
+ * `probeAerosolCeilingCensoring` marks a month decoded at or above the ramp's
+ * open top bin (`≥ 0.900` at 550 nm), which is exact for a point probe's median
+ * but blind on a weighted mean of per-pixel decodes.
  *
  * Two things make this WORSE here than for the marine sibling
  * (`marineAveragedSstCensoring.ts`), and both are stated in the clause:
@@ -34,23 +28,18 @@ import type { ProbeAerosolCeilingCensoring } from "./probeAerosolCeilingCensorin
  *    So the marks that do appear undercount, and their absence says less the
  *    bigger the box.
  *
- * 2. The DIRECTION of the resulting error is knowable, unlike SST's. That ramp
- *    has two opposing caps, so a censored pixel may enter either too warm or too
- *    cool and the module can claim no direction. This ramp is open at one end
- *    only — the low end is closed at 0 and column AOD cannot be negative — so a
- *    capped pixel always enters the average BELOW the loading it had. If any was
- *    capped, the footprint's mean understates the true mean. That is a statement
- *    about direction conditional on presence, and it is the strongest thing that
- *    can honestly be said.
+ * 2. The DIRECTION of the resulting error is knowable, unlike a two-cap layer's.
+ *    This ramp is open at one end only — the low end is closed at 0 and column
+ *    AOD cannot be negative — so a capped pixel always enters the average BELOW
+ *    the loading it had. If any was capped, the footprint's mean understates the
+ *    true mean: a statement about direction conditional on presence, and the
+ *    strongest thing that can honestly be said.
  *
- * What stays unknowable is PRESENCE. The sampler returns one combined value and
- * a usable share per month; nothing downstream can tell a footprint holding
- * capped pixels from one that holds none. Recovering it would take a per-pixel
- * tally of terminal-bin decodes from `sampleMonth`, which the app does not
- * collect. So no inequality is rendered on any number, and no magnitude is
- * claimed — only that on an averaged footprint the absence of a mark is not
- * evidence of an uncensored footprint, and that any censoring it hides biases
- * the value one way.
+ * What stays unknowable is PRESENCE, for the reason given in
+ * `averagedRampCensoring.ts`. So no inequality is rendered on any number and no
+ * magnitude is claimed — only that on an averaged footprint the absence of a
+ * mark is not evidence of an uncensored footprint, and that any censoring it
+ * hides biases the value one way.
  *
  * Nothing here estimates the loading behind a cap, locates the censored pixels
  * inside the footprint, or supports any surface air-quality, health, exposure,
@@ -60,19 +49,17 @@ import type { ProbeAerosolCeilingCensoring } from "./probeAerosolCeilingCensorin
 /**
  * Which averaged footprint the clause describes, for wording only.
  *
- * The same string union the panel already holds for the marine clause, declared
- * here rather than imported so an atmosphere module does not depend on a marine
- * one; the two are structurally identical, so the panel passes one value to
- * both.
+ * Aliases the shared union so an atmosphere module and a marine one can agree on
+ * the value the panel passes to both without either depending on the other.
  */
-export type AerosolAveragedFootprint = "drawn-region" | "sampled-area";
+export type AerosolAveragedFootprint = AveragedFootprint;
 
 export const PROBE_AEROSOL_AVERAGED_CENSORING_LIMITATIONS = [
-  "An averaged footprint charts a weighted mean of per-pixel decodes, so a mean of capped and resolved pixels lands inside the finite ramp and the end-cap screen does not mark it.",
+  AVERAGED_RAMP_MEAN_DEFEATS_SCREEN_LIMITATION,
   "Whether any sampled pixel was capped is not recoverable from the combined value and the usable share the sampler reports, so no presence and no magnitude is claimed and no inequality is rendered.",
   "The direction is knowable if a capped pixel is present: this ramp is open at its top only, so a capped pixel always averages in below its true loading and the footprint mean understates.",
   "Marks that do survive into an averaged series undercount the censoring, because a plume narrower than the footprint is diluted below the cap while its own pixels remain capped.",
-  "The statement applies to averaged footprints only; a point probe charts a median of a tight pixel block, which the end-cap screen already catches.",
+  AVERAGED_RAMP_SCOPE_LIMITATION,
   "Nothing here estimates the loading behind a cap or locates capped pixels within the footprint, and no surface air-quality, health, exposure, hazard, causal, or forecast claim follows.",
 ] as const;
 
@@ -169,7 +156,7 @@ export function aerosolAveragedCensoringClause(
   censoring: ProbeAerosolCeilingCensoring
 ): string | null {
   if (!summary.applicable || summary.footprint === null) return null;
-  const label = footprintLabel(summary.footprint);
+  const label = averagedFootprintLabel(summary.footprint);
   const doc = COLORMAP_DOCS.aerosol;
 
   if (summary.markedMonthCount > 0) {
@@ -234,7 +221,7 @@ export function averagedAerosolCensoringCsvHeaders(
 ): string[] {
   const summary = summarizeProbeAerosolAveragedCensoring(footprint, censoring);
   if (!summary.applicable || summary.footprint === null) return [];
-  const label = footprintLabel(summary.footprint);
+  const label = averagedFootprintLabel(summary.footprint);
   const doc = COLORMAP_DOCS.aerosol;
 
   // No commas anywhere below: a `#` line must never contain a CSV delimiter
@@ -249,8 +236,4 @@ export function averagedAerosolCensoringCsvHeaders(
     scope,
     `# aerosol_ramp_censoring_averaged_detection: telling which months held a capped pixel would take a per-pixel tally of top-bin decodes that the sampler does not report — so no presence and no magnitude is stated for this ${label}; were a capped pixel present the mean would understate the true loading because this ramp is open at its top only`,
   ];
-}
-
-function footprintLabel(footprint: AerosolAveragedFootprint): string {
-  return footprint === "drawn-region" ? "drawn region" : "sampled area";
 }

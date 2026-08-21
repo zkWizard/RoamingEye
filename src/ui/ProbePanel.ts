@@ -576,7 +576,7 @@ export class ProbePanel {
       .filter(Boolean)
       .join(" · ");
     this.setStatus(stat);
-    this.appendPeakGreenness(stat, physical);
+    this.appendVegetationRecord(stat, physical);
     this.appendPrecipitationCycle(stat, physical);
     this.appendAerosolObservingEpoch(stat, trend);
     this.appendSoilMoistureStanding(stat, physical);
@@ -673,81 +673,151 @@ export class ProbePanel {
    * load on demand rather than riding in the entry chunk; the clause lands a
    * moment after the stats, which the status line already fills in
    * progressively. A newer series invalidates an in-flight load.
+   *
+   * A second clause rides the same load: where the latest observed month's own
+   * NDVI stands against the same calendar month in the other years the probe
+   * sampled. The timing clauses above say *when* a year tends to green up and
+   * the stats beside them summarize the whole record, so nothing on the panel
+   * answers whether the month on screen is ordinary for that place at that time
+   * of year — and NDVI's seasonal amplitude varies so much by land cover that
+   * the whole-record mean cannot stand in for it.
+   *
+   * Both clauses are built and set in ONE pass for a reason: the four lazy
+   * appends are mutually exclusive because each gates on a different layer, and
+   * a second NDVI append rebuilding the line from the same captured `stat`
+   * would clobber whichever of the two resolved first. Neither import can
+   * reject the pair — each is caught into a null — so a chunk that fails to
+   * load costs only its own clause.
    */
-  private appendPeakGreenness(stat: string, physical: (number | null)[]): void {
+  private appendVegetationRecord(
+    stat: string,
+    physical: (number | null)[]
+  ): void {
     const context = this.context;
     // A drawn region has no single latitude, so its seasonal timing is
     // undefined — skip the clause rather than pick a hemisphere.
     const latitude = context?.latitude;
     if (!context || latitude === undefined) return;
     const months = this.months;
+    const shares = this.validFractions;
+    const scale = this.scale;
     const token = this.seriesToken;
-    void import("../lib/probePeakGreenness")
-      .then(
-        ({
-          dominantMonthTieClause,
-          peakGreennessClause,
-          peakSupportClause,
-          peakTieClause,
-          peakYearCoverageClause,
-          probePeakGreennessTiming,
-          probePeakSupport,
-          probeSeasonalConcentration,
-          seasonalConcentrationClause,
-        }) => {
-          if (token !== this.seriesToken) return; // superseded by a newer probe
-          const timing = probePeakGreennessTiming(
-            context.layerId,
-            months,
-            physical,
-            latitude
-          );
-          const clause = peakGreennessClause(timing);
-          if (!clause) return;
-          // Whether the named month leads the tally outright or merely shares
-          // the lead — the count beside it cannot say which, since it never
-          // reports whether another month reached the same total. Silent for a
-          // decisive record, so only a shared lead pays for the qualification.
-          const modalTie = dominantMonthTieClause(timing);
-          // How much of the probed record stood behind that month, and over
-          // which years: the clause's own denominator counts only the years
-          // that summarized, so a record that mostly dropped out reads like a
-          // short but complete one. Silent when every supplied year
-          // contributed, so a full record adds no status-line text.
-          const yearCoverage = peakYearCoverageClause(timing);
-          // How firmly the sampled months stand behind that modal peak month.
-          // Silent unless some year's peak sits beside a gap or on the
-          // calendar-year edge, so a clean record adds no status-line text.
-          const support = peakSupportClause(
-            timing,
-            probePeakSupport(context.layerId, months, physical, latitude)
-          );
-          // Whether the named month was the year's peak on its own. Also
-          // silent by default, so only a record that actually plateaued pays
-          // for the qualification.
-          const tied = peakTieClause(timing);
-          // Whether the year's greenness massed near one month or sat spread
-          // around the calendar with that month merely topping it. Silent for a
-          // firmly seasonal record, so only a diffuse one pays for the clause.
-          const concentration = seasonalConcentrationClause(
-            timing,
-            probeSeasonalConcentration(
+    // Derived HERE rather than inside the lazy module, for the reason spelled
+    // out on `appendSoilMoistureStanding`: importing `probe.ts` from the lazy
+    // chunk re-factors Rollup's shared chunks and pushes weight into the entry.
+    const precision =
+      scale === undefined
+        ? null
+        : {
+            resolution: quantizationStep(scale),
+            decimals: csvDecimals(scale),
+            unit: scale.unit,
+          };
+    // The seasonal rank screens every observation on its usable footprint
+    // share, so a mode that measures none cannot be ranked and does not pay for
+    // the chunk.
+    const standingModule = shares
+      ? import("../lib/probeNdviSeasonalStanding").catch(() => null)
+      : Promise.resolve(null);
+    void Promise.all([
+      import("../lib/probePeakGreenness").catch(() => null),
+      standingModule,
+    ])
+      .then(([timingModule, standing]) => {
+        if (token !== this.seriesToken) return; // superseded by a newer probe
+        const parts = timingModule
+          ? this.peakGreennessParts(
+              timingModule,
               context.layerId,
-              months,
               physical,
               latitude
             )
-          );
-          this.setStatus(
-            [stat, clause, modalTie, yearCoverage, support, tied, concentration]
-              .filter(Boolean)
-              .join(" · ")
+          : [];
+        if (standing && shares) {
+          parts.push(
+            standing.ndviSeasonalStandingClause(
+              standing.probeNdviSeasonalStanding(
+                context.layerId,
+                months,
+                physical,
+                shares,
+                latitude
+              ),
+              precision
+            )
           );
         }
-      )
+        const clauses = parts.filter(Boolean);
+        if (clauses.length === 0) return;
+        this.setStatus([stat, ...clauses].join(" · "));
+      })
       .catch(() => {
         // A failed chunk load must leave the stats already on screen intact.
       });
+  }
+
+  /**
+   * The calendar-timing clauses for one NDVI series, in the order they read.
+   * Split out of the append above so the seasonal rank can join them in a
+   * single `setStatus` without either half having to know about the other.
+   */
+  private peakGreennessParts(
+    module: typeof import("../lib/probePeakGreenness"),
+    layerId: LayerId,
+    physical: (number | null)[],
+    latitude: number
+  ): (string | null)[] {
+    const months = this.months;
+    const {
+      dominantMonthTieClause,
+      peakGreennessClause,
+      peakSupportClause,
+      peakTieClause,
+      peakYearCoverageClause,
+      probePeakGreennessTiming,
+      probePeakSupport,
+      probeSeasonalConcentration,
+      seasonalConcentrationClause,
+    } = module;
+    const timing = probePeakGreennessTiming(
+      layerId,
+      months,
+      physical,
+      latitude
+    );
+    const clause = peakGreennessClause(timing);
+    // Every clause below qualifies that one, so none of them stands without it.
+    if (!clause) return [];
+    // Whether the named month leads the tally outright or merely shares the
+    // lead — the count beside it cannot say which, since it never reports
+    // whether another month reached the same total. Silent for a decisive
+    // record, so only a shared lead pays for the qualification.
+    const modalTie = dominantMonthTieClause(timing);
+    // How much of the probed record stood behind that month, and over which
+    // years: the clause's own denominator counts only the years that
+    // summarized, so a record that mostly dropped out reads like a short but
+    // complete one. Silent when every supplied year contributed, so a full
+    // record adds no status-line text.
+    const yearCoverage = peakYearCoverageClause(timing);
+    // How firmly the sampled months stand behind that modal peak month. Silent
+    // unless some year's peak sits beside a gap or on the calendar-year edge,
+    // so a clean record adds no status-line text.
+    const support = peakSupportClause(
+      timing,
+      probePeakSupport(layerId, months, physical, latitude)
+    );
+    // Whether the named month was the year's peak on its own. Also silent by
+    // default, so only a record that actually plateaued pays for the
+    // qualification.
+    const tied = peakTieClause(timing);
+    // Whether the year's greenness massed near one month or sat spread around
+    // the calendar with that month merely topping it. Silent for a firmly
+    // seasonal record, so only a diffuse one pays for the clause.
+    const concentration = seasonalConcentrationClause(
+      timing,
+      probeSeasonalConcentration(layerId, months, physical, latitude)
+    );
+    return [clause, modalTie, yearCoverage, support, tied, concentration];
   }
 
   /**

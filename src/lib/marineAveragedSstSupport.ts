@@ -1,4 +1,8 @@
 import { classifyCoverage, type CoverageTier } from "./coverageAdequacy";
+import {
+  averagedFootprintLabel,
+  type AveragedFootprint,
+} from "./averagedRampCensoring";
 import type { LayerId } from "./timeline";
 
 /**
@@ -37,7 +41,7 @@ import type { LayerId } from "./timeline";
  */
 
 /** Which averaged footprint the shares describe, for wording only. */
-export type MarineAveragedSstFootprint = "drawn-region" | "sampled-area";
+export type MarineAveragedSstFootprint = AveragedFootprint;
 
 export type MarineAveragedSstSupportStatus =
   /** At least one sampled month returned a positive, classifiable share. */
@@ -136,7 +140,7 @@ export function summarizeMarineAveragedSstSupport(
     representsWholeFootprint: false,
     limitations: MARINE_AVERAGED_SST_SUPPORT_LIMITATIONS,
   } as const;
-  const label = footprintLabel(footprint);
+  const label = averagedFootprintLabel(footprint);
 
   const supplied = validFractions ?? [];
   // Only shares `coverageAdequacy` will classify are tallied. Extremes are
@@ -284,10 +288,6 @@ export function averagedSstSupportNote(
   return marineAveragedSstSupportClause(
     summarizeMarineAveragedSstSupport(footprint, validFractions, values)
   );
-}
-
-function footprintLabel(footprint: MarineAveragedSstFootprint): string {
-  return footprint === "drawn-region" ? "drawn region" : "sampled area";
 }
 
 function describeTierRange(summary: MarineAveragedSstSupportSummary): string {
