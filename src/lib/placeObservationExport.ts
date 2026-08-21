@@ -864,11 +864,24 @@ export interface PlaceObservationExportSample {
  *
  * This is physical ocean-temperature sampling metadata, never biological
  * evidence or an ecological interpretation.
+ *
+ * `transportFailed` marks a month whose imagery never arrived, and it overrides
+ * what the coverage share would otherwise imply. {@link coverageUnavailableReason}
+ * reads a zero share as "the source had nothing here", which is sound only when
+ * a request completed and returned nothing: a month that failed on transport
+ * also records a zero share, and calling that `source-no-data` asserts NASA
+ * published nothing for the boundary on the strength of a download that never
+ * finished. `sampling-failed` is the reason this record already carries for a
+ * sampling step that did not complete, so the failure is recorded as one.
+ *
+ * @param transportFailed whether this month's image failed on transport rather
+ *   than being declined by the source (see lib/probeRetrievalFailure.ts)
  */
 export function sstPlaceObservationFromSample(
   dataMonth: YearMonth,
   value: number | null,
-  validFraction: number
+  validFraction: number,
+  transportFailed = false
 ): PlaceObservationInput {
   if (value !== null) {
     const censoring = summarizeSstRampCensoring(value);
@@ -888,7 +901,9 @@ export function sstPlaceObservationFromSample(
     dataMonth,
     value: null,
     validFraction,
-    unavailableReason: coverageUnavailableReason(validFraction),
+    unavailableReason: transportFailed
+      ? "sampling-failed"
+      : coverageUnavailableReason(validFraction),
   };
 }
 

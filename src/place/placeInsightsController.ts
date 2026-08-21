@@ -720,8 +720,18 @@ export function runPlaceInsights(result: GeoResult): void {
       const latestSst = sstReadings[sstReadings.length - 1];
       // Only explain the change once the latest month is itself a reading; an
       // unusable latest month already says so and needs no second negative.
+      // The preceding month must also have arrived: its withholding sentence
+      // says "one of the two months carries no usable boundary-mean SST
+      // observation", which is a statement about what was observed and is not
+      // established by an image that never downloaded. Leaving the line off is
+      // what this card already does when the source never published that month
+      // — the month is then absent from the sampled range entirely — and what
+      // the year-over-year sibling above does for an unusable endpoint, where
+      // `describeYearOverYear` renders nothing at all.
       const sstChange =
-        sstReadings.length > 1 && latestSst.availability === "available"
+        sstReadings.length > 1 &&
+        latestSst.availability === "available" &&
+        !sample.transportFailureByMonth[sstPairStart]
           ? describeMarineBoundarySstChange(sstReadings[0], latestSst)
           : null;
       placeInsights.setReading(
@@ -739,12 +749,15 @@ export function runPlaceInsights(result: GeoResult): void {
         sourceImageDimensions: sample.sourceImageDimensions,
         colormapUrl: colormapUrl(PLACE_COLORMAP_DOCS.sst),
         // Every sampled month is exported, so both differences shown on the
-        // card can be recomputed from the record rather than trusted.
+        // card can be recomputed from the record rather than trusted. A month
+        // that failed on transport is recorded as a failed sampling step, not
+        // as the source publishing nothing for this boundary.
         observations: sstSampleMonths.map((dataMonth, index) =>
           sstPlaceObservationFromSample(
             dataMonth,
             sample.values[index],
-            sample.validFractions[index]
+            sample.validFractions[index],
+            sample.transportFailureByMonth[index]
           )
         ),
       });

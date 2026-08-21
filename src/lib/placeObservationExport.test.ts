@@ -144,6 +144,42 @@ describe("place observation export", () => {
     });
   });
 
+  it("records an SST month whose imagery never arrived as a failed sampling step", () => {
+    const dataMonth = { year: 2026, month: 5 };
+
+    // A transport failure leaves the same zero coverage share a genuinely
+    // empty month leaves, so the share alone cannot tell them apart. Reading
+    // it as `source-no-data` would assert NASA published nothing for this
+    // boundary on the strength of a download that never completed.
+    expect(sstPlaceObservationFromSample(dataMonth, null, 0, true)).toEqual({
+      dataMonth,
+      value: null,
+      validFraction: 0,
+      unavailableReason: "sampling-failed",
+    });
+    // A partial share that failed on transport is the same claim, one step
+    // weaker: the app's admission rule never got the chance to run.
+    expect(sstPlaceObservationFromSample(dataMonth, null, 0.18, true)).toEqual({
+      dataMonth,
+      value: null,
+      validFraction: 0.18,
+      unavailableReason: "sampling-failed",
+    });
+    // Omitting the flag keeps the completed-sampling reading unchanged, so
+    // every existing caller records exactly what it recorded before.
+    expect(sstPlaceObservationFromSample(dataMonth, null, 0, false)).toEqual(
+      sstPlaceObservationFromSample(dataMonth, null, 0)
+    );
+    // A month that did arrive is a result, not a failure, whatever happened to
+    // its neighbours: the value and its terminal-bin judgement stand.
+    expect(sstPlaceObservationFromSample(dataMonth, 31.9, 0.42, true)).toEqual({
+      dataMonth,
+      value: 31.9,
+      validFraction: 0.42,
+      valueBound: "at-or-above",
+    });
+  });
+
   it("records a column-AOD month on the open top bin as a lower bound", () => {
     const dataMonth = { year: 2026, month: 5 };
 
