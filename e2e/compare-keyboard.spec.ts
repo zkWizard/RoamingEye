@@ -135,3 +135,37 @@ test("leaving compare while sweeping returns focus to the Compare button", async
     .evaluate((el) => el === document.activeElement);
   expect(onButton, "focus was dropped when compare exited").toBe(true);
 });
+
+test("Escape leaves compare mode while sweeping, and returns focus", async ({
+  page,
+}) => {
+  const handle = await sweepReady(page);
+  await handle.focus();
+  // Assert the premise, as the test above does: if focus never reached the
+  // handle, Escape would be landing on <body> and this would pass for the
+  // wrong reason.
+  expect(await handle.evaluate((el) => el === document.activeElement)).toBe(
+    true
+  );
+
+  // Sweeping first, so this is Escape from a mode genuinely in use rather than
+  // from the instant it was switched on.
+  await page.keyboard.press("ArrowLeft");
+  expect(await splitPercent(page)).toBe(49);
+
+  await page.keyboard.press("Escape");
+
+  // The mode is off by every channel it is published on: the divider is gone,
+  // and the toggle reads unpressed for assistive tech.
+  await expect(page.locator("#compare-divider")).not.toHaveClass(/is-visible/);
+  await expect(page.locator(".compare-button")).toHaveAttribute(
+    "aria-pressed",
+    "false"
+  );
+
+  // Escape must not drop focus on <body> any more than the toggle may.
+  const onButton = await page
+    .locator(".compare-button")
+    .evaluate((el) => el === document.activeElement);
+  expect(onButton, "focus was dropped when Escape left compare").toBe(true);
+});

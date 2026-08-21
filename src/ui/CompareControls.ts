@@ -115,6 +115,23 @@ export class CompareControls {
     this.divider.append(this.pinnedChip, handle, this.liveChip);
     this.applySplit(this.split, false);
 
+    // Escape is how every other mode and panel in this app is left — the
+    // region drawer, the probe panel, the layer selector, all four overlays —
+    // and compare was the one that ignored it. Sweeping is where that bites: a
+    // keyboard user reaches the seam by Tab, and from the handle the toggle
+    // that owns the mode is 28 Tabs forward along the ring (2 backward, if you
+    // know to go backward). So the mode could be entered from the keyboard,
+    // and the documented way out of everything else did nothing.
+    //
+    // The listener sits on the divider rather than the document for the reason
+    // ProbePanel's does: from the globe, Escape must keep its existing meaning
+    // (disarming the region drawer), which a document-level handler would
+    // swallow. `setActive(false)` already hands focus back to the button.
+    this.divider.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape" || !this.active) return;
+      this.setActive(false);
+    });
+
     // Drag anywhere on the divider (pointer capture keeps fast drags smooth).
     this.divider.addEventListener("pointerdown", (e) => {
       this.divider.setPointerCapture(e.pointerId);
