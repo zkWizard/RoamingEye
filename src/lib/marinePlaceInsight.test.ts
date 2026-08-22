@@ -793,6 +793,56 @@ describe("marine boundary SST year-over-year coverage comparability", () => {
     expect(reading.detail).not.toMatch(/unchanged/i);
   });
 
+  it("never rounds a partly sampled prior month up to the whole boundary", () => {
+    // The comparison month cleared all but a sliver of the bay. SST is
+    // undefined over land, so "100% of the boundary" would not be a rounding
+    // of the share — it would say the whole administrative area is water that
+    // returned usable SST, which the rejected sliver disproves. The card
+    // already renders the SAMPLED month's share as ">99%" one clause earlier,
+    // so a bare rounding here would also have one sentence give one quantity
+    // two readings.
+    const withheld = withCoverages(0.7, 0.996);
+    expect(withheld.yearOverYear.status).toBe("incomparable-coverage");
+    expect(withheld.detail).toContain("Mar 2025 sampled >99% of the boundary");
+    expect(withheld.detail).not.toContain("sampled 100%");
+
+    const stated = withCoverages(0.9, 0.996);
+    expect(stated.yearOverYear.status).toBe("available");
+    expect(stated.detail).toContain(">99% sampled coverage that month");
+    expect(stated.detail).not.toContain("100% sampled coverage");
+  });
+
+  it("still says 100% for a prior month that sampled the whole boundary", () => {
+    // The guard withholds the rounded claim, never a true one: an exact whole
+    // share reads exactly as it did before.
+    const reading = withCoverages(0.9, 1);
+
+    expect(reading.yearOverYear.status).toBe("available");
+    expect(reading.detail).toContain("100% sampled coverage that month");
+  });
+
+  it("never rounds a sliver of a prior month down to no coverage", () => {
+    // The other end of the same rule. A "0%" would contradict the difference
+    // printed immediately beside it, which was reduced from that month's mean.
+    const reading = withCoverages(0.2, 0.004);
+
+    expect(reading.yearOverYear.status).toBe("available");
+    expect(reading.detail).toContain("<1% sampled coverage that month");
+    expect(reading.detail).toContain("+0.9 °C vs Mar 2025");
+  });
+
+  it("leaves the coverage gap a plain rounded point count", () => {
+    // The gap is a difference between two shares, not a share, so neither end
+    // of it carries the "whole boundary" claim the share guard exists for and
+    // it keeps reporting whole points.
+    const reading = withCoverages(0.7, 0.996);
+
+    expect(reading.yearOverYear.validFractionDelta).toBeCloseTo(0.296, 10);
+    expect(reading.detail).toContain(
+      "30 points from this month's usable share"
+    );
+  });
+
   it("leaves like-for-like coverage reporting a plain difference", () => {
     const reading = withCoverages(0.62, 0.58);
 
