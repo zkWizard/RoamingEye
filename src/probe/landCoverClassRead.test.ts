@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { IGBP_RENDERED_PALETTE } from "../lib/landCoverPalette";
-import { readLandCoverClassText } from "./landCoverClassRead";
+import {
+  landCoverTenureClause,
+  readLandCoverClassText,
+} from "./landCoverClassRead";
 
 /** An opaque pixel exactly as GIBS renders the given IGBP class. */
 function pixel(classCode: keyof typeof IGBP_RENDERED_PALETTE) {
@@ -186,5 +189,77 @@ describe("vegetation-index support on the point reading", () => {
       "Source-unclassified in every land-cover pixel read here"
     );
     expect(text).not.toContain("MOD13A3");
+  });
+});
+
+describe("landCoverTenureClause", () => {
+  /** One annual map, read as a 9-pixel block all carrying `classCode`. */
+  function year(y: number, classCode: keyof typeof IGBP_RENDERED_PALETTE) {
+    return {
+      year: y,
+      pixels: Array.from({ length: 9 }, () => pixel(classCode)),
+    };
+  }
+
+  it("says a class held every map read, without claiming it will hold", () => {
+    const clause = landCoverTenureClause([
+      year(2021, 8),
+      year(2022, 8),
+      year(2023, 8),
+      year(2024, 8),
+    ]);
+
+    expect(clause).toBe("Woody savanna on all 4 annual maps read, 2021–2024.");
+  });
+
+  it("counts whole years per class when the maps disagree, and never averages the codes", () => {
+    const clause = landCoverTenureClause([
+      year(2021, 10),
+      year(2022, 8),
+      year(2023, 8),
+      year(2024, 8),
+    ]);
+
+    expect(clause).toContain("Across all 4 annual maps read, 2021–2024:");
+    expect(clause).toContain("Woody savanna on 3, Grassland on 1");
+    // Codes 8 and 10 must never average into a class 9 no map assigned.
+    expect(clause).not.toMatch(/Savanna on \d/);
+    // A differing label is not evidence of change on the ground.
+    expect(clause).toContain("can be reclassification");
+  });
+
+  it("does not credit tenure to a class the sampled pixels only tied on", () => {
+    const tied = {
+      year: 2023,
+      pixels: [pixel(8), pixel(8), pixel(10), pixel(10)],
+    };
+    const clause = landCoverTenureClause([year(2021, 8), tied, year(2024, 8)]);
+
+    expect(clause).toBe(
+      "Woody savanna on 2 of the 3 annual maps read, 2021–2024."
+    );
+  });
+
+  it("withholds tenure below two classified maps", () => {
+    expect(landCoverTenureClause([year(2024, 8)])).toBeNull();
+    expect(
+      landCoverTenureClause([
+        { year: 2023, pixels: Array.from({ length: 9 }, () => pixel(255)) },
+        year(2024, 8),
+      ])
+    ).toBeNull();
+  });
+
+  it("reads the same whichever order the maps arrive in, ties included", () => {
+    // Two years each: the tenure counts tie exactly, which quantised class
+    // codes make ordinary rather than rare.
+    const maps = [year(2021, 8), year(2022, 10), year(2023, 8), year(2024, 10)];
+
+    expect(landCoverTenureClause(maps)).toBe(
+      landCoverTenureClause([...maps].reverse())
+    );
+    expect(landCoverTenureClause(maps)).toContain(
+      "Woody savanna on 2, Grassland on 2"
+    );
   });
 });

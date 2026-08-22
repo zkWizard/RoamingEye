@@ -1152,6 +1152,30 @@ if (probeEl) {
     });
 
   /**
+   * Annual maps a land-cover point read compares, the probed year included.
+   *
+   * MCD12Q1 publishes one map a year, so a short trailing window costs a few
+   * requests rather than a per-month series, and four maps is the shortest
+   * window that can tell a class that held from one the maps disagree on.
+   */
+  const LAND_COVER_TENURE_WINDOW = 4;
+
+  /** Published annual entries immediately before `ym`, oldest first. */
+  const landCoverTenureHistory = (
+    layer: LayerConfig,
+    ym: YearMonth
+  ): YearMonth[] => {
+    // Read from the layer record, never a hardcoded span: the published years
+    // move whenever MCD12Q1 gains a map or declares one unpublished.
+    const record = monthRangeForLayer(layer);
+    const index = record.findIndex(
+      (entry) => entry.year === ym.year && entry.month === ym.month
+    );
+    const end = index === -1 ? record.length : index;
+    return record.slice(Math.max(0, end - (LAND_COVER_TENURE_WINDOW - 1)), end);
+  };
+
+  /**
    * Read the IGBP class at a point on the class-coded land-cover layer.
    *
    * Class codes are categorical, so the pixels are decoded through the source
@@ -1177,9 +1201,36 @@ if (probeEl) {
       }),
       onDemand(import("./probe/landCoverClassRead")),
     ])
-      .then(([pixels, { readLandCoverClassText }]) => {
+      .then(([pixels, { readLandCoverClassText, landCoverTenureClause }]) => {
         if (abort.signal.aborted) return;
-        panel.setStatus(readLandCoverClassText(pixels, ym.year));
+        const reading = readLandCoverClassText(pixels, ym.year);
+        panel.setStatus(reading);
+
+        // Earlier maps are a second, failure-tolerant pass. The class the user
+        // asked for is already on screen, so a year that will not load drops
+        // out of the tenure count instead of replacing the reading with an
+        // error — and the clause is appended to that same text, so arriving
+        // late cannot clobber it.
+        const history = landCoverTenureHistory(layer, ym);
+        if (history.length === 0) return;
+        void Promise.all(
+          history.map((entry) =>
+            sampler
+              .sampleRenderedPixels(layer, entry, lat, lon, {
+                mode,
+                signal: abort.signal,
+              })
+              .then((earlier) => ({ year: entry.year, pixels: earlier }))
+              .catch(() => null)
+          )
+        ).then((earlier) => {
+          if (abort.signal.aborted) return;
+          const clause = landCoverTenureClause([
+            ...earlier.filter((entry) => entry !== null),
+            { year: ym.year, pixels },
+          ]);
+          if (clause !== null) panel.setStatus(`${reading} ${clause}`);
+        });
       })
       .catch((err) => {
         if (isAbortError(err)) return;
