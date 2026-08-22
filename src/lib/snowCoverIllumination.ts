@@ -1,4 +1,9 @@
-import { MONTH_NAMES, type DatasetRef, type YearMonth } from "./timeline";
+import {
+  MONTH_NAMES,
+  type DatasetRef,
+  type LayerId,
+  type YearMonth,
+} from "./timeline";
 import { SNOW_COVER_DATASET, SNOW_COVER_LIMITATIONS } from "./snowCover";
 
 /**
@@ -57,6 +62,9 @@ import { SNOW_COVER_DATASET, SNOW_COVER_LIMITATIONS } from "./snowCover";
  * alongside the class so a reader can re-judge.
  */
 export const SNOW_RETRIEVAL_MIN_NOON_ELEVATION_DEG = 5;
+
+/** The one layer whose export {@link snowIlluminationCsvHeaders} speaks for. */
+const SNOW_ILLUMINATION_CSV_LAYER_ID = "snow" satisfies LayerId;
 
 /** Day counts of the fixed 365-day reference year, January first. */
 const REFERENCE_MONTH_DAYS = [
@@ -250,6 +258,65 @@ export function snowIlluminationNote(latitude: number): string | null {
     `At ${formatLatitude(latitude)} MOD10CM is too dark to observe snow in ` +
     `${clauses.join(" or ")} — readings there are not measurements of those months.`
   );
+}
+
+/**
+ * The same observability window as a probe-CSV header line, or `[]` where the
+ * whole year is observable.
+ *
+ * The panel subtitle has carried {@link snowIlluminationNote} since the note
+ * shipped, but the exported file carried nothing: a snow record downloaded at
+ * 75°N hands over a value column whose polar-night months are indistinguishable
+ * from any other empty month, and whose *filled* dark months look like ordinary
+ * measurements. `SNOW_ILLUMINATION_LIMITATIONS` records why that second case is
+ * not hypothetical — over the Antarctic plateau the product returned a filled
+ * value through full polar night — so the file is exactly where the refusal
+ * matters most, being the copy a reader keeps and reduces further.
+ *
+ * Point probes only. A drawn region spans a range of latitudes rather than one,
+ * and the region export deliberately passes no per-point context; the equatorward
+ * edge that {@link snowIlluminationPairNote} reasons about is a different claim
+ * and is not made here.
+ *
+ * Walks the months directly rather than reading the full profile, for the same
+ * bundle reason {@link snowIlluminationNote} documents: this is a shipped entry
+ * point, and `describeSnowIllumination` would drag the cited-profile machinery
+ * into the entry chunk with it.
+ */
+export function snowIlluminationCsvHeaders(
+  layerId: LayerId | undefined,
+  latitude: number
+): string[] {
+  if (layerId !== SNOW_ILLUMINATION_CSV_LAYER_ID) return [];
+  // No commas anywhere below: a `#` line must never contain a CSV delimiter
+  // (see the header discipline documented on `csvHeaderText` in probe.ts).
+  // This is why the month lists are slash-joined here and comma-joined in the
+  // panel sentence — same months, same order, delimiter-safe.
+  const polarNight: string[] = [];
+  const lowSun: string[] = [];
+  for (let month = 1; month <= 12; month++) {
+    const described = describeMonthIllumination(latitude, month);
+    if (!described) return [];
+    if (described.class === "polar-night") polarNight.push(described.label);
+    else if (described.class === "low-sun") lowSun.push(described.label);
+  }
+  if (polarNight.length === 0 && lowSun.length === 0) return [];
+
+  const clauses: string[] = [];
+  if (polarNight.length > 0) {
+    clauses.push(`${polarNight.join(" / ")} (sun never rises)`);
+  }
+  if (lowSun.length > 0) {
+    clauses.push(
+      `${lowSun.join(" / ")} (noon sun under ` +
+        `${SNOW_RETRIEVAL_MIN_NOON_ELEVATION_DEG}°)`
+    );
+  }
+  return [
+    `# snow_illumination_window: at ${formatLatitude(latitude)} MOD10CM is too ` +
+      `dark to observe snow in ${clauses.join(" or ")} — a value in those ` +
+      `months is not a measurement of them.`,
+  ];
 }
 
 /**

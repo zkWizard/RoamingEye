@@ -81,7 +81,10 @@ import {
 import { sstSamplingIdentityCsvHeaders } from "./lib/seaSurfaceTemperatureSamplingIdentity";
 import { sstObservingConstraintCsvHeaders } from "./lib/sstObservingConstraints";
 import { lstSamplingIdentityCsvHeaders } from "./lib/lstObservingConstraints";
-import { snowIlluminationNote } from "./lib/snowCoverIllumination";
+import {
+  snowIlluminationCsvHeaders,
+  snowIlluminationNote,
+} from "./lib/snowCoverIllumination";
 import type { GeoResult } from "./lib/geocoding";
 import { refreshDataLatest } from "./lib/freshness";
 import { isAbortError, isOnline, OfflineError } from "./lib/net";
@@ -1504,13 +1507,27 @@ if (probeEl) {
                 // *highest* eligible observation of its compositing window, and
                 // for NDVI that selection rule fixes a sign. A column of
                 // dimensionless index values says none of that. A layer is sst
-                // or lst or a vegetation index or none of them, so only one
-                // product's lists contribute.
+                // or lst or a vegetation index or snow or none of them, so only
+                // one product's lists contribute.
+                //
+                // Snow is the fourth product whose monthly value is decided by
+                // an observing gate, and the only one whose gate the app already
+                // computes and shows: the panel subtitle has named this point's
+                // dark months since `snowIlluminationNote` shipped, while the
+                // file it hands over carried nothing. That is the wrong way
+                // round for the one copy a reader keeps and reduces further —
+                // and MOD10CM can return a FILLED value through polar night, so
+                // a dark month reads there as an ordinary measurement rather
+                // than as an absence. Latitude-gated, so it is silent
+                // everywhere equatorward of 63.3° and costs most exports
+                // nothing. The drawn-region export below passes no latitude and
+                // stays silent: a box spans a range of them and has no one sun.
                 samplingIdentityHeaders: [
                   ...sstSamplingIdentityCsvHeaders(layer.id),
                   ...sstObservingConstraintCsvHeaders(layer.id),
                   ...lstSamplingIdentityCsvHeaders(layer.id),
                   ...vegetationSamplingIdentityCsvHeaders(layer.id),
+                  ...snowIlluminationCsvHeaders(layer.id, lat),
                 ],
                 // And the same for the rows themselves: the status line prints
                 // an inequality in front of every censored statistic, while a
