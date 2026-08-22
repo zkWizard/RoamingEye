@@ -80,12 +80,23 @@ export interface ProbeSeriesContext {
 
 type ProbeView = "values" | "anomaly";
 
+/**
+ * Join readout segments with the panel's separator, dropping the ones that did
+ * not speak. Every clause helper returns "" or null when its conditions do not
+ * hold, so filtering is what keeps an ordinary readout free of empty slots —
+ * and what keeps a lazily-appended clause from opening with a bare separator
+ * when the half it extends happens to be empty.
+ */
+const joinSegments = (...parts: (string | null | undefined)[]): string =>
+  parts.filter(Boolean).join(" · ");
+
 export class ProbePanel {
   private readonly root: HTMLElement;
   private readonly title: HTMLElement;
   private readonly subtitle: HTMLElement;
   private readonly canvas: HTMLCanvasElement;
   private readonly status: HTMLElement;
+  private readonly detail: HTMLElement;
   private readonly downloadBtn: HTMLButtonElement;
   private readonly copyBtn: HTMLButtonElement;
   private copyResetTimer: ReturnType<typeof setTimeout> | undefined;
@@ -196,6 +207,13 @@ export class ProbePanel {
     // before the mutation it announces, or the first message is missed.
     this.status.setAttribute("aria-live", "polite");
 
+    // The second half of the readout: the same segments, in the same order,
+    // that used to trail the reading inside `status`. Deliberately NOT a live
+    // region — see setDetail.
+    this.detail = document.createElement("p");
+    this.detail.className = "probe__status-detail";
+    this.detail.hidden = true;
+
     const footer = document.createElement("div");
     footer.className = "probe__footer";
 
@@ -220,7 +238,14 @@ export class ProbePanel {
 
     footer.append(this.downloadBtn, this.copyBtn, caveat);
 
-    this.root.append(header, options, this.canvas, this.status, footer);
+    this.root.append(
+      header,
+      options,
+      this.canvas,
+      this.status,
+      this.detail,
+      footer
+    );
     this.reflectToggles();
   }
 
@@ -320,6 +345,47 @@ export class ProbePanel {
       options?.announce === false ? "off" : "polite"
     );
     this.status.textContent = text;
+    // Every caller of this method writes a message that stands alone — the
+    // opening "Sampling…", a chunk-load failure, a domain note for an empty
+    // record. None of them has a trailing half, so any detail left over from a
+    // previous probe would now be attached to the wrong reading.
+    this.setDetail("");
+  }
+
+  /**
+   * The trailing half of a settled stats readout: accuracy, then what the
+   * product's caps and observing system do to the reading.
+   *
+   * Split out of `status` for two reasons, in order of weight.
+   *
+   * `status` is `aria-live="polite"`, so a screen reader hears everything
+   * written into it. The settled line had grown to 580–700 characters, of which
+   * the reading the user actually probed for — "250 of 316 months · min … ·
+   * mean … · max …" — is the first ~50, and the async appenders below re-set
+   * the WHOLE line each time a lazy clause lands, so that same paragraph was
+   * announced two or three times per probe. Holding the reading alone in the
+   * live region means the answer is what gets spoken, once; the qualifications
+   * stay on screen, in the same order and the same words, for anyone reading
+   * the panel rather than listening to it.
+   *
+   * Sighted, the two halves had identical typographic weight in a 366px column,
+   * so nearly half the panel read as caveat prose with no visual cue about
+   * which part was the measurement. This element takes the same smaller,
+   * muted treatment `.probe__caveat` already uses for the panel's standing
+   * qualification, which is the app's existing vocabulary for exactly this.
+   *
+   * NOT a live region: a clause landing a moment after the result must not
+   * re-interrupt a reader, which is the same argument `setStatus` makes for
+   * silencing the progress counter. It is `hidden` while empty so that every
+   * non-stats message — which is every other caller — leaves the panel's
+   * height exactly where it was.
+   *
+   * No word of any clause changes here, and no clause moves relative to
+   * another; the segment order is the array in `finish()`, unaltered.
+   */
+  private setDetail(text: string): void {
+    this.detail.textContent = text;
+    this.detail.hidden = text.length === 0;
   }
 
   /** Provide the full month range up front; values stream in via setValue. */
@@ -558,12 +624,20 @@ export class ProbePanel {
     );
     // The reading first, then its accuracy, then what the product's caps and
     // observing system do to it.
-    const stat = [
+    //
+    // Those are two paragraphs rather than one, and the boundary is exactly the
+    // one this comment already drew: the reading is what the user probed for
+    // and is all that gets announced, everything from the accuracy onward
+    // qualifies it. Order within each half, and every word of every clause, is
+    // unchanged — the split is where the array was always documented to hinge.
+    const reading = joinSegments(
       `${stats.count} of ${this.months.length} months`,
       recordGapsClause,
       `min ${boundPrefix("min")}${fmt(stats.min)}`,
       `mean ${boundPrefix("mean")}${fmt(stats.mean)}`,
-      `max ${boundPrefix("max")}${fmt(stats.max)}`,
+      `max ${boundPrefix("max")}${fmt(stats.max)}`
+    );
+    const detail = joinSegments(
       `${uncertaintyText(s)} per value`,
       accuracy,
       trendClause(trend),
@@ -577,16 +651,19 @@ export class ProbePanel {
       vegetationSamplingGate,
       aerosolCensoringClause,
       aerosolAveragedCensoring,
-      spatialSupportNote,
-    ]
-      .filter(Boolean)
-      .join(" · ");
-    this.setStatus(stat);
-    this.appendVegetationRecord(stat, physical);
-    this.appendPrecipitationCycle(stat, physical);
-    this.appendAerosolObservingEpoch(stat, trend);
-    this.appendSoilMoistureStanding(stat, physical);
-    this.appendSnowCoverStanding(stat, physical);
+      spatialSupportNote
+    );
+    this.setStatus(reading);
+    this.setDetail(detail);
+    // The lazily-loaded clauses land a moment later and each re-composes the
+    // trailing half from the same base, so they extend the detail rather than
+    // the reading — and, since detail is not a live region, without re-reading
+    // the whole readout aloud every time one arrives.
+    this.appendVegetationRecord(detail, physical);
+    this.appendPrecipitationCycle(detail, physical);
+    this.appendAerosolObservingEpoch(detail, trend);
+    this.appendSoilMoistureStanding(detail, physical);
+    this.appendSnowCoverStanding(detail, physical);
   }
 
   /**
@@ -620,7 +697,7 @@ export class ProbePanel {
    * most one of the five ever rebuilds the line from `stat`.
    */
   private appendSnowCoverStanding(
-    stat: string,
+    detail: string,
     physical: (number | null)[]
   ): void {
     const context = this.context;
@@ -649,7 +726,7 @@ export class ProbePanel {
           precision
         );
         if (!clause) return;
-        this.setStatus(`${stat} · ${clause}`);
+        this.setDetail(joinSegments(detail, clause));
       })
       .catch(() => {
         // A failed chunk load must leave the stats already on screen intact.
@@ -683,7 +760,7 @@ export class ProbePanel {
    * of the four ever rebuilds the line from `stat`.
    */
   private appendSoilMoistureStanding(
-    stat: string,
+    detail: string,
     physical: (number | null)[]
   ): void {
     const context = this.context;
@@ -726,7 +803,7 @@ export class ProbePanel {
             precision
           );
           if (!clause) return;
-          this.setStatus(`${stat} · ${clause}`);
+          this.setDetail(joinSegments(detail, clause));
         }
       )
       .catch(() => {
@@ -764,7 +841,7 @@ export class ProbePanel {
    * load costs only its own clause.
    */
   private appendVegetationRecord(
-    stat: string,
+    detail: string,
     physical: (number | null)[]
   ): void {
     const context = this.context;
@@ -823,7 +900,7 @@ export class ProbePanel {
         }
         const clauses = parts.filter(Boolean);
         if (clauses.length === 0) return;
-        this.setStatus([stat, ...clauses].join(" · "));
+        this.setDetail(joinSegments(detail, ...clauses));
       })
       .catch(() => {
         // A failed chunk load must leave the stats already on screen intact.
@@ -925,7 +1002,7 @@ export class ProbePanel {
    * would drop the earlier clause.
    */
   private appendPrecipitationCycle(
-    stat: string,
+    detail: string,
     physical: (number | null)[]
   ): void {
     const context = this.context;
@@ -985,7 +1062,7 @@ export class ProbePanel {
           );
           const appended = [clause, record].filter(Boolean).join(" · ");
           if (!appended) return;
-          this.setStatus(`${stat} · ${appended}`);
+          this.setDetail(joinSegments(detail, appended));
         }
       )
       .catch(() => {
@@ -1014,7 +1091,7 @@ export class ProbePanel {
    * ever rebuilds the line from `stat`.
    */
   private appendAerosolObservingEpoch(
-    stat: string,
+    detail: string,
     trend: Pick<TrendSummary, "testable">
   ): void {
     const context = this.context;
@@ -1029,7 +1106,7 @@ export class ProbePanel {
           trend
         );
         if (!clause) return;
-        this.setStatus(`${stat} · ${clause}`);
+        this.setDetail(joinSegments(detail, clause));
       })
       .catch(() => {
         // A failed chunk load must leave the stats already on screen intact.
