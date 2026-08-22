@@ -200,6 +200,14 @@ const exportEl = document.querySelector<HTMLElement>("#export");
 // gesture that happens long after both have run.
 let foldHudForOverlay: (() => void) | null = null;
 
+// Set by the same block, and called once as the boot curtain lifts. It answers
+// the question the two media queries cannot: whether this particular viewport
+// has ended up with the panel over the aim. It is a `let` for the same reason
+// as the hook above, and it is called from the loader's own dismissal so the
+// decision is made while the curtain is still covering it — a panel that opened
+// and then folded a frame later would read as a glitch rather than as a default.
+let foldHudIfAimCovered: (() => void) | null = null;
+
 // --- Renderer ---------------------------------------------------------------
 // WebGL can be unavailable (blocked by policy, ancient drivers, disabled
 // hardware acceleration) — the constructor throws. Show a human explanation
@@ -441,6 +449,8 @@ const textures = new GlobeTextureManager(
       if (!loading && !firstLoadDone) {
         firstLoadDone = true;
         clearSlowBootNotice();
+        // Behind the curtain, while the panel is populated but not yet seen.
+        foldHudIfAimCovered?.();
         loaderEl?.classList.add("is-hidden");
       }
     },
@@ -2189,6 +2199,41 @@ if (hudCollapseEl && controlsEl) {
   foldHudForOverlay = () => {
     if (!window.matchMedia?.(CROWDED_VIEWPORT).matches) return;
     if (controlsEl.classList.contains("is-collapsed")) return;
+    applyCollapsed(true);
+  };
+
+  // A phone held UPRIGHT is the case neither rule above can see. The landscape
+  // rule keys on height and every modern phone in portrait is 800-932px tall,
+  // so it reads as a roomy viewport; but the panel's height does not follow the
+  // window's, so what actually decides the outcome is the panel's fixed ~360px
+  // against a window barely twice that. The aim — the camera subpoint, the point
+  // the reticle marks and Enter charts — sits at the exact centre, and measured
+  // on this build the panel's top lands ABOVE it: by 62px at 390x844, 84px at
+  // 360x800, 58px at 393x852, 27px at 412x915 and 210px at 320x568. At those
+  // sizes the centre of the view hit-tests the legend or the layer selector,
+  // never the globe. hud-aim-clearance.spec.ts already states the invariant this
+  // breaks ("the centre of the view is globe, not HUD"); it simply pins it at
+  // 1280px wide, where it has always held.
+  //
+  // Measured rather than expressed as a breakpoint, because a breakpoint would
+  // be a guess at the panel's height and the panel's height is the variable:
+  // it grows with the caption text, which CI's wider font metrics already prove
+  // is not a constant. Asking the layout directly folds exactly the viewports
+  // where the aim is covered and leaves the rest alone — 430x932 clears by 12px
+  // and 540x960 by 54px, and both keep every row. That is also why this is not
+  // a taste call: it fires only where the invariant is already broken.
+  //
+  // Scoped to the same width the fold control renders at, so the gesture back is
+  // always on screen — a default that could not be reversed is what the
+  // landscape note above refuses to ship, and the reasoning is unchanged here.
+  // The fold keeps the layer selector and the provenance line, so the product ID
+  // and the month are still rendered in the default state and no citation ends
+  // up behind a gesture.
+  foldHudIfAimCovered = () => {
+    if (!window.matchMedia?.(CROWDED_VIEWPORT).matches) return;
+    if (controlsEl.classList.contains("is-collapsed")) return;
+    const panelTop = controlsEl.getBoundingClientRect().top;
+    if (panelTop >= window.innerHeight / 2) return;
     applyCollapsed(true);
   };
   // Rotating a phone into landscape is the same event as booting into it, and

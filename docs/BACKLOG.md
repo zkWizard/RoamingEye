@@ -55,23 +55,6 @@ take one directly when no Owner's pick applies to its domain.
       The phone caption, which was the third of these, is closed instead by
       #1025 and did not need the fold: the caveat moved to a surface that is
       out of flow, so it never spent the height the fold frees.
-- [ ] **Should the panel also open folded on a phone held upright?** The
-      question above has been asked twice about viewports that are SHORT. The
-      case it has never covered is narrow and TALL, and there the outcome
-      inverts: the bigger the phone, the smaller the globe. Measured on the
-      live site at 390x844, the panel opens expanded at a top of 347px and
-      stands 373px — 44.2% of the window — and the viewport centre hit-tests
-      the legend rather than the globe, so the aim has to move 80px up to
-      reach it. Neither existing rule fires: the spacing trim of #980 is gated
-      at 720px of height and the auto-fold of #1027 at 460px, and every modern
-      phone in portrait is 844-932px tall, clearing both. This is a decision
-      about a reader's default rather than a missing mechanism — #1023 shipped
-      the fold and #1039 already folds on the way into a probe — which is why
-      it is filed here rather than guessed at. Same shape as the netbook-band
-      question above, and worth answering alongside it. Changing a boot-time
-      fold default is HUD-trap territory, so whoever takes it owes a full
-      local e2e run.
-
 - [ ] **An open probe still covers a stretch of the legend on a TALL window
       wider than a phone.** Found while measuring the short-window collision,
       and left open for the same reason the two questions above are: it is a
@@ -142,6 +125,39 @@ take one directly when no Owner's pick applies to its domain.
 ## Done
 
 <!-- The shipping PR moves its item here, with the PR number. -->
+
+- [x] **Should the panel also open folded on a phone held upright?**
+      (#PRNUM) Answered yes, and only where the aim is actually covered. The
+      question was filed as a reader-default call, but the invariant
+      e2e/hud-aim-clearance.spec.ts already states settles it: the aim is the
+      camera subpoint, it renders at the exact centre of the canvas and it is
+      the point Enter charts, so "the centre of the view is globe, not HUD" is
+      a property the app has committed to. That file pins it at 1280px wide,
+      where it has always held. Re-measured on `676fba7`, an upright phone
+      breaks it outright — the centre hit-tests `legend__measures` at 390x844
+      and 393x852, `legend__bar` at 360x800, `layer-selector__current` at
+      412x915 and `timeline__readout` at 320x568, with the panel's top above
+      the centre by 62, 58, 84, 27 and 210px. So this was not a taste call
+      after all; it was the one form factor where a stated invariant was
+      already broken.
+      What ships is a measurement rather than a breakpoint, and that is the
+      substance of it. A breakpoint would be a guess at the panel's height, and
+      the panel's height is the variable — it grows with the caption text,
+      which CI's wider font metrics already prove is not a constant. So the
+      fold asks the layout directly as the boot curtain lifts: if the panel's
+      top has landed above the middle of the window, it opens folded. That
+      fires on exactly the viewports above and leaves the rest untouched —
+      430x932 clears by 12px and 540x960 by 54px, and both keep every row,
+      which the spec asserts in the same breath as the fold so the rule cannot
+      quietly become a blanket rule about narrow windows.
+      Scoped to the 540px width arm the fold control renders at, so the gesture
+      back is always on screen; the decision runs behind the loader, so nothing
+      opens and then folds a frame later. The fold keeps the layer selector and
+      the provenance line, so the product ID and the month are rendered in the
+      default state and no citation sits behind a gesture — the same defence
+      #1027 and #1023 made. The netbook-band and legend questions above are
+      untouched: both are about viewports wider than 540px, where this does not
+      reach.
 
 - [x] **A phone held in landscape reached none of the nine map overlays.**
       (#1027) Closed by keying the bottom-bar layout on height as well as
