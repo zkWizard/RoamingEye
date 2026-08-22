@@ -24,6 +24,8 @@ export class TimeSlider {
 
   private index: number;
   private dragging = false;
+  /** Year-label stride the ruler is currently drawn at; see renderTicks. */
+  private labelEvery = 0;
   /** Base label for the forward stepper, before the end-of-record suffix. */
   private readonly nextStepLabel: string;
 
@@ -87,6 +89,7 @@ export class TimeSlider {
     container.appendChild(steps);
 
     this.attachEvents();
+    this.observeWidth(container);
     this.update(this.index, false);
   }
 
@@ -120,16 +123,39 @@ export class TimeSlider {
     return btn;
   }
 
+  /** Label every Nth year at the track's current width. Pure — no DOM writes. */
+  private densityForWidth(): number {
+    const years = Math.ceil(this.months.length / 12);
+    const trackWidth = this.track.clientWidth || 640;
+    const labelBudget = Math.max(2, Math.floor(trackWidth / 40));
+    return Math.max(1, Math.ceil(years / labelBudget));
+  }
+
+  /**
+   * Year-label density is a function of the track's width, so it cannot be
+   * settled once at construction: the ruler outlives the width it was built
+   * for. Rotating a phone into portrait, or dragging a desktop window narrow,
+   * used to keep the wide layout's labels — measured at 320px, fourteen labels
+   * sized for an 823px track overlap by 3px, where a fresh boot at that width
+   * lays out six with 26px of air between them. Recompute on a real width
+   * change and re-render only when the answer actually differs.
+   */
   private renderTicks(): void {
     const count = this.months.length;
     // Ranges spanning decades thin out: month ticks only while they're
     // readable, and year labels sized to the track's actual width so they
     // never collide — a 360px phone gets far fewer labels than a desktop.
     const showMonthTicks = count <= 120;
-    const years = Math.ceil(count / 12);
-    const trackWidth = this.track.clientWidth || 640;
-    const labelBudget = Math.max(2, Math.floor(trackWidth / 40));
-    const labelEvery = Math.max(1, Math.ceil(years / labelBudget));
+    const labelEvery = this.densityForWidth();
+    this.labelEvery = labelEvery;
+
+    // Re-render replaces the ruler in place. The line and the handle are
+    // siblings we do not own, so clear by class rather than emptying the track.
+    for (const stale of this.track.querySelectorAll(
+      ".timeline__tick, .timeline__year"
+    )) {
+      stale.remove();
+    }
 
     this.months.forEach((ym, i) => {
       const fraction = indexToFraction(i, count);
@@ -199,6 +225,31 @@ export class TimeSlider {
       e.preventDefault();
       this.update(Math.min(this.months.length - 1, Math.max(0, next)), true);
     });
+  }
+
+  /**
+   * Watch the container rather than the track, because the container is the
+   * element that survives: a layer switch rebuilds the slider by clearing the
+   * container, which detaches the old track without ever resizing it. Observing
+   * the live container means a superseded instance still gets one callback, and
+   * uses it to unhook itself.
+   */
+  private observeWidth(container: HTMLElement): void {
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (!this.track.isConnected) {
+        observer.disconnect();
+        return;
+      }
+      // A resize fires continuously while a window is dragged, and most of
+      // those widths land on the same answer — ask before rebuilding.
+      if (this.densityForWidth() === this.labelEvery) return;
+      this.renderTicks();
+      // Ticks are appended, so they now sit above the handle in paint order.
+      // Put the handle back on top without disturbing its position.
+      this.track.appendChild(this.handle);
+    });
+    observer.observe(container);
   }
 
   private setFromClientX(clientX: number): void {

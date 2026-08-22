@@ -19,6 +19,21 @@ take one directly when no Owner's pick applies to its domain.
 
 ## Agent-verified candidates
 
+- [ ] **The high-resolution study region has no way in.** `StudyChip.show()`
+      and `StudyRegion.show()` are called from nowhere in `src/`.
+      `main.ts:328` still builds the chip and wires `exitStudyRegion`, and
+      `main.ts:996` still calls `studyChip?.hide()`, but nothing ever adds
+      `is-visible` — and `.study-chip` is `display: none` until something
+      does (`style.css:1481`). The entry point was removed by `9f7ae50`, so
+      issue #26's flagship "high-resolution study region" is unreachable by any
+      gesture, while the scaffolding for it still ships in the bundle.
+      `e2e/features.spec.ts:611` pins the broken state by asserting the chip
+      is NOT visible. _Verified 2026-08-22 (uiux r99, re-verified r102)._
+      Two opposite fixes are both defensible — revive the entry point (scene
+      and science work, not presentation) or delete the dead path (the Editor
+      agent's subtraction mandate) — which is why this is filed for the
+      maintainer to call rather than taken by either.
+
 - [ ] **Land-cover freshness is manual.** MCD12Q1 is annual and excluded from
       the boot probe by design; once a year, verify the new product year
       against GIBS and bump `LAYERS.landcover.latest` (currently 2024).
