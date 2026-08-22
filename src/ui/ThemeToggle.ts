@@ -52,11 +52,18 @@ export class ThemeToggle {
     // After the attribute, so `--bg` already resolves to the new palette.
     syncThemeColor();
 
+    // The name is the ACTION — the theme this press moves you to, which is
+    // also the tooltip and what the icon draws — so it already carries the
+    // current theme truthfully, and there is deliberately no `aria-pressed`
+    // beside it. Keyed to `theme === "light"`, it contradicted the name it sat
+    // on: in light theme the control read "Switch to dark theme, pressed".
+    // The app's other toggles take the other branch (static name +
+    // `aria-pressed`); this one can't, because its name is its visible label.
+    // See e2e/theme-toggle-state.spec.ts.
     const target = nextTheme(this.theme);
     this.button.innerHTML = this.theme === "dark" ? SUN_ICON : MOON_ICON;
     this.button.setAttribute("aria-label", `Switch to ${target} theme`);
     this.button.title = `Switch to ${target} theme`;
-    this.button.setAttribute("aria-pressed", String(this.theme === "light"));
 
     this.onChange?.(this.theme);
   }
