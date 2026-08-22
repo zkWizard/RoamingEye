@@ -17,6 +17,12 @@ import { LAYERS } from "./timeline";
  * This module states, per layer, what an atmosphere caption may not claim and
  * why, so re-introducing an over-claim fails a test instead of shipping.
  *
+ * One of its rules outgrew that scope. The production-method rule — say whether
+ * the field is a reanalysis or a land model — exists so a caption cannot read
+ * as a measurement, and that has nothing to do with whether the quantity is
+ * atmospheric. It therefore runs over MODEL_PRODUCED_LAYER_IDS, which adds the
+ * second GLDAS variable (`soil`) to the atmosphere three.
+ *
  * Limits of the check (it is a copy audit, nothing more):
  *  - It matches declared phrases. A clean audit means the caption makes no
  *    *checked* over-claim; it is not evidence the caption is complete or that
@@ -30,6 +36,31 @@ import { LAYERS } from "./timeline";
 export const ATMOSPHERE_LAYER_IDS = ["airtemp", "precip", "aerosol"] as const;
 
 export type AtmosphereLayerId = (typeof ATMOSPHERE_LAYER_IDS)[number];
+
+/**
+ * The layers whose rendered field is model output rather than a measured
+ * quantity. This is the population the production-method rule below belongs
+ * to, and it is deliberately wider than the atmosphere set: the rule exists so
+ * a caption cannot read as a measurement, and that failure has nothing to do
+ * with whether the quantity is atmospheric.
+ *
+ * `soil` is the layer that made the distinction worth drawing. It is the second
+ * variable GLDAS_NOAH025_M supplies — the same land-surface model run that
+ * produces `precip` — but it is categorized Water rather than Atmosphere, so
+ * the audit that requires its sibling to say "land model" never read it, and
+ * its caption named the model only as a proper noun ("GLDAS Noah") in a
+ * parenthetical slot every observed layer fills with an instrument
+ * ("MODIS/Terra", "ASTER GDEM"). A reader who learned the convention from the
+ * other captions read it as one more sensor.
+ */
+export const MODEL_PRODUCED_LAYER_IDS = [
+  "airtemp",
+  "precip",
+  "aerosol",
+  "soil",
+] as const;
+
+export type ModelProducedLayerId = (typeof MODEL_PRODUCED_LAYER_IDS)[number];
 
 /** A claim an atmosphere caption must not make, and the reason it cannot. */
 export interface CaptionClaimRule {
@@ -104,22 +135,27 @@ const LAYER_CLAIM_RULES: Record<
 };
 
 /**
- * Wording that names how each layer's field was produced. Both sibling
- * atmosphere captions already carry this and it is the provenance a reader
- * needs to weigh the number; the aerosol caption was the one that omitted it.
+ * Wording that names how each layer's field was produced. It is the provenance
+ * a reader needs to weigh the number, and every model-produced layer owes it:
+ * the aerosol caption was the first to omit it, and `soil` the second.
+ *
+ * The two GLDAS layers share a phrase list because they are the same model run.
  */
-const PRODUCTION_METHOD_PHRASES: Record<AtmosphereLayerId, readonly string[]> =
-  {
-    airtemp: ["reanalysis"],
-    precip: ["land model", "land-surface model", "land surface model"],
-    aerosol: ["reanalysis"],
-  };
+const PRODUCTION_METHOD_PHRASES: Record<
+  ModelProducedLayerId,
+  readonly string[]
+> = {
+  airtemp: ["reanalysis"],
+  precip: ["land model", "land-surface model", "land surface model"],
+  aerosol: ["reanalysis"],
+  soil: ["land model", "land-surface model", "land surface model"],
+};
 
 export type AtmosphereCaptionFindingKind =
   "unsupported-claim" | "unstated-production-method";
 
 export interface AtmosphereCaptionFinding {
-  layerId: AtmosphereLayerId;
+  layerId: ModelProducedLayerId;
   kind: AtmosphereCaptionFindingKind;
   /** The matched phrase, or null when the finding is a missing statement. */
   phrase: string | null;
@@ -160,27 +196,53 @@ export function auditAtmosphereCaption(
     }
   }
 
+  findings.push(...auditProductionMethod(layerId, caption));
+
+  return findings;
+}
+
+/**
+ * Audit one caption for the statement of how its field was produced. Split out
+ * from the claim audit because its population is wider: a caption that names no
+ * reanalysis and no land model reads as a measurement whether or not the
+ * quantity it renders is atmospheric.
+ */
+export function auditProductionMethod(
+  layerId: ModelProducedLayerId,
+  caption: string
+): AtmosphereCaptionFinding[] {
+  const haystack = caption.toLowerCase();
   const namesMethod = PRODUCTION_METHOD_PHRASES[layerId].some((phrase) =>
     haystack.includes(phrase)
   );
-  if (!namesMethod) {
-    findings.push({
+  if (namesMethod) return [];
+  return [
+    {
       layerId,
       kind: "unstated-production-method",
       phrase: null,
       claim: "production method",
       reason:
-        "The caption is the only place most readers learn how the field was produced; an atmosphere caption that names no reanalysis or land model reads as a measurement.",
-    });
-  }
-
-  return findings;
+        "The caption is the only place most readers learn how the field was produced; a modelled field whose caption names no reanalysis or land model reads as a measurement.",
+    },
+  ];
 }
 
 /** Audit the captions the app actually ships for all atmosphere layers. */
 export function auditAtmosphereCaptions(): AtmosphereCaptionFinding[] {
   return ATMOSPHERE_LAYER_IDS.flatMap((layerId) =>
     auditAtmosphereCaption(layerId, LAYERS[layerId].description)
+  );
+}
+
+/**
+ * Audit every shipped caption whose field is model output for its production
+ * method. Wider than `auditAtmosphereCaptions` by exactly the layers that are
+ * modelled without being atmospheric, which is how `soil` went unread.
+ */
+export function auditModelProducedCaptions(): AtmosphereCaptionFinding[] {
+  return MODEL_PRODUCED_LAYER_IDS.flatMap((layerId) =>
+    auditProductionMethod(layerId, LAYERS[layerId].description)
   );
 }
 
