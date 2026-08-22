@@ -2122,12 +2122,43 @@ function lazyPanel(
   load: () => Promise<new (el: HTMLElement) => { open(): void }>
 ): void {
   let panel: Promise<{ open(): void }> | null = null;
+
+  /**
+   * Mark the pressed control as waiting on its chunk.
+   *
+   * Nothing of these panels is in the page until their chunk lands, so on a
+   * slow connection the first press changed nothing the reader could see — no
+   * state on the button, no content, seconds of it — and the ordinary response
+   * to a control that looks dead is to press it again. Same two attributes the
+   * toolbar uses for the same wait: `aria-busy` carries it to assistive tech,
+   * `data-state` drives the styling and swallows the repeat presses.
+   */
+  const setPending = (pending: boolean): void => {
+    if (pending) {
+      link.dataset.state = "pending";
+      link.setAttribute("aria-busy", "true");
+    } else {
+      delete link.dataset.state;
+      link.removeAttribute("aria-busy");
+    }
+  };
+
   link.addEventListener("click", () => {
+    // Already on the wire from an earlier press: a second open() queued behind
+    // the same request would only re-run when the first one does.
+    if (link.dataset.state === "pending") return;
     if (!panel) {
+      setPending(true);
       panel = load().then((Panel) => new Panel(container));
-      panel.catch(() => {
-        panel = null;
-      });
+      // Settled either way, the wait is over: the panel itself is now the
+      // report on success, and the toast below is the one on failure.
+      panel.then(
+        () => setPending(false),
+        () => {
+          setPending(false);
+          panel = null;
+        }
+      );
     }
     void panel.then(
       (p) => p.open(),
