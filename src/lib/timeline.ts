@@ -419,7 +419,8 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     // Depth is GIBS's own ("Soil Moisture (Monthly, 0-10 cm, Noah LSM,
     // GLDAS)"), not the root zone. Kept literal to preserve this module's
     // dependency-free contract; soilMoistureDepth.test.ts pins the two together.
-    description: "Surface soil moisture, 0-10 cm (GLDAS Noah) — not root zone.",
+    description:
+      "Soil moisture, 0-10 cm (GLDAS Noah land model) — not root zone.",
   },
   snow: {
     id: "snow",
