@@ -296,18 +296,42 @@ function describeTierRange(summary: MarineAveragedSstSupportSummary): string {
     : `${summary.lowestTier} to ${summary.highestTier}`;
 }
 
+/**
+ * The span of sampled shares, collapsed to a single share when both ends print
+ * the same text. Rounding makes that ordinary: a footprint whose months ran
+ * 0.845 to 0.854 is not usefully described as "85%–85%", and comparing the
+ * rendered ends rather than the raw fractions keeps the clause from announcing
+ * a range it cannot show.
+ */
 function describeShareRange(minFraction: number, maxFraction: number): string {
-  return minFraction === maxFraction
-    ? formatSampledShare(minFraction)
-    : `${formatSampledShare(minFraction)}–${formatSampledShare(maxFraction)}`;
+  const min = formatSampledShare(minFraction);
+  const max = formatSampledShare(maxFraction);
+  return min === max ? min : `${min}–${max}`;
 }
 
 /**
- * Whole percent, except that a positive share below half a percent reads as
- * "<1%" rather than a "0%" that would contradict the temperature printed
- * beside it. A share of exactly zero stays "0%": there the absence is real.
+ * Whole percent, except at the two ends where rounding would contradict the
+ * clause it sits in.
+ *
+ * A positive share below half a percent reads as "<1%" rather than a "0%" that
+ * would contradict the temperature printed beside it. A share of exactly zero
+ * stays "0%": there the absence is real.
+ *
+ * Symmetrically, a share short of the whole footprint reads as ">99%" rather
+ * than a "100%" that the rest of the clause immediately contradicts by saying
+ * the mean covers only the usable sampled pixels. For SST the rounded claim is
+ * the stronger one: this product is undefined over land, so "100% of the drawn
+ * region" reports the whole footprint as open water that returned usable SST,
+ * which is exactly what a rejected land, ice, or cloud pixel disproves. A large
+ * footprint makes it ordinary rather than rare — a drawn region samples up to
+ * 28x28 (lib/probe.ts `regionGridSize`), so one rejected cell among 784 rounds
+ * to 100%. Only an exact 1 prints "100%", matching the vegetation, air
+ * temperature, and GLDAS averaged-support notes, which format the same share
+ * for the same sampler.
  */
 function formatSampledShare(fraction: number): string {
   const percent = Math.round(fraction * 100);
-  return percent === 0 && fraction > 0 ? "<1%" : `${percent}%`;
+  if (percent === 0 && fraction > 0) return "<1%";
+  if (percent === 100 && fraction < 1) return ">99%";
+  return `${percent}%`;
 }
