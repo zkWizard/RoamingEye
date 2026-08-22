@@ -286,6 +286,69 @@ describe("rendered monthly meteorology", () => {
     ]);
   });
 
+  it("records a month whose imagery never arrived as a failed sampling step", () => {
+    // Both months are inside the published range and neither carries a value.
+    // The only thing separating them is how they came to be empty, and the
+    // coverage share cannot say: a dropped download and a month the source
+    // left blank both report zero.
+    const input = {
+      metricId: "air-temperature-2m" as const,
+      months: [
+        { year: 2026, month: 1 },
+        { year: 2026, month: 2 },
+      ],
+      sampledValues: [null, null],
+      nativeToSampledValueFactor: 1,
+      validFractions: [0, 0],
+    };
+    const availableThrough = { year: 2026, month: 2 };
+
+    // Unmarked, the file still says MERRA-2 published nothing for the place.
+    expect(
+      exportObservationsFromRenderedClimateSample(input, availableThrough).map(
+        (observation) => observation.unavailableReason
+      )
+    ).toEqual(["source-no-data", "source-no-data"]);
+
+    // Marked, only the month that actually failed changes, and it changes to
+    // the reason this contract already carries for an incomplete step. The
+    // month beside it is untouched, so the flag never launders a real gap.
+    expect(
+      exportObservationsFromRenderedClimateSample(input, availableThrough, [
+        true,
+        false,
+      ]).map((observation) => observation.unavailableReason)
+    ).toEqual(["sampling-failed", "source-no-data"]);
+
+    // A short or absent flag array leaves every month exactly as it was, so a
+    // caller that cannot tell the two apart never guesses on the file's behalf.
+    expect(
+      exportObservationsFromRenderedClimateSample(input, availableThrough, [
+        true,
+      ]).map((observation) => observation.unavailableReason)
+    ).toEqual(["sampling-failed", "source-no-data"]);
+  });
+
+  it("never lets a transport flag mark a month that returned a usable value", () => {
+    // The flag says the image did not arrive; a month holding a reading is
+    // proof that it did. Coverage and value stay exactly as sampled.
+    expect(
+      exportObservationsFromRenderedClimateSample(
+        {
+          metricId: "air-temperature-2m",
+          months: [{ year: 2026, month: 1 }],
+          sampledValues: [280],
+          nativeToSampledValueFactor: 1,
+          validFractions: [0.9],
+        },
+        { year: 2026, month: 1 },
+        [true]
+      )
+    ).toEqual([
+      { dataMonth: { year: 2026, month: 1 }, value: 280, validFraction: 0.9 },
+    ]);
+  });
+
   it("withholds physically impossible climate values from exports", () => {
     expect(
       exportObservationsFromRenderedClimateSample(

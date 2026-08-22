@@ -250,10 +250,23 @@ export function summarizeRenderedClimateSample(
  * entire download — including a value the metric's cited gross-error band
  * rejects (see `implausibleValueReason`), which no longer reaches the export
  * as a measurement.
+ *
+ * `transportFailureByMonth` marks the months whose source imagery never
+ * arrived (see `lib/probeRetrievalFailure.ts`). Without it such a month
+ * reaches this builder indistinguishable from one the source left blank — no
+ * value, zero coverage, published range intact — and leaves the download
+ * carrying `source-no-data` against MERRA-2 or GLDAS by name, a
+ * machine-readable assertion that NASA published nothing for the place on the
+ * strength of a request that never completed. It is month-aligned and
+ * optional: a caller that cannot tell the two apart keeps the previous
+ * reading of the coverage share rather than guessing.
+ *
+ * @param transportFailureByMonth month-aligned, from `SampleResult`
  */
 export function exportObservationsFromRenderedClimateSample(
   input: RenderedClimateSampleInput,
-  availableThrough: YearMonth
+  availableThrough: YearMonth,
+  transportFailureByMonth: readonly boolean[] = []
 ): PlaceObservationInput[] {
   const summaries = summarizeRenderedClimateSample(input, availableThrough);
 
@@ -276,7 +289,10 @@ export function exportObservationsFromRenderedClimateSample(
     return {
       dataMonth: summary.dataMonth,
       value: null,
-      unavailableReason: exportUnavailableReason(summary),
+      unavailableReason: exportUnavailableReason(
+        summary,
+        transportFailureByMonth[index] === true
+      ),
       ...(summary.coverage.validFraction !== null
         ? { validFraction: summary.coverage.validFraction }
         : {}),
@@ -1270,9 +1286,16 @@ function implausibleValueReason(summary: MonthlyClimateSummary): string | null {
 }
 
 function exportUnavailableReason(
-  summary: MonthlyClimateSummary
+  summary: MonthlyClimateSummary,
+  transportFailed = false
 ): PlaceObservationUnavailableReason {
   if (
+    // An image that never arrived records the same empty summary a month the
+    // source left blank does, and the coverage share below cannot tell them
+    // apart: both report zero. Only the first is a sampling step that did not
+    // complete, and `sampling-failed` is the reason this contract already
+    // carries for one.
+    transportFailed ||
     summary.publicationStatus !== "published" ||
     summary.coverage.status === "invalid" ||
     // A value the cited band rejects is a unit/decode failure of our own
