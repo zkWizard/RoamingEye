@@ -182,4 +182,26 @@ describe("marine boundary SST spatial support", () => {
       "never a marine-biological measurement"
     );
   });
+
+  it("prints a near-whole boundary share as >99%, never a bare 100%", () => {
+    // One rejected pixel in a boundary of 784. SST is undefined over land, so
+    // "100% of the searched boundary" reports an entire administrative area as
+    // water that returned usable SST — and this clause has no full-coverage
+    // case where it falls silent, so the rounded claim always reaches the card.
+    const summary = summarizeMarineBoundarySstSupport(783 / 784);
+
+    expect(summary.tier).toBe("full");
+    expect(summary.sampledSharePhrase).toBe(
+      "usable SST over >99% of the searched boundary (full)"
+    );
+    expect(describeMarineBoundarySstSupport(summary)).not.toContain("100%");
+  });
+
+  it("still prints 100% for a boundary that really was wholly sampled", () => {
+    const summary = summarizeMarineBoundarySstSupport(1);
+
+    expect(summary.sampledSharePhrase).toBe(
+      "usable SST over 100% of the searched boundary (full)"
+    );
+  });
 });
