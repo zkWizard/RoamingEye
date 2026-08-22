@@ -27,7 +27,7 @@ export class FocusTrap {
   private readonly onKeydown = (e: KeyboardEvent): void => {
     if (e.key !== "Tab" || !this.panel) return;
     // Covered by the overlay above us: let it own the key.
-    if (openTraps[openTraps.length - 1] !== this) return;
+    if (!this.isTopmost()) return;
     const focusables = Array.from(
       this.panel.querySelectorAll<HTMLElement>(FOCUSABLE)
     ).filter((el) => el.offsetParent !== null);
@@ -47,6 +47,18 @@ export class FocusTrap {
       first.focus();
     }
   };
+
+  /**
+   * True while this trap is the topmost open one.
+   *
+   * Tab has always deferred to it. Escape now asks the same question: each
+   * overlay listens for Escape on `document`, so with two open every one of
+   * them used to close on a single press and the reader lost the panel they
+   * were reading just for glancing at the shortcuts sheet.
+   */
+  isTopmost(): boolean {
+    return openTraps[openTraps.length - 1] === this;
+  }
 
   /** Start trapping inside `panel`; focuses its first control. */
   activate(panel: HTMLElement): void {

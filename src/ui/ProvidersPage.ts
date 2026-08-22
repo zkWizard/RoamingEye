@@ -241,7 +241,7 @@ export class ProvidersPage {
       container.querySelector(".providers__backdrop") as HTMLElement
     ).addEventListener("click", () => this.close());
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") this.close();
+      if (e.key === "Escape" && this.trap.isTopmost()) this.close();
     });
   }
 
