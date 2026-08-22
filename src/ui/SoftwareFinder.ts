@@ -23,6 +23,7 @@ export class SoftwareFinder {
   private readonly results: HTMLElement;
   private catalog: SoftwareCatalog | null = null;
   private loading: Promise<void> | null = null;
+  private announceTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -119,6 +120,9 @@ export class SoftwareFinder {
 
   close(): void {
     if (!this.container.classList.contains("is-open")) return;
+    // A count scheduled by the last keystroke would otherwise arrive after the
+    // panel it describes is gone.
+    clearTimeout(this.announceTimer);
     this.container.classList.remove("is-open");
     this.container.setAttribute("aria-hidden", "true");
     this.trap.deactivate();
@@ -139,11 +143,72 @@ export class SoftwareFinder {
           this.render();
         })
         .catch(() => {
-          this.status.textContent =
-            "The reviewed catalog is unavailable right now.";
+          this.setStatus("The reviewed catalog is unavailable right now.");
         });
     }
     await this.loading;
+  }
+
+  /**
+   * How long the reader has to stop typing before the count is spoken.
+   *
+   * The same 300 ms `SearchBox` waits before it runs a place search: it is the
+   * repo's measure of "the reader has finished a word", and the two are typed
+   * into by the same hands.
+   */
+  private static readonly SETTLE_MS = 300;
+
+  /**
+   * Write the status line, and say whether the write is worth announcing.
+   *
+   * The line carries two kinds of message. One is the settled result — how many
+   * reviewed projects the current filters match, which is the whole answer this
+   * panel exists to give. The other is the same sentence mid-keystroke, a
+   * sighted affordance that says the filter is live.
+   *
+   * Every write was `aria-live="polite"`, and `render()` runs on every `input`
+   * event, so typing "geopandas" queued NINE announcements: four counts already
+   * stale by the time they were read, then the answer repeated five times.
+   * Polite messages QUEUE rather than replace — the same trap `ProbePanel`
+   * documents for its per-month counter — so the reader sat through the whole
+   * queue to reach a number the screen had shown a second earlier.
+   *
+   * So intermediate writes set `aria-live="off"`, the ARIA value that means
+   * exactly "update this without announcing it", and the settled write restores
+   * `polite`. The attribute is set BEFORE the text because politeness is read
+   * when the mutation is processed, not when the region was registered.
+   *
+   * The text is written as a fresh child element rather than into the same text
+   * node, for the reason `Announcer` gives: the settled count is usually the
+   * string the last silent keystroke already wrote, and re-assigning an
+   * identical string is easily treated as "nothing changed" — which would make
+   * the one announcement that matters the silent one.
+   */
+  private setStatus(text: string, options?: { announce?: boolean }): void {
+    this.status.setAttribute(
+      "aria-live",
+      options?.announce === false ? "off" : "polite"
+    );
+    const line = document.createElement("span");
+    line.textContent = text;
+    this.status.replaceChildren(line);
+  }
+
+  /**
+   * Announce the count once the keystrokes stop.
+   *
+   * Only the announcement is deferred; the visible count is written on the same
+   * keystroke that changes it. `SearchBox` debounces the search itself because
+   * each one is a network round trip — this filter is a synchronous pass over a
+   * catalog already in memory, so delaying the results a reader can SEE would
+   * be a regression, not a fix.
+   */
+  private announceWhenSettled(text: string): void {
+    clearTimeout(this.announceTimer);
+    this.announceTimer = setTimeout(
+      () => this.setStatus(text),
+      SoftwareFinder.SETTLE_MS
+    );
   }
 
   private populateFacets(): void {
@@ -173,7 +238,9 @@ export class SoftwareFinder {
       platform: this.platform.value,
       access: this.access.value,
     });
-    this.status.textContent = `${tools.length} verified project${tools.length === 1 ? "" : "s"}`;
+    const summary = `${tools.length} verified project${tools.length === 1 ? "" : "s"}`;
+    this.setStatus(summary, { announce: false });
+    this.announceWhenSettled(summary);
     this.results.replaceChildren();
     if (tools.length === 0) {
       const empty = document.createElement("p");
