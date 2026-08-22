@@ -143,17 +143,31 @@ export class ProvidersPage {
       btn.type = "button";
       btn.className = "providers__cite-btn";
       btn.textContent = label;
+      // These buttons carry no `aria-label`, so the visible text IS the
+      // accessible name — a label left behind renames the control for the rest
+      // of the session, and the four sit side by side composing four different
+      // artifacts, so the name is all that tells them apart. Restore `label`
+      // rather than whatever the button reads at flash time: reading it live
+      // captured "Copied ✓" when two presses overlapped, pinning the
+      // confirmation as the resting name. Clearing the pending timer is the
+      // other half, so a fresh press restarts the window instead of stacking
+      // on it. Same shape as `ProbePanel.flashCopyLabel`.
+      let resetTimer: ReturnType<typeof setTimeout> | undefined;
+      const flash = (text: string): void => {
+        btn.textContent = text;
+        clearTimeout(resetTimer);
+        resetTimer = setTimeout(() => {
+          btn.textContent = label;
+        }, 1600);
+      };
       btn.addEventListener("click", () => {
         navigator.clipboard
           .writeText(compose())
-          .then(() => {
-            const was = btn.textContent;
-            btn.textContent = "Copied ✓";
-            setTimeout(() => (btn.textContent = was), 1600);
-          })
-          .catch(() => {
-            btn.textContent = "Copy failed";
-          });
+          .then(() => flash("Copied ✓"))
+          // Clipboard access can be denied (permissions policy, insecure
+          // context, a refused prompt). The artifact is still one press away,
+          // so the button has to come back to a name that offers it.
+          .catch(() => flash("Copy failed"));
       });
       actions.appendChild(btn);
     };
