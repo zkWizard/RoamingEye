@@ -23,7 +23,8 @@
     "test:soak": "playwright test --config playwright.soak.config.ts",
     "agents:run": "node scripts/run-agent-fleet.mjs",
     "catalog:check": "node scripts/agents/qa-release.mjs",
-    "verify": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run catalog:check && npm run build",
+    "check:wired": "node scripts/check-wired-budget.mjs",
+    "verify": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run catalog:check && npm run build && npm run check:wired",
     "verify:full": "npm run verify && npm run test:e2e",
     "deploy": "node scripts/deploy.mjs"
   },
