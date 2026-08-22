@@ -125,7 +125,7 @@ export function summarizeMarineBoundarySstSupport(
     validFraction,
     tier,
     meanScope: "usable-sampled-pixels",
-    sampledSharePhrase: `usable SST over ${formatSampledShare(validFraction)} of the searched boundary (${tier})`,
+    sampledSharePhrase: `usable SST over ${formatSampledBoundaryShare(validFraction)} of the searched boundary (${tier})`,
     reason: null,
   };
 }
@@ -180,8 +180,15 @@ export function describeMarineBoundarySstSupport(
  * a rejected land, ice, or cloud pixel disproves — and this clause, unlike the
  * averaged-footprint one, has no full-coverage case where it falls silent.
  * Only an exact 1 prints "100%", matching `marineAveragedSstSupport`.
+ *
+ * Exported because the SAME boundary share is rendered a second time in this
+ * card's year-over-year clause (`marinePlaceInsight.ts`), for the PRIOR month of
+ * the pair. Both renderings land in one sentence a few hundred characters
+ * apart, so a second rounding rule there would have one card report one
+ * quantity two ways — ">99%" for the month it sampled and "100%" for the
+ * month it compares against.
  */
-function formatSampledShare(fraction: number): string {
+export function formatSampledBoundaryShare(fraction: number): string {
   const percent = Math.round(fraction * 100);
   if (percent === 0) return "<1%";
   if (percent === 100 && fraction < 1) return ">99%";

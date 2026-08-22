@@ -7,6 +7,7 @@ import {
 } from "./marineCoverage";
 import {
   describeMarineBoundarySstSupport,
+  formatSampledBoundaryShare,
   summarizeMarineBoundarySstSupport,
   type MarineBoundarySstSupportSummary,
 } from "./marineBoundarySstSupport";
@@ -563,6 +564,16 @@ function unavailableYearComparison(
  * A short clause for the insight card. It names both months and both sampled
  * coverages so the reader can see how comparable the two boundary means are,
  * and says outright that two observations are not a trend.
+ *
+ * The PRIOR month's share is rendered through the same
+ * {@link formatSampledBoundaryShare} the card already uses for the sampled
+ * month, so the one card states one quantity one way. Rounded on its own it
+ * would read "100% of the boundary" for a boundary one rejected pixel short of
+ * whole — and SST is undefined over land, so that is not a rounding of the
+ * share but a claim that an entire administrative area is water that returned
+ * usable SST. The coverage GAP beside it stays a plain rounded point count: it
+ * is a difference between two shares, not a share, and neither end of it
+ * carries the "whole boundary" claim.
  */
 function describeYearOverYear(
   comparison: MarineBoundarySstYearComparison
@@ -573,9 +584,9 @@ function describeYearOverYear(
   if (comparison.status === "incomparable-coverage") {
     return `; no year-over-year difference stated — ${formatYm(
       comparison.priorDataMonth!
-    )} sampled ${Math.round(
-      comparison.priorValidFraction! * 100
-    )}% of the boundary, ${Math.round(
+    )} sampled ${formatSampledBoundaryShare(
+      comparison.priorValidFraction!
+    )} of the boundary, ${Math.round(
       comparison.validFractionDelta! * 100
     )} points from this month's usable share, so the two means may differ in which water was sampled rather than in temperature`;
   }
@@ -597,9 +608,9 @@ function describeYearOverYear(
         : " (a censored endpoint bounds this difference on one side only)";
   return `; ${prefix}${sign}${comparison.difference!.toFixed(1)} ${comparison.differenceUnit} vs ${formatYm(
     comparison.priorDataMonth!
-  )} for the same boundary (${Math.round(
-    comparison.priorValidFraction! * 100
-  )}% sampled coverage that month)${bounded} — a difference between two observations, not a trend`;
+  )} for the same boundary (${formatSampledBoundaryShare(
+    comparison.priorValidFraction!
+  )} sampled coverage that month)${bounded} — a difference between two observations, not a trend`;
 }
 
 function isCoverage(validFraction: number | null): validFraction is number {
