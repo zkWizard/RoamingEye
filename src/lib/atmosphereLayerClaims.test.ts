@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   ATMOSPHERE_LAYER_IDS,
+  MODEL_PRODUCED_LAYER_IDS,
   atmosphereClaimRules,
   auditAtmosphereCaption,
   auditAtmosphereCaptions,
+  auditModelProducedCaptions,
+  auditProductionMethod,
   formatAtmosphereCaptionFinding,
 } from "./atmosphereLayerClaims";
 import { LAYERS } from "./timeline";
@@ -14,6 +17,71 @@ describe("atmosphereLayerClaims", () => {
     expect(findings.map(formatAtmosphereCaptionFinding)).toEqual([]);
   });
 
+  it("passes every model-produced caption the app actually ships", () => {
+    const findings = auditModelProducedCaptions();
+    expect(findings.map(formatAtmosphereCaptionFinding)).toEqual([]);
+  });
+
+  it("audits the production method of every layer built by the same model run as one it already audits", () => {
+    // The rule that would have caught `soil`. A dataset DOI identifies a
+    // model run, not a variable: GLDAS_NOAH025_M supplies both `precip` and
+    // `soil`, and MERRA-2's two collections likewise back `airtemp` and
+    // `aerosol`. If one variable off a run is modelled then every variable off
+    // that same run is, so a layer sharing an audited layer's DOI cannot be
+    // exempt from stating a production method — whatever GIBS category it
+    // happens to carry. `soil` is categorized Water, which is exactly why the
+    // atmosphere-shaped set above never read it.
+    const audited = new Set<string>(MODEL_PRODUCED_LAYER_IDS);
+    const modelledDois = new Set(
+      Object.values(LAYERS)
+        .filter((layer) => audited.has(layer.id))
+        .map((layer) => layer.dataset?.doi)
+        .filter((doi): doi is string => Boolean(doi))
+    );
+
+    const unaudited = Object.values(LAYERS)
+      .filter(
+        (layer) =>
+          !audited.has(layer.id) &&
+          layer.dataset &&
+          modelledDois.has(layer.dataset.doi)
+      )
+      .map((layer) => `${layer.id} (${layer.dataset?.doi})`);
+
+    expect(unaudited).toEqual([]);
+  });
+
+  it("flags the soil caption that named the model only as a proper noun", () => {
+    // The exact string that shipped until this rule reached `soil`. Every
+    // observed layer spends the same parenthetical on an instrument
+    // ("MODIS/Terra", "ASTER GDEM"), so "GLDAS Noah" alone read as one more
+    // sensor rather than as the land-surface model that produced the number.
+    const findings = auditProductionMethod(
+      "soil",
+      "Surface soil moisture, 0-10 cm (GLDAS Noah) — not root zone."
+    );
+
+    expect(findings).toEqual([
+      {
+        layerId: "soil",
+        kind: "unstated-production-method",
+        phrase: null,
+        claim: "production method",
+        reason: expect.stringContaining("reads as a measurement"),
+      },
+    ]);
+  });
+
+  it("accepts the soil caption once it names the land model", () => {
+    expect(auditProductionMethod("soil", LAYERS.soil.description)).toEqual([]);
+    expect(LAYERS.soil.description).toContain("land model");
+  });
+
+  it("keeps the soil caption on one rendered line", () => {
+    // The captions render on one line under the globe; 71 characters is the
+    // longest shipped, and the HUD grows upward over the globe past it.
+    expect(LAYERS.soil.description.length).toBeLessThanOrEqual(71);
+  });
   it("covers exactly the layers whose field is atmospheric", () => {
     // Guards against a new atmosphere layer landing unaudited: every layer
     // GIBS-categorized "Atmosphere" must be in the audited set. `airtemp` is
