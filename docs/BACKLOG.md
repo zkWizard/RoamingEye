@@ -127,7 +127,7 @@ take one directly when no Owner's pick applies to its domain.
 <!-- The shipping PR moves its item here, with the PR number. -->
 
 - [x] **Should the panel also open folded on a phone held upright?**
-      (#PRNUM) Answered yes, and only where the aim is actually covered. The
+      (#1089) Answered yes, and only where the aim is actually covered. The
       question was filed as a reader-default call, but the invariant
       e2e/hud-aim-clearance.spec.ts already states settles it: the aim is the
       camera subpoint, it renders at the exact centre of the canvas and it is
