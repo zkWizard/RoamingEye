@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- No maximum-scale / user-scalable: pinch-to-zoom must stay available
+         (WCAG 2.1 SC 1.4.4). The globe canvas opts out of browser gestures
+         itself via touch-action: none, so page zoom only applies to UI chrome. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="RoamingEye — roam a 3D Earth and scrub through monthly satellite data to watch the seasons change over years."
+    />
+    <title>RoamingEye</title>
+
+    <!-- Social sharing cards. og:image/og:url must be absolute URLs. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="RoamingEye — a 3D Earth you can roam" />
+    <meta
+      property="og:description"
+      content="Scrub through years of monthly NASA satellite data and watch the seasons change across a 3D globe. Open source, open data."
+    />
+    <meta
+      property="og:image"
+      content="https://roamingeye.org/social-card.jpg"
+    />
+    <meta property="og:url" content="https://roamingeye.org/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="RoamingEye — a 3D Earth you can roam" />
+    <meta
+      name="twitter:description"
+      content="Scrub through years of monthly NASA satellite data and watch the seasons change across a 3D globe."
+    />
+    <meta
+      name="twitter:image"
+      content="https://roamingeye.org/social-card.jpg"
+    />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Browser chrome colour for the first paint only, guessed from the OS
+         preference because no script has run yet — the same fallback the theme
+         resolver uses. ThemeToggle collapses these two into one tag keyed to
+         the theme actually in force, so the bar stops tracking the OS the
+         moment the user's own choice is known. -->
+    <meta
+      name="theme-color"
+      content="#05070d"
+      media="(prefers-color-scheme: dark)"
+    />
+    <meta
+      name="theme-color"
+      content="#eaf0f8"
+      media="(prefers-color-scheme: light)"
+    />
+
+    <script type="module" crossorigin src="/assets/index-DB7_DrGW.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/three-D7YoKdMj.js">
+    <link rel="modulepreload" crossorigin href="/assets/timeline-B3-FB0xz.js">
+    <link rel="modulepreload" crossorigin href="/assets/volcanoContext-D86s6O3w.js">
+    <link rel="modulepreload" crossorigin href="/assets/doiLink-B57VMVt_.js">
+    <link rel="modulepreload" crossorigin href="/assets/numerics-8EpldLJX.js">
+    <link rel="modulepreload" crossorigin href="/assets/soilMoistureDepth-D6P9Xq4E.js">
+    <link rel="modulepreload" crossorigin href="/assets/aerosolLoading-y8ny4fgl.js">
+    <link rel="modulepreload" crossorigin href="/assets/landCoverPalette-CeXk7y6C.js">
+    <link rel="modulepreload" crossorigin href="/assets/snowCover-DiWJwZSW.js">
+    <link rel="modulepreload" crossorigin href="/assets/plateBoundaryHover-BDGvbJEw.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-VdESKuYj.css">
+  </head>
+  <body>
+    <div id="app">
+      <!-- role="application" tells a screen reader to hand keystrokes
+           straight to the app, so the globe has to answer them: it is
+           focusable, arrow keys turn it, +/- zoom, and Enter charts the point
+           in the middle of the view (see the keyboard section of main.ts). -->
+      <canvas
+        id="globe"
+        tabindex="0"
+        aria-label="Interactive 3D globe — drag or use the arrow keys to turn it, scroll or press plus and minus to zoom, click or press Enter to chart the point in view"
+        role="application"
+      ></canvas>
+
+      <!-- Marks the point the keyboard is aiming at — the middle of the view,
+           which is what Enter charts. Shown only while the globe holds keyboard
+           focus; the pointer has a cursor and needs no such mark. Decorative:
+           the coordinates it stands on are read out in #hover-tooltip. -->
+      <div id="globe-reticle" class="globe-reticle" aria-hidden="true"></div>
+
+      <header class="overlay overlay--top">
+        <h1 class="brand">Roaming<span>Eye</span></h1>
+        <p class="hint">
+          <!-- Leads the sentence rather than trailing it. At the end, the
+               badge's x was a pure function of how wide the hint TEXT rendered,
+               which slid it under the absolutely positioned search/share
+               column between 541px and 660px. At the start it is anchored to
+               the header's left padding and cannot reach that column at any
+               width or text metric. See e2e/coarse-pointer-hint-badge.spec.ts. -->
+          <button
+            id="shortcuts-link"
+            type="button"
+            class="hint__shortcuts"
+            title="Keyboard shortcuts (?)"
+            aria-label="Keyboard shortcuts"
+          >
+            ?
+          </button>
+          Drag to rotate · scrub the timeline · ←/→ keys step months
+        </p>
+        <button id="software-link" type="button" class="software-link">
+          Find software
+        </button>
+        <button id="fleet-link" type="button" class="fleet-link">
+          Fleet status
+        </button>
+        <div id="theme-toggle" class="theme-toggle-mount"></div>
+      </header>
+
+      <div id="search" class="search"></div>
+
+      <div id="share" class="share"></div>
+
+      <div id="export"></div>
+
+      <div id="compare" class="compare"></div>
+
+      <div id="draw"></div>
+
+      <div id="compare-divider"></div>
+
+      <aside id="toolbar" class="toolbar" aria-label="Map overlays"></aside>
+
+      <div id="hover-tooltip" class="hover-tooltip" aria-hidden="true"></div>
+
+      <div id="study-chip" class="study-chip"></div>
+
+      <div id="probe-panel"></div>
+
+      <aside id="place-insights"></aside>
+
+      <div class="overlay overlay--bottom">
+        <div id="controls" class="controls">
+          <!-- Shown only below the height threshold the panel already declares
+               itself crowded at; style.css keeps both the button and the
+               collapsed state inside that one media query, so widening the
+               window restores every row without the class being cleared. -->
+          <button
+            id="hud-collapse"
+            type="button"
+            class="controls__collapse"
+            aria-expanded="true"
+          ></button>
+          <div id="layer-selector"></div>
+          <div id="legend"></div>
+          <div id="timeline"></div>
+          <div
+            id="timeline-status"
+            class="timeline-status"
+            aria-live="polite"
+          ></div>
+          <div id="provenance" class="provenance"></div>
+        </div>
+        <p class="attribution">
+          Imagery: NASA GIBS · Seismicity: USGS · Borders &amp; places: Natural
+          Earth · Search: © OpenStreetMap ·
+          <button id="providers-link" type="button" class="attribution__link">
+            Data providers
+          </button>
+          ·
+          <a
+            href="https://github.com/zkWizard/RoamingEye"
+            target="_blank"
+            rel="noopener"
+            >Open source</a
+          >
+          ·
+          <a
+            href="https://github.com/zkWizard/RoamingEye/issues/new?template=feedback.yml"
+            target="_blank"
+            rel="noopener"
+            >Give feedback</a
+          >
+        </p>
+      </div>
+
+      <div id="providers-page" class="providers" aria-hidden="true"></div>
+
+      <div id="software-page" class="software" aria-hidden="true"></div>
+
+      <div id="fleet-page" class="fleet" aria-hidden="true"></div>
+
+      <div id="shortcuts-page" class="shortcuts" aria-hidden="true"></div>
+
+      <div id="loader" class="loader">
+        <div class="loader__spinner" aria-hidden="true"></div>
+        <p>Loading Earth…</p>
+        <!-- Stays rendered and empty; main.ts inserts the line. A live region
+             that is toggled `hidden` is outside the accessibility tree until
+             it is shown, so the text arrives unannounced (same lesson as the
+             offline banner). Out of flow, so an ordinary boot's spinner and
+             caption sit exactly where they always did. -->
+        <div id="loader-slow" class="loader__slow" role="status"></div>
+      </div>
+    </div>
+
+  </body>
+</html>
