@@ -167,11 +167,23 @@ export function describeMarineBoundarySstSupport(
 }
 
 /**
- * Whole percent, except that any positive share below half a percent is
- * reported as "<1%" rather than rounded down to a "0%" that would contradict
- * the temperature printed beside it.
+ * Whole percent, except at the two ends where rounding would contradict the
+ * clause it sits in.
+ *
+ * Any positive share below half a percent is reported as "<1%" rather than
+ * rounded down to a "0%" that would contradict the temperature printed beside
+ * it. A share short of the whole boundary reads as ">99%" rather than a "100%"
+ * that the same sentence contradicts by scoping the mean to the sampled pixels
+ * alone. For SST the rounded claim is the stronger one: this product is
+ * undefined over land, so "100% of the searched boundary" reports an entire
+ * administrative area as water that returned usable SST, which is exactly what
+ * a rejected land, ice, or cloud pixel disproves — and this clause, unlike the
+ * averaged-footprint one, has no full-coverage case where it falls silent.
+ * Only an exact 1 prints "100%", matching `marineAveragedSstSupport`.
  */
 function formatSampledShare(fraction: number): string {
   const percent = Math.round(fraction * 100);
-  return percent === 0 ? "<1%" : `${percent}%`;
+  if (percent === 0) return "<1%";
+  if (percent === 100 && fraction < 1) return ">99%";
+  return `${percent}%`;
 }

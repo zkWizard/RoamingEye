@@ -298,4 +298,50 @@ describe("marine averaged SST spatial support", () => {
       )
     ).toBe(true);
   });
+
+  it("prints a near-whole share as >99% rather than a contradictory 100%", () => {
+    // One rejected cell in a full 28x28 drawn-region grid (lib/probe.ts
+    // regionGridSize). SST is undefined over land, so "100% of the drawn
+    // region" claims the whole box was water that returned usable SST — while
+    // the same sentence scopes the mean to "only those pixels".
+    const summary = summarizeMarineAveragedSstSupport(
+      "drawn-region",
+      [0.85, 783 / 784],
+      [12.5, 13.1]
+    );
+
+    expect(summary.sampledSharePhrase).toBe(
+      "usable SST over 85%–>99% of the drawn region"
+    );
+    expect(marineAveragedSstSupportClause(summary)).not.toContain("100%");
+  });
+
+  it("still prints 100% for a month that really did cover the footprint", () => {
+    // Only the lowest tier decides whether the clause fires, so an exact 1 can
+    // sit at the top of the range. There the completeness is real and must not
+    // be hedged.
+    const summary = summarizeMarineAveragedSstSupport(
+      "drawn-region",
+      [0.85, 1],
+      [12.5, 13.1]
+    );
+
+    expect(summary.sampledSharePhrase).toBe(
+      "usable SST over 85%–100% of the drawn region"
+    );
+  });
+
+  it("collapses a range whose two ends round to the same percent", () => {
+    // Comparing the rendered ends rather than the raw fractions keeps the
+    // clause from announcing a range it cannot show.
+    const summary = summarizeMarineAveragedSstSupport(
+      "sampled-area",
+      [0.845, 0.854],
+      [12.5, 13.1]
+    );
+
+    expect(summary.sampledSharePhrase).toBe(
+      "usable SST over 85% of the sampled area"
+    );
+  });
 });
