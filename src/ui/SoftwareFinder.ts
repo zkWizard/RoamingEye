@@ -128,9 +128,18 @@ export class SoftwareFinder {
     this.trap.deactivate();
   }
 
+  /**
+   * Load the reviewed catalog, once per successful read.
+   *
+   * See `FleetDashboard.ensureData`: the same in-flight guard latched the same
+   * way here, so one dropped request retired this panel for the session.
+   */
   private async ensureCatalog(): Promise<void> {
     if (this.catalog) return;
     if (!this.loading) {
+      // Silent, like every other transient write to this line: the settled
+      // result — the count, or the failure below — is what gets announced.
+      this.setStatus("Loading reviewed catalog...", { announce: false });
       this.loading = fetch("data/software-catalog.json")
         .then((response) => {
           if (!response.ok)
@@ -143,7 +152,11 @@ export class SoftwareFinder {
           this.render();
         })
         .catch(() => {
-          this.setStatus("The reviewed catalog is unavailable right now.");
+          // Drop the guard so the next open retries instead of replaying this.
+          this.loading = null;
+          this.setStatus(
+            "The reviewed catalog is unavailable right now. Reopen this panel to try again."
+          );
         });
     }
     await this.loading;

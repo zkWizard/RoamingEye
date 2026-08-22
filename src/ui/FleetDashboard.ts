@@ -112,9 +112,25 @@ export class FleetDashboard {
     this.trap.deactivate();
   }
 
+  /**
+   * Load the committed fleet artifacts, once per successful read.
+   *
+   * `this.loading` is the in-flight guard, and a REJECTED fetch used to sit in
+   * it for good: `this.data` stayed null, so every later open awaited a promise
+   * that had already settled into the failure message and asked the network for
+   * nothing. One dropped request left the panel reading "unavailable" for the
+   * rest of the session, with the artifacts back and a page reload the only way
+   * out of it. `main.ts` already clears its cached panel on failure so the next
+   * press gets a second chance at CONSTRUCTING this dialog; the fetch behind it
+   * now takes one too, which is what that second press was for.
+   */
   private async ensureData(): Promise<void> {
     if (this.data) return;
     if (!this.loading) {
+      // Put the wait back on the line before asking again. Reopening onto the
+      // last failure reads as a dead control reprinting itself, which is a
+      // reason to press a third time rather than wait out the request.
+      this.status.textContent = "Loading latest fleet run...";
       this.loading = Promise.all([
         fetch("data/agent-status.json"),
         fetch("data/agent-history.json"),
@@ -134,8 +150,10 @@ export class FleetDashboard {
           this.render();
         })
         .catch(() => {
+          // Drop the guard so the next open retries instead of replaying this.
+          this.loading = null;
           this.status.textContent =
-            "The latest fleet report is unavailable right now.";
+            "The latest fleet report is unavailable right now. Reopen this panel to try again.";
         });
     }
     await this.loading;
