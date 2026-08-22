@@ -1111,7 +1111,8 @@ if (probeEl) {
     // Mode toggle (point ↔ area) re-samples the same location.
     () => {
       if (probeTarget) runProbe(probeTarget.lat, probeTarget.lon);
-    }
+    },
+    (message) => announcer.announce(message)
   );
   const sampler = new ProbeSampler(PROBE_IMAGE);
   closeProbe = () => {
