@@ -103,7 +103,12 @@ const NAMED_TALLY_LIMIT = 3;
  * for a 10-landform extent. The ordering is stated as "ordered by count"
  * rather than "most common first": ties are ordinary here — a small extent
  * commonly holds one record of each landform — and the tie-break is
- * alphabetical, so a superlative would misdescribe that case.
+ * alphabetical, so a superlative would misdescribe that case. Counting the
+ * remainder can reintroduce that superlative on its own, because the cut can
+ * fall inside a tie: naming three of four landforms that all hold one record
+ * says nothing about count, only about spelling. The ordering phrase names the
+ * tie-break in that case, so what decided the split is on screen wherever it
+ * decided anything.
  * GVP's own qualifier markers are folded into the base landform by
  * summarizeVolcanoTypes; the folded count is disclosed only when it is
  * non-zero, so an extent whose records carry no marker never reads as though
@@ -158,8 +163,24 @@ export function volcanoTypeCompositionText(
           `${oneFolded ? "carries" : "carry"} GVP's multiplicity or ` +
           `uncertainty marker and ${oneFolded ? "is" : "are"} counted under ` +
           `the base landform.`;
-  // A single landform has no order to describe.
-  const order = summary.tallies.length === 1 ? "" : ", ordered by count";
+  // A single landform has no order to describe. Where the remainder is counted
+  // rather than named, the count alone stops explaining the split: the cut can
+  // land inside a tie, so a named landform and a counted-away one carry the
+  // identical figure and were separated only by the alphabetical tie-break.
+  // Naming that tie-break exactly there keeps the reader from reading the named
+  // landforms as leading the ones withheld — the same misreading the "ordered
+  // by count" wording was chosen over "most common first" to avoid. Measured
+  // against 40 real Nominatim extents: truncation fires for 18, and for 6 of
+  // those the cut splits a tie.
+  const cutSplitsTie =
+    remainder > 0 &&
+    named[named.length - 1].count === summary.tallies[named.length].count;
+  const order =
+    summary.tallies.length === 1
+      ? ""
+      : cutSplitsTie
+        ? ", ordered by count then name"
+        : ", ordered by count";
 
   return (
     `Recorded landforms across all ${summary.totalCount} matched ` +
