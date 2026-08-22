@@ -333,4 +333,59 @@ describe("placeSnowCoverInsight", () => {
     expect(below.detail).toContain("Usable area coverage was 85.1%.");
     expect(below.detail).not.toContain("different drawn area");
   });
+
+  it("does not round a nearly whole footprint up to the whole place", () => {
+    // The share is cos(latitude)-weighted over up to 784 cells, not a count of
+    // them, so an undrawn poleward sliver of a high-latitude place lands well
+    // inside the last rounding step. Printing 100% there tells the reader there
+    // is no undrawn share, which the caveat in the same detail denies.
+    const insight = placeSnowCoverInsight(months, [80, 55], months[1], {
+      validFractions: [0.9996, 0.9996],
+    });
+
+    expect(insight.detail).toContain("Usable area coverage was >99.9%.");
+    expect(insight.detail).not.toContain("Usable area coverage was 100%");
+  });
+
+  it("still says 100% for a footprint that really was drawn whole", () => {
+    const insight = placeSnowCoverInsight(months, [80, 55], months[1], {
+      validFractions: [1, 1],
+    });
+
+    expect(insight.detail).toContain("Usable area coverage was 100%.");
+  });
+
+  it("does not round a sliver of usable coverage down to none", () => {
+    // `coverageFor` already separates these two states — a withheld mean over a
+    // drawn sliver is `missing-value`, an undrawn place is `zero-coverage` —
+    // and the export contract turns the same split into
+    // `insufficient-valid-coverage` against `source-no-data`. Rounding the
+    // share to 0% erases it, and lands next to "no usable value was reported".
+    const insight = placeSnowCoverInsight(months, [80, null], months[1], {
+      validFractions: [0.9, 0.0004],
+    });
+
+    expect(insight.value).toBe("Unavailable");
+    expect(insight.detail).toContain("Usable area coverage was <0.1%");
+    expect(insight.detail).not.toContain("Usable area coverage was 0%");
+  });
+
+  it("still says 0% when the source drew nothing over the place", () => {
+    const insight = placeSnowCoverInsight(months, [80, null], months[1], {
+      validFractions: [0.9, 0],
+    });
+
+    expect(insight.detail).toContain(
+      "Usable area coverage was 0%; no usable value was reported."
+    );
+  });
+
+  it("carries the guard into the mismatch sentence's earlier end", () => {
+    const insight = placeSnowCoverInsight(months, [80, 55], months[1], {
+      validFractions: [0.99998, 0.2],
+    });
+
+    expect(insight.detail).toContain("Usable area coverage was 20% in 2025-03");
+    expect(insight.detail).toContain("against >99.9% in 2025-02");
+  });
 });

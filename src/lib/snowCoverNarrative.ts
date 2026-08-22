@@ -206,7 +206,7 @@ function coverageText(summary: SnowCoverSummary): string {
   const usable =
     fraction === null
       ? "Usable area coverage was not supplied"
-      : `Usable area coverage was ${formatPercent(fraction * 100)}`;
+      : `Usable area coverage was ${formatCoverageShare(fraction)}`;
   switch (summary.coverage.status) {
     case "available":
       return `${usable}.`;
@@ -253,6 +253,49 @@ function formatMonth(month: YearMonth): string {
 
 function formatPercent(value: number): string {
   return `${roundTo(value, 1)}%`;
+}
+
+/**
+ * Render a sampled-coverage share without rounding a partly usable footprint
+ * into a whole one, or a partly usable footprint into none at all.
+ *
+ * A share is a ratio this app computes exactly, not a quantity it measures, so
+ * a printed `100%` asserts *all of the footprint* as flatly as a printed `0%`
+ * asserts *none of it* — and both ends of that carry weight here.
+ *
+ * The floor is the one with a rule already written against it. `coverageFor`
+ * (snowCover.ts) separates a `zero-coverage` month, where the source drew
+ * nothing over the place, from a `missing-value` one, where it drew something
+ * and this app's admission threshold declined to average it; the export
+ * contract turns the same distinction into `source-no-data` against
+ * `insufficient-valid-coverage`, on the stated grounds that reporting the
+ * second as the first "blames the source for our own admission rule"
+ * (placeObservationExport.ts). Rounding a small positive share to `0%` prints
+ * the accusation that rule exists to avoid, next to a sentence — "no usable
+ * value was reported" — that a reader will attach it to.
+ *
+ * The ceiling matters for this layer in particular: the card's own caveat says
+ * the value is a mean over the *drawn* part of the place and that the undrawn
+ * share is reported as coverage instead. A rounded `100%` tells the reader
+ * there is no undrawn share, contradicting the sentence beside it.
+ *
+ * Both ends are ordinary rather than rare because the share is cos(latitude)
+ * area-weighted over a grid of up to 784 cells (MAX_GEOMETRY_SAMPLE_POINTS),
+ * not a count of them: at the high latitudes where snow cover is the layer
+ * worth reading, a poleward sliver carries well under 0.05% of a place's
+ * weight, which is all it takes.
+ *
+ * Deliberately NOT applied to the snow-covered-area value itself. That is a
+ * measurement, decoded from a discrete NDSI ramp at 0.62 pp RMSE
+ * (snowCoverRamp.ts), so 100% is a real and reportable state and distinguishing
+ * 99.96 from 100.0 would claim a precision the product does not have. The
+ * guard belongs to the ratio, not to the reading.
+ */
+function formatCoverageShare(fraction: number): string {
+  const shown = roundTo(fraction * 100, 1);
+  if (shown === 0 && fraction > 0) return "<0.1%";
+  if (shown === 100 && fraction < 1) return ">99.9%";
+  return `${shown}%`;
 }
 
 function formatPercentagePoints(value: number): string {
@@ -411,8 +454,8 @@ function coverageComparisonSentence(change: SnowSeasonChange): string {
     return plain;
   }
   return (
-    `Usable area coverage was ${formatPercent(laterShown)} in ${formatMonth(change.later.dataMonth)} ` +
-    `against ${formatPercent(earlierShown)} in ${formatMonth(change.earlier.dataMonth)}, ` +
+    `Usable area coverage was ${formatCoverageShare(laterFraction)} in ${formatMonth(change.later.dataMonth)} ` +
+    `against ${formatCoverageShare(earlierFraction)} in ${formatMonth(change.earlier.dataMonth)}, ` +
     `so each month's mean covers a different drawn area and the change above is not a ` +
     `like-for-like comparison of the same ground.`
   );
@@ -421,7 +464,7 @@ function coverageComparisonSentence(change: SnowSeasonChange): string {
 function coverageSentence(validFraction: number | null): string {
   return validFraction === null
     ? "Usable area coverage was not supplied."
-    : `Usable area coverage was ${formatPercent(validFraction * 100)}.`;
+    : `Usable area coverage was ${formatCoverageShare(validFraction)}.`;
 }
 
 /**
