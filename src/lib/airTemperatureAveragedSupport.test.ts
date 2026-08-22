@@ -132,6 +132,37 @@ describe("airTemperatureAveragedSupportClause", () => {
     expect(clause).not.toContain("0% of");
   });
 
+  it("prints a near-whole share as >99% rather than a contradictory 100%", () => {
+    // One undrawn cell in a full 28x28 drawn-region grid (lib/probe.ts
+    // regionGridSize). The rest of the clause says each mean covers its drawn
+    // cells alone and reasons about "an undrawn share", which a bare "100%"
+    // flatly contradicts in the same sentence.
+    const clause =
+      airTemperatureAveragedSupportClause(
+        summarizeAirTemperatureAveragedSupport(
+          "drawn-region",
+          [250, 251],
+          [783 / 784, 783 / 784]
+        )
+      ) ?? "";
+    expect(clause).toContain(">99% of the drawn region");
+    expect(clause).not.toContain("100%");
+  });
+
+  it("still prints 100% for a month that really did cover the footprint", () => {
+    // Only the minimum decides the clause fires, so an exact 1 can sit at the
+    // top of the range. There the completeness is real and must not be hedged.
+    const clause =
+      airTemperatureAveragedSupportClause(
+        summarizeAirTemperatureAveragedSupport(
+          "drawn-region",
+          [250, 251],
+          [783 / 784, 1]
+        )
+      ) ?? "";
+    expect(clause).toContain(">99%–100%");
+  });
+
   it("quotes the ramp window from the measured colormap facts", () => {
     const clause =
       airTemperatureAveragedSupportClause(

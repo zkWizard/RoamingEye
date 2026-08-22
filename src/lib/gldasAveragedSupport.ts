@@ -97,9 +97,10 @@ export interface GldasAveragedSupportSummary {
 /**
  * Classify the drawn shares behind a charted water-cycle series.
  *
- * Only an exact 1 counts as fully drawn: the clause reports whole percent, so a
- * footprint printing "100%" at 0.999 still excluded pixels and still needs the
- * caveat. A share outside [0, 1] is not a share and is skipped rather than
+ * Only an exact 1 counts as fully drawn: a footprint at 0.999 still excluded
+ * pixels and still needs the caveat. `formatDrawnShare` holds up its end by
+ * printing that share as ">99%", so the clause never rounds the excluded pixels
+ * away. A share outside [0, 1] is not a share and is skipped rather than
  * silently treated as complete.
  */
 export function summarizeGldasAveragedSupport(
@@ -217,21 +218,43 @@ function footprintLabel(footprint: GldasAveragedFootprint): string {
   return footprint === "drawn-region" ? "drawn region" : "sampled area";
 }
 
+/**
+ * The span of drawn shares, collapsed to a single share when both ends print
+ * the same text. Rounding makes that ordinary: a footprint whose months ran
+ * 0.990 to 0.994 is not usefully described as "99%–99%", and comparing the
+ * rendered ends rather than the raw fractions keeps the clause from announcing
+ * a range it cannot show.
+ */
 function describeShareRange(summary: GldasAveragedSupportSummary): string {
-  const min = summary.minFraction ?? 0;
-  const max = summary.maxFraction ?? 0;
-  return min === max
-    ? formatDrawnShare(min)
-    : `${formatDrawnShare(min)}–${formatDrawnShare(max)}`;
+  const min = formatDrawnShare(summary.minFraction ?? 0);
+  const max = formatDrawnShare(summary.maxFraction ?? 0);
+  return min === max ? min : `${min}–${max}`;
 }
 
 /**
- * Whole percent, except that a positive share below half a percent reads as
- * "<1%" rather than a "0%" that would contradict the mean printed beside it.
+ * Whole percent, except at the two ends where rounding would contradict the
+ * clause it sits in.
+ *
+ * A positive share below half a percent reads as "<1%" rather than a "0%" that
+ * would contradict the mean printed beside it. A share of exactly zero stays
+ * "0%": there the absence is real.
+ *
+ * Symmetrically, a share short of the whole footprint reads as ">99%" rather
+ * than a "100%" that the rest of the clause immediately contradicts by saying
+ * each mean covers its drawn cells alone and that an undrawn share is not
+ * evidence of dry ground. `summarizeGldasAveragedSupport` already refuses to
+ * call anything but an exact 1 fully drawn for this reason; rounding the same
+ * share up to "100%" here gave that refusal nothing to show. A large footprint
+ * makes it ordinary rather than rare — a drawn region samples up to 28x28
+ * (lib/probe.ts `regionGridSize`), so one undrawn pixel among 784 rounds to
+ * 100%. Only an exact 1 prints "100%", matching vegetationAveragedSupport.ts,
+ * which formats the same share for the same sampler.
  */
 function formatDrawnShare(fraction: number): string {
   const percent = Math.round(fraction * 100);
-  return percent === 0 && fraction > 0 ? "<1%" : `${percent}%`;
+  if (percent === 0 && fraction > 0) return "<1%";
+  if (percent === 100 && fraction < 1) return ">99%";
+  return `${percent}%`;
 }
 
 /** Trailing zeros off an integral bound: "50 kg/m²", not "50.0 kg/m²". */
