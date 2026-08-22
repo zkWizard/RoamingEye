@@ -1786,6 +1786,20 @@ body {
   font-size: 0.78rem;
   color: var(--muted);
 }
+/* The qualifications that trail a settled reading. Same muted colour, one step
+   down in size — the treatment .probe__caveat already gives the panel's
+   standing qualification — so the measurement above it reads as the answer
+   rather than as the first sixth of a paragraph. `hidden` while empty, which is
+   every non-stats message, so the panel's height is unchanged there. */
+.probe__status-detail {
+  margin: 0.25rem 0 0;
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.probe__status-detail[hidden] {
+  display: none;
+}
 .probe__footer {
   display: flex;
   align-items: center;
