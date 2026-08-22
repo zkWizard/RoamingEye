@@ -76,6 +76,21 @@ async function column(page: Page): Promise<Column> {
 }
 
 test.describe("toolbar column height is continuous", () => {
+  // Every test here walks the window through a series of viewport sizes, and
+  // each step is a `setViewportSize` plus the wait for the app’s own relayout
+  // to publish. That is slow under CI’s SwiftShader rendering: the fifteen-step
+  // walk below measures 6.8s locally and 16-29s on CI, against Playwright’s 30s
+  // default — close enough to the cap that it expired mid-walk twice, with no
+  // assertion involved and nothing wrong with the layout it was measuring. The
+  // headroom is what the other viewport-walking specs already take (see
+  // attribution-contrast.spec.ts), and it buys legibility as well as stability:
+  // a step that genuinely hangs now fails on `waitForFunction`’s own 30s
+  // timeout, naming the height it stuck at, instead of the whole test expiring
+  // at an arbitrary point in the loop.
+  test.beforeEach(() => {
+    test.setTimeout(120_000);
+  });
+
   // Driven at a width below the band gate, which is where the centred cap and
   // the anchored short-window rule still meet. At 1366px the band replaces both
   // and the seam is gone rather than smooth, which would pass this spec without
@@ -190,6 +205,12 @@ test.describe("toolbar column height is continuous", () => {
 });
 
 test.describe("the HUD panel keeps its clicks where the boxes overlap", () => {
+  // Same walk, same reason as the block above: five widths of resize plus a
+  // hit test over every control, 4.8s locally and so on the same CI multiple.
+  test.beforeEach(() => {
+    test.setTimeout(120_000);
+  });
+
   // Widths where the panel's box reaches under the bar: 66px of overlap at
   // 560px wide down to 18px at 1024px. The shared region is the panel's empty
   // right margin, and this spec is what says so. One boot, then resizes — the

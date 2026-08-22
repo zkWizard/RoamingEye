@@ -1280,7 +1280,11 @@ if (probeEl) {
         signal: abort.signal,
         onValue: (index, value) => panel.setValue(index, value),
         onProgress: (done, total) => {
-          panel.setStatus(`Sampling ${done}/${total} months…`);
+          // Silent: the counter ticks once per month, and announcing every
+          // tick buries the result behind a queue of them. See setStatus.
+          panel.setStatus(`Sampling ${done}/${total} months…`, {
+            announce: false,
+          });
           const now = performance.now();
           if (now - lastDraw > 150 || done === total) {
             lastDraw = now;
@@ -1675,7 +1679,11 @@ if (probeEl) {
         signal: abort.signal,
         onValue: (index, value) => panel.setValue(index, value),
         onProgress: (done, total) => {
-          panel.setStatus(`Sampling ${done}/${total} months…`);
+          // Silent: the counter ticks once per month, and announcing every
+          // tick buries the result behind a queue of them. See setStatus.
+          panel.setStatus(`Sampling ${done}/${total} months…`, {
+            announce: false,
+          });
           const now = performance.now();
           if (now - lastDraw > 150 || done === total) {
             lastDraw = now;
