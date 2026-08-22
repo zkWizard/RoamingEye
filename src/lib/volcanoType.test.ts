@@ -195,7 +195,10 @@ describe("volcanoTypeCompositionText", () => {
     expect(text).not.toContain("further landform");
   });
 
-  it("names the three largest and counts the rest beyond four landforms", () => {
+  it("names three and counts the rest beyond four landforms", () => {
+    // Not "the three largest": Caldera, Maar, and Complex all hold one record
+    // here, so the third name was chosen by spelling, not by count. The
+    // ordering clause below is what says so.
     const text = volcanoTypeCompositionText(
       types([
         "Stratovolcano",
@@ -211,6 +214,58 @@ describe("volcanoTypeCompositionText", () => {
     expect(text).toContain(
       "Stratovolcano 3, Shield 2, Caldera 1, and 2 further landform types"
     );
+  });
+
+  it("names the tie-break when the counted-away landforms tie the last named", () => {
+    // Caldera 1 is named while Complex 1 and Maar 1 are counted away, so
+    // "ordered by count" alone cannot account for the split.
+    const text = volcanoTypeCompositionText(
+      types([
+        "Stratovolcano",
+        "Stratovolcano",
+        "Stratovolcano",
+        "Shield",
+        "Shield",
+        "Caldera",
+        "Maar",
+        "Complex",
+      ])
+    );
+    expect(text).toContain("ordered by count then name");
+  });
+
+  it("keeps the plain ordering when the cut falls on a real gap in count", () => {
+    // Caldera 2 outranks both counted-away landforms, so the count does explain
+    // the split and there is no tie-break to disclose.
+    const text = volcanoTypeCompositionText(
+      types([
+        "Stratovolcano",
+        "Stratovolcano",
+        "Stratovolcano",
+        "Stratovolcano",
+        "Shield",
+        "Shield",
+        "Shield",
+        "Caldera",
+        "Caldera",
+        "Maar",
+        "Complex",
+      ])
+    );
+    expect(text).toContain(
+      "ordered by count: Stratovolcano 4, Shield 3, Caldera 2, and 2 further landform types"
+    );
+    expect(text).not.toContain("then name");
+  });
+
+  it("keeps the plain ordering when every landform is named", () => {
+    // Four tied landforms are all named, so nothing was withheld and the
+    // alphabetical order decided only the reading sequence.
+    const text = volcanoTypeCompositionText(
+      types(["Caldera", "Complex", "Maar", "Shield"])
+    );
+    expect(text).toContain("ordered by count:");
+    expect(text).not.toContain("then name");
   });
 
   it("describes the order by count, never as a superlative", () => {
