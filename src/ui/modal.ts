@@ -21,6 +21,9 @@ const FOCUSABLE =
  */
 const openTraps: FocusTrap[] = [];
 
+/** Keypresses a trap has already acted on — see `claims`. */
+const claimed = new WeakSet<Event>();
+
 export class FocusTrap {
   private previous: HTMLElement | null = null;
   private panel: HTMLElement | null = null;
@@ -48,16 +51,26 @@ export class FocusTrap {
     }
   };
 
-  /**
-   * True while this trap is the topmost open one.
-   *
-   * Tab has always deferred to it. Escape now asks the same question: each
-   * overlay listens for Escape on `document`, so with two open every one of
-   * them used to close on a single press and the reader lost the panel they
-   * were reading just for glancing at the shortcuts sheet.
-   */
-  isTopmost(): boolean {
+  /** True while this trap is the topmost open one. */
+  private isTopmost(): boolean {
     return openTraps[openTraps.length - 1] === this;
+  }
+
+  /**
+   * True when this trap should act on `event` — it is on top, and no trap has
+   * already claimed this same keypress.
+   *
+   * Escape needs the second half. Every overlay listens on `document`, so one
+   * press runs all of their handlers in turn, and "am I on top?" is not stable
+   * across that: the topmost overlay closes first and pops itself off the
+   * stack, so the panel underneath finds *itself* on top while the same event
+   * is still being dispatched, and closes too. Claiming the event settles the
+   * question once, whatever order the listeners happen to run in.
+   */
+  claims(event: Event): boolean {
+    if (!this.isTopmost() || claimed.has(event)) return false;
+    claimed.add(event);
+    return true;
   }
 
   /** Start trapping inside `panel`; focuses its first control. */
