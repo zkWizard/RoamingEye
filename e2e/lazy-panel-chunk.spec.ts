@@ -71,3 +71,50 @@ test("a panel that loads its chunk shows no error toast", async ({ page }) => {
   // The panel opening is the report; a toast on the success path would be noise.
   await expect(page.locator(".error-toast")).toHaveText("");
 });
+
+test("the press that waits on a panel chunk says so, and swallows the repeats", async ({
+  page,
+}) => {
+  // Hold the chunk open rather than sleeping, so this pins the waiting state
+  // without spending wall-clock in the blocking gate.
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let requests = 0;
+  await page.route("**/assets/FleetDashboard*", async (route) => {
+    requests++;
+    await held;
+    await route.continue();
+  });
+
+  await page.goto("/");
+  await awaitAppInteractive(page);
+
+  const link = page.locator("#fleet-link");
+  await expect(link).not.toHaveAttribute("aria-busy", "true");
+  const idle = await link.boundingBox();
+
+  await link.click();
+
+  // Nothing of this panel is in the page until its chunk lands, so the wait
+  // has to be on the control that was pressed — an empty overlay implies it to
+  // nobody, and to assistive tech not at all.
+  await expect(link).toHaveAttribute("aria-busy", "true");
+  await expect(link).toHaveAttribute("data-state", "pending");
+
+  // The ordinary response to a control that looks dead is to press it again;
+  // while it is on the wire those repeats cost nothing.
+  await link.click();
+  await link.click();
+  expect(requests).toBe(1);
+
+  // The cue must not resize the control. This header is a wrapping row at
+  // phone widths, where a button that grew would reflow the row around it.
+  expect(await link.boundingBox()).toEqual(idle);
+
+  release();
+  await expect(page.locator("#fleet-page")).toBeVisible({ timeout: 20_000 });
+  await expect(link).not.toHaveAttribute("aria-busy", "true");
+  await expect(link).not.toHaveAttribute("data-state", "pending");
+});

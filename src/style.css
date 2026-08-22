@@ -238,6 +238,20 @@ body {
   outline-offset: 3px;
 }
 
+/* Waiting on this panel's chunk — the same `data-state="pending"` the toolbar
+   buttons carry, so "fetching" reads the same wherever it happens. These are
+   text buttons with no fixed icon box to spin a ring inside, and this header
+   is a wrapping row at phone widths, so the label only fades: a control that
+   grew here would reflow the row around it. `cursor: progress` is the desktop
+   half of the cue and the fade is the half a touch reader gets. Dimming is
+   still and needs no reduced-motion arm. */
+.software-link[data-state="pending"],
+.fleet-link[data-state="pending"],
+.attribution__link[data-state="pending"] {
+  opacity: 0.55;
+  cursor: progress;
+}
+
 /* --- Theme toggle (in the header, under the hint) ----------------------------- */
 .theme-toggle-mount {
   margin-top: 0.5rem;
