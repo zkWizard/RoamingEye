@@ -154,6 +154,39 @@ describe("gldasAveragedSupportClause", () => {
     expect(clause).toContain("<1%");
   });
 
+  it("prints a near-whole share as >99% rather than a contradictory 100%", () => {
+    // One undrawn pixel in a full 28x28 drawn-region grid (lib/probe.ts
+    // regionGridSize). The rest of the clause says each mean covers its drawn
+    // cells alone and that an undrawn share is not evidence of dry ground,
+    // which a bare "100%" flatly contradicts in the same sentence.
+    const clause =
+      gldasAveragedSupportClause(
+        summarizeGldasAveragedSupport(
+          "precip",
+          "drawn-region",
+          [1, 2],
+          [783 / 784, 783 / 784]
+        )
+      ) ?? "";
+    expect(clause).toContain(">99% of the drawn region");
+    expect(clause).not.toContain("100%");
+  });
+
+  it("still prints 100% for a month that really did cover the footprint", () => {
+    // Only the minimum decides the clause fires, so an exact 1 can sit at the
+    // top of the range. There the completeness is real and must not be hedged.
+    const clause =
+      gldasAveragedSupportClause(
+        summarizeGldasAveragedSupport(
+          "soil",
+          "drawn-region",
+          [1, 2],
+          [783 / 784, 1]
+        )
+      ) ?? "";
+    expect(clause).toContain(">99%–100%");
+  });
+
   it("quotes each ceiling in the unit the probe reports, not the native label", () => {
     // The precipitation ramp publishes `≥ 5.0e-04` in kg/m²/s while the panel
     // beside the clause prints mm/day — quoting the published label would
