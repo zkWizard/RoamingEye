@@ -5,6 +5,7 @@ import {
   describeMonthIllumination,
   describeSnowIllumination,
   noonSolarElevationDeg,
+  snowIlluminationCsvHeaders,
   snowIlluminationNote,
   snowIlluminationPairNote,
   solarDeclinationDeg,
@@ -313,5 +314,60 @@ describe("snowIlluminationPairNote", () => {
     expect(
       snowIlluminationPairNote(s, APR, { year: 2026, month: 13 })
     ).toBeNull();
+  });
+});
+
+describe("snowIlluminationCsvHeaders", () => {
+  it("speaks only for the snow layer", () => {
+    expect(snowIlluminationCsvHeaders("sst", 78.2)).toEqual([]);
+    expect(snowIlluminationCsvHeaders("lst", 78.2)).toEqual([]);
+    expect(snowIlluminationCsvHeaders(undefined, 78.2)).toEqual([]);
+  });
+
+  it("is silent where the whole year can be observed", () => {
+    expect(snowIlluminationCsvHeaders("snow", 0)).toEqual([]);
+    expect(snowIlluminationCsvHeaders("snow", 47.6)).toEqual([]);
+    expect(snowIlluminationCsvHeaders("snow", -55)).toEqual([]);
+    expect(snowIlluminationCsvHeaders("snow", Number.NaN)).toEqual([]);
+  });
+
+  it("names the dark months and refuses a value read from one", () => {
+    const [header, ...rest] = snowIlluminationCsvHeaders("snow", 78.2);
+    expect(rest).toEqual([]);
+    expect(header).toMatch(/^# snow_illumination_window: /);
+    expect(header).toContain("78.2°N");
+    expect(header).toContain("Jan / Nov / Dec (sun never rises)");
+    expect(header).toContain("Feb (noon sun under 5°)");
+    expect(header).toContain("not a measurement of them");
+  });
+
+  it("never emits a CSV delimiter", () => {
+    // A `#` line sits in the same file as the data rows, so a comma in it
+    // would split into phantom columns. Checked across the latitudes that
+    // produce each clause shape, including both hemispheres.
+    for (const latitude of [78.2, 64, -78.2, -64, 66.6, 90, -90]) {
+      for (const header of snowIlluminationCsvHeaders("snow", latitude)) {
+        expect(header).not.toContain(",");
+      }
+    }
+  });
+
+  it("covers the same months the panel sentence names", () => {
+    // One window, two renderings: the file must not disagree with the screen.
+    for (const latitude of [64, 70, 78.2, -70, -78.2]) {
+      const header = snowIlluminationCsvHeaders("snow", latitude)[0];
+      const note = snowIlluminationNote(latitude);
+      expect(Boolean(header)).toBe(note !== null);
+      if (!note) continue;
+      for (const month of note.match(/[A-Z][a-z]{2}/g) ?? []) {
+        expect(header).toContain(month);
+      }
+    }
+  });
+
+  it("reports the southern window against a southern latitude", () => {
+    const header = snowIlluminationCsvHeaders("snow", -78.2)[0];
+    expect(header).toContain("78.2°S");
+    expect(header).toContain("Jun / Jul");
   });
 });
