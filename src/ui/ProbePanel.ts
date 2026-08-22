@@ -116,7 +116,13 @@ export class ProbePanel {
   constructor(
     container: HTMLElement,
     private readonly onClose?: () => void,
-    private readonly onModeChange?: (mode: PanelMode) => void
+    private readonly onModeChange?: (mode: PanelMode) => void,
+    /**
+     * Voice for the CSV copy, which is otherwise reported in pixels only. See
+     * `copyCsv` — the share button and the imagery-URL button already take one
+     * for the same reason.
+     */
+    private readonly announce?: (message: string) => void
   ) {
     this.root = container;
     this.root.classList.add("probe");
@@ -1098,14 +1104,36 @@ export class ProbePanel {
     URL.revokeObjectURL(a.href);
   }
 
-  /** Copy the same provenance-stamped CSV the download produces. */
+  /**
+   * Copy the same provenance-stamped CSV the download produces.
+   *
+   * Both outcomes need a voice, for the reason the share button and the
+   * imagery-URL button already have one: a copy flips no state, so there is no
+   * `aria-pressed` or value to ride on, and the clipboard writes silently.
+   * The label swap is the only report either outcome gets, and a change to the
+   * accessible name of the button already holding focus is not reliably
+   * spoken — which leaves the failure in particular landing nowhere. A reader
+   * who hears nothing cannot tell a copy that worked from one the browser
+   * refused, and would paste whatever the clipboard held before.
+   *
+   * The failure names the way out rather than only the fault: unlike the other
+   * two copies this one has no `window.prompt` fallback, because it does not
+   * need one — `Download CSV` sits beside it, enabled from the same moment,
+   * and delivers the identical bytes.
+   */
   private copyCsv(): void {
     if (!this.csv) return;
     navigator.clipboard
       .writeText(this.csv())
-      .then(() => this.flashCopyLabel("Copied ✓"))
+      .then(() => {
+        this.flashCopyLabel("Copied ✓");
+        this.announce?.("Probe CSV copied");
+      })
       // Clipboard access can be denied (permissions policy, insecure context).
-      .catch(() => this.flashCopyLabel("Copy failed"));
+      .catch(() => {
+        this.flashCopyLabel("Copy failed");
+        this.announce?.("Copy failed. Use Download CSV instead.");
+      });
   }
 
   private flashCopyLabel(text: string): void {
