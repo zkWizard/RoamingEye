@@ -230,6 +230,54 @@ describe("place observation export", () => {
     });
   });
 
+  it("records a column-AOD month whose imagery never arrived as a failed step", () => {
+    const dataMonth = { year: 2026, month: 5 };
+
+    // A dropped download records the zero coverage share an unpublished month
+    // does, so left unmarked the derivation downstream reads it as MERRA-2
+    // having nothing to publish for the boundary. Stated here, it is the
+    // incomplete sampling step it actually was.
+    expect(aerosolPlaceObservationFromSample(dataMonth, null, 0, true)).toEqual(
+      {
+        dataMonth,
+        value: null,
+        validFraction: 0,
+        unavailableReason: "sampling-failed",
+      }
+    );
+
+    // Unflagged, the month keeps the coverage-derived reason it already had —
+    // the flag adds a reason, it never removes one.
+    expect(
+      aerosolPlaceObservationFromSample(dataMonth, null, 0, false)
+    ).toEqual({
+      dataMonth,
+      value: null,
+      validFraction: 0,
+    });
+  });
+
+  it("never marks a column-AOD month that carries a value as a failed download", () => {
+    const dataMonth = { year: 2026, month: 5 };
+
+    // A month holding a reading is proof its image arrived, and the contract
+    // rejects an unavailable reason on a recorded value outright. The ramp
+    // bound it already carries is untouched.
+    expect(
+      aerosolPlaceObservationFromSample(
+        dataMonth,
+        AEROSOL_RAMP_CEILING,
+        0.94,
+        true
+      )
+    ).toEqual({
+      dataMonth,
+      value: AEROSOL_RAMP_CEILING,
+      validFraction: 0.94,
+      valueBound: "at-or-above",
+    });
+  });
+
   it("carries the column-AOD bound through to the serialized record", () => {
     const record = JSON.parse(
       serializePlaceObservationExport({

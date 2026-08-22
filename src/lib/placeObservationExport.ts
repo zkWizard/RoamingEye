@@ -930,11 +930,25 @@ export function sstPlaceObservationFromSample(
  * and never guesses how far past the cap the true column lies. It is a
  * colour-ramp representability statement about total-column optical depth,
  * never surface air quality, an exposure or health claim, or a forecast.
+ *
+ * `transportFailed` marks a month whose imagery never arrived, and it carries
+ * the same weight here as it does for SST above. This builder states no reason
+ * of its own for a null month, so {@link placeObservationProductFromSample}
+ * derives one from the coverage share — and a month that failed on transport
+ * records a zero share exactly as an unpublished one does, so the derivation
+ * returns `source-no-data` and the downloaded record asserts that MERRA-2
+ * published no column AOD for the boundary. Only the leading month is guarded
+ * upstream (`assertLeadingMonthRetrieved`); the earlier month of the card's
+ * pair reaches here with its failure unmarked, which is the case this closes.
+ *
+ * @param transportFailed whether this month's image failed on transport rather
+ *   than being declined by the source (see lib/probeRetrievalFailure.ts)
  */
 export function aerosolPlaceObservationFromSample(
   dataMonth: YearMonth,
   value: number | null,
-  validFraction: number
+  validFraction: number,
+  transportFailed = false
 ): PlaceObservationInput {
   return {
     dataMonth,
@@ -944,6 +958,11 @@ export function aerosolPlaceObservationFromSample(
     // column AOD cannot be negative — so the one direction a capped month can
     // be wrong in is upward. An interior value is returned unqualified.
     ...(isRampSaturated(value) ? { valueBound: "at-or-above" as const } : {}),
+    // Stated explicitly only for a failed download, so a month absent for any
+    // other reason keeps the coverage-derived reason it already carried.
+    ...(value === null && transportFailed
+      ? { unavailableReason: "sampling-failed" as const }
+      : {}),
   };
 }
 

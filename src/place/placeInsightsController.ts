@@ -520,7 +520,12 @@ export function runPlaceInsights(result: GeoResult): void {
                       sourceImageDimensions,
                       geometrySamplingStrategy,
                     },
-                    months[1]
+                    months[1],
+                    // Only the leading month is failed outright above; an
+                    // earlier month that dropped on the wire still reaches the
+                    // file, where a zero coverage share would otherwise be
+                    // read as the source publishing nothing here.
+                    transportFailureByMonth
                   ).map((observation, index) => {
                     // Marked per observation, not once per product: the layer's
                     // `legendCapCensoring` names one assessed month, so it can
@@ -543,8 +548,13 @@ export function runPlaceInsights(result: GeoResult): void {
                       return {
                         dataMonth,
                         value,
-                        unavailableReason:
-                          (validFractions[index] ?? 0) > 0
+                        // Same rule as the climate branch above: a month whose
+                        // image never arrived reports the zero coverage share
+                        // an unpublished month does, and only one of the two
+                        // is the source saying it has nothing here.
+                        unavailableReason: transportFailureByMonth[index]
+                          ? ("sampling-failed" as const)
+                          : (validFractions[index] ?? 0) > 0
                             ? ("insufficient-valid-coverage" as const)
                             : ("source-no-data" as const),
                         validFraction: validFractions[index],
@@ -838,7 +848,11 @@ export function runPlaceInsights(result: GeoResult): void {
             aerosolPlaceObservationFromSample(
               dataMonth,
               sample.values[index] ?? null,
-              sample.validFractions[index]
+              sample.validFractions[index],
+              // The guard above fails the card only on the leading month; the
+              // earlier month of the pair reaches the file either way, and a
+              // failed download there is not MERRA-2 publishing nothing.
+              sample.transportFailureByMonth[index]
             )
           ),
         });
