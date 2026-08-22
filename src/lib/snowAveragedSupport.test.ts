@@ -38,7 +38,9 @@ describe("summarizeSnowAveragedSupport", () => {
       [0.999, 1]
     );
     expect(summary.status).toBe("partly-drawn");
-    expect(snowAveragedSupportClause(summary)).toContain("100%");
+    // Only the minimum decides the clause fires, so an exact 1 can still sit at
+    // the top of the range; there the completeness is real and is not hedged.
+    expect(snowAveragedSupportClause(summary)).toContain(">99%–100%");
   });
 
   it("ignores months that charted nothing when reading shares", () => {
@@ -110,6 +112,31 @@ describe("snowAveragedSupportClause", () => {
     );
     expect(clause).toContain("40% of the drawn region");
     expect(clause).not.toContain("–");
+  });
+
+  it("reads a near-whole share as >99% rather than a contradictory 100%", () => {
+    // One undrawn pixel in a full 28x28 drawn-region grid (lib/probe.ts
+    // regionGridSize). The minimum is the meltiest charted month, so a rounded
+    // "100%" there would assert perennial complete cover in the same sentence
+    // that says the undrawn share grows through the melt season.
+    const clause = snowAveragedSupportClause(
+      summarizeSnowAveragedSupport("drawn-region", charted(2), [
+        783 / 784,
+        783 / 784,
+      ])
+    );
+    expect(clause).toContain(">99% of the drawn region");
+    expect(clause).not.toContain("100%");
+  });
+
+  it("collapses a range whose ends round to the same printed share", () => {
+    // 0.990 and 0.994 both print "99%", and a clause reading "99%–99%" would
+    // announce a spread it cannot show.
+    const clause = snowAveragedSupportClause(
+      summarizeSnowAveragedSupport("sampled-area", charted(2), [0.99, 0.994])
+    );
+    expect(clause).toContain("99% of the sampled area");
+    expect(clause).not.toContain("99%–99%");
   });
 
   it("reads a positive sliver as <1% rather than a 0% that contradicts the mean", () => {
