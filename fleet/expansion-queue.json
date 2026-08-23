@@ -1,13 +1,136 @@
 {
-  "version": 1,
-  "updatedAt": "2026-07-13T06:10:30Z",
+  "version": 2,
+  "updatedAt": "2026-08-20T02:00:00Z",
   "publishing": {
-    "mode": "ready-pr-per-validated-code-slice-with-manager-merge",
+    "mode": "outcome-first-ready-pr-with-manager-merge",
     "branchPrefix": "codex/",
     "baseBranch": "main",
     "autoMerge": true
   },
+  "pipeline": {
+    "doc": "docs/fleet-expansion-program.md",
+    "definitionOfDone": [
+      "ships-a-user-visible-change",
+      "wires-a-staged-module",
+      "advances-a-flagship-roadmap-item"
+    ],
+    "antiPatterns": [
+      "new-staged-module-with-no-call-site",
+      "caveat-only-clause",
+      "micro-polish-churn-as-a-whole-cycle",
+      "status-research-or-catalog-only-output"
+    ],
+    "stagedModuleBudget": "fleet/wired-budget.json",
+    "platformQualityMaxPrPerCycle": 1,
+    "metrics": {
+      "note": "Recorded per cycle by the Project Manager. PR count is deliberately not a headline metric.",
+      "userVisibleChanges": 0,
+      "modulesWired": 0,
+      "stagedModuleCount": 120,
+      "flagshipStepsLanded": 0,
+      "roadmapBoxesMoved": 0
+    }
+  },
   "lanes": [
+    {
+      "id": "integration",
+      "role": "Integrator",
+      "outcome": "Turns staged src/lib logic into something on screen: gives an unreachable module a call site and a way to show its result. Lowers fleet/wired-budget.json.",
+      "doneClause": "wires-a-staged-module",
+      "tasks": [
+        {
+          "id": "wire-first-staged-module",
+          "status": "pending",
+          "title": "Wire a high-value staged module into the UI and ratchet the wired-module budget down",
+          "acceptance": [
+            "Pick a staged module from `node scripts/walk-wired.mjs --list staged` whose output maps to a visible surface (a chart, a panel line, an overlay, a place-insight card)",
+            "Give it a real call site reachable from src/main.ts and a way to display its result",
+            "Lower maxStagedModules in fleet/wired-budget.json to the new staged count in the same PR",
+            "Cover the new user-facing behavior with an e2e or manual browser check"
+          ],
+          "limitations": [
+            "Wiring a module counts its code against the gzip bundle budget; read each chunk's ok/FAIL from `npm run build`."
+          ],
+          "nextSlice": "Repeat with the next staged module whose result has an obvious home in the interface."
+        }
+      ]
+    },
+    {
+      "id": "experience",
+      "role": "Experience",
+      "outcome": "Net-new user-facing features and genuine UI-quality work — new panels, interactions, and layouts — not focus-ring or caption micro-tweaks.",
+      "doneClause": "ships-a-user-visible-change",
+      "tasks": [
+        {
+          "id": "probe-caveat-budget",
+          "status": "pending",
+          "title": "Cap the probe panel's caveat clauses behind a methodology disclosure",
+          "acceptance": [
+            "Show at most a small fixed number of qualifier clauses inline in the probe/place-insights readout",
+            "Move the remainder behind an expandable 'methodology' disclosure so the panel stops reading as a wall of hedging text",
+            "No scientific claim is lost — every caveat remains reachable, just not all at once",
+            "Accessibility parity for the disclosure; covered by an e2e check"
+          ],
+          "limitations": [
+            "This is a presentation change; it must not alter any computed value or its stated uncertainty."
+          ],
+          "nextSlice": "Audit remaining panels for the same over-hedging pattern and apply the disclosure treatment consistently."
+        }
+      ]
+    },
+    {
+      "id": "flagship",
+      "role": "Flagship",
+      "outcome": "The 🚩 ROADMAP.md goals, across multiple cycles. Allowed to span cycles without a PR every window.",
+      "doneClause": "advances-a-flagship-roadmap-item",
+      "tasks": [
+        {
+          "id": "accurate-absolute-probe-values",
+          "status": "pending",
+          "title": "Invert the probe against GIBS's real colormaps (#170)",
+          "acceptance": [
+            "Replace decorative legend-gradient inversion with the real per-layer GIBS colormap (180–250 entries) for each calibrated layer",
+            "Collapse probe RMSE toward the quantization floor; document the measured accuracy per layer in METHODS.md",
+            "Land as reviewable steps — one layer or one stage at a time is a valid cycle"
+          ],
+          "limitations": [
+            "Colormap documents are fetched from a live service; keep the weekly colormap contract test as the drift guard."
+          ],
+          "nextSlice": "Extend real-colormap inversion to the next calibrated layer and update its documented accuracy."
+        }
+      ]
+    },
+    {
+      "id": "layers",
+      "role": "Layers",
+      "outcome": "Grows the layer catalogue end to end — data wiring and the UI to pick, render, legend, and probe it.",
+      "doneClause": "ships-a-user-visible-change",
+      "tasks": [
+        {
+          "id": "surface-water-or-fire-layer",
+          "status": "pending",
+          "title": "Add a new scientific layer end to end (fire/thermal anomalies or surface water)",
+          "acceptance": [
+            "Follow docs/adding-a-data-layer.md: register the layer, its GIBS identifier, timeline range, and legend",
+            "The layer is selectable in the picker, renders on the globe, shows a correct legend, and is probeable where applicable",
+            "Provenance (product, instrument, DOI) is wired through export and the providers page",
+            "Covered by an e2e check that selects and renders the layer"
+          ],
+          "limitations": [
+            "Only add layers backed by the existing open NASA/USGS ecosystem already cited by the project."
+          ],
+          "nextSlice": "Add the paired layer (whichever of fire/thermal or surface water was not shipped first)."
+        }
+      ]
+    },
+    {
+      "id": "platform-quality",
+      "role": "Platform & Quality",
+      "outcome": "Robustness, numerics, accessibility, provenance, perf, and the budgets — consolidated into one lane, capped at one merged PR per cycle so margin work supports the product instead of dominating it.",
+      "doneClause": "supporting",
+      "cap": { "maxMergedPrPerCycle": 1 },
+      "tasks": []
+    },
     {
       "id": "geology",
       "role": "Geologist",

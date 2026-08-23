@@ -11,6 +11,10 @@
 // module in the bundle while every function in it tree-shakes away — grep
 // what the importer actually uses before believing a module is integrated.
 //
+// The reachability walk is exported as computeReachability() so the
+// staged-module budget gate (scripts/check-wired-budget.mjs) measures the
+// bundle exactly the way this report does.
+//
 // Usage:
 //   node scripts/walk-wired.mjs               build with sourcemaps, then report counts
 //   node scripts/walk-wired.mjs --no-build    reuse the existing dist/
@@ -20,43 +24,69 @@ import { execSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 const root = process.cwd();
-const args = process.argv.slice(2);
 
-if (!args.includes("--no-build")) {
-  execSync("npx vite build --sourcemap", { stdio: "inherit" });
+/**
+ * Build (unless reusing an existing dist) and read which src/lib modules the
+ * shipped bundle reaches, via vite's sourcemaps.
+ *
+ * @param {{ build?: boolean }} [options]
+ * @returns {{ all: string[], wired: string[], staged: string[] }}
+ */
+export function computeReachability({ build = true } = {}) {
+  if (build) {
+    execSync("npx vite build --sourcemap", { stdio: "inherit" });
+  }
+
+  const dist = path.join(root, "dist", "assets");
+  if (!existsSync(dist)) {
+    throw new Error(
+      "dist/assets not found — build first (run without --no-build)"
+    );
+  }
+
+  const inBundle = new Set();
+  for (const file of readdirSync(dist)) {
+    if (!file.endsWith(".js.map")) continue;
+    const map = JSON.parse(readFileSync(path.join(dist, file), "utf8"));
+    for (const source of map.sources ?? []) {
+      const normalized = source.split("\\").join("/");
+      const at = normalized.indexOf("src/lib/");
+      if (at >= 0) inBundle.add(normalized.slice(at + "src/lib/".length));
+    }
+  }
+
+  const all = readdirSync(path.join(root, "src", "lib"))
+    .filter((f) => f.endsWith(".ts") && !f.includes(".test."))
+    .sort();
+  const wired = all.filter((f) => inBundle.has(f));
+  const staged = all.filter((f) => !inBundle.has(f));
+  return { all, wired, staged };
 }
 
-const dist = path.join(root, "dist", "assets");
-if (!existsSync(dist)) {
-  console.error("dist/assets not found — run again without --no-build");
-  process.exit(1);
-}
+function main() {
+  const args = process.argv.slice(2);
+  const { all, wired, staged } = computeReachability({
+    build: !args.includes("--no-build"),
+  });
 
-const inBundle = new Set();
-for (const file of readdirSync(dist)) {
-  if (!file.endsWith(".js.map")) continue;
-  const map = JSON.parse(readFileSync(path.join(dist, file), "utf8"));
-  for (const source of map.sources ?? []) {
-    const normalized = source.split("\\").join("/");
-    const at = normalized.indexOf("src/lib/");
-    if (at >= 0) inBundle.add(normalized.slice(at + "src/lib/".length));
+  const listAt = args.indexOf("--list");
+  if (listAt >= 0) {
+    const which = args[listAt + 1] === "wired" ? wired : staged;
+    for (const f of which) console.log(f);
+  } else {
+    console.log(
+      `src/lib: ${all.length} modules — ${wired.length} wired into the bundle, ${staged.length} unreachable`
+    );
   }
 }
 
-const all = readdirSync(path.join(root, "src", "lib"))
-  .filter((f) => f.endsWith(".ts") && !f.includes(".test."))
-  .sort();
-const wired = all.filter((f) => inBundle.has(f));
-const staged = all.filter((f) => !inBundle.has(f));
-
-const listAt = args.indexOf("--list");
-if (listAt >= 0) {
-  const which = args[listAt + 1] === "wired" ? wired : staged;
-  for (const f of which) console.log(f);
-} else {
-  console.log(
-    `src/lib: ${all.length} modules — ${wired.length} wired into the bundle, ${staged.length} unreachable`
-  );
+// Run the CLI only when invoked directly, not when imported by the budget gate.
+if (
+  process.argv[1] &&
+  fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
+) {
+  main();
 }

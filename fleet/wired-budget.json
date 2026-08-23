@@ -1,0 +1,7 @@
+{
+  "maxStagedModules": 120,
+  "measuredAt": "2026-08-20",
+  "measuredCommit": "59b80b7",
+  "rationale": "Ceiling on the number of unreachable ('staged') src/lib modules — real, unit-tested code that nothing in the app imports, so no user ever sees it. RoamingEye accreted a large shelf of these; this gate stops the shelf from growing. Wiring a staged module into the UI lowers the count, and the ceiling should ratchet down with it. Like scripts/check-bundle-size.mjs, you may raise this number, but only deliberately, in the PR that justifies it.",
+  "howToMeasure": "node scripts/walk-wired.mjs (counts) / node scripts/walk-wired.mjs --list staged (names)"
+}

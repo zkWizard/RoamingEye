@@ -72,6 +72,22 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+  wired-budget:
+    name: Wired-module budget
+    runs-on: ubuntu-latest
+    # The "wire it, don't shelve it" gate: fails when the count of staged
+    # (unreachable) src/lib modules grows past the committed ceiling, so new
+    # logic has to earn a call site instead of adding to the invisible shelf.
+    # See scripts/check-wired-budget.mjs and fleet/wired-budget.json.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run check:wired
+
   e2e:
     name: E2E smoke (WebGL)
     runs-on: ubuntu-latest
