@@ -14,6 +14,10 @@ import { awaitAppInteractive } from "./boot";
  * The trap stack fixes it by letting the topmost overlay own the key. These
  * assertions pin both halves of that: Tab moves, and it moves only inside the
  * sheet on top.
+ *
+ * Escape answers to the same stack. It used to be handled by every open
+ * overlay at once, so dismissing the sheet also threw away the panel the
+ * reader had open underneath it; now each press peels off one layer.
  */
 
 /** Where focus is, as a stable string. */
@@ -76,9 +80,26 @@ test("the shortcuts sheet owns Tab when it opens over another panel", async ({
     true,
   ]);
 
-  // One Escape closes both, and focus comes back to what opened the first one.
+  // Escape dismisses the sheet on top and nothing else. Glancing at the
+  // shortcuts sheet used to cost the reader the panel underneath: every
+  // overlay listens for Escape on `document`, so one press closed all of them.
   await page.keyboard.press("Escape");
   await expect(page.locator("#shortcuts-page.is-open")).toHaveCount(0);
+  await expect(page.locator("#providers-page.is-open")).toHaveCount(1);
+  // Focus lands back in the panel the reader was already reading.
+  expect(
+    await page.evaluate(() =>
+      Boolean(
+        document
+          .querySelector("#providers-page")
+          ?.contains(document.activeElement)
+      )
+    ),
+    `focus left the providers panel: ${await activeDescriptor(page)}`
+  ).toBe(true);
+
+  // A second Escape leaves the panel underneath, restoring the opener.
+  await page.keyboard.press("Escape");
   await expect(page.locator("#providers-page.is-open")).toHaveCount(0);
   expect(await activeDescriptor(page)).toBe(
     "BUTTON#providers-link.attribution__link"
