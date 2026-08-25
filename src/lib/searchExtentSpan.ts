@@ -60,9 +60,32 @@ export function searchExtentSpanPhrase(
 /**
  * Whole kilometres once an extent is wide enough for a fraction to be noise,
  * one decimal below that so a monument-sized box does not collapse to "0 km".
+ *
+ * One decimal does not on its own keep that promise; it moves the collapse
+ * threshold to 50 m rather than removing it. The geocoder’s smallest box is
+ * smaller than that: an OSM object mapped as a bare node carries no extent, so
+ * Nominatim returns a fixed 0.0001-degree square around it — 11 m north–south,
+ * and less east–west away from the equator. Measured against the live API,
+ * "Old Faithful" and "Steamboat Geyser" both return exactly that box (0.0111 km
+ * north–south, 0.0079 km east–west at 44.5° N), and geological point features
+ * — geysers, vents, craters, springs, peaks — are mapped as nodes more often
+ * than as areas, so this is the ordinary shape of a landform search rather than
+ * an edge case.
+ *
+ * A rendered "0.0 km" is a stronger claim than the number it rounds: it states
+ * the box has no extent, and this phrase exists to give the counts beside it a
+ * scale. A box that collapses to zero says the count was taken over nothing,
+ * which is exactly the reading the phrase was added to prevent. "<0.1" instead
+ * reports a box below the printed precision without asserting it is empty.
+ *
+ * An exact zero still prints "0.0", where the absence of extent is real — a
+ * degenerate box whose edges coincide genuinely has no span. Only a positive
+ * span too small to render is redirected, mirroring the floor guard in
+ * `snowAveragedSupport.formatDrawnShare`.
  */
 function formatSpanKm(km: number): string {
-  return km >= 100 ? String(Math.round(km)) : km.toFixed(1);
+  if (km >= 100) return String(Math.round(km));
+  return km > 0 && km < 0.05 ? "<0.1" : km.toFixed(1);
 }
 
 function isValidBounds(
