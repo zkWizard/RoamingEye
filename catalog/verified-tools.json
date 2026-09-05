@@ -14,10 +14,10 @@
       "platforms": ["Linux", "macOS", "Windows"],
       "access": ["Python library"],
       "languages": ["English"],
-      "verifiedAt": "2026-07-12",
+      "verifiedAt": "2026-09-05",
       "evidence": {
         "repositoryApi": "https://api.github.com/repos/geopandas/geopandas",
-        "repositoryUpdatedAt": "2026-07-11T14:27:04Z"
+        "repositoryUpdatedAt": "2026-09-05T08:48:39Z"
       },
       "signals": [
         "geoparquet",
@@ -42,10 +42,10 @@
       "platforms": ["Linux", "macOS", "Windows"],
       "access": ["Python library"],
       "languages": ["English"],
-      "verifiedAt": "2026-07-12",
+      "verifiedAt": "2026-09-05",
       "evidence": {
         "repositoryApi": "https://api.github.com/repos/SciTools/iris",
-        "repositoryUpdatedAt": "2026-07-10T17:03:33Z"
+        "repositoryUpdatedAt": "2026-09-02T13:42:27Z"
       },
       "signals": [
         "A powerful, format-agnostic, and community-driven Python package for analysing and visualising Earth science data",
@@ -75,10 +75,10 @@
       "platforms": ["Linux", "macOS", "Windows"],
       "access": ["Python library"],
       "languages": ["English"],
-      "verifiedAt": "2026-07-12",
+      "verifiedAt": "2026-09-05",
       "evidence": {
         "repositoryApi": "https://api.github.com/repos/Unidata/MetPy",
-        "repositoryUpdatedAt": "2026-07-08T20:36:15Z"
+        "repositoryUpdatedAt": "2026-09-03T12:53:21Z"
       },
       "signals": [
         "atmospheric-science",
@@ -108,10 +108,10 @@
       "platforms": ["Linux", "macOS", "Windows"],
       "access": ["Command line", "Desktop"],
       "languages": ["English"],
-      "verifiedAt": "2026-07-12",
+      "verifiedAt": "2026-09-05",
       "evidence": {
         "repositoryApi": "https://api.github.com/repos/OpenDroneMap/ODM",
-        "repositoryUpdatedAt": "2026-07-12T16:47:47Z"
+        "repositoryUpdatedAt": "2026-09-04T10:05:55Z"
       },
       "signals": [
         "A command line toolkit to generate maps, point clouds, 3D models and DEMs from drone, balloon or kite images. 📷",
@@ -137,10 +137,10 @@
       "platforms": ["Linux", "macOS", "Windows"],
       "access": ["Python library"],
       "languages": ["English"],
-      "verifiedAt": "2026-07-12",
+      "verifiedAt": "2026-09-05",
       "evidence": {
         "repositoryApi": "https://api.github.com/repos/GenericMappingTools/pygmt",
-        "repositoryUpdatedAt": "2026-07-10T06:08:52Z"
+        "repositoryUpdatedAt": "2026-09-04T11:46:09Z"
       },
       "signals": [
         "A Python interface for the Generic Mapping Tools.",
@@ -167,10 +167,10 @@
       "platforms": ["Linux", "macOS", "Windows"],
       "access": ["Desktop"],
       "languages": ["English"],
-      "verifiedAt": "2026-07-12",
+      "verifiedAt": "2026-09-05",
       "evidence": {
         "repositoryApi": "https://api.github.com/repos/qgis/QGIS",
-        "repositoryUpdatedAt": "2026-07-12T20:09:42Z"
+        "repositoryUpdatedAt": "2026-09-05T08:17:47Z"
       },
       "signals": [
         "QGIS is a free, open source, cross platform (lin/win/mac) geographical information system (GIS)"
@@ -190,10 +190,10 @@
       "platforms": ["Linux", "macOS", "Windows"],
       "access": ["Python library"],
       "languages": ["English"],
-      "verifiedAt": "2026-07-12",
+      "verifiedAt": "2026-09-05",
       "evidence": {
         "repositoryApi": "https://api.github.com/repos/pydata/xarray",
-        "repositoryUpdatedAt": "2026-07-09T18:05:22Z"
+        "repositoryUpdatedAt": "2026-09-04T02:34:10Z"
       },
       "signals": [
         "dask",

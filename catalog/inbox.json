@@ -16,6 +16,13 @@
       "discoveryQuery": "topic:remote-sensing stars:>=20 archived:false"
     },
     {
+      "repository": "bilawalsidhu/gods-eye-view",
+      "approval": "pending",
+      "discoveredAt": "2026-09-05T09:08:27.012Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:geospatial stars:>=50 archived:false"
+    },
+    {
       "repository": "brian-rose/ClimateModeling_courseware",
       "approval": "pending",
       "discoveredAt": "2026-07-12T17:50:18.855Z",
@@ -126,6 +133,13 @@
       "discoveredAt": "2026-07-12T17:50:18.265Z",
       "discoveredBy": "scout",
       "discoveryQuery": "topic:remote-sensing stars:>=20 archived:false"
+    },
+    {
+      "repository": "opengeos/GeoLibre",
+      "approval": "pending",
+      "discoveredAt": "2026-09-05T09:08:27.012Z",
+      "discoveredBy": "scout",
+      "discoveryQuery": "topic:geospatial stars:>=50 archived:false"
     },
     {
       "repository": "Ouranosinc/xclim",

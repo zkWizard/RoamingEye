@@ -5,7 +5,7 @@
       "repository": "qgis/QGIS",
       "approval": "approved",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:34.829Z",
+      "checkedAt": "2026-09-05T09:08:28.153Z",
       "license": "GPL-2.0",
       "archived": false,
       "evidence": "https://api.github.com/repos/qgis/QGIS"
@@ -14,7 +14,7 @@
       "repository": "OSGeo/gdal",
       "approval": "approved",
       "status": "needs-evidence",
-      "checkedAt": "2026-07-12T22:11:35.030Z",
+      "checkedAt": "2026-09-05T09:08:28.369Z",
       "license": "NOASSERTION",
       "archived": false,
       "evidence": "https://api.github.com/repos/OSGeo/gdal"
@@ -23,7 +23,7 @@
       "repository": "OSGeo/grass",
       "approval": "approved",
       "status": "needs-evidence",
-      "checkedAt": "2026-07-12T22:11:35.247Z",
+      "checkedAt": "2026-09-05T09:08:28.629Z",
       "license": "NOASSERTION",
       "archived": false,
       "evidence": "https://api.github.com/repos/OSGeo/grass"
@@ -32,7 +32,7 @@
       "repository": "geopandas/geopandas",
       "approval": "approved",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:35.466Z",
+      "checkedAt": "2026-09-05T09:08:28.853Z",
       "license": "BSD-3-Clause",
       "archived": false,
       "evidence": "https://api.github.com/repos/geopandas/geopandas"
@@ -41,7 +41,7 @@
       "repository": "rasterio/rasterio",
       "approval": "approved",
       "status": "needs-evidence",
-      "checkedAt": "2026-07-12T22:11:35.671Z",
+      "checkedAt": "2026-09-05T09:08:29.125Z",
       "license": "NOASSERTION",
       "archived": false,
       "evidence": "https://api.github.com/repos/rasterio/rasterio"
@@ -50,7 +50,7 @@
       "repository": "pydata/xarray",
       "approval": "approved",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:35.911Z",
+      "checkedAt": "2026-09-05T09:08:29.338Z",
       "license": "Apache-2.0",
       "archived": false,
       "evidence": "https://api.github.com/repos/pydata/xarray"
@@ -59,7 +59,7 @@
       "repository": "Unidata/MetPy",
       "approval": "approved",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:36.127Z",
+      "checkedAt": "2026-09-05T09:08:29.600Z",
       "license": "BSD-3-Clause",
       "archived": false,
       "evidence": "https://api.github.com/repos/Unidata/MetPy"
@@ -68,7 +68,7 @@
       "repository": "SciTools/iris",
       "approval": "approved",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:36.346Z",
+      "checkedAt": "2026-09-05T09:08:29.821Z",
       "license": "BSD-3-Clause",
       "archived": false,
       "evidence": "https://api.github.com/repos/SciTools/iris"
@@ -77,7 +77,7 @@
       "repository": "obspy/obspy",
       "approval": "approved",
       "status": "needs-evidence",
-      "checkedAt": "2026-07-12T22:11:36.552Z",
+      "checkedAt": "2026-09-05T09:08:30.079Z",
       "license": "NOASSERTION",
       "archived": false,
       "evidence": "https://api.github.com/repos/obspy/obspy"
@@ -86,7 +86,7 @@
       "repository": "GenericMappingTools/gmt",
       "approval": "approved",
       "status": "needs-evidence",
-      "checkedAt": "2026-07-12T22:11:36.758Z",
+      "checkedAt": "2026-09-05T09:08:30.342Z",
       "license": "NOASSERTION",
       "archived": false,
       "evidence": "https://api.github.com/repos/GenericMappingTools/gmt"
@@ -95,7 +95,7 @@
       "repository": "GenericMappingTools/pygmt",
       "approval": "approved",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:36.964Z",
+      "checkedAt": "2026-09-05T09:08:30.602Z",
       "license": "BSD-3-Clause",
       "archived": false,
       "evidence": "https://api.github.com/repos/GenericMappingTools/pygmt"
@@ -104,7 +104,7 @@
       "repository": "OpenDroneMap/OpenDroneMap",
       "approval": "approved",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:37.414Z",
+      "checkedAt": "2026-09-05T09:08:31.211Z",
       "license": "AGPL-3.0",
       "archived": false,
       "evidence": "https://api.github.com/repos/OpenDroneMap/ODM"
@@ -113,21 +113,21 @@
       "repository": "eodag/eodag",
       "approval": "approved",
       "status": "unavailable",
-      "checkedAt": "2026-07-12T22:11:37.586Z",
+      "checkedAt": "2026-09-05T09:08:31.335Z",
       "error": "GitHub 404 for /repos/eodag/eodag"
     },
     {
       "repository": "OSGeo/pycsw",
       "approval": "approved",
       "status": "unavailable",
-      "checkedAt": "2026-07-12T22:11:37.734Z",
+      "checkedAt": "2026-09-05T09:08:31.491Z",
       "error": "GitHub 404 for /repos/OSGeo/pycsw"
     },
     {
       "repository": "aditya-grover/climate-learn",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:37.924Z",
+      "checkedAt": "2026-09-05T09:08:31.718Z",
       "license": "MIT",
       "archived": false,
       "evidence": "https://api.github.com/repos/aditya-grover/climate-learn"
@@ -136,16 +136,25 @@
       "repository": "azavea/raster-vision",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:38.142Z",
+      "checkedAt": "2026-09-05T09:08:31.937Z",
       "license": "Apache-2.0",
       "archived": false,
       "evidence": "https://api.github.com/repos/azavea/raster-vision"
     },
     {
+      "repository": "bilawalsidhu/gods-eye-view",
+      "approval": "pending",
+      "status": "needs-evidence",
+      "checkedAt": "2026-09-05T09:08:32.169Z",
+      "license": "NOASSERTION",
+      "archived": false,
+      "evidence": "https://api.github.com/repos/bilawalsidhu/gods-eye-view"
+    },
+    {
       "repository": "brian-rose/ClimateModeling_courseware",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:38.335Z",
+      "checkedAt": "2026-09-05T09:08:32.363Z",
       "license": "MIT",
       "archived": false,
       "evidence": "https://api.github.com/repos/brian-rose/ClimateModeling_courseware"
@@ -154,7 +163,7 @@
       "repository": "CesiumGS/cesium",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:38.581Z",
+      "checkedAt": "2026-09-05T09:08:32.619Z",
       "license": "Apache-2.0",
       "archived": false,
       "evidence": "https://api.github.com/repos/CesiumGS/cesium"
@@ -163,7 +172,7 @@
       "repository": "climlab/climlab",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:38.806Z",
+      "checkedAt": "2026-09-05T09:08:32.836Z",
       "license": "MIT",
       "archived": false,
       "evidence": "https://api.github.com/repos/climlab/climlab"
@@ -172,7 +181,7 @@
       "repository": "databendlabs/databend",
       "approval": "pending",
       "status": "needs-evidence",
-      "checkedAt": "2026-07-12T22:11:39.021Z",
+      "checkedAt": "2026-09-05T09:08:33.044Z",
       "license": "NOASSERTION",
       "archived": false,
       "evidence": "https://api.github.com/repos/databendlabs/databend"
@@ -181,7 +190,7 @@
       "repository": "deepsphere/deepsphere-pytorch",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:39.237Z",
+      "checkedAt": "2026-09-05T09:08:33.255Z",
       "license": "MIT",
       "archived": false,
       "evidence": "https://api.github.com/repos/deepsphere/deepsphere-pytorch"
@@ -190,7 +199,7 @@
       "repository": "domlysz/BlenderGIS",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:39.430Z",
+      "checkedAt": "2026-09-05T09:08:33.487Z",
       "license": "GPL-3.0",
       "archived": false,
       "evidence": "https://api.github.com/repos/domlysz/BlenderGIS"
@@ -199,7 +208,7 @@
       "repository": "gboeing/osmnx",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:39.637Z",
+      "checkedAt": "2026-09-05T09:08:33.712Z",
       "license": "MIT",
       "archived": false,
       "evidence": "https://api.github.com/repos/gboeing/osmnx"
@@ -208,7 +217,7 @@
       "repository": "gee-community/geemap",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:39.844Z",
+      "checkedAt": "2026-09-05T09:08:33.963Z",
       "license": "MIT",
       "archived": false,
       "evidence": "https://api.github.com/repos/gee-community/geemap"
@@ -217,7 +226,7 @@
       "repository": "giswqs/earthengine-py-notebooks",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:40.055Z",
+      "checkedAt": "2026-09-05T09:08:34.190Z",
       "license": "MIT",
       "archived": false,
       "evidence": "https://api.github.com/repos/giswqs/earthengine-py-notebooks"
@@ -226,7 +235,7 @@
       "repository": "graphhopper/graphhopper",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:40.260Z",
+      "checkedAt": "2026-09-05T09:08:34.416Z",
       "license": "Apache-2.0",
       "archived": false,
       "evidence": "https://api.github.com/repos/graphhopper/graphhopper"
@@ -235,7 +244,7 @@
       "repository": "javedali99/python-resources-for-earth-sciences",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:40.498Z",
+      "checkedAt": "2026-09-05T09:08:34.658Z",
       "license": "GPL-3.0",
       "archived": false,
       "evidence": "https://api.github.com/repos/javedali99/python-resources-for-earth-sciences"
@@ -244,7 +253,7 @@
       "repository": "keplergl/kepler.gl",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:40.713Z",
+      "checkedAt": "2026-09-05T09:08:34.877Z",
       "license": "MIT",
       "archived": false,
       "evidence": "https://api.github.com/repos/keplergl/kepler.gl"
@@ -253,7 +262,7 @@
       "repository": "MITgcm/MITgcm",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:40.940Z",
+      "checkedAt": "2026-09-05T09:08:35.082Z",
       "license": "MIT",
       "archived": false,
       "evidence": "https://api.github.com/repos/MITgcm/MITgcm"
@@ -262,7 +271,7 @@
       "repository": "NVIDIA/earth2studio",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:41.144Z",
+      "checkedAt": "2026-09-05T09:08:35.330Z",
       "license": "Apache-2.0",
       "archived": false,
       "evidence": "https://api.github.com/repos/NVIDIA/earth2studio"
@@ -271,7 +280,7 @@
       "repository": "obss/sahi",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:41.363Z",
+      "checkedAt": "2026-09-05T09:08:35.571Z",
       "license": "MIT",
       "archived": false,
       "evidence": "https://api.github.com/repos/obss/sahi"
@@ -280,16 +289,25 @@
       "repository": "opengeos/geoai",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:41.576Z",
+      "checkedAt": "2026-09-05T09:08:35.818Z",
       "license": "MIT",
       "archived": false,
       "evidence": "https://api.github.com/repos/opengeos/geoai"
     },
     {
+      "repository": "opengeos/GeoLibre",
+      "approval": "pending",
+      "status": "verified",
+      "checkedAt": "2026-09-05T09:08:36.066Z",
+      "license": "MIT",
+      "archived": false,
+      "evidence": "https://api.github.com/repos/opengeos/GeoLibre"
+    },
+    {
       "repository": "Ouranosinc/xclim",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:41.779Z",
+      "checkedAt": "2026-09-05T09:08:36.306Z",
       "license": "Apache-2.0",
       "archived": false,
       "evidence": "https://api.github.com/repos/Ouranosinc/xclim"
@@ -298,7 +316,7 @@
       "repository": "protontypes/open-sustainable-technology",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:41.984Z",
+      "checkedAt": "2026-09-05T09:08:36.522Z",
       "license": "CC-BY-4.0",
       "archived": false,
       "evidence": "https://api.github.com/repos/protontypes/open-sustainable-technology"
@@ -307,7 +325,7 @@
       "repository": "RediSearch/RediSearch",
       "approval": "pending",
       "status": "needs-evidence",
-      "checkedAt": "2026-07-12T22:11:42.185Z",
+      "checkedAt": "2026-09-05T09:08:36.798Z",
       "license": "NOASSERTION",
       "archived": false,
       "evidence": "https://api.github.com/repos/RediSearch/RediSearch"
@@ -316,7 +334,7 @@
       "repository": "sacridini/Awesome-Geospatial",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:42.407Z",
+      "checkedAt": "2026-09-05T09:08:37.057Z",
       "license": "CC0-1.0",
       "archived": false,
       "evidence": "https://api.github.com/repos/sacridini/Awesome-Geospatial"
@@ -325,7 +343,7 @@
       "repository": "satellite-image-deep-learning/techniques",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:42.609Z",
+      "checkedAt": "2026-09-05T09:08:37.302Z",
       "license": "Apache-2.0",
       "archived": false,
       "evidence": "https://api.github.com/repos/satellite-image-deep-learning/techniques"
@@ -334,7 +352,7 @@
       "repository": "tidwall/tile38",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:42.819Z",
+      "checkedAt": "2026-09-05T09:08:37.512Z",
       "license": "MIT",
       "archived": false,
       "evidence": "https://api.github.com/repos/tidwall/tile38"
@@ -343,7 +361,7 @@
       "repository": "torchgeo/torchgeo",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:43.026Z",
+      "checkedAt": "2026-09-05T09:08:37.727Z",
       "license": "MIT",
       "archived": false,
       "evidence": "https://api.github.com/repos/torchgeo/torchgeo"
@@ -352,7 +370,7 @@
       "repository": "Turfjs/turf",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:43.226Z",
+      "checkedAt": "2026-09-05T09:08:37.975Z",
       "license": "MIT",
       "archived": false,
       "evidence": "https://api.github.com/repos/Turfjs/turf"
@@ -361,7 +379,7 @@
       "repository": "uber/h3",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:43.452Z",
+      "checkedAt": "2026-09-05T09:08:38.273Z",
       "license": "Apache-2.0",
       "archived": false,
       "evidence": "https://api.github.com/repos/uber/h3"
@@ -370,7 +388,7 @@
       "repository": "wenhwu/awesome-remote-sensing-change-detection",
       "approval": "pending",
       "status": "needs-evidence",
-      "checkedAt": "2026-07-12T22:11:43.660Z",
+      "checkedAt": "2026-09-05T09:08:38.508Z",
       "license": null,
       "archived": false,
       "evidence": "https://api.github.com/repos/wenhwu/awesome-remote-sensing-change-detection"
@@ -379,7 +397,7 @@
       "repository": "xCDAT/xcdat",
       "approval": "pending",
       "status": "verified",
-      "checkedAt": "2026-07-12T22:11:45.303Z",
+      "checkedAt": "2026-09-05T09:08:38.751Z",
       "license": "Apache-2.0",
       "archived": false,
       "evidence": "https://api.github.com/repos/xCDAT/xcdat"
