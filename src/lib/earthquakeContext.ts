@@ -577,9 +577,28 @@ export function epicentralDistanceText(distanceKm: number): string {
   return `${formatDistanceKm(distanceKm)} km from the search-extent centre`;
 }
 
-/** Radii span metropolitan boundaries to whole countries; keep both legible. */
+/**
+ * Radii span metropolitan boundaries to whole countries; keep both legible.
+ *
+ * The floor is guarded for the same reason `searchExtentSpan.formatSpanKm`
+ * guards its own: this radius circumscribes the geocoder’s bounding box, and
+ * the smallest box the geocoder returns is a fixed 0.0001-degree square around
+ * a bare OSM node — about 7 m of radius, which one decimal renders as "0.0".
+ *
+ * That figure is the qualifier on a negative result. The panel prints
+ * "Epicentres within N km of the search-extent centre" immediately before
+ * reporting that no events were recorded, so a "0.0" states the search had no
+ * reach at all while the sentence beside it presents the empty result as a
+ * finding about the place. A reader cannot tell a 7 m search from no search.
+ * "<0.1" keeps the radius below the printed precision without asserting it is
+ * zero.
+ *
+ * An exact zero still prints "0.0" — a degenerate box really does circumscribe
+ * a point, and `queryValidationErrors` admits it as a valid query.
+ */
 function formatRadiusKm(radiusKm: number): string {
-  return radiusKm >= 100 ? String(Math.round(radiusKm)) : radiusKm.toFixed(1);
+  if (radiusKm >= 100) return String(Math.round(radiusKm));
+  return radiusKm > 0 && radiusKm < 0.05 ? "<0.1" : radiusKm.toFixed(1);
 }
 
 /**
