@@ -61,6 +61,52 @@
   --ok: #1a7f37;
 }
 
+/* Two OS settings the glass chrome ignored. Each panel is a translucent layer
+ * blurred over a globe that never stops moving, which is exactly what these
+ * settings ask to turn down. Both are handled here, on the tokens, so every
+ * panel that paints `--panel-bg` follows without a per-panel rule.
+ *
+ * Reduce transparency: the panels go solid and the blur goes. `!important` is
+ * needed because each panel declares its own `backdrop-filter` further down,
+ * and a user setting outranks a style choice. */
+@media (prefers-reduced-transparency: reduce) {
+  :root,
+  :root[data-theme="dark"] {
+    --panel-bg: rgb(8, 12, 20);
+    --panel-bg-strong: rgb(8, 12, 20);
+    --scrim: rgba(3, 5, 10, 0.92);
+  }
+  :root[data-theme="light"] {
+    --panel-bg: rgb(255, 255, 255);
+    --panel-bg-strong: rgb(255, 255, 255);
+    --scrim: rgba(222, 230, 240, 0.95);
+  }
+  *,
+  *::before,
+  *::after {
+    backdrop-filter: none !important;
+  }
+}
+
+/* Increase contrast: near-solid panels, control edges you can actually see (the
+ * 11% hairline disappears over imagery), and secondary text lifted toward the
+ * foreground. */
+@media (prefers-contrast: more) {
+  :root,
+  :root[data-theme="dark"] {
+    --muted: #b8c2d3;
+    --panel-bg: var(--panel-bg-strong);
+    --control-border: rgba(255, 255, 255, 0.45);
+    --control-border-hover: rgba(255, 255, 255, 0.7);
+  }
+  :root[data-theme="light"] {
+    --muted: #35425a;
+    --panel-bg: var(--panel-bg-strong);
+    --control-border: rgba(14, 22, 38, 0.5);
+    --control-border-hover: rgba(14, 22, 38, 0.75);
+  }
+}
+
 * {
   margin: 0;
   padding: 0;
