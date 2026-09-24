@@ -13,16 +13,18 @@ import { awaitAppInteractive } from "./boot";
  * instead. The links are the app's provenance and contribution surface, so
  * losing them on a phone loses more than a row of small print.
  *
- * The row is lifted clear by the shortfall between that reserve and the bar's
- * measured height, which Toolbar.ts publishes as `--toolbar-height`. That
- * covers the home indicator too: `env(safe-area-inset-bottom)` is inside the
- * bar's own padding, so a notched phone grows the bar and the lift together.
+ * The overlay now stands on the bar's measured height, which Toolbar.ts
+ * publishes as `--toolbar-height`. That covers the home indicator too:
+ * `env(safe-area-inset-bottom)` is inside the bar's own padding, so a notched
+ * phone grows the bar and the reserve together.
  *
- * The lift is on the credits line alone, not on the reserve above it. The
- * overlay is bottom-anchored, so raising it would carry the HUD panel up by
- * the same amount — and the panel's top edge is already close enough to the
- * globe point hover-tooltip.spec.ts hovers at 390px that 18px pushed it over.
- * The last test here pins that: the panel must not move with the bar.
+ * For a while only the credits line was lifted by the shortfall, because the
+ * overlay is bottom-anchored and raising all of it carried the old 373px HUD
+ * panel over the globe point hover-tooltip.spec.ts hovers. The compact dock
+ * that replaced the panel has room to take the full offset, and the lifted
+ * credits line had begun to overlap the dock's last row. The last test here
+ * pins the current coupling: the credits follow the bar, and the dock rides
+ * above the credits at any bar height.
  *
  * These are hit tests, not screenshots: the row was always *drawn* — Chromium
  * paints the toolbar's translucent panel over it — and only the hit test says
@@ -167,38 +169,40 @@ test.describe("phone attribution clearance", () => {
     expect(Math.abs(publishedPx - measured.barHeight)).toBeLessThanOrEqual(1);
   });
 
-  test("the HUD panel does not move with the bar", async ({ page }) => {
+  test("the credits follow the bar, and the dock never sits on them", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
     await awaitAppInteractive(page);
     await page.waitForTimeout(250);
 
-    // The first attempt at this fix reserved the bar's height on the
-    // bottom-anchored overlay, which lifted the HUD panel along with the
-    // credits line and pushed the panel over the globe point
-    // hover-tooltip.spec.ts hovers a volcano marker at — green locally, red on
-    // CI, where the panel's text wraps taller. Driving the property directly
-    // says whether the panel is coupled to the bar at all, without depending
-    // on how tall the panel happens to render.
-    const moved = await page.evaluate(() => {
+    // Driving the property directly says whether the credits are coupled to
+    // the bar at all, and whether the dock keeps clear of them at a bar height
+    // far from today's, without depending on how tall anything renders. The
+    // credits' plate reaches 0.3rem above the line's own box (see
+    // `.attribution::before`), so the dock has to clear that too.
+    const read = await page.evaluate(() => {
       const panel = document.querySelector("#controls")!;
       const credits = document.querySelector(".attribution")!;
-      const before = {
-        panel: panel.getBoundingClientRect().top,
+      const plateReach =
+        0.3 *
+        Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+      const sample = () => ({
+        panelBottom: panel.getBoundingClientRect().bottom,
+        plateTop: credits.getBoundingClientRect().top - plateReach,
         credits: credits.getBoundingClientRect().top,
-      };
+      });
+      const before = sample();
       document.documentElement.style.setProperty("--toolbar-height", "300px");
-      const after = {
-        panel: panel.getBoundingClientRect().top,
-        credits: credits.getBoundingClientRect().top,
-      };
+      const after = sample();
       return { before, after };
     });
 
-    expect(
-      Math.abs(moved.after.panel - moved.before.panel)
-    ).toBeLessThanOrEqual(1);
-    // ...while the credits line does follow it, or the lift is not wired up.
-    expect(moved.before.credits - moved.after.credits).toBeGreaterThan(100);
+    // The credits line follows the bar, or the reserve is not wired up.
+    expect(read.before.credits - read.after.credits).toBeGreaterThan(100);
+    // And the dock rides above the credits' plate at both bar heights.
+    expect(read.before.panelBottom).toBeLessThanOrEqual(read.before.plateTop);
+    expect(read.after.panelBottom).toBeLessThanOrEqual(read.after.plateTop);
   });
 });

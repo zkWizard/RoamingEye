@@ -2,27 +2,28 @@ import { test, expect } from "@playwright/test";
 import { awaitAppInteractive } from "./boot";
 
 /**
- * The bottom HUD can be folded out of the way on short windows.
+ * The bottom dock can be folded out of the way on phones.
  *
- * #980 bought the aim back from the panel by spending the panel's spacing, and
- * said in its own comment that the spacing was then spent — below about 610px
- * the crosshair lands on the HUD again, and a phone held in landscape is 360 to
- * 430px tall, where the panel occupies three quarters of the display. Three
- * items in docs/BACKLOG.md converge on the same call: the rest of the height can
- * only come out of content, and which content is a decision for the reader
- * rather than a threshold to guess at.
+ * The fold was added when the HUD was a 301px column that climbed over the aim
+ * on any window shorter than ~720px. The dock that replaced it is ~73px on a
+ * desktop, so a short desktop window no longer needs a fold at all (the first
+ * tests below say so); the fold is offered where the dock still competes with
+ * the middle of the view: phones, upright and in landscape.
  *
- * So the panel keeps every row it has ever had and gains a way to fold the two
- * tall ones away. What the fold KEEPS is the substance of the decision and the
- * reason these assertions name it: the layer selector still says what is on the
- * globe and the provenance line still carries the product ID and the month, so
- * no citation and no date is lost to a gesture meant to buy screen space.
+ * What the fold KEEPS is the substance of the decision and the reason these
+ * assertions name it: the layer selector still says what is on the globe and
+ * the provenance line still carries the product ID and the month, so no
+ * citation and no date is lost to a gesture meant to buy screen space.
  *
  * The button and the collapsed state are declared inside one media query, which
  * is what makes the state safe to leave behind — see the last test.
  */
 
+// A short desktop window: where the old panel needed the fold.
 const SHORT = { width: 1280, height: 620 };
+// A mouse window narrow enough for the phone layout, where the fold renders
+// and the dock opens expanded.
+const NARROW = { width: 480, height: 800 };
 const LANDSCAPE_PHONE = { width: 844, height: 390 };
 const PORTRAIT_PHONE = { width: 390, height: 844 };
 const ROOMY = { width: 1280, height: 900 };
@@ -47,10 +48,23 @@ test("a roomy window does not render the control at all", async ({ page }) => {
   await expect(page.locator("#hud-collapse")).toBeHidden();
 });
 
-test("folding the panel keeps the layer, the product ID and the month", async ({
+test("a short desktop window keeps the aim on the globe with no fold", async ({
   page,
 }) => {
   await page.setViewportSize(SHORT);
+  await page.goto("/");
+  await awaitAppInteractive(page);
+
+  // The fold existed for this size; the dock made it unnecessary. Asserting
+  // both halves: nothing to fold, and nothing over the aim that would need it.
+  await expect(page.locator("#hud-collapse")).toBeHidden();
+  expect(await centreId(page)).toBe("globe");
+});
+
+test("folding the panel keeps the layer, the product ID and the month", async ({
+  page,
+}) => {
+  await page.setViewportSize(NARROW);
   await page.goto("/");
   await awaitAppInteractive(page);
 
@@ -141,20 +155,24 @@ test.describe("on a phone in landscape", () => {
       const pill = document
         .querySelector(".layer-selector__trigger")!
         .getBoundingClientRect();
+      // The 44px box overhangs its slot, so it must not overhang the layer
+      // selector, the one control the fold always keeps. Folded in landscape
+      // it sits at the far end of the pill's row.
+      const overlaps =
+        button.left < pill.right &&
+        pill.left < button.right &&
+        button.top < pill.bottom &&
+        pill.top < button.bottom;
       return {
         width: Math.round(button.width),
         height: Math.round(button.height),
-        // The corner the button reserves has to grow with it, or the bigger box
-        // lands on the layer selector — the one control the fold always keeps.
-        // The button is in the LEFT corner (the right strip belongs to the
-        // overlay bar), so the gap is measured from the pill's left edge.
-        clearOfPill: Math.round(pill.left - button.right),
+        overlapsPill: overlaps,
       };
     });
 
     expect(geometry.width).toBeGreaterThanOrEqual(44);
     expect(geometry.height).toBeGreaterThanOrEqual(44);
-    expect(geometry.clearOfPill).toBeGreaterThan(0);
+    expect(geometry.overlapsPill).toBe(false);
   });
 });
 
@@ -250,7 +268,7 @@ test.describe("on a phone held upright", () => {
 test("the fold costs the expanded panel no height, and cannot strand a row", async ({
   page,
 }) => {
-  await page.setViewportSize(SHORT);
+  await page.setViewportSize(NARROW);
   await page.goto("/");
   await awaitAppInteractive(page);
 
@@ -261,8 +279,8 @@ test("the fold costs the expanded panel no height, and cannot strand a row", asy
       )
     );
 
-  // The button is out of flow and the reserved corner is horizontal, so an
-  // expanded panel measures exactly what it did before the affordance existed.
+  // The button is laid out one text line tall in a line of text, so an
+  // expanded panel measures exactly what it would without the affordance.
   // This is the assertion that stops the control from pushing the panel back
   // over the aim it was added to uncover.
   // Growing the window past the threshold takes the button away with it, so the
@@ -280,10 +298,10 @@ test("the fold costs the expanded panel no height, and cannot strand a row", asy
   // Height neutrality goes last: it injects a stylesheet that cannot be taken
   // back, and an earlier draft paid for that with a second boot to undo it —
   // which is the one thing in this spec that ever flaked.
-  // Back to a short window, where the class is live again — and it IS still
+  // Back to a narrow window, where the class is live again — and it IS still
   // set, since the roomy layout overrode it rather than clearing it. Unfold
   // before measuring, or this would compare a folded panel against itself.
-  await page.setViewportSize(SHORT);
+  await page.setViewportSize(NARROW);
   await expect(page.locator("#hud-collapse")).toHaveAttribute(
     "aria-expanded",
     "false"

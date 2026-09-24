@@ -108,8 +108,15 @@ test.describe("desktop", () => {
   }) => {
     await page.goto("/");
     await awaitAppInteractive(page);
-    // Above 540px the legend shows the caption itself, so a copy in the
-    // dropdown would be the same sentence twice on one screen.
+    // Above 540px the caption is one click away under "About this layer", and
+    // the dropdown stays a compact list rather than carrying a second copy.
+    // The caption must be reachable, not merely present in the DOM.
+    await expect(page.locator(".legend__caption")).toBeHidden();
+    await page.locator("#hud-info").click();
+    await expect(page.locator("#hud-info")).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
     await expect(page.locator(".legend__caption")).toBeVisible();
     await page.locator(".layer-selector__trigger").click();
     await expect(
