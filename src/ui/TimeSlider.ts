@@ -89,7 +89,7 @@ export class TimeSlider {
     container.appendChild(steps);
 
     this.attachEvents();
-    this.observeWidth(container);
+    this.observeWidth();
     this.update(this.index, false);
   }
 
@@ -157,6 +157,10 @@ export class TimeSlider {
       stale.remove();
     }
 
+    // The first year is always labelled, so a stride-aligned year closer to it
+    // than one stride is skipped: at a stride of 3 a record starting in 2000
+    // would otherwise print 2001 on top of it.
+    const firstYear = this.months[0]?.year ?? 0;
     this.months.forEach((ym, i) => {
       const fraction = indexToFraction(i, count);
       const isYear = ym.month === 1 || i === 0;
@@ -167,7 +171,9 @@ export class TimeSlider {
       tick.style.left = `${fraction * 100}%`;
       this.track.appendChild(tick);
 
-      if (isYear && (i === 0 || ym.year % labelEvery === 0)) {
+      const aligned =
+        ym.year % labelEvery === 0 && ym.year - firstYear >= labelEvery;
+      if (isYear && (i === 0 || aligned)) {
         const label = document.createElement("span");
         label.className = "timeline__year";
         label.style.left = `${fraction * 100}%`;
@@ -228,13 +234,15 @@ export class TimeSlider {
   }
 
   /**
-   * Watch the container rather than the track, because the container is the
-   * element that survives: a layer switch rebuilds the slider by clearing the
-   * container, which detaches the old track without ever resizing it. Observing
-   * the live container means a superseded instance still gets one callback, and
-   * uses it to unhook itself.
+   * Watch the track, the element whose width the labels are budgeted against.
+   * Not the container: the dock lays the timeline out with `display: contents`,
+   * which leaves the container with no box of its own, so a ResizeObserver on it
+   * never fires and the ruler froze at the width the page loaded at. A layer
+   * switch rebuilds the slider by clearing the container, which detaches the
+   * old track; a detached element reports one last resize (to no box at all),
+   * so a superseded instance still gets a callback and uses it to unhook itself.
    */
-  private observeWidth(container: HTMLElement): void {
+  private observeWidth(): void {
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
       if (!this.track.isConnected) {
@@ -249,7 +257,7 @@ export class TimeSlider {
       // Put the handle back on top without disturbing its position.
       this.track.appendChild(this.handle);
     });
-    observer.observe(container);
+    observer.observe(this.track);
   }
 
   private setFromClientX(clientX: number): void {

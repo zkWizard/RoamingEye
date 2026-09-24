@@ -105,11 +105,13 @@ for (const size of SHORT) {
     });
     expect(clearance, "the probe is standing on the panel").toBeGreaterThan(0);
 
-    // The way back to the legend and the timeline, the name of the layer, and
-    // the citation — all three answer with the probe open.
-    expect(await reach(page, "#hud-collapse")).toMatchObject({
+    // The scrubber, the way into the legend's reference rows, the name of the
+    // layer, and the citation all answer with the probe open. (These sizes
+    // have no fold: the dock is short enough that it's never needed here.)
+    expect(await reach(page, ".timeline__track")).toMatchObject({
       reachable: true,
     });
+    expect(await reach(page, "#hud-info")).toMatchObject({ reachable: true });
     expect(await reach(page, ".layer-selector__trigger")).toMatchObject({
       reachable: true,
     });

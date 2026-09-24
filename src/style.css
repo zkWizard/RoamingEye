@@ -483,7 +483,11 @@ body {
   gap: 1rem;
   background: var(--bg);
   color: var(--muted);
-  z-index: 3;
+  /* Above every control (4-6), so booting is one clean curtain rather than a
+     dimmed header with the search field and toolbar painted over it. Below
+     the modals (10) and the error toast and offline banner (11), which have
+     to reach a reader whose boot has failed. */
+  z-index: 7;
   transition: opacity 0.6s ease;
 }
 
@@ -544,110 +548,268 @@ body {
   }
 }
 
-/* --- Controls: layer selector + timeline ----------------------------------- */
+/* --- Controls dock: layer, time and scale -------------------------------------
+   One floating row at the bottom of the view: the layer picker, the month and
+   its steppers, the scrubber and the colour scale, with a small meta line under
+   it for the status and the citation. It used to be a 301px column of six
+   stacked rows covering the bottom 40% of a 900px window, and most of that
+   height was read once and then only got in the way. The scale's title
+   restates the layer pill, and the caption and source note are reference
+   material behind the reading rather than the reading itself. Those three now
+   sit one level deeper, behind "About this layer", and open in place above the
+   row. What stays on screen is what's needed to read the globe (layer, month,
+   scale), the status line, which can carry an imagery-failure Retry, and the
+   provenance line, so the product ID and the month are never behind a gesture.
+
+   The dock is a grid. #legend, #timeline, the legend's row and the steppers'
+   wrapper are `display: contents`, so their children take the dock's own
+   columns without changing the DOM that Legend.ts and TimeSlider.ts build or
+   the selectors the rest of the app uses. None of those wrappers has a role,
+   so flattening them costs the accessibility tree nothing. Every item is
+   placed by area name. An empty row takes no height, because the dock spaces
+   its rows with margins rather than `row-gap`.
+
+   Width keeps a gutter for the overlay toolbar on BOTH sides, so the dock stays
+   centred and never runs under the toolbar column on the right, which
+   toolbar-height-continuity.spec.ts requires to stay clear. Below 900px the
+   single row would leave the scrubber too short to aim, so the track takes a
+   row of its own (the stacked layout further down). */
 .controls {
   pointer-events: auto; /* this region is interactive, unlike the overlay */
-  position: relative; /* anchors .timeline__steps to the panel corner */
-  width: min(880px, 94vw);
-  margin: 0 auto 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-  padding: 0.9rem 1.1rem 1rem;
+  position: relative;
+  width: min(860px, calc(100vw - 13rem));
+  margin: 0 auto 0.5rem;
+  display: grid;
+  grid-template-columns: auto auto auto auto minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "keys keys keys keys keys keys keys"
+    "title title title title title title title"
+    "caption caption caption caption caption caption caption"
+    "classes classes classes classes classes classes classes"
+    "source source source source source source source"
+    "layer prev month next track scale fold"
+    "meta meta meta meta meta meta meta";
+  align-items: center;
+  padding: 0.45rem 0.7rem 0.4rem 0.55rem;
   background: var(--panel-bg);
   border: 1px solid var(--control-border);
-  border-radius: 14px;
+  border-radius: 20px;
   backdrop-filter: blur(10px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
 }
 
-/* Short windows: give the middle of the view back to the globe.
-   The aim the keyboard turns the globe under is the camera subpoint, which
-   renders at the exact centre of the canvas and is the point Enter charts — it
-   cannot be drawn anywhere else without lying about which pixel it names. The
-   bottom panel, meanwhile, is height-invariant: 301px at 900px tall and 301px
-   at 540px. So it is the panel that climbs over the aim as the window shortens,
-   and below ~722px tall the reticle marks a point the user cannot see. At the
-   665px a 1366x768 laptop actually gets, the crosshair sits on the layer
-   selector's own label; by 600px it is on the colour ramp.
-   Nothing is hidden or shrunk here — 87px of that 301px is spacing, and taking
-   the row gaps down carries the whole reduction, so every caption, the source
-   note and the provenance line stay exactly as legible as they are at full
-   height. e2e/hud-aim-clearance.spec.ts pins the invariant (the centre of the
-   viewport hit-tests to the canvas) at the heights this buys, so the panel
-   cannot creep back over the aim as its captions grow. */
-/* Above the threshold the button is not rendered at all, so it is out of the
-   tab ring rather than merely invisible. Declared before the query that shows
-   it: the two rules have equal specificity, so source order is what decides. */
-.controls__collapse {
+#legend,
+#timeline,
+.legend__row,
+.timeline__steps {
+  display: contents;
+}
+
+#layer-selector {
+  grid-area: layer;
+}
+
+.timeline__steps > .timeline__step:first-child {
+  grid-area: prev;
+  margin-left: 0.4rem;
+}
+
+.timeline__readout {
+  grid-area: month;
+}
+
+.timeline__steps > .timeline__step:last-child {
+  grid-area: next;
+}
+
+.timeline__track {
+  grid-area: track;
+}
+
+.legend__scale,
+.legend__classes {
+  grid-area: scale;
+}
+
+/* Keys for the overlays that are switched on (quake depth, volcano recency).
+   They name markers that are on the globe right now, so they stay out in the
+   open, above the row, and take no height when no overlay is on. */
+.legend__keys {
+  grid-area: keys;
+  margin-bottom: 0.35rem;
+}
+
+/* "About this layer": the scale's title, the caption, a categorical layer's
+   named classes, and the source note. */
+.legend__measures,
+.legend__caption,
+.legend__source-note {
+  margin: 0 0.35rem 0.2rem;
+  text-align: left;
+}
+
+.legend__measures {
+  grid-area: title;
+  margin-top: 0.2rem;
+}
+
+.legend__caption {
+  grid-area: caption;
+}
+
+.legend__source-note {
+  grid-area: source;
+  padding-bottom: 0.55rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--control-border);
+}
+
+.controls:not(.is-details-open)
+  :is(.legend__measures, .legend__caption, .legend__source-note) {
   display: none;
 }
 
-@media (max-height: 720px) {
+/* The meta line: status (and Retry) on the left; the citation and the details
+   toggle on the right. The status gives way first when the line is short of
+   room; its full text is also in its `title`. The citation never truncates. */
+.controls__meta {
+  grid-area: meta;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0.1rem 0.1rem 0 0.35rem;
+}
+
+.controls__info {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex: none;
+  font: inherit;
+  font-size: 0.68rem;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  padding: 0.15rem 0.3rem;
+  cursor: pointer;
+}
+
+.controls__info:hover {
+  color: var(--fg);
+}
+
+.controls__info:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.controls__info[aria-expanded="true"] {
+  color: var(--accent);
+}
+
+.controls__info svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+
+/* The fold: only where even the dock is short of room (see the query below).
+   Declared before that query: the two rules have equal specificity, so source
+   order decides. */
+.controls__collapse {
+  display: none;
+  grid-area: fold;
+}
+
+/* Stacked: below 900px the track takes its own row under the main one, at
+   full width. The fold (phones only) takes the next-month stepper's column on
+   the meta line, the dock's bottom-right corner, where it sits folded or open
+   and costs no height (the line is two rows tall on a phone anyway). That
+   leaves the main row's width to the pill and the month: at 390px it is the
+   difference between "Terrain (shaded relief)" fitting and truncating. */
+@media (max-width: 899px) {
   .controls {
-    gap: 0.5rem;
-    padding: 0.55rem 1.1rem 0.6rem;
-    margin-bottom: 0.4rem;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      "keys keys keys keys"
+      "title title title title"
+      "caption caption caption caption"
+      "classes classes classes classes"
+      "source source source source"
+      "layer prev month next"
+      "track track track track"
+      "scale scale scale scale"
+      "meta meta meta fold";
+    padding: 0.5rem 0.6rem 0.45rem;
   }
 
-  .overlay--bottom {
-    padding-bottom: 1rem;
+  #layer-selector {
+    justify-content: flex-start;
+  }
+
+  .timeline__track {
+    margin-top: 0.25rem;
+  }
+
+  .legend__scale,
+  .legend__classes {
+    justify-self: start;
+    margin: 0.15rem 0.35rem 0;
+  }
+
+  .controls__meta {
+    flex-wrap: wrap;
+    row-gap: 0.1rem;
   }
 }
 
-/* The width arm is why this is a separate query from the spacing above. A phone
-   in portrait is 844-932px tall, so it clears the height threshold and reads as
-   a roomy viewport — but the panel is a fixed 373px against 800-915px, which is
-   40.7% of a Pixel and 46.6% of a 360x800 Android, and the aim sits inside it:
-   at 390x844 the centre of the viewport hit-tests the legend, not the globe.
-   The proportion is what the height threshold cannot see, and it gets worse as
-   the phone gets smaller, so the one form factor that most needs the fold was
-   the only one that could not reach it — the button was display:none there and
-   the collapsed state was inert.
-   Only the fold moves. The spacing trim stays height-only, so the panel opens
-   at exactly the height it does today and nothing folds on its own; what a
-   narrow viewport gains is the same gesture a short one already had. Keeping
-   both the button and the collapsed state in this one query preserves the
-   invariant the note below names: the two arms enter and leave together, so a
-   viewport that grows out of the query restores every row and takes the control
-   away in the same breath. */
-@media (max-height: 720px), (max-width: 540px) {
-  /* The spacing is spent, so the rest of the panel's height can only come
-     out of content — which is a call about what a reader may put away, not a
-     number to tune. It is theirs to make: the panel keeps every row it has ever
-     had and gains a way to fold the two tall ones out of the view.
-     What collapsing keeps is the point. The layer selector names what is on the
-     globe and the provenance line carries the product ID and the month, so the
-     citation and the date survive the fold — what goes is the colour ramp and
-     the timeline, which are the height (about 200px of roughly 266px) and which
-     the reader has just said they are not reading. Nothing is dropped without
-     the gesture that asks for it, unlike the phone caption in docs/BACKLOG.md.
-     Both this button and the collapsed state live inside this query, so a
-     window growing past the threshold restores every row on its own — a user
-     who folds the panel at 600px tall and then maximises cannot end up with
-     rows hidden and no visible control to bring them back. */
+/* Phones: the credits row and the toolbar both sit under the dock here, not
+   beside it, so the side gutters go. The pill and the month tighten so the
+   main row holds on one line at 360px. */
+@media (max-width: 540px) {
+  .controls {
+    width: calc(100vw - 2rem);
+  }
+
+  .layer-selector__trigger {
+    padding: 0.4rem 0.7rem;
+  }
+
+  .timeline__readout {
+    min-width: 4.8em;
+  }
+}
+
+/* The fold. The dock is ~70px on a desktop, so short desktop windows no longer
+   need it. It's offered only where the dock still competes with the middle of
+   the view: a phone held upright, where a probe opening over the dock folds it
+   (see foldHudForOverlay in main.ts), and a phone held in landscape, where it
+   opens folded. Both the button and the collapsed state live inside this one
+   query, so a viewport that grows out of it restores every row and removes the
+   control together. Folding keeps the layer picker and the provenance line, so
+   the citation and the month survive it. What goes is everything else, stated
+   as an exclusion so that a row added later folds by default.
+
+   The button's chevron points the way the dock will move. */
+@media (max-height: 460px), (max-width: 540px) {
   .controls__collapse {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    /* Out of flow, so the affordance costs the crowded layout no height.
-       LEFT, not right: the panel's right margin is the strip the overlay bar
-       reaches into at narrow desktop widths — 66px of overlap at 560px wide —
-       and toolbar-height-continuity.spec.ts exists to say that strip must stay
-       empty. A first draft put the button there and that spec caught it. The
-       left corner is clear of both the bar and the steppers, which hold the
-       bottom right (.timeline__steps). */
-    position: absolute;
-    top: 0.35rem;
-    left: 0.5rem;
     width: 28px;
     height: 28px;
+    /* Laid out one text line tall, so the fold never makes the line it sits on
+       taller than the text beside it: the dock is the same height with or
+       without it. */
+    margin: -6px 0 -6px 0.25rem;
     padding: 0;
     color: var(--muted);
     background: transparent;
     border: 1px solid transparent;
-    border-radius: 8px;
+    border-radius: 999px;
     cursor: pointer;
-    z-index: 1;
   }
 
   .controls__collapse:hover {
@@ -656,50 +818,56 @@ body {
   }
 
   .controls__collapse svg {
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
   }
 
-  /* Everything except the button itself and the two rows named above. Stated as
-     an exclusion so a row added later folds by default: leaving a new row
-     showing would put it back over the aim, which is the defect this exists to
-     answer. */
   .controls.is-collapsed
-    > :not(.controls__collapse):not(#layer-selector):not(#provenance) {
+    > :not(.controls__collapse):not(#layer-selector):not(.controls__meta),
+  .controls.is-collapsed .controls__meta > :not(#provenance) {
     display: none;
   }
 
-  /* The pill is centred in the full width of the panel, so at the narrow end of
-     the band it would run under the button. Reserving the corner on both sides
-     keeps it centred and clear. */
-  #layer-selector {
-    padding: 0 2rem;
+  /* Folded, what's left fits one row: pill, citation, fold. On a phone held in
+     landscape that's the difference between the folded dock covering the
+     middle of a 360px view and clearing it. */
+  .controls.is-collapsed {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "layer meta fold";
+    padding-block: 0.25rem;
+  }
+
+  .controls.is-collapsed .controls__meta {
+    justify-content: flex-end;
+    margin: 0 0.25rem;
+  }
+
+  /* Right-aligned and unshrinkable, a citation longer than its slot would
+     overflow leftward over the pill and take its taps (667x375 did exactly
+     that). Folded, it wraps instead: two short lines still fit inside the
+     pill's height, and nothing of it is cut. */
+  .controls.is-collapsed .provenance {
+    flex: 0 1 auto;
+    min-width: 0;
+    text-align: right;
+    overflow-wrap: anywhere;
   }
 }
 
-/* A phone held in landscape is the case this control was added for, and it is
-   also a coarse pointer — so the button takes the same 44px the rest of the
-   chrome does under `@media (pointer: coarse)` below, and the corner reserved
-   for it grows to match. Scoped to both conditions: on a mouse the 28px box is
-   already comfortable, and above the height threshold nothing renders at all.
-   The steppers' documented exception does not apply here — this button is in
-   the opposite corner from the scrubber track, so a 44px box reaches nothing.
-   The width arm carries the same pairing for a phone held upright: it is the
-   same coarse pointer and the same thumb, so the box it gets is the same 44px.
-   Both arms are repeated with the pointer condition because `and` binds tighter
-   than the comma — a bare `(max-width: 540px)` here would hand the 44px box to
-   a narrow mouse window, which the 28px default already fits. */
-@media (max-height: 720px) and (pointer: coarse),
+/* A phone is a coarse pointer, so the fold's box is the same 44px the rest of
+   the chrome gets. Negative margins keep it laid out as small as the fine one,
+   so the full touch target neither grows the dock nor takes width from its
+   neighbours: it overhangs into the dock's padding and the empty right end of
+   the scale's row, and where it does overlap a neighbour, that neighbour comes
+   later in the DOM and still wins the tap. Both arms repeat the pointer
+   condition because `and` binds tighter than the comma: a bare
+   `(max-width: 540px)` would hand the 44px box to a narrow mouse window too. */
+@media (max-height: 460px) and (pointer: coarse),
   (max-width: 540px) and (pointer: coarse) {
   .controls__collapse {
     width: 44px;
     height: 44px;
-    top: 0.1rem;
-    left: 0.2rem;
-  }
-
-  #layer-selector {
-    padding: 0 3rem;
+    margin: -14px -8px -14px -4px;
   }
 }
 
@@ -723,6 +891,17 @@ body {
   border-radius: 999px;
   padding: 0.4rem 0.9rem;
   cursor: pointer;
+  /* One line, always: the pill sets the dock's row height, and a wrapped name
+     doubles it. A name too long for its column truncates, and the listbox it
+     opens shows it in full. */
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.layer-selector__current {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .layer-selector__chevron {
@@ -730,11 +909,13 @@ body {
   opacity: 0.8;
 }
 
+/* Opens upward from the pill it belongs to, aligned to the pill's left edge,
+   now that the pill leads the dock instead of sitting centred above it. */
 .layer-selector__panel {
   position: absolute;
   bottom: calc(100% + 0.5rem);
-  left: 50%;
-  transform: translateX(-50%) translateY(6px);
+  left: 0;
+  transform: translateY(6px);
   width: min(440px, 86vw);
   max-height: 46vh;
   overflow-y: auto;
@@ -750,6 +931,9 @@ body {
   z-index: 6;
 }
 
+/* No fade-in: a fading list is text at partial contrast for as long as it
+   fades, the selected option dropped to 1.54:1 mid-fade, and the list is
+   read the moment it opens. */
 .layer-selector__panel.is-open {
   display: grid;
 }
@@ -776,10 +960,11 @@ body {
   cursor: pointer;
 }
 
-/* The layer's caption, shown inside the option it belongs to. Hidden here
-   because above 540px `.legend__caption` is on screen and this would be a
-   second copy of the same sentence; the phone query below turns it on at
-   exactly the widths the legend drops it. */
+/* The layer's caption, shown inside the option it belongs to on a phone. On a
+   desktop the picker stays a compact two-column list a mouse can sweep, and the
+   caption is one click away under "About this layer"; on a phone the picker is
+   one column with its own scroll anyway, so the caption rides along at no cost
+   and a thumb gets it without the extra step. */
 .layer-selector__option-desc {
   display: none;
   margin-top: 0.15rem;
@@ -810,66 +995,50 @@ body {
     grid-template-columns: 1fr;
   }
 
-  /* One column already, and the panel is out of flow with its own scroll, so
-     the caption costs the HUD no height here — which is the whole reason it
-     lives in the dropdown on a phone rather than under the color bar. */
   .layer-selector__option-desc {
     display: block;
   }
 }
 
-/* Legend: what the colors on the globe mean */
-.legend {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.legend__row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
+/* Legend: what the colours on the globe mean. The scale in the dock is the bar
+   with its numeric axis; its end words ("lower NDVI", "higher NDVI") show only
+   for the layers without numbers, where they are the only reading of the bar. */
 .legend__measures {
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--fg);
-  white-space: nowrap;
 }
 
-.legend__scale {
+.legend__scale:not([hidden]) {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 0.4rem;
+  margin-left: 0.6rem;
+}
+
+.legend__scale[hidden] {
+  display: none;
+}
+
+.legend__bar-wrap {
+  grid-row: 1;
+  grid-column: 1 / -1;
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.1rem;
 }
 
 .legend__bar {
-  width: clamp(120px, 28vw, 220px);
-  height: 10px;
-  border-radius: 5px;
+  width: 128px;
+  height: 8px;
+  border-radius: 4px;
   border: 1px solid var(--control-border);
-}
-
-.legend__end {
-  font-size: 0.7rem;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-/* The gradient bar plus its numeric axis (calibrated layers only). */
-.legend__bar-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
 }
 
 .legend__values {
   display: flex;
   justify-content: space-between;
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -886,15 +1055,33 @@ body {
   text-align: right;
 }
 
+.legend__end {
+  font-size: 0.6rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.legend__end:first-child {
+  grid-row: 2;
+  grid-column: 1;
+}
+
+.legend__end:last-child {
+  grid-row: 2;
+  grid-column: 2;
+  text-align: right;
+}
+
+.legend__scale:has(.legend__values:not([hidden])) .legend__end {
+  display: none;
+}
+
 .legend__caption {
-  text-align: center;
   font-size: 0.72rem;
   color: var(--muted);
 }
 
 .legend__source-note {
-  margin: 0;
-  text-align: center;
   font-size: 0.68rem;
   line-height: 1.35;
   color: var(--muted);
@@ -904,12 +1091,67 @@ body {
   color: inherit;
 }
 
+/* Categorical layers (land cover) have too many classes to name in the dock,
+   so the dock shows them as a strip of their colours, the same size as a
+   gradient bar, and "About this layer" opens the named list. The hover
+   readout names the class under the cursor either way. The names stay in
+   the accessibility tree while the strip is showing, clipped rather than
+   hidden. */
+.legend__classes:not([hidden]) {
+  display: flex;
+  margin-left: 0.6rem;
+}
+
+.legend__classes[hidden] {
+  display: none;
+}
+
+.controls:not(.is-details-open) .legend__classes {
+  width: 128px;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--control-border);
+}
+
+.controls:not(.is-details-open) .legend__classes .legend__key-item {
+  flex: 1 1 0;
+}
+
+.controls:not(.is-details-open) .legend__classes .legend__swatch {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+
+.controls:not(.is-details-open)
+  .legend__classes
+  .legend__key-item
+  > :not(.legend__swatch) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.controls.is-details-open .legend__classes {
+  grid-area: classes;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.65rem;
+  margin: 0 0.35rem 0.35rem;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
 /* Color keys contributed by toggled-on overlays (quake depth, volcano recency) */
 .legend__keys {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.15rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.15rem 1rem;
 }
 
 .legend__keys:empty {
@@ -945,25 +1187,21 @@ body {
   border: 1px solid var(--control-border);
 }
 
-/* Timeline ruler */
-.timeline {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
+/* Timeline ruler: the month, its steppers and the scrubber, all in the dock's
+   main row. */
 .timeline__readout {
+  min-width: 5.4em;
   text-align: center;
   font-variant-numeric: tabular-nums;
-  font-size: 1.05rem;
+  font-size: 0.92rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: -0.01em;
 }
 
 .timeline__track {
   position: relative;
-  height: 44px;
-  margin: 0 10px; /* room so the handle never clips at the ends */
+  height: 36px;
+  margin: 0 12px; /* room so the handle never clips at the ends */
   cursor: pointer;
   touch-action: none; /* the track owns drag gestures */
   outline: none;
@@ -977,7 +1215,7 @@ body {
 
 .timeline__line {
   position: absolute;
-  top: 14px;
+  top: 11px;
   left: 0;
   right: 0;
   height: 2px;
@@ -987,27 +1225,27 @@ body {
 
 .timeline__tick {
   position: absolute;
-  top: 14px;
+  top: 11px;
   width: 1px;
   background: var(--control-border-hover);
   transform: translateX(-0.5px);
 }
 
 .timeline__tick--month {
-  height: 7px;
+  height: 5px;
 }
 
 .timeline__tick--year {
-  height: 13px;
+  height: 9px;
   width: 1.5px;
   background: var(--tick-year);
 }
 
 .timeline__year {
   position: absolute;
-  top: 30px;
+  top: 22px;
   transform: translateX(-50%);
-  font-size: 0.7rem;
+  font-size: 0.62rem;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
   white-space: nowrap;
@@ -1015,7 +1253,7 @@ body {
 
 .timeline__handle {
   position: absolute;
-  top: 15px;
+  top: 12px;
   width: 16px;
   height: 16px;
   margin: -8px 0 0 -8px;
@@ -1027,31 +1265,19 @@ body {
 }
 
 /* Prev/next steppers: precise single-month moves where the drag handle is
-   coarse. Anchored to the panel's bottom-right corner (the status and
-   provenance lines are centered, so the corner is free). */
-.timeline__steps {
-  position: absolute;
-  right: 0.9rem;
-  bottom: 0.75rem;
-  display: flex;
-  gap: 0.35rem;
-  /* Above the provenance line: its opacity < 1 makes it a stacking context
-     that would otherwise paint (and win pointer events) over these buttons,
-     since it comes later in the DOM — clicks silently hit the text instead. */
-  z-index: 1;
-}
-
+   coarse. Round and quiet until hovered, so they read as part of the month
+   between them rather than as two more buttons. */
 .timeline__step {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   color: var(--fg);
-  background: var(--control-bg);
-  border: 1px solid var(--control-border);
-  border-radius: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
   cursor: pointer;
 }
 
@@ -1061,7 +1287,8 @@ body {
 }
 
 .timeline__step:hover:not([aria-disabled="true"]) {
-  border-color: var(--control-border-hover);
+  background: var(--control-bg);
+  border-color: var(--control-border);
 }
 
 /* At the ends the stepper is aria-disabled, not disabled, so that it keeps
@@ -1081,10 +1308,16 @@ body {
   outline-offset: 2px;
 }
 
+/* The status line gives way first on a short meta line: it ellipsises, and its
+   `title` carries the full note. */
 .timeline-status {
-  min-height: 1rem;
-  text-align: center;
-  font-size: 0.75rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: left;
+  font-size: 0.68rem;
   color: var(--muted);
 }
 
@@ -1092,20 +1325,12 @@ body {
   .timeline__year {
     font-size: 0.6rem;
   }
-
-  /* Narrow screens: the centered provenance line needs the full width, so
-     the steppers drop into the flow, right-aligned under the track. */
-  .timeline__steps {
-    position: static;
-    align-self: flex-end;
-    margin-top: -0.2rem;
-  }
 }
 
-/* --- Provenance line (inside the controls panel) ------------------------------ */
+/* --- Provenance line (the dock's meta line) ---------------------------------- */
 .provenance {
-  text-align: center;
-  font-size: 0.68rem;
+  flex: none;
+  font-size: 0.64rem;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
   opacity: 0.85;
@@ -1452,20 +1677,6 @@ body {
   }
   .toolbar__label {
     font-size: 0.6rem;
-  }
-  /* Keep the panel compact on small phones. The height this saves is real and
-     still unaffordable: showing the caption here adds 19px on nine layers and
-     34px on the widest two, against 53px of clearance between the panel and
-     the aim at 390x844 — and CI's text metrics stack the panel some 35-50px
-     taller than a local run, so the naive un-hide lands the default layer on
-     top of the point hover-tooltip.spec.ts asserts is globe.
-     What has changed is what the rule costs: the caption is no longer dropped,
-     only moved. Every layer's caption now renders as the second line of its
-     own option in the layer dropdown at these same widths — out of flow, with
-     its own scroll, so it costs this panel nothing. Keep the two boundaries
-     equal: whatever width hides the caption here must show it there. */
-  .legend__caption {
-    display: none;
   }
 }
 
@@ -2983,43 +3194,31 @@ body {
     flex: none;
   }
 
+  /* The bar is pinned across the bottom here, so the overlay stands on it: its
+     measured height, which Toolbar.ts publishes as `--toolbar-height`, so it
+     stays right as the bar's contents change, and a notched phone comes along
+     for free (`env(safe-area-inset-bottom)` is inside the bar's own padding).
+     The fallback is the bar's usual height before the first ResizeObserver
+     callback. This used to be a flat 3.6rem with the credits line lifted the
+     remaining ~18px on its own, because raising the whole overlay would have
+     carried the old 373px panel up into the globe's middle. The dock is short
+     enough to take the full offset, and the lifted credits line had started to
+     overlap the dock's own last row. e2e/phone-attribution-clearance.spec.ts
+     hit-tests every control in the credits row at four phone sizes. */
   .overlay--bottom {
-    bottom: 3.6rem;
+    bottom: var(--toolbar-height, 4.75rem);
     padding-bottom: 0.4rem;
   }
+}
 
-  /* The bar is pinned across the bottom here, and this overlay clears it by a
-     flat 3.6rem — 57.6px against a bar that measures 76px. The 18px shortfall
-     left the attribution's last line under the bar: the "Data providers"
-     button, the repository link and the feedback link all rendered there and
-     the toolbar took the taps aimed at them. They were still drawn, faintly,
-     through the bar's translucent panel, so the row read as a styling choice
-     rather than three dead controls; only a hit test named what received the
-     tap.
-
-     The lift goes on the credits line alone rather than on the reserve above,
-     because this overlay is bottom-anchored: raising it would carry the HUD
-     panel up by the same 18px, and at this width the panel's top edge is
-     already within ~20px of the globe point e2e/hover-tooltip.spec.ts hovers a
-     volcano marker at — CI's wider text metrics make the panel taller than it
-     is locally, so that margin is thinner than it looks here. Only the credits
-     line reaches down to the bar, so only the credits line moves; `position:
-     relative` takes it out of the sibling's way without moving the sibling.
-     The gap it leaves behind is transparent overlay over the globe.
-
-     The distance is the shortfall itself — the bar's measured height, which
-     Toolbar.ts publishes as `--toolbar-height`, less the reserve already
-     applied — so it stays correct as the bar's contents change, and a notched
-     phone comes along for free: `env(safe-area-inset-bottom)` sits inside the
-     bar's own padding and so inside that number, which grows the bar and the
-     lift together. The fallback resolves to zero, leaving the boot frame
-     before the first ResizeObserver callback exactly as it renders today.
-     e2e/phone-attribution-clearance.spec.ts hit-tests every control in the row
-     at four phone sizes, taps the one that opens a panel, and pins the panel
-     above it as unmoved. */
+/* A phone held in landscape has 360-430px of height, and the bar, the credits
+   and the folded dock all stack up from the bottom toward its middle. The
+   credits line is the one that wraps there: at 740px it breaks onto two lines
+   and pushes the dock over the centre of the view. A notch smaller, it fits
+   on one, and the folded dock clears the middle. */
+@media (max-height: 460px) and (min-width: 541px) {
   .attribution {
-    position: relative;
-    bottom: calc(var(--toolbar-height, 3.6rem) - 3.6rem);
+    font-size: 0.66rem;
   }
 }
 
@@ -3048,34 +3247,9 @@ body {
   .attribution::before {
     content: "";
   }
-  .controls {
-    gap: 0.6rem;
-    padding: 0.7rem 0.8rem 0.8rem;
-  }
-
   .probe {
     bottom: 14rem;
   }
-}
-
-/* Categorical layer legend: named class swatches instead of a gradient */
-.legend__classes {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.2rem 0.65rem;
-  max-width: 60ch;
-  margin: 0 auto;
-  font-size: 0.68rem;
-  color: var(--muted);
-}
-
-.legend__classes[hidden] {
-  display: none;
-}
-
-.legend__scale[hidden] {
-  display: none;
 }
 
 /* --- Draw-region button (top-left, under the theme toggle) -------------------- */
@@ -3599,8 +3773,7 @@ body {
 
 /* Imagery-failure retry, next to the status line (issue #88) */
 .status-retry {
-  align-self: center; /* the controls panel is a column flex */
-  margin-left: 0.5rem;
+  flex: none; /* the meta line's status ellipsises; the button never does */
   font: inherit;
   font-size: 0.72rem;
   font-weight: 600;
