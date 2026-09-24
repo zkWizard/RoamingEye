@@ -6,6 +6,14 @@ every commit. Format loosely follows
 
 ## [Unreleased]
 
+- **Fluid globe** — dragging the globe now tracks the pointer 1:1 instead of
+  trailing it, and a flick carries on at the speed it was released with,
+  slowing like a scroll view, while a drag that comes to rest stays put.
+  Pressing, scrolling or arrowing the globe during a search fly-to takes it
+  back mid-flight instead of waiting out the animation. Buttons answer the
+  press itself, and the glass panels honour the OS Reduce Transparency and
+  Increase Contrast settings.
+
 - **Timeline month steppers** — a ‹ › button pair at the bottom-right of the
   controls panel steps the timeline one month (one year on annual layers)
   per click — precise moves the drag handle can't do on decades-long
