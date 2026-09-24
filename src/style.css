@@ -215,10 +215,15 @@ body {
   z-index: 6;
 }
 
+/* Tracking is size-specific. Display type wants it slightly negative, because
+   letters drawn large read as spaced apart, while small labels (the toolbar's,
+   the uppercase eyebrows) keep their positive tracking. The wordmark was the
+   only large text in the app set wide. Tightening it narrows the line and never
+   heightens it, so nothing below it moves. */
 .brand {
   font-size: clamp(1.4rem, 4vw, 2rem);
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: -0.02em;
 }
 
 .brand span {
