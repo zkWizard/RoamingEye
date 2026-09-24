@@ -34,10 +34,17 @@ async function ruler(page: Page) {
 
 let pageErrors: string[] = [];
 
+// Where the track is widest. It's the TRACK that narrows in these tests, not
+// just the window, and the two no longer move together: from 900px up the
+// track shares the dock's single row with the pill, the month and the scale,
+// while just under 900px it takes a full row of its own. So the widest track
+// is here, at the top of the stacked layout, and a phone's is narrower still.
+const WIDEST_TRACK = { width: 880, height: 800 };
+
 test.beforeEach(async ({ page }) => {
   pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
-  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.setViewportSize(WIDEST_TRACK);
   await page.goto("/");
   await awaitAppInteractive(page);
 });
@@ -76,7 +83,7 @@ test("widening the window restores the denser ruler", async ({ page }) => {
     .poll(async () => (await ruler(page)).count, { timeout: 4000 })
     .toBeLessThan(wide.count);
 
-  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.setViewportSize(WIDEST_TRACK);
   await expect
     .poll(async () => (await ruler(page)).count, { timeout: 4000 })
     .toBe(wide.count);

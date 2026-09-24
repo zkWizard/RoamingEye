@@ -204,16 +204,18 @@ test.describe("toolbar column height is continuous", () => {
   });
 });
 
-test.describe("the HUD panel keeps its clicks where the boxes overlap", () => {
+test.describe("the HUD panel keeps its clicks beside the bar", () => {
   // Same walk, same reason as the block above: five widths of resize plus a
   // hit test over every control, 4.8s locally and so on the same CI multiple.
   test.beforeEach(() => {
     test.setTimeout(120_000);
   });
 
-  // Widths where the panel's box reaches under the bar: 66px of overlap at
-  // 560px wide down to 18px at 1024px. The shared region is the panel's empty
-  // right margin, and this spec is what says so. One boot, then resizes — the
+  // The narrow desktop widths are where the bar and the panel meet. The old
+  // panel's box reached under the bar (66px at 560px wide down to 18px at
+  // 1024px), across an empty right margin this spec kept empty. The dock now
+  // keeps a gutter for the bar on both sides, so the boxes do not meet at all,
+  // and the premise below is the stronger claim. One boot, then resizes — the
   // layout is CSS, and nine boots would be most of the suite's budget.
   test("no control is covered at the narrow desktop widths", async ({
     page,
@@ -262,13 +264,13 @@ test.describe("the HUD panel keeps its clicks where the boxes overlap", () => {
         };
       });
 
-      // Premise: the two boxes really do overlap here, so a future layout that
-      // separates them turns this spec into an honest no-op rather than a
-      // silent one.
+      // The dock's side gutters keep it clear of the bar outright. If a later
+      // layout lets the two meet again, this fails first, and the hit test
+      // below is what then has to hold.
       expect(
         report.overlap,
-        `the panel and the bar do not overlap at ${width}px wide`
-      ).toBeGreaterThan(0);
+        `the panel runs under the bar at ${width}px wide`
+      ).toBeLessThanOrEqual(0);
       expect(
         report.covered,
         `the bar covers a control in the HUD at ${width}x700`

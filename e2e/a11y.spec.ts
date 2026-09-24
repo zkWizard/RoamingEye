@@ -509,9 +509,11 @@ test.describe("touch target size", () => {
   });
 
   // The steppers are the documented exception: they clear the AA floor but
-  // cannot grow, because a 44px box would reach into the scrubber track above
-  // them and swallow drags meant for the slider. Assert both halves of that
-  // reasoning so a later "just make them 44 too" is caught here.
+  // cannot grow, because a 44px box would reach into the scrubber track beside
+  // them (above them on a phone) and swallow drags meant for the slider. Assert
+  // both halves of that reasoning so a later "just make them 44 too" is caught
+  // here. The check is that no stepper's box intersects the track's, whichever
+  // side of it the layout puts them.
   test("timeline steppers clear AA without reaching the scrubber", async ({
     page,
   }) => {
@@ -522,9 +524,14 @@ test.describe("touch target size", () => {
       const track = document
         .querySelector<HTMLElement>(".timeline__track")!
         .getBoundingClientRect();
+      const intersects = (a: DOMRect, b: DOMRect) =>
+        a.left < b.right &&
+        b.left < a.right &&
+        a.top < b.bottom &&
+        b.top < a.bottom;
       return {
         sizes: steps.map((r) => [r.width, r.height] as const),
-        clearsTrack: steps.every((r) => r.top >= track.bottom),
+        clearsTrack: steps.every((r) => !intersects(r, track)),
         overlapEachOther: steps.some((a, i) =>
           steps.some((b, j) => j > i && a.right > b.left && b.right > a.left)
         ),
