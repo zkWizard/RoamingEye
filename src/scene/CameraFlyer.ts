@@ -42,7 +42,20 @@ export class CameraFlyer {
     this.duration = duration;
     this.elapsed = 0;
     this.active = true;
-    this.controls.enabled = false; // take over until the flight finishes
+    this.controls.enabled = false; // drive the camera until it lands or is grabbed
+  }
+
+  /**
+   * Hand the camera straight back mid-flight: a press, wheel or arrow key on
+   * the globe. The camera stays exactly where the flight had got to (the live
+   * position, not the destination), so nothing jumps, and OrbitControls picks
+   * up from there. Input is never locked out for the length of a transition.
+   */
+  cancel(): void {
+    if (!this.active) return;
+    this.active = false;
+    this.controls.enabled = true;
+    this.controls.update();
   }
 
   update(delta: number): void {

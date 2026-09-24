@@ -34,3 +34,31 @@ describe("CameraFlyer reduced-motion (instant) mode", () => {
     expect(flyer.isFlying).toBe(false);
   });
 });
+
+describe("CameraFlyer.cancel", () => {
+  it("stops mid-flight where the camera is and hands the controls back", () => {
+    const camera = new THREE.PerspectiveCamera();
+    camera.position.set(0, 0, 3.2);
+    const controls = stubControls();
+    const flyer = new CameraFlyer(camera, controls, false);
+    flyer.flyTo(48.86, 2.35, 1.8, 1.0);
+    expect(controls.enabled).toBe(false);
+
+    flyer.update(0.4);
+    const midFlight = camera.position.clone();
+    flyer.cancel();
+
+    expect(flyer.isFlying).toBe(false);
+    expect(controls.enabled).toBe(true);
+    flyer.update(0.4); // later frames no longer move it
+    expect(camera.position.equals(midFlight)).toBe(true);
+  });
+
+  it("is a no-op when nothing is flying", () => {
+    const camera = new THREE.PerspectiveCamera();
+    const controls = stubControls();
+    controls.enabled = false; // e.g. the region drawer holds them
+    new CameraFlyer(camera, controls, false).cancel();
+    expect(controls.enabled).toBe(false);
+  });
+});
