@@ -124,6 +124,7 @@ import { PlateBoundariesOverlay } from "./overlays/PlateBoundariesOverlay";
 import { VolcanoesOverlay } from "./overlays/VolcanoesOverlay";
 import { TiledImageryOverlay } from "./overlays/TiledImageryOverlay";
 import { CameraFlyer } from "./scene/CameraFlyer";
+import { GlobeMomentum } from "./scene/GlobeMomentum";
 import { LocationHighlight } from "./scene/LocationHighlight";
 import { HoverInspector } from "./scene/HoverInspector";
 import { RegionDrawer } from "./scene/RegionDrawer";
@@ -834,8 +835,10 @@ for (const overlay of overlays) {
 
 // --- Controls (rotate + zoom) -----------------------------------------------
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; // inertia for a natural "spin" feel
-controls.dampingFactor = 0.08;
+// No damping: the drag tracks the pointer 1:1. Damping made the ground trail
+// the cursor by ~200 ms and gave a flick no more travel than a slow drag; the
+// spin after release now comes from GlobeMomentum (wired below the flyer).
+controls.enableDamping = false;
 controls.enablePan = false; // keep the globe centred
 // rotateSpeed is re-derived from the camera altitude every frame (see the
 // render loop): constant speed flings the camera when zoomed to the surface.
@@ -870,8 +873,8 @@ const syncKeyboardAim = (moved: boolean): void => {
   tooltipEl?.classList.add("is-aimed");
   if (!moved) return;
   // Announce where the globe came to rest, not every step of getting there: a
-  // held arrow key, and the damping that carries on after it, would otherwise
-  // narrate dozens of points the user was only passing over.
+  // held arrow key, or a globe coasting after a flick, would otherwise narrate
+  // dozens of points the user was only passing over.
   clearTimeout(aimSpeechTimer);
   aimSpeechTimer = setTimeout(() => {
     if (!inspector || !canvas.matches(":focus-visible")) return;
@@ -899,11 +902,12 @@ controls.addEventListener("change", () => syncKeyboardAim(true));
 // app pins to the globe's centre, and `enablePan` is off for that reason.
 canvas.addEventListener("keydown", (e) => {
   if (e.altKey || e.ctrlKey || e.metaKey) return; // leave browser chords alone
-  // Whoever disabled the controls owns the camera — the flyer, while a search
-  // result is in flight. The region drawer disables them too, but only so a
-  // *drag* sweeps a box instead of rotating; the arrows are still the way its
-  // keyboard corners are aimed, so they keep working while it is armed.
-  if (!controls.enabled && !regionDrawer?.active) return;
+  // A search flight disables the controls, but an arrow key takes the camera
+  // back mid-flight (below), just as a press does. The region drawer disables
+  // them too, but only so a *drag* sweeps a box instead of rotating; the arrows
+  // are still the way its keyboard corners are aimed, so they keep working
+  // while it is armed.
+  if (!controls.enabled && !flyer.isFlying && !regionDrawer?.active) return;
   const subpoint = vector3ToLatLng(camera.position);
   const next = stepGlobeView(
     { ...subpoint, distance: camera.position.length() },
@@ -912,6 +916,8 @@ canvas.addEventListener("keydown", (e) => {
   );
   if (!next) return;
   e.preventDefault(); // arrows would otherwise scroll the page
+  endFlight(); // step from wherever the flight or coast had got to
+  momentum.stop();
   camera.position
     .copy(latLngToVector3(next.lat, next.lon, 1))
     .multiplyScalar(next.distance);
@@ -972,13 +978,60 @@ if (shareEl) {
 
 // --- Search + fly-to --------------------------------------------------------
 // Vestibular safety: users who set prefers-reduced-motion get an instant
-// reposition instead of an animated flight (CSS already respects it).
-const flyer = new CameraFlyer(
-  camera,
-  controls,
-  window.matchMedia("(prefers-reduced-motion: reduce)").matches
-);
+// reposition instead of an animated flight, and no coast after a drag (CSS
+// already respects it).
+const reduceMotion = window.matchMedia(
+  "(prefers-reduced-motion: reduce)"
+).matches;
+const flyer = new CameraFlyer(camera, controls, reduceMotion);
 controls.addEventListener("change", scheduleHashSync);
+
+// A flight used to hold the controls off for its full 1.4 s, so a press on the
+// globe mid-flight did nothing and the user waited out an animation they had
+// already changed their mind about. A press or wheel on the globe now takes
+// the camera back from wherever the flight has got to, and the gesture carries
+// on. This listens in the capture phase on `window` so it runs before
+// OrbitControls' own canvas listeners, which would otherwise drop the event
+// while the controls are still disabled.
+const takeBackCamera = (e: Event): void => {
+  if (e.target === canvas) endFlight();
+};
+// An armed region drawer owns the drag, so a flight that ends (landing or
+// taken back) must leave the controls off rather than hand the drag back to
+// OrbitControls and have it rotate the globe under the box being drawn.
+function endFlight(): void {
+  flyer.cancel();
+  if (regionDrawer?.active) controls.enabled = false;
+}
+window.addEventListener("pointerdown", takeBackCamera, { capture: true });
+window.addEventListener("wheel", takeBackCamera, {
+  capture: true,
+  passive: true,
+});
+
+// Momentum after a drag (see GlobeMomentum). One pointer is a drag that can be
+// thrown; a second finger makes it a pinch, which never throws. Moves and lifts
+// are heard on `window`, because a release can land on the HUD over the canvas.
+const momentum = new GlobeMomentum(camera, controls, canvas, !reduceMotion);
+const globePointers = new Set<number>();
+canvas.addEventListener("pointerdown", (e) => {
+  globePointers.add(e.pointerId);
+  if (globePointers.size === 1) momentum.grab(e);
+  else momentum.stop();
+});
+window.addEventListener("pointermove", (e) => {
+  if (globePointers.size === 1 && globePointers.has(e.pointerId)) {
+    momentum.move(e);
+  }
+});
+window.addEventListener("pointerup", (e) => {
+  if (globePointers.delete(e.pointerId) && globePointers.size === 0) {
+    momentum.release(e);
+  }
+});
+window.addEventListener("pointercancel", (e) => {
+  if (globePointers.delete(e.pointerId)) momentum.stop();
+});
 
 if (searchEl) {
   new SearchBox(
@@ -2448,9 +2501,15 @@ const renderFrame = (): void => {
   // tracks the drag at street-level zoom and orbit alike.
   controls.rotateSpeed = rotateSpeedForDistance(camera.position.length());
   if (!flyer.isFlying) controls.update(); // flyer drives the camera while active
+  // A flight owns the camera. Otherwise a thrown globe coasts on from here.
+  if (flyer.isFlying) momentum.stop();
+  else momentum.tick(performance.now());
   // Flights move the camera without OrbitControls events — sync the shareable
   // hash once when a fly-to lands.
-  if (wasFlying && !flyer.isFlying) scheduleHashSync();
+  if (wasFlying && !flyer.isFlying) {
+    endFlight(); // landed: re-assert the drawer's hold on the drag if armed
+    scheduleHashSync();
+  }
   wasFlying = flyer.isFlying;
   highlight.update(camera.position.length()); // keep the marker a constant size
   for (const overlay of overlays) overlay.update?.(camera, window.innerHeight);
