@@ -2220,13 +2220,26 @@ function lazyPanel(
   });
 }
 
+// --- "About this layer" ----------------------------------------------------
+// The dock shows what's needed to read the globe; the scale's title, the
+// caption and the source note are reference material, one level deeper. This
+// opens them in place above the dock's row. It's a disclosure, so the button's
+// `aria-expanded` is the whole announcement.
+const hudInfoEl = document.querySelector<HTMLElement>("#hud-info");
+if (hudInfoEl && controlsEl) {
+  hudInfoEl.addEventListener("click", () => {
+    const open = controlsEl.classList.toggle("is-details-open");
+    hudInfoEl.setAttribute("aria-expanded", String(open));
+  });
+}
+
 // --- Folding the data panel away -------------------------------------------
-// Short windows are where the panel and the globe compete for the middle of the
-// view, and style.css has already spent the spacing buying that back; what is
-// left can only come out of content, which is the reader's call to make rather
-// than a threshold to guess at. The button is rendered only inside the same
-// media query as the collapsed state, so nothing here needs to watch the
-// viewport: growing the window past it restores every row on its own.
+// Phones are where even the dock competes with the middle of the view, and
+// what it can give back there can only come out of content, which is the
+// reader's call to make rather than a threshold to guess at. The button is
+// rendered only inside the same media query as the collapsed state, so nothing
+// here needs to watch the viewport: growing the window past it restores every
+// row on its own.
 const hudCollapseEl = document.querySelector<HTMLElement>("#hud-collapse");
 if (hudCollapseEl && controlsEl) {
   // The chevron points the way the panel will move, so it reads as a direction

@@ -126,10 +126,10 @@
 
       <div class="overlay overlay--bottom">
         <div id="controls" class="controls">
-          <!-- Shown only below the height threshold the panel already declares
-               itself crowded at; style.css keeps both the button and the
-               collapsed state inside that one media query, so widening the
-               window restores every row without the class being cleared. -->
+          <!-- Shown only where the dock still competes with the middle of the
+               view (phones); style.css keeps both the button and the collapsed
+               state inside that one media query, so widening the window
+               restores every row without the class being cleared. -->
           <button
             id="hud-collapse"
             type="button"
@@ -139,12 +139,36 @@
           <div id="layer-selector"></div>
           <div id="legend"></div>
           <div id="timeline"></div>
-          <div
-            id="timeline-status"
-            class="timeline-status"
-            aria-live="polite"
-          ></div>
-          <div id="provenance" class="provenance"></div>
+          <!-- The meta line: status (main.ts inserts Retry after it), the
+               citation, and the toggle for the legend's reference rows. -->
+          <div class="controls__meta">
+            <div
+              id="timeline-status"
+              class="timeline-status"
+              aria-live="polite"
+            ></div>
+            <div id="provenance" class="provenance"></div>
+            <button
+              id="hud-info"
+              type="button"
+              class="controls__info"
+              aria-expanded="false"
+              aria-controls="legend"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 11v5M12 8h.01" />
+              </svg>
+              About this layer
+            </button>
+          </div>
         </div>
         <p class="attribution">
           Imagery: NASA GIBS · Seismicity: USGS · Borders &amp; places: Natural
