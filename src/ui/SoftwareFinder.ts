@@ -105,7 +105,7 @@ export class SoftwareFinder {
       container.querySelector(".providers__backdrop") as HTMLElement
     ).addEventListener("click", () => this.close());
     document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") this.close();
+      if (event.key === "Escape" && this.trap.claims(event)) this.close();
     });
   }
 

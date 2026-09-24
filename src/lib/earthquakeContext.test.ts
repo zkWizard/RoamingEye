@@ -955,6 +955,27 @@ describe("searchExtentScopeText", () => {
     expect(searchExtentScopeText(18.64)).toContain("Epicentres within 18.6 km");
     expect(searchExtentScopeText(250.4)).toContain("Epicentres within 250 km");
   });
+
+  it("reports a bare-node radius as below the printed precision, not as zero", () => {
+    // A place mapped as an OSM node with no extent gets a fixed 0.0001-degree
+    // box from the geocoder, which circumscribes to roughly 7 m of radius.
+    // One decimal printed "0.0 km", stating the search had no reach in the very
+    // sentence that qualifies the empty result reported beside it.
+    const query = searchExtentEarthquakeQuery([
+      44.4604141, 44.4605141, -110.8281964, -110.8280964,
+    ]);
+    expect(query.radiusKm).toBeGreaterThan(0);
+    expect(query.radiusKm).toBeLessThan(0.05);
+    expect(searchExtentScopeText(query.radiusKm)).toContain(
+      "Epicentres within <0.1 km"
+    );
+  });
+
+  it("still prints 0.0 km for an exactly zero radius", () => {
+    // A degenerate box really does circumscribe a point, and the query stays
+    // valid, so the stronger claim is the true one.
+    expect(searchExtentScopeText(0)).toContain("Epicentres within 0.0 km");
+  });
 });
 
 describe("comparedEventPopulationText", () => {
