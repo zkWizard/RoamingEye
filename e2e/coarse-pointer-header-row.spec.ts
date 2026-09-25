@@ -21,10 +21,11 @@ import { awaitAppInteractive } from "./boot";
  * 800x360 — and at 740x360 the centre survived while the reachable area
  * clipped to ~23px, under the WCAG 2.5.8 floor of 24.
  *
- * The fix spends no space: #software-link and #fleet-link are already
- * inline-block and already share a row, and the toggle's mount is the only
- * block among the three, so it took a row of its own. Inline, it joins theirs
- * and returns 52px to the gap above the panel.
+ * The fix spends no space: #software-link is already inline-block, and the
+ * toggle's mount was the only block in the group, so it took a row of its own.
+ * Inline, it joins the link's row and returns 52px to the gap above the panel.
+ * (Fleet status shared that row until it moved to the credits line, where it
+ * is an inline link in a sentence, like Data providers beside it.)
  *
  * The sizes below are real landscape phones. Every one rides in a single
  * browser context via setViewportSize — a fresh context per size costs ~1
@@ -139,14 +140,9 @@ test("the theme toggle and its row survive a landscape phone", async ({
         `${size.name}: the theme toggle is reachable over only ${toggle.width}px horizontally`
       ).toBeGreaterThanOrEqual(AA_FLOOR);
 
-      // Did the fix eat a neighbour? The toggle moved onto a row two other
-      // controls already occupied, and it sits above two more.
-      for (const sel of [
-        "#software-link",
-        "#fleet-link",
-        "#hud-collapse",
-        ".draw-button",
-      ]) {
+      // Did the fix eat a neighbour? The toggle moved onto a row another
+      // control already occupied, and it sits above two more.
+      for (const sel of ["#software-link", "#hud-collapse", ".draw-button"]) {
         const n = await reachable(page, sel);
         expect(
           n.centre,
@@ -161,7 +157,7 @@ test("the theme toggle and its row survive a landscape phone", async ({
       // The mechanism itself: one row, not two. Tops within a pixel of each
       // other is what "shares a row" means, and it is what returns the 52px.
       const tops = await page.evaluate(() =>
-        ["#software-link", "#fleet-link", ".theme-toggle"].map((s) => {
+        ["#software-link", ".theme-toggle"].map((s) => {
           const el = document.querySelector<HTMLElement>(s);
           return el ? +el.getBoundingClientRect().top.toFixed(1) : NaN;
         })

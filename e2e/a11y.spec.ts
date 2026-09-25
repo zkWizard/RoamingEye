@@ -463,9 +463,11 @@ test("browser chrome colour follows the chosen theme, not the OS", async ({
 // coverage, so the advisory WebKit/Firefox lanes skip rather than assert
 // emulation behaviour that was never checked.
 
+// Fleet status is not listed: it is an inline link in the credits sentence
+// now, like Data providers beside it, which WCAG 2.5.8 exempts ("the target is
+// in a sentence").
 const TOUCH_TARGETS = [
   ".software-link",
-  ".fleet-link",
   ".theme-toggle",
   ".share-button",
   ".export__button",
