@@ -3,6 +3,7 @@ import { LAYERS, type LayerId } from "../lib/timeline";
 import {
   LEGENDS,
   gradientCss,
+  swatchCss,
   legendProvenance,
   legendTicks,
   overlayKeyFor,
@@ -151,6 +152,12 @@ export class Legend {
   setLayer(id: LayerId): void {
     const spec = LEGENDS[id];
     this.activeLayer = id;
+    // The layer picker's swatch. Published on the root because the picker is a
+    // sibling of the legend, not a descendant of it.
+    document.documentElement.style.setProperty(
+      "--layer-swatch",
+      swatchCss(spec)
+    );
     this.measures.textContent = spec.measures;
     this.caption.textContent = LAYERS[id].description;
     // Every layer that names a source product cites it here, not only the ones

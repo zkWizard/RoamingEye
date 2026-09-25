@@ -1242,7 +1242,9 @@ export class ProbePanel {
     const plotW = cssWidth - pad.left - pad.right;
     const plotH = cssHeight - pad.top - pad.bottom;
     const n = this.months.length;
-    ctx.font = "10px system-ui, sans-serif";
+    // The axis values are data, so they're in the mono the rest of the app
+    // sets its numbers in (style.css --font-mono).
+    ctx.font = '10px "Geist Mono Variable", ui-monospace, monospace';
 
     // The plotted series and its 0..1 plot mapping. Values plot the raw
     // gradient position; anomalies plot on a symmetric band around zero.

@@ -230,7 +230,12 @@ jobs:
       # tree) is held to strictly MIT-compatible permissive licenses; the
       # dev tree additionally admits weak-copyleft tooling (MPL-2.0 — e.g.
       # axe-core) and open data/doc licenses, none of which we distribute.
+      # OFL-1.1 (SIL Open Font License) is the open license for typefaces, here
+      # for the self-hosted Geist fonts. It explicitly permits bundling the
+      # fonts with software under any license, MIT included; its conditions
+      # (don't sell the font alone, rename a modified font, keep the license
+      # with the files, which Fontsource does) don't constrain the app.
       - name: License allowlist (shipped code)
-        run: npx --yes license-checker-rseidelsohn@4.4.2 --production --onlyAllow "MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;CC0-1.0;Unlicense"
+        run: npx --yes license-checker-rseidelsohn@4.4.2 --production --onlyAllow "MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;CC0-1.0;Unlicense;OFL-1.1"
       - name: License allowlist (full dev tree)
-        run: npx --yes license-checker-rseidelsohn@4.4.2 --onlyAllow "MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;CC0-1.0;CC-BY-4.0;Unlicense;BlueOak-1.0.0;MPL-2.0;Python-2.0"
+        run: npx --yes license-checker-rseidelsohn@4.4.2 --onlyAllow "MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;CC0-1.0;CC-BY-4.0;Unlicense;BlueOak-1.0.0;MPL-2.0;Python-2.0;OFL-1.1"

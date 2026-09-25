@@ -340,6 +340,25 @@ export function gradientCss(stops: LegendStop[]): string {
 }
 
 /**
+ * A layer's colours as a small round swatch for the layer picker: a gradient's
+ * own stops run corner to corner, and a categorical layer's classes become
+ * hard-edged bands in legend order, so the pill shows what the globe will look
+ * like before the scale is read.
+ */
+export function swatchCss(spec: LegendSpec): string {
+  if (spec.kind === "classes") {
+    const n = spec.classes.length;
+    const bands = spec.classes.map(
+      (c, i) =>
+        `${c.color} ${Math.round((i / n) * 100)}% ${Math.round(((i + 1) / n) * 100)}%`
+    );
+    return `linear-gradient(135deg, ${bands.join(", ")})`;
+  }
+  const parts = spec.stops.map((s) => `${s.color} ${Math.round(s.at * 100)}%`);
+  return `linear-gradient(135deg, ${parts.join(", ")})`;
+}
+
+/**
  * Numeric ticks for a layer's gradient bar — min/mid/max in the layer's
  * physical units, straight from PROBE_SCALES so the legend and the probe can
  * never disagree about what a color is worth. Null for categorical layers
