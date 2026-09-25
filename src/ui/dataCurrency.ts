@@ -28,6 +28,14 @@ export interface DataCurrencyNote {
   text: string;
   /** The fuller "why", for the row's tooltip and accessible description. */
   detail: string;
+  /**
+   * Whether the record is as new as the product can be, which drives the
+   * row's status dot. A monthly composite can only exist once its month has
+   * closed, so one month behind is the freshest a monthly layer ever gets and
+   * counts as fresh; an annual layer is fresh when no closed year is missing.
+   * Anything later than that is a publication delay.
+   */
+  fresh: boolean;
 }
 
 /** Whole months from `from` to `to`, negative when `from` is the later one. */
@@ -69,6 +77,7 @@ export function dataCurrencyNote(
 
     if (unreleased <= 0) {
       return {
+        fresh: true,
         text: `Newest data: ${recordEnd.year} · annual product`,
         detail:
           `${product} publishes once a year, so the newest year on the ` +
@@ -84,6 +93,7 @@ export function dataCurrencyNote(
         ? `${newestClosed}`
         : `${recordEnd.year + 1}–${newestClosed}`;
     return {
+      fresh: false,
       text: `Newest data: ${recordEnd.year} · ${span} not published yet`,
       detail:
         `${product} publishes once a year, and a product year is released ` +
@@ -100,6 +110,7 @@ export function dataCurrencyNote(
   // worth explaining — say where it ends and stop.
   if (lag <= 0 || compareYm(recordEnd, today) >= 0) {
     return {
+      fresh: true,
       text: `Newest data: ${label}`,
       detail: `${product} has published through ${label}.`,
     };
@@ -107,6 +118,7 @@ export function dataCurrencyNote(
 
   const plural = lag === 1 ? "month" : "months";
   return {
+    fresh: lag <= 1,
     text: `Newest data: ${label} · ${lag} ${plural} behind ${formatYm(today)}`,
     detail:
       `${product} composites are released after the month closes and ` +

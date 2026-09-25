@@ -17,9 +17,14 @@
   --accent: #4ea1ff;
   --on-accent: #06101f;
 
-  /* Surfaces & chrome — theme-aware (see [data-theme="light"] below). */
-  --panel-bg: rgba(8, 12, 20, 0.7);
-  --panel-bg-strong: rgba(8, 12, 20, 0.94);
+  /* Surfaces & chrome — theme-aware (see [data-theme="light"] below). One
+     material for every floating panel: a neutral near-black rather than the
+     old blue-black, lit along its top edge and set on a soft, deep shadow, so
+     panels read as objects above the globe instead of tinted holes in it. */
+  --panel-bg: rgba(13, 15, 20, 0.78);
+  --panel-bg-strong: rgba(13, 15, 20, 0.94);
+  --surface-edge: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --surface-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
   --scrim: rgba(3, 5, 10, 0.7);
   --control-bg: rgba(255, 255, 255, 0.05);
   --control-border: rgba(255, 255, 255, 0.11);
@@ -46,6 +51,8 @@
 
   --panel-bg: rgba(255, 255, 255, 0.75);
   --panel-bg-strong: rgba(255, 255, 255, 0.95);
+  --surface-edge: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --surface-shadow: 0 18px 48px rgba(14, 22, 38, 0.14);
   --scrim: rgba(222, 230, 240, 0.85);
   --control-bg: rgba(14, 22, 38, 0.05);
   --control-border: rgba(14, 22, 38, 0.14);
@@ -59,6 +66,26 @@
   --warn: #7a5b00;
   --warn-border: rgba(122, 91, 0, 0.4);
   --ok: #1a7f37;
+}
+
+/* Theme-independent design tokens.
+ *
+ * Type: Geist for words and Geist Mono for data. Every number a reader compares
+ * (the month, the year ticks, the scale's values, coordinates, product IDs) is
+ * set in the mono, so digits line up and a figure reads as a measurement.
+ * Sentences stay in the sans; a status line in monospace reads like a log.
+ *
+ * Shape: panels are 24px, the tiles and controls inside them 14px, so inner
+ * corners run concentric with the outer ones, and buttons are full pills.
+ * The blur is one value for every panel. */
+:root {
+  --font-sans:
+    "Geist Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono:
+    "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius-panel: 24px;
+  --radius-inner: 14px;
+  --material-blur: blur(14px) saturate(140%);
 }
 
 /* Two OS settings the glass chrome ignored. Each panel is a translucent layer
@@ -119,12 +146,7 @@ body {
   overflow: hidden;
   background: var(--bg);
   color: var(--fg);
-  font-family:
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   transition:
     background-color 0.3s ease,
@@ -222,7 +244,7 @@ body {
    heightens it, so nothing below it moves. */
 .brand {
   font-size: clamp(1.4rem, 4vw, 2rem);
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -0.02em;
 }
 
@@ -262,29 +284,30 @@ body {
   color: var(--fg);
 }
 
-.software-link,
-.fleet-link {
+/* A neutral pill, like every other secondary action. The accent is for state,
+   and a link-coloured chip in the header read as the page's call to action.
+   Fleet status used to sit beside it; it is internal tooling, so it lives in
+   the credits row now (index.html). */
+.software-link {
   pointer-events: auto;
   margin-top: 0.5rem;
   font: inherit;
   font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--accent);
+  font-weight: 500;
+  color: var(--fg);
   background: var(--panel-bg);
-  border: 1px solid var(--accent-ring);
-  border-radius: 8px;
-  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
   cursor: pointer;
-  backdrop-filter: blur(10px);
+  backdrop-filter: var(--material-blur);
 }
 
-.software-link:hover,
-.fleet-link:hover {
-  border-color: var(--accent);
+.software-link:hover {
+  border-color: var(--control-border-hover);
 }
 
-.software-link:focus-visible,
-.fleet-link:focus-visible {
+.software-link:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
@@ -297,7 +320,6 @@ body {
    half of the cue and the fade is the half a touch reader gets. Dimming is
    still and needs no reduced-motion arm. */
 .software-link[data-state="pending"],
-.fleet-link[data-state="pending"],
 .attribution__link[data-state="pending"] {
   opacity: 0.55;
   cursor: progress;
@@ -320,7 +342,7 @@ body {
   border: 1px solid var(--control-border);
   border-radius: 999px;
   cursor: pointer;
-  backdrop-filter: blur(10px);
+  backdrop-filter: var(--material-blur);
   transition:
     background-color 0.15s ease,
     border-color 0.15s ease,
@@ -392,7 +414,7 @@ body {
   z-index: -1;
   border-radius: 10px;
   background: var(--panel-bg-strong);
-  backdrop-filter: blur(10px);
+  backdrop-filter: var(--material-blur);
 }
 
 /* Out-specifies the phone block's switch below (an attribute selector beats a
@@ -593,9 +615,9 @@ body {
   padding: 0.45rem 0.7rem 0.4rem 0.55rem;
   background: var(--panel-bg);
   border: 1px solid var(--control-border);
-  border-radius: 20px;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+  border-radius: var(--radius-panel);
+  backdrop-filter: var(--material-blur);
+  box-shadow: var(--surface-edge), var(--surface-shadow);
 }
 
 #legend,
@@ -884,18 +906,33 @@ body {
   gap: 0.5rem;
   font: inherit;
   font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--on-accent);
-  background: var(--accent);
-  border: 1px solid var(--accent);
+  font-weight: 500;
+  /* The primary control, so the one inverse pill in the dock: foreground on
+     background, not the accent. The swatch before the name is the layer's own
+     colour ramp (Legend.ts publishes it as --layer-swatch), which says more
+     about what is on the globe than a blue fill did. */
+  color: var(--bg);
+  background: var(--fg);
+  border: 1px solid var(--fg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   border-radius: 999px;
-  padding: 0.4rem 0.9rem;
+  padding: 0.4rem 0.9rem 0.4rem 0.75rem;
   cursor: pointer;
   /* One line, always: the pill sets the dock's row height, and a wrapped name
      doubles it. A name too long for its column truncates, and the listbox it
      opens shows it in full. */
   max-width: 100%;
   white-space: nowrap;
+}
+
+.layer-selector__trigger::before {
+  content: "";
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--layer-swatch, var(--accent));
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
 }
 
 .layer-selector__current {
@@ -925,9 +962,9 @@ body {
   padding: 0.8rem 0.9rem;
   background: var(--panel-bg-strong);
   border: 1px solid var(--control-border);
-  border-radius: 14px;
-  backdrop-filter: blur(12px);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  border-radius: 18px;
+  backdrop-filter: var(--material-blur);
+  box-shadow: var(--surface-edge), var(--surface-shadow);
   z-index: 6;
 }
 
@@ -1038,6 +1075,7 @@ body {
 .legend__values {
   display: flex;
   justify-content: space-between;
+  font-family: var(--font-mono);
   font-size: 0.6rem;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
@@ -1192,10 +1230,11 @@ body {
 .timeline__readout {
   min-width: 5.4em;
   text-align: center;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 0.92rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 500;
+  letter-spacing: -0.02em;
 }
 
 .timeline__track {
@@ -1245,6 +1284,7 @@ body {
   position: absolute;
   top: 22px;
   transform: translateX(-50%);
+  font-family: var(--font-mono);
   font-size: 0.62rem;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
@@ -1258,9 +1298,11 @@ body {
   height: 16px;
   margin: -8px 0 0 -8px;
   border-radius: 50%;
-  background: var(--accent);
-  border: 2px solid var(--handle-border);
-  box-shadow: 0 0 0 4px var(--accent-ring);
+  background: var(--fg);
+  border: 0;
+  box-shadow:
+    0 0 0 4px var(--control-border-hover),
+    0 2px 6px rgba(0, 0, 0, 0.45);
   pointer-events: none; /* the track handles all pointer input */
 }
 
@@ -1321,6 +1363,29 @@ body {
   color: var(--muted);
 }
 
+/* A status light before the freshness note (main.ts setStatus sets the state).
+   It repeats what the sentence already says, so colour is never the only
+   carrier of it. */
+.timeline-status[data-currency]::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 0.45rem;
+  border-radius: 50%;
+  vertical-align: 1px;
+}
+
+.timeline-status[data-currency="fresh"]::before {
+  background: var(--ok);
+  box-shadow: 0 0 6px var(--ok);
+}
+
+.timeline-status[data-currency="delayed"]::before {
+  background: var(--warn);
+  box-shadow: 0 0 6px var(--warn-border);
+}
+
 @media (max-width: 540px) {
   .timeline__year {
     font-size: 0.6rem;
@@ -1330,7 +1395,8 @@ body {
 /* --- Provenance line (the dock's meta line) ---------------------------------- */
 .provenance {
   flex: none;
-  font-size: 0.64rem;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
   opacity: 0.85;
@@ -1358,7 +1424,7 @@ body {
   border-radius: 999px;
   padding: 0.4rem 0.8rem;
   cursor: pointer;
-  backdrop-filter: blur(10px);
+  backdrop-filter: var(--material-blur);
   transition:
     border-color 0.15s ease,
     color 0.15s ease,
@@ -1413,7 +1479,7 @@ body {
   border-radius: 999px;
   padding: 0.35rem 0.75rem;
   cursor: pointer;
-  backdrop-filter: blur(10px);
+  backdrop-filter: var(--material-blur);
   transition:
     border-color 0.15s ease,
     scale 0.1s ease-out;
@@ -1463,8 +1529,9 @@ body {
   padding: 0.5rem 0.75rem;
   background: var(--panel-bg);
   border: 1px solid var(--control-border);
-  border-radius: 12px;
-  backdrop-filter: blur(10px);
+  border-radius: 999px;
+  box-shadow: var(--surface-edge);
+  backdrop-filter: var(--material-blur);
   /* The label is the tap target (see SearchBox), so advertise it as one. */
   cursor: text;
 }
@@ -1514,7 +1581,7 @@ body {
   background: var(--panel-bg-strong);
   border: 1px solid var(--control-border);
   border-radius: 12px;
-  backdrop-filter: blur(10px);
+  backdrop-filter: var(--material-blur);
   display: none;
 }
 
@@ -1565,8 +1632,9 @@ body {
   padding: 0.4rem;
   background: var(--panel-bg);
   border: 1px solid var(--control-border);
-  border-radius: 14px;
-  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  box-shadow: var(--surface-edge), var(--surface-shadow);
+  backdrop-filter: var(--material-blur);
   --toolbar-fade-start: 0px;
   --toolbar-fade-end: 0px;
 }
@@ -1612,10 +1680,28 @@ body {
   background: var(--control-bg);
 }
 
+/* Pressed is a lift and a status dot, not a filled block. With several of the
+   nine toggles on at once, filled accent tiles were the loudest pixels on
+   screen; the accent now marks state the way a status light does. The lift and
+   the full-strength label carry the state as well, so it never rests on colour
+   alone. */
 .toolbar__item[aria-pressed="true"] {
-  color: var(--on-accent);
+  position: relative;
+  color: var(--fg);
+  background: var(--control-bg);
+  border-color: var(--control-border);
+}
+
+.toolbar__item[aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
   background: var(--accent);
-  border-color: var(--accent);
+  box-shadow: 0 0 6px var(--accent-strong);
 }
 
 .toolbar__icon {
@@ -1795,7 +1881,7 @@ body {
   background: var(--panel-bg);
   border: 1px solid var(--warn-border);
   border-radius: 999px;
-  backdrop-filter: blur(10px);
+  backdrop-filter: var(--material-blur);
   pointer-events: auto;
 }
 
@@ -1873,7 +1959,7 @@ body {
   border-radius: 999px;
   padding: 0.35rem 0.75rem;
   cursor: pointer;
-  backdrop-filter: blur(10px);
+  backdrop-filter: var(--material-blur);
   transition:
     border-color 0.15s ease,
     color 0.15s ease,
@@ -1965,7 +2051,7 @@ body {
   background: var(--panel-bg);
   border: 1px solid var(--control-border);
   border-radius: 999px;
-  backdrop-filter: blur(10px);
+  backdrop-filter: var(--material-blur);
   pointer-events: none;
 }
 
@@ -1993,9 +2079,10 @@ body {
   padding: 0.9rem 1rem;
   color: var(--fg);
   background: var(--panel-bg-strong);
-  border: 1px solid var(--accent-ring);
-  border-radius: 14px;
-  backdrop-filter: blur(12px);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--surface-edge), var(--surface-shadow);
+  backdrop-filter: var(--material-blur);
   pointer-events: auto;
 }
 .probe.is-open {
@@ -2014,7 +2101,8 @@ body {
 }
 .probe__subtitle {
   margin: 0.15rem 0 0;
-  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
   color: var(--muted);
 }
 .probe__close {
@@ -2063,12 +2151,12 @@ body {
   cursor: pointer;
 }
 
+/* The selected segment is the same inverse pill as the layer picker:
+   background on foreground, which clears AA in both themes by a wide margin
+   (the accent fill it replaces needed --on-accent to pass at all). */
 .probe__segment-btn[aria-pressed="true"] {
-  /* --on-accent, not #fff: white on the dark theme's light-blue accent is
-     2.66:1 at this size (axe, WCAG 1.4.3); the paired token clears AA in
-     both themes. */
-  color: var(--on-accent);
-  background: var(--accent);
+  color: var(--bg);
+  background: var(--fg);
 }
 
 .probe__chart {
@@ -2105,11 +2193,12 @@ body {
   font: inherit;
   font-size: 0.78rem;
   padding: 0.35rem 0.8rem;
-  /* --on-accent, not #fff — same WCAG 1.4.3 fix as the segment buttons;
-     this one only dodged the axe scan because it renders post-sampling. */
-  color: var(--on-accent);
-  background: var(--accent);
-  border: 1px solid var(--accent);
+  /* A ghost pill: the chart is the content, the exports are actions on it,
+     and the accent is kept for state rather than for buttons. */
+  white-space: nowrap;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid var(--control-border-hover);
   border-radius: 999px;
   cursor: pointer;
 }
@@ -3039,7 +3128,6 @@ body {
    two 44px targets would also overlap each other. 26px already clears AA. */
 @media (pointer: coarse) {
   .software-link,
-  .fleet-link,
   .theme-toggle,
   .share-button,
   .export__button,
@@ -3301,10 +3389,10 @@ body {
    centre survives while the reachable area clips to ~23px tall, under the WCAG
    2.5.8 24px floor.
 
-   The fix spends no space and moves nothing else. #software-link and
-   #fleet-link are already inline-block and already share one row; the toggle's
-   mount is the only block in that group, so it takes a row of its own. Making
-   it inline puts it on the row its two siblings already occupy, returning the
+   The fix spends no space and moves nothing else. #software-link is already
+   inline-block (it shared that row with #fleet-link until Fleet status moved to
+   the credits line); the toggle's mount is a block, so it takes a row of its
+   own. Making it inline puts it on the row the link already occupies, returning the
    44px button plus its 0.5rem margin — 52px — to the gap above the panel. The
    three run ~238px against 534px of available width at the narrowest size in
    this band, so nothing wraps and the toggle keeps its full 44px box.
@@ -3317,7 +3405,6 @@ body {
    e2e/coarse-pointer-header-row.spec.ts holds the toggle and both links. */
 @media (pointer: coarse) and (max-height: 460px) {
   .software-link,
-  .fleet-link,
   .theme-toggle-mount {
     vertical-align: middle;
   }
@@ -3352,8 +3439,8 @@ body {
    suite rather than a hypothetical.
 
    The mechanism is the one that worked above and it spends no space either:
-   #software-link and #fleet-link already share a row, the toggle's mount is
-   the only block among the three, and inlining it returns its 38px box plus
+   #software-link is already inline-block (Fleet status, once beside it, is in
+   the credits line now), the toggle's mount is a block, and inlining it returns its 38px box plus
    the 0.5rem margin — 46px under mouse chrome — to the gap above the panel.
    The row then runs to x=273 at its longest against 568px of width at the
    narrowest size in this band, so nothing wraps and the toggle keeps its full
@@ -3393,7 +3480,6 @@ body {
    e2e/fine-pointer-short-window.spec.ts holds this one. */
 @media (pointer: fine) and (max-height: 340px) and (min-width: 740px) {
   .software-link,
-  .fleet-link,
   .theme-toggle-mount {
     vertical-align: middle;
   }
@@ -3446,7 +3532,7 @@ body {
   border-radius: 999px;
   padding: 0.35rem 0.75rem;
   cursor: pointer;
-  backdrop-filter: blur(10px);
+  backdrop-filter: var(--material-blur);
   transition:
     border-color 0.15s ease,
     color 0.15s ease,
@@ -3489,9 +3575,10 @@ body {
   padding: 0.85rem;
   color: var(--fg);
   background: var(--panel-bg-strong);
-  border: 1px solid var(--accent-ring);
-  border-radius: 8px;
-  backdrop-filter: blur(12px);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--surface-edge), var(--surface-shadow);
+  backdrop-filter: var(--material-blur);
   pointer-events: auto;
 }
 

@@ -1,3 +1,9 @@
+// Geist and Geist Mono, self-hosted (SIL OFL 1.1). One typeface on every
+// platform, where `system-ui` was Segoe on Windows, SF on a Mac and whatever
+// Linux had, so text metrics (and the layouts measured against them) now match
+// between a reader's machine and CI.
+import "@fontsource-variable/geist";
+import "@fontsource-variable/geist-mono";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import {
@@ -2596,6 +2602,11 @@ function setStatus(text: string): void {
   if (statusEl.textContent !== next) statusEl.textContent = next;
   const detail = text ? "" : note.detail;
   if (statusEl.title !== detail) statusEl.title = detail;
+  // The status dot: green when the record is as new as the product can be,
+  // amber for a publication delay, none while transient text holds the row.
+  const currency = text ? "" : note.fresh ? "fresh" : "delayed";
+  if (currency) statusEl.dataset.currency = currency;
+  else delete statusEl.dataset.currency;
 }
 
 function createStarfield(): THREE.Points {

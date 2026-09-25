@@ -96,9 +96,6 @@
         <button id="software-link" type="button" class="software-link">
           Find software
         </button>
-        <button id="fleet-link" type="button" class="fleet-link">
-          Fleet status
-        </button>
         <div id="theme-toggle" class="theme-toggle-mount"></div>
       </header>
 
@@ -190,6 +187,13 @@
             rel="noopener"
             >Give feedback</a
           >
+          ·
+          <!-- The agent fleet's dashboard is internal tooling, so it sits with
+               the project links here rather than in the header's primary
+               actions. The id is what main.ts wires the lazy panel to. -->
+          <button id="fleet-link" type="button" class="attribution__link">
+            Fleet status
+          </button>
         </p>
       </div>
 

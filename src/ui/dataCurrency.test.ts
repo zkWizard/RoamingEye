@@ -4,6 +4,28 @@ import { dataCurrencyNote } from "./dataCurrency";
 
 const AUG_2026 = { year: 2026, month: 8 };
 
+describe("dataCurrencyNote freshness (the status dot)", () => {
+  const monthly = (month: number) =>
+    dataCurrencyNote(LAYERS.ndvi, { year: 2026, month }, AUG_2026).fresh;
+
+  it("counts one month behind as fresh: last month is the newest a composite can be", () => {
+    expect(monthly(7)).toBe(true);
+    expect(monthly(8)).toBe(true);
+  });
+
+  it("counts two or more months behind as a publication delay", () => {
+    expect(monthly(6)).toBe(false);
+    expect(monthly(3)).toBe(false);
+  });
+
+  it("treats an annual layer as fresh only when no closed year is missing", () => {
+    const annual = (year: number) =>
+      dataCurrencyNote(LAYERS.landcover, { year, month: 1 }, AUG_2026).fresh;
+    expect(annual(2025)).toBe(true);
+    expect(annual(2024)).toBe(false);
+  });
+});
+
 describe("dataCurrencyNote", () => {
   it("names the record end and how far behind the calendar it sits", () => {
     const note = dataCurrencyNote(

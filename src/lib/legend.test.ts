@@ -3,6 +3,7 @@ import {
   LEGENDS,
   OVERLAY_KEYS,
   gradientCss,
+  swatchCss,
   legendProvenance,
   legendTicks,
   overlayKeyFor,
@@ -288,6 +289,43 @@ describe("legendTicks", () => {
       expect(legendTicks(id as keyof typeof PROBE_SCALES) !== null, id).toBe(
         expectTicks
       );
+    }
+  });
+});
+
+describe("swatchCss", () => {
+  it("runs a gradient layer's own stops corner to corner", () => {
+    const css = swatchCss({
+      measures: "x",
+      minLabel: "low",
+      maxLabel: "high",
+      stops: [
+        { color: "#000000", at: 0 },
+        { color: "#ffffff", at: 1 },
+      ],
+    });
+    expect(css).toBe("linear-gradient(135deg, #000000 0%, #ffffff 100%)");
+  });
+
+  it("gives each class an equal hard-edged band, in legend order", () => {
+    const css = swatchCss({
+      kind: "classes",
+      measures: "x",
+      classes: [
+        { color: "#ff0000", label: "a" },
+        { color: "#00ff00", label: "b" },
+        { color: "#0000ff", label: "c" },
+        { color: "#ffffff", label: "d" },
+      ],
+    });
+    expect(css).toBe(
+      "linear-gradient(135deg, #ff0000 0% 25%, #00ff00 25% 50%, #0000ff 50% 75%, #ffffff 75% 100%)"
+    );
+  });
+
+  it("has a swatch for every layer", () => {
+    for (const id of LAYER_ORDER) {
+      expect(swatchCss(LEGENDS[id])).toMatch(/^linear-gradient\(135deg, #/);
     }
   });
 });
