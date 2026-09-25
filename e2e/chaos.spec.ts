@@ -114,6 +114,8 @@ test("survives a seeded interaction storm and settles healthy", async ({
       await p.keyboard.press("Escape");
     },
     themeToggle: async (p) => {
+      // One tap deep, in the actions pill's More menu.
+      await p.locator("#more-button").click({ timeout: 2000 });
       await p.locator(".theme-toggle").click({ timeout: 2000 });
     },
     escape: async (p) => {

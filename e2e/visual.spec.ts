@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { test, expect, type Page } from "@playwright/test";
 import { awaitAppInteractive } from "./boot";
+import { chooseFromMoreMenu } from "./actions";
 
 /**
  * Visual regression for the scientific chrome — legends, timeline, picker,
@@ -131,7 +132,7 @@ test("providers modal panel", async ({ page }) => {
 
 test("shortcuts overlay", async ({ page }) => {
   await boot(page, "dark");
-  await page.locator("#shortcuts-link").click();
+  await chooseFromMoreMenu(page, "#shortcuts-link");
   await expect(page.locator("#shortcuts-page")).toHaveScreenshot(
     "shortcuts.png",
     shot

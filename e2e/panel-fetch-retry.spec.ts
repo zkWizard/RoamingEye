@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { awaitAppInteractive } from "./boot";
+import { chooseFromMoreMenu } from "./actions";
 
 /**
  * A dropped request must not retire a reference panel for the whole session.
@@ -24,6 +25,8 @@ type Panel = {
   name: string;
   artifact: string;
   link: string;
+  /** Opened from the actions pill's More menu rather than a visible link. */
+  inMoreMenu: boolean;
   root: string;
   status: string;
   loaded: RegExp;
@@ -34,6 +37,7 @@ const PANELS: Panel[] = [
     name: "software finder",
     artifact: "**/data/software-catalog.json",
     link: "#software-link",
+    inMoreMenu: true,
     root: ".software",
     status: ".software__status",
     loaded: /\d+ verified projects?/,
@@ -42,6 +46,7 @@ const PANELS: Panel[] = [
     name: "fleet dashboard",
     artifact: "**/data/agent-status.json",
     link: "#fleet-link",
+    inMoreMenu: false,
     root: ".fleet",
     status: ".fleet__status",
     loaded: /Last run/,
@@ -59,11 +64,16 @@ for (const panel of PANELS) {
       return offline ? route.abort("failed") : route.continue();
     });
 
+    const open = () =>
+      panel.inMoreMenu
+        ? chooseFromMoreMenu(page, panel.link)
+        : page.locator(panel.link).click();
+
     await page.goto("/");
     await awaitAppInteractive(page);
 
     // First open, on a broken wire: the panel says so.
-    await page.locator(panel.link).click();
+    await open();
     const status = page.locator(panel.status);
     await expect(status).toContainText("unavailable", { timeout: 25_000 });
     expect(requests, "the first open never requested the artifact").toBe(1);
@@ -77,7 +87,7 @@ for (const panel of PANELS) {
     await expect(page.locator(`${panel.root}.is-open`)).toHaveCount(0);
 
     // Reopening asks again, and this time the content arrives.
-    await page.locator(panel.link).click();
+    await open();
     await expect(status).toContainText(panel.loaded, { timeout: 25_000 });
     expect(requests, "reopening never retried the artifact").toBe(2);
 
@@ -85,7 +95,7 @@ for (const panel of PANELS) {
     // not turn every open into a request.
     await page.locator(`${panel.root} .providers__close`).click();
     await expect(page.locator(`${panel.root}.is-open`)).toHaveCount(0);
-    await page.locator(panel.link).click();
+    await open();
     await expect(status).toContainText(panel.loaded);
     expect(requests, "a successful load was not cached").toBe(2);
   });

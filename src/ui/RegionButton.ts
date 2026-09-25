@@ -15,7 +15,7 @@ export class RegionButton {
     this.button.className = "draw-button";
     this.button.setAttribute("aria-pressed", "false");
     this.button.title = "Draw a study region and chart its monthly mean";
-    this.button.innerHTML = `<span class="draw-button__icon">${ICONS.draw}</span><span>Draw region</span>`;
+    this.button.innerHTML = `<span class="draw-button__icon">${ICONS.draw}</span><span class="draw-button__label">Draw region</span>`;
     this.button.addEventListener("click", () => {
       const on = this.button.getAttribute("aria-pressed") !== "true";
       this.setActive(on);

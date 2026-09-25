@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { awaitAppInteractive } from "./boot";
+import { openMoreMenu } from "./actions";
 
 /**
  * The theme toggle is an ACTION button, not a state toggle, and the two models
@@ -30,6 +31,10 @@ import { awaitAppInteractive } from "./boot";
  * What must hold is a PAIR: no `aria-pressed` in either theme, AND the name
  * still tracks the target theme and still equals the visible title. The second
  * half is what stops the defect being "fixed" by freezing the name instead.
+ *
+ * As a row in the actions pill's More menu it also shows its words ("Light
+ * theme"), and those have to sit inside the name (WCAG 2.5.3, label in name)
+ * so a voice-control user can say what they see.
  */
 
 const toggle = ".theme-toggle";
@@ -59,6 +64,7 @@ test("the theme toggle names its target and claims no pressed state", async ({
       theme: document.documentElement.getAttribute("data-theme"),
       name: el.getAttribute("aria-label"),
       title: (el as HTMLElement).title,
+      label: el.textContent?.trim(),
       // `null` is the point: the attribute must be absent, not "false".
       pressed: el.getAttribute("aria-pressed"),
     }));
@@ -67,9 +73,11 @@ test("the theme toggle names its target and claims no pressed state", async ({
     theme: "dark",
     name: "Switch to light theme",
     title: "Switch to light theme",
+    label: "Light theme",
     pressed: null,
   });
 
+  await openMoreMenu(page);
   await button.click();
   await expect.poll(async () => (await read()).theme).toBe("light");
 
@@ -78,17 +86,20 @@ test("the theme toggle names its target and claims no pressed state", async ({
     theme: "light",
     name: "Switch to dark theme",
     title: "Switch to dark theme",
+    label: "Dark theme",
     pressed: null,
   });
 
   // And back, so the absence is a property of the control rather than of one
   // theme it happened to boot into.
+  await openMoreMenu(page);
   await button.click();
   await expect.poll(async () => (await read()).theme).toBe("dark");
   expect(await read()).toEqual({
     theme: "dark",
     name: "Switch to light theme",
     title: "Switch to light theme",
+    label: "Light theme",
     pressed: null,
   });
 });

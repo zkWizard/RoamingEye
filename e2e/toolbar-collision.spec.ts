@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { awaitAppInteractive } from "./boot";
+import { openMoreMenu } from "./actions";
 
 /**
  * The overlay toolbar is centred vertically, so its top edge climbs as the
@@ -85,7 +86,7 @@ test.describe("toolbar never steals the top-right buttons", () => {
     });
   }
 
-  test("the whole top-right column stays clickable across the band", async ({
+  test("the whole actions pill stays clickable across the band", async ({
     page,
   }) => {
     await boot(page, 1440, 900);
@@ -98,15 +99,35 @@ test.describe("toolbar never steals the top-right buttons", () => {
         height
       );
       for (const sel of [
+        ".draw-button",
         ".compare-button",
         ".share-button",
-        ".export__button",
+        "#more-button",
       ]) {
         expect(
           await ownerAtCentre(page, sel),
           `${sel} is covered at 1440x${height}`
         ).toBe("itself");
       }
+    }
+  });
+
+  // The More menu hangs down the right edge across the bar's top. The bar
+  // comes later in the document at the pill's z-index, and on first build it
+  // painted over the open menu, swallowing its lower rows.
+  test("the open More menu sits over the toolbar", async ({ page }) => {
+    await boot(page, 1440, 900);
+    await openMoreMenu(page);
+    for (const sel of [
+      ".export__button",
+      "#software-link",
+      "#shortcuts-link",
+      ".theme-toggle",
+    ]) {
+      expect(
+        await ownerAtCentre(page, sel),
+        `the toolbar covers ${sel} in the open menu`
+      ).toBe("itself");
     }
   });
 

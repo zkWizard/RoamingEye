@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { awaitAppInteractive } from "./boot";
 import { globePoint } from "./globe";
+import { chooseFromMoreMenu, openMoreMenu } from "./actions";
 
 /**
  * Enforced accessibility: axe-core (WCAG 2.x A/AA rule tags) scans the app
@@ -127,7 +128,7 @@ test("providers modal is axe-clean", async ({ page }) => {
 });
 
 test("software finder is axe-clean", async ({ page }) => {
-  await page.locator("#software-link").click();
+  await chooseFromMoreMenu(page, "#software-link");
   await expect(page.locator("#software-page")).toHaveClass(/is-open/);
   await scan(page, "software finder");
 });
@@ -139,7 +140,7 @@ test("fleet dashboard is axe-clean", async ({ page }) => {
 });
 
 test("shortcuts overlay is axe-clean", async ({ page }) => {
-  await page.locator("#shortcuts-link").click();
+  await chooseFromMoreMenu(page, "#shortcuts-link");
   await expect(page.locator("#shortcuts-page")).toBeVisible();
   await scan(page, "shortcuts");
 });
@@ -396,11 +397,11 @@ test("UA widgets follow the chosen theme, not the OS preference", async ({
   expect(await scheme()).toEqual({ theme: "dark", colorScheme: "dark" });
 
   // Flipping the theme must carry the UA chrome with it.
-  await page.locator(".theme-toggle").click();
+  await chooseFromMoreMenu(page, ".theme-toggle");
   await expect.poll(async () => (await scheme()).theme).toBe("light");
   expect(await scheme()).toEqual({ theme: "light", colorScheme: "light" });
 
-  await page.locator(".theme-toggle").click();
+  await chooseFromMoreMenu(page, ".theme-toggle");
   await expect.poll(async () => (await scheme()).theme).toBe("dark");
   expect(await scheme()).toEqual({ theme: "dark", colorScheme: "dark" });
 });
@@ -441,7 +442,7 @@ test("browser chrome colour follows the chosen theme, not the OS", async ({
   expect(dark.media).toEqual([null]);
   expect(dark.content).toBe(dark.bg);
 
-  await page.locator(".theme-toggle").click();
+  await chooseFromMoreMenu(page, ".theme-toggle");
   await expect
     .poll(async () => (await chrome()).content)
     .not.toBe(dark.content);
@@ -466,13 +467,16 @@ test("browser chrome colour follows the chosen theme, not the OS", async ({
 // Fleet status is not listed: it is an inline link in the credits sentence
 // now, like Data providers beside it, which WCAG 2.5.8 exempts ("the target is
 // in a sentence").
+// The More menu's rows are measured with the menu open, as a thumb meets them.
 const TOUCH_TARGETS = [
-  ".software-link",
-  ".theme-toggle",
-  ".share-button",
-  ".export__button",
-  ".compare-button",
   ".draw-button",
+  ".compare-button",
+  ".share-button",
+  ".actions__more-button",
+  ".export__button",
+  ".software-link",
+  ".shortcuts-link",
+  ".theme-toggle",
   ".layer-selector__trigger",
 ];
 
@@ -490,6 +494,7 @@ test.describe("touch target size", () => {
       await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
       "emulation must actually select the coarse-pointer rules"
     ).toBe(true);
+    await openMoreMenu(page);
 
     const undersized = await page.evaluate((sels) => {
       const bad: string[] = [];
@@ -554,21 +559,25 @@ test.describe("touch target size", () => {
 });
 
 /**
- * NOTE: this measures the badge's BOX, which is not the same question as what
- * the box can receive, and the two genuinely disagree. Under a coarse pointer
- * the badge sits at the end of the hint sentence, so it drifts right as the
- * text renders wider; between 541 and 660px it lands in the `#share` lane and
- * is squeezed by the search field above and the share button below, down to
- * ~12-21px reachable while the box still reads a clean 24 here. That band is a
- * known open defect. Reachability is asserted, at the widths where 44px is
- * achievable, in `coarse-pointer-hint-badge.spec.ts`. Do not treat this test
- * as covering either question.
+ * Every pointer gets the AA floor, not only a thumb: the actions pill's
+ * segments and, with the menu open, each of its rows. The coarse-pointer 44px
+ * half, and what each target can actually receive, is actions-pill.spec.ts.
  */
-test("the shortcuts badge meets the 24px AA target floor", async ({ page }) => {
-  const box = await page.locator(".hint__shortcuts").boundingBox();
-  expect(box).not.toBeNull();
-  expect(box!.width).toBeGreaterThanOrEqual(24);
-  expect(box!.height).toBeGreaterThanOrEqual(24);
+test("the actions pill and its menu meet the 24px AA target floor", async ({
+  page,
+}) => {
+  await openMoreMenu(page);
+  const small = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>("#actions button:not([hidden])")]
+      .map((el) => {
+        const r = el.getBoundingClientRect();
+        const name = el.getAttribute("aria-label") ?? el.textContent?.trim();
+        return { name, w: r.width, h: r.height };
+      })
+      .filter((t) => t.w < 24 || t.h < 24)
+      .map((t) => `${t.name}: ${t.w.toFixed(1)}x${t.h.toFixed(1)}`)
+  );
+  expect(small, "actions under the 24px AA floor").toEqual([]);
 });
 
 /**

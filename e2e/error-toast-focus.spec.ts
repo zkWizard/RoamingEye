@@ -98,7 +98,7 @@ test("stepping out of the toast restarts the clock", async ({ page }) => {
 
   // Leaving must re-arm what entering suspended, or a toast touched once would
   // sit over the globe for the rest of the session.
-  await page.locator(".theme-toggle").focus();
+  await page.locator("#more-button").focus();
   await expect(page.locator(".error-toast__box")).toHaveCount(0, {
     timeout: AUTO_HIDE_MS + 4000,
   });
