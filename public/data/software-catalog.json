@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-07-12T22:11:45.316Z",
+  "generatedAt": "2026-09-25T10:15:50.531Z",
   "tools": [
     {
       "id": "geopandas-geopandas",
@@ -33,10 +33,10 @@
       "languages": [
         "English"
       ],
-      "verifiedAt": "2026-07-12",
+      "verifiedAt": "2026-09-25",
       "evidence": {
         "repositoryApi": "https://api.github.com/repos/geopandas/geopandas",
-        "repositoryUpdatedAt": "2026-07-11T14:27:04Z"
+        "repositoryUpdatedAt": "2026-09-24T11:24:40Z"
       },
       "accessNotes": [
         "Use an isolated Python environment and follow the project guide."
@@ -74,10 +74,10 @@
       "languages": [
         "English"
       ],
-      "verifiedAt": "2026-07-12",
+      "verifiedAt": "2026-09-25",
       "evidence": {
         "repositoryApi": "https://api.github.com/repos/SciTools/iris",
-        "repositoryUpdatedAt": "2026-07-10T17:03:33Z"
+        "repositoryUpdatedAt": "2026-09-23T21:38:43Z"
       },
       "accessNotes": [
         "Use an isolated Python environment and follow the project guide."
@@ -115,10 +115,10 @@
       "languages": [
         "English"
       ],
-      "verifiedAt": "2026-07-12",
+      "verifiedAt": "2026-09-25",
       "evidence": {
         "repositoryApi": "https://api.github.com/repos/Unidata/MetPy",
-        "repositoryUpdatedAt": "2026-07-08T20:36:15Z"
+        "repositoryUpdatedAt": "2026-09-25T08:04:23Z"
       },
       "accessNotes": [
         "Use an isolated Python environment and follow the project guide."
@@ -157,10 +157,10 @@
       "languages": [
         "English"
       ],
-      "verifiedAt": "2026-07-12",
+      "verifiedAt": "2026-09-25",
       "evidence": {
         "repositoryApi": "https://api.github.com/repos/OpenDroneMap/ODM",
-        "repositoryUpdatedAt": "2026-07-12T16:47:47Z"
+        "repositoryUpdatedAt": "2026-09-24T12:51:35Z"
       },
       "accessNotes": [
         "Follow the documented package or source-install guide.",
@@ -201,10 +201,10 @@
       "languages": [
         "English"
       ],
-      "verifiedAt": "2026-07-12",
+      "verifiedAt": "2026-09-25",
       "evidence": {
         "repositoryApi": "https://api.github.com/repos/GenericMappingTools/pygmt",
-        "repositoryUpdatedAt": "2026-07-10T06:08:52Z"
+        "repositoryUpdatedAt": "2026-09-25T00:12:07Z"
       },
       "accessNotes": [
         "Use an isolated Python environment and follow the project guide."
@@ -244,10 +244,10 @@
       "languages": [
         "English"
       ],
-      "verifiedAt": "2026-07-12",
+      "verifiedAt": "2026-09-25",
       "evidence": {
         "repositoryApi": "https://api.github.com/repos/qgis/QGIS",
-        "repositoryUpdatedAt": "2026-07-12T20:09:42Z"
+        "repositoryUpdatedAt": "2026-09-25T10:09:08Z"
       },
       "accessNotes": [
         "Use the documented installer or package for your operating system."
@@ -286,10 +286,10 @@
       "languages": [
         "English"
       ],
-      "verifiedAt": "2026-07-12",
+      "verifiedAt": "2026-09-25",
       "evidence": {
         "repositoryApi": "https://api.github.com/repos/pydata/xarray",
-        "repositoryUpdatedAt": "2026-07-09T18:05:22Z"
+        "repositoryUpdatedAt": "2026-09-23T11:49:45Z"
       },
       "accessNotes": [
         "Use an isolated Python environment and follow the project guide."
