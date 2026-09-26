@@ -147,6 +147,7 @@ import type { Bounds } from "./lib/imagery";
 import { StudyRegion } from "./scene/StudyRegion";
 import { StudyChip } from "./ui/StudyChip";
 import { ShortcutsOverlay } from "./ui/ShortcutsOverlay";
+import { ThinkingOrb } from "./ui/ThinkingOrb";
 import { ActionMenu } from "./ui/ActionMenu";
 import { loadAdmin1Index, loadCountryIndex } from "./lib/countryIndex";
 import {
@@ -181,6 +182,15 @@ if (!canvas) {
 }
 const loaderEl = document.querySelector<HTMLElement>("#loader");
 const loaderSlowEl = document.querySelector<HTMLElement>("#loader-slow");
+
+// The boot curtain's orb: a dotted globe, searching, while the real one loads.
+// Every module script on the page is one entry chunk, so nothing here runs
+// until three.js has arrived too; the curtain shows "Loading Earth…" alone for
+// that moment and the orb fades in (style.css), rather than a CSS spinner
+// being swapped out from under the reader mid-boot.
+const bootOrb = new ThinkingOrb("searching", 64);
+document.querySelector("#loader-orb")?.append(bootOrb.canvas);
+bootOrb.start();
 const statusEl = document.querySelector<HTMLElement>("#timeline-status");
 const layerEl = document.querySelector<HTMLElement>("#layer-selector");
 const legendEl = document.querySelector<HTMLElement>("#legend");
@@ -453,6 +463,8 @@ const textures = new GlobeTextureManager(
         firstLoadDone = true;
         clearSlowBootNotice();
         loaderEl?.classList.add("is-hidden");
+        // The curtain fades over 0.6 s (style.css); the orb turns through it.
+        setTimeout(() => bootOrb.stop(), 700);
       }
     },
     onError: () => {
@@ -1399,6 +1411,7 @@ if (probeEl) {
           // tick buries the result behind a queue of them. See setStatus.
           panel.setStatus(`Sampling ${done}/${total} months…`, {
             announce: false,
+            busy: true,
           });
           const now = performance.now();
           if (now - lastDraw > 150 || done === total) {
@@ -1812,6 +1825,7 @@ if (probeEl) {
           // tick buries the result behind a queue of them. See setStatus.
           panel.setStatus(`Sampling ${done}/${total} months…`, {
             announce: false,
+            busy: true,
           });
           const now = performance.now();
           if (now - lastDraw > 150 || done === total) {

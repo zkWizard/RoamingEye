@@ -56,6 +56,7 @@ import {
 import { probeVegetationSamplingGateClause } from "../lib/vegetationObservingConstraints";
 import { uncalibratedVegetationAccuracyClause } from "../lib/vegetationIndexRamp";
 import { ICONS } from "./icons";
+import { ThinkingOrb } from "./ThinkingOrb";
 
 /** What the current series is: which layer, and where it was sampled. */
 export interface ProbeSeriesContext {
@@ -96,6 +97,8 @@ export class ProbePanel {
   private readonly subtitle: HTMLElement;
   private readonly canvas: HTMLCanvasElement;
   private readonly status: HTMLElement;
+  // Turns beside the status line while a record streams in (see setStatus).
+  private readonly orb = new ThinkingOrb("listening", 20, "probe__orb");
   private readonly detail: HTMLElement;
   private readonly downloadBtn: HTMLButtonElement;
   private readonly copyBtn: HTMLButtonElement;
@@ -206,6 +209,10 @@ export class ProbePanel {
     // still has to exist from the start: a live region has to be in the tree
     // before the mutation it announces, or the first message is missed.
     this.status.setAttribute("aria-live", "polite");
+    const statusRow = document.createElement("div");
+    statusRow.className = "probe__status-row";
+    this.orb.canvas.hidden = true;
+    statusRow.append(this.orb.canvas, this.status);
 
     // The second half of the readout: the same segments, in the same order,
     // that used to trail the reading inside `status`. Deliberately NOT a live
@@ -242,7 +249,7 @@ export class ProbePanel {
       header,
       options,
       this.canvas,
-      this.status,
+      statusRow,
       this.detail,
       footer
     );
@@ -276,7 +283,7 @@ export class ProbePanel {
     this.downloadBtn.disabled = true;
     this.copyBtn.disabled = true;
     this.copyBtn.textContent = "Copy CSV";
-    this.setStatus("Sampling…");
+    this.setStatus("Sampling…", { busy: true });
     // Remember the opener once per opening, not per re-probe: switching mode
     // re-opens the panel for the same visit, and by then focus is on the mode
     // button inside it — which would make the panel its own opener.
@@ -306,6 +313,7 @@ export class ProbePanel {
     const hadFocusInside = this.root.contains(document.activeElement);
     this.root.classList.remove("is-open");
     this.root.setAttribute("aria-hidden", "true");
+    this.setBusy(false);
     if (restoreFocus && hadFocusInside) this.opener?.focus();
     this.opener = null;
   }
@@ -314,6 +322,12 @@ export class ProbePanel {
   private dismiss(): void {
     this.close({ restoreFocus: true });
     this.onClose?.();
+  }
+
+  private setBusy(on: boolean): void {
+    this.orb.canvas.hidden = !on;
+    if (on) this.orb.start();
+    else this.orb.stop();
   }
 
   /**
@@ -339,12 +353,19 @@ export class ProbePanel {
    * The visible text is unchanged at every step, and so is the DOM: no node is
    * added, hidden, or duplicated, so nothing here can move a pixel of the HUD.
    */
-  setStatus(text: string, options?: { announce?: boolean }): void {
+  setStatus(
+    text: string,
+    options?: { announce?: boolean; busy?: boolean }
+  ): void {
     this.status.setAttribute(
       "aria-live",
       options?.announce === false ? "off" : "polite"
     );
     this.status.textContent = text;
+    // Busy is a property of the line, not a separate state to keep in step:
+    // the sampling lines pass it, and anything else written here (the reading,
+    // a failure, a domain note) ends the work by the same stroke.
+    this.setBusy(options?.busy === true);
     // Every caller of this method writes a message that stands alone — the
     // opening "Sampling…", a chunk-load failure, a domain note for an empty
     // record. None of them has a trailing half, so any detail left over from a

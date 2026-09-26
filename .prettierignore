@@ -3,3 +3,7 @@
 
 # Generated datasets (scripts/prepare-data.mjs) -- kept minified on purpose.
 public/data/
+
+# Third-party source, kept byte-for-byte as upstream formatted it so it can be
+# diffed against a new release (see src/vendor/*/README.md).
+src/vendor/
