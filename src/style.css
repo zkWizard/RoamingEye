@@ -1117,6 +1117,35 @@ body {
   }
 }
 
+/* The unfolded dock on a short screen. Unfolded, the dock can reach the
+   header: at 568x320 it ran up to y=22, under the search field and the actions
+   pill, and at 740x360 the pill's Compare button took the taps meant for the
+   timeline's next-month stepper. There is no room for the dock, the bottom bar
+   and the header at once there.
+
+   Unfolding is the reader asking for the dock, so while it would meet the
+   header, the header yields the way a sheet covers what is behind it: the
+   wordmark, the search field and the pill fade out and leave the tab order,
+   and folding brings them straight back. Whether the two meet depends on the
+   width, the height, the pointer's target sizes and how the dock's own text
+   wraps, so main.ts measures it and sets `dock-over-header` rather than a
+   breakpoint guessing at it. */
+.overlay--top,
+.search,
+.actions {
+  transition:
+    opacity 0.2s ease,
+    visibility 0s;
+}
+
+#app.dock-over-header :is(.overlay--top, .search, .actions) {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.2s ease,
+    visibility 0s linear 0.2s;
+}
+
 /* Layer selector (grouped dropdown) */
 .layer-selector {
   position: relative;

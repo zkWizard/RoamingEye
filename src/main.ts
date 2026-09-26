@@ -2321,8 +2321,45 @@ if (hudCollapseEl && controlsEl) {
   const CHEVRON_DOWN = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`;
   const CHEVRON_UP = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>`;
 
+  // Unfolded on a short screen, the dock can reach up into the header, and a
+  // tap meant for the timeline lands on the actions pill instead. The header
+  // yields while that is true (style.css, .dock-over-header). Measured, not a
+  // breakpoint: the overlap turns on the width, the height, the pointer's
+  // target sizes and how the dock's text wraps. Hidden parts keep their boxes,
+  // so the measurement never feeds back into itself.
+  const appEl = document.querySelector<HTMLElement>("#app");
+  const brandEl = document.querySelector(".brand");
+  const headerParts = [".search__field", "#actions"]
+    .map((sel) => document.querySelector<HTMLElement>(sel))
+    .filter((el): el is HTMLElement => el !== null);
+  const syncHeader = (): void => {
+    let meets = false;
+    if (!controlsEl.classList.contains("is-collapsed")) {
+      const dock = controlsEl.getBoundingClientRect();
+      const boxes = headerParts.map((el) => el.getBoundingClientRect());
+      if (brandEl) {
+        // The heading spans the header; only its words can be covered.
+        const words = document.createRange();
+        words.selectNodeContents(brandEl);
+        boxes.push(words.getBoundingClientRect());
+      }
+      meets = boxes.some(
+        (b) =>
+          b.width > 0 &&
+          b.left < dock.right &&
+          b.right > dock.left &&
+          b.top < dock.bottom &&
+          b.bottom > dock.top
+      );
+    }
+    appEl?.classList.toggle("dock-over-header", meets);
+  };
+  new ResizeObserver(syncHeader).observe(controlsEl);
+  window.addEventListener("resize", syncHeader);
+
   const applyCollapsed = (collapsed: boolean): void => {
     controlsEl.classList.toggle("is-collapsed", collapsed);
+    syncHeader();
     hudCollapseEl.innerHTML = collapsed ? CHEVRON_UP : CHEVRON_DOWN;
     hudCollapseEl.setAttribute("aria-expanded", String(!collapsed));
     const label = collapsed
