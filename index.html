@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- No maximum-scale / user-scalable: pinch-to-zoom must stay available
+         (WCAG 2.1 SC 1.4.4). The globe canvas opts out of browser gestures
+         itself via touch-action: none, so page zoom only applies to UI chrome. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="RoamingEye — roam a 3D Earth and scrub through monthly satellite data to watch the seasons change over years."
+    />
+    <title>RoamingEye</title>
+
+    <!-- Social sharing cards. og:image/og:url must be absolute URLs. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="RoamingEye — a 3D Earth you can roam" />
+    <meta
+      property="og:description"
+      content="Scrub through years of monthly NASA satellite data and watch the seasons change across a 3D globe. Open source, open data."
+    />
+    <meta
+      property="og:image"
+      content="https://roamingeye.org/social-card.jpg"
+    />
+    <meta property="og:url" content="https://roamingeye.org/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="RoamingEye — a 3D Earth you can roam" />
+    <meta
+      name="twitter:description"
+      content="Scrub through years of monthly NASA satellite data and watch the seasons change across a 3D globe."
+    />
+    <meta
+      name="twitter:image"
+      content="https://roamingeye.org/social-card.jpg"
+    />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Browser chrome colour for the first paint only, guessed from the OS
+         preference because no script has run yet — the same fallback the theme
+         resolver uses. ThemeToggle collapses these two into one tag keyed to
+         the theme actually in force, so the bar stops tracking the OS the
+         moment the user's own choice is known. -->
+    <meta
+      name="theme-color"
+      content="#05070d"
+      media="(prefers-color-scheme: dark)"
+    />
+    <meta
+      name="theme-color"
+      content="#eaf0f8"
+      media="(prefers-color-scheme: light)"
+    />
+
+    <script type="module" crossorigin src="/assets/index-Bfv8oybk.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/three-BiFXtY6t.js">
+    <link rel="modulepreload" crossorigin href="/assets/timeline-44RYO4rs.js">
+    <link rel="modulepreload" crossorigin href="/assets/volcanoContext-sTfq4qPm.js">
+    <link rel="modulepreload" crossorigin href="/assets/doiLink-B57VMVt_.js">
+    <link rel="modulepreload" crossorigin href="/assets/numerics-8EpldLJX.js">
+    <link rel="modulepreload" crossorigin href="/assets/soilMoistureDepth-D6P9Xq4E.js">
+    <link rel="modulepreload" crossorigin href="/assets/aerosolLoading-C_2ujLod.js">
+    <link rel="modulepreload" crossorigin href="/assets/landCoverPalette-BHBjZWu5.js">
+    <link rel="modulepreload" crossorigin href="/assets/snowCover-OYF7jk1N.js">
+    <link rel="modulepreload" crossorigin href="/assets/plateBoundaryHover-czyN76B4.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-AUCFSrDO.css">
+  </head>
+  <body>
+    <div id="app">
+      <!-- role="application" tells a screen reader to hand keystrokes
+           straight to the app, so the globe has to answer them: it is
+           focusable, arrow keys turn it, +/- zoom, and Enter charts the point
+           in the middle of the view (see the keyboard section of main.ts). -->
+      <canvas
+        id="globe"
+        tabindex="0"
+        aria-label="Interactive 3D globe — drag or use the arrow keys to turn it, scroll or press plus and minus to zoom, click or press Enter to chart the point in view"
+        role="application"
+      ></canvas>
+
+      <!-- Marks the point the keyboard is aiming at — the middle of the view,
+           which is what Enter charts. Shown only while the globe holds keyboard
+           focus; the pointer has a cursor and needs no such mark. Decorative:
+           the coordinates it stands on are read out in #hover-tooltip. -->
+      <div id="globe-reticle" class="globe-reticle" aria-hidden="true"></div>
+
+      <header class="overlay overlay--top">
+        <h1 class="brand">Roaming<span>Eye</span></h1>
+      </header>
+
+      <div id="search" class="search"></div>
+
+      <!-- One pill of view actions. The mounts keep their ids, which is what
+           main.ts wires each component to; everything used less often is one
+           tap deeper, in the More menu (ActionMenu.ts). -->
+      <nav id="actions" class="actions" aria-label="View actions">
+        <div id="draw"></div>
+        <div id="compare" class="compare"></div>
+        <span class="actions__sep" aria-hidden="true"></span>
+        <div id="share" class="share"></div>
+        <div class="actions__more">
+          <button
+            id="more-button"
+            type="button"
+            class="actions__more-button"
+            aria-expanded="false"
+            aria-controls="more-menu"
+            aria-label="More actions"
+            title="More actions"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <circle cx="5" cy="12" r="1.6" />
+              <circle cx="12" cy="12" r="1.6" />
+              <circle cx="19" cy="12" r="1.6" />
+            </svg>
+          </button>
+          <div id="more-menu" class="actions__menu" hidden>
+            <div id="export"></div>
+            <span class="actions__divider" aria-hidden="true"></span>
+            <button id="software-link" type="button" class="software-link">
+              <span class="actions__item-icon" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="4" y="4" width="16" height="16" rx="3" />
+                  <path d="M9 12h6M12 9v6" />
+                </svg>
+              </span>
+              Find software
+            </button>
+            <button
+              id="shortcuts-link"
+              type="button"
+              class="shortcuts-link"
+              title="Keyboard shortcuts (?)"
+            >
+              <span class="actions__item-icon" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="3" y="6" width="18" height="12" rx="2" />
+                  <path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10" />
+                </svg>
+              </span>
+              Keyboard shortcuts
+              <kbd aria-hidden="true">?</kbd>
+            </button>
+            <div id="theme-toggle"></div>
+          </div>
+        </div>
+      </nav>
+
+      <div id="compare-divider"></div>
+
+      <aside id="toolbar" class="toolbar" aria-label="Map overlays"></aside>
+
+      <div id="hover-tooltip" class="hover-tooltip" aria-hidden="true"></div>
+
+      <div id="study-chip" class="study-chip"></div>
+
+      <div id="probe-panel"></div>
+
+      <aside id="place-insights"></aside>
+
+      <div class="overlay overlay--bottom">
+        <div id="controls" class="controls">
+          <!-- Shown only where the dock still competes with the middle of the
+               view (phones); style.css keeps both the button and the collapsed
+               state inside that one media query, so widening the window
+               restores every row without the class being cleared. -->
+          <button
+            id="hud-collapse"
+            type="button"
+            class="controls__collapse"
+            aria-expanded="true"
+          ></button>
+          <div id="layer-selector"></div>
+          <div id="legend"></div>
+          <div id="timeline"></div>
+          <!-- The meta line: status (main.ts inserts Retry after it), the
+               citation, and the toggle for the legend's reference rows. -->
+          <div class="controls__meta">
+            <div
+              id="timeline-status"
+              class="timeline-status"
+              aria-live="polite"
+            ></div>
+            <div id="provenance" class="provenance"></div>
+            <button
+              id="hud-info"
+              type="button"
+              class="controls__info"
+              aria-expanded="false"
+              aria-controls="legend"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 11v5M12 8h.01" />
+              </svg>
+              About this layer
+            </button>
+          </div>
+        </div>
+        <p class="attribution">
+          Imagery: NASA GIBS · Seismicity: USGS · Borders &amp; places: Natural
+          Earth · Search: © OpenStreetMap ·
+          <button id="providers-link" type="button" class="attribution__link">
+            Data providers
+          </button>
+          ·
+          <a
+            href="https://github.com/zkWizard/RoamingEye"
+            target="_blank"
+            rel="noopener"
+            >Open source</a
+          >
+          ·
+          <a
+            href="https://github.com/zkWizard/RoamingEye/issues/new?template=feedback.yml"
+            target="_blank"
+            rel="noopener"
+            >Give feedback</a
+          >
+          ·
+          <!-- The agent fleet's dashboard is internal tooling, so it sits with
+               the project links here rather than in the header's primary
+               actions. The id is what main.ts wires the lazy panel to. -->
+          <button id="fleet-link" type="button" class="attribution__link">
+            Fleet status
+          </button>
+        </p>
+      </div>
+
+      <div id="providers-page" class="providers" aria-hidden="true"></div>
+
+      <div id="software-page" class="software" aria-hidden="true"></div>
+
+      <div id="fleet-page" class="fleet" aria-hidden="true"></div>
+
+      <div id="shortcuts-page" class="shortcuts" aria-hidden="true"></div>
+
+      <div id="loader" class="loader">
+        <div class="loader__spinner" aria-hidden="true"></div>
+        <p>Loading Earth…</p>
+        <!-- Stays rendered and empty; main.ts inserts the line. A live region
+             that is toggled `hidden` is outside the accessibility tree until
+             it is shown, so the text arrives unannounced (same lesson as the
+             offline banner). Out of flow, so an ordinary boot's spinner and
+             caption sit exactly where they always did. -->
+        <div id="loader-slow" class="loader__slow" role="status"></div>
+      </div>
+    </div>
+
+  </body>
+</html>

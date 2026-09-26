@@ -1,0 +1,1 @@
+function e(){let e=0,t=0;return{add(n){let r=e+n;t+=Math.abs(e)>=Math.abs(n)?e-r+n:n-r+e,e=r},sum:()=>e+t}}function t(t){let n=e();for(let e=0;e<t.length;e++)n.add(t[e]);return n.sum()}export{t as n,e as t};

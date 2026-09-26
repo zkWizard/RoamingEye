@@ -1,0 +1,1 @@
+var e={top:0,bottom:10},t=`${e.top}-${e.bottom} cm`;`${t}`;export{t};
