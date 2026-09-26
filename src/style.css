@@ -252,117 +252,334 @@ body {
   color: var(--accent);
 }
 
-.hint {
-  font-size: clamp(0.85rem, 2.5vw, 1rem);
-  color: var(--fg);
-  opacity: 0.85;
-}
+/* --- Actions: one pill of view actions, top right --------------------------
+   Draw region, Compare and Share view sit in one pill under the search field.
+   Everything used less often (the two exports, Find software, the keyboard
+   shortcuts and the theme) is one tap deeper, behind More. This replaces five
+   buttons staggered down the right edge plus three more stacked in the left
+   column, whose collisions with each other and with the dock's fold had taken
+   a run of per-breakpoint rules to hold apart. The header is now the wordmark
+   alone. The hint it carried ("drag to rotate · scrub the timeline") lives in
+   the keyboard-shortcuts sheet, which the menu and the ? key both open.
 
-.hint__shortcuts {
-  pointer-events: auto; /* re-enable interaction inside the inert overlay */
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  /* 1.5rem = 24px, the WCAG 2.2 AA 2.5.8 floor. At the old 1.35rem this was
-     21.6px — the only control in the app under the floor. It sits in the top
-     overlay, well clear of the bottom HUD, and the hint line box was already
-     23.8px tall, so the taller badge grows that line by ~1px. */
-  width: 1.5rem;
-  height: 1.5rem;
-  margin-right: 0.35rem;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--muted);
-  background: var(--control-bg);
-  border: 1px solid var(--control-border);
-  border-radius: 50%;
-  cursor: pointer;
-  vertical-align: middle;
-}
-
-.hint__shortcuts:hover {
-  color: var(--fg);
-}
-
-/* A neutral pill, like every other secondary action. The accent is for state,
-   and a link-coloured chip in the header read as the page's call to action.
-   Fleet status used to sit beside it; it is internal tooling, so it lives in
-   the credits row now (index.html). */
-.software-link {
+   The component mounts keep their ids, so main.ts wires each one as before.
+   The pill supplies the material, and the buttons inside are quiet segments. */
+.actions {
+  position: absolute;
+  top: calc(clamp(0.75rem, 2vw, 1.25rem) + 52px);
+  right: clamp(0.75rem, 2vw, 1.25rem);
+  z-index: 4;
   pointer-events: auto;
-  margin-top: 0.5rem;
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 500;
-  color: var(--fg);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+}
+
+/* The pill's material sits on a pseudo-element, not the pill: an element with
+   a backdrop-filter becomes the backdrop root for everything inside it, and
+   the menu's own blur would then sample the pill instead of the globe. */
+.actions::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   background: var(--panel-bg);
   border: 1px solid var(--control-border);
-  border-radius: 999px;
-  padding: 0.35rem 0.75rem;
-  cursor: pointer;
+  border-radius: inherit;
+  box-shadow: var(--surface-edge), var(--surface-shadow);
   backdrop-filter: var(--material-blur);
 }
 
-.software-link:hover {
-  border-color: var(--control-border-hover);
+/* The overlay toolbar shares z-index 4 and comes later, so an open menu would
+   hang under it. Rising only while open (as the search field does) keeps an
+   open search popup, which also drops over this pill, on top of it. */
+.actions:has(.actions__menu:not([hidden])) {
+  z-index: 5;
 }
 
-.software-link:focus-visible {
+/* The mounts lay their buttons straight into the pill (and the menu). */
+.actions > #draw,
+.actions > #compare,
+.actions > #share,
+.actions__menu > #export,
+.actions__menu > #theme-toggle {
+  display: contents;
+}
+
+.actions__sep {
+  flex: none;
+  width: 1px;
+  height: 18px;
+  margin: 0 2px;
+  background: var(--control-border);
+}
+
+.draw-button,
+.compare-button,
+.share-button,
+.actions__more-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 34px;
+  padding: 0 0.8rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--fg);
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    scale 0.1s ease-out;
+}
+
+.draw-button:hover,
+.compare-button:hover,
+.share-button:hover,
+.actions__more-button:hover,
+.actions__more-button[aria-expanded="true"] {
+  background: var(--control-bg);
+}
+
+.draw-button:focus-visible,
+.compare-button:focus-visible,
+.share-button:focus-visible,
+.actions__more-button:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 3px;
+  outline-offset: 2px;
+}
+
+/* A mode that is on (drawing armed, comparison open) is the inverse pill: the
+   same "selected" the dock's layer pill and the probe's segments use. Keyed
+   to the attribute so it outranks :hover — a class alone loses to it, and a
+   pointer resting on the button kept the hover fill under the inverse text. */
+.draw-button[aria-pressed="true"],
+.compare-button[aria-pressed="true"] {
+  color: var(--bg);
+  background: var(--fg);
+}
+
+.share-button--copied {
+  color: var(--accent);
+}
+
+.draw-button__icon,
+.compare-button__icon,
+.share-button__icon {
+  display: flex;
+  width: 15px;
+  height: 15px;
+}
+
+.draw-button__icon svg,
+.compare-button__icon svg,
+.share-button__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.actions__more {
+  position: relative;
+  display: flex;
+}
+
+.actions__more-button {
+  width: 34px;
+  padding: 0;
+  justify-content: center;
+}
+
+.actions__more-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* The menu: a disclosure (ActionMenu.ts), not an ARIA menu. Its items are
+   ordinary buttons in tab order, so Tab walks them and a screen reader reads
+   them as the buttons they are. */
+.actions__menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: -4px;
+  z-index: 6;
+  min-width: 220px;
+  /* A landscape phone is ~320px tall and the menu hangs below two rows of
+     chrome, so it scrolls rather than running off the bottom. 116px is the
+     search row plus a 44px-target pill plus the gap above the menu. */
+  max-height: calc(100vh - 2 * clamp(0.75rem, 2vw, 1.25rem) - 116px);
+  max-height: calc(100dvh - 2 * clamp(0.75rem, 2vw, 1.25rem) - 116px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--panel-bg-strong);
+  border: 1px solid var(--control-border);
+  border-radius: 18px;
+  box-shadow: var(--surface-edge), var(--surface-shadow);
+  backdrop-filter: var(--material-blur);
+}
+
+.actions__menu[hidden] {
+  display: none;
+}
+
+.actions__divider {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--control-border);
+}
+
+.export__button,
+.software-link,
+.shortcuts-link,
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 0.75rem;
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+  white-space: nowrap;
+  color: var(--fg);
+  background: transparent;
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    scale 0.1s ease-out;
+}
+
+.export__button:hover,
+.software-link:hover,
+.shortcuts-link:hover,
+.theme-toggle:hover {
+  background: var(--control-bg);
+}
+
+/* Inset, because the menu's own edge is 6px away and would clip an outline
+   drawn outside the row. */
+.export__button:focus-visible,
+.software-link:focus-visible,
+.shortcuts-link:focus-visible,
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.export__icon,
+.actions__item-icon,
+.theme-toggle svg {
+  display: flex;
+  flex: none;
+  width: 15px;
+  height: 15px;
+  opacity: 0.85;
+}
+
+.export__icon svg,
+.actions__item-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.shortcuts-link kbd {
+  margin-left: auto;
+  padding: 0.05rem 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--muted);
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
 }
 
 /* Waiting on this panel's chunk — the same `data-state="pending"` the toolbar
-   buttons carry, so "fetching" reads the same wherever it happens. These are
-   text buttons with no fixed icon box to spin a ring inside, and this header
-   is a wrapping row at phone widths, so the label only fades: a control that
-   grew here would reflow the row around it. `cursor: progress` is the desktop
-   half of the cue and the fade is the half a touch reader gets. Dimming is
-   still and needs no reduced-motion arm. */
+   buttons carry, so "fetching" reads the same wherever it happens. The label
+   only fades: a control that grew here would reflow the row around it.
+   `cursor: progress` is the desktop half of the cue and the fade is the half a
+   touch reader gets. Dimming is still and needs no reduced-motion arm. */
 .software-link[data-state="pending"],
 .attribution__link[data-state="pending"] {
   opacity: 0.55;
   cursor: progress;
 }
 
-/* --- Theme toggle (in the header, under the hint) ----------------------------- */
-.theme-toggle-mount {
-  margin-top: 0.5rem;
+/* A phone: the pill runs gutter to gutter under the wordmark and the search
+   field, its three actions sharing it as words. With icons as well the row
+   needs ~368px and overflows a 375px phone; words alone need ~286px, which
+   holds down to a 320px one. */
+@media (max-width: 540px) {
+  .actions {
+    left: clamp(0.75rem, 2vw, 1.25rem);
+  }
+
+  .draw-button,
+  .compare-button,
+  .share-button {
+    flex: 1 1 auto;
+    justify-content: center;
+    padding: 0 0.5rem;
+  }
+
+  .draw-button__icon,
+  .compare-button__icon,
+  .share-button__icon {
+    display: none;
+  }
 }
 
-.theme-toggle {
-  pointer-events: auto; /* re-enable interaction inside the inert overlay */
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  color: var(--fg);
-  background: var(--panel-bg);
-  border: 1px solid var(--control-border);
-  border-radius: 999px;
-  cursor: pointer;
-  backdrop-filter: var(--material-blur);
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease,
-    scale 0.1s ease-out;
-}
+/* A short window — a phone on its side, or a desktop window dragged short —
+   has the globe centred close under this row, and the labelled pill (~380px)
+   would sit across the top of it. Icons alone keep it to the corner. The words
+   stay the accessible names, and hover still shows each title. "Copied!"
+   returns for the moment it is up, since it is the only report a share gets. */
+@media (max-height: 500px) {
+  .actions {
+    left: auto;
+  }
 
-.theme-toggle:hover {
-  border-color: var(--control-border-hover);
-}
+  .draw-button,
+  .compare-button,
+  .share-button {
+    flex: none;
+    justify-content: center;
+    width: 34px;
+    padding: 0;
+  }
 
-.theme-toggle:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
+  .draw-button__icon,
+  .compare-button__icon,
+  .share-button__icon {
+    display: flex;
+  }
 
-.theme-toggle svg {
-  width: 19px;
-  height: 19px;
-  display: block;
+  .draw-button__label,
+  .compare-button__label,
+  .share-button:not(.share-button--copied) .share-button__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .share-button--copied {
+    width: auto;
+    padding: 0 0.8rem;
+  }
 }
 
 .attribution {
@@ -449,7 +666,6 @@ body {
  * hidden is still a keyboard stop when it appears, and that is exactly when the
  * reader is recovering from an error and least able to lose the cursor.
  */
-.hint__shortcuts:focus-visible,
 .toolbar__item:focus-visible,
 .controls__collapse:focus-visible,
 .layer-selector__trigger:focus-visible,
@@ -1403,108 +1619,6 @@ body {
   user-select: text; /* researchers copy this into notes and citations */
 }
 
-/* --- Share view (top-right, under the search box) ---------------------------- */
-.share {
-  position: absolute;
-  top: calc(clamp(0.75rem, 2vw, 1.25rem) + 52px);
-  right: clamp(0.75rem, 2vw, 1.25rem);
-  z-index: 4;
-  pointer-events: auto;
-}
-
-.share-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  font: inherit;
-  font-size: 0.78rem;
-  color: var(--fg);
-  background: var(--panel-bg);
-  border: 1px solid var(--control-border);
-  border-radius: 999px;
-  padding: 0.4rem 0.8rem;
-  cursor: pointer;
-  backdrop-filter: var(--material-blur);
-  transition:
-    border-color 0.15s ease,
-    color 0.15s ease,
-    scale 0.1s ease-out;
-}
-
-.share-button:hover {
-  border-color: var(--control-border-hover);
-}
-
-.share-button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-
-.share-button__icon {
-  display: flex;
-  width: 15px;
-  height: 15px;
-}
-
-.share-button__icon svg {
-  width: 100%;
-  height: 100%;
-}
-
-.share-button--copied {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-/* --- Export actions (top-right, stacked under the share button) --------------- */
-.export {
-  position: absolute;
-  top: calc(clamp(0.75rem, 2vw, 1.25rem) + 96px);
-  right: clamp(0.75rem, 2vw, 1.25rem);
-  display: flex;
-  gap: 0.4rem;
-  z-index: 4;
-  pointer-events: auto;
-}
-
-.export__button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font: inherit;
-  font-size: 0.75rem;
-  color: var(--fg);
-  background: var(--panel-bg);
-  border: 1px solid var(--control-border);
-  border-radius: 999px;
-  padding: 0.35rem 0.75rem;
-  cursor: pointer;
-  backdrop-filter: var(--material-blur);
-  transition:
-    border-color 0.15s ease,
-    scale 0.1s ease-out;
-}
-
-.export__button:hover {
-  border-color: var(--control-border-hover);
-}
-
-.export__button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-
-.export__icon {
-  display: flex;
-  width: 14px;
-  height: 14px;
-}
-
-.export__icon svg {
-  width: 100%;
-  height: 100%;
-}
-
 /* --- Search (top-right) ----------------------------------------------------- */
 .search {
   position: absolute;
@@ -1515,7 +1629,7 @@ body {
   pointer-events: auto;
 }
 
-/* An open popup hangs over the share and export buttons, which sit at the same
+/* An open popup hangs over the actions pill, which sits at the same
    z-index; only while it is open does the whole field rise above them, so the
    rows it draws are the rows the pointer actually hits. */
 .search.is-open {
@@ -1938,59 +2052,7 @@ body {
   }
 }
 
-/* --- Comparison mode (top-right button + swipe divider) ----------------------- */
-.compare {
-  position: absolute;
-  top: calc(clamp(0.75rem, 2vw, 1.25rem) + 140px);
-  right: clamp(0.75rem, 2vw, 1.25rem);
-  z-index: 4;
-  pointer-events: auto;
-}
-
-.compare-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font: inherit;
-  font-size: 0.75rem;
-  color: var(--fg);
-  background: var(--panel-bg);
-  border: 1px solid var(--control-border);
-  border-radius: 999px;
-  padding: 0.35rem 0.75rem;
-  cursor: pointer;
-  backdrop-filter: var(--material-blur);
-  transition:
-    border-color 0.15s ease,
-    color 0.15s ease,
-    scale 0.1s ease-out;
-}
-
-.compare-button:hover {
-  border-color: var(--control-border-hover);
-}
-
-.compare-button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-
-.compare-button--active {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.compare-button__icon {
-  display: flex;
-  width: 14px;
-  height: 14px;
-}
-
-.compare-button__icon svg {
-  width: 100%;
-  height: 100%;
-}
-
+/* --- Comparison mode: the swipe divider (its button is in the actions pill) --- */
 .compare-divider {
   position: absolute;
   top: 0;
@@ -3128,48 +3190,16 @@ body {
    two 44px targets would also overlap each other. 26px already clears AA. */
 @media (pointer: coarse) {
   .software-link,
+  .shortcuts-link,
   .theme-toggle,
   .share-button,
   .export__button,
   .compare-button,
   .draw-button,
+  .actions__more-button,
   .layer-selector__trigger {
     min-width: 44px;
     min-height: 44px;
-  }
-
-  /* The keyboard-hint badge is the one control the list above cannot take.
-     It sits inline in the hint sentence, so a `min-height` would grow that
-     line and push the whole header down; and it renders 24x24, which only
-     just clears the AA floor. So the badge keeps its 24px look and gains a
-     transparent hit area instead, which costs no layout at all.
-
-     The growth is entirely UPWARD, which is the opposite of what this rule
-     did while the badge trailed the hint sentence. Now that it leads that
-     sentence it sits in the header's left column, and the two neighbours
-     swapped roles: the search field it used to be squeezed by starts at
-     x>=209 and is no longer overhead at all, whereas `#software-link` sits
-     directly BELOW at x 16-116 and, coming later in the DOM, would win any
-     pixels grown down into it — measured, a downward area was clipped to
-     33px tall, back under the floor. Above the badge is the `.brand`
-     heading: earlier in the DOM, so the badge wins those pixels, and it is
-     text rather than a control, so nothing is taken from the user.
-
-     The offsets carry an extra 1px because an absolutely positioned child is
-     placed against its container's PADDING box: the badge's 1px border sits
-     outside that, so a bare -10px would land 9px out and yield a 42px-wide
-     target. -11px/-11px is 44 across, and -25px/-1px is 48 up. */
-  .hint__shortcuts {
-    position: relative;
-  }
-
-  .hint__shortcuts::after {
-    content: "";
-    position: absolute;
-    top: -25px;
-    right: -11px;
-    bottom: -1px;
-    left: -11px;
   }
 
   /* The layer options are the last coarse target still on the AA floor rather
@@ -3211,10 +3241,6 @@ body {
 @media (max-width: 540px) {
   .brand {
     font-size: 1.15rem;
-  }
-
-  .hint {
-    display: none;
   }
 
   .search {
@@ -3338,226 +3364,6 @@ body {
   .probe {
     bottom: 14rem;
   }
-}
-
-/* --- Draw-region button (top-left, under the theme toggle) -------------------- */
-.draw {
-  position: absolute;
-  top: calc(clamp(1rem, 3vw, 2rem) + 150px);
-  left: clamp(1rem, 3vw, 2rem);
-  z-index: 4;
-  pointer-events: auto;
-}
-
-/* A coarse pointer at a landscape-phone height puts two 44px boxes in the same
-   corner. `@media (pointer: coarse)` grows this button to a 44px target, and the
-   block near the top of this file gives #hud-collapse the same 44px box at the
-   panel top-left corner — but the 150px this button reserves above itself is a
-   fixed number, and the chrome it reserves for grew with the pointer while the
-   number did not. It lands across that corner instead of above it.
-
-   Measured on main at 667x375 and 740x360, #hud-collapse hit-tested to
-   BUTTON.draw-button at its centre: the only way back to the legend and the
-   timeline was covered by a control that arms region drawing instead, so the
-   tap did not merely miss — it did something else.
-
-   The corner is one 44px box plus its 0.2rem inset, so clearing it horizontally
-   is enough. The button keeps its row and its label, and the panel keeps the
-   corner it documents. Scoped to the band that already opens the panel folded
-   (460px), because that is where the column has no vertical room left; above it
-   the two boxes never meet — 844x390 and 932x430 measured clear before this
-   rule and are unchanged by it. */
-@media (pointer: coarse) and (max-height: 460px) {
-  .draw {
-    left: calc(clamp(1rem, 3vw, 2rem) + 52px);
-  }
-}
-
-/* The same corner, reached from the other side. The rule above cleared the
-   DRAW button off #hud-collapse sideways; the theme toggle sits in the header
-   column directly above that corner and arrives there vertically, because the
-   column's height is a function of WIDTH — the brand and hint fonts are
-   vw-clamped — while the panel's top is a function of HEIGHT. Below ~360px of
-   height the two meet.
-
-   Measured on main under touch emulation, .theme-toggle hit-tested to
-   BUTTON#hud-collapse at its centre at 568x320, a size this suite already
-   drives: the tap folded the HUD instead of switching the theme, which is the
-   same "did something else" failure the two rules above were written for. A
-   10-width x 13-height sweep found the dead band contiguous — every width
-   tested at 320 and 340, eight of ten at 350, and 800x360 — and at 740x360 the
-   centre survives while the reachable area clips to ~23px tall, under the WCAG
-   2.5.8 24px floor.
-
-   The fix spends no space and moves nothing else. #software-link is already
-   inline-block (it shared that row with #fleet-link until Fleet status moved to
-   the credits line); the toggle's mount is a block, so it takes a row of its
-   own. Making it inline puts it on the row the link already occupies, returning the
-   44px button plus its 0.5rem margin — 52px — to the gap above the panel. The
-   three run ~238px against 534px of available width at the narrowest size in
-   this band, so nothing wraps and the toggle keeps its full 44px box.
-   `vertical-align` is set on all three because a bare baseline would hang the
-   toggle's icon off the links' text baseline.
-
-   Scoped to the same band as the corner rule above: a coarse pointer is what
-   grows these three to 44px in the first place, and every other project in the
-   e2e suite runs a fine pointer, whose smaller chrome this leaves untouched.
-   e2e/coarse-pointer-header-row.spec.ts holds the toggle and both links. */
-@media (pointer: coarse) and (max-height: 460px) {
-  .software-link,
-  .theme-toggle-mount {
-    vertical-align: middle;
-  }
-
-  .theme-toggle-mount {
-    display: inline-block;
-    margin-left: 0.5rem;
-  }
-}
-
-/* The same collision, reached with a mouse. The rule above was scoped to a
-   coarse pointer because a coarse pointer is what grows the column's controls
-   to 44px, and the reasoning stopped there: with the smaller mouse chrome the
-   column is 52px shorter, so it looked like it could not reach the panel.
-
-   It reaches. The column's height follows the WIDTH and the panel's top
-   follows the HEIGHT, and a mouse only moves where the two meet — it does not
-   stop them meeting. Measured on main under the suite's own fine-pointer
-   context, `.theme-toggle` lost its centre to DIV#controls or to
-   BUTTON#hud-collapse across a CONTIGUOUS 300-335px band of viewport height:
-   nine of eleven widths at 300, 310 and 315, eight at 320, seven at 325, and
-   the last stragglers at 330 and 335 (800 and 812 wide, the widths where the
-   vw-clamped brand runs longest). 340 and above are clear. So a click there
-   folded the HUD or hit the panel instead of switching the theme — the same
-   "did something else" failure the coarse rule was written for, on the pointer
-   that cannot even be blamed for the 44px boxes.
-
-   This band is a desktop window dragged short, not a device: no phone is
-   320px tall in portrait, and a phone in landscape is coarse and already
-   covered above. e2e/probe-overlap-landscape.spec.ts already drives 568x320
-   through a fine-pointer context, so this is live regression surface for the
-   suite rather than a hypothetical.
-
-   The mechanism is the one that worked above and it spends no space either:
-   #software-link is already inline-block (Fleet status, once beside it, is in
-   the credits line now), the toggle's mount is a block, and inlining it returns its 38px box plus
-   the 0.5rem margin — 46px under mouse chrome — to the gap above the panel.
-   The row then runs to x=273 at its longest against 568px of width at the
-   narrowest size in this band, so nothing wraps and the toggle keeps its full
-   38px box. `vertical-align` is set on all three because the toggle is 38px
-   against the links' 29 and a bare baseline would hang its icon off theirs.
-
-   Scoped to 340px rather than to the 335 the measurement ends at, so the rule
-   covers the band with a pixel of margin; 340 and 345 measured clear both with
-   and without it. Scoped to `pointer: fine` so the coarse layout #1064 shipped
-   is provably untouched — the two queries are disjoint, and
-   e2e/coarse-pointer-header-row.spec.ts still owns that side.
-
-   And scoped to 740px of WIDTH, which is the part that cost three CI runs.
-   Inlining trades vertical space for horizontal reach: the row grows from x=55
-   to about x=260 locally, and the header overlay is `pointer-events: none` with
-   only these controls interactive, so past a point the toggle itself is what a
-   hit test over the globe finds. e2e/probe-overlap-landscape.spec.ts aims its
-   probe at (width/2, height*0.3) — (284, 96) at 568x320 — and the toggle's
-   right edge sat at 258 there: 26px of margin, which CI's fonts spent outright.
-   It failed exactly that way.
-
-   The bound was set at 640 first, from a local model that widened the links
-   with letter-spacing: at the most aggressive widening 568 collapsed to 1px of
-   margin while 640 still held 35px. CI then measured the real thing at 640 and
-   returned **18px** — the model understated those fonts by about half. So the
-   number here is CI's, not a model's: the row reaches x=302 at 640, and since
-   its width barely moves with the viewport while the aim is width/2, the margin
-   is ~18px at 640, ~30px at 667 and ~65px at 740. 740 is the first width with
-   room that a font change cannot quietly eat.
-
-   That leaves 568-739 UNFIXED at 300-335, and it is a deliberate trade rather
-   than a gap: 568x320 was already one of only two sizes that passed on main,
-   and buying that width band back would mean putting a control over the globe's
-   aim to save a row. What remains covered is still most of the measured
-   collision, including ALL of 330 and 335 (800 and 812, the widths where the
-   vw-clamped brand runs longest and the column reaches furthest down).
-   e2e/fine-pointer-short-window.spec.ts holds this one. */
-@media (pointer: fine) and (max-height: 340px) and (min-width: 740px) {
-  .software-link,
-  .theme-toggle-mount {
-    vertical-align: middle;
-  }
-
-  .theme-toggle-mount {
-    display: inline-block;
-    margin-left: 0.5rem;
-  }
-}
-
-/* The same fixed 150px, the other axis. The rule above clears the corner
-   sideways because a landscape phone has no vertical room to give; a tablet
-   has nothing but vertical room, and there the reserve simply runs short.
-   The column it reserves for is the brand, the two links and the theme
-   toggle, and a coarse pointer grows two of those three: the links 29px -> 44
-   and the toggle 38px -> 44, so the column needs 21px more than the number
-   says. The draw button lands on the theme toggle, and because it is 112px
-   wide against the toggle's 44 it covers the toggle's centre outright.
-
-   Measured on main under touch emulation, .theme-toggle hit-tested to
-   BUTTON.draw-button at its centre at 820x1180, 834x1112, 1024x1366, 1180x820
-   and 1024x600 — every mainstream tablet viewport bar the 768-wide one, which
-   survives on two pixels of sub-pixel rounding rather than on any design. The
-   tap does not miss quietly: it arms region drawing instead of switching the
-   theme, the same way the corner collision did before the rule above.
-
-   180px is the toggle's own bottom edge (172px under a coarse pointer) plus
-   the 8px gap the column already sets between the links row and the toggle,
-   so the button keeps the rhythm of the rail it hangs from rather than
-   restoring the 1px overlap the mouse layout happens to tolerate. Scoped to
-   the complement of the rule above so the two never both apply: below 461px
-   the column has no room to push into and the corner rule governs instead.
-   390x844, 360x740 and 768x1024 measured clear before this rule and stay
-   clear under it, with the button still well above #controls at every size. */
-@media (pointer: coarse) and (min-height: 461px) {
-  .draw {
-    top: calc(clamp(1rem, 3vw, 2rem) + 180px);
-  }
-}
-
-.draw-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font: inherit;
-  font-size: 0.75rem;
-  color: var(--fg);
-  background: var(--panel-bg);
-  border: 1px solid var(--control-border);
-  border-radius: 999px;
-  padding: 0.35rem 0.75rem;
-  cursor: pointer;
-  backdrop-filter: var(--material-blur);
-  transition:
-    border-color 0.15s ease,
-    color 0.15s ease,
-    scale 0.1s ease-out;
-}
-
-.draw-button:hover {
-  border-color: var(--control-border-hover);
-}
-
-.draw-button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-
-.draw-button[aria-pressed="true"] {
-  color: var(--on-accent);
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-.draw-button__icon svg {
-  width: 15px;
-  height: 15px;
-  display: block;
 }
 
 .probe__segment[hidden] {

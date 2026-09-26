@@ -103,6 +103,11 @@ test("copying the imagery URL names what was copied", async ({ page }) => {
   const button = page.locator('.export__button[aria-label*="imagery URL"]');
   const nameBefore = await button.getAttribute("aria-label");
 
+  // The exports sit in the actions pill's More menu: open it from the
+  // keyboard, then Tab on into it. Choosing an export leaves it open, so the
+  // label swap below is still on screen.
+  await tabTo(page, "#more-button");
+  await page.keyboard.press("Enter");
   await tabTo(page, '.export__button[aria-label*="imagery URL"]');
   await page.keyboard.press("Enter");
 
