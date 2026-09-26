@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { awaitAppInteractive } from "./boot";
+import { openMoreMenu } from "./actions";
 
 /**
  * "Save PNG" renders a fresh frame and reads the canvas back with
@@ -66,6 +67,8 @@ test("a PNG the browser could not encode says so", async ({ page }) => {
   await expect(toast).toHaveCount(0);
 
   // Keyboard only: the press must be the sole cause of whatever appears.
+  // Save PNG is a row in the actions pill's More menu.
+  await openMoreMenu(page);
   const save = saveButton(page);
   await save.focus();
   await expect(save).toBeFocused();
@@ -98,6 +101,8 @@ test("a PNG that saves stays silent — the download reports itself", async ({
   await awaitAppInteractive(page);
   await watchAnnouncements(page);
 
+  // Save PNG is a row in the actions pill's More menu.
+  await openMoreMenu(page);
   const save = saveButton(page);
   await save.focus();
 

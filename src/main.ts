@@ -148,6 +148,7 @@ import { StudyRegion } from "./scene/StudyRegion";
 import { StudyChip } from "./ui/StudyChip";
 import { ShortcutsOverlay } from "./ui/ShortcutsOverlay";
 import { ThinkingOrb } from "./ui/ThinkingOrb";
+import { ActionMenu } from "./ui/ActionMenu";
 import { loadAdmin1Index, loadCountryIndex } from "./lib/countryIndex";
 import {
   flyToDistance,
@@ -2406,6 +2407,11 @@ if (fleetPageEl && fleetLinkEl) {
     import("./ui/FleetDashboard").then((m) => m.FleetDashboard)
   );
 }
+
+// --- The actions pill's More menu --------------------------------------------
+const moreButtonEl = document.querySelector<HTMLElement>("#more-button");
+const moreMenuEl = document.querySelector<HTMLElement>("#more-menu");
+if (moreButtonEl && moreMenuEl) new ActionMenu(moreButtonEl, moreMenuEl);
 
 // --- Keyboard shortcuts overlay -----------------------------------------------
 const shortcutsPageEl = document.querySelector<HTMLElement>("#shortcuts-page");

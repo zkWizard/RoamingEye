@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { awaitAppInteractive } from "./boot";
+import { chooseFromMoreMenu } from "./actions";
 
 /**
  * The software finder must not read its own filter out loud, keystroke by
@@ -28,7 +29,7 @@ test.use({ viewport: { width: 1280, height: 900 } });
 test("only the settled filter count is announced", async ({ page }) => {
   await page.goto("/");
   await awaitAppInteractive(page);
-  await page.locator("#software-link").click();
+  await chooseFromMoreMenu(page, "#software-link");
   await expect(page.locator(".software.is-open")).toHaveCount(1, {
     timeout: 20_000,
   });

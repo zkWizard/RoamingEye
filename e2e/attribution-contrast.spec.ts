@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { awaitAppInteractive } from "./boot";
+import { chooseFromMoreMenu } from "./actions";
 
 /**
  * The credits row must be READABLE, not merely tappable — at every size, in
@@ -70,7 +71,7 @@ async function bootAt(page: Page, size: Size, theme: "light" | "dark") {
   await page.goto("/");
   await awaitAppInteractive(page);
   if (theme === "dark") {
-    await page.locator(".theme-toggle").click();
+    await chooseFromMoreMenu(page, ".theme-toggle");
     await page.waitForTimeout(500);
   }
 }
@@ -268,7 +269,7 @@ test.describe("attribution contrast", () => {
 
     // Dark theme: the globe reaches the row at every size, so the plate is on
     // at every size — the breakpoint stops governing it.
-    await page.locator(".theme-toggle").click();
+    await chooseFromMoreMenu(page, ".theme-toggle");
     await page.waitForTimeout(500);
     for (const w of [541, 1280]) {
       await setWidth(w);

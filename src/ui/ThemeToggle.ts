@@ -61,7 +61,12 @@ export class ThemeToggle {
     // `aria-pressed`); this one can't, because its name is its visible label.
     // See e2e/theme-toggle-state.spec.ts.
     const target = nextTheme(this.theme);
-    this.button.innerHTML = this.theme === "dark" ? SUN_ICON : MOON_ICON;
+    // A row in the More menu, so it says what it does as well as drawing it.
+    // "Light theme" sits inside the name "Switch to light theme", which keeps
+    // the visible label in the accessible name (WCAG 2.5.3).
+    const label = target === "light" ? "Light theme" : "Dark theme";
+    this.button.innerHTML =
+      (this.theme === "dark" ? SUN_ICON : MOON_ICON) + `<span>${label}</span>`;
     this.button.setAttribute("aria-label", `Switch to ${target} theme`);
     this.button.title = `Switch to ${target} theme`;
 

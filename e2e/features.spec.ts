@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { awaitAppInteractive } from "./boot";
+import { chooseFromMoreMenu } from "./actions";
 import { globePoint } from "./globe";
 
 /**
@@ -240,8 +241,8 @@ test("? opens the keyboard-shortcuts overlay and Esc closes it", async ({
   await page.keyboard.press("Escape");
   await expect(overlay).not.toHaveClass(/is-open/);
 
-  // The ? button in the header hint opens it too.
-  await page.locator("#shortcuts-link").click();
+  // So does its row in the actions pill's More menu.
+  await chooseFromMoreMenu(page, "#shortcuts-link");
   await expect(overlay).toHaveClass(/is-open/);
 });
 
@@ -249,7 +250,7 @@ test("software finder loads reviewed records and filters locally", async ({
   page,
 }) => {
   const catalogLoaded = page.waitForResponse("**/data/software-catalog.json");
-  await page.locator("#software-link").click();
+  await chooseFromMoreMenu(page, "#software-link");
   expect((await catalogLoaded).ok()).toBe(true);
 
   const finder = page.locator("#software-page");
@@ -698,7 +699,7 @@ test("place insights report nearby USGS seismicity with its source and scope", a
 });
 
 test("modals trap focus and restore it on close", async ({ page }) => {
-  await page.locator("#shortcuts-link").click();
+  await chooseFromMoreMenu(page, "#shortcuts-link");
   const overlay = page.locator("#shortcuts-page");
   await expect(overlay).toHaveClass(/is-open/);
 
@@ -713,10 +714,11 @@ test("modals trap focus and restore it on close", async ({ page }) => {
     expect(inside).toBe(true);
   }
 
-  // Close: focus returns to the opener.
+  // Close: focus returns to the opener — the More button, since the menu row
+  // that opened the panel closed with the menu (see ActionMenu.ts).
   await page.keyboard.press("Escape");
   await expect(overlay).not.toHaveClass(/is-open/);
-  await expect(page.locator("#shortcuts-link")).toBeFocused();
+  await expect(page.locator("#more-button")).toBeFocused();
 });
 
 test("restores the last session; a URL hash still wins", async ({ page }) => {
