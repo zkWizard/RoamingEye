@@ -1,5 +1,6 @@
 import { geocode, type GeoResult } from "../lib/geocoding";
 import { ICONS } from "./icons";
+import { ThinkingOrb } from "./ThinkingOrb";
 
 /** Stable ids so the input can point at the popup and its active option. */
 const LIST_ID = "search-results";
@@ -44,6 +45,9 @@ export class SearchBox {
   private entries: Entry[] = [];
   private activeIndex = -1;
   private pendingAnnounce: ReturnType<typeof setTimeout> | undefined;
+  // One orb for the life of the box, moved into each "Searching…" row: the
+  // rows are rebuilt on every keystroke, and it stops with the row it is in.
+  private readonly orb = new ThinkingOrb("searching", 20, "search__orb");
 
   constructor(
     container: HTMLElement,
@@ -206,6 +210,8 @@ export class SearchBox {
    */
   private renderPending(): void {
     this.renderMessage("Searching…", false);
+    this.results.lastElementChild?.prepend(this.orb.canvas);
+    this.orb.start();
     this.results.setAttribute("aria-busy", "true");
     clearTimeout(this.pendingAnnounce);
     this.pendingAnnounce = setTimeout(() => this.announce("Searching…"), 600);
@@ -213,6 +219,7 @@ export class SearchBox {
 
   /** Drop the in-flight marks — every terminal path passes through here. */
   private clearPending(): void {
+    this.orb.stop();
     clearTimeout(this.pendingAnnounce);
     this.pendingAnnounce = undefined;
     this.results.removeAttribute("aria-busy");

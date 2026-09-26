@@ -760,13 +760,21 @@ body {
   color: var(--muted);
 }
 
-.loader__spinner {
-  width: 42px;
-  height: 42px;
-  border: 3px solid var(--accent-ring);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.9s linear infinite;
+/* The boot orb (ThinkingOrb.ts, mounted by main.ts). The box is in the markup
+   from the first paint, so the caption under it never moves when the orb
+   arrives a moment later; the orb fades in rather than popping. */
+.loader__orb {
+  width: 64px;
+  height: 64px;
+}
+.loader__orb canvas {
+  display: block;
+  animation: orb-in 0.4s ease both;
+}
+@keyframes orb-in {
+  from {
+    opacity: 0;
+  }
 }
 
 @keyframes spin {
@@ -776,7 +784,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .loader__spinner {
+  .loader__orb canvas {
     animation: none;
   }
   html,
@@ -2231,6 +2239,18 @@ body {
   font-size: 0.78rem;
   color: var(--muted);
 }
+/* While a record streams in, an orb turns beside "Sampling 12/316 months…".
+   The negative margin keeps the 20px orb inside the text's own line box, so
+   the row is no taller with it than without it. */
+.probe__status-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.probe__orb {
+  flex: none;
+  margin-block: -2px;
+}
 /* The qualifications that trail a settled reading. Same muted colour, one step
    down in size — the treatment .probe__caveat already gives the panel's
    standing qualification — so the measurement above it reads as the answer
@@ -3636,10 +3656,16 @@ body {
 
 /* Search status row: failure / no-matches feedback (issue #74) */
 .search__message {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   padding: 0.55rem 0.75rem;
   font-size: 0.78rem;
   color: var(--muted);
   list-style: none;
+}
+.search__orb {
+  flex: none;
 }
 
 /* WebGL-unavailable fallback (shown inside the loader, issue #87) */

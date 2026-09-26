@@ -246,7 +246,9 @@
       <div id="shortcuts-page" class="shortcuts" aria-hidden="true"></div>
 
       <div id="loader" class="loader">
-        <div class="loader__spinner" aria-hidden="true"></div>
+        <!-- The orb (ThinkingOrb.ts) mounts here once main.ts runs. The box
+             holds its place from the first paint so the caption never moves. -->
+        <div id="loader-orb" class="loader__orb" aria-hidden="true"></div>
         <p>Loading Earth…</p>
         <!-- Stays rendered and empty; main.ts inserts the line. A live region
              that is toggled `hidden` is outside the accessibility tree until
