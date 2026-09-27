@@ -104,6 +104,23 @@
             </svg>
           </button>
           <div id="more-menu" class="actions__menu" hidden>
+            <button id="stories-link" type="button" class="stories-link">
+              <span class="actions__item-icon" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="m10 8.5 5 3.5-5 3.5z" fill="currentColor" />
+                </svg>
+              </span>
+              Stories
+            </button>
+            <span class="actions__divider" aria-hidden="true"></span>
             <div id="export"></div>
             <span class="actions__divider" aria-hidden="true"></span>
             <button id="software-link" type="button" class="software-link">
@@ -148,6 +165,33 @@
           </div>
         </div>
       </nav>
+
+      <!-- Curated time-lapses (StoryCard.ts): a one-line invitation on a first
+           visit, and the card while a story plays. -->
+      <div id="stories" class="stories">
+        <button
+          id="stories-invite"
+          type="button"
+          class="stories__invite"
+          hidden
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path
+              d="M8.5 6.2v11.6a.9.9 0 0 0 1.37.77l9.3-5.8a.9.9 0 0 0 0-1.54l-9.3-5.8a.9.9 0 0 0-1.37.77Z"
+              fill="currentColor"
+            />
+          </svg>
+          <span>Watch the planet change</span>
+        </button>
+      </div>
 
       <div id="compare-divider"></div>
 

@@ -73,6 +73,8 @@ function isUsableBounds(b: Bounds): boolean {
 }
 
 export interface ViewState {
+  /** A story playing (lib/stories.ts): the link replays it from the top. */
+  story?: string;
   layer?: LayerId;
   month?: YearMonth;
   camera?: CameraState;
@@ -89,6 +91,8 @@ export interface ViewState {
 
 const MONTH_RE = /^(\d{4})-(\d{2})$/;
 
+const STORY_ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 function isLayerId(value: string): value is LayerId {
   // Object.hasOwn, not `in`: the `in` operator walks the prototype chain, so
   // a crafted hash like #layer=toString would pass the guard and smuggle a
@@ -99,6 +103,7 @@ function isLayerId(value: string): value is LayerId {
 /** Encode a view state as a URL-hash payload (no leading `#`). */
 export function encodeViewState(state: ViewState): string {
   const params = new URLSearchParams();
+  if (state.story) params.set("story", state.story);
   if (state.layer) params.set("layer", state.layer);
   if (state.month) {
     params.set(
@@ -149,6 +154,12 @@ export function decodeViewState(hash: string): ViewState {
   } catch {
     return state;
   }
+
+  // Format only: the stories load when one is asked for (StoryCard.ts), and an
+  // id that names none is ignored there. The id is untrusted link input, so
+  // it is never used as an object key.
+  const story = params.get("story");
+  if (story && STORY_ID_RE.test(story)) state.story = story;
 
   const layer = params.get("layer");
   if (layer && isLayerId(layer)) state.layer = layer;
