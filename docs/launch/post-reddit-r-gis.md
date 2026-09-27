@@ -3,18 +3,15 @@
 ```
 To:      public (r/gis, r/remotesensing)
 Venue:   Reddit
-Channel: NOT YET DETERMINED — see "Two gates" below
+Channel: NOT YET DETERMINED — see "One gate" below
 Status:  DRAFT — BLOCKED
 Date:    drafted pre-v1.0; claims repaired 2026-07-27
 Claims re-verified: 2026-07-27
 ```
 
-> **Two gates before this is sendable.** Both are tracked in the comms workspace:
+> **One gate before this is sendable** (HTTPS, the other, cleared 2026-08-14):
 >
-> 1. **HTTPS is not working yet.** Every link below points at `https://roamingeye.org/`,
->    which has no certificate yet. See the send gate in
->    [`comms/outbox/README.md`](../../comms/outbox/README.md) for the exact check to run.
-> 2. **Reddit's own rules have not been read.** Both subs likely confine self-promotion
+> 1. **Reddit's own rules have not been read.** Both subs likely confine self-promotion
 >    to a designated showcase thread and may require flair or affiliation disclosure. The
 >    four questions to answer from each sidebar are in the Reddit entry of
 >    [`comms/TARGETS.md`](../../comms/TARGETS.md). **Do not post this as a drive-by link
