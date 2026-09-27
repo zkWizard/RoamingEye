@@ -104,6 +104,23 @@
             </svg>
           </button>
           <div id="more-menu" class="actions__menu" hidden>
+            <button id="stories-link" type="button" class="stories-link">
+              <span class="actions__item-icon" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="m10 8.5 5 3.5-5 3.5z" fill="currentColor" />
+                </svg>
+              </span>
+              Stories
+            </button>
+            <span class="actions__divider" aria-hidden="true"></span>
             <div id="export"></div>
             <span class="actions__divider" aria-hidden="true"></span>
             <button id="software-link" type="button" class="software-link">
@@ -148,6 +165,10 @@
           </div>
         </div>
       </nav>
+
+      <!-- Curated time-lapses (StoryCard.ts): a one-line invitation on a first
+           visit, and the card while a story plays. -->
+      <div id="stories"></div>
 
       <div id="compare-divider"></div>
 

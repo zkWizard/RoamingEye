@@ -155,7 +155,8 @@ export class LayerSelector {
     if (restoreFocus && hadFocusInside) this.trigger.focus();
   }
 
-  private select(id: LayerId): void {
+  /** Show a layer as chosen without firing onChange (the app switched it). */
+  select(id: LayerId): void {
     this.selected = id;
     this.current.textContent = LAYERS[id].label;
     for (const [optionId, button] of this.options) {

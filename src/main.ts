@@ -148,6 +148,7 @@ import { StudyRegion } from "./scene/StudyRegion";
 import { StudyChip } from "./ui/StudyChip";
 import { ShortcutsOverlay } from "./ui/ShortcutsOverlay";
 import { ThinkingOrb } from "./ui/ThinkingOrb";
+import { StoryCard } from "./ui/StoryCard";
 import { ActionMenu } from "./ui/ActionMenu";
 import { loadAdmin1Index, loadCountryIndex } from "./lib/countryIndex";
 import {
@@ -422,6 +423,9 @@ if (initialView.camera) {
 }
 
 let firstLoadDone = false;
+// Work that waits for the curtain to lift: a shared story link, the stories
+// invitation. Run once, when the first imagery is on screen.
+const afterFirstLoad: Array<() => void> = [];
 
 // The time-lapse (TimeSlider's play button). Playback holds on each month until
 // its imagery is on screen, so it asks whether the month last shown has
@@ -430,6 +434,9 @@ let firstLoadDone = false;
 let imageryReady = true;
 let playing = false;
 let timeSlider: TimeSlider | undefined;
+// The stories card (StoryCard.ts), built near the end of this module. Declared
+// here because a layer switch the reader makes ends story mode.
+let storyCard: StoryCard | undefined;
 
 // How long the boot curtain may sit on a mute spinner before it says what it
 // is waiting on. Under a stalled upstream the first imagery request runs its
@@ -470,6 +477,7 @@ const textures = new GlobeTextureManager(
       setStatus(loading && !playing ? "Loading imagery…" : "");
       if (!loading && !firstLoadDone) {
         firstLoadDone = true;
+        for (const run of afterFirstLoad.splice(0)) run();
         clearSlowBootNotice();
         loaderEl?.classList.add("is-hidden");
         // The curtain fades over 0.6 s (style.css); the orb turns through it.
@@ -633,25 +641,37 @@ function runPlaceInsights(result: GeoResult): void {
   );
 }
 
+let layerSelector: LayerSelector | undefined;
+
+/**
+ * Switch the layer, as the picker does. A story switches layers too; when the
+ * reader does it themselves, they have left the story, so story mode ends.
+ */
+function switchLayer(id: LayerId, { fromStory = false } = {}): void {
+  if (!fromStory) storyCard?.dismiss();
+  layerSelector?.select(id);
+  closeProbe?.();
+  compareControls?.exit();
+  const selected = months[currentIndex];
+  currentLayer = id;
+  legend?.setLayer(id);
+  months = monthRangeForLayer(LAYERS[id]);
+  // Keep the closest calendar month selected where the new layer covers it;
+  // clamp into range otherwise (reanalysis/ocean products start/lag apart,
+  // annual layers step by year).
+  currentIndex = nearestMonthIndex(months, selected);
+  currentIndex = clampIndexToLayer(months, currentIndex, LAYERS[id]);
+  buildTimeline();
+  if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
+  refreshGlobe();
+  resetPrefetch();
+  scheduleHashSync();
+}
+
 if (layerEl) {
-  new LayerSelector(layerEl, currentLayer, (id) => {
-    closeProbe?.();
-    compareControls?.exit();
-    const selected = months[currentIndex];
-    currentLayer = id;
-    legend?.setLayer(id);
-    months = monthRangeForLayer(LAYERS[id]);
-    // Keep the closest calendar month selected where the new layer covers it;
-    // clamp into range otherwise (reanalysis/ocean products start/lag apart,
-    // annual layers step by year).
-    currentIndex = nearestMonthIndex(months, selected);
-    currentIndex = clampIndexToLayer(months, currentIndex, LAYERS[id]);
-    buildTimeline();
-    if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
-    refreshGlobe();
-    resetPrefetch();
-    scheduleHashSync();
-  });
+  layerSelector = new LayerSelector(layerEl, currentLayer, (id) =>
+    switchLayer(id)
+  );
 }
 
 refreshGlobe(); // kick off the initial month
@@ -1005,6 +1025,7 @@ let probeShare: ProbeShare | undefined;
 function currentViewState() {
   const subpoint = vector3ToLatLng(camera.position);
   return {
+    story: storyCard?.activeId,
     layer: currentLayer,
     month: months[currentIndex],
     camera: {
@@ -2518,6 +2539,70 @@ if (shortcutsPageEl) {
     }
     e.preventDefault();
     shortcuts.toggle();
+  });
+}
+
+// --- Stories -------------------------------------------------------------------
+// Curated time-lapses (lib/stories.ts): each switches the layer, flies to its
+// place and plays its months, with a card saying what to watch for. A first
+// visit with nothing to go on is offered them in one line; a shared
+// `#story=…` link plays its story once the first imagery is up.
+const storiesEl = document.querySelector<HTMLElement>("#stories");
+if (storiesEl) {
+  // Overlays a story switched on, to switch back off when story mode ends,
+  // and the playback it scheduled for after the camera arrives.
+  let storyOverlays: string[] = [];
+  let storyStart: ReturnType<typeof setTimeout> | undefined;
+  const card = new StoryCard(storiesEl, {
+    announce: (message) => announcer.announce(message),
+    play: (story) => {
+      clearTimeout(storyStart);
+      if (currentLayer !== story.layer) {
+        switchLayer(story.layer, { fromStory: true });
+      } else {
+        closeProbe?.();
+        compareControls?.exit();
+      }
+      for (const id of story.overlays ?? []) {
+        if (toolbar?.press(id, true)) storyOverlays.push(id);
+      }
+      endFlight();
+      flyer.flyTo(
+        story.camera.lat,
+        story.camera.lon,
+        EARTH_RADIUS + story.camera.alt
+      );
+      const from = nearestMonthIndex(months, story.from);
+      const to = nearestMonthIndex(months, story.to);
+      timeSlider?.pause();
+      // Play once the camera has arrived, so the story opens on its place
+      // rather than on the flight there (instant under reduced motion).
+      storyStart = setTimeout(
+        () => timeSlider?.playRange(from, to),
+        reduceMotion ? 0 : 1500
+      );
+      scheduleHashSync();
+    },
+    end: () => {
+      clearTimeout(storyStart);
+      timeSlider?.pause();
+      for (const id of storyOverlays) toolbar?.press(id, false);
+      storyOverlays = [];
+      scheduleHashSync();
+    },
+  });
+  storyCard = card;
+  document
+    .querySelector<HTMLElement>("#stories-link")
+    ?.addEventListener("click", () => card.show(0));
+
+  // A returning visitor has a session; a first visit with a bare URL has
+  // nothing to go on, which is who the invitation is for.
+  const firstVisit =
+    storedSession.layer === undefined && !window.location.hash.slice(1);
+  afterFirstLoad.push(() => {
+    if (initialView.story) card.showById(initialView.story);
+    else if (firstVisit) card.offerWelcome();
   });
 }
 

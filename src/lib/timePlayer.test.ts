@@ -107,6 +107,15 @@ describe("TimePlayer", () => {
     expect(state.index).toBe(1);
   });
 
+  it("stops at the entry it was asked to play until", () => {
+    const { host, state } = fakeHost(20, 3);
+    const player = new TimePlayer(host, { frameMs: 100 });
+    player.play(6);
+    vi.advanceTimersByTime(2000);
+    expect(state.index).toBe(6);
+    expect(player.playing).toBe(false);
+  });
+
   it("does nothing on a record with a single entry", () => {
     const { host, state } = fakeHost(1, 0);
     const player = new TimePlayer(host);

@@ -438,6 +438,7 @@ body {
   background: var(--control-border);
 }
 
+.stories-link,
 .export__button,
 .software-link,
 .shortcuts-link,
@@ -462,6 +463,7 @@ body {
     scale 0.1s ease-out;
 }
 
+.stories-link:hover,
 .export__button:hover,
 .software-link:hover,
 .shortcuts-link:hover,
@@ -471,6 +473,7 @@ body {
 
 /* Inset, because the menu's own edge is 6px away and would clip an outline
    drawn outside the row. */
+.stories-link:focus-visible,
 .export__button:focus-visible,
 .software-link:focus-visible,
 .shortcuts-link:focus-visible,
@@ -1139,13 +1142,14 @@ body {
    breakpoint guessing at it. */
 .overlay--top,
 .search,
-.actions {
+.actions,
+.stories {
   transition:
     opacity 0.2s ease,
     visibility 0s;
 }
 
-#app.dock-over-header :is(.overlay--top, .search, .actions) {
+#app.dock-over-header :is(.overlay--top, .search, .actions, .stories) {
   opacity: 0;
   visibility: hidden;
   transition:
@@ -3286,6 +3290,10 @@ body {
    swallow drags meant for the slider, and their centres are 31.6px apart, so
    two 44px targets would also overlap each other. 26px already clears AA. */
 @media (pointer: coarse) {
+  .stories-link,
+  .stories__invite,
+  .stories__button,
+  .stories__close,
   .software-link,
   .shortcuts-link,
   .theme-toggle,
@@ -3744,6 +3752,209 @@ body {
 }
 .search__orb {
   flex: none;
+}
+
+/* --- Stories (StoryCard.ts) -------------------------------------------------
+   Top left, under the wordmark: the corner the header left free when its
+   controls moved into the actions pill. Below 900px the pill spans more of the
+   top, so the card drops beneath it. It is one line (the invitation) until a
+   story is asked for, so a first visit's globe stays uncovered. */
+.stories {
+  position: absolute;
+  top: calc(clamp(1rem, 3vw, 2rem) + 56px);
+  left: clamp(1rem, 3vw, 2rem);
+  z-index: 4;
+  width: min(340px, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.stories > * {
+  pointer-events: auto;
+}
+
+.stories__invite[hidden],
+.stories__card[hidden] {
+  display: none;
+}
+
+.stories__invite,
+.stories__card {
+  background: var(--panel-bg);
+  border: 1px solid var(--control-border);
+  box-shadow: var(--surface-edge), var(--surface-shadow);
+  backdrop-filter: var(--material-blur);
+}
+
+.stories__invite {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 36px;
+  padding: 0 0.95rem 0 0.8rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--fg);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.stories__invite svg {
+  width: 14px;
+  height: 14px;
+}
+
+.stories__invite:hover {
+  border-color: var(--control-border-hover);
+}
+
+.stories__card {
+  position: relative;
+  padding: 0.85rem 1rem 1rem;
+  border-radius: 20px;
+}
+
+.stories__eyebrow {
+  margin: 0 2rem 0.35rem 0;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.stories__title {
+  margin: 0 2rem 0.35rem 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.stories__blurb {
+  margin: 0 0 0.85rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.stories__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.stories__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 0.9rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--fg);
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.stories__button:hover {
+  border-color: var(--control-border-hover);
+}
+
+.stories__button--primary {
+  color: var(--bg);
+  background: var(--fg);
+  border-color: var(--fg);
+}
+
+.stories__close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.stories__close svg {
+  width: 16px;
+  height: 16px;
+}
+
+.stories__close:hover {
+  color: var(--fg);
+  background: var(--control-bg);
+}
+
+.stories__invite:focus-visible,
+.stories__button:focus-visible,
+.stories__close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 899px) {
+  .stories {
+    top: calc(clamp(0.75rem, 2vw, 1.25rem) + 116px);
+  }
+}
+
+@media (max-width: 540px) {
+  .stories {
+    left: clamp(0.75rem, 2vw, 1.25rem);
+    width: calc(100vw - 2 * clamp(0.75rem, 2vw, 1.25rem));
+  }
+}
+
+/* A short screen has ~80px between the wordmark and the folded dock, so the
+   card is one row: the title, Next and close. Replay, the dates and the
+   caption give way; the dock's month readout carries the progress. Measured
+   at 568x320, two rows reached 13px into the dock. */
+@media (max-height: 460px) {
+  .stories {
+    top: calc(clamp(1rem, 3vw, 2rem) + 36px);
+    width: min(320px, calc(100vw - 2rem));
+  }
+
+  .stories__eyebrow,
+  .stories__blurb,
+  .stories__button:not(.stories__button--primary) {
+    display: none;
+  }
+
+  .stories__card {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 2.9rem 0.35rem 0.8rem;
+  }
+
+  .stories__title {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: 0.88rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .stories__actions {
+    flex: none;
+  }
+
+  .stories__close {
+    top: 50%;
+    transform: translateY(-50%);
+  }
 }
 
 /* WebGL-unavailable fallback (shown inside the loader, issue #87) */

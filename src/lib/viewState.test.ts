@@ -191,3 +191,21 @@ describe("analysis deep links (probe + pin)", () => {
     expect(decodeViewState("#probe=a,b,c,d,region").probe).toBeUndefined();
   });
 });
+
+describe("story links", () => {
+  it("round-trips a story that exists", () => {
+    const hash = encodeViewState({
+      story: "saharan-dust-2020",
+      layer: "aerosol",
+    });
+    expect(hash.startsWith("story=saharan-dust-2020")).toBe(true);
+    expect(decodeViewState(hash).story).toBe("saharan-dust-2020");
+  });
+
+  it("drops a story id that is not one", () => {
+    expect(decodeViewState("#story=nope&layer=ndvi")).toEqual({
+      layer: "ndvi",
+    });
+    expect(decodeViewState("#story=toString").story).toBeUndefined();
+  });
+});

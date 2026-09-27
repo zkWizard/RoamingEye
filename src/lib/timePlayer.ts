@@ -46,6 +46,8 @@ export class TimePlayer {
   private isPlaying = false;
   /** The current entry was not on screen at the last look. */
   private waiting = false;
+  /** Where this playback ends: the record's end, or a story's last month. */
+  private stopAt = 0;
 
   constructor(
     private readonly host: TimePlayerHost,
@@ -59,10 +61,15 @@ export class TimePlayer {
     return this.isPlaying;
   }
 
-  play(): void {
+  /**
+   * Play forward, to the record's end or to `until` (a story's last entry).
+   * From the end there is nothing ahead, so play means "from the top".
+   */
+  play(until?: number): void {
     if (this.isPlaying || this.host.length() < 2) return;
-    // From the end there is nothing ahead, so play means "from the top".
-    if (this.host.index() >= this.host.length() - 1) this.host.go(0);
+    const last = this.host.length() - 1;
+    this.stopAt = Math.min(last, Math.max(0, until ?? last));
+    if (this.host.index() >= this.stopAt) this.host.go(0);
     this.setPlaying(true);
     this.schedule(this.frameMs);
   }
@@ -105,7 +112,7 @@ export class TimePlayer {
       return;
     }
     const next = this.host.index() + 1;
-    if (next >= this.host.length()) {
+    if (next > this.stopAt) {
       this.pause();
       return;
     }

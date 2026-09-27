@@ -146,6 +146,17 @@ export class TimeSlider {
     this.player.pause();
   }
 
+  /**
+   * Seek to `from` and play to `to`, inclusive: a story's stretch of the
+   * record. The seek is a real change, so the globe shows `from` first.
+   */
+  playRange(from: number, to: number): void {
+    const last = this.months.length - 1;
+    this.player.pause();
+    this.update(Math.min(last, Math.max(0, from)), true);
+    this.player.play(to);
+  }
+
   toggle(): void {
     this.player.toggle();
   }
