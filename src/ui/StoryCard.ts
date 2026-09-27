@@ -18,6 +18,11 @@ export interface StoryCardHandlers {
   play(story: Story): void;
   /** Story mode is over (closed); undo what it switched on. */
   end(): void;
+  /**
+   * Record the story as a video: `replay` plays it from the top, and the
+   * promise settles once the file is saved (or the recording failed).
+   */
+  save?(story: Story, replay: () => void): Promise<void>;
   announce?(message: string): void;
 }
 
@@ -28,6 +33,7 @@ export class StoryCard {
   private readonly blurb: HTMLElement;
   private readonly replayBtn: HTMLButtonElement;
   private readonly nextBtn: HTMLButtonElement;
+  private readonly saveBtn: HTMLButtonElement;
   private index = -1;
 
   constructor(
@@ -67,7 +73,15 @@ export class StoryCard {
     this.nextBtn.addEventListener("click", () =>
       this.show((this.index + 1) % STORIES.length)
     );
-    actions.append(this.replayBtn, this.nextBtn);
+    // Save video replays the story from the top and records it. While it
+    // records, the button says so and waits; the recording ends when the
+    // playback does, so Next or Close (which stop it) end it early.
+    this.saveBtn = document.createElement("button");
+    this.saveBtn.type = "button";
+    this.saveBtn.className = "stories__button";
+    this.saveBtn.textContent = "Save video";
+    this.saveBtn.addEventListener("click", () => void this.save());
+    actions.append(this.replayBtn, this.nextBtn, this.saveBtn);
 
     this.card.append(close, this.eyebrow, this.title, this.blurb, actions);
     this.card.addEventListener("keydown", (e) => {
@@ -115,6 +129,22 @@ export class StoryCard {
     this.index = -1;
     this.card.hidden = true;
     this.handlers.end();
+  }
+
+  private async save(): Promise<void> {
+    const story = STORIES[this.index];
+    if (!story || !this.handlers.save || this.saveBtn.disabled) return;
+    const index = this.index;
+    this.saveBtn.disabled = true;
+    this.saveBtn.textContent = "Recording…";
+    this.saveBtn.classList.add("is-recording");
+    try {
+      await this.handlers.save(story, () => this.show(index));
+    } finally {
+      this.saveBtn.disabled = false;
+      this.saveBtn.textContent = "Save video";
+      this.saveBtn.classList.remove("is-recording");
+    }
   }
 
   /** Story mode ends quietly when the reader goes elsewhere (a new layer). */

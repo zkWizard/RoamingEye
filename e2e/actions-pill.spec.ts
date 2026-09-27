@@ -81,6 +81,7 @@ const MENU_ROWS = [
   "#stories-link",
   '.export__button[aria-label*="PNG"]',
   '.export__button[aria-label*="imagery URL"]',
+  "#clip-link",
   "#software-link",
   "#shortcuts-link",
   ".theme-toggle",

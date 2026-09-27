@@ -150,6 +150,8 @@ import { ShortcutsOverlay } from "./ui/ShortcutsOverlay";
 import { ThinkingOrb } from "./ui/ThinkingOrb";
 import type { StoryCard, StoryCardHandlers } from "./ui/StoryCard";
 import { markStoriesWelcomed, storiesWelcomed } from "./lib/storiesWelcome";
+import type { ClipSubject } from "./ui/ClipRecorder";
+import { LEGENDS, legendTicks } from "./lib/legend";
 import { ActionMenu } from "./ui/ActionMenu";
 import { loadAdmin1Index, loadCountryIndex } from "./lib/countryIndex";
 import {
@@ -439,6 +441,17 @@ let timeSlider: TimeSlider | undefined;
 // here because a layer switch the reader makes ends story mode.
 let storyCard: StoryCard | undefined;
 
+// Video clips (ClipRecorder.ts, loaded on demand) draw each frame right after
+// the globe renders, and record one playback: a clip waits for a playback that
+// starts after it asks, and ends when that one stops.
+const frameHooks = new Set<() => void>();
+const playbackEndWaiters: Array<() => void> = [];
+let playbackArmed = false;
+function nextPlaybackEnd(): Promise<void> {
+  playbackArmed = false;
+  return new Promise((resolve) => playbackEndWaiters.push(resolve));
+}
+
 // How long the boot curtain may sit on a mute spinner before it says what it
 // is waiting on. Under a stalled upstream the first imagery request runs its
 // full 15 s timeout (lib/net.ts) before "Imagery failed to load" and the retry
@@ -561,6 +574,11 @@ function buildTimeline(): void {
       isFrameReady: () => imageryReady,
       onPlayingChange: (isPlaying) => {
         playing = isPlaying;
+        if (isPlaying) playbackArmed = true;
+        else if (playbackArmed) {
+          playbackArmed = false;
+          for (const done of playbackEndWaiters.splice(0)) done();
+        }
         // Frames show at preview resolution; the full-resolution load waits
         // for the month the playback comes to rest on.
         textures.holdRefinement(isPlaying);
@@ -2543,6 +2561,84 @@ if (shortcutsPageEl) {
   });
 }
 
+// --- Video clips ----------------------------------------------------------------
+// Records a playback as a captioned video (ClipRecorder.ts, loaded on first
+// use): the story card's Save video, and the More menu's for the layer on
+// screen from the month on screen. Recording stops when the playback does, at
+// its end or when the reader pauses, and the file downloads.
+/** The layer's part of a clip's caption: what it measures, and its source. */
+function clipLayerCaption() {
+  const layer = LAYERS[currentLayer];
+  const spec = LEGENDS[currentLayer];
+  const dataset = layer.dataset;
+  return {
+    layerId: currentLayer,
+    measures: spec.measures,
+    legend:
+      spec.kind === "classes"
+        ? undefined
+        : {
+            measures: spec.measures,
+            stops: spec.stops,
+            ticks: legendTicks(currentLayer),
+          },
+    cite: dataset
+      ? `NASA GIBS · ${dataset.shortName}${dataset.doi ? ` · doi:${dataset.doi}` : ""}`
+      : `NASA GIBS · ${layer.wmsLayer}`,
+  };
+}
+
+let clipBusy = false;
+function saveClip(subject: ClipSubject): Promise<void> {
+  if (clipBusy) return Promise.resolve();
+  clipBusy = true;
+  timelineEl?.classList.add("is-recording");
+  return import("./ui/ClipRecorder")
+    .then(
+      (clip) =>
+        clip.saveClip(
+          {
+            source: renderer.domElement,
+            onFrame: (draw) => {
+              frameHooks.add(draw);
+              return () => frameHooks.delete(draw);
+            },
+            ...clipLayerCaption(),
+            month: () => months[currentIndex],
+            monthLabel: () =>
+              formatTimelineLabel(LAYERS[currentLayer], months[currentIndex]),
+            isPlaying: () => playing,
+            playbackEnded: nextPlaybackEnd,
+            announce: (message) => announcer.announce(message),
+            toast: (message) => errorToast.show(message),
+            version: __APP_VERSION__,
+          },
+          subject
+        ),
+      () =>
+        errorToast.show(
+          "Couldn't load the video recorder. Check the connection and try again."
+        )
+    )
+    .finally(() => {
+      clipBusy = false;
+      timelineEl?.classList.remove("is-recording");
+    });
+}
+
+document
+  .querySelector<HTMLElement>("#clip-link")
+  ?.addEventListener("click", () => {
+    void saveClip({
+      title: LAYERS[currentLayer].label,
+      slug: currentLayer,
+      play: () => {
+        timeSlider?.pause();
+        timeSlider?.play();
+      },
+    });
+  });
+
 // --- Stories -------------------------------------------------------------------
 // Curated time-lapses (lib/stories.ts): each switches the layer, flies to its
 // place and plays its months, with a card saying what to watch for. A first
@@ -2557,6 +2653,13 @@ if (storiesEl) {
   let storyOverlays: string[] = [];
   let storyStart: ReturnType<typeof setTimeout> | undefined;
   const handlers: StoryCardHandlers = {
+    save: (story, replay) =>
+      saveClip({
+        title: story.title,
+        subtitle: LAYERS[story.layer].label,
+        slug: story.id,
+        play: replay,
+      }),
     announce: (message) => announcer.announce(message),
     play: (story) => {
       clearTimeout(storyStart);
@@ -2757,6 +2860,8 @@ const renderFrame = (): void => {
   } else {
     renderer.render(scene, camera);
   }
+  // Read the drawing buffer while it is still this frame's (a clip recording).
+  for (const draw of frameHooks) draw();
 
   if (!signalledReady) {
     signalledReady = true;
