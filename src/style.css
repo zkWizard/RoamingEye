@@ -442,6 +442,7 @@ body {
 }
 
 .stories-link,
+.clip-link,
 .export__button,
 .software-link,
 .shortcuts-link,
@@ -467,6 +468,7 @@ body {
 }
 
 .stories-link:hover,
+.clip-link:hover,
 .export__button:hover,
 .software-link:hover,
 .shortcuts-link:hover,
@@ -477,6 +479,7 @@ body {
 /* Inset, because the menu's own edge is 6px away and would clip an outline
    drawn outside the row. */
 .stories-link:focus-visible,
+.clip-link:focus-visible,
 .export__button:focus-visible,
 .software-link:focus-visible,
 .shortcuts-link:focus-visible,
@@ -1656,6 +1659,15 @@ body {
 .timeline__play:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* A video is being recorded from this playback (ClipRecorder.ts): the
+   universal recording red, as a ring, so it reads at a glance without a
+   second control appearing. Still, so it needs no reduced-motion arm. */
+.timeline.is-recording .timeline__play {
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 4px #e5484d;
 }
 
 /* The status line gives way first on a short meta line: it ellipsises, and its
@@ -3294,6 +3306,7 @@ body {
    two 44px targets would also overlap each other. 26px already clears AA. */
 @media (pointer: coarse) {
   .stories-link,
+  .clip-link,
   .stories__invite,
   .stories__button,
   .stories__close,
@@ -3862,6 +3875,19 @@ body {
 
 .stories__button:hover {
   border-color: var(--control-border-hover);
+}
+
+.stories__button.is-recording::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  margin-right: 0.45rem;
+  border-radius: 50%;
+  background: #e5484d;
+}
+
+.stories__button:disabled {
+  cursor: progress;
 }
 
 .stories__button--primary {
