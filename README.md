@@ -13,7 +13,7 @@
 
 # RoamingEye 🛰️🌍
 
-**Roam a high-fidelity 3D Earth, scrub through decades of satellite imagery, and zoom into any region at 30-metre detail — all powered entirely by open data, free for anyone, anywhere.**
+**Earth's time machine.** Scrub decades of NASA satellite data on a 3D globe and watch the planet change month by month: forests green and brown, oceans warm and cool, snow come and go. Click anywhere for that spot's full time series, and zoom into any region at 30-metre detail. All of it open data, free for anyone, anywhere.
 
 <p align="center"><strong>🌐 Live: <a href="https://roamingeye.org/">roamingeye.org</a></strong> — no account, no install, no fee.</p>
 

@@ -4,16 +4,16 @@
 To:      individual educators (intro geology / geophysics / Earth systems)
 Venue:   email — department lists and personal teaching contacts
 Channel: direct email, personalised per recipient
-Status:  DRAFT — send-gated on HTTPS
+Status:  DRAFT
 Date:    drafted pre-v1.0; claims repaired 2026-07-27
 Claims re-verified: 2026-07-27
 ```
 
-> **Send gate:** the link below points at `https://roamingeye.org/`, which has no
-> certificate yet — run the check in
-> [`comms/outbox/README.md`](../../comms/outbox/README.md) before sending. This matters
-> most for this audience: institutional networks are unforgiving about certificate
-> warnings, and an educator who bounces on first click does not come back.
+> **HTTPS works** (certificate issued 2026-08-14). Re-run the two-line check in
+> [`comms/outbox/README.md`](../../comms/outbox/README.md) before sending: this audience
+> browses from institutional networks that are unforgiving about certificate warnings,
+> and an educator who bounces on first click does not come back. Re-verify the claims
+> below too; they were last checked 2026-07-27.
 >
 > **Companion asset:** for a recipient who asks "what would I actually do with this in
 > class?", send the classroom one-pager at

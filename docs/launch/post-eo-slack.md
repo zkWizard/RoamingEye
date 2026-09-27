@@ -4,14 +4,14 @@
 To:      public (EO community Slacks / Discords)
 Venue:   chat venues — see note below
 Channel: per-venue #showcase / #show-and-tell
-Status:  DRAFT — send-gated on HTTPS
+Status:  DRAFT
 Date:    drafted pre-v1.0; claims repaired 2026-07-27
 Claims re-verified: 2026-07-27
 ```
 
-> **Send gate:** the link below points at `https://roamingeye.org/`, which has no
-> certificate yet — run the check in
-> [`comms/outbox/README.md`](../../comms/outbox/README.md) before sending.
+> **HTTPS works** (certificate issued 2026-08-14). Re-run the two-line check in
+> [`comms/outbox/README.md`](../../comms/outbox/README.md) before sending, and re-verify
+> the claims below against the app: they were last checked 2026-07-27.
 >
 > **Pangeo note:** this draft names Pangeo Discourse, but Pangeo now has its own
 > dedicated, longer-form Showcase draft at
