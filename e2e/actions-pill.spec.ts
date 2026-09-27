@@ -158,11 +158,33 @@ const neighbours = (page: Page) =>
     };
   });
 
+/**
+ * Wait out the page's own reaction to a resize before measuring it.
+ *
+ * Rotating a phone into a short viewport folds the dock (main.ts), and it does
+ * so from a `matchMedia` change event, which fires in the next rendering
+ * update rather than during the resize. Measured before that update, the dock
+ * at 568x320 is still unfolded (top 22px) and meets the pill; a moment later
+ * it is folded (top 140px), 24px clear. Whether a measurement landed before or
+ * after the event was down to machine speed, so this failed three times out of
+ * three on the catalog workflow's runner and passed everywhere else. Media
+ * queries are evaluated in a rendering update before its animation-frame
+ * callbacks, so two frames put the fold behind us.
+ */
+const settle = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<void>((done) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => done()))
+      )
+  );
+
 async function sweep(page: Page, sizes: Size[], floor: number) {
   const failures: string[] = [];
   for (const size of sizes) {
     await page.setViewportSize(size);
     await page.waitForFunction((w) => innerWidth === w, size.width);
+    await settle(page);
     const at = `${size.width}x${size.height}`;
 
     for (const sel of SEGMENTS) {
@@ -221,6 +243,7 @@ test("every action is a 44px target on a touch device, phone to tablet", async (
     // End to end, at the smallest phone on its side, where the menu has to
     // scroll: the theme row switches the theme and nothing else fires.
     await page.setViewportSize({ width: 568, height: 320 });
+    await settle(page);
     const before = await page.evaluate(
       () => document.documentElement.dataset.theme
     );
