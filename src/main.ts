@@ -148,7 +148,8 @@ import { StudyRegion } from "./scene/StudyRegion";
 import { StudyChip } from "./ui/StudyChip";
 import { ShortcutsOverlay } from "./ui/ShortcutsOverlay";
 import { ThinkingOrb } from "./ui/ThinkingOrb";
-import { StoryCard } from "./ui/StoryCard";
+import type { StoryCard, StoryCardHandlers } from "./ui/StoryCard";
+import { markStoriesWelcomed, storiesWelcomed } from "./lib/storiesWelcome";
 import { ActionMenu } from "./ui/ActionMenu";
 import { loadAdmin1Index, loadCountryIndex } from "./lib/countryIndex";
 import {
@@ -2546,14 +2547,16 @@ if (shortcutsPageEl) {
 // Curated time-lapses (lib/stories.ts): each switches the layer, flies to its
 // place and plays its months, with a card saying what to watch for. A first
 // visit with nothing to go on is offered them in one line; a shared
-// `#story=…` link plays its story once the first imagery is up.
+// `#story=…` link plays its story once the first imagery is up. The card and
+// the stories' data load only then (a one-line invitation is plain markup),
+// so they cost the entry chunk nothing.
 const storiesEl = document.querySelector<HTMLElement>("#stories");
 if (storiesEl) {
   // Overlays a story switched on, to switch back off when story mode ends,
   // and the playback it scheduled for after the camera arrives.
   let storyOverlays: string[] = [];
   let storyStart: ReturnType<typeof setTimeout> | undefined;
-  const card = new StoryCard(storiesEl, {
+  const handlers: StoryCardHandlers = {
     announce: (message) => announcer.announce(message),
     play: (story) => {
       clearTimeout(storyStart);
@@ -2590,19 +2593,44 @@ if (storiesEl) {
       storyOverlays = [];
       scheduleHashSync();
     },
+  };
+  let loadingCard: Promise<StoryCard | undefined> | undefined;
+  const withCard = (use: (card: StoryCard) => void): void => {
+    loadingCard ??= import("./ui/StoryCard").then(
+      ({ StoryCard: Card }) => (storyCard = new Card(storiesEl, handlers)),
+      () => {
+        loadingCard = undefined; // the next ask tries again
+        errorToast.show(
+          "Couldn't load the stories. Check the connection and try again."
+        );
+        return undefined;
+      }
+    );
+    void loadingCard.then((card) => card && use(card));
+  };
+
+  const invite = storiesEl.querySelector<HTMLButtonElement>("#stories-invite");
+  invite?.addEventListener("click", () => {
+    invite.hidden = true;
+    markStoriesWelcomed();
+    withCard((card) => card.show(0));
   });
-  storyCard = card;
   document
     .querySelector<HTMLElement>("#stories-link")
-    ?.addEventListener("click", () => card.show(0));
+    ?.addEventListener("click", () => {
+      if (invite) invite.hidden = true;
+      withCard((card) => card.show(0));
+    });
 
   // A returning visitor has a session; a first visit with a bare URL has
-  // nothing to go on, which is who the invitation is for.
+  // nothing to go on, which is who the invitation is for. Any answer (a
+  // story played, or closed) retires it for good (lib/storiesWelcome.ts).
   const firstVisit =
     storedSession.layer === undefined && !window.location.hash.slice(1);
   afterFirstLoad.push(() => {
-    if (initialView.story) card.showById(initialView.story);
-    else if (firstVisit) card.offerWelcome();
+    const story = initialView.story;
+    if (story) withCard((card) => card.showById(story));
+    else if (firstVisit && invite && !storiesWelcomed()) invite.hidden = false;
   });
 }
 

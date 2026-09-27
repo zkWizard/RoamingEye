@@ -417,6 +417,9 @@ body {
   max-height: calc(100dvh - 2 * clamp(0.75rem, 2vw, 1.25rem) - 116px);
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* A row scrolled into view (keyboard, or a scrolled menu) stops clear of
+     the edge rather than flush to it, where it lost a sub-pixel of its 44px. */
+  scroll-padding-block: 6px;
   padding: 6px;
   display: flex;
   flex-direction: column;

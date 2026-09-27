@@ -1,15 +1,12 @@
 import { STORIES, type Story } from "../lib/stories";
 import { formatYm } from "../lib/timeline";
 import { ICONS } from "./icons";
+import { markStoriesWelcomed } from "../lib/storiesWelcome";
 
 /**
- * The stories surface (lib/stories.ts): a compact invitation on a first visit,
- * and a card while a story plays.
- *
- * The invitation is one line, "Watch the planet change", because a first
- * visit is also every shared link's arrival and every test's boot: a large
- * card there would sit over the globe the visitor came to see. The card only
- * appears once someone asks for a story.
+ * The card shown while a story (lib/stories.ts) plays. It is loaded only once
+ * a story is asked for: the one-line invitation a first visit sees is plain
+ * markup in index.html, so the stories cost the entry chunk nothing.
  *
  * The card names the story, says what to watch for, and offers Replay and
  * Next. It is not a live region: starting a story announces its title once
@@ -24,10 +21,7 @@ export interface StoryCardHandlers {
   announce?(message: string): void;
 }
 
-const WELCOME_KEY = "roamingeye:stories-welcome";
-
 export class StoryCard {
-  private readonly invite: HTMLButtonElement;
   private readonly card: HTMLElement;
   private readonly eyebrow: HTMLElement;
   private readonly title: HTMLElement;
@@ -40,18 +34,6 @@ export class StoryCard {
     root: HTMLElement,
     private readonly handlers: StoryCardHandlers
   ) {
-    root.classList.add("stories");
-
-    this.invite = document.createElement("button");
-    this.invite.type = "button";
-    this.invite.className = "stories__invite";
-    this.invite.innerHTML = `${ICONS.play}<span>Watch the planet change</span>`;
-    this.invite.hidden = true;
-    this.invite.addEventListener("click", () => {
-      this.markWelcomed();
-      this.show(0);
-    });
-
     this.card = document.createElement("section");
     this.card.className = "stories__card";
     this.card.setAttribute("aria-label", "Story");
@@ -94,7 +76,7 @@ export class StoryCard {
       this.close();
     });
 
-    root.append(this.invite, this.card);
+    root.append(this.card);
   }
 
   /** The story on screen, if any: the share link carries its id. */
@@ -102,21 +84,12 @@ export class StoryCard {
     return this.index >= 0 ? STORIES[this.index].id : undefined;
   }
 
-  /**
-   * Offer the stories once, to a visitor with nothing to go on. Any answer
-   * (a story, or closing one) retires the invitation for good.
-   */
-  offerWelcome(): void {
-    if (this.index >= 0 || this.welcomed()) return;
-    this.invite.hidden = false;
-  }
-
   /** Present and play a story; its number is its place in STORIES. */
   show(index: number): void {
     const story = STORIES[index];
     if (!story) return;
     this.index = index;
-    this.invite.hidden = true;
+    markStoriesWelcomed();
     this.card.hidden = false;
     this.eyebrow.textContent = `Story ${index + 1} of ${STORIES.length} · ${formatYm(story.from)} – ${formatYm(story.to)}`;
     this.title.textContent = story.title;
@@ -132,7 +105,6 @@ export class StoryCard {
   showById(id: string): boolean {
     const index = STORIES.findIndex((s) => s.id === id);
     if (index < 0) return false;
-    this.markWelcomed();
     this.show(index);
     return true;
   }
@@ -142,29 +114,11 @@ export class StoryCard {
     if (this.index < 0) return;
     this.index = -1;
     this.card.hidden = true;
-    this.markWelcomed();
     this.handlers.end();
   }
 
   /** Story mode ends quietly when the reader goes elsewhere (a new layer). */
   dismiss(): void {
     this.close();
-  }
-
-  private welcomed(): boolean {
-    try {
-      return localStorage.getItem(WELCOME_KEY) === "done";
-    } catch {
-      return false;
-    }
-  }
-
-  private markWelcomed(): void {
-    this.invite.hidden = true;
-    try {
-      localStorage.setItem(WELCOME_KEY, "done");
-    } catch {
-      /* private mode: the invitation just returns next visit */
-    }
   }
 }

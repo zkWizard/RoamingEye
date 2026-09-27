@@ -78,6 +78,7 @@ const SEGMENTS = [
 ];
 
 const MENU_ROWS = [
+  "#stories-link",
   '.export__button[aria-label*="PNG"]',
   '.export__button[aria-label*="imagery URL"]',
   "#software-link",

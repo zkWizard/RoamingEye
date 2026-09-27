@@ -202,10 +202,13 @@ describe("story links", () => {
     expect(decodeViewState(hash).story).toBe("saharan-dust-2020");
   });
 
-  it("drops a story id that is not one", () => {
-    expect(decodeViewState("#story=nope&layer=ndvi")).toEqual({
+  it("drops a story id that is not link-shaped", () => {
+    // Format only: an id naming no story is ignored when it is played, once
+    // the stories have loaded (StoryCard.showById).
+    expect(decodeViewState("#story=Bad Id!&layer=ndvi")).toEqual({
       layer: "ndvi",
     });
     expect(decodeViewState("#story=toString").story).toBeUndefined();
+    expect(decodeViewState("#story=__proto__").story).toBeUndefined();
   });
 });

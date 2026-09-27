@@ -4,7 +4,6 @@ import { LAYERS, type LayerId, type YearMonth } from "./timeline";
 // entry chunk, and pulling in probe.ts (via geo/imagery helpers) has
 // repartitioned the build before.
 import type { Bounds } from "./imagery";
-import { storyById } from "./stories";
 
 /**
  * Shareable view state, encoded in the URL hash.
@@ -92,6 +91,8 @@ export interface ViewState {
 
 const MONTH_RE = /^(\d{4})-(\d{2})$/;
 
+const STORY_ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 function isLayerId(value: string): value is LayerId {
   // Object.hasOwn, not `in`: the `in` operator walks the prototype chain, so
   // a crafted hash like #layer=toString would pass the guard and smuggle a
@@ -154,9 +155,11 @@ export function decodeViewState(hash: string): ViewState {
     return state;
   }
 
-  // Only a story that exists: the id is untrusted link input.
+  // Format only: the stories load when one is asked for (StoryCard.ts), and an
+  // id that names none is ignored there. The id is untrusted link input, so
+  // it is never used as an object key.
   const story = params.get("story");
-  if (story && storyById(story)) state.story = story;
+  if (story && STORY_ID_RE.test(story)) state.story = story;
 
   const layer = params.get("layer");
   if (layer && isLayerId(layer)) state.layer = layer;
