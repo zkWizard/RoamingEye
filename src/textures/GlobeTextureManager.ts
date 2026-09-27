@@ -61,6 +61,10 @@ export class GlobeTextureManager {
   private currentKey: string | undefined;
   private sharpSeq = 0;
   private sharpTimer: ReturnType<typeof setTimeout> | undefined;
+  /** A time-lapse is playing: previews only (see holdRefinement). */
+  private refinementHeld = false;
+  private lastShown:
+    { layer: LayerConfig; ym: YearMonth; key: string } | undefined;
   private sharpAbort: AbortController | undefined;
   private prefetchSeq = 0;
   private prefetchAbort: AbortController | undefined;
@@ -91,6 +95,7 @@ export class GlobeTextureManager {
     const key = keyFor(layer, ym);
     if (key === this.currentKey) return;
     this.currentKey = key;
+    this.lastShown = { layer, ym, key };
 
     const sharp = this.sharpCache.get(key);
     if (sharp) {
@@ -109,11 +114,35 @@ export class GlobeTextureManager {
       this.touchPreview(key, preview); // keep hot months at the LRU tail
       this.apply(preview); // instant — this is what makes scrubbing real-time
       this.onLoadingChange?.(false);
+      // Playing, each month is on screen for a fraction of a second; a
+      // full-resolution load per frame would be abandoned by the next one.
+      if (this.refinementHeld) return;
     } else {
+      // No preview to show, so the full load is how this month arrives at
+      // all — held or not, or a playback waiting on it would wait forever.
       this.onLoadingChange?.(true); // nothing cached yet for this month
     }
 
     this.scheduleSharp(layer, ym, key);
+  }
+
+  /**
+   * Hold full-resolution loads while a time-lapse plays, and on release load
+   * one for the month it came to rest on. A month with no preview still loads
+   * while held: see show().
+   */
+  holdRefinement(held: boolean): void {
+    if (held === this.refinementHeld) return;
+    this.refinementHeld = held;
+    if (held) return;
+    const last = this.lastShown;
+    if (
+      last &&
+      last.key === this.currentKey &&
+      !this.sharpCache.has(last.key)
+    ) {
+      this.scheduleSharp(last.layer, last.ym, last.key);
+    }
   }
 
   /**

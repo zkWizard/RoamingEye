@@ -17,7 +17,7 @@ describe("SHORTCUT_GROUPS", () => {
 
   it("documents the timeline bindings that ui/TimeSlider.ts implements", () => {
     const all = SHORTCUT_GROUPS.flatMap((g) => g.items.flatMap((i) => i.keys));
-    for (const key of ["←", "→", "PgUp", "PgDn", "Home", "End"]) {
+    for (const key of ["←", "→", "PgUp", "PgDn", "Home", "End", "Space"]) {
       expect(all, `missing "${key}"`).toContain(key);
     }
   });

@@ -826,15 +826,15 @@ body {
   width: min(860px, calc(100vw - 13rem));
   margin: 0 auto 0.5rem;
   display: grid;
-  grid-template-columns: auto auto auto auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto auto auto auto auto minmax(0, 1fr) auto auto;
   grid-template-areas:
-    "keys keys keys keys keys keys keys"
-    "title title title title title title title"
-    "caption caption caption caption caption caption caption"
-    "classes classes classes classes classes classes classes"
-    "source source source source source source source"
-    "layer prev month next track scale fold"
-    "meta meta meta meta meta meta meta";
+    "keys keys keys keys keys keys keys keys"
+    "title title title title title title title title"
+    "caption caption caption caption caption caption caption caption"
+    "classes classes classes classes classes classes classes classes"
+    "source source source source source source source source"
+    "layer prev month next play track scale fold"
+    "meta meta meta meta meta meta meta meta";
   align-items: center;
   padding: 0.45rem 0.7rem 0.4rem 0.55rem;
   background: var(--panel-bg);
@@ -870,6 +870,10 @@ body {
 
 .timeline__track {
   grid-area: track;
+}
+
+.timeline__play {
+  grid-area: play;
 }
 
 .legend__scale,
@@ -977,17 +981,20 @@ body {
    difference between "Terrain (shaded relief)" fitting and truncating. */
 @media (max-width: 899px) {
   .controls {
-    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    /* Play leads the track's own row, the way a video player lays them out.
+       Its column is only as wide as the button, so the pill above spans it
+       and loses nothing. */
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
     grid-template-areas:
-      "keys keys keys keys"
-      "title title title title"
-      "caption caption caption caption"
-      "classes classes classes classes"
-      "source source source source"
-      "layer prev month next"
-      "track track track track"
-      "scale scale scale scale"
-      "meta meta meta fold";
+      "keys keys keys keys keys"
+      "title title title title title"
+      "caption caption caption caption caption"
+      "classes classes classes classes classes"
+      "source source source source source"
+      "layer layer prev month next"
+      "play track track track track"
+      "scale scale scale scale scale"
+      "meta meta meta meta fold";
     padding: 0.5rem 0.6rem 0.45rem;
   }
 
@@ -1599,6 +1606,47 @@ body {
 }
 
 .timeline__step:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Play: the one control that runs the record by itself, so it reads as a
+   button at rest rather than a bare glyph like the steppers, and while it
+   plays it takes the inverse pill every "on" control in the app uses. */
+.timeline__play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-right: 0.45rem;
+  padding: 0;
+  color: var(--fg);
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.timeline__play svg {
+  width: 14px;
+  height: 14px;
+}
+
+.timeline__play:hover {
+  border-color: var(--control-border-hover);
+}
+
+.timeline__play.is-playing {
+  color: var(--bg);
+  background: var(--fg);
+  border-color: var(--fg);
+}
+
+.timeline__play:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -3246,6 +3294,7 @@ body {
   .compare-button,
   .draw-button,
   .actions__more-button,
+  .timeline__play,
   .layer-selector__trigger {
     min-width: 44px;
     min-height: 44px;

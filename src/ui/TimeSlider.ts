@@ -4,13 +4,27 @@ import {
   indexToFraction,
   formatYm,
 } from "../lib/timeline";
+import { TimePlayer } from "../lib/timePlayer";
 import { ICONS } from "./icons";
+
+export interface TimeSliderOptions {
+  /**
+   * Whether the entry last shown is on screen yet. Playback holds on an entry
+   * until it is, so the readout never runs ahead of the globe.
+   */
+  isFrameReady?: () => boolean;
+  /** Told whenever playback starts or stops, for any reason. */
+  onPlayingChange?: (playing: boolean) => void;
+}
 
 /**
  * A horizontal ruler-style time scrubber: one major tick per year (labelled),
  * twelve minor ticks per year (months), and a draggable handle. Supports mouse,
  * touch (Pointer Events), and keyboard. A prev/next button pair steps one
- * entry at a time — precise where the drag handle is coarse.
+ * entry at a time — precise where the drag handle is coarse — and a play
+ * button runs the record forward as a time-lapse (lib/timePlayer.ts). Any
+ * hand on the controls (a drag, a key, a step) pauses it: the reader has
+ * taken over.
  */
 export class TimeSlider {
   private readonly months: YearMonth[];
@@ -21,9 +35,13 @@ export class TimeSlider {
   private readonly readout: HTMLDivElement;
   private readonly prevBtn: HTMLButtonElement;
   private readonly nextBtn: HTMLButtonElement;
+  private readonly playBtn: HTMLButtonElement;
+  private readonly player: TimePlayer;
 
   private index: number;
   private dragging = false;
+  /** A start was announced, so a stop is worth announcing too. */
+  private announcedStart = false;
   /** Year-label stride the ruler is currently drawn at; see renderTicks. */
   private labelEvery = 0;
   /** Base label for the forward stepper, before the end-of-record suffix. */
@@ -41,7 +59,8 @@ export class TimeSlider {
     // The scrubbed value lives on the TRACK, so a screen reader reads it back
     // from `aria-valuetext` only while the track holds focus. The steppers move
     // that same value from outside it, where nothing reports the result.
-    private readonly announce?: (message: string) => void
+    private readonly announce?: (message: string) => void,
+    options: TimeSliderOptions = {}
   ) {
     this.months = months;
     this.onChange = onChange;
@@ -53,6 +72,13 @@ export class TimeSlider {
     this.readout = document.createElement("div");
     this.readout.className = "timeline__readout";
     container.appendChild(this.readout);
+
+    // Before the track, as a video player puts it: play, then the scrubber.
+    this.playBtn = document.createElement("button");
+    this.playBtn.type = "button";
+    this.playBtn.className = "timeline__play";
+    this.playBtn.addEventListener("click", () => this.toggle());
+    container.appendChild(this.playBtn);
 
     this.track = document.createElement("div");
     this.track.className = "timeline__track";
@@ -88,9 +114,67 @@ export class TimeSlider {
     steps.append(this.prevBtn, this.nextBtn);
     container.appendChild(steps);
 
+    this.player = new TimePlayer({
+      index: () => this.index,
+      length: () => this.months.length,
+      go: (index) => this.update(index, true),
+      ready: options.isFrameReady ?? (() => true),
+      // A layer switch rebuilds the slider into the same container; the old
+      // one's track is detached then, and its playback ends with it.
+      alive: () => this.track.isConnected,
+      onPlayingChange: (playing) => {
+        this.reflectPlaying(playing);
+        options.onPlayingChange?.(playing);
+      },
+    });
+
     this.attachEvents();
     this.observeWidth();
     this.update(this.index, false);
+    this.reflectPlaying(false);
+  }
+
+  get playing(): boolean {
+    return this.player.playing;
+  }
+
+  play(): void {
+    this.player.play();
+  }
+
+  pause(): void {
+    this.player.pause();
+  }
+
+  toggle(): void {
+    this.player.toggle();
+  }
+
+  /**
+   * The button names what a press will do, like the theme toggle, so it says
+   * "Pause" while playing and carries no `aria-pressed` beside that. The
+   * spoken line reports where playback started or came to rest, which the
+   * slider's own value would read out only while the track held focus.
+   */
+  private reflectPlaying(playing: boolean): void {
+    const label = playing
+      ? "Pause the time-lapse (P)"
+      : "Play the time-lapse (P)";
+    this.playBtn.innerHTML = playing ? ICONS.pause : ICONS.play;
+    this.playBtn.setAttribute("aria-label", label);
+    this.playBtn.title = label;
+    this.playBtn.classList.toggle("is-playing", playing);
+    if (!this.announce || !this.track.isConnected) return;
+    const at = this.formatLabel(this.months[this.index]);
+    if (playing) this.announce(`Playing from ${at}`);
+    else if (this.announcedStart) {
+      this.announce(
+        this.index === this.months.length - 1
+          ? `Reached ${at}, the newest published`
+          : `Paused at ${at}`
+      );
+    }
+    this.announcedStart = playing;
   }
 
   private makeStep(
@@ -108,6 +192,7 @@ export class TimeSlider {
       // At the ends the button is aria-disabled rather than disabled, so it
       // still receives the press — and has to decline it here.
       if (btn.getAttribute("aria-disabled") === "true") return;
+      this.pause();
       const before = this.index;
       const next = this.index + delta;
       this.update(Math.min(this.months.length - 1, Math.max(0, next)), true);
@@ -185,6 +270,7 @@ export class TimeSlider {
 
   private attachEvents(): void {
     this.track.addEventListener("pointerdown", (e) => {
+      this.pause();
       this.dragging = true;
       this.track.setPointerCapture(e.pointerId);
       this.setFromClientX(e.clientX);
@@ -203,6 +289,11 @@ export class TimeSlider {
     this.track.addEventListener("pointercancel", end);
 
     this.track.addEventListener("keydown", (e) => {
+      if (e.key === " ") {
+        e.preventDefault(); // Space would otherwise scroll the page
+        this.toggle();
+        return;
+      }
       let next: number;
       switch (e.key) {
         case "ArrowLeft":
@@ -229,6 +320,7 @@ export class TimeSlider {
           return;
       }
       e.preventDefault();
+      this.pause();
       this.update(Math.min(this.months.length - 1, Math.max(0, next)), true);
     });
   }

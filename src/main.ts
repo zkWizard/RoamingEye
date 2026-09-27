@@ -423,6 +423,14 @@ if (initialView.camera) {
 
 let firstLoadDone = false;
 
+// The time-lapse (TimeSlider's play button). Playback holds on each month until
+// its imagery is on screen, so it asks whether the month last shown has
+// arrived; and while it plays, the per-frame loading line would flicker in an
+// aria-live row on every uncached month, so that line waits for it to stop.
+let imageryReady = true;
+let playing = false;
+let timeSlider: TimeSlider | undefined;
+
 // How long the boot curtain may sit on a mute spinner before it says what it
 // is waiting on. Under a stalled upstream the first imagery request runs its
 // full 15 s timeout (lib/net.ts) before "Imagery failed to load" and the retry
@@ -458,7 +466,8 @@ const textures = new GlobeTextureManager(
     preview: { width: 1024, height: 512 }, // prefetched for every month → instant, crisp scrub
     sharp: { width: 2048, height: 1024 }, // loaded for the settled month (final refinement)
     onLoadingChange: (loading) => {
-      setStatus(loading ? "Loading imagery…" : "");
+      imageryReady = !loading;
+      setStatus(loading && !playing ? "Loading imagery…" : "");
       if (!loading && !firstLoadDone) {
         firstLoadDone = true;
         clearSlowBootNotice();
@@ -520,7 +529,7 @@ function ensureWarm(index: number): void {
 // differs (its constructor clears the container).
 function buildTimeline(): void {
   if (!timelineEl) return;
-  new TimeSlider(
+  timeSlider = new TimeSlider(
     timelineEl,
     months,
     currentIndex,
@@ -528,13 +537,30 @@ function buildTimeline(): void {
       currentIndex = index;
       refreshGlobe();
       ensureWarm(index);
-      if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
+      // A drawn region re-resolves its own texture per month; at playback
+      // speed that is a download a frame, so it holds and catches up on stop.
+      if (studyRegion.active && !playing) {
+        studyRegion.setMonth(months[currentIndex]);
+      }
       compareControls?.setLiveMonth(LAYERS[currentLayer], months[currentIndex]);
       scheduleHashSync();
     },
     (ym) => formatTimelineLabel(LAYERS[currentLayer], ym),
     LAYERS[currentLayer].cadence === "annual" ? "year" : "month",
-    (message) => announcer.announce(message)
+    (message) => announcer.announce(message),
+    {
+      isFrameReady: () => imageryReady,
+      onPlayingChange: (isPlaying) => {
+        playing = isPlaying;
+        // Frames show at preview resolution; the full-resolution load waits
+        // for the month the playback comes to rest on.
+        textures.holdRefinement(isPlaying);
+        if (!isPlaying) {
+          setStatus(imageryReady ? "" : "Loading imagery…");
+          if (studyRegion.active) studyRegion.setMonth(months[currentIndex]);
+        }
+      },
+    }
   );
   // The record end (and so how far behind the calendar it is) belongs to the
   // layer, so the resting caption is re-stated wherever the slider is rebuilt:
@@ -542,6 +568,24 @@ function buildTimeline(): void {
   setStatus("");
 }
 buildTimeline();
+
+// P plays or pauses the time-lapse from anywhere but a text field; Space does
+// the same while the ruler itself has focus (TimeSlider).
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "p" && e.key !== "P") return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const target = e.target as HTMLElement | null;
+  if (
+    target &&
+    (target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.isContentEditable)
+  ) {
+    return;
+  }
+  e.preventDefault();
+  timeSlider?.toggle();
+});
 
 const legend = legendEl ? new Legend(legendEl, currentLayer) : undefined;
 hdTiles.onVisibleCoverageChange(({ requested, loaded, failed }) => {
@@ -2359,6 +2403,9 @@ if (hudCollapseEl && controlsEl) {
 
   const applyCollapsed = (collapsed: boolean): void => {
     controlsEl.classList.toggle("is-collapsed", collapsed);
+    // Folded, the play button goes with the timeline, so nothing on screen
+    // could stop a playback left running.
+    if (collapsed) timeSlider?.pause();
     syncHeader();
     hudCollapseEl.innerHTML = collapsed ? CHEVRON_UP : CHEVRON_DOWN;
     hudCollapseEl.setAttribute("aria-expanded", String(!collapsed));
