@@ -25,6 +25,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ["←", "→"], does: "Step a month back / forward (also ↓ / ↑)" },
       { keys: ["PgDn", "PgUp"], does: "Jump a year back / forward" },
       { keys: ["Home", "End"], does: "Jump to the oldest / newest month" },
+      { keys: ["Space"], does: "Play or pause the time-lapse" },
     ],
   },
   {
@@ -66,6 +67,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: "General",
     items: [
+      { keys: ["P"], does: "Play or pause the time-lapse, from anywhere" },
       { keys: ["?"], does: "Open this overlay" },
       { keys: ["Esc"], does: "Close open panels, pickers, and this overlay" },
     ],

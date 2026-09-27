@@ -120,6 +120,21 @@ export class Toolbar {
   }
 
   /**
+   * Switch an overlay as a press on its button would, running everything a
+   * press runs (the load, the busy state, the legend key, the session). For
+   * callers that switch overlays on the reader's behalf, a story among them.
+   * False when the overlay is already in that state.
+   */
+  press(overlayId: string, on: boolean): boolean {
+    const button = this.buttons.get(overlayId);
+    if (!button || (button.getAttribute("aria-pressed") === "true") === on) {
+      return false;
+    }
+    button.click();
+    return true;
+  }
+
+  /**
    * Reflect an overlay's pressed state without firing onToggle — for when an
    * enable can't complete (e.g. geolocation denied), so the button snaps back.
    */
