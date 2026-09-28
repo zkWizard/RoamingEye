@@ -1,3 +1,7 @@
+import {
+  averagedFootprintLabel,
+  type AveragedFootprint,
+} from "./averagedRampCensoring";
 import type { LayerId } from "./timeline";
 
 /**
@@ -37,7 +41,7 @@ import type { LayerId } from "./timeline";
  */
 
 /** Which averaged footprint the shares describe. A point probe has none. */
-export type SnowAveragedFootprint = "drawn-region" | "sampled-area";
+export type SnowAveragedFootprint = AveragedFootprint;
 
 export type SnowAveragedSupportStatus =
   /** No shares supplied — a point probe charts a median, not a mean. */
@@ -164,7 +168,7 @@ export function snowAveragedSupportClause(
     return null;
   }
 
-  const place = footprintLabel(summary.footprint);
+  const place = averagedFootprintLabel(summary.footprint);
 
   if (summary.status === "no-charted-month") {
     // Snow-free ground empties this record exactly as a failed retrieval does,
@@ -198,10 +202,6 @@ export function snowAveragedSupportNote(
   return snowAveragedSupportClause(
     summarizeSnowAveragedSupport(footprint, values, validFractions)
   );
-}
-
-function footprintLabel(footprint: SnowAveragedFootprint): string {
-  return footprint === "drawn-region" ? "drawn region" : "sampled area";
 }
 
 /**

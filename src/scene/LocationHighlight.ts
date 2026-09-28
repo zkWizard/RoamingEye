@@ -36,7 +36,7 @@ export class LocationHighlight {
           const b = latLngToVector3(ring[i + 1][1], ring[i + 1][0], radius);
           linePositions.push(a.x, a.y, a.z, b.x, b.y, b.z);
         }
-        pointPositions.push(...interpolatedRingPoints(ring, radius));
+        appendInterpolatedRingPoints(ring, radius, pointPositions);
       }
       const line = makeBoundaryLine(linePositions);
       const points = makeBoundaryPoints(pointPositions);
@@ -114,12 +114,17 @@ function makeBoundaryPoints(positions: number[]): THREE.Points {
   );
 }
 
-/** Fill long GeoJSON edges so the selected boundary stays readable in WebGL. */
-function interpolatedRingPoints(
+/**
+ * Fill long GeoJSON edges so the selected boundary stays readable in WebGL.
+ * Appends into `positions` rather than returning an array for the caller to
+ * spread: a state or country boundary densifies to hundreds of thousands of
+ * numbers, and spreading that many arguments overflows the call stack.
+ */
+function appendInterpolatedRingPoints(
   ring: [number, number][],
-  radius: number
-): number[] {
-  const positions: number[] = [];
+  radius: number,
+  positions: number[]
+): void {
   for (let i = 0; i + 1 < ring.length; i++) {
     const [startLon, startLat] = ring[i];
     const [endLon, endLat] = ring[i + 1];
@@ -140,7 +145,6 @@ function interpolatedRingPoints(
       positions.push(point.x, point.y, point.z);
     }
   }
-  return positions;
 }
 
 function disposeTree(root: THREE.Object3D): void {

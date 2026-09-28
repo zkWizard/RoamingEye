@@ -3,6 +3,7 @@ import {
   anomalyBaselineDepth,
 } from "./anomalyBaselineDepth";
 import { doiResolverUrl } from "./doiLink";
+import type { GeometrySamplingStrategy } from "./geojson";
 import type { Bounds } from "./imagery";
 import type { LegendStop } from "./legend";
 import { makeNeumaierAcc } from "./numerics";
@@ -473,6 +474,32 @@ export function scaleValue(t: number, scale: ProbeScale): number {
 }
 
 /**
+ * The slice of the 0..1 gradient a values chart spans: the record's own range
+ * plus a 10% margin, so a place whose values sit in one corner of a wide ramp
+ * (a dry state on a 0–43 mm/day scale) reads as a line rather than a flat
+ * trace along the axis. Never narrower than `minSpan` of the ramp, so a record
+ * that barely moves is not magnified into swings the colormap cannot resolve.
+ * The full ramp when nothing has charted yet.
+ */
+export function probePlotRange(
+  values: readonly (number | null)[],
+  minSpan = 0.02
+): { lo: number; hi: number } {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const v of values) {
+    if (v === null || !Number.isFinite(v)) continue;
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  if (min > max) return { lo: 0, hi: 1 };
+  const half = (Math.max(max - min, minSpan) * 1.1) / 2;
+  const mid = (min + max) / 2;
+  const lo = Math.max(0, Math.min(mid - half, 1 - 2 * half));
+  return { lo, hi: Math.min(1, lo + 2 * half) };
+}
+
+/**
  * Display formatting: enough decimals to resolve the inversion's quantization
  * step, plus the unit ("0.634", "78.4 %").
  *
@@ -584,11 +611,24 @@ export interface ProbeCsvMeta {
   lat: number;
   lon: number;
   scale: ProbeScale;
-  /** "point" (3×3 px median), "area" (~1° grid mean), or "region" (a
-   * user-drawn box, grid mean over sampledBounds). */
-  mode: "point" | "area" | "region";
-  /** The averaged region, present in area and region modes. */
+  /** "point" (3×3 px median), "area" (~1° grid mean), "region" (a
+   * user-drawn box, grid mean over sampledBounds), or "boundary" (a searched
+   * place, grid mean over the cells inside its polygon). */
+  mode: "point" | "area" | "region" | "boundary";
+  /** The averaged region, present in area and region modes; in boundary mode,
+   * the extent of the polygon rather than the area averaged. */
   sampledBounds?: Bounds;
+  /** Boundary mode: the searched place's name, as the geocoder returned it. */
+  boundaryName?: string;
+  /** Boundary mode: the polygon mask the grid was filtered through. */
+  geometrySampling?: {
+    gridSize: number;
+    interiorPointCount: number;
+    retainedPointCount: number;
+    sourcePixelCount: number;
+    /** "boundary-point" = no cell centre fell inside; one in-boundary point. */
+    strategy: GeometrySamplingStrategy;
+  };
   /** Adaptive drawn-region grid and rendered-pixel mapping. Omitted for point
    * and fixed-size area probes. These are counts, not ground resolution. */
   regionSampling?: {
@@ -750,7 +790,24 @@ export function buildProbeCsv(
     ...(meta.samplingIdentityHeaders ?? []),
     `# lat: ${meta.lat.toFixed(4)}`,
     `# lon: ${meta.lon.toFixed(4)}`,
-    ...(region ? [`# region: ${region}`] : []),
+    ...(meta.boundaryName
+      ? [
+          `# boundary: ${csvHeaderText(meta.boundaryName)} (OpenStreetMap contributors via Nominatim; ODbL)`,
+        ]
+      : []),
+    ...(region
+      ? [`# ${meta.boundaryName ? "boundary_extent" : "region"}: ${region}`]
+      : []),
+    ...(meta.geometrySampling
+      ? meta.geometrySampling.strategy === "boundary-point"
+        ? [
+            `# sampling: no grid cell centre fell inside the boundary; values are the single in-boundary search point and not a mean over the boundary`,
+          ]
+        : [
+            `# sampling_grid: ${meta.geometrySampling.gridSize}x${meta.geometrySampling.gridSize} cells over the boundary extent; ${meta.geometrySampling.interiorPointCount} inside the boundary, ${meta.geometrySampling.retainedPointCount} sampled`,
+            `# sampled_source_pixels: ${meta.geometrySampling.sourcePixelCount} unique rendered-image pixels`,
+          ]
+      : []),
     ...(meta.regionSampling
       ? [
           `# sampling_grid: ${meta.regionSampling.latitudeGridSize}x${meta.regionSampling.longitudeGridSize} geographic cell centres (latitude x longitude)`,
