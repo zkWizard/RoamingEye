@@ -92,6 +92,11 @@ import {
   snowIlluminationNote,
 } from "./lib/snowCoverIllumination";
 import type { GeoResult } from "./lib/geocoding";
+import {
+  geometryBounds,
+  isAreaGeometry,
+  type GeoGeometry,
+} from "./lib/geojson";
 import { refreshDataLatest } from "./lib/freshness";
 import { isAbortError, isOnline, OfflineError } from "./lib/net";
 import { nextPixelRatio } from "./lib/perf";
@@ -622,6 +627,12 @@ hdTiles.onVisibleCoverageChange(({ requested, loaded, failed }) => {
 // Assigned by the probe/compare sections below; the layer selector closes
 // both because their contents belong to the previous layer.
 let closeProbe: (() => void) | undefined;
+// Charts a search result's full record: its boundary where it has one, else
+// its point. Assigned by the probe section, which owns the chart panel.
+let chartPlace: ((result: GeoResult) => void) | undefined;
+// The search result the open chart belongs to. The place stays outlined when
+// the layer changes, so its chart follows the new layer instead of closing.
+let chartedPlace: GeoResult | undefined;
 // Set once the probe section builds it. The globe's key handler lives at module
 // scope, above the drawer, and has to ask whether draw mode owns the arrows.
 let regionDrawer: RegionDrawer | undefined;
@@ -669,6 +680,7 @@ let layerSelector: LayerSelector | undefined;
 function switchLayer(id: LayerId, { fromStory = false } = {}): void {
   if (!fromStory) storyCard?.dismiss();
   layerSelector?.select(id);
+  const place = fromStory ? undefined : chartedPlace;
   closeProbe?.();
   compareControls?.exit();
   const selected = months[currentIndex];
@@ -685,6 +697,7 @@ function switchLayer(id: LayerId, { fromStory = false } = {}): void {
   refreshGlobe();
   resetPrefetch();
   scheduleHashSync();
+  if (place) chartPlace?.(place);
 }
 
 if (layerEl) {
@@ -1140,7 +1153,6 @@ if (searchEl) {
   new SearchBox(
     searchEl,
     (result) => {
-      closeProbe?.();
       flyer.flyTo(result.lat, result.lon, flyToDistance(result.boundingBox));
       highlight.show({
         lat: result.lat,
@@ -1154,6 +1166,9 @@ if (searchEl) {
       studyRegion.hide();
       studyChip?.hide();
       runPlaceInsights(result);
+      // The place panel reads the latest months; the chart reads the active
+      // layer's whole record for the same place, replacing any earlier chart.
+      chartPlace?.(result);
     },
     (message) => announcer.announce(message)
   );
@@ -1264,6 +1279,7 @@ if (probeEl) {
     () => {
       probeAbort?.abort();
       probeShare = undefined;
+      chartedPlace = undefined;
       drawer.clear();
       scheduleHashSync();
     },
@@ -1277,6 +1293,7 @@ if (probeEl) {
   closeProbe = () => {
     probeAbort?.abort();
     probeShare = undefined;
+    chartedPlace = undefined;
     drawer.setArmed(false);
     drawer.clear();
     panel.close();
@@ -1434,6 +1451,7 @@ if (probeEl) {
     const layer = LAYERS[currentLayer];
     const mode = panel.mode;
     probeTarget = { lat, lon };
+    chartedPlace = undefined; // chartPlace re-marks it when a search asked
     // The mode goes into the share hash with the coordinates: it selects which
     // statistic the series reports, and the CSV this same view stamps a
     // `view_url` into names that statistic in its own header.
@@ -1849,23 +1867,35 @@ if (probeEl) {
   };
 
   // Chart the monthly mean of a drawn region — same pipeline as the point
-  // probe, sampling a grid over the box instead of one location.
-  const runRegionProbe = (bounds: Bounds): void => {
+  // probe, sampling a grid over the box instead of one location. A searched
+  // `place` charts the same way over only the grid cells inside its boundary;
+  // `bounds` is then that boundary's extent, not the area averaged.
+  const runRegionProbe = (
+    bounds: Bounds,
+    place?: GeoResult & { geometry: GeoGeometry }
+  ): void => {
     const layer = LAYERS[currentLayer];
     probeTarget = undefined; // the mode toggle is hidden for region charts
+    chartedPlace = undefined; // chartPlace re-marks it when a search asked
+    const footprint = place ? "searched-boundary" : "drawn-region";
     // The box travels in the link with the chart it explains. It used to be
     // dropped here, while the CSV this same view stamps a `view_url` into
     // declared its bounds in a `# region:` header — so the file's own
-    // reproduction link reopened the globe with no chart at all.
-    probeShare = { kind: "region", bounds };
+    // reproduction link reopened the globe with no chart at all. A boundary
+    // has no link form yet (its polygon is far too large for a hash), so its
+    // link reopens the place's view without the chart.
+    probeShare = place ? undefined : { kind: "region", bounds };
+    if (place) drawer.clear(); // a place's chart replaces a drawn box's
     scheduleHashSync();
     const regionProbeWasOpen = panel.isOpen;
     panel.open(
       layer.label,
-      // normalizeLon: a box drawn across the antimeridian carries continuous
-      // longitudes (east > 180); display them as real coordinates.
-      `Drawn region · mean over ${formatLatLng({ lat: bounds.south, lon: normalizeLon(bounds.west) })} → ` +
-        formatLatLng({ lat: bounds.north, lon: normalizeLon(bounds.east) })
+      place
+        ? `${place.name} · mean inside the searched boundary`
+        : // normalizeLon: a box drawn across the antimeridian carries
+          // continuous longitudes (east > 180); display them as real ones.
+          `Drawn region · mean over ${formatLatLng({ lat: bounds.south, lon: normalizeLon(bounds.west) })} → ` +
+            formatLatLng({ lat: bounds.north, lon: normalizeLon(bounds.east) })
     );
     if (!regionProbeWasOpen) foldHudForOverlay?.();
     panel.setModeToggleVisible(false);
@@ -1880,8 +1910,10 @@ if (probeEl) {
       // real, citable observation, so read it instead of dead-ending. Only the
       // IGBP layer has a decodable palette here; any other class-coded layer
       // keeps the honest "nothing to chart" message rather than being read
-      // through a palette that does not describe it.
-      if (layer.id === "landcover") {
+      // through a palette that does not describe it. A searched boundary is
+      // not read this way: the class read covers its whole extent, which
+      // would count the neighbouring ground in.
+      if (layer.id === "landcover" && !place) {
         probeAbort?.abort();
         const abort = (probeAbort = new AbortController());
         readLandCoverRegion(layer, months[currentIndex], bounds, abort);
@@ -1900,37 +1932,54 @@ if (probeEl) {
     panel.beginSeries(probeMonths, scale, { layerId: layer.id });
 
     let lastDraw = 0;
-    sampler
-      .sampleRegion(layer, probeMonths, bounds, {
-        signal: abort.signal,
-        onValue: (index, value) => panel.setValue(index, value),
-        onProgress: (done, total) => {
-          // Silent: the counter ticks once per month, and announcing every
-          // tick buries the result behind a queue of them. See setStatus.
-          panel.setStatus(`Sampling ${done}/${total} months…`, {
-            announce: false,
-            busy: true,
-          });
-          const now = performance.now();
-          if (now - lastDraw > 150 || done === total) {
-            lastDraw = now;
-            panel.refresh();
-          }
-        },
-      })
+    const sampleOptions = {
+      signal: abort.signal,
+      onValue: (index: number, value: number | null) =>
+        panel.setValue(index, value),
+      onProgress: (done: number, total: number) => {
+        // Silent: the counter ticks once per month, and announcing every
+        // tick buries the result behind a queue of them. See setStatus.
+        panel.setStatus(`Sampling ${done}/${total} months…`, {
+          announce: false,
+          busy: true,
+        });
+        const now = performance.now();
+        if (now - lastDraw > 150 || done === total) {
+          lastDraw = now;
+          panel.refresh();
+        }
+      },
+    };
+    (place
+      ? sampler.sampleGeometry(
+          layer,
+          probeMonths,
+          place.geometry,
+          place,
+          sampleOptions
+        )
+      : sampler.sampleRegion(layer, probeMonths, bounds, sampleOptions)
+    )
       .then((sampled) => {
         // Unpacked here rather than in the parameter list: a fourth field
         // wraps the pattern, and reflowing it reindents this whole handler.
         const { values, validFractions, regionSampling } = sampled;
         const { transportFailureMonths } = sampled;
+        const { geometrySampling, geometrySamplingStrategy } = sampled;
         if (abort.signal.aborted) return;
+        // A boundary too thin for any grid cell is read at one point inside
+        // it, and the caption above promises a mean over the boundary.
+        const boundaryPointNote =
+          geometrySamplingStrategy === "boundary-point"
+            ? "No sampling cell fits inside this boundary, so the chart reads one point inside it, not a mean over it"
+            : null;
         // The header names the drawn box, but SST is undefined over land and
         // those pixels are rejected rather than averaged in — so a coastal
         // box charts the water it found, not the box. The CSV already
         // carries this share per month; state it on the panel too.
         const sstSupportNote = averagedSstSupportNote(
           layer.id,
-          "drawn-region",
+          footprint,
           values,
           validFractions
         );
@@ -1944,7 +1993,7 @@ if (probeEl) {
         // mean, and only where there is a charted mean to qualify.
         const sstNativeNote = sstNativeSupportNote(
           layer.id,
-          "drawn-region",
+          footprint,
           bounds,
           values
         );
@@ -1962,7 +2011,7 @@ if (probeEl) {
         const vegetationSupportNote =
           vegetationAveragedSupportNote(
             layer.id,
-            "drawn-region",
+            footprint,
             values,
             validFractions
           ) ?? vegetationChartedRecordNote(layer.id, values);
@@ -1976,7 +2025,7 @@ if (probeEl) {
         const snowSupportNote =
           snowAveragedSupportNote(
             layer.id,
-            "drawn-region",
+            footprint,
             values,
             validFractions
           ) ?? snowChartedRecordNote(layer.id, values);
@@ -1992,7 +2041,7 @@ if (probeEl) {
         const gldasSupportNote =
           gldasAveragedSupportNote(
             layer.id,
-            "drawn-region",
+            footprint,
             values,
             validFractions
           ) ?? gldasChartedRecordNote(layer.id, values);
@@ -2006,7 +2055,7 @@ if (probeEl) {
         const airtempSupportNote =
           airTemperatureAveragedSupportNote(
             layer.id,
-            "drawn-region",
+            footprint,
             values,
             validFractions
           ) ?? airTemperatureChartedRecordNote(layer.id, values);
@@ -2033,12 +2082,20 @@ if (probeEl) {
                 layerLabel: layer.label,
                 wmsLayer: layer.wmsLayer,
                 dataset: layer.dataset,
-                lat: (bounds.south + bounds.north) / 2,
-                lon: (bounds.west + bounds.east) / 2,
+                lat: place ? place.lat : (bounds.south + bounds.north) / 2,
+                lon: place ? place.lon : (bounds.west + bounds.east) / 2,
                 scale,
-                mode: "region",
+                mode: place ? "boundary" : "region",
                 sampledBounds: bounds,
                 regionSampling,
+                boundaryName: place?.displayName,
+                geometrySampling:
+                  geometrySampling && geometrySamplingStrategy
+                    ? {
+                        ...geometrySampling,
+                        strategy: geometrySamplingStrategy,
+                      }
+                    : undefined,
                 imageWidth: PROBE_IMAGE.width,
                 imageHeight: PROBE_IMAGE.height,
                 generatedIso: new Date().toISOString(),
@@ -2136,17 +2193,14 @@ if (probeEl) {
                 // averaged, so an unflagged row is not an uncensored one.
                 averagedCensoringHeaders: [
                   ...marineAveragedSstCensoringCsvHeaders(
-                    "drawn-region",
+                    footprint,
                     sstCensoring
                   ),
                   ...averagedAerosolCensoringCsvHeaders(
-                    "drawn-region",
+                    footprint,
                     aerosolCensoring
                   ),
-                  ...averagedLstCensoringCsvHeaders(
-                    "drawn-region",
-                    lstCensoring
-                  ),
+                  ...averagedLstCensoringCsvHeaders(footprint, lstCensoring),
                 ],
                 // A drawn box spans latitudes and can straddle hemispheres, so
                 // the balance is measured on the region's own charted series
@@ -2172,7 +2226,9 @@ if (probeEl) {
               undefined,
               validFractions
             ),
-          `roamingeye_region_${layer.id}_${bounds.south.toFixed(2)}_${normalizeLon(bounds.west).toFixed(2)}_${bounds.north.toFixed(2)}_${normalizeLon(bounds.east).toFixed(2)}.csv`,
+          place
+            ? `roamingeye_place_${layer.id}_${place.lat.toFixed(3)}_${place.lon.toFixed(3)}.csv`
+            : `roamingeye_region_${layer.id}_${bounds.south.toFixed(2)}_${normalizeLon(bounds.west).toFixed(2)}_${bounds.north.toFixed(2)}_${normalizeLon(bounds.east).toFixed(2)}.csv`,
           // A drawn region that returned nothing is normally explained by the
           // support clause; the marine, snow and vegetation notes only speak
           // when it did not — a region always supplies shares, so those three
@@ -2205,13 +2261,20 @@ if (probeEl) {
           // questions about the same box, so both are carried, in that order.
           // The native clause is null for an empty series, so the absence
           // line built from this argument reads exactly as it did before.
-          [sstSupportNote, sstNativeNote].filter(Boolean).join(" · ") ||
-            vegetationSupportNote ||
-            snowSupportNote ||
-            gldasSupportNote ||
-            airtempSupportNote,
-          // Every drawn-region value is a weighted mean of per-pixel decodes.
-          "drawn-region",
+          // The single-point caveat leads, since it changes what every other
+          // clause's "mean" is.
+          [
+            boundaryPointNote,
+            [sstSupportNote, sstNativeNote].filter(Boolean).join(" · ") ||
+              vegetationSupportNote ||
+              snowSupportNote ||
+              gldasSupportNote ||
+              airtempSupportNote,
+          ]
+            .filter(Boolean)
+            .join(" · ") || null,
+          // Every region value is a weighted mean of per-pixel decodes.
+          footprint,
           // A drawn region always supplies shares, so the standing clause can
           // screen coverage the way the baseline requires.
           validFractions
@@ -2222,6 +2285,15 @@ if (probeEl) {
         console.warn("RoamingEye: region sampling failed", err);
         panel.setStatus("Sampling failed — check the connection and retry.");
       });
+  };
+
+  chartPlace = (result) => {
+    const geometry = result.geometry;
+    const extent =
+      geometry && isAreaGeometry(geometry) ? geometryBounds(geometry) : null;
+    if (geometry && extent) runRegionProbe(extent, { ...result, geometry });
+    else runProbe(result.lat, result.lon); // a point-like result has no area
+    chartedPlace = result;
   };
 
   // Restore a shared probe: rerun the sampling at the linked point so the

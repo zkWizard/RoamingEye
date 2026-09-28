@@ -1,3 +1,7 @@
+import {
+  averagedFootprintLabel,
+  type AveragedFootprint,
+} from "./averagedRampCensoring";
 import { GLDAS_RAMP_SATURATION } from "./gldasRampSaturation";
 import type { GldasRampLayerId } from "./gldasRampSaturation";
 import type { LayerId } from "./timeline";
@@ -58,7 +62,7 @@ import type { LayerId } from "./timeline";
  */
 
 /** Which averaged footprint the shares describe. A point probe has none. */
-export type GldasAveragedFootprint = "drawn-region" | "sampled-area";
+export type GldasAveragedFootprint = AveragedFootprint;
 
 export type GldasAveragedSupportStatus =
   /** No shares supplied — a point probe charts a median, not a mean. */
@@ -180,7 +184,7 @@ export function gldasAveragedSupportClause(
   if (summary.status !== "partly-drawn") return null;
 
   const facts = GLDAS_RAMP_SATURATION[summary.layerId];
-  const place = footprintLabel(summary.footprint);
+  const place = averagedFootprintLabel(summary.footprint);
   // The bound in the unit the probe REPORTS, never the published label: the
   // precipitation ramp publishes `≥ 5.0e-04` in native kg/m²/s while the panel
   // beside it prints mm/day, and quoting the label would misstate the ceiling
@@ -212,10 +216,6 @@ export function gldasAveragedSupportNote(
   return gldasAveragedSupportClause(
     summarizeGldasAveragedSupport(layerId, footprint, values, validFractions)
   );
-}
-
-function footprintLabel(footprint: GldasAveragedFootprint): string {
-  return footprint === "drawn-region" ? "drawn region" : "sampled area";
 }
 
 /**

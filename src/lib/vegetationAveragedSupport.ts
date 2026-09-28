@@ -1,3 +1,7 @@
+import {
+  averagedFootprintLabel,
+  type AveragedFootprint,
+} from "./averagedRampCensoring";
 import type { LayerId } from "./timeline";
 import type { RenderedVegetationIndexId } from "./vegetationIndexRenderedRange";
 
@@ -43,7 +47,7 @@ import type { RenderedVegetationIndexId } from "./vegetationIndexRenderedRange";
  */
 
 /** Which averaged footprint the shares describe. A point probe has none. */
-export type VegetationAveragedFootprint = "drawn-region" | "sampled-area";
+export type VegetationAveragedFootprint = AveragedFootprint;
 
 export type VegetationAveragedSupportStatus =
   /** No shares supplied — a point probe charts a median, not a mean. */
@@ -165,7 +169,7 @@ export function vegetationAveragedSupportClause(
   }
 
   const label = summary.index.toUpperCase();
-  const place = footprintLabel(summary.footprint);
+  const place = averagedFootprintLabel(summary.footprint);
 
   if (summary.status === "no-charted-month") {
     // A missing composite empties a record too, so name the mechanism without
@@ -204,10 +208,6 @@ function renderedVegetationIndexId(
   layerId: LayerId | null | undefined
 ): RenderedVegetationIndexId | null {
   return layerId === "ndvi" || layerId === "evi" ? layerId : null;
-}
-
-function footprintLabel(footprint: VegetationAveragedFootprint): string {
-  return footprint === "drawn-region" ? "drawn region" : "sampled area";
 }
 
 /**

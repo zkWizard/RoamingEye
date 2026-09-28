@@ -1,3 +1,7 @@
+import {
+  averagedFootprintLabel,
+  type AveragedFootprint,
+} from "./averagedRampCensoring";
 import { MERRA2_AIR_TEMPERATURE_RAMP_CAPS } from "./atmosphereProbeDomain";
 import type { LayerId } from "./timeline";
 
@@ -73,7 +77,7 @@ export const AIR_TEMPERATURE_AVERAGED_SUPPORT_LAYER_ID = "airtemp" as const;
  * must not depend on the marine or water-cycle ones, and the probe panel passes
  * the same two literals to all of them.
  */
-export type AirTemperatureAveragedFootprint = "drawn-region" | "sampled-area";
+export type AirTemperatureAveragedFootprint = AveragedFootprint;
 
 export type AirTemperatureAveragedSupportStatus =
   /** No shares supplied — a point probe charts a median, not a mean. */
@@ -190,7 +194,7 @@ export function airTemperatureAveragedSupportClause(
   if (summary.status !== "partly-drawn") return null;
 
   const { closedSpan, unit } = MERRA2_AIR_TEMPERATURE_RAMP_CAPS;
-  const place = footprintLabel(summary.footprint);
+  const place = averagedFootprintLabel(summary.footprint);
 
   return (
     `drawn over ${describeShareRange(summary)} of the ${place} — the MERRA-2 ` +
@@ -219,10 +223,6 @@ export function airTemperatureAveragedSupportNote(
   return airTemperatureAveragedSupportClause(
     summarizeAirTemperatureAveragedSupport(footprint, values, validFractions)
   );
-}
-
-function footprintLabel(footprint: AirTemperatureAveragedFootprint): string {
-  return footprint === "drawn-region" ? "drawn region" : "sampled area";
 }
 
 /**

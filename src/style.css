@@ -3500,6 +3500,11 @@ body {
   z-index: 6;
   display: none;
   width: min(390px, calc(100vw - 2rem));
+  /* Stop above the bottom overlay and scroll: a state's readings run to
+     thousands of pixels, which used to fall off the bottom out of reach. */
+  max-height: calc(100vh - clamp(13rem, 30vh, 18rem) - 9rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0.85rem;
   color: var(--fg);
   background: var(--panel-bg-strong);
@@ -3593,6 +3598,10 @@ body {
 
 .place-insights__detail {
   min-height: 2.3em;
+  /* Product ids such as GLDAS_Surface_Total_Precipitation_Rate_Monthly are
+     wider than a card, and the panel scrolls, so they wrap rather than
+     widen the grid into a sideways scroll. */
+  overflow-wrap: anywhere;
   font-size: 0.66rem;
   line-height: 1.3;
 }
@@ -3674,6 +3683,27 @@ body {
     bottom: 8.5rem;
     max-height: min(21rem, calc(100vh - 12rem));
     overflow-y: auto;
+  }
+}
+
+/* A search opens this panel and the full-record chart together, and both are
+   anchored to the left edge. Where the window is wide enough to keep the place
+   visible between them, this panel moves to the right, clear of the tool rail
+   and the action pill; anywhere narrower it steps aside until the chart is
+   closed. */
+@media (min-width: 1100px) {
+  body:has(.probe.is-open) .place-insights {
+    top: 7.5rem;
+    /* The rail is 75px wide, 90px once a short window gives it a scrollbar. */
+    right: 7.5rem;
+    left: auto;
+    max-height: calc(100vh - 16.5rem);
+  }
+}
+
+@media (max-width: 1099px) {
+  body:has(.probe.is-open) .place-insights {
+    display: none;
   }
 }
 

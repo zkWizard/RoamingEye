@@ -33,6 +33,7 @@ import {
   scaleValue,
   formatProbeValue,
   buildProbeCsv,
+  probePlotRange,
   quantizationStep,
   csvDecimals,
   uncertaintyText,
@@ -579,6 +580,32 @@ describe("quantified uncertainty", () => {
   });
 });
 
+describe("probePlotRange", () => {
+  it("charts the full ramp before any value has landed", () => {
+    expect(probePlotRange([])).toEqual({ lo: 0, hi: 1 });
+    expect(probePlotRange([null, null])).toEqual({ lo: 0, hi: 1 });
+  });
+
+  it("fits a record sitting in one corner of the ramp, with a margin", () => {
+    // Colorado precipitation: 0–3.9 mm/day on a 0–43.2 mm/day ramp.
+    const { lo, hi } = probePlotRange([0, null, 0.05, 0.09]);
+    expect(lo).toBe(0);
+    expect(hi).toBeCloseTo(0.099, 6);
+  });
+
+  it("never magnifies a flat record past the minimum span", () => {
+    const { lo, hi } = probePlotRange([0.5, 0.5, 0.5]);
+    expect(hi - lo).toBeCloseTo(0.022, 6);
+    expect((lo + hi) / 2).toBeCloseTo(0.5, 6);
+  });
+
+  it("stays inside the ramp at its top end", () => {
+    const { lo, hi } = probePlotRange([0.95, 1]);
+    expect(hi).toBe(1);
+    expect(lo).toBeCloseTo(0.945, 6);
+  });
+});
+
 describe("buildProbeCsv", () => {
   const meta = {
     layerLabel: "Vegetation (NDVI)",
@@ -771,6 +798,46 @@ describe("buildProbeCsv", () => {
     expect(regionCsv).toContain(
       "# sampled_source_pixels: 120 unique rendered-image pixels"
     );
+  });
+
+  it("names a searched boundary and labels its box as an extent, not the mean's area", () => {
+    const boundaryMeta = {
+      ...meta,
+      mode: "boundary" as const,
+      sampledBounds: { south: 25.8, north: 36.5, west: -106.6, east: -93.5 },
+      boundaryName: "Texas, United States",
+      geometrySampling: {
+        gridSize: 28,
+        interiorPointCount: 402,
+        retainedPointCount: 402,
+        sourcePixelCount: 398,
+        strategy: "boundary-grid" as const,
+      },
+    };
+    const csv = buildProbeCsv(boundaryMeta, [{ year: 2001, month: 1 }], [0.5]);
+    expect(csv).toContain("# RoamingEye boundary probe");
+    expect(csv).toContain(
+      "# boundary: Texas; United States (OpenStreetMap contributors via Nominatim; ODbL)"
+    );
+    expect(csv).toContain("# boundary_extent: 25.800 -106.600 36.500 -93.500");
+    expect(csv).not.toContain("# region:");
+    expect(csv).toContain(
+      "# sampling_grid: 28x28 cells over the boundary extent; 402 inside the boundary, 402 sampled"
+    );
+
+    const pointCsv = buildProbeCsv(
+      {
+        ...boundaryMeta,
+        geometrySampling: {
+          ...boundaryMeta.geometrySampling,
+          strategy: "boundary-point" as const,
+        },
+      },
+      [{ year: 2001, month: 1 }],
+      [0.5]
+    );
+    expect(pointCsv).toContain("not a mean over the boundary");
+    expect(pointCsv).not.toContain("# sampling_grid:");
   });
 
   it("stamps tool version and reproduction URL when provided", () => {

@@ -2,6 +2,7 @@ import {
   anomalySeries,
   csvDecimals,
   formatProbeValue,
+  probePlotRange,
   quantizationStep,
   seriesStats,
   scaleValue,
@@ -1259,23 +1260,27 @@ export class ProbePanel {
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, cssWidth, cssHeight);
 
-    const pad = { left: 40, right: 8, top: 8, bottom: 18 };
-    const plotW = cssWidth - pad.left - pad.right;
-    const plotH = cssHeight - pad.top - pad.bottom;
     const n = this.months.length;
     // The axis values are data, so they're in the mono the rest of the app
     // sets its numbers in (style.css --font-mono).
     ctx.font = '10px "Geist Mono Variable", ui-monospace, monospace';
 
-    // The plotted series and its 0..1 plot mapping. Values plot the raw
-    // gradient position; anomalies plot on a symmetric band around zero.
+    // The plotted series and its 0..1 plot mapping. Values plot the gradient
+    // position over the record's own range; anomalies plot on a symmetric
+    // band around zero.
     const anomaly = this.view === "anomaly";
     const series = anomaly
       ? anomalySeries(this.months, this.values)
       : this.values;
-    let toPlot = (v: number): number => v;
+    const { lo, hi } = anomaly ? { lo: 0, hi: 1 } : probePlotRange(series);
+    let toPlot = (v: number): number => (v - lo) / (hi - lo);
     let axisLabel = (t: number): string =>
-      this.scale ? formatProbeValue(scaleValue(t, this.scale), this.scale) : "";
+      this.scale
+        ? formatProbeValue(
+            scaleValue(lo + t * (hi - lo), this.scale),
+            this.scale
+          )
+        : "";
     if (anomaly) {
       const maxAbs = Math.max(
         0.05,
@@ -1289,6 +1294,21 @@ export class ProbePanel {
         return `${sign}${formatProbeValue(scaled, this.scale)}`;
       };
     }
+
+    // The left margin fits the widest axis label: a unit-bearing label such
+    // as "21.6 mm/day" is wider than the old fixed 40px, which cut its number
+    // off the canvas and left only the unit.
+    const labelWidth = Math.max(
+      ...[0, 0.5, 1].map((t) => ctx.measureText(axisLabel(t)).width)
+    );
+    const pad = {
+      left: Math.max(40, Math.ceil(labelWidth) + 8),
+      right: 8,
+      top: 8,
+      bottom: 18,
+    };
+    const plotW = cssWidth - pad.left - pad.right;
+    const plotH = cssHeight - pad.top - pad.bottom;
 
     // Axes & gridlines: bottom, middle (zero for anomalies), top.
     ctx.strokeStyle = fg;
