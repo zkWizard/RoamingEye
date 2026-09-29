@@ -86,7 +86,7 @@ export function citedVectorSources(): VectorSourceCitation[] {
       version: GVP_VOLCANO_SOURCE.databaseVersion,
       doi: GVP_VOLCANO_SOURCE.doi,
       url: GVP_VOLCANO_SOURCE.url,
-      usedBy: ["Volcanoes overlay", "Volcano records"],
+      usedBy: ["Volcanoes overlay", "Place panel volcano count"],
       // The date the bundled extract records for itself, not today's database
       // state: the overlay ships a snapshot prepared by prepare-data.mjs, and
       // the place panel already dates it from that file's own provenance. Using
@@ -100,7 +100,7 @@ export function citedVectorSources(): VectorSourceCitation[] {
       publisher: "U.S. Geological Survey",
       type: "dataset",
       url: SEISMICITY_SOURCE.url,
-      usedBy: ["Earthquakes overlay", "Nearby seismicity"],
+      usedBy: ["Earthquakes overlay", "Place panel earthquake count"],
       // No DOI and no fixed version exist for this feed, so none is emitted.
       // The retrieval date is the reader's to supply; the app cannot stamp one
       // without making the exported bundle non-deterministic.
@@ -114,7 +114,11 @@ export function citedVectorSources(): VectorSourceCitation[] {
       type: "article-journal",
       doi: BIRD_2003_PLATE_BOUNDARY_SOURCE.doi,
       url: BIRD_2003_PLATE_BOUNDARY_SOURCE.url,
-      usedBy: ["Plate boundaries overlay", "Plate-pair boundary labels"],
+      usedBy: [
+        "Plate boundaries overlay",
+        "Plate-pair boundary labels",
+        "Place panel plate distance",
+      ],
       author: "Bird, P.",
       year: 2003,
       containerTitle: "Geochemistry, Geophysics, Geosystems",

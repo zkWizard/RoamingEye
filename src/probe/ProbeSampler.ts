@@ -150,6 +150,12 @@ export interface SampleOptions {
    * do not ask pay neither the allocation nor any behaviour change.
    */
   onSampledColors?: (index: number, colors: readonly Rgb[]) => void;
+  /**
+   * Boundary samples only: the share of the footprint that must carry a value
+   * before a month's mean is reported (default 0.25). A caller that screens
+   * coverage itself, relative to the place's own land share, passes less.
+   */
+  minValidFraction?: number;
 }
 
 type ColorInverter = (rgb: Rgb) => number | null;
@@ -374,7 +380,8 @@ export class ProbeSampler {
       layer,
       months,
       sampling.pixels,
-      (inversions, weights) => weightedMeanValid(inversions, weights),
+      (inversions, weights) =>
+        weightedMeanValid(inversions, weights, options.minValidFraction),
       this.legendInverter(layer),
       options,
       sampling.bounds,
@@ -417,7 +424,8 @@ export class ProbeSampler {
       layer,
       months,
       sampling.pixels,
-      (inversions, weights) => weightedMeanValid(inversions, weights),
+      (inversions, weights) =>
+        weightedMeanValid(inversions, weights, options.minValidFraction),
       invert,
       options,
       sampling.bounds,
