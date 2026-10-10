@@ -106,9 +106,7 @@ test("probe panel with a chart is axe-clean", async ({ page }) => {
   await scan(page, "probe-panel");
 });
 
-test("place observations export is axe-clean while sampling", async ({
-  page,
-}) => {
+test("place change panel is axe-clean while sampling", async ({ page }) => {
   await page.locator(".search__input").fill("Vatican City");
   await expect(page.locator(".search__results")).toHaveClass(/is-open/, {
     timeout: 20_000,
@@ -116,9 +114,9 @@ test("place observations export is axe-clean while sampling", async ({
   await page.locator(".search__result").first().click();
   await expect(page.locator("#place-insights")).toHaveClass(/is-open/);
   await expect(
-    page.getByRole("button", { name: "Download observation JSON" })
+    page.getByRole("button", { name: "Download these numbers as CSV" })
   ).toBeDisabled();
-  await scan(page, "place-observation-export");
+  await scan(page, "place-change");
 });
 
 test("providers modal is axe-clean", async ({ page }) => {

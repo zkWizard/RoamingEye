@@ -654,7 +654,14 @@ let placeInsightsModule:
 function runPlaceInsights(result: GeoResult): void {
   placeInsightsModule ??= import("./place/placeInsightsController");
   void placeInsightsModule.then(
-    (m) => m.runPlaceInsights(result),
+    (m) =>
+      m.runPlaceInsights(result, {
+        activeLayer: currentLayer,
+        // A card puts its layer on the globe; the place's chart follows it.
+        onSelectLayer: (id) => {
+          if (id !== currentLayer) switchLayer(id);
+        },
+      }),
     () => {
       // A chunk fetch can fail on a flaky connection, and until now the only
       // report was the global unhandled-rejection toast quoting a hashed
@@ -686,6 +693,11 @@ function switchLayer(id: LayerId, { fromStory = false } = {}): void {
   const selected = months[currentIndex];
   currentLayer = id;
   legend?.setLayer(id);
+  // A failed chunk already raised its own toast when the search ran.
+  void placeInsightsModule?.then(
+    (m) => m.setActivePlaceLayer(id),
+    () => undefined
+  );
   months = monthRangeForLayer(LAYERS[id]);
   // Keep the closest calendar month selected where the new layer covers it;
   // clamp into range otherwise (reanalysis/ocean products start/lag apart,
