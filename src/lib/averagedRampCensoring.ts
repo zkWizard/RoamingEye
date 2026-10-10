@@ -35,11 +35,18 @@
  * this neutral module so an atmosphere module and a marine one can share the
  * union without either depending on the other.
  */
-export type AveragedFootprint = "drawn-region" | "sampled-area";
+export type AveragedFootprint =
+  "drawn-region" | "searched-boundary" | "sampled-area";
+
+const FOOTPRINT_LABELS: Record<AveragedFootprint, string> = {
+  "drawn-region": "drawn region",
+  "searched-boundary": "searched boundary",
+  "sampled-area": "sampled area",
+};
 
 /** The reader-facing name for an averaged footprint. */
 export function averagedFootprintLabel(footprint: AveragedFootprint): string {
-  return footprint === "drawn-region" ? "drawn region" : "sampled area";
+  return FOOTPRINT_LABELS[footprint];
 }
 
 /**
