@@ -32,7 +32,19 @@ export default defineConfig({
         // chunk, so app-code changes don't re-download the renderer.
         // Budgets enforced post-build by scripts/check-bundle-size.mjs.
         advancedChunks: {
-          groups: [{ name: "three", test: /node_modules[\\/]three[\\/]/ }],
+          groups: [
+            { name: "three", test: /node_modules[\\/]three[\\/]/ },
+            // The sampler, the probe chart's notes and the overlays' hover
+            // context: loaded at boot, but not needed to draw the first frame.
+            // They used to sit in chunks shared with the old place panel; once
+            // that panel stopped importing them, the bundler folded them into
+            // the entry, which then crossed its budget although fewer bytes
+            // load at boot. Naming them keeps the split deliberate.
+            {
+              name: "science",
+              test: /src[\\/](probe[\\/]ProbeSampler|lib[\\/](aerosolLoading|averagedRampCensoring|briefValueUncertainty|coverageAdequacy|geojson|gldasRampSaturation|lstRampCensoring|marineAveragedSstCensoring|marineCoverage|net|plateBoundaryHover|plates|probeRetrievalFailure|seawaterFreezingPoint|seismicFixedDepth|seismicNetworkGeometry|snowCover|snowCoverIllumination|spatialSupport|sstNativeSupport|sstObservingConstraints|sstRampCensoring|validation|vegetationObservingConstraints|volcanoContext))\.ts$/,
+            },
+          ],
         },
       },
     },

@@ -620,7 +620,7 @@ test("search traces an exact returned boundary without a study-region box", asyn
   expect(highResolutionRequests).toBe(0);
 });
 
-test("place insights report nearby USGS seismicity with its source and scope", async ({
+test("the place panel counts earthquakes inside the boundary for the chosen years", async ({
   page,
 }) => {
   await page.route("**nominatim**", (route) =>
@@ -651,51 +651,38 @@ test("place insights report nearby USGS seismicity with its source and scope", a
       ]),
     })
   );
-  await page.route("**earthquake.usgs.gov**", (route) =>
-    route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        features: [
-          {
-            // ~7 km from the extent centre: inside the radius.
-            geometry: { type: "Point", coordinates: [-118.05, 34.05, 9.2] },
-            properties: {
-              mag: 5.2,
-              magType: "mww",
-              time: 1_750_000_000_000,
-              place: "Near Exactville",
-            },
-          },
-          {
-            // Hundreds of km away: outside the radius.
-            geometry: { type: "Point", coordinates: [-120, 40, 480] },
-            properties: {
-              mag: 6.1,
-              time: 1_750_000_000_000,
-              place: "Far away",
-            },
-          },
-        ],
-      }),
-    })
-  );
+  const starts: string[] = [];
+  await page.route("**earthquake.usgs.gov/fdsnws/**", (route) => {
+    starts.push(
+      new URL(route.request().url()).searchParams.get("starttime") ?? ""
+    );
+    const row = (lat: number, lon: number, mag: number) =>
+      `us1|2020-01-01T00:00:00Z|${lat}|${lon}|9.2|us|us|us|us1|mww|${mag}|us|x`;
+    return route.fulfill({
+      contentType: "text/plain",
+      body: [
+        "#EventID|Time|Latitude|Longitude|Depth/km|Author|Catalog|Contributor|ContributorID|MagType|Magnitude|MagAuthor|EventLocationName",
+        // Inside the triangle.
+        row(33.95, -117.9, 5.2),
+        // Inside its bounding box but outside the triangle: not the place's.
+        row(34.08, -118.1, 6.1),
+      ].join("\n"),
+    });
+  });
 
   await page.locator(".search__input").fill("Exactville");
   await page.locator(".search__result").click();
 
-  const seismicity = page.locator(
-    '[aria-label="Recent earthquakes near this place"]'
-  );
-  await expect(seismicity).toContainText("1 event");
-  await expect(seismicity).toContainText("Near Exactville");
-  await expect(seismicity).toContainText("M5.2 mww");
-  await expect(seismicity).toContainText("shallow");
-  // Events outside the circumscribed radius must not be attributed to the place.
-  await expect(seismicity).not.toContainText("Far away");
-  // The radial query overshoots the rectangle's corners; the panel must say so
-  // rather than implying the events sit inside the searched boundary.
-  await expect(seismicity).toContainText("past the boundary corners");
-  await expect(seismicity).toContainText("USGS");
+  const hazards = page.locator('[aria-label="Hazards"]');
+  await expect(hazards.locator(".place-stat__value").first()).toHaveText("1");
+  await expect(hazards).toContainText("max M5.2");
+  await expect(hazards).not.toContainText("6.1");
+
+  // The range drives the query: the last 20 years by default, then 5.
+  const to = Number(await page.getByLabel("To year").inputValue());
+  expect(starts.at(-1)).toBe(`${to - 20}-01-01`);
+  await page.getByRole("button", { name: "Last 5 years" }).click();
+  await expect.poll(() => starts.at(-1)).toBe(`${to - 5}-01-01`);
 });
 
 test("modals trap focus and restore it on close", async ({ page }) => {
