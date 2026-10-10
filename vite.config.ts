@@ -21,6 +21,12 @@ export default defineConfig({
     // warning meaningful (it fires again if the vendor chunk keeps growing).
     chunkSizeWarningLimit: 600,
     rolldownOptions: {
+      // rolldown >=1.2.5 defaults chunk optimization on, which hoists modules
+      // shared by lazy panels into the entry chunk (+35 kB gzip, past the app
+      // budget). Keep lazy-only code in lazy chunks so first paint stays lean.
+      experimental: {
+        chunkOptimization: false,
+      },
       output: {
         // Isolate three.js (the bulk of the bundle) into its own long-cached
         // chunk, so app-code changes don't re-download the renderer.
