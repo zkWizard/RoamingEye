@@ -132,7 +132,7 @@ npm run test:e2e     # browser smoke + feature tests (Playwright)
 
 A lightweight, dependency-honest stack — no heavy GIS frameworks:
 
-- **[Three.js](https://threejs.org/)** for WebGL rendering, on a single textured globe.
+- **[Three.js](https://threejs.org/)** for WebGL rendering, with [3DTilesRendererJS](https://github.com/NASA-AMMOS/3DTilesRendererJS) streaming the satellite-imagery and terrain globe (Esri World Imagery over AWS Terrarium elevation) beneath the science layer.
 - **NASA GIBS WMS** for imagery, streamed straight into GPU textures (the service is CORS-open, so there's no backend).
 - Pure, unit-tested logic for the geodesy, timeline, scene selection, and geocoding; rendering and DOM kept separate from it.
 - **TypeScript**, **Vite**, **Vitest**, **Playwright**, **ESLint/Prettier**, and **GitHub Actions** CI.

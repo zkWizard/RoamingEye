@@ -720,6 +720,8 @@ export interface GibsImageOptions {
   width?: number;
   height?: number;
   format?: string;
+  /** Request no-data areas as transparent (needs an alpha format, e.g. PNG). */
+  transparent?: boolean;
 }
 
 /**
@@ -732,7 +734,12 @@ export function gibsWmsUrl(
   ym: YearMonth,
   options: GibsImageOptions = {}
 ): string {
-  const { width = 2048, height = 1024, format = "image/jpeg" } = options;
+  const {
+    width = 2048,
+    height = 1024,
+    format = "image/jpeg",
+    transparent = false,
+  } = options;
 
   const params = new URLSearchParams({
     SERVICE: "WMS",
@@ -745,6 +752,7 @@ export function gibsWmsUrl(
     HEIGHT: String(height),
     FORMAT: format,
   });
+  if (transparent) params.set("TRANSPARENT", "TRUE");
   if (!layer.static) {
     params.set("TIME", `${ym.year}-${String(ym.month).padStart(2, "0")}-01`);
   }

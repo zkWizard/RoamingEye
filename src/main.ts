@@ -134,6 +134,7 @@ import {
 import { PlateBoundariesOverlay } from "./overlays/PlateBoundariesOverlay";
 import { VolcanoesOverlay } from "./overlays/VolcanoesOverlay";
 import { TiledImageryOverlay } from "./overlays/TiledImageryOverlay";
+import { TerrainGlobe } from "./scene/TerrainGlobe";
 import { CameraFlyer } from "./scene/CameraFlyer";
 import { GlobeMomentum } from "./scene/GlobeMomentum";
 import { LocationHighlight } from "./scene/LocationHighlight";
@@ -301,12 +302,22 @@ if (themeEl) {
 }
 
 // --- Earth ------------------------------------------------------------------
+// Satellite imagery over streamed terrain; the science layer is drawn on top.
+const terrainGlobe = new TerrainGlobe(camera, renderer, EARTH_RADIUS);
+scene.add(terrainGlobe.object);
+
+// The science layer. Transparent, so oceans and no-data areas show the
+// satellite globe underneath instead of a dark fill. Hidden until its first
+// texture arrives (an untextured sphere would paint the planet white); it
+// still serves as the raycast target for hover, probe and region drawing.
 const earth = new THREE.Mesh(
   new THREE.SphereGeometry(EARTH_RADIUS, 96, 96),
   new THREE.MeshStandardMaterial({
-    color: 0x111418, // dark base shown over ocean / no-data areas
+    color: 0xffffff,
     roughness: 1,
     metalness: 0,
+    transparent: true,
+    visible: false,
   })
 );
 scene.add(earth);
@@ -2936,6 +2947,8 @@ const renderFrame = (): void => {
   wasFlying = flyer.isFlying;
   highlight.update(camera.position.length()); // keep the marker a constant size
   for (const overlay of overlays) overlay.update?.(camera, window.innerHeight);
+  earth.material.visible = earth.material.map !== null;
+  terrainGlobe.update();
   // HD tiles only ever stream the live month, so a comparison suppresses them
   // on both sides and both months render from their own full-globe texture —
   // a like-for-like split (see CompareController.renderSplit).

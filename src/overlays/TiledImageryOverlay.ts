@@ -463,6 +463,7 @@ export class TiledImageryOverlay implements MapOverlay {
       new THREE.MeshBasicMaterial({
         map: texture,
         side: THREE.DoubleSide, // robust against patch winding orientation
+        transparent: true, // PNG no-data shows the satellite globe below
       })
     );
     this.shown.set(akey, { mesh, textureKey, provisional });
