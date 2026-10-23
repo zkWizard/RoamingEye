@@ -186,6 +186,7 @@ ok/FAIL word rather than assuming either way. See
 
 ### `src/scene/`
 
+- `TerrainGlobe.ts` — the streamed photographic globe (3DTilesRendererJS): Esri World Imagery draped over AWS Terrarium terrain, drawn beneath the science layer.
 - `CameraFlyer.ts` — eased camera animation to a lat/lon, handing back to OrbitControls.
 - `LocationHighlight.ts` — search-result boundary outline + constant-size marker.
 - `HoverInspector.ts` — raycasts the globe to drive the coordinate/country readout.
@@ -213,7 +214,12 @@ camera flyer, controls, and marker scaling before rendering.
 
 The globe is a static unit sphere at the origin; **the camera orbits it**
 (OrbitControls), so overlays placed in world space stay aligned with the
-imagery. Overlays and the study patch sit at slightly increasing radii
+imagery. Underneath it, `TerrainGlobe` streams satellite imagery over real
+terrain, scaled to 0.996 of the unit radius so even Everest stays below the
+science sphere; the science layer (GIBS PNG with transparent no-data) and HD
+tiles are drawn semi-transparently on top, so oceans and gaps show the planet
+instead of black. `3d-tiles-renderer` resolves to its sources (see
+`vite.config.ts`) so the fixes in `patches/` apply. Overlays and the study patch sit at slightly increasing radii
 (1.001–1.004) to layer cleanly above the base without z-fighting; the camera's
 near plane is small (0.01) so you can get right down to the surface.
 
