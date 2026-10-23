@@ -6,13 +6,14 @@ import { globePoint } from "./globe";
  * A land-cover read runs two requests at once: the rendered-pixel sample, and
  * the class tables that decode it, which load on demand as their own chunk.
  *
- * Either can fail, and they need opposite remedies. A rejected dynamic import
- * stays rejected in the browser's module map, so probing again re-requests
- * nothing — while the sampler fetch is an ordinary request a second probe does
- * re-issue. One sentence used to answer for both and told the reader to retry,
- * which for the chunk is advice that can never work. These specs drive each leg
- * into failure separately and pin that the reader is told the remedy that
- * matches the leg that actually broke.
+ * Either can fail, and the messages stay distinct. The sampler fetch is an
+ * ordinary request a second probe re-issues, so its message says retry. The
+ * chunk is a dynamic import. Chromium 156+ (the browser this lane runs) does
+ * not cache a failed module fetch, so a second probe re-requests it; Safari
+ * and Firefox still keep the rejection. Reload is the remedy that works in
+ * every browser, which is what the chunk message names. These specs drive
+ * each leg into failure separately and pin that the reader is told the
+ * remedy that matches the leg that actually broke.
  */
 
 const CLASS_CHUNK = "**/assets/landCoverClassRead*";
@@ -29,7 +30,7 @@ async function probeGlobe(page: Page, dx = 0, dy = 0): Promise<void> {
   await page.mouse.click(pt.x + dx, pt.y + dy);
 }
 
-test("a failed land-cover chunk names reload, and probing again is not the remedy", async ({
+test("a failed land-cover chunk names reload, and probing again re-requests it", async ({
   page,
 }) => {
   let attempts = 0;
@@ -49,15 +50,18 @@ test("a failed land-cover chunk names reload, and probing again is not the remed
     { timeout: 20_000 }
   );
 
-  // Probing again is NOT the remedy, so the copy must not name it: the module
-  // map holds the rejection, and the second probe re-requests nothing.
+  // Chromium no longer caches the failed fetch, so the second probe hits the
+  // network again and still fails while the route is aborting. The copy names
+  // reload anyway: that recovers the page where a second import would not.
   const before = attempts;
   await probeGlobe(page, 14, 9);
+  await expect
+    .poll(() => attempts, { timeout: 20_000 })
+    .toBeGreaterThan(before);
   await expect(status(page)).toHaveText(
     "Reading the land-cover class failed — reload the page to try again.",
     { timeout: 20_000 }
   );
-  expect(attempts).toBe(before);
 
   // The remedy the message does name works.
   await page.unroute(CLASS_CHUNK);

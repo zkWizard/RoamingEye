@@ -34,7 +34,8 @@ export class ExportControls {
     const png = this.makeButton(
       DOWNLOAD_ICON,
       "Save PNG",
-      "Download this view as a PNG"
+      // The visible label has to sit inside the name (WCAG 2.5.3).
+      "Save PNG — download this view as a PNG"
     );
     png.addEventListener("click", () => actions.downloadPng());
 

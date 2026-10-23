@@ -143,6 +143,14 @@ test("shortcuts overlay is axe-clean", async ({ page }) => {
   await scan(page, "shortcuts");
 });
 
+// The More menu is `hidden` while closed, so the resting scans never see its
+// rows. Save PNG's visible label has to sit inside its accessible name, and
+// that only exists once the menu is open.
+test("more menu open is axe-clean", async ({ page }) => {
+  await openMoreMenu(page);
+  await scan(page, "more-menu");
+});
+
 test("viewport meta never disables pinch-to-zoom (WCAG 1.4.4)", async ({
   page,
 }) => {

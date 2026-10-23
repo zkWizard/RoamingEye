@@ -20,3 +20,10 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    groups:
+      # init, analyze, and upload-sarif must move together. CodeQL rejects a
+      # workflow whose github/codeql-action steps are not the same version, so
+      # a one-step bump can never go green on its own.
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
