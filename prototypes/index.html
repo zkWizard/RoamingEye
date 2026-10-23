@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>RoamingEye engine prototypes</title>
+<style>
+  html,body{margin:0;height:100%;background:#05070b;color:#dfe7f2;font:14px system-ui,sans-serif}
+  header{height:44px;display:flex;align-items:center;gap:16px;padding:0 14px;border-bottom:1px solid #1d2636}
+  header a{color:#7cc4ff}
+  main{display:grid;grid-template-columns:1fr 1fr;height:calc(100% - 45px)}
+  iframe{width:100%;height:100%;border:0;border-right:1px solid #1d2636}
+</style></head>
+<body>
+<header><b>RoamingEye engine bake-off</b>
+  <span>Same data, same controls.</span>
+  <a href="./cesium/" target="_blank">Open CesiumJS full-screen</a>
+  <a href="./three/" target="_blank">Open three.js full-screen</a></header>
+<main><iframe src="./cesium/" title="CesiumJS"></iframe><iframe src="./three/" title="three.js"></iframe></main>
+</body>
+</html>
