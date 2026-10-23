@@ -4,15 +4,17 @@ import { awaitAppInteractive } from "./boot";
 /**
  * The providers, software and fleet panels each load as their own chunk on first
  * open. These specs drive that request into failure, which is what a flaky
- * connection does, and pin what the reader is told, whether pressing again is
- * worth anything, and that a successful open still says nothing.
+ * connection does, and pin what the reader is told. Chromium 156+ re-fetches a
+ * failed module on the next import(), so a later press does reach the network
+ * here; the copy still names reload, which is what also works where that
+ * rejection stays cached. A successful open still says nothing.
  */
 
 const CHUNK = "**/assets/ProvidersPage*";
 
 test.use({ viewport: { width: 1280, height: 900 } });
 
-test("a failed panel chunk is worded, and pressing again is not the remedy", async ({
+test("a failed panel chunk names reload, and pressing again re-requests it", async ({
   page,
 }) => {
   let attempts = 0;
@@ -37,17 +39,16 @@ test("a failed panel chunk is worded, and pressing again is not the remedy", asy
   await expect(toast).not.toContainText("assets/");
   await expect(page.locator("#providers-page")).toBeHidden();
 
-  // Pressing again is NOT the remedy, and the copy must not imply it is: a
-  // rejected dynamic import stays rejected in the browser's module map, so the
-  // second press re-requests nothing and repeats the same worded failure. The
-  // cache reset in `lazyPanel` cannot reach the network.
+  // The next press calls import() again. On this Chromium that re-fetches the
+  // chunk, and it still fails while the route is aborting. The copy names
+  // reload, which is the remedy that does not depend on the engine retrying.
   await page.locator(".error-toast__close").click();
   const before = attempts;
   await page.locator("#providers-link").click();
-  await expect(toast).toContainText("Reload the page to try again.", {
-    timeout: 15_000,
-  });
-  expect(attempts).toBe(before);
+  await expect
+    .poll(() => attempts, { timeout: 15_000 })
+    .toBeGreaterThan(before);
+  await expect(toast).toContainText("Reload the page to try again.");
   await expect(page.locator("#providers-page")).toBeHidden();
 
   // The remedy the message names does work.

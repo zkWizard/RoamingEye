@@ -1,15 +1,17 @@
 /**
- * "Copy link to this view" button. Asks the app for the current shareable URL
- * (main.ts owns the view state), writes it to the clipboard, and flashes a
- * brief confirmation on the button itself.
+ * "Share view" button. Asks the app for the current shareable URL (main.ts
+ * owns the view state), writes it to the clipboard, and flashes a brief
+ * confirmation on the button itself.
  *
- * A copy has no state for the confirmation to ride on — no `aria-pressed`, no
- * value — and the button's accessible name is pinned by its `aria-label`, so
- * swapping the visible label leaves the accessibility tree byte-identical. The
- * clipboard itself is silent. That leaves the flash as the only report, and it
- * is pixels only, so an optional `announce` gives it a voice. The prompt
- * fallback below stays silent on purpose: a modal prompt takes focus and reads
- * itself.
+ * The visible label is "Share view". WCAG 2.5.3 (label in name) requires
+ * those words to be part of the accessible name, so the name is "Share view,
+ * copy link to this view" rather than the tooltip alone. The name stays
+ * pinned across the "Link copied!" flash: a copy flips no state, and swapping
+ * only the visible label leaves the accessibility tree byte-identical. The
+ * clipboard itself is silent. That leaves the flash as the only report, and
+ * it is pixels only, so an optional `announce` gives it a voice. The prompt
+ * fallback below stays silent on purpose: a modal prompt takes focus and
+ * reads itself.
  */
 
 const LINK_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
@@ -27,7 +29,12 @@ export class ShareButton {
     this.button.type = "button";
     this.button.className = "share-button";
     this.button.title = "Copy link to this view";
-    this.button.setAttribute("aria-label", "Copy link to this view");
+    // The visible label ("Share view") has to sit inside the name (WCAG
+    // 2.5.3). The tooltip stays the longer description a pointer user sees.
+    this.button.setAttribute(
+      "aria-label",
+      "Share view, copy link to this view"
+    );
     this.button.innerHTML =
       `<span class="share-button__icon">${LINK_ICON}</span>` +
       `<span class="share-button__label">Share view</span>`;

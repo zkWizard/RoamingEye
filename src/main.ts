@@ -666,11 +666,11 @@ function runPlaceInsights(result: GeoResult): void {
       // A chunk fetch can fail on a flaky connection, and until now the only
       // report was the global unhandled-rejection toast quoting a hashed
       // bundle URL — which names nothing a reader in the field can act on.
-      // Reloading is the honest remedy, not searching again: a dynamic import
-      // that fails stays rejected in the browser's module map, so a later
-      // search re-requests nothing (measured in Chromium — the retry the
-      // secondary panels attempt by clearing their cache never reaches the
-      // network either).
+      // Reloading is the remedy this path can honestly name. The rejected
+      // import is held in `placeInsightsModule`, so a later search reuses it
+      // and never issues another request. (A fresh import() would re-fetch
+      // on Chromium 156+, which no longer caches a failed module fetch; this
+      // path does not make that second call.)
       errorToast.show(
         "Couldn't load place details. Reload the page to try again."
       );
@@ -1315,15 +1315,14 @@ if (probeEl) {
    * The on-demand chunk leg of a land-cover read, tagged so its failure can be
    * told apart from the sampler fetch beside it.
    *
-   * Both legs of the `Promise.all` below can fail, but they need OPPOSITE
-   * remedies, and until now one sentence answered for both. A rejected dynamic
-   * import stays rejected in the browser's module map, so probing again
-   * re-requests nothing and repeats the same failure for the life of the page —
-   * measured in Chromium: with the chunk aborted, a first probe fetches it once
-   * and a second adds no attempt at all. The sampler fetch is an ordinary
-   * request a second probe really does re-issue (measured: 2 attempts, then 4).
-   * So "check the connection and retry" is honest for the sampler and a false
-   * promise for the chunk, which needs a reload.
+   * Both legs of the `Promise.all` below can fail, but they are not the same
+   * failure. The sampler fetch is an ordinary request a second probe re-issues
+   * (measured: 2 attempts, then 4), so "check the connection and retry" is
+   * honest for it. The chunk is a dynamic import. Chromium 156+ does not cache
+   * a failed module fetch, so a later probe re-requests it there; Safari and
+   * Firefox still keep the rejection for the life of the page, and a second
+   * probe re-requests nothing. Reload is the remedy that works in every
+   * browser, which is what the chunk message names.
    *
    * When both legs fail, `Promise.all` rejects with whichever lost the race;
    * either message then describes a real failure, and the sampler's advice is
@@ -2402,12 +2401,13 @@ if (probeEl) {
 // code. They are loaded on first open instead of at boot, which keeps that code
 // out of the entry chunk (see scripts/check-bundle-size.mjs).
 //
-// Clearing the cache on failure only gives the panel's own construction a second
-// chance. It does NOT make a failed chunk fetch retry: a dynamic import that
-// fails stays rejected in the browser's module map, so a later click re-requests
-// nothing (measured in Chromium). Reloading is the only honest remedy, which is
-// what `name` is here to say — before this, the whole report was the global
-// unhandled-rejection toast quoting a hashed bundle URL.
+// Clearing the cache on failure lets the next click call `import()` again.
+// Whether that reaches the network depends on the browser: Chromium 156+ does
+// not cache a failed module fetch, so the click re-requests; Safari and
+// Firefox still keep the rejection, so it does not. Reloading is the remedy
+// that works in every browser, which is what `name` is here to say — before
+// this, the whole report was the global unhandled-rejection toast quoting a
+// hashed bundle URL.
 function lazyPanel(
   container: HTMLElement,
   link: HTMLElement,

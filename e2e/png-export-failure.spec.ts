@@ -55,7 +55,7 @@ function announced(page: Page): Promise<string[]> {
 }
 
 const saveButton = (page: Page) =>
-  page.getByRole("button", { name: "Download this view as a PNG" });
+  page.getByRole("button", { name: /Save PNG/ });
 
 test("a PNG the browser could not encode says so", async ({ page }) => {
   await stubEncode(page, false);

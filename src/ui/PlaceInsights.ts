@@ -88,10 +88,14 @@ export class PlaceInsights {
       button.type = "button";
       button.className = "place-range__preset";
       button.textContent = preset.label;
-      button.setAttribute(
-        "aria-label",
-        preset.years ? `Last ${preset.years} years` : "Whole record"
-      );
+      // The face is the short form ("5Y", "All"). The name leads with those
+      // exact words, then the expansion. Parentheses are not enough: axe
+      // strips them before checking that the visible text is in the name
+      // (WCAG 2.5.3).
+      const spoken = preset.years
+        ? `last ${preset.years} years`
+        : "whole record";
+      button.setAttribute("aria-label", `${preset.label}, ${spoken}`);
       button.addEventListener("click", () =>
         this.pickRange(presetRange(preset.id, this.bounds))
       );

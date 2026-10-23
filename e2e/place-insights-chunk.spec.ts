@@ -84,9 +84,9 @@ test("a failed place-insights load is worded, and a reload recovers it", async (
   await expect(toast).not.toContainText("assets/");
   await expect(page.locator("#place-insights")).toBeHidden();
 
-  // Searching again is NOT the remedy, and the copy must not imply it is: a
-  // rejected dynamic import stays rejected in the browser's module map, so the
-  // second search re-requests nothing and repeats the same worded failure.
+  // Searching again is not the remedy. The rejected import is held on the
+  // page, so the second search reuses it and re-requests nothing — even on a
+  // browser that would re-fetch a fresh import() of a failed module.
   await page.locator(".error-toast__close").click();
   await page.locator(".search__input").fill("");
   const before = blocked;
