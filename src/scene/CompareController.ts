@@ -48,7 +48,12 @@ export class CompareController {
     this._pinned = ym;
     const seq = ++this.seq;
     this.loader.load(
-      gibsWmsUrl(layer, ym, { width: 2048, height: 1024 }),
+      gibsWmsUrl(layer, ym, {
+        width: 2048,
+        height: 1024,
+        format: "image/png",
+        transparent: true,
+      }),
       (texture) => {
         if (seq !== this.seq || !this._active) {
           texture.dispose();

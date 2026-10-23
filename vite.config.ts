@@ -1,6 +1,26 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from "vite";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import pkg from "./package.json";
+
+// 3d-tiles-renderer resolves to its ES sources rather than its prebuilt bundles,
+// so the fixes in patches/ (applied by patch-package on install) take effect.
+// Its sources self-import package subpaths, so every export is aliased; each
+// export's .d.ts sits beside its .js source.
+const tilesPkg = resolve(import.meta.dirname, "node_modules/3d-tiles-renderer");
+const tilesExports = JSON.parse(
+  readFileSync(`${tilesPkg}/package.json`, "utf8")
+).exports as Record<string, { types?: string }>;
+const tilesAliases = Object.entries(tilesExports)
+  .filter(([, e]) => typeof e?.types === "string")
+  .map(([key, e]) => ({
+    find: new RegExp(
+      `^3d-tiles-renderer${key.slice(1).replace(/[/.]/g, "\\$&")}$`
+    ),
+    replacement: resolve(tilesPkg, e.types!.replace(/\.d\.ts$/, ".js")),
+  }))
+  .filter(({ replacement }) => existsSync(replacement));
 
 export default defineConfig({
   // Serve from a subpath when deploying (e.g. GitHub Pages project sites live
@@ -12,6 +32,10 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
+  resolve: { alias: tilesAliases },
+  // Pre-bundling would read the prebuilt bundles and skip the patched sources.
+  // three is excluded too, or the patched sources would import a second copy.
+  optimizeDeps: { exclude: ["3d-tiles-renderer", "three"] },
   server: {
     host: true, // expose on the local network so you can test on a phone
     port: 5173,
@@ -34,6 +58,11 @@ export default defineConfig({
         advancedChunks: {
           groups: [
             { name: "three", test: /node_modules[\\/]three[\\/]/ },
+            // The streamed terrain/imagery globe: vendor code, cached like three.
+            {
+              name: "tiles",
+              test: /node_modules[\\/]3d-tiles-renderer[\\/]/,
+            },
             // The sampler, the probe chart's notes and the overlays' hover
             // context: loaded at boot, but not needed to draw the first frame.
             // They used to sit in chunks shared with the old place panel; once

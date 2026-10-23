@@ -1,6 +1,9 @@
 import * as THREE from "three";
 import { isAbortError } from "../lib/net";
 import { loadAbortableTexture } from "../lib/textures";
+
+// The globe layer is drawn over satellite imagery: no-data must be see-through.
+const GLOBE_IMAGE = { format: "image/png", transparent: true } as const;
 import {
   gibsWmsUrl,
   type LayerConfig,
@@ -177,10 +180,13 @@ export class GlobeTextureManager {
         const ym = pending[next++];
         const key = keyFor(layer, ym);
         active++;
-        loadAbortableTexture(gibsWmsUrl(layer, ym, this.preview), {
-          signal,
-          retries: 0,
-        })
+        loadAbortableTexture(
+          gibsWmsUrl(layer, ym, { ...this.preview, ...GLOBE_IMAGE }),
+          {
+            signal,
+            retries: 0,
+          }
+        )
           .then((texture) => {
             if (seq === this.prefetchSeq) {
               this.prep(texture, true);
@@ -241,10 +247,13 @@ export class GlobeTextureManager {
     // texture the seq guard would only dispose.
     this.sharpAbort?.abort();
     this.sharpAbort = new AbortController();
-    loadAbortableTexture(gibsWmsUrl(layer, ym, this.sharp), {
-      signal: this.sharpAbort.signal,
-      retries: 0,
-    })
+    loadAbortableTexture(
+      gibsWmsUrl(layer, ym, { ...this.sharp, ...GLOBE_IMAGE }),
+      {
+        signal: this.sharpAbort.signal,
+        retries: 0,
+      }
+    )
       .then((texture) => {
         // Drop if a newer selection or sharp request superseded this one.
         if (seq !== this.sharpSeq || key !== this.currentKey) {

@@ -1,0 +1,113 @@
+diff --git a/node_modules/3d-tiles-renderer/src/three/plugins/images/ImageOverlayPlugin.js b/node_modules/3d-tiles-renderer/src/three/plugins/images/ImageOverlayPlugin.js
+index 5d9e63a..e5cbf25 100644
+--- a/node_modules/3d-tiles-renderer/src/three/plugins/images/ImageOverlayPlugin.js
++++ b/node_modules/3d-tiles-renderer/src/three/plugins/images/ImageOverlayPlugin.js
+@@ -235,7 +235,11 @@ export class ImageOverlayPlugin {
+ 				if ( tileInfo.has( tile ) ) {
+ 
+ 					const { range } = tileInfo.get( tile );
+-					overlay.setRegionVisible( range, visible, tile );
++					if ( range !== null ) {
++
++						overlay.setRegionVisible( range, visible, tile );
++
++					}
+ 
+ 				}
+ 
+@@ -1065,7 +1069,7 @@ export class ImageOverlayPlugin {
+ 
+ 		// check if the overlay or tile have been disposed since starting this function
+ 		// if the tileController is not present then the tile has been disposed of already
+-		if ( controller.signal.aborted || tileController.signal.aborted ) {
++		if ( controller.signal.aborted || ! tileController || tileController.signal.aborted ) {
+ 
+ 			return;
+ 
+@@ -1073,6 +1077,7 @@ export class ImageOverlayPlugin {
+ 
+ 		// find all meshes to project on and ensure matrices are up to date
+ 		const meshes = [];
++		if ( ! scene ) return;
+ 		scene.updateMatrixWorld();
+ 		scene.traverse( c => {
+ 
+@@ -1167,7 +1172,7 @@ export class ImageOverlayPlugin {
+ 			.add( { tile, overlay }, async () => {
+ 
+ 				// check if the overlay has been disposed since starting this function
+-				if ( controller.signal.aborted || tileController.signal.aborted ) {
++				if ( controller.signal.aborted || ! tileController || tileController.signal.aborted ) {
+ 
+ 					return null;
+ 
+@@ -1177,7 +1182,7 @@ export class ImageOverlayPlugin {
+ 				const regionTarget = await overlay.getTexture( range );
+ 
+ 				// check if the overlay has been disposed since starting this function
+-				if ( controller.signal.aborted || tileController.signal.aborted ) {
++				if ( controller.signal.aborted || ! tileController || tileController.signal.aborted ) {
+ 
+ 					return null;
+ 
+@@ -1334,6 +1339,15 @@ export class ImageOverlayPlugin {
+ 				params.layerMaps.value[ i ] = target !== null ? target : null;
+ 				params.layerInfo.value[ i ] = overlay;
+ 
++				// keep the uniform arrays dense: a layer whose tile info is not ready yet would
++				// otherwise leave an undefined struct entry that three.js fails to upload
++				for ( let j = 0; j < overlays.length; j ++ ) {
++
++					if ( ! params.layerInfo.value[ j ] ) params.layerInfo.value[ j ] = overlays[ j ];
++					if ( params.layerMaps.value[ j ] === undefined ) params.layerMaps.value[ j ] = null;
++
++				}
++
+ 				// mark per-layer defines
+ 				material.defines[ `LAYER_${ i }_EXISTS` ] = Number( target !== null );
+ 				material.defines[ `LAYER_${ i }_ALPHA_INVERT` ] = Number( overlay.alphaInvert );
+diff --git a/node_modules/3d-tiles-renderer/src/three/plugins/images/sources/RegionImageSource.js b/node_modules/3d-tiles-renderer/src/three/plugins/images/sources/RegionImageSource.js
+index a35c9fd..768a587 100644
+--- a/node_modules/3d-tiles-renderer/src/three/plugins/images/sources/RegionImageSource.js
++++ b/node_modules/3d-tiles-renderer/src/three/plugins/images/sources/RegionImageSource.js
+@@ -1,7 +1,7 @@
+ import { TiledTextureComposer } from '../overlays/TiledTextureComposer.js';
+ import { forEachTileInBounds } from '../overlays/utils.js';
+ import { DataCache } from '../utils/DataCache.js';
+-import { SRGBColorSpace, CanvasTexture } from 'three';
++import { SRGBColorSpace, CanvasTexture, LinearMipmapLinearFilter } from 'three';
+ 
+ // Epsilon for comparing normalized tile bounds to determine if a region exactly matches a single
+ // image tile.
+@@ -111,7 +111,8 @@ export class TiledRegionImageSource extends RegionImageSource {
+ 
+ 		const target = new CanvasTexture( canvas );
+ 		target.colorSpace = SRGBColorSpace;
+-		target.generateMipmaps = false;
++		target.generateMipmaps = true;
++		target.minFilter = LinearMipmapLinearFilter;
+ 
+ 		// TODO: we could draw the parent tile data here if it's available just to make sure we
+ 		// have something to display but the texture is not usable until it returns. Though it
+diff --git a/node_modules/3d-tiles-renderer/src/three/plugins/images/sources/TiledImageSource.js b/node_modules/3d-tiles-renderer/src/three/plugins/images/sources/TiledImageSource.js
+index 3cb1d40..0acab56 100644
+--- a/node_modules/3d-tiles-renderer/src/three/plugins/images/sources/TiledImageSource.js
++++ b/node_modules/3d-tiles-renderer/src/three/plugins/images/sources/TiledImageSource.js
+@@ -1,6 +1,6 @@
+ import { DataCache } from '../utils/DataCache.js';
+ import { TilingScheme } from '../utils/TilingScheme.js';
+-import { SRGBColorSpace, Texture, TextureUtils } from 'three';
++import { SRGBColorSpace, Texture, TextureUtils, LinearMipmapLinearFilter } from 'three';
+ 
+ // TODO: support queries for detail at level - ie projected pixel size for geometric error mapping
+ // Goes here or in "TilingScheme"?
+@@ -34,7 +34,8 @@ export class TiledImageSource extends DataCache {
+ 			imageOrientation: 'flipY',
+ 		} );
+ 		const texture = new Texture( imageBitmap );
+-		texture.generateMipmaps = false;
++		texture.generateMipmaps = true;
++		texture.minFilter = LinearMipmapLinearFilter;
+ 		texture.colorSpace = SRGBColorSpace;
+ 		texture.needsUpdate = true;
+ 
