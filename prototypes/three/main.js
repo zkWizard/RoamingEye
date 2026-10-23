@@ -10,7 +10,10 @@ import { ESRI_IMAGERY, TERRARIUM, LAYERS, gibsUrl, fetchQuakes, depthColor, moun
 
 const ATMO = new URLSearchParams(location.search).get("atmo") !== "0";
 
-const renderer = new THREE.WebGLRenderer({ antialias: !ATMO, logarithmicDepthBuffer: true });
+// GlobeControls fits near/far to the globe every frame, so standard depth has enough precision.
+// Logarithmic depth breaks the aerial-perspective pass (moiré rings at whole-globe zoom).
+const LOG_DEPTH = new URLSearchParams(location.search).get("logdepth") === "1";
+const renderer = new THREE.WebGLRenderer({ antialias: !ATMO, logarithmicDepthBuffer: LOG_DEPTH });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 document.getElementById("app").appendChild(renderer.domElement);
@@ -59,6 +62,9 @@ if (ATMO) {
   sky.frustumCulled = false;
   scene.add(sky);
   const aerial = new AerialPerspectiveEffect(camera, { correctGeometricError: true, sunLight: false, skyLight: false, transmittance: true, inscatter: true });
+  // The renderer writes logarithmic depth; without this define the effect reads it as linear,
+  // misplaces every surface point and paints moiré rings over the whole-globe view.
+  if (LOG_DEPTH) aerial.defines.set("USE_LOGARITHMIC_DEPTH_BUFFER", "1");
   new PrecomputedTexturesLoader().setType(renderer).load(`${import.meta.env.BASE_URL}atmosphere`, (textures) => {
     Object.assign(skyMaterial, textures);
     Object.assign(aerial, textures);

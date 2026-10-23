@@ -4,20 +4,21 @@
   "type": "module",
   "description": "Throwaway side-by-side engine prototypes (CesiumJS vs three.js + 3DTilesRendererJS). Not part of the app build.",
   "scripts": {
-    "postinstall": "node copy-static-assets.mjs",
+    "postinstall": "patch-package && node copy-static-assets.mjs",
     "dev": "vite --port 5180 --host",
     "build": "vite build",
     "preview": "vite preview --port 5181 --host"
   },
   "dependencies": {
-    "cesium": "^1.146.0",
-    "three": "^0.186.1",
-    "3d-tiles-renderer": "^0.5.3",
     "@takram/three-atmosphere": "^0.19.1",
     "@takram/three-geospatial": "^0.9.1",
-    "postprocessing": "^6.39.5"
+    "3d-tiles-renderer": "^0.5.3",
+    "cesium": "^1.146.0",
+    "postprocessing": "^6.39.5",
+    "three": "^0.186.1"
   },
   "devDependencies": {
+    "patch-package": "^8.0.1",
     "vite": "^8.3.5"
   }
 }
