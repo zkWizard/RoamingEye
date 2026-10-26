@@ -66,6 +66,9 @@ test.use({ viewport: { width: 1280, height: 900 } });
 test("a failed place-insights load is worded, and a reload recovers it", async ({
   page,
 }) => {
+  // Two searches, a reload, and the chunk waits below are each allowed 15–20s.
+  // The default 30s test budget runs out before the reload on a slow runner.
+  test.setTimeout(90_000);
   await stubAreaGeocoder(page);
   let blocked = 0;
   await page.route(CHUNK, (route) => {
