@@ -178,9 +178,18 @@ test("a date, a layer, and a story resolve without the geocoder", async ({
   const input = page.locator(".search__input");
 
   await input.fill("Aug 2023");
-  await expect(page.locator(".search__group")).toHaveText("Dates", {
+  // The Dates group must replace empty-field suggestions, not sit among them.
+  await expect(
+    page.locator(".search__group", { hasText: "Dates" })
+  ).toBeVisible({
     timeout: 15_000,
   });
+  await expect(
+    page.locator(".search__group", { hasText: "Stories" })
+  ).toHaveCount(0);
+  await expect(
+    page.locator(".search__result-name", { hasText: "August 2023" })
+  ).toBeVisible();
   await input.press("Enter");
   await expect(page.locator(".timeline__readout")).toHaveText("Aug 2023");
 

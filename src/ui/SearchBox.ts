@@ -37,6 +37,7 @@ export class SearchBox {
   private readonly input: HTMLInputElement;
   private readonly results: HTMLUListElement;
   private debounceTimer: ReturnType<typeof setTimeout> | undefined;
+  private suggestTimer: ReturnType<typeof setTimeout> | undefined;
   private pendingTimer: ReturnType<typeof setTimeout> | undefined;
   private options: HTMLLIElement[] = [];
   private rows: ResultRow[] = [];
@@ -167,8 +168,14 @@ export class SearchBox {
   }
 
   private onFocus(): void {
-    if (this.input.value.trim() !== "") return;
-    void this.showSuggestions();
+    clearTimeout(this.suggestTimer);
+    // fill() focuses the empty field and only then inserts the text. Wait a
+    // turn so that text is searched, while a field that stays empty suggests.
+    this.suggestTimer = setTimeout(() => {
+      this.suggestTimer = undefined;
+      if (this.input.value.trim() !== "") return;
+      void this.showSuggestions();
+    }, 0);
   }
 
   private onInput(): void {
@@ -176,6 +183,11 @@ export class SearchBox {
     this.query = query;
     this.submitOnArrival = false;
     clearTimeout(this.debounceTimer);
+    clearTimeout(this.suggestTimer);
+    this.suggestTimer = undefined;
+    // Drop a suggestion load still in flight. It must not paint over this
+    // query, and it must not be the thing that cancels the search below.
+    this.generation += 1;
     if (query.length < 2) {
       if (query.length === 0) void this.showSuggestions();
       else this.closeResults();
@@ -186,23 +198,56 @@ export class SearchBox {
 
   /** Stories, recent searches, and change places. No geocoder. */
   private async showSuggestions(): Promise<void> {
+    const pending = this.input.value.trim();
+    if (pending.length >= 2) {
+      void this.run(pending);
+      return;
+    }
     const generation = ++this.generation;
-    clearTimeout(this.debounceTimer);
     clearTimeout(this.pendingTimer);
     try {
       const hits = await collectSuggestions(this.providers);
       if (generation !== this.generation) return;
-      if (this.input.value.trim() !== "") return;
+      const typed = this.input.value.trim();
+      // The field was filled while the suggestion lists were loading. A
+      // focus-time load used to clear the keystroke timer and then return,
+      // so the empty-field rows stayed up under a date or a place name.
+      if (typed.length >= 2) {
+        void this.run(typed);
+        return;
+      }
+      if (typed.length === 1) {
+        this.closeResults();
+        return;
+      }
       if (hits.length === 0) {
         this.closeResults();
         return;
       }
       this.renderList(hits, [], "", "suggestions");
+      this.watchTypedOverSuggestions(generation);
     } catch (err) {
       if (generation !== this.generation) return;
       console.warn("RoamingEye: suggestions failed", err);
-      this.closeResults();
+      const typed = this.input.value.trim();
+      if (typed.length >= 2) void this.run(typed);
+      else this.closeResults();
     }
+  }
+
+  /**
+   * Suggestions paint while the field is still empty. fill() can set the
+   * value on the next turn; if that write does not produce an input event
+   * the rows would stay. One later look is enough — a real keystroke has
+   * already bumped the generation and scheduled its own search.
+   */
+  private watchTypedOverSuggestions(generation: number): void {
+    setTimeout(() => {
+      if (generation !== this.generation) return;
+      const typed = this.input.value.trim();
+      if (typed.length >= 2) void this.run(typed);
+      else if (typed.length === 1) this.closeResults();
+    }, 0);
   }
 
   private async run(query: string): Promise<void> {
@@ -438,6 +483,8 @@ export class SearchBox {
     this.generation += 1;
     this.submitOnArrival = false;
     clearTimeout(this.debounceTimer);
+    clearTimeout(this.suggestTimer);
+    this.suggestTimer = undefined;
     clearTimeout(this.pendingTimer);
     this.clearPending();
     this.results.innerHTML = "";
