@@ -66,9 +66,8 @@ test.use({ viewport: { width: 1280, height: 900 } });
 test("a failed place-insights load is worded, and a reload recovers it", async ({
   page,
 }) => {
-  // Two boots, and the reload restores the shared place (outline plus chart)
-  // before the second search. On a software-GL runner that exceeds the
-  // default 30s test budget.
+  // Two boots. The reload restores the shared place, which is what opens the
+  // panel again, so this no longer fits the default 30s budget on software GL.
   test.setTimeout(120_000);
   await stubAreaGeocoder(page);
   let blocked = 0;
@@ -112,11 +111,12 @@ test("a failed place-insights load is worded, and a reload recovers it", async (
   expect(blocked).toBe(before);
   await expect(page.locator("#place-insights")).toBeHidden();
 
-  // The remedy the message names does work.
+  // The remedy the message names does work. The failed search is in the
+  // hash, so the fresh page restores that place and loads the chunk itself.
+  // Searching again would click through the panel that restore just opened.
   await page.unroute(CHUNK);
   await page.reload();
   await awaitAppInteractive(page, 60_000);
-  await searchQuito(page);
   await expect(page.locator("#place-insights")).toBeVisible({
     timeout: 20_000,
   });
