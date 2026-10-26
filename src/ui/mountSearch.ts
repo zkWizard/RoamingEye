@@ -1,6 +1,8 @@
 import type { GeoResult } from "../lib/geocoding";
+import { recentSearchProvider } from "../lib/search/recent";
 import type { SearchHit } from "../lib/search/provider";
 import { searchProviders } from "../lib/search/providers";
+import type { RecentSearch } from "../lib/sessionState";
 import { LAYERS, type LayerId } from "../lib/timeline";
 import { SearchBox } from "./SearchBox";
 
@@ -13,6 +15,14 @@ export interface SearchHandlers {
   onLayer: (layerId: LayerId) => void;
   onMonth: (year: number, month: number) => void;
   onStory: (storyId: string) => void;
+  onHotspot: (hotspot: {
+    name: string;
+    layerId: string;
+    lat: number;
+    lon: number;
+  }) => void;
+  onRemember: (hit: SearchHit) => void;
+  recent: () => readonly RecentSearch[] | undefined;
 }
 
 /** Mount the search field and return a way to focus it from a shortcut. */
@@ -23,8 +33,11 @@ export function mountSearch(
 ): { focus(): void } {
   const box = new SearchBox(
     container,
-    searchProviders(),
-    (hit) => applyHit(hit, handlers),
+    [recentSearchProvider(handlers.recent), ...searchProviders()],
+    (hit) => {
+      handlers.onRemember(hit);
+      applyHit(hit, handlers);
+    },
     announce
   );
   return { focus: () => box.focus() };
@@ -53,6 +66,9 @@ function applyHit(hit: SearchHit, handlers: SearchHandlers): void {
       return;
     case "story":
       handlers.onStory(data.storyId);
+      return;
+    case "hotspot":
+      handlers.onHotspot(data);
       return;
   }
 }

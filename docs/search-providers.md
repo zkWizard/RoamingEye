@@ -28,11 +28,13 @@ interface SearchHit {
 }
 ```
 
-`data` is opaque to the box. `SearchAction` today is a place, a layer, a month, or a story (`src/lib/search/provider.ts`). Extend that union for a new kind of result, and handle it in `applyHit`.
+`data` is opaque to the box. `SearchAction` today is a place, a layer, a month, a story, or a change hotspot (`src/lib/search/provider.ts`). Extend that union for a new kind of result, and handle it in `applyHit`.
 
 Instant providers are queried together on each change of the field (two characters or more). Their hits are grouped by `group`, in the order the providers returned them, and sorted by `score` inside a group. Higher scores sort first. An explicit provider is not queried while typing: the box shows `label(query)` as a row under the instant hits. Nominatim is that row ("Search all places"), which is how autocomplete stays off the public geocoder.
 
 Enter takes the highlighted row. With nothing highlighted, it takes the first instant hit. It runs the explicit provider only when the query has no instant hit, or when that provider's own row is highlighted.
+
+An empty, focused field asks each provider for `suggest()` instead of `search()`. Recent searches, stories, and change places use that. A provider with no `suggest` adds nothing. `suggest` follows the instant rule: no network.
 
 ## Registering a provider
 

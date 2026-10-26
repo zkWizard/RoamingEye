@@ -149,8 +149,10 @@ import {
   SESSION_STORAGE_KEY,
   serializeSession,
   parseSession,
+  type RecentSearch,
   type SessionState,
 } from "./lib/sessionState";
+import type { SearchHit } from "./lib/search/provider";
 import type { Bounds } from "./lib/imagery";
 import { StudyRegion } from "./scene/StudyRegion";
 import { StudyChip } from "./ui/StudyChip";
@@ -449,6 +451,7 @@ function loadStoredSession(): SessionState {
   }
 }
 const storedSession = loadStoredSession();
+let recentSearches: RecentSearch[] = storedSession.recent ?? [];
 let currentLayer: LayerId = initialView.layer ?? storedSession.layer ?? "ndvi";
 let months: YearMonth[] = monthRangeForLayer(LAYERS[currentLayer]);
 let currentIndex = months.length - 1; // default: the most recent month
@@ -866,6 +869,7 @@ function saveSession(): void {
         layer: currentLayer,
         month: months[currentIndex],
         overlays: [...overlayState],
+        recent: recentSearches,
       })
     );
   } catch {
@@ -1303,6 +1307,18 @@ window.addEventListener("pointercancel", (e) => {
 let openStory: (storyId: string) => void = () => {};
 let focusSearch: (() => void) | undefined;
 
+function rememberSearch(hit: SearchHit): void {
+  const action =
+    hit.data.type === "place" ? { ...hit.data, geometry: null } : hit.data;
+  recentSearches = [
+    { title: hit.title, subtitle: hit.subtitle, action },
+    ...recentSearches.filter(
+      (entry) => entry.title !== hit.title || entry.action.type !== action.type
+    ),
+  ].slice(0, 6);
+  saveSession();
+}
+
 if (searchEl) {
   void import("./ui/mountSearch").then(
     ({ mountSearch }) => {
@@ -1354,6 +1370,62 @@ if (searchEl) {
             timeSlider?.seek(nearestMonthIndex(months, { year, month }));
           },
           onStory: (storyId) => openStory(storyId),
+          onHotspot: (hotspot) => {
+            if (
+              Object.hasOwn(LAYERS, hotspot.layerId) &&
+              hotspot.layerId !== currentLayer
+            ) {
+              switchLayer(hotspot.layerId as LayerId);
+            }
+            const monthIndex = placePickMonthIndex(
+              months.length,
+              LAYERS[currentLayer].static === true
+            );
+            if (monthIndex !== null) timeSlider?.seek(monthIndex);
+            const pad = 0.4;
+            flyer.flyTo(
+              hotspot.lat,
+              hotspot.lon,
+              flyToDistance([
+                hotspot.lat - pad,
+                hotspot.lat + pad,
+                hotspot.lon - pad,
+                hotspot.lon + pad,
+              ])
+            );
+            highlight.show({
+              lat: hotspot.lat,
+              lon: hotspot.lon,
+              geometry: null,
+            });
+            studyRegion.hide();
+            studyChip?.hide();
+            // No outline, so the place panel closes rather than sampling a point.
+            void placeInsightsModule?.then(
+              (m) =>
+                m.runPlaceInsights(
+                  {
+                    name: hotspot.name,
+                    displayName: hotspot.name,
+                    lat: hotspot.lat,
+                    lon: hotspot.lon,
+                    type: "",
+                    category: "",
+                    boundingBox: null,
+                    geometry: null,
+                  },
+                  {
+                    activeLayer: currentLayer,
+                    onSelectLayer: (id) => {
+                      if (id !== currentLayer) switchLayer(id);
+                    },
+                  }
+                ),
+              () => undefined
+            );
+          },
+          onRemember: (hit) => rememberSearch(hit),
+          recent: () => recentSearches,
         }
       );
       focusSearch = () => mounted.focus();

@@ -37,7 +37,14 @@ export type SearchAction =
     }
   | { type: "layer"; layerId: string }
   | { type: "month"; year: number; month: number }
-  | { type: "story"; storyId: string };
+  | { type: "story"; storyId: string }
+  | {
+      type: "hotspot";
+      name: string;
+      layerId: string;
+      lat: number;
+      lon: number;
+    };
 
 /**
  * A source of search rows.
@@ -54,4 +61,9 @@ export interface SearchProvider {
   /** Row label for an explicit provider. Ignored for instant providers. */
   label?(query: string): string;
   search(query: string): readonly SearchHit[] | Promise<readonly SearchHit[]>;
+  /**
+   * Rows for an empty, focused field. Omitted providers add nothing.
+   * Same rule as instant search: no network.
+   */
+  suggest?(): readonly SearchHit[] | Promise<readonly SearchHit[]>;
 }
