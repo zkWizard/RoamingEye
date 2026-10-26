@@ -333,9 +333,18 @@ scene.add(earth);
 // month itself and the sphere stops drawing.
 let terrainGlobe: TerrainGlobe | null = null;
 let terrainView: { layer: LayerConfig; ym: YearMonth } | null = null;
+/** True while a multi-month probe owns the network. Survives the chunk arriving mid-sample. */
+let terrainSampling = false;
+
+function setTerrainSampling(active: boolean): void {
+  terrainSampling = active;
+  terrainGlobe?.setSampling(active);
+}
+
 void import("./scene/TerrainGlobe")
   .then(({ TerrainGlobe: Terrain }) => {
     terrainGlobe = new Terrain(camera, renderer, EARTH_RADIUS);
+    terrainGlobe.setSampling(terrainSampling);
     scene.add(terrainGlobe.object);
     if (terrainView) {
       terrainGlobe.setScience(terrainView.layer, terrainView.ym);
@@ -1346,6 +1355,29 @@ if (probeEl) {
   let probeAbort: AbortController | undefined;
   let probeTarget: { lat: number; lon: number } | undefined;
 
+  // The basemap's tile queue shares the browser with this sample. Hold it
+  // for the life of the request, and only the sample that still owns the
+  // panel may release it — a newer probe has already taken the hold.
+  const whileSampling = <T>(
+    abort: AbortController,
+    work: Promise<T>
+  ): Promise<T> => {
+    setTerrainSampling(true);
+    const release = (): void => {
+      if (probeAbort === abort) setTerrainSampling(false);
+    };
+    return work.then(
+      (value) => {
+        release();
+        return value;
+      },
+      (err: unknown) => {
+        release();
+        throw err;
+      }
+    );
+  };
+
   // Drawn study regions (the #26 flagship): arm via the "Draw region"
   // button, drag a box on the globe, and its monthly mean charts in the
   // probe panel. OrbitControls pauses while the drawer owns the drag.
@@ -1607,8 +1639,9 @@ if (probeEl) {
     panel.beginSeries(probeMonths, scale, { layerId: layer.id, latitude: lat });
 
     let lastDraw = 0;
-    sampler
-      .sample(layer, probeMonths, lat, lon, {
+    whileSampling(
+      abort,
+      sampler.sample(layer, probeMonths, lat, lon, {
         mode,
         signal: abort.signal,
         onValue: (index, value) => panel.setValue(index, value),
@@ -1626,6 +1659,7 @@ if (probeEl) {
           }
         },
       })
+    )
       .then(({ values, validFractions, transportFailureMonths }) => {
         if (abort.signal.aborted) return;
         // An area mean over a coastal box averages only the pixels that
@@ -2054,15 +2088,17 @@ if (probeEl) {
         }
       },
     };
-    (place
-      ? sampler.sampleGeometry(
-          layer,
-          probeMonths,
-          place.geometry,
-          place,
-          sampleOptions
-        )
-      : sampler.sampleRegion(layer, probeMonths, bounds, sampleOptions)
+    whileSampling(
+      abort,
+      place
+        ? sampler.sampleGeometry(
+            layer,
+            probeMonths,
+            place.geometry,
+            place,
+            sampleOptions
+          )
+        : sampler.sampleRegion(layer, probeMonths, bounds, sampleOptions)
     )
       .then((sampled) => {
         // Unpacked here rather than in the parameter list: a fourth field

@@ -27,6 +27,17 @@ const WGS84_EQUATORIAL_RADIUS_M = 6_378_137;
 const TERRAIN_SCALE = 0.996;
 /** Esri World Imagery publishes zooms 0–19. `levels` is the count, not the max. */
 const IMAGERY_LEVELS = 20;
+/**
+ * Tile downloads per server while the basemap is streaming. The library's
+ * shared queue allows 25, which filled the browser's sockets and left a
+ * 318-month GIBS sample unfinished at 90s. Two per origin leaves room for
+ * that sample; sampling pauses the queue entirely.
+ */
+const STREAM_JOBS_PER_ORIGIN = 2;
+/** Screen-space error in pixels. The plugin's recommended 1px never settles. */
+const TERRAIN_ERROR_TARGET = 6;
+/** Tiles traversed synchronously per frame, so a resize sweep stays responsive. */
+const TILES_PROCESSED_PER_FRAME = 8;
 /** Back off after a drape swap fails so a dead matrix does not retry every frame. */
 const SWAP_RETRY_MS = 4000;
 
@@ -68,6 +79,7 @@ export class TerrainGlobe {
   private swapQueued = false;
   private retryAt = 0;
   private generation = 0;
+  private sampling = false;
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -86,6 +98,14 @@ export class TerrainGlobe {
       new TerrariumMeshPlugin({ url: TERRARIUM_URL, maxZoom: 15 })
     );
     tiles.registerPlugin(imageOverlays);
+    // The plugin's recommended settings pin errorTarget at 1px, so the globe
+    // keeps refining for the whole view. A few pixels of error still reads as
+    // terrain up close, and the smaller queues keep the basemap from crowding
+    // out the science fetches.
+    tiles.errorTarget = TERRAIN_ERROR_TARGET;
+    tiles.maxTilesProcessed = TILES_PROCESSED_PER_FRAME;
+    tiles.downloadQueue.maxJobsPerOrigin = STREAM_JOBS_PER_ORIGIN;
+    tiles.parseQueue.maxJobs = 1;
     tiles.setCamera(camera);
     tiles.setResolutionFromRenderer(camera, renderer);
     // Mesh bounds omit the GPU displacement, so three.js's own frustum test
@@ -109,6 +129,16 @@ export class TerrainGlobe {
     this.tiles = tiles;
     this.imageOverlays = imageOverlays;
     this.object = group;
+  }
+
+  /**
+   * A multi-month sample needs the connection and the main thread. Stop
+   * queueing tiles until it finishes; in-flight downloads run out on their own.
+   */
+  setSampling(active: boolean): void {
+    this.sampling = active;
+    // Imagery overlays share this queue with the terrain meshes.
+    this.tiles.downloadQueue.maxJobsPerOrigin = active ? 0 : STREAM_JOBS_PER_ORIGIN;
   }
 
   /** Remember the month to drape. The overlay is built only once the camera is close. */
@@ -148,11 +178,13 @@ export class TerrainGlobe {
       scienceReady: true,
       draped: this.scienceDraped,
     });
-    if (inBand) this.scheduleSwap();
+    if (inBand && !this.sampling) this.scheduleSwap();
 
-    this.tiles.setResolutionFromRenderer(this.camera, this.renderer);
-    this.camera.updateMatrixWorld();
-    this.tiles.update();
+    if (!this.sampling) {
+      this.tiles.setResolutionFromRenderer(this.camera, this.renderer);
+      this.camera.updateMatrixWorld();
+      this.tiles.update();
+    }
 
     const draped = scienceShouldDrape({
       distance,
