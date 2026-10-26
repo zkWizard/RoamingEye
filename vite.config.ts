@@ -15,8 +15,10 @@ const tilesExports = JSON.parse(
 const tilesAliases = Object.entries(tilesExports)
   .filter(([, e]) => typeof e?.types === "string")
   .map(([key, e]) => ({
+    // Anchor an exact export. Backslash is escaped too: a key must not be
+    // able to widen the pattern (CodeQL js/incomplete-sanitization).
     find: new RegExp(
-      `^3d-tiles-renderer${key.slice(1).replace(/[/.]/g, "\\$&")}$`
+      `^3d-tiles-renderer${key.slice(1).replace(/[\\/.]/g, "\\$&")}$`
     ),
     replacement: resolve(tilesPkg, e.types!.replace(/\.d\.ts$/, ".js")),
   }))
