@@ -93,7 +93,10 @@ export class TerrainGlobe {
     // tiles renderer already culls with the elevation-aware bounds.
     tiles.addEventListener("load-model", ({ scene }) => {
       scene.traverse((child) => {
-        if (child instanceof THREE.Mesh) child.frustumCulled = false;
+        if (!(child instanceof THREE.Mesh)) return;
+        child.frustumCulled = false;
+        // Layer 1 receives the terrain fill light (see main.ts).
+        child.layers.enable(1);
       });
     });
 

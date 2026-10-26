@@ -280,6 +280,15 @@ const sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
 sunLight.position.set(5, 3, 5);
 scene.add(sunLight);
 
+// Terrain meshes are Lambert (the imagery is divided by π) and only they
+// sit on layer 1. This fill brings Esri water and land back up to a readable
+// satellite brightness; the sphere keeps the lights above, which were tuned
+// for its Standard material.
+const terrainFill = new THREE.AmbientLight(0xffffff, 1.35);
+terrainFill.layers.set(1);
+scene.add(terrainFill);
+camera.layers.enable(1);
+
 // --- Starfield backdrop -----------------------------------------------------
 const starfield = createStarfield();
 scene.add(starfield);
