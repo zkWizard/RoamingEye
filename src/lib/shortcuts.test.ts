@@ -57,6 +57,16 @@ describe("SHORTCUT_GROUPS", () => {
     }
   });
 
+  it("documents place search, including Enter on the top match", () => {
+    const search = SHORTCUT_GROUPS.find((g) => g.title === "Search");
+    expect(search, "no search group").toBeDefined();
+    const does = search?.items.map((i) => i.does).join(" ") ?? "";
+    const keys = search?.items.flatMap((i) => i.keys) ?? [];
+    expect(keys).toContain("Enter");
+    expect(keys).toContain("Esc");
+    expect(does).toContain("top match");
+  });
+
   it("documents how to open and close the overlay itself", () => {
     const all = SHORTCUT_GROUPS.flatMap((g) => g.items.flatMap((i) => i.keys));
     expect(all).toContain("?");

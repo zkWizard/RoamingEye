@@ -86,9 +86,8 @@ export class SearchBox {
 
   /**
    * Arrows move the highlight (wrapping, as the layer listbox does), Home/End
-   * jump, Enter takes the highlighted match, Escape clears the field. Enter is
-   * only intercepted when something is highlighted, so a plain Enter on a typed
-   * query still falls through to the browser's default.
+   * jump, Enter takes the highlighted match — or the top match, when nothing
+   * is highlighted yet — and Escape clears the field.
    */
   private onKeydown(e: KeyboardEvent): void {
     if (e.key === "Escape") {
@@ -116,9 +115,8 @@ export class SearchBox {
         next = count - 1;
         break;
       case "Enter":
-        if (this.activeIndex < 0) return;
         e.preventDefault();
-        this.choose(this.activeIndex);
+        this.choose(this.activeIndex < 0 ? 0 : this.activeIndex);
         return;
       default:
         return;

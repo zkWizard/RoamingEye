@@ -231,6 +231,8 @@ test("? opens the keyboard-shortcuts overlay and Esc closes it", async ({
   await expect(overlay).toHaveClass(/is-open/);
   await expect(overlay).toContainText("Keyboard shortcuts");
   await expect(overlay).toContainText("Jump a year back / forward");
+  await expect(overlay).toContainText("Search");
+  await expect(overlay).toContainText("top match");
 
   await page.keyboard.press("Escape");
   await expect(overlay).not.toHaveClass(/is-open/);

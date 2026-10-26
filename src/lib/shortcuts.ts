@@ -65,6 +65,21 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     ],
   },
   {
+    title: "Search",
+    items: [
+      {
+        keys: ["Type"],
+        does: "Find a place. Matches open under the field",
+      },
+      { keys: ["↑", "↓"], does: "Move through the matches" },
+      {
+        keys: ["Enter"],
+        does: "Go to the highlighted match, or the top match if none is highlighted",
+      },
+      { keys: ["Esc"], does: "Clear the field and close the matches" },
+    ],
+  },
+  {
     title: "General",
     items: [
       { keys: ["P"], does: "Play or pause the time-lapse, from anywhere" },

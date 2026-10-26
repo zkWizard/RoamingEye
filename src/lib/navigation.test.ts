@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   flyToDistance,
+  longitudeSpanDegrees,
+  longitudeSpanOfSamples,
+  longitudesInGeometry,
+  placePickMonthIndex,
   rotateSpeedForDistance,
   stepGlobeView,
   BASE_ROTATE_SPEED,
@@ -10,6 +14,7 @@ import {
   MAX_FLY_DISTANCE,
   ZOOM_STEP,
 } from "./navigation";
+import { LAYERS, isAvailable, monthRangeForLayer } from "./timeline";
 
 describe("flyToDistance", () => {
   it("returns a sensible default when there is no bounding box", () => {
@@ -33,6 +38,101 @@ describe("flyToDistance", () => {
     const huge = flyToDistance([-55, 70, -170, 170]); // continent-scale
     expect(huge).toBeLessThanOrEqual(MAX_FLY_DISTANCE);
     expect(huge).toBeGreaterThanOrEqual(MIN_FLY_DISTANCE);
+  });
+
+  it("does not zoom all the way out for a date-line box min/maxed to the whole circle", () => {
+    // Nominatim's Fiji: west=-180, east=180. The old |east-west| span is 360°
+    // and pinned the camera at MAX_FLY_DISTANCE. The islands are a few degrees
+    // tall, so the framing comes from latitude once longitude folds away.
+    const fiji = flyToDistance([-21.9434274, -12.2613866, -180, 180]);
+    const spain = flyToDistance([36, 44, -9, 3]);
+    expect(fiji).toBeLessThan(MAX_FLY_DISTANCE);
+    expect(fiji).toBeLessThan(2);
+    expect(fiji).toBeGreaterThan(MIN_FLY_DISTANCE);
+    expect(fiji).toBeLessThan(spain + 0.5);
+  });
+
+  it("measures a west>east box across the date line, not the long way around", () => {
+    const across = flyToDistance([-18.3, -16.0, 177, -179]);
+    const equivalent = flyToDistance([-18.3, -16.0, -2, 2]);
+    expect(across).toBeCloseTo(equivalent, 5);
+    expect(across).toBeLessThan(1.5);
+  });
+
+  it("frames an outline by the arc its longitudes actually occupy", () => {
+    const fijiBox: [number, number, number, number] = [
+      -21.94, -12.26, -180, 180,
+    ];
+    const nearDateLine = flyToDistance(fijiBox, [177, 178.5, 179.2, -179.5]);
+    const fromBox = flyToDistance(fijiBox);
+    expect(nearDateLine).toBeLessThan(MAX_FLY_DISTANCE);
+    expect(nearDateLine).toBeCloseTo(fromBox, 1);
+
+    // A country that really does span most of the eastern hemisphere still
+    // backs out. Samples run from 30°E across the date line to 170°W.
+    const wide = flyToDistance(
+      [41, 82, -180, 180],
+      [30, 60, 90, 120, 150, 179, -170]
+    );
+    expect(wide).toBe(MAX_FLY_DISTANCE);
+  });
+});
+
+describe("longitude spans", () => {
+  it("folds a full-circle min/max and keeps an explicit crossing short", () => {
+    expect(longitudeSpanDegrees(-180, 180)).toBe(0);
+    expect(longitudeSpanDegrees(177, -179)).toBeCloseTo(4, 5);
+    expect(longitudeSpanDegrees(-9, 3)).toBeCloseTo(12, 5);
+  });
+
+  it("takes the occupied arc of a date-line outline", () => {
+    expect(longitudeSpanOfSamples([177, 178.5, 179.2, -179.5])).toBeCloseTo(
+      3.5,
+      3
+    );
+    expect(longitudeSpanOfSamples([30, 90, 150, -170])).toBeGreaterThan(150);
+    expect(longitudeSpanOfSamples([])).toBe(0);
+  });
+
+  it("reads longitudes out of a geometry and ignores anything else", () => {
+    expect(
+      longitudesInGeometry({
+        type: "Polygon",
+        coordinates: [
+          [
+            [177, -17],
+            [-179, -17],
+            [-179, -18],
+            [177, -18],
+            [177, -17],
+          ],
+        ],
+      })
+    ).toEqual([177, -179, -179, 177, 177]);
+    expect(longitudesInGeometry(null)).toEqual([]);
+    expect(longitudesInGeometry({ type: "Point" })).toEqual([]);
+  });
+});
+
+describe("placePickMonthIndex", () => {
+  it("jumps to the last scrubber entry and leaves a static layer alone", () => {
+    expect(placePickMonthIndex(12, false)).toBe(11);
+    expect(placePickMonthIndex(1, false)).toBe(0);
+    expect(placePickMonthIndex(0, false)).toBeNull();
+    expect(placePickMonthIndex(12, true)).toBeNull();
+  });
+
+  it("lands on each layer's newest published month", () => {
+    for (const layer of Object.values(LAYERS)) {
+      const months = monthRangeForLayer(layer);
+      const index = placePickMonthIndex(months.length, layer.static === true);
+      if (index === null) {
+        expect(layer.static).toBe(true);
+        continue;
+      }
+      expect(index).toBe(months.length - 1);
+      expect(isAvailable(layer, months[index])).toBe(true);
+    }
   });
 });
 

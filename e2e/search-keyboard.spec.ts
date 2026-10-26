@@ -98,20 +98,37 @@ test("Enter takes the highlighted match without a mouse", async ({ page }) => {
     .toContain("lat=-34.72&lon=-58.25");
 });
 
-test("Enter with nothing highlighted selects nothing", async ({ page }) => {
-  // The guard that keeps a plain Enter on a typed query from silently flying
-  // the globe to whichever match happened to be first.
+test("Enter with nothing highlighted takes the top match", async ({ page }) => {
   await openResults(page);
   const input = page.locator(".search__input");
 
   await input.press("Enter");
-  await page.waitForTimeout(1_000);
 
-  await expect(input).toHaveValue("Qui");
-  await expect(page.locator(".search__results")).toHaveClass(/is-open/);
-  expect(await page.evaluate(() => location.hash)).not.toContain(
-    "lat=-34.72&lon=-58.25"
-  );
+  await expect(input).toHaveValue("Quito");
+  await expect(page.locator(".search__results")).not.toHaveClass(/is-open/);
+  await expect(input).toHaveAttribute("aria-expanded", "false");
+  // The first match was chosen. Same camera assertion as the highlighted
+  // path: the hash is the outcome, not the popup closing.
+  await expect
+    .poll(() => page.evaluate(() => location.hash), { timeout: 20_000 })
+    .toContain("lat=-0.23&lon=-78.52");
+});
+
+test("picking a place jumps to the newest published month", async ({
+  page,
+}) => {
+  const readout = page.locator(".timeline__readout");
+  const prev = page.locator('.timeline__step[aria-label^="Previous"]');
+  const next = page.locator('.timeline__step[aria-label^="Next"]');
+  const newest = (await readout.textContent()) ?? "";
+  await prev.click();
+  await expect(readout).not.toHaveText(newest);
+
+  await openResults(page);
+  await page.locator(".search__input").press("Enter");
+
+  await expect(readout).toHaveText(newest);
+  await expect(next).toBeDisabled();
 });
 
 test("Escape closes the popup and reports it collapsed", async ({ page }) => {
