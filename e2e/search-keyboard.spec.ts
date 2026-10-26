@@ -195,7 +195,7 @@ test("a date, a layer, and a story resolve without the geocoder", async ({
 
   await input.fill("Snow cover");
   await expect(
-    page.locator(".search__result-name", { hasText: "Snow cover" })
+    page.locator(".search__result-name", { hasText: "Snow & ice" })
   ).toBeVisible();
   await input.press("Enter");
   await expect(page.locator(".layer-selector__current")).toHaveText(
