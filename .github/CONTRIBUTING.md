@@ -76,7 +76,9 @@ maintainer will re-run it.
 The **Build** check does more than compile. It also runs
 [`scripts/check-bundle-size.mjs`](../scripts/check-bundle-size.mjs), which fails
 the build if the app's JavaScript chunk exceeds **60 kB gzipped** (the separate
-`three-*` vendor chunk has its own, roomier 170 kB budget). `npm run build` runs
+`three-*` vendor chunk has its own, roomier 170 kB budget, and the streamed
+terrain globe is a `terrain-*` chunk loaded on demand with its own budget).
+`npm run build` runs
 that same check locally, so you can see the verdict before you push:
 
 ```text

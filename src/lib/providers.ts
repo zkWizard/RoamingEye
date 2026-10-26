@@ -446,6 +446,28 @@ export const PROVIDERS: Provider[] = [
 
   // --- Vector & base maps ---
   {
+    name: "Esri World Imagery",
+    org: "Esri",
+    region: "Global",
+    group: "Vector & base maps",
+    url: "https://www.arcgis.com/home/item.html?id=10df2279f9684e4a9f6a7f08febac2a9",
+    license: "Esri terms (attribution required)",
+    use: "core",
+    description:
+      "Keyless global satellite basemap beneath the science layers. Credit: Esri, Maxar, Earthstar Geographics, and the GIS User Community.",
+  },
+  {
+    name: "AWS Terrain Tiles",
+    org: "Mapzen / AWS Open Data",
+    region: "Global",
+    group: "Vector & base maps",
+    url: "https://registry.opendata.aws/terrain-tiles/",
+    license: "Public domain (attribution appreciated)",
+    use: "core",
+    description:
+      "Terrarium-encoded global elevation, originally Mapzen and hosted as AWS Open Data — the keyless height source for the 3D terrain.",
+  },
+  {
     name: "OpenStreetMap",
     org: "OSM Foundation",
     region: "Global",

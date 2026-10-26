@@ -25,6 +25,8 @@ describe("PROVIDERS catalogue", () => {
     expect(core.some((n) => n.includes("GIBS"))).toBe(true);
     expect(core.some((n) => n.includes("OpenStreetMap"))).toBe(true);
     expect(core.some((n) => n.includes("Natural Earth"))).toBe(true);
+    expect(core.some((n) => n.includes("Esri"))).toBe(true);
+    expect(core.some((n) => n.includes("AWS Terrain"))).toBe(true);
   });
 });
 

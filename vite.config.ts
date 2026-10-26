@@ -59,8 +59,10 @@ export default defineConfig({
           groups: [
             { name: "three", test: /node_modules[\\/]three[\\/]/ },
             // The streamed terrain/imagery globe: vendor code, cached like three.
+            // Named apart from src/lib/tiles.ts, which Vite also emits as a
+            // chunk whose filename starts with "tiles-".
             {
-              name: "tiles",
+              name: "terrain",
               test: /node_modules[\\/]3d-tiles-renderer[\\/]/,
             },
             // The sampler, the probe chart's notes and the overlays' hover
