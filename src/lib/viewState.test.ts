@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { encodeViewState, decodeViewState } from "./viewState";
+import { encodeViewState, decodeViewState, sharedPlaceFrom } from "./viewState";
 
 describe("encodeViewState", () => {
   it("encodes the full state", () => {
@@ -189,6 +189,113 @@ describe("analysis deep links (probe + pin)", () => {
       decodeViewState("#probe=-89,-63,-3,-62,region").probe
     ).toBeUndefined();
     expect(decodeViewState("#probe=a,b,c,d,region").probe).toBeUndefined();
+  });
+});
+
+describe("shareable searches", () => {
+  const paris = {
+    name: "Paris",
+    lat: 48.8566,
+    lon: 2.3522,
+    bbox: [48.8156, 48.9022, 2.2241, 2.4699] as [
+      number,
+      number,
+      number,
+      number,
+    ],
+    osm: "R7444",
+  };
+
+  it("round-trips a place and the query it was parsed from", () => {
+    const state = {
+      layer: "ndvi" as const,
+      place: paris,
+      query: "Paris",
+    };
+    expect(decodeViewState(encodeViewState(state))).toEqual(state);
+    expect(encodeViewState({ place: paris, query: "Paris" })).toBe(
+      "place=48.8566%2C2.3522%2C48.8156%2C48.9022%2C2.2241%2C2.4699%2CR7444%2CParis&q=Paris"
+    );
+  });
+
+  it("keeps a comma inside the place name", () => {
+    const place = {
+      name: "Paris, France",
+      lat: 48.8566,
+      lon: 2.3522,
+      osm: "R7444",
+    };
+    expect(decodeViewState(encodeViewState({ place })).place).toEqual(place);
+  });
+
+  it("round-trips a box that crosses the antimeridian", () => {
+    const place = {
+      name: "Fiji",
+      lat: -17.7,
+      lon: 178,
+      bbox: [-19, -16, 176, -178] as [number, number, number, number],
+      osm: "R571747",
+    };
+    expect(decodeViewState(encodeViewState({ place })).place).toEqual(place);
+  });
+
+  it("reads a link written before place sharing with nothing added", () => {
+    const legacy = "#layer=lst&t=2024-08&lat=-21.20&lon=55.70&alt=1.80";
+    expect(decodeViewState(legacy)).toEqual({
+      layer: "lst",
+      month: { year: 2024, month: 8 },
+      camera: { lat: -21.2, lon: 55.7, alt: 1.8 },
+    });
+    expect(decodeViewState(legacy).place).toBeUndefined();
+    expect(decodeViewState(legacy).query).toBeUndefined();
+    expect(encodeViewState(decodeViewState(legacy))).toBe(
+      "layer=lst&t=2024-08&lat=-21.20&lon=55.70&alt=1.80"
+    );
+  });
+
+  it("drops a broken place or query and keeps the rest of the link", () => {
+    expect(decodeViewState("#place=nope&layer=ndvi&q=Amazon")).toEqual({
+      layer: "ndvi",
+      query: "Amazon",
+    });
+    expect(decodeViewState("#place=91,0,,,,,,Nowhere").place).toBeUndefined();
+    expect(decodeViewState("#place=10,20,,,,,,").place).toBeUndefined();
+    expect(
+      decodeViewState("#place=10,20,1,2,3,4,not-an-id,Rome").place
+    ).toBeUndefined();
+    expect(decodeViewState("#q=%0A&layer=snow")).toEqual({ layer: "snow" });
+    expect(decodeViewState("#q=%20%20").query).toBeUndefined();
+  });
+
+  it("builds a shareable place from a search result, dropping a bad box or id", () => {
+    expect(
+      sharedPlaceFrom({
+        name: " Quito ",
+        lat: -0.22,
+        lon: -78.5,
+        boundingBox: [-0.4, 0, -78.6, -78.4],
+        osm: "R113722",
+      })
+    ).toEqual({
+      name: "Quito",
+      lat: -0.22,
+      lon: -78.5,
+      bbox: [-0.4, 0, -78.6, -78.4],
+      osm: "R113722",
+    });
+    // -180..180 is Nominatim's antimeridian failure, not a box to draw.
+    expect(
+      sharedPlaceFrom({
+        name: "Fiji",
+        lat: -17,
+        lon: 178,
+        boundingBox: [-20, -15, -180, 180],
+        osm: "nope",
+      })
+    ).toEqual({ name: "Fiji", lat: -17, lon: 178 });
+    expect(
+      sharedPlaceFrom({ name: "", lat: 0, lon: 0, boundingBox: null })
+    ).toBeUndefined();
   });
 });
 

@@ -10,8 +10,15 @@ import type { Bounds } from "./imagery";
  *
  * A link like `#layer=lst&t=2024-08&lat=-21.2&lon=55.7&alt=1.8` reproduces
  * exactly what the sender was looking at — the academic use case is citing a
- * specific view in a paper, thesis, or message. Pure logic, no DOM (see
- * viewState.test.ts); main.ts owns reading/writing `location.hash`.
+ * specific view in a paper, thesis, or message. A searched place rides along
+ * as `place=` (name, lat/lon, bbox) plus `q=`, the query that place was parsed
+ * from, so the recipient gets the outline, the place panel, and the chart
+ * rather than only the camera. Pure logic, no DOM (see viewState.test.ts);
+ * main.ts owns reading/writing `location.hash`.
+ *
+ * Links written before `place=` and `q=` existed omit both. Decoding drops a
+ * missing or malformed field and keeps the rest, so those bookmarks still
+ * open the view they always opened.
  */
 
 export interface CameraState {
@@ -72,6 +79,33 @@ function isUsableBounds(b: Bounds): boolean {
   );
 }
 
+/**
+ * Nominatim object id (`N` node, `W` way, `R` relation). A shared link looks
+ * the outline up once with this; a name is not enough to address `/lookup`.
+ */
+export const NOMINATIM_OSM_ID = /^[NWR][1-9]\d{0,15}$/;
+
+/** How long a shared place name or query may be. A hash is untrusted input. */
+const PLACE_NAME_MAX = 160;
+const QUERY_MAX = 200;
+
+/**
+ * A searched place, small enough for a hash.
+ *
+ * The polygon itself is not here — a country outline is far too large — so
+ * the link carries the point, the bounding box, and the Nominatim id. Opening
+ * it looks the outline up once (or traces the box when that lookup cannot).
+ * `bbox` is Nominatim's order: `[south, north, west, east]`. West may be
+ * greater than east when the box crosses the antimeridian.
+ */
+export interface SharedPlace {
+  name: string;
+  lat: number;
+  lon: number;
+  bbox?: [number, number, number, number];
+  osm?: string;
+}
+
 export interface ViewState {
   /** A story playing (lib/stories.ts): the link replays it from the top. */
   story?: string;
@@ -87,6 +121,14 @@ export interface ViewState {
   /** An active comparison pinned to this month (the timeline month is the
    * other side) — the link reproduces the A/B view. */
   pin?: YearMonth;
+  /** The searched place. Absent on every link written before place sharing. */
+  place?: SharedPlace;
+  /**
+   * The query the place was parsed from. For a place search this is the
+   * resolved name — the string the app understood, not the keystrokes — so a
+   * shared link can show what was asked as well as where it landed.
+   */
+  query?: string;
 }
 
 const MONTH_RE = /^(\d{4})-(\d{2})$/;
@@ -98,6 +140,126 @@ function isLayerId(value: string): value is LayerId {
   // a crafted hash like #layer=toString would pass the guard and smuggle a
   // non-layer into app state — found by the fuzz suite (seed 1100653994).
   return Object.hasOwn(LAYERS, value);
+}
+
+/** A control character, or DEL. A hash is untrusted and these are not labels. */
+function hasControlChar(value: string): boolean {
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code <= 31 || code === 127) return true;
+  }
+  return false;
+}
+
+/** A shareable label: trimmed, bounded, and free of control characters. */
+function cleanLabel(value: string, max: number): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > max || hasControlChar(trimmed)) {
+    return undefined;
+  }
+  return trimmed;
+}
+
+function isCoord(value: number, limit: number): boolean {
+  return Number.isFinite(value) && Math.abs(value) <= limit;
+}
+
+/**
+ * A bounding box the globe can outline. Zero-area boxes and a full-world
+ * longitude span (Nominatim's antimeridian failure mode, west -180 / east
+ * 180) are rejected; a box that merely crosses the dateline is kept.
+ */
+function isShareBbox(bbox: readonly [number, number, number, number]): boolean {
+  const [south, north, west, east] = bbox;
+  if (
+    !isCoord(south, 90) ||
+    !isCoord(north, 90) ||
+    !isCoord(west, 180) ||
+    !isCoord(east, 180) ||
+    north - south < 0.01
+  ) {
+    return false;
+  }
+  let lonSpan = east - west;
+  if (lonSpan <= 0) lonSpan += 360;
+  return lonSpan >= 0.01 && lonSpan <= 180;
+}
+
+function formatCoord(value: number): string {
+  return value.toFixed(4);
+}
+
+/**
+ * `lat,lon,south,north,west,east,osm,name`.
+ *
+ * Seven fixed fields, then the name as the tail, so a name that itself
+ * contains commas ("Paris, France") round-trips. Empty fields mean "no
+ * bbox" or "no Nominatim id". Coordinates are 4 decimals, the same
+ * precision a probe point uses.
+ */
+function encodePlace(place: SharedPlace): string | undefined {
+  const name = cleanLabel(place.name, PLACE_NAME_MAX);
+  if (!name || !isCoord(place.lat, 90) || !isCoord(place.lon, 180)) {
+    return undefined;
+  }
+  const bbox =
+    place.bbox && isShareBbox(place.bbox)
+      ? place.bbox.map(formatCoord).join(",")
+      : ",,,";
+  const osm = place.osm && NOMINATIM_OSM_ID.test(place.osm) ? place.osm : "";
+  return `${formatCoord(place.lat)},${formatCoord(place.lon)},${bbox},${osm},${name}`;
+}
+
+function decodePlace(raw: string): SharedPlace | undefined {
+  const parts = raw.split(",");
+  // lat, lon, four bbox slots, osm, and at least one name field.
+  if (parts.length < 8) return undefined;
+  const lat = Number(parts[0]);
+  const lon = Number(parts[1]);
+  if (!isCoord(lat, 90) || !isCoord(lon, 180)) return undefined;
+  const name = cleanLabel(parts.slice(7).join(","), PLACE_NAME_MAX);
+  if (!name) return undefined;
+
+  const bboxParts = parts.slice(2, 6);
+  let bbox: [number, number, number, number] | undefined;
+  if (bboxParts.some((part) => part !== "")) {
+    if (bboxParts.some((part) => part === "")) return undefined;
+    const nums = bboxParts.map(Number) as [number, number, number, number];
+    if (!isShareBbox(nums)) return undefined;
+    bbox = nums;
+  }
+
+  const osmRaw = parts[6];
+  if (osmRaw !== "" && !NOMINATIM_OSM_ID.test(osmRaw)) return undefined;
+
+  const place: SharedPlace = { name, lat, lon };
+  if (bbox) place.bbox = bbox;
+  if (osmRaw) place.osm = osmRaw;
+  return place;
+}
+
+/**
+ * The place a search result contributes to a link. A result with no usable
+ * point contributes nothing; a bad box or id is dropped rather than taking
+ * the point down with it.
+ */
+export function sharedPlaceFrom(result: {
+  name: string;
+  lat: number;
+  lon: number;
+  boundingBox?: [number, number, number, number] | null;
+  osm?: string;
+}): SharedPlace | undefined {
+  const name = cleanLabel(result.name, PLACE_NAME_MAX);
+  if (!name || !isCoord(result.lat, 90) || !isCoord(result.lon, 180)) {
+    return undefined;
+  }
+  const place: SharedPlace = { name, lat: result.lat, lon: result.lon };
+  if (result.boundingBox && isShareBbox(result.boundingBox)) {
+    place.bbox = result.boundingBox;
+  }
+  if (result.osm && NOMINATIM_OSM_ID.test(result.osm)) place.osm = result.osm;
+  return place;
 }
 
 /** Encode a view state as a URL-hash payload (no leading `#`). */
@@ -137,6 +299,14 @@ export function encodeViewState(state: ViewState): string {
       "pin",
       `${state.pin.year}-${String(state.pin.month).padStart(2, "0")}`
     );
+  }
+  if (state.place) {
+    const place = encodePlace(state.place);
+    if (place) params.set("place", place);
+  }
+  if (state.query) {
+    const query = cleanLabel(state.query, QUERY_MAX);
+    if (query) params.set("q", query);
   }
   return params.toString();
 }
@@ -236,6 +406,18 @@ export function decodeViewState(hash: string): ViewState {
     if (year >= 1900 && year <= 2200 && month >= 1 && month <= 12) {
       state.pin = { year, month };
     }
+  }
+
+  const place = params.get("place");
+  if (place) {
+    const decoded = decodePlace(place);
+    if (decoded) state.place = decoded;
+  }
+
+  const query = params.get("q");
+  if (query) {
+    const decoded = cleanLabel(query, QUERY_MAX);
+    if (decoded) state.query = decoded;
   }
 
   return state;

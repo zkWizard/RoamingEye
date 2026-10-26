@@ -5,6 +5,9 @@ import {
   buildSearchUrl,
   geocoderEndpoint,
   setGeocoderEndpoint,
+  buildLookupUrl,
+  nominatimOsmId,
+  bboxOutline,
 } from "./geocoding";
 
 describe("buildSearchUrl", () => {
@@ -31,6 +34,54 @@ describe("buildSearchUrl", () => {
     expect(buildSearchUrl("Quito")).toContain(
       "nominatim.openstreetmap.org/search"
     );
+  });
+});
+
+describe("buildLookupUrl", () => {
+  it("looks up one Nominatim object and asks for its polygon", () => {
+    const url = buildLookupUrl("R7444");
+    expect(url).toContain("nominatim.openstreetmap.org/lookup");
+    expect(url).toContain("osm_ids=R7444");
+    expect(url).toContain("polygon_geojson=1");
+  });
+});
+
+describe("nominatimOsmId", () => {
+  it("prefixes the object id the way /lookup spells it", () => {
+    expect(nominatimOsmId("relation", 7444)).toBe("R7444");
+    expect(nominatimOsmId("way", "12")).toBe("W12");
+    expect(nominatimOsmId("node", 9)).toBe("N9");
+  });
+
+  it("rejects types and ids /lookup would not accept", () => {
+    expect(nominatimOsmId("multipolygon", 1)).toBeUndefined();
+    expect(nominatimOsmId("relation", 0)).toBeUndefined();
+    expect(nominatimOsmId("relation", -5)).toBeUndefined();
+    expect(nominatimOsmId(undefined, 5)).toBeUndefined();
+  });
+});
+
+describe("bboxOutline", () => {
+  it("traces a closed ring in Nominatim's south-north-west-east order", () => {
+    expect(bboxOutline([33.9, 34.1, -118.2, -117.8])).toEqual({
+      type: "Polygon",
+      coordinates: [
+        [
+          [-118.2, 33.9],
+          [-117.8, 33.9],
+          [-117.8, 34.1],
+          [-118.2, 34.1],
+          [-118.2, 33.9],
+        ],
+      ],
+    });
+  });
+
+  it("traces the short way across the antimeridian and refuses a world-sized span", () => {
+    const ring = bboxOutline([-19, -16, 176, -178]);
+    expect(ring?.type).toBe("Polygon");
+    expect(bboxOutline([-20, -15, -180, 180])).toBeNull();
+    expect(bboxOutline([10, 10, 1, 2])).toBeNull();
   });
 });
 
