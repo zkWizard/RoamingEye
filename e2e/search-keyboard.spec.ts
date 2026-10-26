@@ -35,6 +35,11 @@ test("the search field is a combobox that reports its popup state", async ({
 
   await openResults(page);
   await expect(input).toHaveAttribute("aria-expanded", "true");
+  // Group labels are not options: pointer hit-testing walks `.search__result`.
+  await expect(page.locator(".search__group")).toHaveText("Cities");
+  await expect(page.locator(".search__result--world")).toContainText(
+    "Search all places"
+  );
 });
 
 test("arrow keys move a highlight the input points at", async ({ page }) => {
@@ -58,9 +63,10 @@ test("arrow keys move a highlight the input points at", async ({ page }) => {
   await expect(page.locator(".search__result.is-active")).toHaveCount(1);
   await expect(options.nth(0)).toHaveAttribute("aria-selected", "false");
 
-  // Wrapping, as the layer listbox does.
+  // Wrapping, as the layer listbox does. The last row is "Search all places".
+  const count = await options.count();
   await input.press("End");
-  await expect(options.nth(MATCHES.length - 1)).toHaveClass(/is-active/);
+  await expect(options.nth(count - 1)).toHaveClass(/is-active/);
   await input.press("ArrowDown");
   await expect(options.nth(0)).toHaveClass(/is-active/);
 
@@ -68,7 +74,7 @@ test("arrow keys move a highlight the input points at", async ({ page }) => {
   await input.press("Escape");
   await openResults(page);
   await input.press("ArrowUp");
-  await expect(options.nth(MATCHES.length - 1)).toHaveClass(/is-active/);
+  await expect(options.nth(count - 1)).toHaveClass(/is-active/);
 
   // Focus never leaves the input — that is what keeps typing available.
   await expect(input).toBeFocused();
@@ -79,23 +85,18 @@ test("Enter takes the highlighted match without a mouse", async ({ page }) => {
   const input = page.locator(".search__input");
 
   await input.press("ArrowDown");
-  await input.press("ArrowDown");
   await input.press("Enter");
 
-  // The second match was chosen and the popup closed.
-  await expect(input).toHaveValue("Quilmes");
+  // The city row was chosen and the popup closed. The camera is the local
+  // city, not the geocoder's point.
+  await expect(input).toHaveValue("Quito");
   await expect(page.locator(".search__results")).not.toHaveClass(/is-open/);
   await expect(input).toHaveAttribute("aria-expanded", "false");
   expect(await activeDescendant(page)).toBeNull();
 
-  // And the selection reached the app: the globe flew to Quilmes. This is the
-  // assertion that matters — the popup closing is internal bookkeeping, while
-  // the camera moving is the outcome the user asked for, and it is exactly
-  // what the keyboard could not reach before. Measured against the mouse path
-  // on the same fixture, the resulting hash is identical.
   await expect
     .poll(() => page.evaluate(() => location.hash), { timeout: 20_000 })
-    .toContain("lat=-34.72&lon=-58.25");
+    .toContain("lat=-0.21&lon=-78.50");
 });
 
 test("Enter with nothing highlighted takes the top match", async ({ page }) => {
@@ -107,11 +108,9 @@ test("Enter with nothing highlighted takes the top match", async ({ page }) => {
   await expect(input).toHaveValue("Quito");
   await expect(page.locator(".search__results")).not.toHaveClass(/is-open/);
   await expect(input).toHaveAttribute("aria-expanded", "false");
-  // The first match was chosen. Same camera assertion as the highlighted
-  // path: the hash is the outcome, not the popup closing.
   await expect
     .poll(() => page.evaluate(() => location.hash), { timeout: 20_000 })
-    .toContain("lat=-0.23&lon=-78.52");
+    .toContain("lat=-0.21&lon=-78.50");
 });
 
 test("picking a place jumps to the newest published month", async ({
@@ -146,4 +145,70 @@ test("Escape closes the popup and reports it collapsed", async ({ page }) => {
   await expect(page.locator(".search__results")).not.toHaveClass(/is-open/);
   await expect(input).toHaveAttribute("aria-expanded", "false");
   expect(await activeDescendant(page)).toBeNull();
+});
+
+test("typing a known city does not call the world geocoder", async ({
+  page,
+}) => {
+  let calls = 0;
+  page.on("request", (request) => {
+    if (request.url().includes("nominatim")) calls += 1;
+  });
+  await openResults(page);
+  await page.waitForTimeout(400);
+  expect(calls).toBe(0);
+});
+
+test("Enter on Search all places asks the world geocoder", async ({ page }) => {
+  await openResults(page);
+  const input = page.locator(".search__input");
+  await input.press("End");
+  await input.press("Enter");
+  await expect(page.locator(".search__result")).toHaveCount(MATCHES.length, {
+    timeout: 15_000,
+  });
+  await expect(page.locator(".search__result-name").first()).toHaveText(
+    "Quito"
+  );
+});
+
+test("a date, a layer, and a story resolve without the geocoder", async ({
+  page,
+}) => {
+  const input = page.locator(".search__input");
+
+  await input.fill("Aug 2023");
+  await expect(page.locator(".search__group")).toHaveText("Dates", {
+    timeout: 15_000,
+  });
+  await input.press("Enter");
+  await expect(page.locator(".timeline__readout")).toHaveText("Aug 2023");
+
+  await input.fill("Snow cover");
+  await expect(
+    page.locator(".search__result-name", { hasText: "Snow cover" })
+  ).toBeVisible();
+  await input.press("Enter");
+  await expect(page.locator(".layer-selector__current")).toHaveText(
+    "Snow cover"
+  );
+
+  await input.fill("Sahel");
+  await expect(
+    page.locator(".search__result-name", { hasText: "Sahel" })
+  ).toBeVisible();
+  await input.press("Enter");
+  await expect(page.locator(".stories__title")).toContainText("Sahel");
+});
+
+test("/ and Ctrl+K focus the search field", async ({ page }) => {
+  const input = page.locator(".search__input");
+  await expect(input).toBeVisible();
+  await page.locator("#globe").focus();
+  await page.keyboard.press("/");
+  await expect(input).toBeFocused();
+
+  await page.locator("#globe").focus();
+  await page.keyboard.press("Control+k");
+  await expect(input).toBeFocused();
 });

@@ -119,7 +119,6 @@ import { TimeSlider } from "./ui/TimeSlider";
 import { dataCurrencyNote } from "./ui/dataCurrency";
 import { LayerSelector } from "./ui/LayerSelector";
 import { Toolbar } from "./ui/Toolbar";
-import { SearchBox } from "./ui/SearchBox";
 import { Legend } from "./ui/Legend";
 import type { MapOverlay } from "./overlays/types";
 import { BordersOverlay } from "./overlays/BordersOverlay";
@@ -1256,47 +1255,91 @@ window.addEventListener("pointercancel", (e) => {
   if (globePointers.delete(e.pointerId)) momentum.stop();
 });
 
+// Assigned once the stories block builds the card. Search can ask for a story
+// before that block runs; the call itself is always later, after boot.
+let openStory: (storyId: string) => void = () => {};
+let focusSearch: (() => void) | undefined;
+
 if (searchEl) {
-  new SearchBox(
-    searchEl,
-    (result) => {
-      // Framing lives in its own chunk so the first paint stays under budget.
-      void import("./lib/placeFrame").then(
-        ({ flyToDistance, longitudesInGeometry, placePickMonthIndex }) => {
-          const monthIndex = placePickMonthIndex(
-            months.length,
-            LAYERS[currentLayer].static === true
-          );
-          if (monthIndex !== null) timeSlider?.seek(monthIndex);
-          flyer.flyTo(
-            result.lat,
-            result.lon,
-            flyToDistance(
-              result.boundingBox,
-              longitudesInGeometry(result.geometry)
-            )
-          );
-          highlight.show({
-            lat: result.lat,
-            lon: result.lon,
-            geometry: result.geometry,
-          });
-          // A search result can be a postcode, city, state, or country. Nominatim
-          // already returns its polygon when one is mapped, and LocationHighlight
-          // traces that exact geometry. Do not drape the old fixed 1.2° study patch:
-          // its rectangular footprint obscures the boundary the user asked for.
-          studyRegion.hide();
-          studyChip?.hide();
-          runPlaceInsights(result);
-          // The place panel reads the latest months; the chart reads the active
-          // layer's whole record for the same place, replacing any earlier chart.
-          chartPlace?.(result);
+  void import("./ui/mountSearch").then(
+    ({ mountSearch }) => {
+      const mounted = mountSearch(
+        searchEl,
+        (message) => announcer.announce(message),
+        {
+          onPlace: (result) => {
+            // Framing stays out of the first-paint chunk.
+            void import("./lib/placeFrame").then(
+              ({
+                flyToDistance,
+                longitudesInGeometry,
+                placePickMonthIndex,
+              }) => {
+                const monthIndex = placePickMonthIndex(
+                  months.length,
+                  LAYERS[currentLayer].static === true
+                );
+                if (monthIndex !== null) timeSlider?.seek(monthIndex);
+                flyer.flyTo(
+                  result.lat,
+                  result.lon,
+                  flyToDistance(
+                    result.boundingBox,
+                    longitudesInGeometry(result.geometry)
+                  )
+                );
+                highlight.show({
+                  lat: result.lat,
+                  lon: result.lon,
+                  geometry: result.geometry,
+                });
+                // A search result can be a postcode, city, state, or country.
+                // Nominatim returns its polygon when one is mapped, and
+                // LocationHighlight traces that geometry. A local hit has no
+                // outline: the highlight is a pin, and the place panel stays shut
+                // because it needs an area. Do not drape the old fixed study patch.
+                studyRegion.hide();
+                studyChip?.hide();
+                runPlaceInsights(result);
+                chartPlace?.(result);
+              }
+            );
+          },
+          onLayer: (id) => switchLayer(id),
+          onMonth: (year, month) => {
+            timeSlider?.seek(nearestMonthIndex(months, { year, month }));
+          },
+          onStory: (storyId) => openStory(storyId),
         }
       );
+      focusSearch = () => mounted.focus();
     },
-    (message) => announcer.announce(message)
+    (err) => console.warn("RoamingEye: search failed to load", err)
   );
 }
+
+// "/" focuses search unless the user is already typing or the shortcuts
+// overlay is up. Ctrl/Cmd+K focuses it from anywhere, including a text field.
+document.addEventListener("keydown", (e) => {
+  const meta = e.metaKey || e.ctrlKey;
+  const slash = e.key === "/" && !meta && !e.altKey;
+  const palette = meta && !e.altKey && e.key.toLowerCase() === "k";
+  if (!slash && !palette) return;
+  if (slash) {
+    const target = e.target as HTMLElement | null;
+    if (
+      target &&
+      (target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable)
+    ) {
+      return;
+    }
+    if (document.querySelector("#shortcuts-page.is-open")) return;
+  }
+  e.preventDefault();
+  focusSearch?.();
+});
 
 // --- Comparison mode (A/B of two months) ---------------------------------------
 // Scrub to the "before" month, hit Compare to pin it on the left; the timeline
@@ -2943,6 +2986,8 @@ if (storiesEl) {
     dismissIntro();
     withCard((card) => card.showById(id));
   };
+  // Search asks for a story by id. Same path as a view card: retire the intro.
+  openStory = playStory;
   document
     .querySelector<HTMLElement>("#stories-link")
     ?.addEventListener("click", () => {

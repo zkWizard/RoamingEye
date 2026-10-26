@@ -49,11 +49,16 @@ async function stubAreaGeocoder(page: Page): Promise<void> {
 }
 
 async function searchQuito(page: Page): Promise<void> {
-  await page.locator(".search__input").fill("Quito");
-  await expect(page.locator(".search__result")).toHaveCount(1, {
-    timeout: 15_000,
-  });
-  await page.locator(".search__result").first().click();
+  const input = page.locator(".search__input");
+  await input.fill("Quito");
+  // The shipped city is a point. The area this spec needs comes from the
+  // explicit world search, which is the only path that still calls Nominatim.
+  const world = page.locator(".search__result--world");
+  await expect(world).toBeVisible({ timeout: 15_000 });
+  await world.click();
+  const match = page.locator(".search__result", { hasText: "Pichincha" });
+  await expect(match).toBeVisible({ timeout: 15_000 });
+  await match.click();
 }
 
 test.use({ viewport: { width: 1280, height: 900 } });

@@ -44,14 +44,15 @@ test("a search that finds places announces how many", async ({ page }) => {
   await stubGeocoder(page);
   await watchAnnouncements(page);
 
-  await page.locator(".search__input").fill("Qui");
-  await expect(page.locator(".search__result")).toHaveCount(MATCHES.length, {
-    timeout: 15_000,
-  });
+  await page.locator(".search__input").fill("Quito");
+  await expect(page.locator(".search__result-name").first()).toHaveText(
+    "Quito",
+    { timeout: 15_000 }
+  );
 
   await expect
     .poll(() => announced(page), { timeout: 5_000 })
-    .toContain(`${MATCHES.length} matches`);
+    .toContain("1 match");
 
   // The count is the whole point: "expanded" was already true for an empty
   // popup, so the announcement has to carry what "expanded" could not.
@@ -67,6 +68,10 @@ test("a search that finds nothing says so out loud", async ({ page }) => {
   await watchAnnouncements(page);
 
   await page.locator(".search__input").fill("Zzzq");
+  await expect(page.locator(".search__result--world")).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.locator(".search__input").press("Enter");
   await expect(page.locator(".search__message")).toHaveText("No matches", {
     timeout: 15_000,
   });
@@ -87,7 +92,11 @@ test("an unreachable geocoder says so out loud", async ({ page }) => {
   await page.route("**nominatim**", (route) => route.abort("failed"));
   await watchAnnouncements(page);
 
-  await page.locator(".search__input").fill("Quito");
+  await page.locator(".search__input").fill("Zzzq");
+  await expect(page.locator(".search__result--world")).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.locator(".search__input").press("Enter");
   await expect(page.locator(".search__message")).toHaveText(
     /Search unavailable/,
     { timeout: 20_000 }
@@ -125,10 +134,17 @@ test("a superseded search does not announce over the live one", async ({
   await watchAnnouncements(page);
 
   const input = page.locator(".search__input");
-  await input.fill("Qu");
-  // Past the 300 ms debounce, so the first request is genuinely in flight.
-  await page.waitForTimeout(800);
-  await input.fill("Quito");
+  await input.fill("zzzzalpha");
+  await expect(page.locator(".search__result--world")).toBeVisible({
+    timeout: 15_000,
+  });
+  await input.press("Enter");
+  await expect(page.locator(".search__message")).toHaveText("Searching…", {
+    timeout: 10_000,
+  });
+  await input.fill("zzzzbeta");
+  await expect(page.locator(".search__result--world")).toBeVisible();
+  await input.press("Enter");
 
   await expect(page.locator(".search__result")).toHaveCount(1, {
     timeout: 15_000,

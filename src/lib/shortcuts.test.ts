@@ -62,6 +62,8 @@ describe("SHORTCUT_GROUPS", () => {
     expect(search, "no search group").toBeDefined();
     const does = search?.items.map((i) => i.does).join(" ") ?? "";
     const keys = search?.items.flatMap((i) => i.keys) ?? [];
+    expect(keys).toContain("/");
+    expect(keys).toContain("Ctrl+K");
     expect(keys).toContain("Enter");
     expect(keys).toContain("Esc");
     expect(does).toContain("top match");
