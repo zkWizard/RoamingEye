@@ -157,6 +157,16 @@ export class TimeSlider {
     this.player.play(to);
   }
 
+  /**
+   * Seek to `index` and tell the app, without starting playback. An event
+   * opens on its month; a story uses {@link playRange}, which also plays.
+   */
+  goTo(index: number): void {
+    const last = this.months.length - 1;
+    this.player.pause();
+    this.update(Math.min(last, Math.max(0, index)), true);
+  }
+
   toggle(): void {
     this.player.toggle();
   }

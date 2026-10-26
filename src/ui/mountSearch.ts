@@ -35,6 +35,7 @@ export interface SearchHandlers {
     lon: number,
     signal: AbortSignal
   ) => Promise<{ text: string; values: readonly number[] } | null>;
+  onEvent: (eventId: string) => void;
 }
 
 /** Mount the search field and return a way to focus it from a shortcut. */
@@ -114,6 +115,9 @@ function applyHit(hit: SearchHit, handlers: SearchHandlers): void {
       return;
     case "hotspot":
       handlers.onHotspot(data);
+      return;
+    case "event":
+      handlers.onEvent(data.eventId);
       return;
   }
 }

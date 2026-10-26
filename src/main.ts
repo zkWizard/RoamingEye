@@ -175,6 +175,7 @@ import {
   resolveGroundPoint,
   wheelAltitudeFactor,
 } from "./lib/cameraZoom";
+import type { EarthEvent } from "./lib/events";
 
 /**
  * RoamingEye
@@ -1429,6 +1430,36 @@ function rememberSearch(hit: SearchHit): void {
   saveSession();
 }
 
+/**
+ * Open an event that is not a story: the layer that shows it, a flight to
+ * its place, and its month on the timeline. Stories go through the card's
+ * play() instead, which is the same flight plus the curated playback.
+ */
+function seekEvent(event: EarthEvent): void {
+  if (currentLayer !== event.layer) {
+    switchLayer(event.layer);
+  } else {
+    storyCard?.dismiss();
+    closeProbe?.();
+    compareControls?.exit();
+  }
+  endFlight();
+  const box: [number, number, number, number] | null = event.bbox
+    ? [event.bbox[0], event.bbox[1], event.bbox[2], event.bbox[3]]
+    : null;
+  // Framing stays out of the first-paint chunk, same as a place pick.
+  void import("./lib/placeFrame").then(({ flyToDistance }) => {
+    flyer.flyTo(event.lat, event.lon, flyToDistance(box));
+  });
+  timeSlider?.goTo(nearestMonthIndex(months, event.month));
+  scheduleHashSync();
+}
+
+// Replaced inside the stories block so a story-backed event plays the card.
+let presentEvent = (event: EarthEvent): void => {
+  seekEvent(event);
+};
+
 if (searchEl) {
   void import("./ui/mountSearch").then(
     ({ mountSearch }) => {
@@ -1552,6 +1583,12 @@ if (searchEl) {
               },
               () => null
             );
+          },
+          onEvent: (eventId) => {
+            void import("./lib/eventSearch").then(({ eventFromId }) => {
+              const event = eventFromId(eventId);
+              if (event) presentEvent(event);
+            });
           },
         }
       );
@@ -3312,6 +3349,17 @@ if (storiesEl) {
   };
   // Search asks for a story by id. Same path as a view card: retire the intro.
   openStory = playStory;
+
+  presentEvent = (event) => {
+    if (!event.storyId) {
+      seekEvent(event);
+      return;
+    }
+    const storyId = event.storyId;
+    withCard((card) => {
+      if (!card.showById(storyId)) seekEvent(event);
+    });
+  };
   document
     .querySelector<HTMLElement>("#stories-link")
     ?.addEventListener("click", () => {
