@@ -25,6 +25,7 @@ export default defineConfig({
   // Each page load prefetches the imagery cache, so run serially to avoid
   // network saturation making the suite flaky. CI gets its parallelism from
   // Playwright shards (separate machines), not from workers on one runner.
+  // A shard takes a whole file, so a long file (a11y) sets the slow shard.
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,

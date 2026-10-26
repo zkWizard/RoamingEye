@@ -18,6 +18,9 @@ import { statSync } from "node:fs";
 const VIDEO = /\.(mp4|webm)$/;
 
 test("a story saves as a video named for the story", async ({ page }) => {
+  // The download wait below is 120s. The default 30s test ceiling was
+  // cancelling that wait on a slow runner, so the story never saved.
+  test.setTimeout(150_000);
   await page.goto("/#story=black-summer-2019");
   await awaitAppInteractive(page);
   await expect(page.locator(".stories__card")).toBeVisible();
