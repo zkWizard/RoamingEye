@@ -465,7 +465,7 @@ export const PROVIDERS: Provider[] = [
     license: "Public domain",
     use: "core",
     description:
-      "Public-domain vector basemap data — our national borders and city overlays.",
+      "Public-domain vector basemap data — national borders, state lines as you zoom in, city labels, and time zones.",
   },
   {
     name: "OpenAerialMap",

@@ -8,7 +8,10 @@ export const ICONS = {
     `<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3v18"/><path d="M5.6 6.5c3.5 2.2 9.3 2.2 12.8 0M5.6 17.5c3.5-2.2 9.3-2.2 12.8 0"/>`
   ),
   borders: wrap(
-    `<circle cx="12" cy="12" r="9"/><path d="M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18"/><path d="M3.5 9h17M3.5 15h17"/>`
+    `<path d="M4.2 8.2 7.4 4.6h4.1L14.8 6.2 19.4 4.8l1.2 4.4-1.7 4.6-3.2 2.4H9.6L6.2 18.2 4 13.2Z"/><path d="M7.4 4.6 6.5 11.4 6.2 18.2"/><path d="M11.5 5.1 10.6 11.6 11.2 16.6"/>`
+  ),
+  timezones: wrap(
+    `<circle cx="12" cy="12" r="8.2"/><path d="M12 7.2V12l2.8 1.8"/><path d="M3.2 12h2M18.8 12h2"/>`
   ),
   cities: wrap(
     `<path d="M3 21h18"/><path d="M5 21V8l5-3v16"/><path d="M10 21V11l6-2v12"/><path d="M16 21V9l3 1.5V21"/><path d="M7.5 9.5v0M7.5 12.5v0M13 13v0M13 16v0"/>`

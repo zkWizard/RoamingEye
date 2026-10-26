@@ -143,6 +143,7 @@ describe("citedVectorSources", () => {
       "Borders overlay",
       "Cities overlay",
       "Place and region names",
+      "Time zones overlay",
     ]);
   });
 

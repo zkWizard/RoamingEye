@@ -8,6 +8,13 @@ import type { LineSegments, Object3D, PerspectiveCamera, Points } from "three";
 export interface MapOverlay {
   readonly id: string;
   readonly label: string;
+  /** Second line in the menu, for a fact the short name cannot carry. */
+  readonly detail?: string;
+  /**
+   * "settings" parks the toggle in the collapsed Settings fold. Map details
+   * is the default.
+   */
+  readonly group?: "details" | "settings";
   /** Inline SVG markup for the toolbar icon. */
   readonly icon: string;
   /** The renderable object; shown/hidden via its `.visible`. */

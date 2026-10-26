@@ -55,7 +55,8 @@ function bucketFor(magnitude: number): (typeof SIZE_BUCKETS)[number] {
 
 export class EarthquakesOverlay implements MapOverlay {
   readonly id = "quakes";
-  readonly label = "Quakes";
+  readonly label = "Earthquakes";
+  readonly detail = "Last 30 days (live)";
   readonly icon = ICONS.quakes;
   readonly object = new THREE.Group();
 

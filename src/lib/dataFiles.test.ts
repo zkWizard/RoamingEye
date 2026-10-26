@@ -12,6 +12,8 @@ import { PROVIDERS } from "./providers";
 import { parsePlateBoundaries, plateBoundaryClass } from "./plates";
 import { decodePlatePair } from "./platePairs";
 import { buildAdmin1Index, buildCountryIndex } from "./countryIndex";
+import { parseBorderLines } from "./borderLines";
+import { formatUtcOffset, labelAnchors, parseTimeZones } from "./timeZones";
 
 /**
  * Guards the real bundled data files in public/data/ — a bad regeneration by
@@ -211,5 +213,32 @@ describe("bundled data files", () => {
     }
     // Ocean stays null — the hover falls back to bare coordinates.
     expect(index.lookup(0, -140)).toBeNull();
+  });
+
+  it("admin1 line extracts stay inside the coordinate range", () => {
+    for (const name of ["admin1-lines.json", "admin1-detail.json"]) {
+      const lines = parseBorderLines(load(name));
+      expect(lines.length, name).toBeGreaterThan(1000);
+      for (const line of lines.slice(0, 40)) {
+        for (const [lon, lat] of line) {
+          expect(Math.abs(lon)).toBeLessThanOrEqual(180);
+          expect(Math.abs(lat)).toBeLessThanOrEqual(90);
+        }
+      }
+    }
+  });
+
+  it("time-zones.json covers fractional offsets and labels them", () => {
+    const zones = parseTimeZones(load("time-zones.json"));
+    expect(zones.length).toBeGreaterThan(80);
+    const offsets = new Set(zones.map((zone) => zone.offset));
+    expect(offsets.has(0)).toBe(true);
+    expect(offsets.has(5.5)).toBe(true);
+    expect(offsets.has(-5)).toBe(true);
+    const anchors = labelAnchors(zones);
+    expect(anchors.find((item) => item.offset === 5.5)).toBeTruthy();
+    expect(formatUtcOffset(0)).toBe("UTC");
+    expect(formatUtcOffset(-5)).toBe("UTC−5");
+    expect(formatUtcOffset(5.5)).toBe("UTC+5:30");
   });
 });

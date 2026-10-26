@@ -12,7 +12,7 @@
  * (dataset = countries | cities | plates | volcanoes | admin1; omit for all.)
  * The slimmed outputs are committed so the app needs no network for overlays.
  */
-import { writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -59,6 +59,100 @@ function snapGeometry(geometry, step) {
     return polys.length ? { type: "MultiPolygon", coordinates: polys } : null;
   }
   return geometry;
+}
+
+/**
+ * Unique boundary polylines from polygon features, snapped to `step` degrees.
+ * Shared edges (a border drawn by both neighbours) are kept once. Rings that
+ * jump the antimeridian are split there rather than stroked across the globe.
+ */
+function boundaryLines(features, step) {
+  const prec = step >= 0.1 ? 2 : 3;
+  const quant = (n) => Number((Math.round(n / step) * step).toFixed(prec));
+  const pointKey = (x, y) => `${x},${y}`;
+  const adj = new Map();
+  const link = (a, b) => {
+    if (!adj.has(a)) adj.set(a, new Set());
+    adj.get(a).add(b);
+  };
+  const addRing = (ring) => {
+    if (!Array.isArray(ring)) return;
+    for (let i = 0; i + 1 < ring.length; i++) {
+      const a = ring[i];
+      const b = ring[i + 1];
+      if (!a || !b) continue;
+      let dlon = Math.abs(a[0] - b[0]);
+      if (dlon > 180) dlon = 360 - dlon;
+      if (dlon > 25 || Math.abs(a[1] - b[1]) > 25) continue;
+      const ax = quant(a[0]);
+      const ay = quant(a[1]);
+      const bx = quant(b[0]);
+      const by = quant(b[1]);
+      if (ax === bx && ay === by) continue;
+      const ak = pointKey(ax, ay);
+      const bk = pointKey(bx, by);
+      link(ak, bk);
+      link(bk, ak);
+    }
+  };
+  for (const feature of features) {
+    const geometry = feature.geometry;
+    if (!geometry) continue;
+    const polygons =
+      geometry.type === "Polygon"
+        ? [geometry.coordinates]
+        : geometry.type === "MultiPolygon"
+          ? geometry.coordinates
+          : [];
+    for (const polygon of polygons) addRing(polygon[0]);
+  }
+  const lines = [];
+  for (const [start, neighbours] of adj) {
+    while (neighbours.size > 0) {
+      const line = [start];
+      let current = start;
+      while (adj.get(current)?.size) {
+        const next = adj.get(current).values().next().value;
+        adj.get(current).delete(next);
+        adj.get(next)?.delete(current);
+        line.push(next);
+        current = next;
+        if (current === start) break;
+      }
+      // Two-point scraps are snap noise, and they double the file for no
+      // coastline a person can see.
+      if (line.length < 4) continue;
+      lines.push(line.flatMap((key) => key.split(",").map((n) => Number(n))));
+    }
+  }
+  return lines;
+}
+
+function ringCentroid(ring) {
+  let lon = 0;
+  let lat = 0;
+  const n = Math.max(1, ring.length - 1);
+  for (let i = 0; i < ring.length - 1; i++) {
+    lon += ring[i][0];
+    lat += ring[i][1];
+  }
+  return [Number((lon / n).toFixed(2)), Number((lat / n).toFixed(2))];
+}
+
+/** The outer ring with the most vertices — the one a label should sit on. */
+function largestOuterRing(geometry) {
+  const polygons =
+    geometry?.type === "Polygon"
+      ? [geometry.coordinates]
+      : geometry?.type === "MultiPolygon"
+        ? geometry.coordinates
+        : [];
+  let best = null;
+  for (const polygon of polygons) {
+    const ring = polygon?.[0];
+    if (ring && (!best || ring.length > best.length)) best = ring;
+  }
+  return best;
 }
 
 const only = process.argv[2];
@@ -231,6 +325,63 @@ async function main() {
     };
     writeFileSync(join(OUT, "volcanoes.json"), JSON.stringify(volcanoDataset));
     console.log(`  → volcanoes.json (${volcanoes.length} volcanoes)`);
+  }
+
+  if (want("admin-lines")) {
+    // State and province outlines, derived from the admin-1 extract already
+    // vendored for the hover readout. Two snaps: a light one for the zoom
+    // where a country fills the view, and a tighter one for close zoom.
+    // Neither file is fetched at boot — BordersOverlay asks for them only
+    // after the visitor turns borders on and moves in.
+    console.log("Building admin-1 boundary lines…");
+    const admin1 = JSON.parse(
+      readFileSync(join(OUT, "admin1.geojson"), "utf8")
+    );
+    const regional = boundaryLines(admin1.features, 0.4);
+    const close = boundaryLines(admin1.features, 0.15);
+    writeFileSync(
+      join(OUT, "admin1-lines.json"),
+      JSON.stringify({ step: 0.4, lines: regional })
+    );
+    writeFileSync(
+      join(OUT, "admin1-detail.json"),
+      JSON.stringify({ step: 0.15, lines: close })
+    );
+    console.log(
+      `  → admin1-lines.json (${regional.length} lines), admin1-detail.json (${close.length} lines)`
+    );
+  }
+
+  if (want("timezones")) {
+    // Natural Earth time zones (public domain). Snapped hard: the overlay is
+    // a reading aid at globe scale, not a survey of the political boundary.
+    console.log("Fetching time zones…");
+    const zones = await getJson(`${BASE}/ne_10m_time_zones.geojson`);
+    const features = [];
+    for (const feature of zones.features) {
+      const raw = feature.properties?.zone;
+      const offset = typeof raw === "number" ? raw : Number(raw);
+      if (!Number.isFinite(offset) || !feature.geometry) continue;
+      const snapped = {
+        type: "Feature",
+        properties: {},
+        geometry: snapGeometry(feature.geometry, 0.7) ?? feature.geometry,
+      };
+      const lines = boundaryLines([snapped], 0.7);
+      if (lines.length === 0) continue;
+      const ring = largestOuterRing(snapped.geometry);
+      if (!ring || ring.length < 4) continue;
+      features.push({
+        offset,
+        label: ringCentroid(ring),
+        lines,
+      });
+    }
+    writeFileSync(
+      join(OUT, "time-zones.json"),
+      JSON.stringify({ zones: features })
+    );
+    console.log(`  → time-zones.json (${features.length} zones)`);
   }
 
   console.log("Done.");
