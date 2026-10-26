@@ -32,7 +32,7 @@ test.use({
   viewport: { width: 1280, height: 900 },
   permissions: ["clipboard-read", "clipboard-write"],
 });
-test.setTimeout(120_000);
+test.setTimeout(210_000);
 
 test("both outcomes of the probe CSV copy are spoken", async ({ page }) => {
   // NDVI rather than the boot default: the CSV enables only once a numeric
@@ -53,7 +53,8 @@ test("both outcomes of the probe CSV copy are spoken", async ({ page }) => {
   // rather than silently testing the wrong button.
   const download = page.locator(".probe__footer button").nth(0);
   const copy = page.locator(".probe__footer button").nth(1);
-  await expect(copy).toBeEnabled({ timeout: 90_000 });
+  // A full numeric series, and the runner may still be fetching terrain tiles.
+  await expect(copy).toBeEnabled({ timeout: 150_000 });
   await expect(download).toHaveText("Download CSV");
   await expect(copy).toHaveText("Copy CSV");
 
