@@ -1,4 +1,5 @@
 import type { GeoResult } from "../lib/geocoding";
+import type { GeoGeometry } from "../lib/geojson";
 import { recentSearchProvider } from "../lib/search/recent";
 import type { SearchHit } from "../lib/search/provider";
 import { searchProviders } from "../lib/search/providers";
@@ -23,6 +24,17 @@ export interface SearchHandlers {
   }) => void;
   onRemember: (hit: SearchHit) => void;
   recent: () => readonly RecentSearch[] | undefined;
+  /**
+   * One change line for a highlighted area. The app loads this through the
+   * same held place-chunk import as the place panel, so a failed fetch is
+   * not requested again. Omitted, the row keeps its ordinary subtitle.
+   */
+  previewChange?: (
+    geometry: GeoGeometry,
+    lat: number,
+    lon: number,
+    signal: AbortSignal
+  ) => Promise<{ text: string; values: readonly number[] } | null>;
 }
 
 /** Mount the search field and return a way to focus it from a shortcut. */
@@ -57,12 +69,11 @@ export function mountSearch(
       const abort = new AbortController();
       previewAbort = abort;
       const hitId = hit.id;
-      // The sampler stays in the place chunk. This import is the boundary.
-      void import("../place/placeInsightsController")
-        .then((mod) => {
-          if (token !== previewToken || abort.signal.aborted) return null;
-          return mod.previewPlaceChange(geometry, lat, lon, abort.signal);
-        })
+      // The sampler stays in the place chunk. The app owns that import so a
+      // failed fetch is reused instead of requested again from here.
+      void Promise.resolve(
+        handlers.previewChange?.(geometry, lat, lon, abort.signal) ?? null
+      )
         .then((preview) => {
           if (!preview || token !== previewToken || abort.signal.aborted)
             return;

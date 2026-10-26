@@ -1431,6 +1431,18 @@ if (searchEl) {
           },
           onRemember: (hit) => rememberSearch(hit),
           recent: () => recentSearches,
+          previewChange: (geometry, lat, lon, signal) => {
+            // Same promise as the place panel. A rejected fetch stays held,
+            // so highlighting another area does not request the chunk again.
+            placeInsightsModule ??= import("./place/placeInsightsController");
+            return placeInsightsModule.then(
+              (m) => {
+                if (signal.aborted) return null;
+                return m.previewPlaceChange(geometry, lat, lon, signal);
+              },
+              () => null
+            );
+          },
         }
       );
       focusSearch = () => mounted.focus();
