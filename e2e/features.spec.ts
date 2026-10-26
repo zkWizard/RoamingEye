@@ -621,6 +621,10 @@ test(
 
     await expect(input).toHaveValue("Exactville");
     await expect(page.locator("#study-chip")).not.toHaveClass(/is-visible/);
+    // The flight is the result. Charting the record would pause the basemap
+    // for a few hundred months, which is what left a searched city as a
+    // blurry tile on a black sky.
+    await expect(page.locator("#probe-panel")).not.toHaveClass(/is-open/);
     const insights = page.locator("#place-insights");
     await expect(insights).toHaveClass(/is-open/);
     await expect(insights).toContainText("Vegetation");

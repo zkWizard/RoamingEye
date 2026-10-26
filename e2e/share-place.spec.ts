@@ -4,14 +4,15 @@ import { awaitAppInteractive } from "./boot";
 /**
  * A place link carries the name, the point, the box, and the Nominatim id —
  * not the polygon. Opening it must look that id up once and bring back the
- * outline's companions: the place panel and the chart. A link from before
+ * outline's companion, the place panel. The time-series chart stays closed:
+ * a search flies to the place, and the chart is a click. A link from before
  * place sharing has neither, and must not grow them.
  */
 
 const PLACE =
   "34.0000,-118.0000,33.9000,34.1000,-118.2000,-117.8000,R4242,Exactville";
 
-test("a shared place link restores the panel and the chart from one lookup", async ({
+test("a shared place link restores the panel from one lookup", async ({
   page,
 }) => {
   const lookups: string[] = [];
@@ -60,10 +61,7 @@ test("a shared place link restores the panel and the chart from one lookup", asy
     "Exactville"
   );
   await expect(insights).toContainText("Vegetation");
-  const probe = page.locator("#probe-panel");
-  await expect(probe).toHaveClass(/is-open/);
-  await expect(probe).toContainText("Exactville");
-  await expect(probe).toContainText("searched boundary");
+  await expect(page.locator("#probe-panel")).not.toHaveClass(/is-open/);
   expect(lookups).toEqual(["R4242"]);
 });
 
