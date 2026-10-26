@@ -684,8 +684,8 @@ hdTiles.onVisibleCoverageChange(({ requested, loaded, failed }) => {
 // Assigned by the probe/compare sections below; the layer selector closes
 // both because their contents belong to the previous layer.
 let closeProbe: (() => void) | undefined;
-// Charts a search result's full record: its boundary where it has one, else
-// its point. Assigned by the probe section, which owns the chart panel.
+// Re-charts the place already on screen when the layer changes. A search
+// does not call this: the record is a click, a drawn box, or Enter.
 let chartPlace: ((result: GeoResult) => void) | undefined;
 // The search result the open chart belongs to. The place stays outlined when
 // the layer changes, so its chart follows the new layer instead of closing.
@@ -1475,6 +1475,11 @@ if (searchEl) {
           onPlace: (result) => {
             dismissPlaceCompare();
             adoptSearchResult(result, true);
+            // A search flies to the place. It does not chart the record:
+            // that sample is hundreds of months and pauses the basemap for
+            // as long as it runs, so the arrival was a coarse tile on a
+            // black sky. The chart stays a click, a drawn box, or Enter.
+            closeProbe?.();
             // Framing stays out of the first-paint chunk.
             void import("./lib/placeFrame").then(
               ({
@@ -1508,7 +1513,6 @@ if (searchEl) {
                 studyRegion.hide();
                 studyChip?.hide();
                 runPlaceInsights(result);
-                chartPlace?.(result);
               }
             );
           },
@@ -1991,7 +1995,7 @@ if (probeEl) {
     const layer = LAYERS[currentLayer];
     const mode = panel.mode;
     probeTarget = { lat, lon };
-    chartedPlace = undefined; // chartPlace re-marks it when a search asked
+    chartedPlace = undefined; // a click replaces a place chart
     // The mode goes into the share hash with the coordinates: it selects which
     // statistic the series reports, and the CSV this same view stamps a
     // `view_url` into names that statistic in its own header.
@@ -2421,7 +2425,7 @@ if (probeEl) {
   ): void => {
     const layer = LAYERS[currentLayer];
     probeTarget = undefined; // the mode toggle is hidden for region charts
-    chartedPlace = undefined; // chartPlace re-marks it when a search asked
+    chartedPlace = undefined; // a click replaces a place chart
     const footprint = place ? "searched-boundary" : "drawn-region";
     // The box travels in the link with the chart it explains. A drawn region
     // is the box itself (`probe=`). A searched place's polygon is too large
@@ -2895,7 +2899,6 @@ if (probeEl) {
       studyRegion.hide();
       studyChip?.hide();
       runPlaceInsights(result);
-      chartPlace?.(result);
     };
     restoreSharedPlace();
   }
@@ -2904,9 +2907,8 @@ if (probeEl) {
   // recipient sees the same chart the sender did. Deferred until the first
   // globe imagery has landed — the probe's ~300 fetches would otherwise
   // compete with the initial load on the same connection pool.
-  // A place link charts the searched boundary, which replaces a point or
-  // drawn-region probe. Restoring both would fetch two series and keep
-  // whichever finished last.
+  // A place link flies to the place and does not chart it. Restoring a probe
+  // from the same link would start the sample the search no longer starts.
   if (initialView.probe && !initialView.place) {
     const target = initialView.probe;
     const restoreWhenReady = (): void => {
