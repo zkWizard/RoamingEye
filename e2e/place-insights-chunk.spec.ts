@@ -66,9 +66,10 @@ test.use({ viewport: { width: 1280, height: 900 } });
 test("a failed place-insights load is worded, and a reload recovers it", async ({
   page,
 }) => {
-  // Two searches, a reload, and the chunk waits below are each allowed 15–20s.
-  // The default 30s test budget runs out before the reload on a slow runner.
-  test.setTimeout(90_000);
+  // Two boots, and the reload restores the shared place (outline plus chart)
+  // before the second search. On a software-GL runner that exceeds the
+  // default 30s test budget.
+  test.setTimeout(120_000);
   await stubAreaGeocoder(page);
   let blocked = 0;
   await page.route(CHUNK, (route) => {
@@ -95,7 +96,13 @@ test("a failed place-insights load is worded, and a reload recovers it", async (
   // Searching again is not the remedy. The rejected import is held on the
   // page, so the second search reuses it and re-requests nothing — even on a
   // browser that would re-fetch a fresh import() of a failed module.
-  await page.locator(".error-toast__close").click();
+  // The toast dismisses itself after 8s, and a chart sampling under it keeps
+  // the close button moving, so a stability-gated click loses the node and
+  // then waits out the whole test. Invoke the handler directly.
+  const close = page.locator(".error-toast__close");
+  if ((await close.count()) > 0) {
+    await close.evaluate((el: HTMLButtonElement) => el.click());
+  }
   await page.locator(".search__input").fill("");
   const before = blocked;
   await searchQuito(page);
@@ -108,7 +115,7 @@ test("a failed place-insights load is worded, and a reload recovers it", async (
   // The remedy the message names does work.
   await page.unroute(CHUNK);
   await page.reload();
-  await awaitAppInteractive(page);
+  await awaitAppInteractive(page, 60_000);
   await searchQuito(page);
   await expect(page.locator("#place-insights")).toBeVisible({
     timeout: 20_000,
