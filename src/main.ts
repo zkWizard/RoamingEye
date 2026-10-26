@@ -104,6 +104,7 @@ import { isAbortError, isOnline, OfflineError } from "./lib/net";
 import { nextPixelRatio } from "./lib/perf";
 import { ProbeSampler } from "./probe/ProbeSampler";
 import { ProbePanel } from "./ui/ProbePanel";
+import { dismissPlaceCompare } from "./ui/placeCompareBridge";
 import { CompareController } from "./scene/CompareController";
 import { CompareControls } from "./ui/CompareControls";
 import {
@@ -615,6 +616,9 @@ function buildTimeline(): void {
     currentIndex,
     (index) => {
       currentIndex = index;
+      // A place comparison names one month. Scrubbing leaves that sentence
+      // behind, so the panel closes instead of describing the wrong date.
+      dismissPlaceCompare();
       refreshGlobe();
       ensureWarm(index);
       // A drawn region re-resolves its own texture per month; at playback
@@ -738,6 +742,7 @@ let layerSelector: LayerSelector | undefined;
  * reader does it themselves, they have left the story, so story mode ends.
  */
 function switchLayer(id: LayerId, { fromStory = false } = {}): void {
+  dismissPlaceCompare();
   if (!fromStory) storyCard?.dismiss();
   layerSelector?.select(id);
   toolbar?.setActiveLayer(id);
@@ -1468,6 +1473,7 @@ if (searchEl) {
         (message) => announcer.announce(message),
         {
           onPlace: (result) => {
+            dismissPlaceCompare();
             adoptSearchResult(result, true);
             // Framing stays out of the first-paint chunk.
             void import("./lib/placeFrame").then(
@@ -1510,8 +1516,12 @@ if (searchEl) {
           onMonth: (year, month) => {
             timeSlider?.seek(nearestMonthIndex(months, { year, month }));
           },
-          onStory: (storyId) => openStory(storyId),
+          onStory: (storyId) => {
+            dismissPlaceCompare();
+            openStory(storyId);
+          },
           onHotspot: (hotspot) => {
+            dismissPlaceCompare();
             if (
               Object.hasOwn(LAYERS, hotspot.layerId) &&
               hotspot.layerId !== currentLayer
@@ -1590,6 +1600,24 @@ if (searchEl) {
               if (event) presentEvent(event);
             });
           },
+          onThenNow: (pick) => {
+            void import("./lib/openComparisons").then(
+              ({ openThenNow }) => {
+                void openThenNow(pick, comparisonHost());
+              },
+              (err) =>
+                console.warn("RoamingEye: comparison failed to load", err)
+            );
+          },
+          onPlaceCompare: (pick) => {
+            void import("./lib/openComparisons").then(
+              ({ openPlaceCompare }) => {
+                void openPlaceCompare(pick, comparisonHost());
+              },
+              (err) =>
+                console.warn("RoamingEye: comparison failed to load", err)
+            );
+          },
         }
       );
       focusSearch = () => mounted.focus();
@@ -1644,6 +1672,7 @@ if (compareEl && compareDividerEl) {
     compareDividerEl,
     {
       onEnable: () => {
+        dismissPlaceCompare();
         const layer = LAYERS[currentLayer];
         if (layer.static) return false; // one image regardless of month
         compare.enable(layer, months[currentIndex]);
@@ -1679,6 +1708,44 @@ if (compareEl && compareDividerEl) {
       compareControls.setLiveMonth(LAYERS[currentLayer], months[currentIndex]);
     }
   }
+}
+
+function comparisonHost() {
+  return {
+    announce: (message: string) => announcer.announce(message),
+    layer: () => currentLayer,
+    months: () => months,
+    prepareLayer(id: LayerId) {
+      closeProbe?.();
+      dismissPlaceCompare();
+      if (currentLayer !== id) switchLayer(id);
+      else {
+        storyCard?.dismiss();
+        compareControls?.exit();
+      }
+    },
+    seek: (index: number) => timeSlider?.seek(index),
+    fly: (lat: number, lon: number, distance: number) =>
+      flyer.flyTo(lat, lon, distance),
+    endFlight: () => endFlight(),
+    showHighlight: (result: GeoResult) =>
+      highlight.show({
+        lat: result.lat,
+        lon: result.lon,
+        geometry: result.geometry,
+      }),
+    hideStudy: () => {
+      studyRegion.hide();
+      studyChip?.hide();
+    },
+    enableMonthCompare: (earlier: YearMonth) => {
+      compare.enable(LAYERS[currentLayer], earlier);
+      compareControls?.restore(LAYERS[currentLayer], earlier, compare.split);
+      compareControls?.setLiveMonth(LAYERS[currentLayer], months[currentIndex]);
+    },
+    clearSharedSearch: () => clearSharedSearch(),
+    scheduleHashSync: () => scheduleHashSync(),
+  };
 }
 
 // --- Point probe (click → time series) ----------------------------------------

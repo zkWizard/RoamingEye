@@ -1,5 +1,6 @@
 import type { GeoResult } from "../lib/geocoding";
 import type { GeoGeometry } from "../lib/geojson";
+import type { PlaceComparePick, ThenNowPick } from "../lib/openComparisons";
 import { recentSearchProvider } from "../lib/search/recent";
 import type { SearchHit } from "../lib/search/provider";
 import { searchProviders } from "../lib/search/providers";
@@ -36,6 +37,8 @@ export interface SearchHandlers {
     signal: AbortSignal
   ) => Promise<{ text: string; values: readonly number[] } | null>;
   onEvent: (eventId: string) => void;
+  onThenNow: (pick: ThenNowPick) => void;
+  onPlaceCompare: (pick: PlaceComparePick) => void;
 }
 
 /** Mount the search field and return a way to focus it from a shortcut. */
@@ -118,6 +121,26 @@ function applyHit(hit: SearchHit, handlers: SearchHandlers): void {
       return;
     case "event":
       handlers.onEvent(data.eventId);
+      return;
+    case "then-now":
+      handlers.onThenNow({
+        place: data.place,
+        layerId: data.layerId,
+        earlierYear: data.earlierYear,
+        earlierMonth: data.earlierMonth,
+        laterYear: data.laterYear,
+        laterMonth: data.laterMonth,
+      });
+      return;
+    case "place-compare":
+      handlers.onPlaceCompare({
+        placeA: data.placeA,
+        placeB: data.placeB,
+        layerId: data.layerId,
+        year: data.year,
+        month: data.month,
+        defaultMonth: data.defaultMonth,
+      });
       return;
   }
 }

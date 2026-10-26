@@ -18,6 +18,10 @@ describe("buildSearchUrl", () => {
     expect(url).toContain("format=jsonv2");
   });
 
+  it("can restrict the search to natural features", () => {
+    expect(buildSearchUrl("Amazon", 5, "natural")).toContain("layer=natural");
+  });
+
   it("encodes the query and applies the limit", () => {
     const url = buildSearchUrl("São Paulo", 3);
     expect(url).toContain("q=S%C3%A3o+Paulo");

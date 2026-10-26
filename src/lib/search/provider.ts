@@ -45,7 +45,25 @@ export type SearchAction =
       lat: number;
       lon: number;
     }
-  | { type: "event"; eventId: string };
+  | { type: "event"; eventId: string }
+  | {
+      type: "then-now";
+      place: string;
+      layerId: string;
+      earlierYear: number;
+      earlierMonth: number;
+      laterYear: number | null;
+      laterMonth: number;
+    }
+  | {
+      type: "place-compare";
+      placeA: string;
+      placeB: string;
+      layerId: string;
+      year: number | null;
+      month: number | null;
+      defaultMonth: number;
+    };
 
 /**
  * A source of search rows.
