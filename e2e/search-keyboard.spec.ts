@@ -94,9 +94,12 @@ test("Enter takes the highlighted match without a mouse", async ({ page }) => {
   await expect(input).toHaveAttribute("aria-expanded", "false");
   expect(await activeDescendant(page)).toBeNull();
 
+  // A city frame sits close enough that the hash keeps four decimal places.
+  // Those digits are the shipped Quito (−0.213, −78.502), not the geocoder's
+  // point a few kilometres away.
   await expect
     .poll(() => page.evaluate(() => location.hash), { timeout: 20_000 })
-    .toContain("lat=-0.21&lon=-78.50");
+    .toContain("lat=-0.2130&lon=-78.5020");
 });
 
 test("Enter with nothing highlighted takes the top match", async ({ page }) => {
@@ -110,7 +113,7 @@ test("Enter with nothing highlighted takes the top match", async ({ page }) => {
   await expect(input).toHaveAttribute("aria-expanded", "false");
   await expect
     .poll(() => page.evaluate(() => location.hash), { timeout: 20_000 })
-    .toContain("lat=-0.21&lon=-78.50");
+    .toContain("lat=-0.2130&lon=-78.5020");
 });
 
 test("picking a place jumps to the newest published month", async ({

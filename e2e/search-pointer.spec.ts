@@ -90,7 +90,7 @@ test("clicking the right end of the first match selects that place", async ({
   await expect(page.locator(".search__results")).not.toHaveClass(/is-open/);
   await expect
     .poll(() => page.evaluate(() => location.hash), { timeout: 20_000 })
-    .toContain("lat=-0.21&lon=-78.50");
+    .toContain("lat=-0.2130&lon=-78.5020");
 });
 
 test("the field only outranks its neighbours while the popup is open", async ({
