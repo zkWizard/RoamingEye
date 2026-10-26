@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { makeLru, makeGate, buildSearchUrl } from "./geocoding";
+import {
+  makeLru,
+  makeGate,
+  buildSearchUrl,
+  geocoderEndpoint,
+  setGeocoderEndpoint,
+} from "./geocoding";
 
 describe("buildSearchUrl", () => {
   it("targets Nominatim and requests boundary polygons", () => {
@@ -13,6 +19,18 @@ describe("buildSearchUrl", () => {
     const url = buildSearchUrl("São Paulo", 3);
     expect(url).toContain("q=S%C3%A3o+Paulo");
     expect(url).toContain("limit=3");
+  });
+
+  it("follows the configured endpoint and restores the public one", () => {
+    expect(geocoderEndpoint()).toContain("nominatim.openstreetmap.org");
+    setGeocoderEndpoint("https://geocode.example.test/search");
+    expect(buildSearchUrl("Quito")).toMatch(
+      /^https:\/\/geocode\.example\.test\/search\?/
+    );
+    setGeocoderEndpoint(null);
+    expect(buildSearchUrl("Quito")).toContain(
+      "nominatim.openstreetmap.org/search"
+    );
   });
 });
 

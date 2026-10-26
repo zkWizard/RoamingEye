@@ -552,7 +552,11 @@ test("search shows failure and no-results states", async ({ page }) => {
   // Force a network failure without touching the real geocoder.
   await page.route("**nominatim**", (route) => route.abort());
   const input = page.locator(".search__input");
-  await input.fill("reykjavik");
+  await input.fill("zzzznotaplace");
+  await expect(page.locator(".search__result--world")).toBeVisible({
+    timeout: 15_000,
+  });
+  await input.press("Enter");
   await expect(page.locator(".search__message")).toContainText(
     "Search unavailable",
     { timeout: 15_000 }
@@ -602,7 +606,11 @@ test("search traces an exact returned boundary without a study-region box", asyn
 
   const input = page.locator(".search__input");
   await input.fill("Exactville");
-  await page.locator(".search__result").click();
+  await expect(page.locator(".search__result--world")).toBeVisible({
+    timeout: 15_000,
+  });
+  await input.press("Enter");
+  await page.locator(".search__result", { hasText: "Exactville" }).click();
 
   await expect(input).toHaveValue("Exactville");
   await expect(page.locator("#study-chip")).not.toHaveClass(/is-visible/);
@@ -667,7 +675,11 @@ test("the place panel counts earthquakes inside the boundary for the chosen year
   });
 
   await page.locator(".search__input").fill("Exactville");
-  await page.locator(".search__result").click();
+  await expect(page.locator(".search__result--world")).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.locator(".search__input").press("Enter");
+  await page.locator(".search__result", { hasText: "Exactville" }).click();
 
   const hazards = page.locator('[aria-label="Hazards"]');
   await expect(hazards.locator(".place-stat__value").first()).toHaveText("1");

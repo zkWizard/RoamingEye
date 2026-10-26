@@ -67,9 +67,10 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: "Search",
     items: [
+      { keys: ["/", "Ctrl+K"], does: "Focus the search field" },
       {
         keys: ["Type"],
-        does: "Find a place. Matches open under the field",
+        does: "Find a place, layer, date, or story. Matches open under the field",
       },
       { keys: ["↑", "↓"], does: "Move through the matches" },
       {

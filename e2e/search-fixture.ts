@@ -44,10 +44,15 @@ export async function stubGeocoder(page: Page): Promise<void> {
   );
 }
 
-/** Type a query and wait for the popup to be populated. */
+/** Type a local query and wait for the city row plus the world-search row. */
 export async function openResults(page: Page): Promise<void> {
-  await page.locator(".search__input").fill("Qui");
-  await expect(page.locator(".search__result")).toHaveCount(MATCHES.length, {
+  await page.locator(".search__input").fill("Quito");
+  // Quito is in the shipped city list, so this must resolve without Nominatim.
+  // One city row, then the explicit "Search all places" row.
+  await expect(page.locator(".search__result")).toHaveCount(2, {
     timeout: 15_000,
   });
+  await expect(page.locator(".search__result-name").first()).toHaveText(
+    "Quito"
+  );
 }

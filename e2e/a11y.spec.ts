@@ -108,7 +108,10 @@ test("probe panel with a chart is axe-clean", async ({ page }) => {
 
 test("place change panel is axe-clean while sampling", async ({ page }) => {
   await page.locator(".search__input").fill("Vatican City");
-  await expect(page.locator(".search__results")).toHaveClass(/is-open/, {
+  const world = page.locator(".search__result--world");
+  await expect(world).toBeVisible({ timeout: 20_000 });
+  await world.click();
+  await expect(page.locator(".search__result--world")).toHaveCount(0, {
     timeout: 20_000,
   });
   await page.locator(".search__result").first().click();

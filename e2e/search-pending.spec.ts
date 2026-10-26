@@ -41,7 +41,11 @@ test("a search in flight says it is searching, and stops when it lands", async (
       .catch(() => {});
   });
 
-  await page.locator(".search__input").fill("Qui");
+  await page.locator(".search__input").fill("Zzzq");
+  await expect(page.locator(".search__result--world")).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.locator(".search__input").press("Enter");
 
   // The wait itself is reported, rather than the popup staying shut through it.
   await expect(page.locator(".search__message")).toHaveText("Searching…", {
@@ -73,7 +77,11 @@ test("a geocoder that never answers still ends in a message, not a busy list", a
 }) => {
   await page.route("**nominatim**", (route) => route.abort("failed"));
 
-  await page.locator(".search__input").fill("Quito");
+  await page.locator(".search__input").fill("Zzzq");
+  await expect(page.locator(".search__result--world")).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.locator(".search__input").press("Enter");
 
   await expect(page.locator(".search__message")).toHaveText(
     /Search unavailable/,
@@ -96,7 +104,11 @@ test("dismissing the field abandons the search instead of reopening later", asyn
   });
 
   const input = page.locator(".search__input");
-  await input.fill("Qui");
+  await input.fill("Zzzq");
+  await expect(page.locator(".search__result--world")).toBeVisible({
+    timeout: 15_000,
+  });
+  await input.press("Enter");
   await expect(page.locator(".search__message")).toHaveText("Searching…", {
     timeout: 10_000,
   });

@@ -15,7 +15,35 @@ import { fetchJson } from "./net";
  * gate spaces network hits ≥1 s apart (do not "optimize" the delay away).
  */
 
-const ENDPOINT = "https://nominatim.openstreetmap.org/search";
+const PUBLIC_ENDPOINT = "https://nominatim.openstreetmap.org/search";
+
+/**
+ * Where place search sends an explicit query. The public Nominatim service is
+ * the default; `VITE_NOMINATIM_ENDPOINT` or {@link setGeocoderEndpoint} points
+ * the same request at another Nominatim-compatible server.
+ */
+function defaultEndpoint(): string {
+  const fromEnv = import.meta.env.VITE_NOMINATIM_ENDPOINT;
+  if (typeof fromEnv === "string" && fromEnv.trim() !== "")
+    return fromEnv.trim();
+  return PUBLIC_ENDPOINT;
+}
+
+let endpoint = defaultEndpoint();
+
+/** The endpoint the next explicit place search will call. */
+export function geocoderEndpoint(): string {
+  return endpoint;
+}
+
+/**
+ * Point explicit place search at another endpoint. `null` or a blank string
+ * restores the default (the env override, or the public Nominatim service).
+ */
+export function setGeocoderEndpoint(url: string | null): void {
+  const trimmed = url?.trim() ?? "";
+  endpoint = trimmed !== "" ? trimmed : defaultEndpoint();
+}
 
 export interface GeoResult {
   name: string;
@@ -121,7 +149,7 @@ export function buildSearchUrl(query: string, limit = 5): string {
     "accept-language": "en",
     limit: String(limit),
   });
-  return `${ENDPOINT}?${params.toString()}`;
+  return `${endpoint}?${params.toString()}`;
 }
 
 export async function geocode(
