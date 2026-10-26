@@ -206,12 +206,12 @@ test("a date, a layer, and a story resolve without the geocoder", async ({
   );
 
   await input.fill("Sahel");
-  // The story title and the Sahel change place both contain this word.
-  await expect(
-    page.locator(".search__result-name", {
-      hasText: "The monsoon greens the Sahel",
-    })
-  ).toBeVisible();
+  // The story, the 2024 event, and the Sahel change place all contain this
+  // word. Enter takes the first row, which is the story.
+  const story = page.locator(".search__result-name", {
+    hasText: /^The monsoon greens the Sahel$/,
+  });
+  await expect(story).toBeVisible();
   await input.press("Enter");
   await expect(page.locator(".stories__title")).toContainText("Sahel");
 });
