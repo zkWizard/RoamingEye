@@ -208,10 +208,11 @@ export function bboxOutline(
 ): GeoGeometry | null {
   const [south, north, west, east] = bbox;
   if (![south, north, west, east].every((n) => Number.isFinite(n))) return null;
-  if (north - south < 0.01) return null;
+  // Same floor as a shared place's box, including the 4-decimal slack.
+  if (north - south < 0.01 - 1e-4) return null;
   let lonSpan = east - west;
   if (lonSpan <= 0) lonSpan += 360;
-  if (lonSpan < 0.01 || lonSpan > 180) return null;
+  if (lonSpan < 0.01 - 1e-4 || lonSpan > 180 + 1e-4) return null;
   const ring: [number, number][] = [
     [west, south],
     [east, south],

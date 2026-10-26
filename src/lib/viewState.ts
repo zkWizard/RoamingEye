@@ -171,18 +171,22 @@ function isCoord(value: number, limit: number): boolean {
  */
 function isShareBbox(bbox: readonly [number, number, number, number]): boolean {
   const [south, north, west, east] = bbox;
+  // A ten-thousandth of slack: the encoder writes corners to 4 decimals, and
+  // a span of exactly 0.01° (the smallest box worth outlining) can come back
+  // a hair under it. Same idea as the drawn-region floor in isUsableBounds.
+  const minSpan = 0.01 - 1e-4;
   if (
     !isCoord(south, 90) ||
     !isCoord(north, 90) ||
     !isCoord(west, 180) ||
     !isCoord(east, 180) ||
-    north - south < 0.01
+    north - south < minSpan
   ) {
     return false;
   }
   let lonSpan = east - west;
   if (lonSpan <= 0) lonSpan += 360;
-  return lonSpan >= 0.01 && lonSpan <= 180;
+  return lonSpan >= minSpan && lonSpan <= 180 + 1e-4;
 }
 
 function formatCoord(value: number): string {
