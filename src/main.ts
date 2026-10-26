@@ -170,6 +170,7 @@ import {
   MAX_CAMERA_DISTANCE,
   altitudeZoomDistance,
   clipPlanes,
+  easedAltitudeDistance,
   ellipsoidRadiusUnits,
   minimumCameraDistance,
   pinchAltitudeFactor,
@@ -1104,6 +1105,13 @@ function localCameraFloor(lat: number, lon: number): number {
   return terrainGlobe?.minimumDistance(lat, lon) ?? minimumCameraDistance(lat);
 }
 
+/**
+ * Where a wheel zoom is gliding to. Null once the camera has arrived.
+ * Wheel ticks stack onto this destination, so a spin is one continuous
+ * move instead of a jump, a wait for tiles, and another jump.
+ */
+let zoomTarget: number | null = null;
+
 /** Multiply altitude above the ellipsoid. `factor` < 1 zooms in. */
 function applyAltitudeZoom(factor: number): void {
   const { lat, lon } = vector3ToLatLng(camera.position);
@@ -1116,6 +1124,44 @@ function applyAltitudeZoom(factor: number): void {
   camera.position.normalize().multiplyScalar(next);
   camera.lookAt(0, 0, 0);
   controls.update();
+}
+
+/** Aim the glide at a new altitude. Reduced motion lands there immediately. */
+function queueAltitudeZoom(factor: number): void {
+  const { lat, lon } = vector3ToLatLng(camera.position);
+  const surface = ellipsoidRadiusUnits(lat);
+  const limits = {
+    min: localCameraFloor(lat, lon),
+    max: MAX_CAMERA_DISTANCE,
+  };
+  const base = zoomTarget ?? camera.position.length();
+  const next = altitudeZoomDistance(base, surface, factor, limits);
+  if (reduceMotion) {
+    zoomTarget = null;
+    camera.position.normalize().multiplyScalar(next);
+    camera.lookAt(0, 0, 0);
+    controls.update();
+    return;
+  }
+  zoomTarget = next;
+}
+
+/** Coast toward {@link zoomTarget}. The render loop calls this every frame. */
+function tickAltitudeZoom(delta: number): void {
+  if (zoomTarget == null) return;
+  const { lat, lon } = vector3ToLatLng(camera.position);
+  const surface = ellipsoidRadiusUnits(lat);
+  const floor = localCameraFloor(lat, lon);
+  zoomTarget = Math.min(MAX_CAMERA_DISTANCE, Math.max(floor, zoomTarget));
+  const step = easedAltitudeDistance(
+    camera.position.length(),
+    zoomTarget,
+    surface,
+    delta
+  );
+  camera.position.normalize().multiplyScalar(step.distance);
+  camera.lookAt(0, 0, 0);
+  if (step.settled) zoomTarget = null;
 }
 
 /** Keep the camera above the ground under it, and fit the depth planes to that. */
@@ -1213,6 +1259,7 @@ canvas.addEventListener("keydown", (e) => {
   e.preventDefault(); // arrows would otherwise scroll the page
   endFlight(); // step from wherever the flight or coast had got to
   momentum.stop();
+  zoomTarget = null; // a key zoom lands on its own step, not a leftover glide
   camera.position
     .copy(latLngToVector3(next.lat, next.lon, 1))
     .multiplyScalar(next.distance);
@@ -1356,7 +1403,7 @@ canvas.addEventListener(
     endFlight();
     if (!controls.enabled) return;
     momentum.stop();
-    applyAltitudeZoom(wheelAltitudeFactor(e.deltaY, e.deltaMode, e.ctrlKey));
+    queueAltitudeZoom(wheelAltitudeFactor(e.deltaY, e.deltaMode, e.ctrlKey));
   },
   { passive: false }
 );
@@ -1395,6 +1442,9 @@ window.addEventListener("pointermove", (e) => {
     if (pinchSpan > 0 && next > 0 && (controls.enabled || flyer.isFlying)) {
       endFlight();
       if (controls.enabled) {
+        // The fingers own the altitude. A leftover wheel glide would
+        // drag the ground away from the pinch.
+        zoomTarget = null;
         applyAltitudeZoom(pinchAltitudeFactor(pinchSpan, next));
       }
     }
@@ -3582,6 +3632,10 @@ const renderFrame = (): void => {
   timer.update();
   const delta = timer.getDelta();
   flyer.update(delta);
+  // A flight owns the camera. A wheel glide coasts only once the flight
+  // has handed it back; the controls update below adopts the new altitude.
+  if (flyer.isFlying) zoomTarget = null;
+  else tickAltitudeZoom(delta);
   const aim = vector3ToLatLng(camera.position);
   // Drag speed follows the camera altitude, so the ground under the cursor
   // tracks the drag at street-level zoom and orbit alike.
@@ -3611,7 +3665,11 @@ const renderFrame = (): void => {
   // raycast it. HD tiles are sphere patches and would hide the relief, so
   // they step aside for the drape and return to whatever the toolbar asked.
   const scienceDraped =
-    terrainGlobe?.update(compare.showing, !overlayState.has("hd")) ?? false;
+    terrainGlobe?.update(
+      compare.showing,
+      !overlayState.has("hd"),
+      zoomTarget
+    ) ?? false;
   earth.material.colorWrite = !scienceDraped;
   earth.material.depthWrite = !scienceDraped;
   if (scienceDraped) {

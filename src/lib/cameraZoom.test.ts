@@ -10,6 +10,7 @@ import {
   ellipsoidRadiusUnits,
   metresAboveEllipsoid,
   minimumCameraDistance,
+  easedAltitudeDistance,
   nadirMetresPerPixel,
   pinchAltitudeFactor,
   raySpherePoint,
@@ -121,6 +122,40 @@ describe("wheel and pinch factors", () => {
     expect(pinchAltitudeFactor(100, 200)).toBeCloseTo(0.5, 8);
     expect(pinchAltitudeFactor(200, 100)).toBeCloseTo(2, 8);
     expect(pinchAltitudeFactor(0, 100)).toBe(1);
+  });
+});
+
+describe("eased altitude zoom", () => {
+  const surface = ellipsoidRadiusUnits(29.76);
+
+  it("moves toward the destination without reaching it in one short frame", () => {
+    const step = easedAltitudeDistance(1.06, surface + 0.001, surface, 1 / 60);
+    expect(step.distance).toBeLessThan(1.06);
+    expect(step.distance).toBeGreaterThan(surface + 0.001);
+    expect(step.settled).toBe(false);
+  });
+
+  it("lands on the destination after a short glide", () => {
+    let distance = 1.06;
+    let settled = false;
+    for (let i = 0; i < 90 && !settled; i++) {
+      const step = easedAltitudeDistance(
+        distance,
+        surface + 0.001,
+        surface,
+        1 / 60
+      );
+      distance = step.distance;
+      settled = step.settled;
+    }
+    expect(settled).toBe(true);
+    expect(distance).toBeCloseTo(surface + 0.001, 6);
+  });
+
+  it("does not move when no time has passed", () => {
+    const step = easedAltitudeDistance(1.06, 1.02, surface, 0);
+    expect(step.distance).toBe(1.06);
+    expect(step.settled).toBe(false);
   });
 });
 

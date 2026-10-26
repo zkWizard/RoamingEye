@@ -14,6 +14,7 @@ import {
   WGS84_EQUATORIAL_RADIUS_M,
 } from "../lib/cameraZoom";
 import { vector3ToLatLng } from "../lib/geo";
+import { imageryRequestPriority } from "../lib/imageryPriority";
 import {
   gibsMercatorLevels,
   gibsMercatorTemplate,
@@ -39,22 +40,42 @@ const TERRAIN_SCALE = TERRAIN_SURFACE_SCALE;
 /** Esri World Imagery publishes zooms 0–19. `levels` is the count, not the max. */
 const IMAGERY_LEVELS = 20;
 /**
- * Tile downloads per server while the basemap is streaming. The library's
- * shared queue allows 25, which filled the browser's sockets and left a
- * 318-month GIBS sample unfinished at 90s. Two per origin leaves room for
- * that sample; sampling pauses the queue entirely.
+ * Tile downloads per server from orbit. The library default is 25, which
+ * crowded out a chart the visitor opened on purpose. Four is enough for a
+ * whole-Earth view; a city or a street raises it (HTTP/2 multiplexes, and
+ * the per-host cap of six only applies to HTTP/1). A chart still pauses
+ * the queue, because that sample is hundreds of requests on its own.
  */
-const STREAM_JOBS_PER_ORIGIN = 2;
+const STREAM_JOBS_PER_ORIGIN = 4;
+/** Parallel imagery fetches once the view is a city, then a street. */
+const CITY_JOBS_PER_ORIGIN = 8;
+const STREET_JOBS_PER_ORIGIN = 12;
 /**
  * Screen-space error used until the first frame measures the view. The live
  * target tightens as the camera comes down ({@link terrainErrorTarget}); 6 px
  * from orbit is what kept a whole-disc refine from running forever.
  */
 const TERRAIN_ERROR_TARGET = 6;
-/** Tiles traversed synchronously per frame, so a resize sweep stays responsive. */
-const TILES_PROCESSED_PER_FRAME = 8;
+/**
+ * Tiles traversed synchronously per frame. Orbit stays modest so a whole-disc
+ * refine cannot hitch; a close view walks the neighbourhood quickly enough
+ * that the next zoom level is requested in the same gesture.
+ */
+const TILES_PROCESSED_ORBIT = 12;
+const TILES_PROCESSED_CITY = 24;
+const TILES_PROCESSED_STREET = 36;
 /** Back off after a drape swap fails so a dead matrix does not retry every frame. */
 const SWAP_RETRY_MS = 4000;
+/**
+ * The draped month is not worth a single request once it is this faint, and
+ * it is not rebuilt until it would actually be visible again. The gap stops
+ * a camera sitting on the boundary from creating and deleting the overlay
+ * every frame.
+ */
+const SCIENCE_FADE_OUT = 0.02;
+const SCIENCE_FADE_IN = 0.08;
+/** Matches 3d-tiles-renderer's LOADING state. An in-flight tile can still be aborted. */
+const TILE_LOADING = 2;
 
 interface ScienceRequest {
   key: string;
@@ -99,6 +120,8 @@ export class TerrainGlobe {
   private retryAt = 0;
   private generation = 0;
   private sampling = false;
+  /** The science overlay was removed because the view no longer needs it. */
+  private scienceHeldBack = false;
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -112,7 +135,9 @@ export class TerrainGlobe {
       // overlay keep going to z19 once the camera is close enough to need it.
       enableTileSplitting: true,
       overlays: [
-        new XYZTilesOverlay({ url: BASE_IMAGERY_URL, levels: IMAGERY_LEVELS }),
+        this.prioritizeImagery(
+          new XYZTilesOverlay({ url: BASE_IMAGERY_URL, levels: IMAGERY_LEVELS })
+        ),
       ],
     });
     const terrain = new TerrariumMeshPlugin({
@@ -127,9 +152,12 @@ export class TerrainGlobe {
     // terrain up close, and the smaller queues keep the basemap from crowding
     // out the science fetches.
     tiles.errorTarget = TERRAIN_ERROR_TARGET;
-    tiles.maxTilesProcessed = TILES_PROCESSED_PER_FRAME;
+    tiles.maxTilesProcessed = TILES_PROCESSED_ORBIT;
     tiles.downloadQueue.maxJobsPerOrigin = STREAM_JOBS_PER_ORIGIN;
-    tiles.parseQueue.maxJobs = 1;
+    tiles.parseQueue.maxJobs = 2;
+    // Parents stay on screen while their children download, so a zoom refines
+    // a blurry photograph instead of opening a hole.
+    tiles.loadAncestors = true;
     tiles.setCamera(camera);
     tiles.setResolutionFromRenderer(camera, renderer);
     // Mesh bounds omit the GPU displacement, so three.js's own frustum test
@@ -214,7 +242,16 @@ export class TerrainGlobe {
    * sphere still steps aside in that band: it is coarser than the base, so
    * leaving it up would paint the fade back on.
    */
-  update(comparing: boolean, holdScience = false): boolean {
+  update(
+    comparing: boolean,
+    holdScience = false,
+    /**
+     * Altitude a wheel zoom is gliding toward. The fetch decision uses it so
+     * a zoom into the satellite photo does not spend the glide requesting a
+     * science overlay that will be invisible on arrival.
+     */
+    previewDistance: number | null = null
+  ): boolean {
     const distance = this.camera.position.length();
     const { lat } = vector3ToLatLng(this.camera.position);
     const altitudeM = Math.max(1, metresAboveEllipsoid(distance, lat));
@@ -237,31 +274,53 @@ export class TerrainGlobe {
       scienceReady: true,
       draped: this.scienceDraped,
     });
-    const fade = scienceOverlayOpacity({
-      altitudeMetres: altitudeM,
-      nativeMetresPerPixel:
-        this.desired?.nativeMetres ?? Number.POSITIVE_INFINITY,
-      viewportHeightPx: this.bufferSize.y,
-      fovDeg: this.camera.fov,
-      hold: holdScience,
-    });
-    // A fully faded month has nothing to download. Zooming out starts the fetch.
-    if (inBand && !this.sampling && fade > 0.02) this.scheduleSwap();
+    const fadeFor = (metres: number): number =>
+      scienceOverlayOpacity({
+        altitudeMetres: metres,
+        nativeMetresPerPixel:
+          this.desired?.nativeMetres ?? Number.POSITIVE_INFINITY,
+        viewportHeightPx: this.bufferSize.y,
+        fovDeg: this.camera.fov,
+        hold: holdScience,
+      });
+    const shown = fadeFor(altitudeM);
+    const previewMetres =
+      previewDistance == null
+        ? altitudeM
+        : Math.max(1, metresAboveEllipsoid(previewDistance, lat));
+    const fade = fadeFor(Math.min(altitudeM, previewMetres));
+    // A faded month is deleted, not merely hidden: opacity 0 still downloads.
+    if (fade <= SCIENCE_FADE_OUT) this.holdBackScience();
+    else if (inBand && !this.sampling && fade >= SCIENCE_FADE_IN) {
+      this.scheduleSwap();
+    }
 
     if (!this.sampling) {
-      // Six per origin is the browser's own per-host cap. City and street
-      // views need it; from orbit two is enough and leaves the probe room.
-      this.tiles.downloadQueue.maxJobsPerOrigin =
-        metresPerPixel < 400 ? 6 : STREAM_JOBS_PER_ORIGIN;
-      this.tiles.parseQueue.maxJobs = metresPerPixel < 80 ? 2 : 1;
+      const street = metresPerPixel < 30;
+      const city = metresPerPixel < 400;
+      this.tiles.downloadQueue.maxJobsPerOrigin = street
+        ? STREET_JOBS_PER_ORIGIN
+        : city
+          ? CITY_JOBS_PER_ORIGIN
+          : STREAM_JOBS_PER_ORIGIN;
+      this.tiles.parseQueue.maxJobs = metresPerPixel < 80 ? 4 : 2;
+      this.tiles.maxTilesProcessed = street
+        ? TILES_PROCESSED_STREET
+        : city
+          ? TILES_PROCESSED_CITY
+          : TILES_PROCESSED_ORBIT;
       this.tiles.setResolutionFromRenderer(this.camera, this.renderer);
       this.camera.updateMatrixWorld();
       this.tiles.update();
+      // A zoom that has already moved on should not keep a connection busy
+      // with the altitude it left. Queued tiles are dropped by the renderer;
+      // in-flight ones are aborted here once they are no longer on screen.
+      if (previewDistance != null) this.cancelStaleDownloads();
     }
 
     const ready = this.scienceReady && this.scienceKey === this.desired?.key;
     const draped = !comparing && inBand;
-    if (this.science) this.science.opacity = draped && ready ? fade : 0;
+    if (this.science) this.science.opacity = draped && ready ? shown : 0;
     this.scienceDraped = draped;
     return draped;
   }
@@ -277,7 +336,83 @@ export class TerrainGlobe {
     if (this.science) this.science.opacity = 0;
   }
 
+  /**
+   * Stop the science overlay from fetching. The month to drape is remembered,
+   * so zooming back out builds it again.
+   */
+  private holdBackScience(): void {
+    if (this.scienceHeldBack && !this.science) return;
+    this.scienceHeldBack = true;
+    if (!this.science && !this.swapQueued) return;
+    this.generation++;
+    const overlay = this.science;
+    this.science = null;
+    this.scienceKey = "";
+    this.scienceReady = false;
+    if (overlay) this.deleteQuietly(overlay);
+  }
+
+  /**
+   * Drop terrain tiles that are still downloading after the camera has moved
+   * past them. The renderer already forgets tiles that are only queued.
+   */
+  private cancelStaleDownloads(): void {
+    const tiles = this.tiles as unknown as {
+      loadingTiles?: Set<{ internal?: { loadingState?: number } }>;
+    };
+    const loading = tiles.loadingTiles;
+    if (!loading) return;
+    const drop: object[] = [];
+    for (const tile of loading) {
+      if (
+        tile.internal?.loadingState === TILE_LOADING &&
+        !this.tiles.lruCache.isUsed(tile)
+      ) {
+        drop.push(tile);
+      }
+    }
+    for (const tile of drop) this.tiles.lruCache.remove(tile);
+  }
+
+  /**
+   * Cache immutable tile URLs and fetch the ones under the camera first.
+   * The shared queue sorts a lower priority number first.
+   */
+  private prioritizeImagery(overlay: XYZTilesOverlay): XYZTilesOverlay {
+    const queued = overlay as unknown as {
+      fetchOptions: RequestInit;
+      downloadQueue: {
+        add: (
+          url: string,
+          item: { priority: number },
+          callback: () => Promise<Response>,
+          signal?: AbortSignal | null
+        ) => Promise<Response>;
+      };
+      fetch: (url: string, options?: RequestInit) => Promise<Response>;
+    };
+    queued.fetchOptions = { cache: "force-cache" };
+    const camera = this.camera;
+    queued.fetch = function (
+      this: { downloadQueue: (typeof queued)["downloadQueue"] },
+      url: string,
+      options: RequestInit = {}
+    ) {
+      const { lat, lon } = vector3ToLatLng(camera.position);
+      const priority = imageryRequestPriority(url, lat, lon, performance.now());
+      const request: RequestInit = { ...options, cache: "force-cache" };
+      return this.downloadQueue.add(
+        url,
+        { priority },
+        () => fetch(url, request),
+        options.signal ?? null
+      );
+    };
+    return overlay;
+  }
+
   private scheduleSwap(): void {
+    this.scienceHeldBack = false;
     const desired = this.desired;
     if (!desired) return;
     if (this.scienceReady && this.scienceKey === desired.key) return;
@@ -301,11 +436,13 @@ export class TerrainGlobe {
   ): Promise<void> {
     if (generation !== this.generation || this.desired?.key !== job.key) return;
     const previous = this.science;
-    const next = new XYZTilesOverlay({
-      url: job.url,
-      levels: job.levels,
-      opacity: 0,
-    }) as InitializableOverlay;
+    const next = this.prioritizeImagery(
+      new XYZTilesOverlay({
+        url: job.url,
+        levels: job.levels,
+        opacity: 0,
+      })
+    ) as InitializableOverlay;
     this.imageOverlays.addOverlay(next);
     try {
       await next.whenReady();
