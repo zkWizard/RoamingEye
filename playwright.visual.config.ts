@@ -16,7 +16,8 @@ export default defineConfig({
   // projects (webkit/firefox), whose own testMatch would survive the spread
   // and drag their suites into this job on engines it never installs.
   projects: base.projects?.filter((p) => p.name === "chromium"),
-  testIgnore: [],
+  // Drop the base ignore of visual.spec.ts, and keep Vitest files out.
+  testIgnore: ["**/*.test.ts"],
   testMatch: "**/visual.spec.ts",
   retries: 0,
   // Stable names (no platform suffix): the suite runs on Linux only.

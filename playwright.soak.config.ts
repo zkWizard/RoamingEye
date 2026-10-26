@@ -9,6 +9,7 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   testMatch: "**/soak.spec.ts",
+  testIgnore: ["**/*.test.ts"],
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
@@ -36,8 +37,11 @@ export default defineConfig({
     },
   ],
 
+  // Same artifact rule as the main config: CI previews the uploaded dist.
   webServer: {
-    command: "npm run build && npm run preview",
+    command: process.env.E2E_SKIP_BUILD
+      ? "npm run preview"
+      : "npm run build && npm run preview",
     url: "http://localhost:4173",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

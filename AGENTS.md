@@ -30,10 +30,16 @@ below are the non-obvious bits.
   usually upstream GIBS palette drift (or no network), **not** a code or
   environment problem, and it is not part of `verify`. CI runs it weekly.
 - `npm run test:e2e` (Playwright, `--project=chromium`) builds and previews the
-  production bundle on port **4173** and drives a headless browser. It forces
-  software WebGL (SwiftShader) via Chromium flags, so there is no GPU
-  requirement, but it does need network access to NASA GIBS. Requires the
-  Playwright Chromium browser (installed by the update script).
+  production bundle on port **4173** and drives a headless browser through the
+  full Chromium suite. `npm run test:e2e:smoke` is the required CI subset
+  (`@smoke`, pinned in `e2e/smoke-set.txt`). CI builds once and sets
+  `E2E_SKIP_BUILD=1` so Playwright only previews `dist/`; a local run still
+  builds. Both force software WebGL (SwiftShader) via Chromium flags, so
+  there is no GPU requirement, but the smoke and most of the suite need
+  network access to NASA GIBS. Requires the Playwright Chromium browser
+  (installed by the update script). The full suite is an advisory, sharded
+  workflow (`.github/workflows/e2e-full.yml`); do not put it back on the
+  required `E2E smoke (WebGL)` job.
 - Unit tests run in Node and cover pure logic only (geo/math/data/state); DOM
   and rendering code is covered by the e2e suite. See `.github/CONTRIBUTING.md`.
 

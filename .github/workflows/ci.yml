@@ -1,26 +1,35 @@
 name: CI
 
-# Runs on every PR and on pushes to main. PRs from forks run with a read-only
-# token and NO repository secrets by design — every job below is secret-free,
-# so a malicious fork PR cannot exfiltrate anything. Never switch this to
-# `pull_request_target` to "fix" missing secrets; that runs untrusted fork code
-# with write access. See CONTRIBUTING.md.
+# Runs on every PR, on pushes to main, and on merge-queue groups. The required
+# checks (Lint & format, Type-check, Unit tests, Build, E2E smoke (WebGL))
+# keep those exact names — main's ruleset looks them up by name, including
+# on merge_group once the queue is enabled.
+#
+# PRs from forks run with a read-only token and NO repository secrets by
+# design — every job below is secret-free, so a malicious fork PR cannot
+# exfiltrate anything. Never switch this to `pull_request_target` to "fix"
+# missing secrets; that runs untrusted fork code with write access. See
+# CONTRIBUTING.md.
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
+  merge_group:
   workflow_dispatch:
 
-# Least privilege: jobs get only read access to repo contents unless a specific
-# job overrides it.
+# Least privilege. `actions: write` is the cache and artifact API: setup-node's
+# npm cache and the Playwright browser cache both need it, and so do the dist
+# uploads. A job that sets its own permissions must repeat both of these.
 permissions:
   contents: read
+  actions: write
 
-# Cancel superseded runs on the same ref to save CI minutes.
+# Cancel superseded PR runs. Push, manual, and merge-queue runs are left
+# alone — cancelling a queue entry would stall the merge it was validating.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint:
@@ -28,11 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup-deps
       - run: npm run lint
       - run: npm run format:check
 
@@ -41,11 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup-deps
       - run: npm run typecheck
 
   unit:
@@ -53,46 +54,72 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup-deps
       - run: npm run test
 
   build:
     name: Build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup-deps
       - run: npm run build
+      # Every browser lane below previews this artifact instead of rebuilding.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: dist
+          retention-days: 1
+          if-no-files-found: error
 
   e2e:
     name: E2E smoke (WebGL)
+    needs: build
     runs-on: ubuntu-latest
+    # The curated critical path (e2e/smoke-set.txt) should finish in about
+    # five minutes. Eight is the cap: a run that grows back into the full
+    # suite fails here instead of blocking the queue for half an hour.
+    timeout-minutes: 8
+    permissions:
+      contents: read
+      actions: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: ./.github/actions/setup-deps
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - name: Install Playwright (Chromium)
-        run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+          name: dist
+          path: dist
+      - name: Require the prebuilt app
+        run: test -f dist/index.html
+      - uses: ./.github/actions/playwright-browser
+        with:
+          browser: chromium
+      # @smoke only. The full Chromium suite is the advisory workflow
+      # e2e-full.yml, sharded, and is not a required check.
+      - run: npm run test:e2e:smoke
+        env:
+          E2E_SKIP_BUILD: "1"
+      - name: Upload trace on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-smoke-report
+          path: test-results/
+          retention-days: 14
 
   e2e-webkit:
     name: E2E WebKit (advisory)
-    # Keep experimental cross-engine signal off PRs. At backlog scale this
-    # lane consumed runners and painted otherwise mergeable PRs red despite
-    # being explicitly non-gating. It still runs after every merge and can be
-    # invoked manually while its WebGL reliability is improved.
-    if: github.event_name != 'pull_request'
+    # Keep experimental cross-engine signal off PRs and off the merge queue.
+    # At backlog scale this lane consumed runners and painted otherwise
+    # mergeable PRs red despite being explicitly non-gating. It still runs
+    # after every merge and can be invoked manually while its WebGL
+    # reliability is improved.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: build
     runs-on: ubuntu-latest
     # Advisory first, like visual/soak at introduction: WebGL support in
     # headless non-Chromium engines varies on CI runners, so the lane earns
@@ -104,16 +131,24 @@ jobs:
     # the Firefox lane's first run, #198) — cap the burn; healthy runs
     # finish in ~10 min.
     timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: ./.github/actions/setup-deps
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - name: Install Playwright (WebKit)
-        run: npx playwright install --with-deps webkit
+          name: dist
+          path: dist
+      - name: Require the prebuilt app
+        run: test -f dist/index.html
+      - uses: ./.github/actions/playwright-browser
+        with:
+          browser: webkit
       - run: npx playwright test --project=webkit
+        env:
+          E2E_SKIP_BUILD: "1"
       - name: Upload trace on failure
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -124,20 +159,29 @@ jobs:
 
   e2e-firefox:
     name: E2E Firefox (advisory)
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: build
     runs-on: ubuntu-latest
     continue-on-error: true
     timeout-minutes: 20 # see the WebKit lane's note (#198)
+    permissions:
+      contents: read
+      actions: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: ./.github/actions/setup-deps
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - name: Install Playwright (Firefox)
-        run: npx playwright install --with-deps firefox
+          name: dist
+          path: dist
+      - name: Require the prebuilt app
+        run: test -f dist/index.html
+      - uses: ./.github/actions/playwright-browser
+        with:
+          browser: firefox
       - run: npx playwright test --project=firefox
+        env:
+          E2E_SKIP_BUILD: "1"
       - name: Upload trace on failure
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -148,22 +192,31 @@ jobs:
 
   visual:
     name: Visual regression (advisory)
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: build
     runs-on: ubuntu-latest
     # Advisory by design (the roadmap's own wording): a visual diff posts
     # its report artifact but never blocks a merge. Screenshot gates earn
     # trust before they gate.
     continue-on-error: true
+    permissions:
+      contents: read
+      actions: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: ./.github/actions/setup-deps
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - name: Install Playwright (Chromium)
-        run: npx playwright install --with-deps chromium
+          name: dist
+          path: dist
+      - name: Require the prebuilt app
+        run: test -f dist/index.html
+      - uses: ./.github/actions/playwright-browser
+        with:
+          browser: chromium
       - run: npx playwright test --config playwright.visual.config.ts
+        env:
+          E2E_SKIP_BUILD: "1"
       - name: Upload diff report
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -174,21 +227,30 @@ jobs:
 
   soak:
     name: Long-session soak (advisory)
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: build
     runs-on: ubuntu-latest
     # Advisory like visual regression was at introduction: a leak canary
     # measures its own flakiness before it gates. Promote once quiet.
     continue-on-error: true
+    permissions:
+      contents: read
+      actions: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: ./.github/actions/setup-deps
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - name: Install Playwright (Chromium)
-        run: npx playwright install --with-deps chromium
+          name: dist
+          path: dist
+      - name: Require the prebuilt app
+        run: test -f dist/index.html
+      - uses: ./.github/actions/playwright-browser
+        with:
+          browser: chromium
       - run: npx playwright test --config playwright.soak.config.ts
+        env:
+          E2E_SKIP_BUILD: "1"
       - name: Upload trace on failure
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -202,11 +264,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
+      - uses: ./.github/actions/setup-deps
       # Fails only on high/critical advisories to avoid blocking PRs on noise.
       - run: npm audit --audit-level=high
 
@@ -222,7 +280,8 @@ jobs:
       # Every lockfile entry must resolve to registry.npmjs.org over HTTPS
       # with an integrity hash — a poisoned lockfile edit (mirror host,
       # http:// downgrade) fails here, because humans don't read 10k-line
-      # lockfile diffs. Tool versions pinned for determinism.
+      # lockfile diffs. Tool versions pinned for determinism. This runs
+      # BEFORE npm ci so a poisoned lockfile is rejected before install.
       - name: Lockfile host/protocol/integrity lint
         run: npx --yes lockfile-lint@4.14.1 --path package-lock.json --allowed-hosts npm --validate-https --validate-integrity
       - run: npm ci

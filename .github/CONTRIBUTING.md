@@ -49,27 +49,37 @@ npm run dev        # start the local dev server (http://localhost:5173)
 
 ### Useful scripts
 
-| Script                | What it does                                                    |
-| --------------------- | --------------------------------------------------------------- |
-| `npm run dev`         | Start the Vite dev server with hot reload                       |
-| `npm run build`       | Type-check (`tsc`) **and** build the production bundle          |
-| `npm run typecheck`   | Type-check only (Vite does **not** type-check on build)         |
-| `npm run lint`        | Run ESLint                                                      |
-| `npm run format`      | Auto-format with Prettier                                       |
-| `npm run test`        | Run unit tests (Vitest)                                         |
-| `npm run test:e2e`    | Run the Playwright browser smoke tests                          |
-| `npm run verify`      | All CI checks except e2e (typecheck, lint, format, unit, build) |
-| `npm run verify:full` | `verify` plus the Playwright e2e suite — the full CI mirror     |
+| Script                   | What it does                                                             |
+| ------------------------ | ------------------------------------------------------------------------ |
+| `npm run dev`            | Start the Vite dev server with hot reload                                |
+| `npm run build`          | Type-check (`tsc`) **and** build the production bundle                   |
+| `npm run typecheck`      | Type-check only (Vite does **not** type-check on build)                  |
+| `npm run lint`           | Run ESLint                                                               |
+| `npm run format`         | Auto-format with Prettier                                                |
+| `npm run test`           | Run unit tests (Vitest)                                                  |
+| `npm run test:e2e:smoke` | The required CI smoke: boot, globe, search, panel, timeline, phone       |
+| `npm run test:e2e`       | The full Playwright Chromium suite (advisory in CI, not the merge gate)  |
+| `npm run verify`         | All required CI checks except e2e (typecheck, lint, format, unit, build) |
+| `npm run verify:full`    | `verify` plus the full Playwright e2e suite                              |
 
 Before opening a PR, please run **`npm run verify`** locally — these are the
-same checks CI runs. Every PR then runs the full suite on GitHub Actions
-(`.github/workflows/ci.yml` — type-check, lint/format, unit, build, plus CodeQL,
-OpenSSF Scorecard, and the WebGL e2e smoke tests); a maintainer merges once it's
-approved and the required checks are green.
+fast required checks. Every PR then runs them on GitHub Actions
+(`.github/workflows/ci.yml` — type-check, lint/format, unit, build, plus CodeQL
+and OpenSSF Scorecard) along with a short **E2E smoke (WebGL)** job. That job
+keeps its name because branch protection requires it. It runs only the critical
+path tagged `@smoke` and listed in [`e2e/smoke-set.txt`](../e2e/smoke-set.txt):
+the app boots and the globe renders, search works, the layer menu and overlay
+panel work, the timeline steps, and the phone sheet opens. Adding or removing
+a `@smoke` tag without updating that list fails the unit tests.
 
-A red **E2E smoke (WebGL)** check is sometimes flaky rather than a real failure —
-if it fails and your change doesn't touch rendering, say so in the PR and a
-maintainer will re-run it.
+The rest of the Chromium suite still runs on every PR, on every push to main,
+and nightly (`.github/workflows/e2e-full.yml`), sharded across six runners. It
+is **advisory**: a failure is visible and fails the run on main, and a nightly
+failure opens an issue, but it is not a required check and does not block
+merge. Firefox, WebKit, visual regression, and the long-session soak stay
+advisory and still run after merge.
+
+A maintainer merges once the PR is approved and the required checks are green.
 
 ### The bundle budget — read this before adding code to the app
 
@@ -196,9 +206,10 @@ into pure functions so it's testable.
 
 **Don't unit-test:** actual GPU rendering, shader output, or how a material
 looks — there's no meaningful "unit" and no GPU in the test runner. Those are
-covered by the **e2e smoke tests** ([`e2e/`](../e2e/)), which assert the things
-that actually break a 3D app: the page loads, a sized `<canvas>` exists, a WebGL
-context is acquired, and nothing throws to the console.
+covered by the **e2e tests** ([`e2e/`](../e2e/)). The required gate is the
+`@smoke` subset; the rest of the folder runs as an advisory suite. Both assert
+the things that actually break a 3D app: the page loads, a sized `<canvas>`
+exists, a WebGL context is acquired, and nothing throws to the console.
 
 > **Note on WebGL in CI:** browsers in CI have no real GPU and fall back to
 > software rendering (SwiftShader), which is slower and pixel-different from real

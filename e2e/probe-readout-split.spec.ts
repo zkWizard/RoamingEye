@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { awaitAppInteractive } from "./boot";
+import { fulfillImageryLocally } from "./gibs-fixture";
 
 /**
  * The settled probe readout is two paragraphs, and only the first is spoken.
@@ -30,11 +31,16 @@ import { awaitAppInteractive } from "./boot";
  * split is actually exercised. Enter probes the camera's subpoint (see the
  * canvas keydown handler in main.ts), so the hash aims the probe.
  *
- * Reaching a settled readout samples the layer's whole record. A full Amazon
- * NDVI series is about a minute locally and longer on the software-GL runner,
- * which is also streaming the terrain basemap, so the wait sits well above
- * that. The split only exists on a finished record, and there is no shorter
- * route.
+ * Reaching a settled readout samples the layer's whole record. Live GIBS,
+ * competing with the terrain mesh for sockets, took about a minute locally
+ * and blew the 90s and 180s CI budgets. The imagery is served from a
+ * legend-green fixture instead (e2e/gibs-fixture.ts): the split only exists
+ * on a finished record, and the record no longer depends on NASA being fast.
+ * A full fixture-backed record settles in about 35s (the sampler still walks
+ * every month on the main thread); the poll below allows 60s and the test
+ * 90s, which is the ceiling rather than the runtime. The Amazon aim stays,
+ * so removing the fixture falls through to open-ocean no-data and fails here
+ * rather than passing on an empty line.
  *
  * Taller than the 1280x720 default for the reason probe-progress-announce and
  * probe-keyboard are: at 720 the bottom HUD covers the middle of the view,
@@ -42,7 +48,7 @@ import { awaitAppInteractive } from "./boot";
  */
 
 test.use({ viewport: { width: 1280, height: 900 } });
-test.setTimeout(210_000);
+test.setTimeout(90_000);
 
 /** Dense evergreen canopy: a full record on every sampled month. */
 const AMAZON = "/#layer=ndvi&lat=-3.00&lon=-60.00&alt=1.80";
@@ -52,6 +58,7 @@ const READING = /^\d+ of \d+ months\b/;
 test("the reading is announced alone; its qualifications are not a live region", async ({
   page,
 }) => {
+  await fulfillImageryLocally(page);
   await page.goto(AMAZON);
   await awaitAppInteractive(page);
 
@@ -77,7 +84,7 @@ test("the reading is announced alone; its qualifications are not a live region",
         const text = ((await status.textContent()) ?? "").trim();
         return text === "" || /^Sampling/.test(text) ? "pending" : "settled";
       },
-      { message: "the probe never settled", timeout: 180_000 }
+      { message: "the probe never settled", timeout: 60_000 }
     )
     .toBe("settled");
 

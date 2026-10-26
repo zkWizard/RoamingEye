@@ -1,0 +1,11 @@
+name: Setup Node dependencies
+description: Install Node 20 and npm dependencies, using the setup-node npm cache.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: 20
+        cache: npm
+    - shell: bash
+      run: npm ci
