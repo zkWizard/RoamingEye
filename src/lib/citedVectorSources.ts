@@ -136,7 +136,12 @@ export function citedVectorSources(): VectorSourceCitation[] {
       publisher: NATURAL_EARTH_SOURCE.org,
       type: "dataset",
       url: NATURAL_EARTH_SOURCE.url,
-      usedBy: ["Borders overlay", "Cities overlay", "Place and region names"],
+      usedBy: [
+        "Borders overlay",
+        "Cities overlay",
+        "Place and region names",
+        "Time zones overlay",
+      ],
       // Natural Earth issues numbered releases, but prepare-data.mjs fetches an
       // unpinned branch of the mirror, so this repo does not know which one the
       // shipped extract came from. No version is emitted rather than a guessed

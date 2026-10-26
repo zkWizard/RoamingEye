@@ -1,11 +1,12 @@
 /**
  * Provenance for the Natural Earth vector data the globe draws.
  *
- * Three of the bundled files come from one public-domain collection: the
- * national borders, the admin-1 regions behind the hover readout's
- * "Ontario, Canada", and the populated places the cities overlay labels.
- * They are three themes of a single work, so they are cited once, the way
- * Natural Earth itself asks to be credited.
+ * The bundled files come from one public-domain collection: the national
+ * borders, the admin-1 regions behind the hover readout's "Ontario, Canada"
+ * (and the state lines the borders overlay draws from that same theme), the
+ * populated places the cities overlay labels, and the time-zone boundaries.
+ * They are themes of a single work, so they are cited once, the way Natural
+ * Earth itself asks to be credited.
  *
  * The one field this source cannot supply is a version. `scripts/prepare-data.mjs`
  * fetches the GeoJSON from the `master` branch of the natural-earth-vector
@@ -28,11 +29,15 @@ export const NATURAL_EARTH_SOURCE = {
     "ne_110m_admin_0_countries",
     "ne_10m_admin_1_states_provinces",
     "ne_110m_populated_places_simple",
+    "ne_10m_time_zones",
   ],
   preparedBy: "scripts/prepare-data.mjs",
   localFiles: [
     "public/data/countries.geojson",
     "public/data/admin1.geojson",
+    "public/data/admin1-lines.json",
+    "public/data/admin1-detail.json",
     "public/data/cities.json",
+    "public/data/time-zones.json",
   ],
 } as const;

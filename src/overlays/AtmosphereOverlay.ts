@@ -8,7 +8,9 @@ import { GLOBE_RADIUS, type MapOverlay } from "./types";
  */
 export class AtmosphereOverlay implements MapOverlay {
   readonly id = "atmosphere";
-  readonly label = "Atmosphere";
+  readonly label = "Atmosphere glow";
+  readonly detail = "A soft blue edge around the globe";
+  readonly group = "settings" as const;
   readonly icon = ICONS.atmosphere;
   readonly object: THREE.Mesh;
   readonly defaultOn = true;
