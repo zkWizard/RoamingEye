@@ -9,7 +9,7 @@ const OVERLAY_IDS = new Set([
   "borders",
   "cities",
   "quakes",
-  "graticule",
+  "timezones",
   "plates",
   "hd",
   "volcanoes",

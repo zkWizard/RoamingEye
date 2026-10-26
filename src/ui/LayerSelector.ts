@@ -1,3 +1,4 @@
+import { layerAdvancedLine, plainLayerName } from "../lib/plainLanguage";
 import { LAYERS, layersByCategory, type LayerId } from "../lib/timeline";
 
 /**
@@ -40,10 +41,14 @@ export class LayerSelector {
 
     this.panel = document.createElement("div");
     this.panel.className = "layer-selector__panel";
-    this.panel.setAttribute("role", "listbox");
+    // The listbox is only the choices. The Advanced fold sits beside it in
+    // the same dropdown, and a listbox may not contain a disclosure.
+    const list = document.createElement("div");
+    list.className = "layer-selector__list";
+    list.setAttribute("role", "listbox");
     // A role=listbox is an ARIA input and must carry an accessible name
     // (WCAG 4.1.2) — the first violation the axe gate caught.
-    this.panel.setAttribute("aria-label", "Data layer");
+    list.setAttribute("aria-label", "Data layer");
     for (const { category, ids } of layersByCategory()) {
       const group = document.createElement("div");
       group.className = "layer-selector__group";
@@ -58,7 +63,7 @@ export class LayerSelector {
         option.setAttribute("role", "option");
         const name = document.createElement("span");
         name.className = "layer-selector__option-name";
-        name.textContent = LAYERS[id].label;
+        name.textContent = plainLayerName(id);
         // The layer's caption is its instrument and its qualifier — "not a
         // monthly mean", "not root zone" — and `.legend__caption` drops it
         // below 541px wide, where the HUD has no room for it. `title` was the
@@ -84,14 +89,16 @@ export class LayerSelector {
         this.optionOrder.push(option);
         group.appendChild(option);
       }
-      this.panel.appendChild(group);
+      list.appendChild(group);
     }
+    this.panel.appendChild(list);
+    this.panel.appendChild(this.buildAdvanced());
     container.appendChild(this.panel);
 
     this.trigger.addEventListener("click", () => this.toggle());
     // Listbox keyboard support: arrows move focus (wrapping), Home/End jump;
     // Enter/Space activate natively (the options are buttons), Esc closes.
-    this.panel.addEventListener("keydown", (e) => {
+    list.addEventListener("keydown", (e) => {
       const current = this.optionOrder.indexOf(
         document.activeElement as HTMLButtonElement
       );
@@ -158,10 +165,31 @@ export class LayerSelector {
   /** Show a layer as chosen without firing onChange (the app switched it). */
   select(id: LayerId): void {
     this.selected = id;
-    this.current.textContent = LAYERS[id].label;
+    this.current.textContent = plainLayerName(id);
     for (const [optionId, button] of this.options) {
       button.setAttribute("aria-selected", String(optionId === id));
     }
     this.container.dataset.category = LAYERS[id].category;
+  }
+
+  /** Scientific names and dataset ids, folded away from the choice itself. */
+  private buildAdvanced(): HTMLElement {
+    const fold = document.createElement("details");
+    fold.className = "layer-selector__advanced";
+    const summary = document.createElement("summary");
+    summary.textContent = "Advanced";
+    fold.appendChild(summary);
+    for (const { ids } of layersByCategory()) {
+      for (const id of ids) {
+        const line = document.createElement("p");
+        line.className = "layer-selector__advanced-line";
+        const plain = document.createElement("span");
+        plain.className = "layer-selector__advanced-plain";
+        plain.textContent = plainLayerName(id);
+        line.append(plain, ` — ${layerAdvancedLine(LAYERS[id])}`);
+        fold.appendChild(line);
+      }
+    }
+    return fold;
   }
 }
