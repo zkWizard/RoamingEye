@@ -135,7 +135,7 @@ import { TiledImageryOverlay } from "./overlays/TiledImageryOverlay";
 import { TimeZonesOverlay } from "./overlays/TimeZonesOverlay";
 import { plainLayerName } from "./lib/plainLanguage";
 import type { ViewCard } from "./ui/viewCards";
-import { TerrainGlobe } from "./scene/TerrainGlobe";
+import type { TerrainGlobe } from "./scene/TerrainGlobe";
 import { CameraFlyer } from "./scene/CameraFlyer";
 import { GlobeMomentum } from "./scene/GlobeMomentum";
 import { LocationHighlight } from "./scene/LocationHighlight";
@@ -303,25 +303,38 @@ if (themeEl) {
 }
 
 // --- Earth ------------------------------------------------------------------
-// Satellite imagery over streamed terrain; the science layer is drawn on top.
-const terrainGlobe = new TerrainGlobe(camera, renderer, EARTH_RADIUS);
-scene.add(terrainGlobe.object);
-
-// The science layer. Transparent, so oceans and no-data areas show the
-// satellite globe underneath instead of a dark fill. Hidden until its first
-// texture arrives (an untextured sphere would paint the planet white); it
-// still serves as the raycast target for hover, probe and region drawing.
+// The science layer. A transparent PNG, so oceans and no-data show whatever
+// is behind the sphere instead of a dark fill. The dark colour holds only
+// until the first composite arrives (GlobeTextureManager tints it white).
+// The mesh stays the raycast target for hover, probe, and region drawing
+// even when a close view stops it drawing (see TerrainGlobe).
 const earth = new THREE.Mesh(
   new THREE.SphereGeometry(EARTH_RADIUS, 96, 96),
   new THREE.MeshStandardMaterial({
-    color: 0xffffff,
+    color: 0x111418,
     roughness: 1,
     metalness: 0,
     transparent: true,
-    visible: false,
   })
 );
 scene.add(earth);
+
+// Satellite imagery over streamed terrain, loaded off the first-paint path.
+// From orbit it shows through the science sphere; up close it carries the
+// month itself and the sphere stops drawing.
+let terrainGlobe: TerrainGlobe | null = null;
+let terrainView: { layer: LayerConfig; ym: YearMonth } | null = null;
+void import("./scene/TerrainGlobe")
+  .then(({ TerrainGlobe: Terrain }) => {
+    terrainGlobe = new Terrain(camera, renderer, EARTH_RADIUS);
+    scene.add(terrainGlobe.object);
+    if (terrainView) {
+      terrainGlobe.setScience(terrainView.layer, terrainView.ym);
+    }
+  })
+  .catch((err: unknown) => {
+    console.warn("RoamingEye: terrain globe failed to load", err);
+  });
 
 // --- Map overlays (toolbar-toggleable) --------------------------------------
 // Tiled streaming (RFC-001, on by default): re-drapes the visible globe with
@@ -529,8 +542,12 @@ retryBtn.addEventListener("click", () => refreshGlobe());
 
 function refreshGlobe(): void {
   retryBtn.hidden = true;
-  textures.show(LAYERS[currentLayer], months[currentIndex]);
-  hdTiles.setView(LAYERS[currentLayer], months[currentIndex]);
+  const layer = LAYERS[currentLayer];
+  const ym = months[currentIndex];
+  textures.show(layer, ym);
+  hdTiles.setView(layer, ym);
+  terrainView = { layer, ym };
+  terrainGlobe?.setScience(layer, ym);
   updateProvenance();
 }
 
@@ -3005,6 +3022,9 @@ function adaptResolution(now: number): void {
 }
 
 // --- Render loop ------------------------------------------------------------
+// Set while a close view has hidden the HD-tile patches so the terrain drape
+// can show. Cleared by restoring the toolbar's own on/off choice.
+let hdHeldForDrape = false;
 const timer = new THREE.Timer();
 let signalledReady = false;
 let wasFlying = false;
@@ -3028,8 +3048,20 @@ const renderFrame = (): void => {
   wasFlying = flyer.isFlying;
   highlight.update(camera.position.length()); // keep the marker a constant size
   for (const overlay of overlays) overlay.update?.(camera, window.innerHeight);
-  earth.material.visible = earth.material.map !== null;
-  terrainGlobe.update();
+  // Up close the month is draped on the terrain, so the sphere must not
+  // cover it. It stays in the scene: hover, probe, and region drawing
+  // raycast it. HD tiles are sphere patches and would hide the relief, so
+  // they step aside for the drape and return to whatever the toolbar asked.
+  const scienceDraped = terrainGlobe?.update(compare.showing) ?? false;
+  earth.material.colorWrite = !scienceDraped;
+  earth.material.depthWrite = !scienceDraped;
+  if (scienceDraped) {
+    hdTiles.object.visible = false;
+    hdHeldForDrape = true;
+  } else if (hdHeldForDrape) {
+    hdTiles.object.visible = overlayState.has("hd");
+    hdHeldForDrape = false;
+  }
   // HD tiles only ever stream the live month, so a comparison suppresses them
   // on both sides and both months render from their own full-globe texture —
   // a like-for-like split (see CompareController.renderSplit).
