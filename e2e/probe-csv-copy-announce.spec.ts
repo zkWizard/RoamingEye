@@ -26,10 +26,10 @@ import { fulfillImageryLocally } from "./gibs-fixture";
  * buy nothing but a second wait. The series itself is sampled from the local
  * imagery fixture (e2e/gibs-fixture.ts), not live GIBS — a full record used
  * to take ~30s and time out at 90s, then 150s, whenever the terrain mesh
- * filled the browser's sockets. With the fixture the copy button enables in
- * about 35s; 60s is the wait and 90s is the test ceiling. The viewport is
- * taller than the 1280x720 default for the reason probe-keyboard.spec.ts is:
- * at 720 the bottom HUD
+ * filled the browser's sockets. With the fixture a GitHub runner still spends
+ * a little over a minute walking every month; 2 minutes is the wait and 3
+ * minutes is the test ceiling. The viewport is taller than the 1280x720
+ * default for the reason probe-keyboard.spec.ts is: at 720 the bottom HUD
  * covers the middle of the window, which is the aim Enter charts.
  */
 
@@ -37,7 +37,7 @@ test.use({
   viewport: { width: 1280, height: 900 },
   permissions: ["clipboard-read", "clipboard-write"],
 });
-test.setTimeout(90_000);
+test.setTimeout(180_000);
 
 test("both outcomes of the probe CSV copy are spoken", async ({ page }) => {
   // NDVI rather than the boot default: the CSV enables only once a numeric
@@ -59,7 +59,7 @@ test("both outcomes of the probe CSV copy are spoken", async ({ page }) => {
   // rather than silently testing the wrong button.
   const download = page.locator(".probe__footer button").nth(0);
   const copy = page.locator(".probe__footer button").nth(1);
-  await expect(copy).toBeEnabled({ timeout: 60_000 });
+  await expect(copy).toBeEnabled({ timeout: 120_000 });
   await expect(download).toHaveText("Download CSV");
   await expect(copy).toHaveText("Copy CSV");
 

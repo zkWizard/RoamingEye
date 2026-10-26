@@ -36,11 +36,11 @@ import { fulfillImageryLocally } from "./gibs-fixture";
  * and blew the 90s and 180s CI budgets. The imagery is served from a
  * legend-green fixture instead (e2e/gibs-fixture.ts): the split only exists
  * on a finished record, and the record no longer depends on NASA being fast.
- * A full fixture-backed record settles in about 35s (the sampler still walks
- * every month on the main thread); the poll below allows 60s and the test
- * 90s, which is the ceiling rather than the runtime. The Amazon aim stays,
- * so removing the fixture falls through to open-ocean no-data and fails here
- * rather than passing on an empty line.
+ * The sampler still walks every month. A GitHub runner finishes that walk in
+ * a little over a minute (about five samples a second); the poll allows two
+ * minutes and the test three, which is the ceiling rather than the runtime.
+ * The Amazon aim stays, so removing the fixture falls through to open-ocean
+ * no-data and fails here rather than passing on an empty line.
  *
  * Taller than the 1280x720 default for the reason probe-progress-announce and
  * probe-keyboard are: at 720 the bottom HUD covers the middle of the view,
@@ -48,7 +48,7 @@ import { fulfillImageryLocally } from "./gibs-fixture";
  */
 
 test.use({ viewport: { width: 1280, height: 900 } });
-test.setTimeout(90_000);
+test.setTimeout(180_000);
 
 /** Dense evergreen canopy: a full record on every sampled month. */
 const AMAZON = "/#layer=ndvi&lat=-3.00&lon=-60.00&alt=1.80";
@@ -84,7 +84,7 @@ test("the reading is announced alone; its qualifications are not a live region",
         const text = ((await status.textContent()) ?? "").trim();
         return text === "" || /^Sampling/.test(text) ? "pending" : "settled";
       },
-      { message: "the probe never settled", timeout: 60_000 }
+      { message: "the probe never settled", timeout: 120_000 }
     )
     .toBe("settled");
 
