@@ -152,6 +152,21 @@ describe("gibsWmsUrl", () => {
     expect(url).toContain("WIDTH=1024");
     expect(url).toContain("HEIGHT=512");
   });
+
+  it("can ask for a transparent PNG so no-data does not paint the oceans black", () => {
+    const url = gibsWmsUrl(
+      LAYERS.ndvi,
+      { year: 2021, month: 6 },
+      { format: "image/png", transparent: true }
+    );
+    expect(url).toContain("FORMAT=image%2Fpng");
+    expect(url).toContain("TRANSPARENT=TRUE");
+  });
+
+  it("leaves no-data opaque unless transparency is requested", () => {
+    const url = gibsWmsUrl(LAYERS.ndvi, { year: 2021, month: 6 });
+    expect(url).not.toContain("TRANSPARENT");
+  });
 });
 
 describe("monthRangeForLayer", () => {

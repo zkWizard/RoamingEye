@@ -284,6 +284,15 @@ export class GlobeTextureManager {
   }
 
   private apply(texture: THREE.Texture): void {
+    // Mipmaps are generated when a texture is actually shown, not when it is
+    // prefetched. A minified monthly colormap (land temperature especially)
+    // shimmers without them, and an unshown preview should not pay for a
+    // chain it may never display.
+    if (!texture.generateMipmaps) {
+      texture.generateMipmaps = true;
+      texture.minFilter = THREE.LinearMipmapLinearFilter;
+      texture.needsUpdate = true;
+    }
     this.material.map = texture;
     this.material.color.set(0xffffff);
     this.material.needsUpdate = true;
@@ -292,12 +301,14 @@ export class GlobeTextureManager {
   private prep(texture: THREE.Texture, isPreview: boolean): void {
     texture.colorSpace = THREE.SRGBColorSpace;
     if (isPreview) {
-      // The preview cache holds up to previewCacheSize of these — skip
-      // mipmaps to keep each one cheap.
+      // Stay cheap in the cache. apply() builds the mip chain once this
+      // texture is actually on the globe.
       texture.generateMipmaps = false;
       texture.minFilter = THREE.LinearFilter;
     } else {
       texture.anisotropy = this.anisotropy; // crisp limb on the settled month
+      texture.generateMipmaps = true;
+      texture.minFilter = THREE.LinearMipmapLinearFilter;
     }
   }
 

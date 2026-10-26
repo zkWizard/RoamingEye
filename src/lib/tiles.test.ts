@@ -12,6 +12,9 @@ import {
   visibleArcDegrees,
   tilesInView,
   gibsWmtsTileUrl,
+  gibsMercatorLevels,
+  gibsMercatorTemplate,
+  gibsMercatorZoom,
   centralAngleRad,
   angleToTileRad,
   selectLodTiles,
@@ -437,6 +440,35 @@ describe("gibsWmtsTileUrl", () => {
       )
     ).toBe(
       "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/ASTER_GDEM_Color_Shaded_Relief/default/31.25m/2/1/2.jpg"
+    );
+  });
+});
+
+describe("gibsMercatorTemplate", () => {
+  it("matches the 1 km NDVI matrix to GoogleMapsCompatible_Level7", () => {
+    const wmts = { set: "1km", maxLevel: 6, ext: "png" as const };
+    expect(gibsMercatorZoom(wmts)).toBe(7);
+    expect(gibsMercatorLevels(wmts)).toBe(8);
+    expect(
+      gibsMercatorTemplate("MODIS_Terra_L3_NDVI_Monthly", "2024-06-01", wmts)
+    ).toBe(
+      "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_L3_NDVI_Monthly/default/2024-06-01/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png"
+    );
+  });
+
+  it("matches the 2 km land-temperature matrix to Level6", () => {
+    expect(gibsMercatorZoom({ set: "2km", maxLevel: 5, ext: "png" })).toBe(6);
+  });
+
+  it("omits the time segment for a static layer and still requests PNG", () => {
+    expect(
+      gibsMercatorTemplate("ASTER_GDEM_Color_Shaded_Relief", null, {
+        set: "31.25m",
+        maxLevel: 11,
+        ext: "jpg",
+      })
+    ).toBe(
+      "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/ASTER_GDEM_Color_Shaded_Relief/default/GoogleMapsCompatible_Level12/{z}/{y}/{x}.png"
     );
   });
 });

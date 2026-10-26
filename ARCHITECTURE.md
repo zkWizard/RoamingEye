@@ -186,7 +186,7 @@ ok/FAIL word rather than assuming either way. See
 
 ### `src/scene/`
 
-- `TerrainGlobe.ts` — the streamed photographic globe (3DTilesRendererJS): Esri World Imagery draped over AWS Terrarium terrain, drawn beneath the science layer.
+- `TerrainGlobe.ts` — the streamed photographic globe (3DTilesRendererJS): Esri World Imagery over AWS Terrarium terrain. From orbit it sits beneath the science sphere; up close the same NASA month is draped on the mesh so the relief and the coastline agree.
 - `CameraFlyer.ts` — eased camera animation to a lat/lon, handing back to OrbitControls.
 - `LocationHighlight.ts` — search-result boundary outline + constant-size marker.
 - `HoverInspector.ts` — raycasts the globe to drive the coordinate/country readout.
@@ -216,12 +216,16 @@ The globe is a static unit sphere at the origin; **the camera orbits it**
 (OrbitControls), so overlays placed in world space stay aligned with the
 imagery. Underneath it, `TerrainGlobe` streams satellite imagery over real
 terrain, scaled to 0.996 of the unit radius so even Everest stays below the
-science sphere; the science layer (GIBS PNG with transparent no-data) and HD
-tiles are drawn semi-transparently on top, so oceans and gaps show the planet
-instead of black. `3d-tiles-renderer` resolves to its sources (see
-`vite.config.ts`) so the fixes in `patches/` apply. Overlays and the study patch sit at slightly increasing radii
-(1.001–1.004) to layer cleanly above the base without z-fighting; the camera's
-near plane is small (0.01) so you can get right down to the surface.
+science sphere. The science layer is a GIBS PNG with transparent no-data, so
+from orbit oceans and gaps show the planet instead of black. Inside roughly
+0.7 radii of the surface (and away from the poles) that same month is draped
+on the terrain mesh and the sphere stops drawing, which is what makes a
+close view show relief instead of a smooth shell. Compare, probe, hover, and
+region drawing keep using the sphere. `3d-tiles-renderer` resolves to its
+sources (see `vite.config.ts`) so the fixes in `patches/` apply. Overlays and
+the study patch sit at slightly increasing radii (1.001–1.004) to layer
+cleanly above the base without z-fighting; the camera's near plane is small
+(0.01) so you can get right down to the surface.
 
 ## Testing
 

@@ -499,3 +499,41 @@ export function gibsWmtsTileUrl(
   ];
   return `https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/${segments.join("/")}.${wmts.ext}`;
 }
+
+/** Equatorial metres per pixel of a Web Mercator zoom-0, 256px tile. */
+const MERCATOR_Z0_M_PER_PX = 156543.03392804097;
+/** Mean metres per degree used only to match GIBS ground resolution to a zoom. */
+const M_PER_DEG = 111319.490793;
+
+/**
+ * Deepest Web Mercator zoom whose equator resolution is nearest this GIBS
+ * matrix. GIBS names that slippy pyramid `GoogleMapsCompatible_Level{N}`;
+ * an overlay's `levels` count is N + 1 ({@link gibsMercatorLevels}) so it
+ * never requests a zoom the matrix does not publish.
+ */
+export function gibsMercatorZoom(wmts: WmtsConfig): number {
+  const metresPerPixel = degreesPerPixel(wmts.maxLevel) * M_PER_DEG;
+  const zoom = Math.round(Math.log2(MERCATOR_Z0_M_PER_PX / metresPerPixel));
+  return Math.max(0, Math.min(19, zoom));
+}
+
+/** `levels` argument for a slippy overlay of {@link gibsMercatorZoom}. */
+export function gibsMercatorLevels(wmts: WmtsConfig): number {
+  return gibsMercatorZoom(wmts) + 1;
+}
+
+/**
+ * Slippy-map template for a GIBS layer in Web Mercator. Always PNG: the
+ * palette carries a transparency chunk, so no-data stays see-through when the
+ * tile is draped on the satellite base. The geographic WMTS `ext` is a
+ * different matrix and is not reused here.
+ */
+export function gibsMercatorTemplate(
+  gibsLayerId: string,
+  time: string | null,
+  wmts: WmtsConfig
+): string {
+  const zoom = gibsMercatorZoom(wmts);
+  const timeSeg = time ? `${time}/` : "";
+  return `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${gibsLayerId}/default/${timeSeg}GoogleMapsCompatible_Level${zoom}/{z}/{y}/{x}.png`;
+}
