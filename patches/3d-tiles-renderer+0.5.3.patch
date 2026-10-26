@@ -1,5 +1,5 @@
 diff --git a/node_modules/3d-tiles-renderer/src/three/plugins/images/ImageOverlayPlugin.js b/node_modules/3d-tiles-renderer/src/three/plugins/images/ImageOverlayPlugin.js
-index 5d9e63a..e5cbf25 100644
+index 5d9e63a..5fdc93e 100644
 --- a/node_modules/3d-tiles-renderer/src/three/plugins/images/ImageOverlayPlugin.js
 +++ b/node_modules/3d-tiles-renderer/src/three/plugins/images/ImageOverlayPlugin.js
 @@ -235,7 +235,11 @@ export class ImageOverlayPlugin {
@@ -66,6 +66,28 @@ index 5d9e63a..e5cbf25 100644
  				// mark per-layer defines
  				material.defines[ `LAYER_${ i }_EXISTS` ] = Number( target !== null );
  				material.defines[ `LAYER_${ i }_ALPHA_INVERT` ] = Number( overlay.alphaInvert );
+@@ -1500,15 +1514,15 @@ export class ImageOverlay {
+ 
+ 	lockTextureSafe( range ) {
+ 
+-		// locks a texture without risk of throwing due to abort
++		// locks a texture without risk of throwing. Callers do not await the
++		// returned promise, so a rejecting catch-handler (the old `throw err`)
++		// became an unhandled rejection — a flaky tile 500 surfaced as
++		// "The source image could not be decoded" and took the page down.
++		// The awaited fetch path already reports load-error.
+ 		const result = this.lockTexture( range );
+ 		if ( result instanceof Promise ) {
+ 
+-			result.catch( err => {
+-
+-				if ( err.name !== 'AbortError' ) throw err;
+-
+-			} );
++			result.catch( () => {} );
+ 
+ 		}
+ 
 diff --git a/node_modules/3d-tiles-renderer/src/three/plugins/images/sources/RegionImageSource.js b/node_modules/3d-tiles-renderer/src/three/plugins/images/sources/RegionImageSource.js
 index a35c9fd..768a587 100644
 --- a/node_modules/3d-tiles-renderer/src/three/plugins/images/sources/RegionImageSource.js
