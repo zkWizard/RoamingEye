@@ -5,9 +5,21 @@ import {
   TerrariumMeshPlugin,
   XYZTilesOverlay,
 } from "3d-tiles-renderer/plugins";
+import {
+  metresAboveEllipsoid,
+  minimumCameraDistance,
+  nadirMetresPerPixel,
+  TERRAIN_SURFACE_SCALE,
+  terrainErrorTarget,
+  WGS84_EQUATORIAL_RADIUS_M,
+} from "../lib/cameraZoom";
 import { vector3ToLatLng } from "../lib/geo";
-import { gibsMercatorLevels, gibsMercatorTemplate } from "../lib/tiles";
-import { scienceShouldDrape } from "../lib/terrainView";
+import {
+  gibsMercatorLevels,
+  gibsMercatorTemplate,
+  gibsNativeMetresPerPixel,
+} from "../lib/tiles";
+import { scienceOverlayOpacity, scienceShouldDrape } from "../lib/terrainView";
 import type { LayerConfig, YearMonth } from "../lib/timeline";
 
 /** Esri World Imagery: keyless global satellite base map. */
@@ -17,14 +29,13 @@ const BASE_IMAGERY_URL =
 const TERRARIUM_URL =
   "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
 
-const WGS84_EQUATORIAL_RADIUS_M = 6_378_137;
 /**
  * The terrain sits just inside the unit globe, so the science sphere and every
  * overlay drawn at radius >= 1 stay above the highest summit (Everest is
  * ~0.0014 units). 0.4% is ~25 km. Height stays at true scale: exaggeration
  * past ~3× would push Everest through that shell.
  */
-const TERRAIN_SCALE = 0.996;
+const TERRAIN_SCALE = TERRAIN_SURFACE_SCALE;
 /** Esri World Imagery publishes zooms 0–19. `levels` is the count, not the max. */
 const IMAGERY_LEVELS = 20;
 /**
@@ -34,7 +45,11 @@ const IMAGERY_LEVELS = 20;
  * that sample; sampling pauses the queue entirely.
  */
 const STREAM_JOBS_PER_ORIGIN = 2;
-/** Screen-space error in pixels. The plugin's recommended 1px never settles. */
+/**
+ * Screen-space error used until the first frame measures the view. The live
+ * target tightens as the camera comes down ({@link terrainErrorTarget}); 6 px
+ * from orbit is what kept a whole-disc refine from running forever.
+ */
 const TERRAIN_ERROR_TARGET = 6;
 /** Tiles traversed synchronously per frame, so a resize sweep stays responsive. */
 const TILES_PROCESSED_PER_FRAME = 8;
@@ -45,6 +60,8 @@ interface ScienceRequest {
   key: string;
   url: string;
   levels: number;
+  /** Ground metres per texel at the layer's finest published zoom. */
+  nativeMetres: number;
 }
 
 interface InitializableOverlay extends XYZTilesOverlay {
@@ -70,7 +87,9 @@ export class TerrainGlobe {
   scienceDraped = false;
 
   private readonly tiles: TilesRenderer;
+  private readonly terrain: TerrariumMeshPlugin;
   private readonly imageOverlays: ImageOverlayPlugin;
+  private readonly bufferSize = new THREE.Vector2();
   private desired: ScienceRequest | null = null;
   private science: XYZTilesOverlay | null = null;
   private scienceKey = "";
@@ -89,14 +108,19 @@ export class TerrainGlobe {
     const tiles = new TilesRenderer();
     const imageOverlays = new ImageOverlayPlugin({
       renderer,
+      // Leaf terrain tiles stop at z15. Splitting them is what lets the Esri
+      // overlay keep going to z19 once the camera is close enough to need it.
+      enableTileSplitting: true,
       overlays: [
         new XYZTilesOverlay({ url: BASE_IMAGERY_URL, levels: IMAGERY_LEVELS }),
       ],
     });
+    const terrain = new TerrariumMeshPlugin({
+      url: TERRARIUM_URL,
+      maxZoom: 15,
+    });
     // Terrain first, so its meshes exist before the imagery plugin wraps them.
-    tiles.registerPlugin(
-      new TerrariumMeshPlugin({ url: TERRARIUM_URL, maxZoom: 15 })
-    );
+    tiles.registerPlugin(terrain);
     tiles.registerPlugin(imageOverlays);
     // The plugin's recommended settings pin errorTarget at 1px, so the globe
     // keeps refining for the whole view. A few pixels of error still reads as
@@ -127,8 +151,23 @@ export class TerrainGlobe {
     );
     group.name = "terrain-globe";
     this.tiles = tiles;
+    this.terrain = terrain;
     this.imageOverlays = imageOverlays;
     this.object = group;
+  }
+
+  /**
+   * Closest the camera may come here: street level over flat ground, and
+   * above the loaded terrain where the ground rises.
+   */
+  minimumDistance(latDeg: number, lonDeg: number): number {
+    const sampled = this.terrain.sampleCartographicElevation(
+      (latDeg * Math.PI) / 180,
+      (lonDeg * Math.PI) / 180
+    );
+    const elev =
+      typeof sampled === "number" && Number.isFinite(sampled) ? sampled : 0;
+    return minimumCameraDistance(latDeg, elev);
   }
 
   /**
@@ -159,6 +198,7 @@ export class TerrainGlobe {
       key,
       url: gibsMercatorTemplate(layer.wmsLayer, time, layer.wmts),
       levels: gibsMercatorLevels(layer.wmts),
+      nativeMetres: gibsNativeMetresPerPixel(layer.wmts),
     };
     if (this.scienceKey !== key) this.retireScience();
   }
@@ -167,10 +207,27 @@ export class TerrainGlobe {
    * Per-frame tile selection. Returns whether the science sphere should stop
    * drawing for this frame. `comparing` forces the sphere to stay, because
    * the split renders by swapping its texture.
+   *
+   * `holdScience` keeps the draped month opaque past its native resolution
+   * (the sharper-imagery toggle is off). Otherwise the month fades out as
+   * the screen outresolves it, and the satellite base shows through. The
+   * sphere still steps aside in that band: it is coarser than the base, so
+   * leaving it up would paint the fade back on.
    */
-  update(comparing: boolean): boolean {
+  update(comparing: boolean, holdScience = false): boolean {
     const distance = this.camera.position.length();
     const { lat } = vector3ToLatLng(this.camera.position);
+    const altitudeM = Math.max(1, metresAboveEllipsoid(distance, lat));
+    this.renderer.getDrawingBufferSize(this.bufferSize);
+    const metresPerPixel = nadirMetresPerPixel(
+      altitudeM,
+      this.bufferSize.y,
+      this.camera.fov
+    );
+    // Recomputed every frame: an orbital target never requests z19, and a
+    // street-level target from orbit would refine the whole disc.
+    this.tiles.errorTarget = terrainErrorTarget(metresPerPixel);
+
     // Ask the predicate as if the drape were ready: that is the camera band,
     // including its hysteresis, and the cue to start (or keep) loading.
     const inBand = scienceShouldDrape({
@@ -180,22 +237,31 @@ export class TerrainGlobe {
       scienceReady: true,
       draped: this.scienceDraped,
     });
-    if (inBand && !this.sampling) this.scheduleSwap();
+    const fade = scienceOverlayOpacity({
+      altitudeMetres: altitudeM,
+      nativeMetresPerPixel:
+        this.desired?.nativeMetres ?? Number.POSITIVE_INFINITY,
+      viewportHeightPx: this.bufferSize.y,
+      fovDeg: this.camera.fov,
+      hold: holdScience,
+    });
+    // A fully faded month has nothing to download. Zooming out starts the fetch.
+    if (inBand && !this.sampling && fade > 0.02) this.scheduleSwap();
 
     if (!this.sampling) {
+      // Six per origin is the browser's own per-host cap. City and street
+      // views need it; from orbit two is enough and leaves the probe room.
+      this.tiles.downloadQueue.maxJobsPerOrigin =
+        metresPerPixel < 400 ? 6 : STREAM_JOBS_PER_ORIGIN;
+      this.tiles.parseQueue.maxJobs = metresPerPixel < 80 ? 2 : 1;
       this.tiles.setResolutionFromRenderer(this.camera, this.renderer);
       this.camera.updateMatrixWorld();
       this.tiles.update();
     }
 
-    const draped = scienceShouldDrape({
-      distance,
-      lat,
-      comparing,
-      scienceReady: this.scienceReady && this.scienceKey === this.desired?.key,
-      draped: this.scienceDraped,
-    });
-    if (this.science) this.science.opacity = draped ? 1 : 0;
+    const ready = this.scienceReady && this.scienceKey === this.desired?.key;
+    const draped = !comparing && inBand;
+    if (this.science) this.science.opacity = draped && ready ? fade : 0;
     this.scienceDraped = draped;
     return draped;
   }

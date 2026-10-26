@@ -75,7 +75,7 @@ export interface VisibleTileCoverage {
 export class TiledImageryOverlay implements MapOverlay {
   readonly id = "hd";
   readonly label = "Sharper imagery";
-  readonly detail = "Keeps a close view from going soft";
+  readonly detail = "Lets the satellite photo show through up close";
   readonly group = "settings" as const;
   readonly icon = ICONS.hd;
   readonly object = new THREE.Group();

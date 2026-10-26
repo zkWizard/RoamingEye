@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { resolveGroundPoint } from "../lib/cameraZoom";
 import { vector3ToLatLng, formatLatLng } from "../lib/geo";
 import type {
   Admin1Region,
@@ -31,6 +32,7 @@ const FAR_SIDE_SLACK = 0.05;
 export class HoverInspector {
   private readonly raycaster = new THREE.Raycaster();
   private readonly ndc = new THREE.Vector2();
+  private readonly scratch = new THREE.Vector3();
   private readonly sources: Array<() => HoverPointSource | undefined> = [];
   private readonly lineSources: Array<() => HoverLineSource | undefined> = [];
   private countryIndex: CountryIndex | undefined;
@@ -91,19 +93,19 @@ export class HoverInspector {
     this.ndc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     this.raycaster.setFromCamera(this.ndc, this.camera);
 
-    const hit = this.raycaster.intersectObject(this.earth, false)[0];
-    const marker = this.pickMarker(hit?.distance);
+    const ground = this.groundUnderRay();
+    const marker = this.pickMarker(ground?.distance);
     if (marker) {
       this.show(marker, event.clientX, event.clientY);
       return;
     }
-    if (!hit) {
+    if (!ground) {
       this.hide();
       return;
     }
 
     this.show(
-      this.describe(vector3ToLatLng(hit.point)),
+      this.describe(vector3ToLatLng(ground.point)),
       event.clientX,
       event.clientY
     );
@@ -247,8 +249,41 @@ export class HoverInspector {
   nameAim(point: { lat: number; lon: number }): string {
     this.ndc.set(0, 0);
     this.raycaster.setFromCamera(this.ndc, this.camera);
-    const hit = this.raycaster.intersectObject(this.earth, false)[0];
-    return this.pickMarker(hit?.distance) ?? this.describe(point);
+    const ground = this.groundUnderRay();
+    return this.pickMarker(ground?.distance) ?? this.describe(point);
+  }
+
+  /**
+   * The point of the ground under the current ray.
+   *
+   * Outside the unit sphere that is the earth-mesh hit the inspector has
+   * always used. Inside it — street level — that mesh is behind the camera
+   * and a hit is the far side of the planet, so the ray meets the ellipsoid
+   * under the camera instead.
+   */
+  private groundUnderRay(): { point: THREE.Vector3; distance: number } | null {
+    const meshHit = this.raycaster.intersectObject(this.earth, false)[0];
+    const length = this.camera.position.length();
+    if (length >= 1) {
+      return meshHit
+        ? { point: meshHit.point, distance: meshHit.distance }
+        : null;
+    }
+    const resolved = resolveGroundPoint(
+      length,
+      vector3ToLatLng(this.camera.position).lat,
+      this.raycaster.ray.origin,
+      this.raycaster.ray.direction,
+      meshHit
+        ? { x: meshHit.point.x, y: meshHit.point.y, z: meshHit.point.z }
+        : null
+    );
+    if (!resolved) return null;
+    this.scratch.set(resolved.x, resolved.y, resolved.z);
+    return {
+      point: this.scratch,
+      distance: this.scratch.distanceTo(this.raycaster.ray.origin),
+    };
   }
 
   /** Drop the keyboard aim — the globe has lost keyboard focus. */

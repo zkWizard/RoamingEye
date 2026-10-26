@@ -165,6 +165,16 @@ import { LEGENDS, legendTicks } from "./lib/legend";
 import { ActionMenu } from "./ui/ActionMenu";
 import { loadAdmin1Index, loadCountryIndex } from "./lib/countryIndex";
 import { rotateSpeedForDistance, stepGlobeView } from "./lib/navigation";
+import {
+  MAX_CAMERA_DISTANCE,
+  altitudeZoomDistance,
+  clipPlanes,
+  ellipsoidRadiusUnits,
+  minimumCameraDistance,
+  pinchAltitudeFactor,
+  resolveGroundPoint,
+  wheelAltitudeFactor,
+} from "./lib/cameraZoom";
 
 /**
  * RoamingEye
@@ -370,11 +380,12 @@ const citiesOverlay = new CitiesOverlay();
 const plateBoundariesOverlay = new PlateBoundariesOverlay();
 const volcanoesOverlay = new VolcanoesOverlay();
 const earthquakesOverlay = new EarthquakesOverlay();
+const atmosphereOverlay = new AtmosphereOverlay();
 const overlays: MapOverlay[] = [
   hdTiles,
   new BordersOverlay(),
   citiesOverlay,
-  new AtmosphereOverlay(),
+  atmosphereOverlay,
   // The geology trio — plate boundaries, volcanoes, and live seismicity line
   // up on the globe to tell the plate-tectonics story.
   plateBoundariesOverlay,
@@ -1070,9 +1081,57 @@ controls.enablePan = false; // keep the globe centred
 // rotateSpeed is re-derived from the camera altitude every frame (see the
 // render loop): constant speed flings the camera when zoomed to the surface.
 controls.rotateSpeed = rotateSpeedForDistance(camera.position.length());
-controls.zoomSpeed = 0.8;
-controls.minDistance = 1.06; // get right down to a selected place boundary
-controls.maxDistance = 4.5; // furthest zoom-out
+// Zoom is altitude above the local ellipsoid, not OrbitControls' radius zoom.
+// A radius zoom runs out of travel a few hundred kilometres up.
+controls.enableZoom = false;
+// The absolute floor is the polar street-level distance. The real floor
+// depends on latitude and the terrain under the camera, and is applied after
+// every controls update. A spherical minDistance cannot be both 250 m over
+// Houston and outside the equatorial bulge.
+controls.minDistance = minimumCameraDistance(90) * 0.999;
+controls.maxDistance = MAX_CAMERA_DISTANCE;
+
+/** Inside the atmosphere shell the fresnel fills the screen. Hide it there. */
+const ATMOSPHERE_HIDE_AT = 1.17;
+
+function localCameraFloor(lat: number, lon: number): number {
+  return terrainGlobe?.minimumDistance(lat, lon) ?? minimumCameraDistance(lat);
+}
+
+/** Multiply altitude above the ellipsoid. `factor` < 1 zooms in. */
+function applyAltitudeZoom(factor: number): void {
+  const { lat, lon } = vector3ToLatLng(camera.position);
+  const next = altitudeZoomDistance(
+    camera.position.length(),
+    ellipsoidRadiusUnits(lat),
+    factor,
+    { min: localCameraFloor(lat, lon), max: MAX_CAMERA_DISTANCE }
+  );
+  camera.position.normalize().multiplyScalar(next);
+  camera.lookAt(0, 0, 0);
+  controls.update();
+}
+
+/** Keep the camera above the ground under it, and fit the depth planes to that. */
+function enforceCameraLimits(): void {
+  const { lat, lon } = vector3ToLatLng(camera.position);
+  const floor = localCameraFloor(lat, lon);
+  const length = camera.position.length();
+  const next = Math.min(MAX_CAMERA_DISTANCE, Math.max(floor, length));
+  if (Math.abs(next - length) > 1e-8) {
+    camera.position.normalize().multiplyScalar(next);
+    camera.lookAt(0, 0, 0);
+  }
+  const planes = clipPlanes(
+    camera.position.length(),
+    ellipsoidRadiusUnits(lat)
+  );
+  if (camera.near !== planes.near || camera.far !== planes.far) {
+    camera.near = planes.near;
+    camera.far = planes.far;
+    camera.updateProjectionMatrix();
+  }
+}
 
 // --- Keyboard aim readout -----------------------------------------------------
 // A pointer aims with a cursor, and the hover readout follows it. The keyboard
@@ -1139,7 +1198,10 @@ canvas.addEventListener("keydown", (e) => {
   const next = stepGlobeView(
     { ...subpoint, distance: camera.position.length() },
     e.key,
-    { min: controls.minDistance, max: controls.maxDistance }
+    {
+      min: localCameraFloor(subpoint.lat, subpoint.lon),
+      max: MAX_CAMERA_DISTANCE,
+    }
   );
   if (!next) return;
   e.preventDefault(); // arrows would otherwise scroll the page
@@ -1277,29 +1339,77 @@ window.addEventListener("wheel", takeBackCamera, {
   capture: true,
   passive: true,
 });
+// OrbitControls' own zoom is off: it multiplies distance to the centre, which
+// barely moves the picture once the camera is near the surface. This listener
+// multiplies altitude instead, including the ctrl+wheel a trackpad pinch sends.
+canvas.addEventListener(
+  "wheel",
+  (e) => {
+    e.preventDefault();
+    if (!controls.enabled && !flyer.isFlying) return;
+    endFlight();
+    if (!controls.enabled) return;
+    momentum.stop();
+    applyAltitudeZoom(wheelAltitudeFactor(e.deltaY, e.deltaMode, e.ctrlKey));
+  },
+  { passive: false }
+);
 
 // Momentum after a drag (see GlobeMomentum). One pointer is a drag that can be
 // thrown; a second finger makes it a pinch, which never throws. Moves and lifts
 // are heard on `window`, because a release can land on the HUD over the canvas.
 const momentum = new GlobeMomentum(camera, controls, canvas, !reduceMotion);
 const globePointers = new Set<number>();
+const pinchPoints = new Map<number, { x: number; y: number }>();
+let pinchSpan = 0;
+
+function pinchSpanOf(points: Map<number, { x: number; y: number }>): number {
+  const pts = [...points.values()];
+  const a = pts[0];
+  const b = pts[1];
+  if (!a || !b) return 0;
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
 canvas.addEventListener("pointerdown", (e) => {
   globePointers.add(e.pointerId);
+  pinchPoints.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (globePointers.size === 1) momentum.grab(e);
-  else momentum.stop();
+  else {
+    momentum.stop();
+    pinchSpan = pinchSpanOf(pinchPoints);
+  }
 });
 window.addEventListener("pointermove", (e) => {
+  if (pinchPoints.has(e.pointerId)) {
+    pinchPoints.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  }
+  if (globePointers.size >= 2 && pinchPoints.size >= 2) {
+    const next = pinchSpanOf(pinchPoints);
+    if (pinchSpan > 0 && next > 0 && (controls.enabled || flyer.isFlying)) {
+      endFlight();
+      if (controls.enabled) {
+        applyAltitudeZoom(pinchAltitudeFactor(pinchSpan, next));
+      }
+    }
+    pinchSpan = next;
+    return;
+  }
   if (globePointers.size === 1 && globePointers.has(e.pointerId)) {
     momentum.move(e);
   }
 });
 window.addEventListener("pointerup", (e) => {
+  pinchPoints.delete(e.pointerId);
   if (globePointers.delete(e.pointerId) && globePointers.size === 0) {
     momentum.release(e);
   }
+  pinchSpan = pinchSpanOf(pinchPoints);
 });
 window.addEventListener("pointercancel", (e) => {
+  pinchPoints.delete(e.pointerId);
   if (globePointers.delete(e.pointerId)) momentum.stop();
+  pinchSpan = pinchSpanOf(pinchPoints);
 });
 
 // Assigned once the stories block builds the card. Search can ask for a story
@@ -2735,9 +2845,21 @@ if (probeEl) {
       -((e.clientY - rect.top) / rect.height) * 2 + 1
     );
     probeRaycaster.setFromCamera(ndc, camera);
-    const hit = probeRaycaster.intersectObject(earth, false)[0];
-    if (!hit) return;
-    const { lat, lon } = vector3ToLatLng(hit.point);
+    const meshHit = probeRaycaster.intersectObject(earth, false)[0];
+    const camLength = camera.position.length();
+    const resolved = resolveGroundPoint(
+      camLength,
+      vector3ToLatLng(camera.position).lat,
+      probeRaycaster.ray.origin,
+      probeRaycaster.ray.direction,
+      meshHit ? meshHit.point : null
+    );
+    if (!resolved) return;
+    const point =
+      camLength >= 1 && meshHit
+        ? meshHit.point
+        : new THREE.Vector3(resolved.x, resolved.y, resolved.z);
+    const { lat, lon } = vector3ToLatLng(point);
     clearSharedSearch();
     runProbe(lat, lon);
   });
@@ -3335,6 +3457,7 @@ function adaptResolution(now: number): void {
 // Set while a close view has hidden the HD-tile patches so the terrain drape
 // can show. Cleared by restoring the toolbar's own on/off choice.
 let hdHeldForDrape = false;
+let atmosphereHeldForClose = false;
 const timer = new THREE.Timer();
 let signalledReady = false;
 let wasFlying = false;
@@ -3342,13 +3465,21 @@ const renderFrame = (): void => {
   timer.update();
   const delta = timer.getDelta();
   flyer.update(delta);
+  const aim = vector3ToLatLng(camera.position);
   // Drag speed follows the camera altitude, so the ground under the cursor
   // tracks the drag at street-level zoom and orbit alike.
-  controls.rotateSpeed = rotateSpeedForDistance(camera.position.length());
+  controls.rotateSpeed = rotateSpeedForDistance(
+    camera.position.length(),
+    aim.lat
+  );
   if (!flyer.isFlying) controls.update(); // flyer drives the camera while active
   // A flight owns the camera. Otherwise a thrown globe coasts on from here.
   if (flyer.isFlying) momentum.stop();
   else momentum.tick(performance.now());
+  // OrbitControls only knows a spherical floor. Push back out to the ground
+  // under this latitude, and pull the clip planes in so a street view is not
+  // sliced off by the orbital near plane.
+  enforceCameraLimits();
   // Flights move the camera without OrbitControls events — sync the shareable
   // hash once when a fly-to lands.
   if (wasFlying && !flyer.isFlying) {
@@ -3362,7 +3493,8 @@ const renderFrame = (): void => {
   // cover it. It stays in the scene: hover, probe, and region drawing
   // raycast it. HD tiles are sphere patches and would hide the relief, so
   // they step aside for the drape and return to whatever the toolbar asked.
-  const scienceDraped = terrainGlobe?.update(compare.showing) ?? false;
+  const scienceDraped =
+    terrainGlobe?.update(compare.showing, !overlayState.has("hd")) ?? false;
   earth.material.colorWrite = !scienceDraped;
   earth.material.depthWrite = !scienceDraped;
   if (scienceDraped) {
@@ -3371,6 +3503,15 @@ const renderFrame = (): void => {
   } else if (hdHeldForDrape) {
     hdTiles.object.visible = overlayState.has("hd");
     hdHeldForDrape = false;
+  }
+  // The glow is a shell around the globe. Inside it, the back faces cover
+  // the whole view. Step aside up close and return to the toolbar's choice.
+  if (camera.position.length() < ATMOSPHERE_HIDE_AT) {
+    if (atmosphereOverlay.object.visible) atmosphereHeldForClose = true;
+    atmosphereOverlay.object.visible = false;
+  } else if (atmosphereHeldForClose) {
+    atmosphereOverlay.object.visible = overlayState.has("atmosphere");
+    atmosphereHeldForClose = false;
   }
   // HD tiles only ever stream the live month, so a comparison suppresses them
   // on both sides and both months render from their own full-globe texture —

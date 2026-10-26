@@ -65,6 +65,17 @@ describe("decodeViewState", () => {
     expect(decodeViewState("#lat=0&lon=0&alt=-1").camera).toBeUndefined();
     expect(decodeViewState("#lat=0&lon=0&alt=999").camera).toBeUndefined();
   });
+
+  it("keeps a street-level altitude inside the unit sphere", () => {
+    const state = {
+      layer: "ndvi" as const,
+      camera: { lat: 29.76043, lon: -95.3698, alt: -0.004812 },
+    };
+    const encoded = encodeViewState(state);
+    expect(encoded).toContain("alt=-0.004812");
+    expect(encoded).toContain("lat=29.76043");
+    expect(decodeViewState(encoded).camera).toEqual(state.camera);
+  });
 });
 
 describe("analysis deep links (probe + pin)", () => {
