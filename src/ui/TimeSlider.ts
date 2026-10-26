@@ -374,6 +374,15 @@ export class TimeSlider {
     this.update(Math.min(this.months.length - 1, Math.max(0, index)), false);
   }
 
+  /**
+   * Jump to an entry and tell the listener, the way a click on the ruler
+   * does. A running time-lapse stops: the reader asked for a month.
+   */
+  seek(index: number): void {
+    this.player.pause();
+    this.update(Math.min(this.months.length - 1, Math.max(0, index)), true);
+  }
+
   private update(index: number, emit: boolean): void {
     const changed = index !== this.index;
     this.index = index;

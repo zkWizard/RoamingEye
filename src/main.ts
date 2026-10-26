@@ -163,6 +163,8 @@ import { ActionMenu } from "./ui/ActionMenu";
 import { loadAdmin1Index, loadCountryIndex } from "./lib/countryIndex";
 import {
   flyToDistance,
+  longitudesInGeometry,
+  placePickMonthIndex,
   rotateSpeedForDistance,
   stepGlobeView,
 } from "./lib/navigation";
@@ -1264,7 +1266,16 @@ if (searchEl) {
   new SearchBox(
     searchEl,
     (result) => {
-      flyer.flyTo(result.lat, result.lon, flyToDistance(result.boundingBox));
+      const monthIndex = placePickMonthIndex(
+        months.length,
+        LAYERS[currentLayer].static === true
+      );
+      if (monthIndex !== null) timeSlider?.seek(monthIndex);
+      flyer.flyTo(
+        result.lat,
+        result.lon,
+        flyToDistance(result.boundingBox, longitudesInGeometry(result.geometry))
+      );
       highlight.show({
         lat: result.lat,
         lon: result.lon,
