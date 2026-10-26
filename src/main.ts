@@ -1377,21 +1377,26 @@ if (searchEl) {
             ) {
               switchLayer(hotspot.layerId as LayerId);
             }
-            const monthIndex = placePickMonthIndex(
-              months.length,
-              LAYERS[currentLayer].static === true
-            );
-            if (monthIndex !== null) timeSlider?.seek(monthIndex);
-            const pad = 0.4;
-            flyer.flyTo(
-              hotspot.lat,
-              hotspot.lon,
-              flyToDistance([
-                hotspot.lat - pad,
-                hotspot.lat + pad,
-                hotspot.lon - pad,
-                hotspot.lon + pad,
-              ])
+            // Same chunk as a place pick: framing stays out of first paint.
+            void import("./lib/placeFrame").then(
+              ({ placePickMonthIndex, flyToDistance }) => {
+                const monthIndex = placePickMonthIndex(
+                  months.length,
+                  LAYERS[currentLayer].static === true
+                );
+                if (monthIndex !== null) timeSlider?.seek(monthIndex);
+                const pad = 0.4;
+                flyer.flyTo(
+                  hotspot.lat,
+                  hotspot.lon,
+                  flyToDistance([
+                    hotspot.lat - pad,
+                    hotspot.lat + pad,
+                    hotspot.lon - pad,
+                    hotspot.lon + pad,
+                  ])
+                );
+              }
             );
             highlight.show({
               lat: hotspot.lat,
