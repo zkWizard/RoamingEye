@@ -53,6 +53,18 @@ export function enterTarget(
   return null;
 }
 
+/** Run every provider that offers empty-field rows. */
+export async function collectSuggestions(
+  providers: readonly SearchProvider[]
+): Promise<SearchHit[]> {
+  const groups = await Promise.all(
+    providers.map((provider) =>
+      provider.suggest ? Promise.resolve(provider.suggest()) : []
+    )
+  );
+  return groups.flat();
+}
+
 /** Run every instant provider. Explicit providers are skipped. */
 export async function collectInstant(
   providers: readonly SearchProvider[],

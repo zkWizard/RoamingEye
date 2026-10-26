@@ -4,6 +4,7 @@ import { STORIES } from "../stories";
 import { parseCoordinateQuery } from "./coordinates";
 import { parseDateQuery } from "./dates";
 import { loadPlaceCatalog, matchPlaces } from "./catalog";
+import { hotspotProvider } from "./hotspots";
 import { pointBox } from "./outline";
 import { matchScore } from "./rank";
 import type { SearchHit, SearchProvider } from "./provider";
@@ -31,6 +32,16 @@ function storyProvider(): SearchProvider {
   return {
     id: "stories",
     when: "instant",
+    suggest() {
+      return STORIES.map((story, index) => ({
+        id: `suggest:${story.id}`,
+        group: "Stories",
+        title: story.title,
+        subtitle: story.blurb,
+        score: STORIES.length - index,
+        data: { type: "story" as const, storyId: story.id },
+      }));
+    },
     search(query) {
       const hits: SearchHit[] = [];
       for (const story of STORIES) {
@@ -176,6 +187,7 @@ export function searchProviders(): SearchProvider[] {
     ...placeProviders(),
     storyProvider(),
     layerProvider(),
+    hotspotProvider(),
     nominatimProvider(),
   ];
 }

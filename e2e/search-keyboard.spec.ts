@@ -212,3 +212,35 @@ test("/ and Ctrl+K focus the search field", async ({ page }) => {
   await page.keyboard.press("Control+k");
   await expect(input).toBeFocused();
 });
+
+test("an empty field suggests stories and unchecked change places", async ({
+  page,
+}) => {
+  const input = page.locator(".search__input");
+  await expect(input).toBeVisible();
+  await page.locator("#globe").focus();
+  await page.keyboard.press("/");
+  await expect(
+    page.locator(".search__group", { hasText: "Stories" })
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(
+    page.locator(".search__group", { hasText: "Changes" })
+  ).toBeVisible();
+  const sahel = page.locator(".search__result", { hasText: "Sahel" }).last();
+  await expect(sahel).toBeVisible();
+  // The offline file did not measure a trend, so the row must not invent one.
+  await expect(sahel).not.toContainText("%");
+
+  await input.fill("Quito");
+  await expect(page.locator(".search__result-name").first()).toHaveText(
+    "Quito"
+  );
+  await input.press("Enter");
+  await input.fill("");
+  await expect(
+    page.locator(".search__group", { hasText: "Recent" })
+  ).toBeVisible();
+  await expect(page.locator(".search__result-name").first()).toHaveText(
+    "Quito"
+  );
+});

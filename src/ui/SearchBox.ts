@@ -1,4 +1,9 @@
-import { collectInstant, enterTarget, groupHits } from "../lib/search/query";
+import {
+  collectInstant,
+  collectSuggestions,
+  enterTarget,
+  groupHits,
+} from "../lib/search/query";
 import type { SearchHit, SearchProvider } from "../lib/search/provider";
 import type { ResultRow } from "../lib/search/query";
 import { ICONS } from "./icons";
@@ -75,6 +80,7 @@ export class SearchBox {
     ) as HTMLUListElement;
 
     this.input.addEventListener("input", () => this.onInput());
+    this.input.addEventListener("focus", () => this.onFocus());
     this.input.addEventListener("keydown", (e) => this.onKeydown(e));
     document.addEventListener("pointerdown", (e) => {
       if (!container.contains(e.target as Node)) this.closeResults();
@@ -160,16 +166,43 @@ export class SearchBox {
     this.activate(target);
   }
 
+  private onFocus(): void {
+    if (this.input.value.trim() !== "") return;
+    void this.showSuggestions();
+  }
+
   private onInput(): void {
     const query = this.input.value.trim();
     this.query = query;
     this.submitOnArrival = false;
     clearTimeout(this.debounceTimer);
     if (query.length < 2) {
-      this.closeResults();
+      if (query.length === 0) void this.showSuggestions();
+      else this.closeResults();
       return;
     }
     this.debounceTimer = setTimeout(() => void this.run(query), DEBOUNCE_MS);
+  }
+
+  /** Stories, recent searches, and change places. No geocoder. */
+  private async showSuggestions(): Promise<void> {
+    const generation = ++this.generation;
+    clearTimeout(this.debounceTimer);
+    clearTimeout(this.pendingTimer);
+    try {
+      const hits = await collectSuggestions(this.providers);
+      if (generation !== this.generation) return;
+      if (this.input.value.trim() !== "") return;
+      if (hits.length === 0) {
+        this.closeResults();
+        return;
+      }
+      this.renderList(hits, [], "", "suggestions");
+    } catch (err) {
+      if (generation !== this.generation) return;
+      console.warn("RoamingEye: suggestions failed", err);
+      this.closeResults();
+    }
   }
 
   private async run(query: string): Promise<void> {
@@ -224,7 +257,8 @@ export class SearchBox {
   private renderList(
     hits: readonly SearchHit[],
     explicit: readonly SearchProvider[],
-    query: string
+    query: string,
+    mode: "matches" | "suggestions" = "matches"
   ): void {
     this.clearPending();
     this.results.innerHTML = "";
@@ -245,7 +279,10 @@ export class SearchBox {
 
     this.setActive(-1);
     this.setOpen(this.rows.length > 0);
-    if (hits.length === 1) this.announce("1 match");
+    if (mode === "suggestions") {
+      if (hits.length === 1) this.announce("1 suggestion");
+      else if (hits.length > 1) this.announce(`${hits.length} suggestions`);
+    } else if (hits.length === 1) this.announce("1 match");
     else if (hits.length > 1) this.announce(`${hits.length} matches`);
     else if (explicit.length > 0) {
       this.announce(explicit[0].label?.(query) ?? "Search all places");
