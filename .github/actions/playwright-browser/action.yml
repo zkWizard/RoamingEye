@@ -4,6 +4,10 @@ inputs:
   browser:
     description: Browser passed to `playwright install` (chromium, firefox, or webkit).
     required: true
+  with-deps:
+    description: Also apt-install Playwright's OS dependencies. Chromium's libraries are already on ubuntu-latest; the extra packages are mostly fonts and a slow mirror can spend the whole smoke budget before a test starts. WebKit and Firefox still need it.
+    required: false
+    default: "false"
 runs:
   using: composite
   steps:
@@ -11,9 +15,13 @@ runs:
       with:
         path: ~/.cache/ms-playwright
         key: ms-playwright-${{ runner.os }}-${{ inputs.browser }}-${{ hashFiles('package-lock.json') }}
-    # OS packages are not part of the browser cache, so --with-deps still runs
-    # on a hit. A hit skips the browser download, which is the slow part.
     - shell: bash
       env:
         PLAYWRIGHT_BROWSER: ${{ inputs.browser }}
-      run: npx playwright install --with-deps "$PLAYWRIGHT_BROWSER"
+        PLAYWRIGHT_WITH_DEPS: ${{ inputs.with-deps }}
+      run: |
+        if [ "$PLAYWRIGHT_WITH_DEPS" = "true" ]; then
+          npx playwright install --with-deps "$PLAYWRIGHT_BROWSER"
+        else
+          npx playwright install "$PLAYWRIGHT_BROWSER"
+        fi

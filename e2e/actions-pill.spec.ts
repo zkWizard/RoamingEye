@@ -226,6 +226,9 @@ async function sweep(page: Page, sizes: Size[], floor: number) {
 test("every action is a 44px target on a touch device, phone to tablet", async ({
   browser,
 }) => {
+  // One boot plus a sweep of phone and tablet sizes. Measured just under
+  // the default 30s on a fast runner and over it on a busy one.
+  test.setTimeout(90_000);
   const context = await browser.newContext({
     viewport: COARSE_SIZES[0],
     isMobile: true,

@@ -49,7 +49,21 @@ test("a slow overlay enable announces that it landed", async ({ page }) => {
   // accessibility tree, so text written into it announces nothing.
   const region = page.locator(".announcer");
   await expect(region).toHaveAttribute("role", "status");
-  await expect(region).toHaveText("");
+  // Skipping the intro can pause a timelapse that already started, and that
+  // pause is announced a moment later ("Paused at …"). An immediate empty
+  // check races it. Wait until the line has held still, and accept either
+  // quiet rest state before watching the overlay.
+  await expect
+    .poll(
+      async () => {
+        const first = ((await region.textContent()) ?? "").trim();
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        const second = ((await region.textContent()) ?? "").trim();
+        return first === second ? first : "changing";
+      },
+      { timeout: 8_000, intervals: [200] }
+    )
+    .toMatch(/^(?:|Paused at .+)$/);
 
   await watchAnnouncements(page);
   const quakes = page.locator('.toolbar__item[data-overlay="quakes"]');

@@ -146,6 +146,7 @@ jobs:
       - uses: ./.github/actions/playwright-browser
         with:
           browser: webkit
+          with-deps: "true"
       - run: npx playwright test --project=webkit
         env:
           E2E_SKIP_BUILD: "1"
@@ -179,6 +180,7 @@ jobs:
       - uses: ./.github/actions/playwright-browser
         with:
           browser: firefox
+          with-deps: "true"
       - run: npx playwright test --project=firefox
         env:
           E2E_SKIP_BUILD: "1"
