@@ -14,8 +14,7 @@
  * Re-run when a story is added. src/lib/events.test.ts fails if a story id is
  * missing from the file, or if a category's layer disagrees with the map.
  */
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -58,17 +57,7 @@ const INCIDENT_DUMP = /\bWildfire, [A-Z][^,]+, [A-Z]/;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Successful responses, so a 429 mid-run does not repeat the hours already fetched. */
-const CACHE = "/tmp/roamingeye-events-cache";
-mkdirSync(CACHE, { recursive: true });
-
-function cacheFile(url) {
-  return join(CACHE, `${createHash("sha1").update(url).digest("hex")}.json`);
-}
-
 async function getJson(url) {
-  const file = cacheFile(url);
-  if (existsSync(file)) return JSON.parse(readFileSync(file, "utf8"));
   let wait = 2000;
   for (let attempt = 1; attempt <= 8; attempt++) {
     const response = await fetch(url, {
@@ -84,7 +73,6 @@ async function getJson(url) {
     }
     if (!response.ok) throw new Error(`${response.status} for ${url}`);
     const data = await response.json();
-    writeFileSync(file, JSON.stringify(data));
     await sleep(600);
     return data;
   }
@@ -276,11 +264,14 @@ async function eonetYears(category, first, last) {
   return [...byId.values()];
 }
 
+/** One pass, so `&amp;quot;` stays the text `&quot;` and is not decoded again. */
 function decodeEntities(value) {
-  return value
-    .replace(/&#0*39;|&#x0*27;|&apos;/gi, "'")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"');
+  return value.replace(/&(?:#0*39|#x0*27|apos|amp|quot);/gi, (entity) => {
+    const token = entity.slice(1, -1).toLowerCase();
+    if (token === "amp") return "&";
+    if (token === "quot") return '"';
+    return "'";
+  });
 }
 
 function keepWildfire(title) {
