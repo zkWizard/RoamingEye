@@ -66,7 +66,7 @@ async function tabToCompare(page: Page): Promise<void> {
 test("a refused Compare press says why", async ({ page }) => {
   await page.goto("/");
   await awaitAppInteractive(page);
-  await selectLayer(page, "Terrain (shaded relief)");
+  await selectLayer(page, "Land shape");
   await watchAnnouncements(page);
 
   await tabToCompare(page);

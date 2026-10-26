@@ -22,16 +22,18 @@ async function boot(page: Page, width: number, height: number): Promise<void> {
   await awaitAppInteractive(page);
 }
 
-/** Toggles whose box is not wholly inside the toolbar's own scroll port. */
+/** Toggles whose box is not wholly inside the panel body's scroll port. */
 async function offScreenLabels(page: Page): Promise<string[]> {
   return page.evaluate(() => {
-    const el = document.querySelector("#toolbar");
-    if (!el) throw new Error("no toolbar");
+    const el = document.querySelector("#toolbar-body");
+    if (!el) throw new Error("no toolbar body");
     const box = el.getBoundingClientRect();
     return [...el.querySelectorAll(".toolbar__item")]
       .filter((b) => {
         const r = b.getBoundingClientRect();
-        return r.top < box.top - 1 || r.bottom > box.bottom + 1;
+        return (
+          r.height > 0 && (r.top < box.top - 1 || r.bottom > box.bottom + 1)
+        );
       })
       .map((b) => b.querySelector(".toolbar__label")?.textContent ?? "?");
   });
@@ -64,53 +66,57 @@ test.describe("toolbar overflow affordance", () => {
     expect(await maskImage(page)).toContain("calc(100% - 32px)");
 
     // Scrolled to the bottom, the fade moves to the top edge.
-    await toolbar.evaluate((el) => {
+    await page.locator("#toolbar-body").evaluate((el) => {
       el.scrollTop = el.scrollHeight;
     });
     await expect(toolbar).toHaveAttribute("data-overflow", "start");
     expect(await maskImage(page)).toContain("rgb(0, 0, 0) 32px");
 
     // Midway both edges have items behind them.
-    await toolbar.evaluate((el) => {
+    await page.locator("#toolbar-body").evaluate((el) => {
       el.scrollTop = Math.round((el.scrollHeight - el.clientHeight) / 2);
     });
     await expect(toolbar).toHaveAttribute("data-overflow", "both");
   });
 
-  test("a tall desktop window shows every toggle and fades nothing", async ({
+  test("a tall desktop window fades only while the body still overflows", async ({
     page,
   }) => {
-    // 1080, not the 900 this originally used: the column is capped whenever
-    // centring it would put its top edge over the Share/Save/Compare buttons,
-    // which at nine toggles means anything shorter than ~1009px. At 900 this
-    // spec was asserting the collision (see toolbar-collision.spec.ts) as
-    // settled behaviour. The cap lifts here because there is genuinely room.
     await boot(page, 1440, 1080);
-    expect(await offScreenLabels(page)).toEqual([]);
-    await expect(page.locator(TOOLBAR)).toHaveAttribute(
-      "data-overflow",
-      "none"
-    );
-    expect(await maskImage(page)).toBe("none");
+    const toolbar = page.locator(TOOLBAR);
+    const overflow = await page
+      .locator("#toolbar-body")
+      .evaluate((el) => el.scrollHeight - el.clientHeight);
+    if (overflow <= 2) {
+      expect(await offScreenLabels(page)).toEqual([]);
+      await expect(toolbar).toHaveAttribute("data-overflow", "none");
+      expect(await maskImage(page)).toBe("none");
+      return;
+    }
+    await expect(toolbar).toHaveAttribute("data-overflow", "end");
+    expect(await maskImage(page)).toContain("calc(100% - 32px)");
   });
 
-  test("the phone bar still fades sideways", async ({ page }) => {
+  test("the phone sheet fades downward, not sideways", async ({ page }) => {
     await boot(page, 390, 844);
     const toolbar = page.locator(TOOLBAR);
+    await expect(toolbar).toHaveClass(/is-collapsed/);
+    await expect(toolbar).toHaveAttribute("data-overflow", "none");
 
-    // Premise: the bar is the horizontal scroller here, not the column.
-    const axes = await toolbar.evaluate((el) => ({
+    await page.locator(".toolbar__handle").click();
+    const axes = await page.locator("#toolbar-body").evaluate((el) => ({
       x: el.scrollWidth - el.clientWidth,
       y: el.scrollHeight - el.clientHeight,
     }));
-    expect(axes.x).toBeGreaterThan(2);
-    expect(axes.y).toBeLessThanOrEqual(2);
+    expect(axes.y).toBeGreaterThan(2);
+    expect(axes.x).toBeLessThanOrEqual(2);
 
     await expect(toolbar).toHaveAttribute("data-overflow", "end");
-    expect(await maskImage(page)).toContain("to right");
+    expect(await maskImage(page)).not.toContain("to right");
+    expect(await maskImage(page)).toContain("calc(100% - 32px)");
 
-    await toolbar.evaluate((el) => {
-      el.scrollLeft = el.scrollWidth;
+    await page.locator("#toolbar-body").evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
     });
     await expect(toolbar).toHaveAttribute("data-overflow", "start");
   });

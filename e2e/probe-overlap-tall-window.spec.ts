@@ -59,9 +59,12 @@ const reach = (page: import("@playwright/test").Page, selector: string) =>
 async function probeAPoint(page: import("@playwright/test").Page) {
   const size = page.viewportSize()!;
   // Well above centre: the bottom HUD grows upward, so an aim at the middle of
-  // a window this size can hit the panel rather than the globe.
+  // a window this size can hit the panel rather than the globe. The map
+  // column also reaches the horizontal centre below about 700px.
+  const panelWidth = Math.min(21 * 16, size.width - 24);
+  const clearOfPanel = size.width - 12 - panelWidth - 16;
   const aim = {
-    x: Math.round(size.width / 2),
+    x: Math.round(Math.min(size.width / 2, Math.max(48, clearOfPanel))),
     y: Math.round(size.height * 0.28),
   };
   await expect

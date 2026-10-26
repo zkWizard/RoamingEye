@@ -61,7 +61,18 @@ for (const vp of [
     await page.goto("/");
     await awaitAppInteractive(page);
 
-    await page.locator('.toolbar__item[title="Volcanoes"]').click();
+    // On a phone the toggles live in a collapsed sheet, so the row is not
+    // visible until Map is opened. Close it again before the hover: an open
+    // sheet would cover the marker and the hit-test below would not be globe.
+    const handle = page.locator(".toolbar__handle");
+    const volcanoes = page.locator('.toolbar__item[title="Volcanoes"]');
+    if (await handle.isVisible()) {
+      await handle.click();
+      await volcanoes.click();
+      await handle.click();
+    } else {
+      await volcanoes.click();
+    }
 
     const pt = screenPointFor(VOLCANO.lat, VOLCANO.lon, vp.width, vp.height);
     // A HUD panel over this point would swallow the pointermove and fail the

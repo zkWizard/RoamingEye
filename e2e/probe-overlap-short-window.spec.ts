@@ -67,10 +67,14 @@ const reach = (page: import("@playwright/test").Page, selector: string) =>
 
 async function probeAPoint(page: import("@playwright/test").Page) {
   // Aim well above centre. The bottom HUD grows upward over the globe, so a
-  // fixed centre point can hit-test the panel rather than the sphere.
+  // fixed centre point can hit-test the panel rather than the sphere. The
+  // map column also reaches the horizontal centre below about 700px, so stay
+  // in the open strip to its left.
   const size = page.viewportSize()!;
+  const panelWidth = Math.min(21 * 16, size.width - 24);
+  const clearOfPanel = size.width - 12 - panelWidth - 16;
   const aim = {
-    x: Math.round(size.width / 2),
+    x: Math.round(Math.min(size.width / 2, Math.max(48, clearOfPanel))),
     y: Math.round(size.height * 0.3),
   };
   await expect

@@ -114,10 +114,12 @@ test.describe("layer options on a coarse pointer", () => {
       await openPanel(page);
 
       // The premise of the sweep: these really are the two layouts claimed.
+      // The columns live on the list. The panel is a block so the Advanced
+      // fold can sit under the listbox instead of becoming a grid cell.
       const cols = await page.evaluate(
         () =>
           getComputedStyle(
-            document.querySelector<HTMLElement>(".layer-selector__panel")!
+            document.querySelector<HTMLElement>(".layer-selector__list")!
           ).gridTemplateColumns.split(" ").length
       );
       expect(cols, `${size.name} column count`).toBe(size.columns);

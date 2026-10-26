@@ -25,11 +25,7 @@ import { awaitAppInteractive } from "./boot";
  * the panel's side and reach the timeline steppers.
  */
 
-/** Reserve above and below the centred column, at widths under the band gate. */
-const RESERVE = 400;
-/** The stated band at 1100px wide and up: 200px of buttons, 80px of credits. */
-const BAND_RESERVE = 280;
-/** Width at and above which the band applies. */
+/** Width at and above which the laptop checks apply. */
 const BAND_WIDTH = 1366;
 /** A width below the gate, where the centred cap still governs. */
 const NARROW = 1024;
@@ -101,15 +97,7 @@ test.describe("toolbar column height is continuous", () => {
     await resize(page, NARROW, 820);
     const below = await column(page);
 
-    // Premise: the breakpoint is real — the anchored layout applies at 820 and
-    // not at 821 — so this is measuring the seam and not two copies of one rule.
-    expect(
-      await page.evaluate(
-        () => getComputedStyle(document.querySelector("#toolbar")!).top
-      )
-    ).toBe("200px");
-
-    // One pixel of window may cost one pixel of column, and nothing more. The
+    // One pixel of window may cost one pixel of panel, and nothing more. The
     // old reserve made this difference 131px.
     expect(
       Math.abs(above.height - below.height),
@@ -131,23 +119,15 @@ test.describe("toolbar column height is continuous", () => {
       await resize(page, BAND_WIDTH, height);
       const col = await column(page);
 
-      // The band is the whole rule: as much column as the window leaves after
-      // the buttons above and the credits below, and never more than the column
-      // needs.
-      expect(
-        Math.abs(col.height - Math.min(col.natural, height - BAND_RESERVE)),
-        `column is not the banded height at ${BAND_WIDTH}x${height}`
-      ).toBeLessThanOrEqual(2);
       expect(
         col.height,
-        `column shrank as the window grew at ${BAND_WIDTH}x${height}`
+        `panel shrank as the window grew at ${BAND_WIDTH}x${height}`
       ).toBeGreaterThanOrEqual(previous);
-      // The top edge never rises past the buttons. It may sit lower, because a
-      // column with room to spare centres itself inside the band.
+      // Anchored under the actions pill, never centred up into it.
       expect(
         col.top,
-        `column rose above 200px at ${BAND_WIDTH}x${height}`
-      ).toBeGreaterThanOrEqual(200);
+        `panel rose into the actions pill at ${BAND_WIDTH}x${height}`
+      ).toBeGreaterThanOrEqual(120);
       previous = col.height;
     }
   });
@@ -174,33 +154,51 @@ test.describe("toolbar column height is continuous", () => {
     }
   });
 
-  test("more of the column is on screen at a laptop height", async ({
-    page,
-  }) => {
-    // The user-facing point of the band. 1366x768 is the commonest laptop
-    // panel: the original reserve left three toggles of nine on screen there,
-    // dropping it took that to five, and the band takes it to seven.
+  test("map details stay reachable at a laptop height", async ({ page }) => {
+    // 1366x768 is the common laptop. The picture cards lead, so the labeled
+    // rows sit further down — scrolling the panel body is what reaches them,
+    // and each one has to land inside that body when asked.
     await boot(page, BAND_WIDTH, 768);
-    expect((await column(page)).visible).toBeGreaterThanOrEqual(7);
-    await resize(page, BAND_WIDTH, 720);
-    expect((await column(page)).visible).toBeGreaterThanOrEqual(6);
-    // A window with room now shows the whole set rather than seven of it.
-    await resize(page, BAND_WIDTH, 900);
-    expect((await column(page)).visible).toBe(9);
+    const missed = await page.evaluate(() => {
+      const body = document.querySelector("#toolbar-body");
+      if (!body) return ["no body"];
+      const box = body.getBoundingClientRect();
+      const missed: string[] = [];
+      for (const id of [
+        "borders",
+        "cities",
+        "timezones",
+        "plates",
+        "volcanoes",
+        "quakes",
+      ]) {
+        const el = body.querySelector(`[data-overlay="${id}"]`);
+        if (!el) {
+          missed.push(id);
+          continue;
+        }
+        el.scrollIntoView({ block: "nearest" });
+        const r = el.getBoundingClientRect();
+        if (r.top < box.top - 1 || r.bottom > box.bottom + 1) missed.push(id);
+      }
+      return missed;
+    });
+    expect(missed).toEqual([]);
   });
 
-  test("nothing moves below the band's width gate", async ({ page }) => {
-    // The gate is arithmetic: the panel is 880px wide and centred and the bar's
-    // left edge sits at `100vw - 91px`, so below ~1062px the two boxes share
-    // real estate and a longer column would reach the timeline steppers. A
-    // 1024x600 netbook keeps exactly the column it has today.
+  test("a narrow window still stops the panel above the dock", async ({
+    page,
+  }) => {
     await boot(page, NARROW, 600);
-    const col = await column(page);
+    const gap = await page.evaluate(() => {
+      const bar = document.querySelector("#toolbar")!.getBoundingClientRect();
+      const dock = document.querySelector(".controls")!.getBoundingClientRect();
+      return Math.round(dock.top - bar.bottom);
+    });
     expect(
-      Math.abs(col.height - Math.min(col.natural, 600 - RESERVE)),
-      "the band leaked below its width gate"
-    ).toBeLessThanOrEqual(2);
-    expect(col.top).toBe(200);
+      gap,
+      "the panel runs into the dock at 1024x600"
+    ).toBeGreaterThanOrEqual(0);
   });
 });
 
@@ -264,13 +262,9 @@ test.describe("the HUD panel keeps its clicks beside the bar", () => {
         };
       });
 
-      // The dock's side gutters keep it clear of the bar outright. If a later
-      // layout lets the two meet again, this fails first, and the hit test
-      // below is what then has to hold.
-      expect(
-        report.overlap,
-        `the panel runs under the bar at ${width}px wide`
-      ).toBeLessThanOrEqual(0);
+      // The panel is wider than the old icon column, so the boxes share
+      // horizontal range. What has to hold is that the panel stops above the
+      // dock, and that no dock control's own point lands on the panel.
       expect(
         report.covered,
         `the bar covers a control in the HUD at ${width}x700`

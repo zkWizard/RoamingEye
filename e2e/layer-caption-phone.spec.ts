@@ -88,14 +88,12 @@ test.describe("phone", () => {
     // Selecting by label must stay unambiguous now that a second line of text
     // lives inside the button.
     const terrain = page.locator(".layer-selector__option", {
-      hasText: "Terrain",
+      hasText: "Land shape",
     });
     await expect(terrain).toHaveCount(1);
     await terrain.click();
-    // The trigger shows the full label, parenthetical and all
-    // ("Terrain (shaded relief)"), so this is a containment check by design.
-    await expect(page.locator(".layer-selector__current")).toContainText(
-      "Terrain"
+    await expect(page.locator(".layer-selector__current")).toHaveText(
+      "Land shape"
     );
   });
 });

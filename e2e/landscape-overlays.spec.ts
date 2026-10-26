@@ -34,8 +34,8 @@ const LANDSCAPE = [
   { name: "667x375", width: 667, height: 375 },
 ];
 
-/** The count is the assertion: nine is the whole overlay set. */
-const OVERLAY_COUNT = 9;
+/** The count is the assertion: eight is the whole overlay set. */
+const OVERLAY_COUNT = 8;
 
 /* A control is reached when a tap aimed at it lands on it. The point aimed at
    is the centre of a LINE box rather than the centre of the union box
@@ -78,23 +78,47 @@ for (const size of LANDSCAPE) {
     await page.goto("/");
     await awaitAppInteractive(page);
 
-    const toggles = await hitTest(page, ".toolbar__item");
+    await page.locator(".toolbar__handle").click();
+    await page.locator(".toolbar__fold--settings summary").click();
+
+    const items = page.locator(".toolbar__item");
+    await expect(items).toHaveCount(OVERLAY_COUNT);
+    const missed: string[] = [];
+    const count = await items.count();
+    for (let i = 0; i < count; i++) {
+      const item = items.nth(i);
+      await item.scrollIntoViewIfNeeded();
+      const label =
+        (await item.locator(".toolbar__label").textContent()) ?? "?";
+      const box = await item.boundingBox();
+      if (!box) {
+        missed.push(label);
+        continue;
+      }
+      const hit = await page.evaluate(
+        ([x, y]) => {
+          const at = document.elementFromPoint(x, y);
+          return Boolean(at?.closest(".toolbar__item"));
+        },
+        [
+          Math.round(box.x + box.width / 2),
+          Math.round(box.y + box.height / 2),
+        ] as [number, number]
+      );
+      if (!hit) missed.push(label);
+    }
     expect(
-      toggles.length,
-      "the overlay set is nine toggles; a change to the set needs this number"
-    ).toBe(OVERLAY_COUNT);
-    expect(
-      toggles.filter((t) => !t.reached).map((t) => t.label),
+      missed,
       "an overlay toggle that another box receives the tap for"
     ).toEqual([]);
 
-    // Reachable without a swipe as well: the row fits inline at these widths,
-    // so the fade is telling the truth when it does not appear.
+    // The sheet scrolls downward. A sideways overflow would mean a row that
+    // still needs a swipe the thumb cannot see.
     const scroll = await page.evaluate(() => {
-      const bar = document.querySelector(".toolbar") as HTMLElement;
+      const bar = document.querySelector("#toolbar-body") as HTMLElement;
       return { w: bar.scrollWidth, client: bar.clientWidth };
     });
-    expect(scroll.w).toBeLessThanOrEqual(scroll.client);
+    expect(scroll.w).toBeLessThanOrEqual(scroll.client + 1);
   });
 
   test(`the panel and its citation stay on screen at ${size.name}`, async ({

@@ -168,10 +168,9 @@ async function aimWithVolcanoes(page: Page, hash: string): Promise<void> {
     );
   });
   await bootAt(page, hash);
-  await expect(page.getByRole("button", { name: "Volcanoes" })).toHaveAttribute(
-    "aria-pressed",
-    "true"
-  );
+  await expect(
+    page.locator('.toolbar__item[data-overlay="volcanoes"]')
+  ).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("Tab");
   await expect(page.locator("#globe")).toBeFocused();
 }
@@ -243,10 +242,9 @@ test("an overlay that is switched off is not named", async ({ page }) => {
   // The same aim on the same volcano, with nothing seeded, so the overlay is
   // off: the aim hit-tests what is DRAWN, not what the catalogue contains.
   await bootAt(page, FOURNAISE);
-  await expect(page.getByRole("button", { name: "Volcanoes" })).toHaveAttribute(
-    "aria-pressed",
-    "false"
-  );
+  await expect(
+    page.locator('.toolbar__item[data-overlay="volcanoes"]')
+  ).toHaveAttribute("aria-pressed", "false");
 
   await page.keyboard.press("Tab");
   await expect(page.locator("#globe")).toBeFocused();
