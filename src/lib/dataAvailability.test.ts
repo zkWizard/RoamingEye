@@ -187,7 +187,7 @@ describe("data availability for the rendered vector datasets", () => {
   // The defect this covers: the statement claimed to describe the datasets
   // underlying the work while naming only the NASA imagery, and asserted
   // NASA's open-data policy over everything it named. The globe also draws
-  // four datasets no NASA policy governs.
+  // vector datasets no NASA policy governs.
   it("names every source the globe renders, not only the NASA products", () => {
     const das = dataAvailabilityStatement();
     const sources = citedVectorSources();

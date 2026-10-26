@@ -7,9 +7,12 @@
  *  - Plate boundaries: Bird (2003) "An updated digital model of plate
  *    boundaries", via the fraxen/tectonicplates GeoJSON digitization (ODC-By).
  *  - Holocene volcanoes: Smithsonian Global Volcanism Program (VOTW) WFS.
+ *  - US counties: Census Bureau 2017 cartographic boundaries, via the pinned
+ *    us-atlas 3.0.1 counties-10m TopoJSON (unprojected).
  *
  * Run with: node scripts/prepare-data.mjs [dataset]
- * (dataset = countries | cities | plates | volcanoes | admin1; omit for all.)
+ * (dataset = countries | cities | plates | volcanoes | admin1 | admin-lines |
+ * timezones | counties; omit for all.)
  * The slimmed outputs are committed so the app needs no network for overlays.
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
@@ -20,6 +23,9 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "public", "data");
 const BASE =
   "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson";
+/** Pinned. us-atlas 3.0.1 redistributes the Census Bureau 2017 edition. */
+const US_ATLAS_COUNTIES_URL =
+  "https://cdn.jsdelivr.net/npm/us-atlas@3.0.1/counties-10m.json";
 
 async function getJson(url) {
   const res = await fetch(url);
@@ -384,7 +390,64 @@ async function main() {
     console.log(`  → time-zones.json (${features.length} zones)`);
   }
 
+  if (want("counties")) {
+    // US county lines from the pinned us-atlas topology. Arcs are already the
+    // shared borders, so each edge is kept once. Snapping to 0.05° (~5 km)
+    // drops the quantization noise without moving a county line a person
+    // could pick out at the zoom this file is drawn. The result is fetched
+    // only when the visitor is zoomed in over the United States.
+    console.log("Fetching US county boundaries (us-atlas 3.0.1)…");
+    const topology = await getJson(US_ATLAS_COUNTIES_URL);
+    const lines = topoArcsToLines(topology, 0.05);
+    writeFileSync(
+      join(OUT, "us-counties.json"),
+      JSON.stringify({ step: 0.05, lines })
+    );
+    console.log(`  → us-counties.json (${lines.length} lines)`);
+  }
+
   console.log("Done.");
+}
+
+/**
+ * Decode a TopoJSON topology's arcs into flat `[lon, lat, …]` polylines.
+ * Quantized delta arcs are projected with the file's transform, snapped to
+ * `step` degrees, and split where a segment jumps the antimeridian.
+ */
+function topoArcsToLines(topology, step) {
+  const scale = topology.transform?.scale ?? [1, 1];
+  const translate = topology.transform?.translate ?? [0, 0];
+  const prec = step >= 0.1 ? 2 : 3;
+  const quant = (n) => Number((Math.round(n / step) * step).toFixed(prec));
+  const lines = [];
+  for (const arc of topology.arcs ?? []) {
+    let x = 0;
+    let y = 0;
+    let current = [];
+    const flush = () => {
+      // Four snapped vertices is the shortest run that still reads as a
+      // border rather than a speck left by the grid.
+      if (current.length >= 8) lines.push(current);
+      current = [];
+    };
+    for (const [dx, dy] of arc) {
+      x += dx;
+      y += dy;
+      const lon = quant(x * scale[0] + translate[0]);
+      const lat = quant(y * scale[1] + translate[1]);
+      const prevLon = current[current.length - 2];
+      const prevLat = current[current.length - 1];
+      if (prevLon === lon && prevLat === lat) continue;
+      if (prevLon !== undefined) {
+        let dlon = Math.abs(prevLon - lon);
+        if (dlon > 180) dlon = 360 - dlon;
+        if (dlon > 25 || Math.abs(prevLat - lat) > 25) flush();
+      }
+      current.push(lon, lat);
+    }
+    flush();
+  }
+  return lines;
 }
 
 main().catch((err) => {

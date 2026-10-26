@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
+import { CENSUS_COUNTY_SOURCE } from "./censusCountiesSource";
 import { citedVectorSources } from "./citedVectorSources";
 import { SEISMICITY_SOURCE } from "./earthquakes";
 import { BIRD_2003_PLATE_BOUNDARY_SOURCE } from "./plateBoundaryContext";
@@ -22,6 +23,7 @@ describe("citedVectorSources", () => {
       "dataset_USGSSeismicityFeed",
       "article_Bird2003PlateBoundaries",
       "dataset_NaturalEarthVector",
+      "dataset_CensusCartographicBoundaries",
     ]);
   });
 
@@ -173,5 +175,22 @@ describe("citedVectorSources", () => {
     for (const theme of NATURAL_EARTH_SOURCE.themes) {
       expect(script, `prepare-data.mjs fetches ${theme}`).toContain(theme);
     }
+  });
+
+  it("cites the Census county boundaries the close zoom draws", () => {
+    const census = byKey("dataset_CensusCartographicBoundaries");
+    expect(census.type).toBe("dataset");
+    expect(census.title).toBe(CENSUS_COUNTY_SOURCE.name);
+    expect(census.publisher).toBe(CENSUS_COUNTY_SOURCE.org);
+    expect(census.url).toBe(CENSUS_COUNTY_SOURCE.url);
+    expect(census.version).toBe(CENSUS_COUNTY_SOURCE.edition);
+    expect(census.doi).toBeUndefined();
+    expect(census.usedBy).toEqual(["Borders overlay"]);
+    expect(census.note).toContain(CENSUS_COUNTY_SOURCE.redistributionUrl);
+    const script = readFileSync(
+      new URL("../../scripts/prepare-data.mjs", import.meta.url),
+      "utf8"
+    );
+    expect(script).toContain(CENSUS_COUNTY_SOURCE.redistributionUrl);
   });
 });
