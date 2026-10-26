@@ -11,8 +11,10 @@ import { gzipSync } from "node:zlib";
 
 const ASSETS = join(process.cwd(), "dist", "assets");
 const BUDGETS_KB = {
-  // App code — everything that isn't the vendor chunk.
-  app: 60,
+  // App code — everything that isn't the vendor chunk. Main's entry chunk
+  // is 59.9 kB; the place hash has to be encoded on every view write, so
+  // it stays in this chunk.
+  app: 62,
   // three.js vendor chunk: changes only on dependency bumps, caches long.
   three: 170,
   // 3d-tiles-renderer, loaded on demand with the terrain globe.
