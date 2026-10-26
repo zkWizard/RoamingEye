@@ -122,8 +122,6 @@ import { Toolbar } from "./ui/Toolbar";
 import { SearchBox } from "./ui/SearchBox";
 import { Legend } from "./ui/Legend";
 import type { MapOverlay } from "./overlays/types";
-import { UserLocationOverlay } from "./overlays/UserLocationOverlay";
-import { GraticuleOverlay } from "./overlays/GraticuleOverlay";
 import { BordersOverlay } from "./overlays/BordersOverlay";
 import { CitiesOverlay } from "./overlays/CitiesOverlay";
 import { AtmosphereOverlay } from "./overlays/AtmosphereOverlay";
@@ -134,6 +132,9 @@ import {
 import { PlateBoundariesOverlay } from "./overlays/PlateBoundariesOverlay";
 import { VolcanoesOverlay } from "./overlays/VolcanoesOverlay";
 import { TiledImageryOverlay } from "./overlays/TiledImageryOverlay";
+import { TimeZonesOverlay } from "./overlays/TimeZonesOverlay";
+import { plainLayerName } from "./lib/plainLanguage";
+import type { ViewCard } from "./ui/viewCards";
 import { CameraFlyer } from "./scene/CameraFlyer";
 import { GlobeMomentum } from "./scene/GlobeMomentum";
 import { LocationHighlight } from "./scene/LocationHighlight";
@@ -328,13 +329,8 @@ const citiesOverlay = new CitiesOverlay();
 const plateBoundariesOverlay = new PlateBoundariesOverlay();
 const volcanoesOverlay = new VolcanoesOverlay();
 const earthquakesOverlay = new EarthquakesOverlay();
-// "You are here" — opt-in geolocation pin; denial reverts its toggle + toasts.
-const userLocationOverlay = new UserLocationOverlay((message) =>
-  errorToast.show(message)
-);
 const overlays: MapOverlay[] = [
   hdTiles,
-  new GraticuleOverlay(),
   new BordersOverlay(),
   citiesOverlay,
   new AtmosphereOverlay(),
@@ -343,7 +339,7 @@ const overlays: MapOverlay[] = [
   plateBoundariesOverlay,
   volcanoesOverlay,
   earthquakesOverlay,
-  userLocationOverlay,
+  new TimeZonesOverlay(),
 ];
 for (const overlay of overlays) scene.add(overlay.object);
 
@@ -378,7 +374,6 @@ if (tooltipEl) {
   for (let index = 0; index < EARTHQUAKE_HOVER_SOURCE_COUNT; index += 1) {
     hover.addPointSource(() => earthquakesOverlay.hoverSources[index]);
   }
-  hover.addPointSource(() => userLocationOverlay.hoverSource);
   hover.addLineSource(() => plateBoundariesOverlay.hoverSource);
   loadCountryIndex()
     .then((index) => {
@@ -687,6 +682,7 @@ let layerSelector: LayerSelector | undefined;
 function switchLayer(id: LayerId, { fromStory = false } = {}): void {
   if (!fromStory) storyCard?.dismiss();
   layerSelector?.select(id);
+  toolbar?.setActiveLayer(id);
   const place = fromStory ? undefined : chartedPlace;
   closeProbe?.();
   compareControls?.exit();
@@ -882,6 +878,55 @@ async function toggleOverlay(
 // the bar it built: a restored overlay whose load fails has to un-press its own
 // button, and the restore loop runs after this block.
 let toolbar: Toolbar | null = null;
+let introTimer: ReturnType<typeof setTimeout> | undefined;
+let introStop: ReturnType<typeof setTimeout> | undefined;
+/** Assigned once the stories block is up; view cards call it by id. */
+let playStory: (id: string) => void = () => undefined;
+
+function dismissIntro(): void {
+  clearTimeout(introTimer);
+  clearTimeout(introStop);
+  timeSlider?.pause();
+  markStoriesWelcomed();
+  const intro = document.querySelector<HTMLElement>("#intro");
+  if (!intro) return;
+  // Skip sits in the middle of the tab order. Hiding it while it holds focus
+  // leaves the next Tab inside the panel, so the globe and Compare are never
+  // reached. A throwaway stop at the start of the document, focused and
+  // removed, puts the next Tab back on the globe.
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && intro.contains(active)) {
+    const tmp = document.createElement("span");
+    tmp.tabIndex = 0;
+    tmp.setAttribute("aria-hidden", "true");
+    tmp.style.cssText =
+      "position:fixed;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)";
+    document.body.prepend(tmp);
+    tmp.focus();
+    tmp.remove();
+  }
+  intro.hidden = true;
+}
+
+function applyView(
+  card: ViewCard,
+  extras?: { compare?: boolean; share?: boolean; clip?: boolean }
+): void {
+  dismissIntro();
+  if (card.layer && currentLayer !== card.layer) switchLayer(card.layer);
+  for (const id of card.overlays ?? []) toolbar?.press(id, true);
+  if (extras?.compare) {
+    const button = document.querySelector<HTMLButtonElement>(".compare-button");
+    if (button?.getAttribute("aria-pressed") !== "true") button?.click();
+  }
+  if (extras?.share) {
+    document.querySelector<HTMLButtonElement>(".share-button")?.click();
+  }
+  if (extras?.clip) {
+    document.querySelector<HTMLElement>("#clip-link")?.click();
+  }
+}
+
 if (toolbarEl) {
   toolbar = new Toolbar(
     toolbarEl,
@@ -933,8 +978,16 @@ if (toolbarEl) {
         if (saidWaiting) announcer.announce(`${overlay.label} shown`);
       });
     },
-    (overlay) => overlayState.has(overlay.id)
+    (overlay) => overlayState.has(overlay.id),
+    {
+      onView: (card) => applyView(card),
+      onThenNow: (card) => applyView(card, { compare: true }),
+      onShare: (card) => applyView(card, { share: true }),
+      onClip: (card) => applyView(card, { clip: true }),
+      onStory: (id) => playStory(id),
+    }
   );
+  toolbar.setActiveLayer(currentLayer);
 }
 for (const overlay of overlays) {
   if (overlayState.has(overlay.id)) {
@@ -1480,7 +1533,10 @@ if (probeEl) {
     const darkness = layer.id === "snow" ? snowIlluminationNote(lat) : null;
     // The panel yields the space on the way IN only — see foldHudForOverlay.
     const probeWasOpen = panel.isOpen;
-    panel.open(layer.label, darkness ? `${where} · ${darkness}` : where);
+    panel.open(
+      plainLayerName(layer.id),
+      darkness ? `${where} · ${darkness}` : where
+    );
     if (!probeWasOpen) foldHudForOverlay?.();
     panel.setModeToggleVisible(true);
     if (layer.static) {
@@ -1900,7 +1956,7 @@ if (probeEl) {
     scheduleHashSync();
     const regionProbeWasOpen = panel.isOpen;
     panel.open(
-      layer.label,
+      plainLayerName(layer.id),
       place
         ? `${place.name} · mean inside the searched boundary`
         : // normalizeLon: a box drawn across the antimeridian carries
@@ -2714,7 +2770,7 @@ document
   .querySelector<HTMLElement>("#clip-link")
   ?.addEventListener("click", () => {
     void saveClip({
-      title: LAYERS[currentLayer].label,
+      title: plainLayerName(currentLayer),
       slug: currentLayer,
       play: () => {
         timeSlider?.pause();
@@ -2740,12 +2796,13 @@ if (storiesEl) {
     save: (story, replay) =>
       saveClip({
         title: story.title,
-        subtitle: LAYERS[story.layer].label,
+        subtitle: plainLayerName(story.layer),
         slug: story.id,
         play: replay,
       }),
     announce: (message) => announcer.announce(message),
     play: (story) => {
+      dismissIntro();
       clearTimeout(storyStart);
       if (currentLayer !== story.layer) {
         switchLayer(story.layer, { fromStory: true });
@@ -2796,28 +2853,52 @@ if (storiesEl) {
     void loadingCard.then((card) => card && use(card));
   };
 
-  const invite = storiesEl.querySelector<HTMLButtonElement>("#stories-invite");
-  invite?.addEventListener("click", () => {
-    invite.hidden = true;
-    markStoriesWelcomed();
-    withCard((card) => card.show(0));
-  });
+  playStory = (id) => {
+    dismissIntro();
+    withCard((card) => card.showById(id));
+  };
   document
     .querySelector<HTMLElement>("#stories-link")
     ?.addEventListener("click", () => {
-      if (invite) invite.hidden = true;
+      dismissIntro();
       withCard((card) => card.show(0));
     });
 
+  const intro = document.querySelector<HTMLElement>("#intro");
+  const introCaption = intro?.querySelector<HTMLElement>(".intro__caption");
+  intro
+    ?.querySelector<HTMLButtonElement>("#intro-skip")
+    ?.addEventListener("click", () => dismissIntro());
+
   // A returning visitor has a session; a first visit with a bare URL has
-  // nothing to go on, which is who the invitation is for. Any answer (a
-  // story played, or closed) retires it for good (lib/storiesWelcome.ts).
+  // nothing to go on. The caption plays once, and Skip (or any card) retires
+  // it for good (lib/storiesWelcome.ts).
   const firstVisit =
     storedSession.layer === undefined && !window.location.hash.slice(1);
   afterFirstLoad.push(() => {
     const story = initialView.story;
     if (story) withCard((card) => card.showById(story));
-    else if (firstVisit && invite && !storiesWelcomed()) invite.hidden = false;
+    else if (firstVisit && intro && !storiesWelcomed()) {
+      const phone = window.matchMedia(
+        "(max-width: 540px), (max-height: 460px)"
+      ).matches;
+      if (introCaption) {
+        introCaption.textContent = phone
+          ? "This is how green the planet was over the last couple of years. Skip this, or open Map and tap a picture."
+          : "This is how green the planet was over the last couple of years. Skip this, or tap a picture on the right.";
+      }
+      intro.hidden = false;
+      // The curtain fades for 0.6s after this runs. Waiting past that keeps
+      // the month still until a test (or a person) has had a chance to skip,
+      // and then the tour itself lasts about ten seconds.
+      introTimer = setTimeout(() => {
+        if (!reduceMotion) {
+          const end = currentIndex;
+          timeSlider?.playRange(Math.max(0, end - 24), end);
+        }
+        introStop = setTimeout(() => dismissIntro(), 10_000);
+      }, 1600);
+    }
   });
 }
 

@@ -683,6 +683,12 @@ body {
  * reader is recovering from an error and least able to lose the cursor.
  */
 .toolbar__item:focus-visible,
+.toolbar__handle:focus-visible,
+.toolbar__fold summary:focus-visible,
+.toolbar__story:focus-visible,
+.view-card__open:focus-visible,
+.view-card__action:focus-visible,
+.intro__skip:focus-visible,
 .controls__collapse:focus-visible,
 .layer-selector__trigger:focus-visible,
 .status-retry:focus-visible {
@@ -1249,7 +1255,38 @@ body {
    fades, the selected option dropped to 1.54:1 mid-fade, and the list is
    read the moment it opens. */
 .layer-selector__panel.is-open {
+  display: block;
+}
+
+.layer-selector__list {
   display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem 0.9rem;
+}
+
+.layer-selector__advanced {
+  margin-top: 0.55rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--control-border);
+}
+
+.layer-selector__advanced summary {
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.layer-selector__advanced-line {
+  margin: 0.3rem 0 0;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.layer-selector__advanced-plain {
+  color: var(--fg);
+  font-weight: 650;
 }
 
 .layer-selector__group-title {
@@ -1305,7 +1342,7 @@ body {
 }
 
 @media (max-width: 540px) {
-  .layer-selector__panel {
+  .layer-selector__list {
     grid-template-columns: 1fr;
   }
 
@@ -1843,33 +1880,49 @@ body {
   text-overflow: ellipsis;
 }
 
-/* --- Toolbar (right side) --------------------------------------------------- */
+/* --- Map panel (right side) --------------------------------------------------
+   A labeled panel, not an icon column. It starts below the actions pill
+   (that pill sits at clamp(...) + 52px and is about 44px tall) and stops
+   above the bottom dock, so Compare, Share and the timeline keep their own
+   clicks. The body scrolls; the fade below says when it does. */
 .toolbar {
   position: absolute;
-  top: 50%;
-  right: clamp(0.5rem, 1.5vw, 1rem);
-  transform: translateY(-50%);
+  top: calc(clamp(0.75rem, 2vw, 1.25rem) + 7.5rem);
+  right: 0.75rem;
   z-index: 4;
   pointer-events: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.4rem;
+  width: min(21rem, calc(100vw - 1.5rem));
+  max-height: calc(100vh - clamp(0.75rem, 2vw, 1.25rem) - 7.5rem - 16rem);
+  overflow: hidden;
   background: var(--panel-bg);
   border: 1px solid var(--control-border);
-  border-radius: 20px;
+  border-radius: 18px;
   box-shadow: var(--surface-edge), var(--surface-shadow);
   backdrop-filter: var(--material-blur);
   --toolbar-fade-start: 0px;
   --toolbar-fade-end: 0px;
 }
 
-/* Both scrolling layouts — the phone bottom bar and the short-desktop column —
-   fade whichever edge still has toggles behind it, so the bar reads as
-   scrollable rather than finished. Only the axis differs, so the sizes live
-   here and each layout supplies its own gradient direction below. Toolbar.ts
-   keeps `data-overflow` in step with the real scroll position, so the fade is
-   gone once you reach that end. */
+/* Just above the phone sheet, a 21rem column covers the middle of the view
+   and a click there opens the menu. Keep the centre of the globe free. */
+@media (min-width: 541px) and (max-width: 700px) and (min-height: 461px) {
+  .toolbar {
+    width: min(16rem, calc(50vw - 2.75rem));
+  }
+}
+
+.toolbar__body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* The body is the scrollport. Fade whichever vertical edge still has content
+   behind it, so a panel that scrolls reads as unfinished. Toolbar.ts keeps
+   `data-overflow` in step with the real scroll position. A mask is applied
+   only while something is hidden — it promotes the panel to its own layer. */
 .toolbar[data-overflow="end"],
 .toolbar[data-overflow="both"] {
   --toolbar-fade-end: 2rem;
@@ -1880,14 +1933,198 @@ body {
   --toolbar-fade-start: 2rem;
 }
 
-.toolbar__item {
+.toolbar[data-overflow="start"],
+.toolbar[data-overflow="end"],
+.toolbar[data-overflow="both"] {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--toolbar-fade-start),
+    #000 calc(100% - var(--toolbar-fade-end)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--toolbar-fade-start),
+    #000 calc(100% - var(--toolbar-fade-end)),
+    transparent 100%
+  );
+}
+
+.toolbar__heading {
+  margin: 0;
+  padding: 0.75rem 0.85rem 0.35rem;
+  font-size: 0.92rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.view-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  padding: 0 0.6rem 0.55rem;
+}
+
+.view-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.2rem;
-  width: 60px;
-  padding: 0.55rem 0.25rem;
+  min-width: 0;
+  border: 1px solid var(--control-border);
+  border-radius: 12px;
+  background: var(--control-bg);
+  overflow: hidden;
+}
+
+.view-card.is-current {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.view-card__open {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  padding: 0;
   font: inherit;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.view-card__thumb {
+  display: block;
+  width: 100%;
+  height: 64px;
+  object-fit: cover;
+  background: linear-gradient(160deg, #163024, #101820 55%, #1a140c);
+}
+
+.view-card__thumb.is-missing {
+  height: 64px;
+}
+
+.view-card__title {
+  padding: 0.35rem 0.45rem 0;
+  font-size: 0.74rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.view-card__blurb {
+  padding: 0.1rem 0.45rem 0.35rem;
+  font-size: 0.66rem;
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+.view-card__actions {
+  display: flex;
+  gap: 0.1rem;
+  padding: 0 0.25rem 0.3rem;
+}
+
+.view-card__action {
+  flex: 1;
+  min-width: 0;
+  padding: 0.22rem 0.1rem;
+  font: inherit;
+  font-size: 0.62rem;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.view-card__action:hover {
+  color: var(--fg);
+  background: var(--panel-bg);
+}
+
+.toolbar__fold {
+  margin: 0 0.45rem;
+  border-top: 1px solid var(--control-border);
+}
+
+.toolbar__fold summary {
+  padding: 0.55rem 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+}
+
+.toolbar__fold summary::-webkit-details-marker {
+  display: none;
+}
+
+.toolbar__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding-bottom: 0.4rem;
+}
+
+.toolbar__note {
+  margin: 0 0.45rem 0.35rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.toolbar__story {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  width: 100%;
+  margin-bottom: 0.25rem;
+  padding: 0.4rem 0.5rem;
+  font: inherit;
+  text-align: left;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.toolbar__story:hover {
+  background: var(--control-bg);
+}
+
+.toolbar__story-title {
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.toolbar__story-blurb {
+  font-size: 0.68rem;
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+.toolbar__handle {
+  display: none;
+}
+
+.toolbar__item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.4rem 1.4rem 0.4rem 0.55rem;
+  font: inherit;
+  text-align: left;
   color: var(--muted);
   background: transparent;
   border: 1px solid transparent;
@@ -1896,8 +2133,7 @@ body {
   transition:
     background 0.15s ease,
     color 0.15s ease,
-    border-color 0.15s ease,
-    scale 0.1s ease-out;
+    border-color 0.15s ease;
 }
 
 .toolbar__item:hover {
@@ -1920,13 +2156,14 @@ body {
 .toolbar__item[aria-pressed="true"]::after {
   content: "";
   position: absolute;
-  top: 8px;
+  top: 50%;
   right: 10px;
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--accent);
   box-shadow: 0 0 6px var(--accent-strong);
+  transform: translateY(-50%);
 }
 
 .toolbar__icon {
@@ -1976,19 +2213,28 @@ body {
   height: 100%;
 }
 
+.toolbar__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .toolbar__label {
-  font-size: 0.66rem;
+  font-size: 0.84rem;
+  font-weight: 650;
   letter-spacing: 0.01em;
 }
 
-@media (max-width: 540px) {
-  .toolbar__item {
-    width: 52px;
-    padding: 0.45rem 0.2rem;
-  }
-  .toolbar__label {
-    font-size: 0.6rem;
-  }
+.toolbar__detail {
+  font-size: 0.68rem;
+  font-weight: 400;
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+.toolbar__item[aria-pressed="true"] .toolbar__detail {
+  color: inherit;
+  opacity: 0.75;
 }
 
 /* --- Hover readout (follows the cursor) ------------------------------------- */
@@ -3294,6 +3540,29 @@ body {
   font-weight: 700;
 }
 
+.tz-labels {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.tz-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: #f4f7fb;
+  white-space: nowrap;
+  text-shadow:
+    0 0 4px #0c1218,
+    0 0 2px #0c1218,
+    0 1px 2px #0c1218;
+}
+
 /* --- Touch tap targets ---------------------------------------------------
    The chrome buttons are sized for a mouse: 32px for the theme toggle, 36px
    for the icon buttons in the explore rail, 36px for the layer trigger. All
@@ -3377,79 +3646,62 @@ body {
   }
 }
 
-/* The bar, and the room the bottom overlay gives it, belong to two cases rather
-   than to the narrow one alone. A phone held in landscape is 360-430px tall,
-   and the column layout below needs 460px before its first toggle clears the
-   top-right buttons the cap reserves: it resolves to 0px of column at 390, 375
-   and 360 and to 30px at 430, leaving a sliver of bar still wearing its
-   "more items this way" fade. A hit test across all nine toggles at 844x390,
-   932x430, 740x360 and 667x375 reached none of them. Nothing else on screen
-   substitutes — borders, cities, earthquakes, volcanoes, plate boundaries, the
-   graticule, the atmosphere, HD tiles and "my location" are on this bar alone —
-   so the set was unreachable rather than merely cramped, in the orientation a
-   globe invites.
-   Keyed on height as well as width, the bar runs across the bottom at those
-   sizes and all nine are hit-testable, with the row's scroll width already
-   inside its client width so none of them needs a sideways swipe either.
-   The column rules further down carry the matching `min-height`, which is what
-   keeps the two layouts exclusive instead of letting the later one win. The
-   number is arithmetic rather than taste: a toggle stands 60.6px, so 460px is
-   where the centred column stops showing even one, and it sits clear of the
-   1024x600 netbook that e2e/toolbar-height-continuity.spec.ts holds at exactly
-   the column it has today.
-   e2e/landscape-overlays.spec.ts hit-tests all nine at the four sizes above. */
+/* Phones, and phones held sideways: the labeled panel does not fit as a
+   column, so it becomes a bottom sheet. Collapsed it is only the Map handle,
+   which is what leaves the folded dock and the credits tappable.
+   e2e/landscape-overlays.spec.ts opens the sheet and reaches every toggle.
+   e2e/phone-attribution-clearance.spec.ts hit-tests the credits row while the
+   sheet is still collapsed. */
 @media (max-width: 540px), (max-height: 460px) {
   .toolbar {
     top: auto;
     bottom: 0;
     left: 0;
     right: 0;
-    transform: none;
-    flex-direction: row;
-    gap: 0.25rem;
-    padding: 0.3rem 0.5rem calc(0.3rem + env(safe-area-inset-bottom));
-    border-radius: 14px 14px 0 0;
+    width: auto;
+    max-height: min(72vh, 640px);
+    border-radius: 16px 16px 0 0;
     border-bottom: none;
-    overflow-x: auto;
-    /* A sideways swipe on the bar must not chain into the browser's
-       back-navigation gesture and leave the app. */
-    overscroll-behavior-x: contain;
-    /* Nine toggles need ~516px; a 390px phone shows six. Fade sizes are
-       shared with the short-desktop column (see `--toolbar-fade-*`); here the
-       hidden items are off to the side, so the gradient runs across. */
-    -webkit-mask-image: linear-gradient(
-      to right,
-      transparent 0,
-      #000 var(--toolbar-fade-start),
-      #000 calc(100% - var(--toolbar-fade-end)),
-      transparent 100%
-    );
-    mask-image: linear-gradient(
-      to right,
-      transparent 0,
-      #000 var(--toolbar-fade-start),
-      #000 calc(100% - var(--toolbar-fade-end)),
-      transparent 100%
-    );
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
-  .toolbar__item {
-    flex: none;
+  .toolbar.is-collapsed {
+    max-height: none;
   }
 
-  /* The bar is pinned across the bottom here, so the overlay stands on it: its
-     measured height, which Toolbar.ts publishes as `--toolbar-height`, so it
-     stays right as the bar's contents change, and a notched phone comes along
-     for free (`env(safe-area-inset-bottom)` is inside the bar's own padding).
-     The fallback is the bar's usual height before the first ResizeObserver
-     callback. This used to be a flat 3.6rem with the credits line lifted the
-     remaining ~18px on its own, because raising the whole overlay would have
-     carried the old 373px panel up into the globe's middle. The dock is short
-     enough to take the full offset, and the lifted credits line had started to
-     overlap the dock's own last row. e2e/phone-attribution-clearance.spec.ts
-     hit-tests every control in the credits row at four phone sizes. */
+  .toolbar.is-collapsed .toolbar__body {
+    display: none;
+  }
+
+  .toolbar__handle:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    width: 100%;
+    min-height: 44px;
+    padding: 0.4rem 0.75rem 0.5rem;
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 650;
+    color: var(--fg);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+  }
+
+  .toolbar__grab {
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--muted);
+  }
+
+  /* The collapsed handle is what the dock stands on. An open sheet covers the
+     dock on purpose, and Toolbar.ts keeps publishing the handle height then
+     so the dock does not jump. */
   .overlay--bottom {
-    bottom: var(--toolbar-height, 4.75rem);
+    bottom: var(--toolbar-height, 3.25rem);
     padding-bottom: 0.4rem;
   }
 }
@@ -3954,8 +4206,56 @@ body {
   pointer-events: none;
 }
 
+/* The map panel occupies the right 21rem. A card as wide as 340px runs under
+   that panel once the window is narrower than about 700px, and Skip — the
+   control at the card's right edge — stops taking clicks. Keep the card in
+   the free strip. Phones turn the panel into a bottom sheet, so this only
+   applies while the panel is still a column. */
+@media (min-width: 541px) and (min-height: 461px) {
+  .stories {
+    width: min(340px, calc(100vw - 21rem - 2.75rem));
+  }
+}
+
 .stories > * {
   pointer-events: auto;
+}
+
+.intro {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.75rem 0.8rem;
+  background: var(--panel-bg);
+  border: 1px solid var(--control-border);
+  border-radius: 14px;
+  box-shadow: var(--surface-edge), var(--surface-shadow);
+  backdrop-filter: var(--material-blur);
+}
+
+.intro[hidden] {
+  display: none;
+}
+
+.intro__caption {
+  margin: 0;
+  min-width: 0;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  color: var(--fg);
+}
+
+.intro__skip {
+  flex: none;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--bg);
+  background: var(--fg);
+  border: 0;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
 }
 
 .stories__invite[hidden],
@@ -4196,123 +4496,7 @@ body {
   display: none;
 }
 
-/* The toolbar column (issue #93): centred vertically, so its top edge climbs
-   as the column grows, and above a certain height it reaches the top-right
-   button column (Share/Save/Compare) and steals their clicks. The rule below
-   fixed that for short windows by anchoring the bar under those buttons — but
-   it keyed the collision to a window height, and the column has since outgrown
-   that number: nine toggles stand 609px tall, so centring puts the top edge
-   above the Compare button on any window shorter than ~987px, while the rule
-   only covers 820px and down. In the gap — 1440x900 and 1280x900 among the
-   commonest laptop viewports — clicking the middle of Compare landed on HD
-   tiles and switched imagery resolution instead of opening comparison mode.
-   So state the invariant instead of guessing a breakpoint: cap the centred
-   column so centring always leaves the 200px the buttons occupy. Above
-   ~1009px tall the cap exceeds the column's natural height and nothing
-   changes; below it the top edge sits at exactly 200px, which is the anchor
-   the short-window rule already uses — the two layouts now agree instead of
-   meeting at a cliff. Bottom clearance grows to match (200px at 900px tall,
-   where the overlapping layout left 145px).
-   The fade lives here rather than in the short-window rule because both
-   scrolling column layouts need it; the phone bottom bar supplies its own,
-   running across instead of down. */
-@media (min-width: 541px) and (min-height: 461px) {
-  .toolbar {
-    max-height: calc(100vh - 400px);
-    overflow-y: auto;
-  }
-
-  /* Only mask a column that actually has toggles behind an edge: a mask
-     promotes the bar to its own composited layer, and "no mask" stays a
-     truthful signal that nothing is hidden. */
-  .toolbar[data-overflow="start"],
-  .toolbar[data-overflow="end"],
-  .toolbar[data-overflow="both"] {
-    -webkit-mask-image: linear-gradient(
-      to bottom,
-      transparent 0,
-      #000 var(--toolbar-fade-start),
-      #000 calc(100% - var(--toolbar-fade-end)),
-      transparent 100%
-    );
-    mask-image: linear-gradient(
-      to bottom,
-      transparent 0,
-      #000 var(--toolbar-fade-start),
-      #000 calc(100% - var(--toolbar-fade-end)),
-      transparent 100%
-    );
-  }
-}
-
-/* Short desktop windows: anchor the bar below the top-right buttons outright,
-   which is where the cap above puts it anyway once the column is taller than
-   the window allows — stating it keeps the anchor explicit rather than a
-   consequence of centring.
-   This rule used to tighten the cap as well, to `100vh - 530px`, reserving an
-   extra 130px on the grounds that the bottom HUD needed 330px of its own. It
-   did not: the HUD panel is 880px wide and centred, so at 1366px there is
-   152px of clear air between its right edge and the bar, and at the widths
-   where the two boxes do meet — 66px of overlap at 560px wide, 61px at 900px —
-   the region they share is the panel's empty right margin, not anything
-   clickable. Above the breakpoint the bar has always run 156–191px down into
-   the panel's own band at those same widths without covering one control, so
-   the reserve was buying clearance the layout never needed. What it did buy was
-   a cliff at exactly the breakpoint: 421px of column at 821px tall and 290px at
-   820px, so nudging a window one pixel shorter cost two of the nine toggles.
-   With both layouts on the same cap the column now shortens smoothly with the
-   window, and the toggle count follows it — five of nine on screen at 1366x768
-   where three were, four at 720px tall where two were. The fade above is still
-   what tells the reader the rest are there.
-   e2e/toolbar-height-continuity.spec.ts pins both halves: no step at the
-   breakpoint, and every control in the HUD panel still owns its own centre at
-   the widths where the boxes overlap. */
-@media (min-width: 541px) and (min-height: 461px) and (max-height: 820px) {
-  .toolbar {
-    top: 200px;
-    bottom: auto;
-    transform: none;
-  }
-}
-
-/* The cap above reserves 400px, and it is easy to read that as two decisions —
-   200px for the top-right buttons and 200px for something at the bottom. It is
-   one: the column is centred, so reserving the 200px the buttons occupy
-   necessarily mirrors it below, and the lower 200px is a consequence rather
-   than a clearance anything asked for. Nothing lives there. The credits line
-   sits in the last 48px of the window, the HUD panel is 880px wide and centred,
-   and a hit test across the strip returns the globe for its whole run.
-   So say what the band actually is — from under the buttons to clear of the
-   credits — and let the column have the rest of it. The bar keeps its centring
-   inside that band, which is what `margin-block: auto` between two insets does,
-   so a tall window still centres the column and only windows too short to
-   centre it above 200px anchor it there. `height: fit-content` is what keeps
-   the box its content's height instead of stretching to fill the band.
-   Two more toggles reach the screen on the common laptop viewports: seven of
-   nine at 1366x768 and 1280x800 where five and six were, six at 720px tall
-   where four were, and all nine at 900px tall where seven were.
-   The width gate is arithmetic, not taste. The panel is a fixed 880px centred
-   and the bar's left edge sits at `100vw - 91px`, so the two boxes overlap by
-   `531 - 100vw/2` px — clear only above 1062px wide. Below that a longer column
-   runs down the panel's flank: at 1024x600 the timeline steppers span x 879-937
-   against a bar edge at 934, so three pixels of a real control are at stake.
-   1100px keeps a 19px margin over the crossover. Under it nothing moves, which
-   leaves a 1024x600 netbook at the three toggles it has today.
-   The `@supports` guard is load-bearing rather than decorative: the box is
-   given both a top and a bottom inset, so without `fit-content` its height
-   resolves to `auto` and stretches to fill the band, turning the bar into a
-   tall translucent slab with the toggles bunched at its top. A browser that
-   cannot do the centring is better off keeping the centred cap it has.
-   e2e/toolbar-height-continuity.spec.ts holds the band at both ends. */
-@supports (height: fit-content) {
-  @media (min-width: 1100px) and (min-height: 461px) {
-    .toolbar {
-      top: 200px;
-      bottom: 80px;
-      transform: none;
-      height: fit-content;
-      margin-block: auto;
-      max-height: calc(100vh - 280px);
-    }
-  }
-}
+/* The panel's top and max-height live on `.toolbar` itself. It is anchored
+   under the actions pill and stops 16rem short of the window, which is the
+   room the dock and the credits need. A later breakpoint that recentres it
+   or pins `top: 200px` puts the panel over Compare again. */
