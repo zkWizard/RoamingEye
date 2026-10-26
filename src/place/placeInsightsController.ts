@@ -142,7 +142,8 @@ export function runPlaceInsights(
  * sampled at the two endpoint years. A highlight that moves aborts this
  * through `signal`. A point (no area) and a year the record cannot fill
  * return null — the row keeps its ordinary subtitle rather than a made-up
- * percent. The search chunk imports this module only when a row is highlighted.
+ * percent. Callers load this module with the place panel's held import, and
+ * only when a highlighted row has an area.
  */
 export async function previewPlaceChange(
   geometry: GeoGeometry,
