@@ -490,6 +490,17 @@ export const PROVIDERS: Provider[] = [
       "Public-domain vector basemap data — national borders, state lines as you zoom in, city labels, and time zones.",
   },
   {
+    name: "U.S. Census Bureau",
+    org: "U.S. Census Bureau",
+    region: "United States",
+    group: "Vector & base maps",
+    url: "https://www.census.gov/geographies/mapping-files/time-series/geo/carto-boundary-file.html",
+    license: "Public domain",
+    use: "core",
+    description:
+      "2017 cartographic county boundaries, drawn when you zoom in over the United States.",
+  },
+  {
     name: "OpenAerialMap",
     org: "HOT / community",
     region: "Global",

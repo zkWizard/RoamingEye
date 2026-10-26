@@ -228,6 +228,20 @@ describe("bundled data files", () => {
     }
   });
 
+  it("us-counties.json is a US-only line extract", () => {
+    const lines = parseBorderLines(load("us-counties.json"));
+    expect(lines.length).toBeGreaterThan(2000);
+    const near = (lat: number, lon: number, tol: number) =>
+      lines.some((line) =>
+        line.some(
+          ([x, y]) => Math.abs(x - lon) <= tol && Math.abs(y - lat) <= tol
+        )
+      );
+    expect(near(41.6, -93.5, 0.5), "a county line near Iowa").toBe(true);
+    expect(near(21.3, -157.8, 0.5), "a county line near Honolulu").toBe(true);
+    expect(near(51.5, -0.1, 2), "no county line near London").toBe(false);
+  });
+
   it("time-zones.json covers fractional offsets and labels them", () => {
     const zones = parseTimeZones(load("time-zones.json"));
     expect(zones.length).toBeGreaterThan(80);

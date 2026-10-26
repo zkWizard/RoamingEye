@@ -1,3 +1,4 @@
+import { CENSUS_COUNTY_SOURCE } from "./censusCountiesSource";
 import { SEISMICITY_SOURCE } from "./earthquakes";
 import { NATURAL_EARTH_SOURCE } from "./naturalEarthSource";
 import { BIRD_2003_PLATE_BOUNDARY_SOURCE } from "./plateBoundaryContext";
@@ -151,6 +152,22 @@ export function citedVectorSources(): VectorSourceCitation[] {
         `Public-domain basemap, cited without a version: the bundled extract ` +
         `was taken from ${NATURAL_EARTH_SOURCE.mirrorUrl} at an unpinned ` +
         `branch (${NATURAL_EARTH_SOURCE.themes.join(", ")}).`,
+    },
+    {
+      key: "dataset_CensusCartographicBoundaries",
+      title: CENSUS_COUNTY_SOURCE.name,
+      publisher: CENSUS_COUNTY_SOURCE.org,
+      type: "dataset",
+      version: CENSUS_COUNTY_SOURCE.edition,
+      url: CENSUS_COUNTY_SOURCE.url,
+      usedBy: ["Borders overlay"],
+      // No DOI is published for the cartographic boundary files. The edition
+      // is the one the pinned us-atlas redistribution names; the note records
+      // that file so the extract can be reproduced.
+      note:
+        `County lines are the unprojected counties-10m topology from ` +
+        `${CENSUS_COUNTY_SOURCE.redistributionUrl}, which redistributes the ` +
+        `${CENSUS_COUNTY_SOURCE.edition} cartographic county boundaries.`,
     },
   ];
 }

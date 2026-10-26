@@ -15,13 +15,14 @@ interface FeatureCollection {
  *
  * Countries load with the toggle. State and province lines (admin-1) wait
  * until the camera has moved in, in two snaps: a light one when a country
- * fills the view, a tighter one up close. Natural Earth has no admin-2
- * (county) theme, and the global county extracts that do exist are hundreds
- * of megabytes, so counties are not drawn — the closer admin-1 snap is the
- * finest linework that stays off the first load.
+ * fills the view, a tighter one up close. US county lines are a third snap,
+ * and only while the view is over the United States: there is no similarly
+ * small global admin-2 extract, so other countries stay at admin-1.
  */
 const STATE_DISTANCE = 2.35;
 const DETAIL_DISTANCE = 1.5;
+/** Close enough that a state fills the view and county lines are readable. */
+const COUNTY_DISTANCE = 1.28;
 
 const BORDER_STYLE: HaloStyle = {
   widthPx: 4.5,
@@ -32,7 +33,7 @@ const BORDER_STYLE: HaloStyle = {
 export class BordersOverlay implements MapOverlay {
   readonly id = "borders";
   readonly label = "Borders";
-  readonly detail = "Countries, and states as you zoom in";
+  readonly detail = "Countries, states, US counties up close";
   readonly icon = ICONS.borders;
   readonly object = new THREE.Group();
 
@@ -41,6 +42,8 @@ export class BordersOverlay implements MapOverlay {
   private statesStarted = false;
   private detailStarted = false;
   private halo: typeof import("./haloLines") | undefined;
+  /** County sync, loaded only after the camera has moved in close. */
+  private us?: (camera: THREE.PerspectiveCamera) => void;
 
   constructor(
     private readonly countriesUrl = `${import.meta.env.BASE_URL}data/countries.geojson`,
@@ -68,8 +71,26 @@ export class BordersOverlay implements MapOverlay {
     const showDetail = distance < DETAIL_DISTANCE;
     if (this.states) this.states.visible = showStates;
     if (this.detailMesh) this.detailMesh.visible = showDetail && showStates;
-    if (showStates) this.ensureStates();
-    if (showDetail) this.ensureDetail();
+    if (showStates)
+      this.arm("statesStarted", "states", this.statesUrl, 1.0026, 3.4);
+    if (showDetail)
+      this.arm("detailStarted", "detailMesh", this.detailUrl, 1.0031, 2.8);
+    if (distance < COUNTY_DISTANCE) {
+      if (this.us) this.us(camera);
+      else this.loadUs(camera);
+    }
+  }
+
+  private loadUs(camera: THREE.PerspectiveCamera): void {
+    this.us = () => undefined;
+    void import("./usCounties")
+      .then((mod) => {
+        this.us = (next) => mod.syncUsCounties(this.object, next);
+        this.us(camera);
+      })
+      .catch(() => {
+        this.us = undefined;
+      });
   }
 
   private async loadCountries(): Promise<void> {
@@ -80,31 +101,22 @@ export class BordersOverlay implements MapOverlay {
     await this.addLines(lines, GLOBE_RADIUS * 1.002, BORDER_STYLE.widthPx);
   }
 
-  private ensureStates(): void {
-    if (this.statesStarted) return;
-    this.statesStarted = true;
-    void this.loadLineFile(this.statesUrl, GLOBE_RADIUS * 1.0026, 3.4)
+  private arm(
+    flag: "statesStarted" | "detailStarted",
+    slot: "states" | "detailMesh",
+    url: string,
+    lift: number,
+    widthPx: number
+  ): void {
+    if (this[flag]) return;
+    this[flag] = true;
+    void this.loadLineFile(url, GLOBE_RADIUS * lift, widthPx)
       .then((mesh) => {
-        this.states = mesh;
+        this[slot] = mesh;
         if (mesh) mesh.visible = true;
       })
-      .catch((err: unknown) => {
-        this.statesStarted = false;
-        console.warn("RoamingEye: state borders failed to load", err);
-      });
-  }
-
-  private ensureDetail(): void {
-    if (this.detailStarted) return;
-    this.detailStarted = true;
-    void this.loadLineFile(this.detailUrl, GLOBE_RADIUS * 1.0031, 2.8)
-      .then((mesh) => {
-        this.detailMesh = mesh;
-        if (mesh) mesh.visible = true;
-      })
-      .catch((err: unknown) => {
-        this.detailStarted = false;
-        console.warn("RoamingEye: detailed borders failed to load", err);
+      .catch(() => {
+        this[flag] = false;
       });
   }
 
