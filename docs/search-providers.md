@@ -109,3 +109,4 @@ If the sentence also contains a place the instant index knows ("Sahel in August 
 - It does not import Nominatim, the place files, or the stories. Those are providers.
 - It does not switch layers, move the timeline, or fly the camera. `mountSearch` does, from `data`.
 - It does not rank across groups. Score only orders rows that share a group.
+- It does not sample imagery. When a highlighted place has an area, `mountSearch` asks the place chunk for one change line and the box only draws the text and the trend it is given. A point has no area, so it keeps its ordinary subtitle.

@@ -1886,11 +1886,33 @@ body {
 }
 
 .search__result-sub {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
   font-size: 0.72rem;
   color: var(--muted);
-  white-space: nowrap;
+}
+
+.search__result-change {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search__spark {
+  width: 2.5rem;
+  height: 0.85rem;
+  flex: none;
+}
+
+.search__spark polyline {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* --- Map panel (right side) --------------------------------------------------
