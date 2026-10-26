@@ -8,6 +8,7 @@ import { loadPlaceCatalog, matchPlaces } from "./catalog";
 import { hotspotProvider } from "./hotspots";
 import { pointBox } from "./outline";
 import { matchScore } from "./rank";
+import { eventSearchProvider } from "../eventSearch";
 import type { SearchHit, SearchProvider } from "./provider";
 
 const PLACE_GROUPS = [
@@ -195,6 +196,7 @@ export function searchProviders(): SearchProvider[] {
     storyProvider(),
     layerProvider(),
     hotspotProvider(),
+    eventSearchProvider(),
     nominatimProvider(),
   ];
 }

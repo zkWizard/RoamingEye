@@ -25,6 +25,7 @@
     "test:soak": "playwright test --config playwright.soak.config.ts",
     "agents:run": "node scripts/run-agent-fleet.mjs",
     "catalog:check": "node scripts/agents/qa-release.mjs",
+    "events:build": "node scripts/build-events-index.mjs",
     "verify": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run catalog:check && npm run build",
     "verify:full": "npm run verify && npm run test:e2e",
     "deploy": "node scripts/deploy.mjs"

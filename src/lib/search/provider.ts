@@ -44,7 +44,8 @@ export type SearchAction =
       layerId: string;
       lat: number;
       lon: number;
-    };
+    }
+  | { type: "event"; eventId: string };
 
 /**
  * A source of search rows.
