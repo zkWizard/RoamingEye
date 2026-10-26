@@ -30,9 +30,11 @@ import { awaitAppInteractive } from "./boot";
  * split is actually exercised. Enter probes the camera's subpoint (see the
  * canvas keydown handler in main.ts), so the hash aims the probe.
  *
- * Reaching a settled readout costs ~30s of sampling, so this raises the test
- * timeout the way probe-csv-copy-announce.spec.ts does for the same wait —
- * the split only exists on a finished record, and there is no shorter route.
+ * Reaching a settled readout samples the layer's whole record. A full Amazon
+ * NDVI series is about a minute locally and longer on the software-GL runner,
+ * which is also streaming the terrain basemap, so the wait sits well above
+ * that. The split only exists on a finished record, and there is no shorter
+ * route.
  *
  * Taller than the 1280x720 default for the reason probe-progress-announce and
  * probe-keyboard are: at 720 the bottom HUD covers the middle of the view,
@@ -40,7 +42,7 @@ import { awaitAppInteractive } from "./boot";
  */
 
 test.use({ viewport: { width: 1280, height: 900 } });
-test.setTimeout(120_000);
+test.setTimeout(210_000);
 
 /** Dense evergreen canopy: a full record on every sampled month. */
 const AMAZON = "/#layer=ndvi&lat=-3.00&lon=-60.00&alt=1.80";
@@ -75,7 +77,7 @@ test("the reading is announced alone; its qualifications are not a live region",
         const text = ((await status.textContent()) ?? "").trim();
         return text === "" || /^Sampling/.test(text) ? "pending" : "settled";
       },
-      { message: "the probe never settled", timeout: 90_000 }
+      { message: "the probe never settled", timeout: 180_000 }
     )
     .toBe("settled");
 
