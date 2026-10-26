@@ -138,7 +138,9 @@ export class TerrainGlobe {
   setSampling(active: boolean): void {
     this.sampling = active;
     // Imagery overlays share this queue with the terrain meshes.
-    this.tiles.downloadQueue.maxJobsPerOrigin = active ? 0 : STREAM_JOBS_PER_ORIGIN;
+    this.tiles.downloadQueue.maxJobsPerOrigin = active
+      ? 0
+      : STREAM_JOBS_PER_ORIGIN;
   }
 
   /** Remember the month to drape. The overlay is built only once the camera is close. */
