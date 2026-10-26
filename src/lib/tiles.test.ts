@@ -15,6 +15,7 @@ import {
   gibsMercatorLevels,
   gibsMercatorTemplate,
   gibsMercatorZoom,
+  gibsNativeMetresPerPixel,
   centralAngleRad,
   angleToTileRad,
   selectLodTiles,
@@ -449,6 +450,8 @@ describe("gibsMercatorTemplate", () => {
     const wmts = { set: "1km", maxLevel: 6, ext: "png" as const };
     expect(gibsMercatorZoom(wmts)).toBe(7);
     expect(gibsMercatorLevels(wmts)).toBe(8);
+    expect(gibsNativeMetresPerPixel(wmts)).toBeGreaterThan(900);
+    expect(gibsNativeMetresPerPixel(wmts)).toBeLessThan(1100);
     expect(
       gibsMercatorTemplate("MODIS_Terra_L3_NDVI_Monthly", "2024-06-01", wmts)
     ).toBe(

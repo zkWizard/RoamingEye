@@ -522,6 +522,11 @@ export function gibsMercatorLevels(wmts: WmtsConfig): number {
   return gibsMercatorZoom(wmts) + 1;
 }
 
+/** Ground size of one texel at the layer's finest published level, in metres. */
+export function gibsNativeMetresPerPixel(wmts: WmtsConfig): number {
+  return degreesPerPixel(wmts.maxLevel) * M_PER_DEG;
+}
+
 /**
  * Slippy-map template for a GIBS layer in Web Mercator. Always PNG: the
  * palette carries a transparency chunk, so no-data stays see-through when the

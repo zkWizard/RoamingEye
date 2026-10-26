@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { resolveGroundPoint } from "../lib/cameraZoom";
 import { vector3ToLatLng, latLngToVector3, type LatLng } from "../lib/geo";
 import { dragBounds, boundsUsable } from "../lib/probe";
 import type { Bounds } from "../lib/imagery";
@@ -154,8 +155,24 @@ export class RegionDrawer {
     this.ndc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     this.ndc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     this.raycaster.setFromCamera(this.ndc, this.camera);
-    const hit = this.raycaster.intersectObject(this.earth, false)[0];
-    return hit ? vector3ToLatLng(hit.point) : undefined;
+    const meshHit = this.raycaster.intersectObject(this.earth, false)[0];
+    const length = this.camera.position.length();
+    if (length >= 1) {
+      return meshHit ? vector3ToLatLng(meshHit.point) : undefined;
+    }
+    const resolved = resolveGroundPoint(
+      length,
+      vector3ToLatLng(this.camera.position).lat,
+      this.raycaster.ray.origin,
+      this.raycaster.ray.direction,
+      meshHit
+        ? { x: meshHit.point.x, y: meshHit.point.y, z: meshHit.point.z }
+        : null
+    );
+    if (!resolved) return undefined;
+    return vector3ToLatLng(
+      new THREE.Vector3(resolved.x, resolved.y, resolved.z)
+    );
   }
 
   private showOutline(bounds: Bounds): void {

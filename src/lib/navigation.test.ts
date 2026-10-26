@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
+import { metresAboveEllipsoid, minimumCameraDistance } from "./cameraZoom";
 import {
   rotateSpeedForDistance,
   stepGlobeView,
   BASE_ROTATE_SPEED,
   BASE_STEP_DEGREES,
   MAX_STEP_LATITUDE,
-  MIN_FLY_DISTANCE,
   MAX_FLY_DISTANCE,
   ZOOM_STEP,
 } from "./navigation";
@@ -21,25 +21,35 @@ import { LAYERS, isAvailable, monthRangeForLayer } from "./timeline";
 describe("flyToDistance", () => {
   it("returns a sensible default when there is no bounding box", () => {
     const d = flyToDistance(null);
-    expect(d).toBeGreaterThan(MIN_FLY_DISTANCE);
+    expect(d).toBeGreaterThan(1.4);
     expect(d).toBeLessThan(MAX_FLY_DISTANCE);
+  });
+
+  it("frames a city in tens of kilometres, not from the old orbital floor", () => {
+    const houston = flyToDistance([29.5, 30.1, -95.8, -95.0]);
+    const km = metresAboveEllipsoid(houston, 29.8) / 1000;
+    expect(km).toBeGreaterThan(40);
+    expect(km).toBeLessThan(250);
   });
 
   it("zooms closest for a tiny (city-sized) area", () => {
     const tiny = flyToDistance([40.4, 40.45, -3.75, -3.65]); // ~Madrid centre
-    expect(tiny).toBeCloseTo(MIN_FLY_DISTANCE, 1);
+    const km = metresAboveEllipsoid(tiny, 40.4) / 1000;
+    expect(km).toBeGreaterThan(2);
+    expect(km).toBeLessThan(40);
   });
 
   it("stays further out for a large country", () => {
     const big = flyToDistance([36, 44, -9, 3]); // ~Spain
     const small = flyToDistance([40.4, 40.45, -3.75, -3.65]);
     expect(big).toBeGreaterThan(small);
+    expect(metresAboveEllipsoid(big, 40) / 1000).toBeGreaterThan(500);
   });
 
   it("never exceeds the configured bounds", () => {
     const huge = flyToDistance([-55, 70, -170, 170]); // continent-scale
     expect(huge).toBeLessThanOrEqual(MAX_FLY_DISTANCE);
-    expect(huge).toBeGreaterThanOrEqual(MIN_FLY_DISTANCE);
+    expect(huge).toBeGreaterThan(1);
   });
 
   it("does not zoom all the way out for a date-line box min/maxed to the whole circle", () => {
@@ -50,7 +60,7 @@ describe("flyToDistance", () => {
     const spain = flyToDistance([36, 44, -9, 3]);
     expect(fiji).toBeLessThan(MAX_FLY_DISTANCE);
     expect(fiji).toBeLessThan(2);
-    expect(fiji).toBeGreaterThan(MIN_FLY_DISTANCE);
+    expect(fiji).toBeGreaterThan(1);
     expect(fiji).toBeLessThan(spain + 0.5);
   });
 
@@ -143,10 +153,17 @@ describe("rotateSpeedForDistance", () => {
     expect(rotateSpeedForDistance(3.2)).toBeCloseTo(BASE_ROTATE_SPEED, 5);
   });
 
-  it("slows dramatically at surface zoom (OrbitControls minDistance)", () => {
+  it("slows dramatically at the old surface zoom", () => {
     const surface = rotateSpeedForDistance(1.06);
     expect(surface).toBeLessThan(BASE_ROTATE_SPEED / 30);
     expect(surface).toBeGreaterThan(0); // never a dead stop
+  });
+
+  it("slows again at street level, instead of sticking on the old floor", () => {
+    const street = rotateSpeedForDistance(minimumCameraDistance(29.76), 29.76);
+    const oldFloor = rotateSpeedForDistance(1.06, 29.76);
+    expect(street).toBeLessThan(oldFloor / 50);
+    expect(street).toBeGreaterThan(0);
   });
 
   it("never gets faster than the old constant at far zoom-out", () => {
@@ -162,15 +179,15 @@ describe("rotateSpeedForDistance", () => {
     }
   });
 
-  it("floors gracefully for degenerate distances at/below the surface", () => {
-    expect(rotateSpeedForDistance(1)).toBe(0.01);
-    expect(rotateSpeedForDistance(0.5)).toBe(0.01);
+  it("floors gracefully for a camera inside the ellipsoid", () => {
+    expect(rotateSpeedForDistance(0.5)).toBeGreaterThan(0);
+    expect(rotateSpeedForDistance(0.5)).toBeLessThan(1e-4);
   });
 });
 
 describe("stepGlobeView", () => {
   const BOOT = { lat: 0, lon: 0, distance: 3.2 };
-  const BOUNDS = { min: 1.06, max: 4.5 };
+  const BOUNDS = { min: minimumCameraDistance(0), max: 4.5 };
 
   it("ignores keys that aren't globe navigation", () => {
     for (const key of ["Enter", " ", "a", "Home", "PageUp", "Tab"]) {
@@ -203,6 +220,13 @@ describe("stepGlobeView", () => {
     );
     expect(surface?.lon).toBeLessThan(BASE_STEP_DEGREES / 30);
     expect(surface?.lon).toBeGreaterThan(0); // never a dead stop
+    const street = stepGlobeView(
+      { lat: 29.76, lon: -95.37, distance: minimumCameraDistance(29.76) },
+      "ArrowRight",
+      { min: minimumCameraDistance(29.76), max: 4.5 }
+    );
+    expect(street!.lon + 95.37).toBeLessThan(0.001);
+    expect(street!.lon + 95.37).toBeGreaterThan(0);
   });
 
   it("stops short of the poles, where a viewpoint has no heading", () => {
@@ -223,34 +247,34 @@ describe("stepGlobeView", () => {
     expect(past?.lon).toBeCloseTo(179 + BASE_STEP_DEGREES, 6);
   });
 
-  it("zooms in and out by the same factor, both spellings", () => {
-    expect(stepGlobeView(BOOT, "+", BOUNDS)?.distance).toBeCloseTo(
-      BOOT.distance / ZOOM_STEP,
-      6
-    );
-    expect(stepGlobeView(BOOT, "=", BOUNDS)?.distance).toBeCloseTo(
-      BOOT.distance / ZOOM_STEP,
-      6
-    );
-    expect(stepGlobeView(BOOT, "-", BOUNDS)?.distance).toBeCloseTo(
-      BOOT.distance * ZOOM_STEP,
+  it("zooms in and out by altitude, both spellings, and the step reverses", () => {
+    const closer = stepGlobeView(BOOT, "+", BOUNDS);
+    const closerToo = stepGlobeView(BOOT, "=", BOUNDS);
+    expect(closer?.distance).toBeCloseTo(closerToo?.distance ?? NaN, 8);
+    expect(closer).not.toBeNull();
+    const before = metresAboveEllipsoid(BOOT.distance, BOOT.lat);
+    const after = metresAboveEllipsoid(closer!.distance, BOOT.lat);
+    expect(before / after).toBeCloseTo(ZOOM_STEP, 6);
+    expect(stepGlobeView(closer!, "-", BOUNDS)?.distance).toBeCloseTo(
+      BOOT.distance,
       6
     );
     expect(stepGlobeView(BOOT, "_", BOUNDS)?.distance).toBeCloseTo(
-      BOOT.distance * ZOOM_STEP,
-      6
+      stepGlobeView(BOOT, "-", BOUNDS)?.distance ?? NaN,
+      8
     );
   });
 
-  it("clamps zoom to the same bounds OrbitControls enforces for the wheel", () => {
+  it("clamps zoom to the street-level floor and the orbital cap", () => {
     let view = BOOT;
     for (let i = 0; i < 40; i++) {
       view = stepGlobeView(view, "+", BOUNDS) as typeof view;
     }
-    expect(view.distance).toBe(BOUNDS.min);
+    expect(view.distance).toBeCloseTo(BOUNDS.min, 8);
+    expect(metresAboveEllipsoid(view.distance, 0)).toBeCloseTo(250, 0);
     for (let i = 0; i < 40; i++) {
       view = stepGlobeView(view, "-", BOUNDS) as typeof view;
     }
-    expect(view.distance).toBe(BOUNDS.max);
+    expect(view.distance).toBeCloseTo(BOUNDS.max, 6);
   });
 });

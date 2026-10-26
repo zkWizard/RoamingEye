@@ -266,6 +266,18 @@ export function sharedPlaceFrom(result: {
   return place;
 }
 
+/**
+ * Decimal places for a shared camera. `alt` is height above the unit sphere
+ * in Earth radii (negative once the camera is inside that sphere, which is
+ * every street-level view away from the equator).
+ */
+function cameraDigits(alt: number): { ll: number; alt: number } {
+  const abs = Math.abs(alt);
+  if (abs >= 0.1) return { ll: 2, alt: 2 };
+  if (abs >= 0.02) return { ll: 4, alt: 5 };
+  return { ll: 5, alt: 6 };
+}
+
 /** Encode a view state as a URL-hash payload (no leading `#`). */
 export function encodeViewState(state: ViewState): string {
   const params = new URLSearchParams();
@@ -278,9 +290,12 @@ export function encodeViewState(state: ViewState): string {
     );
   }
   if (state.camera) {
-    params.set("lat", state.camera.lat.toFixed(2));
-    params.set("lon", state.camera.lon.toFixed(2));
-    params.set("alt", state.camera.alt.toFixed(2));
+    // Orbital links stay at hundredths, the precision every existing citation
+    // was written with. Street level needs metres: two decimals is ~64 km.
+    const digits = cameraDigits(state.camera.alt);
+    params.set("lat", state.camera.lat.toFixed(digits.ll));
+    params.set("lon", state.camera.lon.toFixed(digits.ll));
+    params.set("alt", state.camera.alt.toFixed(digits.alt));
   }
   if (state.probe?.kind === "region") {
     // S W N E — the same order and precision the probe CSV prints its
@@ -359,7 +374,9 @@ export function decodeViewState(hash: string): ViewState {
     Number.isFinite(alt) &&
     Math.abs(lat) <= 90 &&
     Math.abs(lon) <= 180 &&
-    alt > 0 &&
+    // Street level at Houston is a few thousandths inside the unit sphere
+    // (the ellipsoid sits near 0.995). -1 would be the core of the planet.
+    alt > -0.02 &&
     alt <= 20
   ) {
     state.camera = { lat, lon, alt };

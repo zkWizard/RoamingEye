@@ -1,4 +1,16 @@
-import { MAX_FLY_DISTANCE, MIN_FLY_DISTANCE } from "./navigation";
+import {
+  ellipsoidRadiusUnits,
+  MIN_FLY_ALTITUDE_M,
+  TERRAIN_SURFACE_SCALE,
+  WGS84_EQUATORIAL_RADIUS_M,
+} from "./cameraZoom";
+import { MAX_FLY_DISTANCE } from "./navigation";
+
+/** Half-angle a framed place should fill. Narrow enough that a phone's
+ * horizontal view still holds a roughly square city. */
+const FRAME_HALF_RAD = (12 * Math.PI) / 180;
+const MIN_FLY_UNITS =
+  (MIN_FLY_ALTITUDE_M / WGS84_EQUATORIAL_RADIUS_M) * TERRAIN_SURFACE_SCALE;
 
 /**
  * Degrees of longitude a box covers, measured the short way.
@@ -89,23 +101,37 @@ export function placePickMonthIndex(
  * Loaded with a search pick, not the first paint: the app chunk sits on its
  * size budget.
  *
+ * The old formula floored every city at 1.1 (~600 km up), which is why a
+ * search for Houston opened on a blob. The place now fills about 24° of the
+ * view, and the closest frame is a neighbourhood — street level is the
+ * wheel's job, not the flight's.
+ *
  * @param boundingBox [south, north, west, east] in degrees, or null.
  */
 export function flyToDistance(
   boundingBox: [number, number, number, number] | null,
   longitudes?: readonly number[]
 ): number {
-  if (!boundingBox) return 1.7;
+  const midLatDeg = boundingBox ? (boundingBox[0] + boundingBox[1]) / 2 : 0;
+  const surface = ellipsoidRadiusUnits(midLatDeg);
+  if (!boundingBox) return Math.min(MAX_FLY_DISTANCE, surface + 0.7);
   const [south, north, west, east] = boundingBox;
   const latSpan = Math.abs(north - south);
-  const midLat = ((north + south) / 2) * (Math.PI / 180);
+  const midLat = midLatDeg * (Math.PI / 180);
   const lonDeg =
     longitudes && longitudes.length > 0
       ? longitudeSpanOfSamples(longitudes)
       : longitudeSpanDegrees(west, east);
   const lonSpan = lonDeg * Math.cos(midLat);
   const span = Math.max(latSpan, lonSpan); // degrees
-
-  const distance = MIN_FLY_DISTANCE + span * 0.03;
-  return Math.min(MAX_FLY_DISTANCE, Math.max(MIN_FLY_DISTANCE, distance));
+  const gamma = (span * Math.PI) / 180 / 2;
+  const altitude = Math.max(
+    0,
+    Math.cos(gamma) + Math.sin(gamma) / Math.tan(FRAME_HALF_RAD) - 1
+  );
+  const clamped = Math.min(
+    Math.max(0, MAX_FLY_DISTANCE - surface),
+    Math.max(MIN_FLY_UNITS, altitude)
+  );
+  return surface + clamped;
 }
