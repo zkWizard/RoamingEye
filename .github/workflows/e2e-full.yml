@@ -1,0 +1,162 @@
+name: E2E full
+
+# The whole Chromium suite. Advisory on pull requests: it is not a required
+# check, so a red run does not block merge. It fails the run on push to main,
+# and a nightly failure opens or updates one issue. It does not run in the
+# merge queue — the required gate there is the curated smoke in ci.yml.
+#
+# Sharded across six runners. Each shard stays single-worker (see
+# playwright.config.ts); the machines are the parallelism. One build is
+# uploaded and every shard previews it.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "30 7 * * *" # daily 07:30 UTC, clear of the other scheduled workflows
+  workflow_dispatch:
+
+# `actions: write` covers the npm cache, the Playwright browser cache, and the
+# dist / blob-report artifacts. The nightly job replaces this set and adds
+# `issues: write`.
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: e2e-full-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Build app for E2E
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-deps
+      - run: npm run build
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: dist
+          retention-days: 1
+          if-no-files-found: error
+
+  e2e:
+    name: E2E full shard ${{ matrix.shard }}/6 (advisory)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: write
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-deps
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: dist
+          path: dist
+      - name: Require the prebuilt app
+        run: test -f dist/index.html
+      - uses: ./.github/actions/playwright-browser
+        with:
+          browser: chromium
+      - name: Run shard
+        env:
+          E2E_SKIP_BUILD: "1"
+          PLAYWRIGHT_BLOB_REPORT: "1"
+        run: npm run test:e2e -- --shard=${{ matrix.shard }}/6
+      - name: Upload blob report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: blob-report-${{ matrix.shard }}
+          path: blob-report/
+          retention-days: 1
+          if-no-files-found: error
+      - name: Upload trace on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-full-traces-${{ matrix.shard }}
+          path: test-results/
+          retention-days: 7
+
+  report:
+    name: E2E full (WebGL, advisory)
+    needs: e2e
+    # A cancelled PR run should stay cancelled. always() would start this job
+    # after cancel-in-progress and then fail the run.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-deps
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: blob-report-*
+          merge-multiple: true
+          path: all-blob-reports
+      - name: Annotate the merged report
+        run: npx playwright merge-reports --reporter=github ./all-blob-reports
+      - name: Build the HTML report
+        if: always()
+        run: npx playwright merge-reports --reporter=html ./all-blob-reports
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-full-html-report
+          path: playwright-report/
+          retention-days: 7
+      - name: Fail when a shard failed
+        if: ${{ always() && needs.e2e.result != 'success' }}
+        run: exit 1
+
+  nightly-issue:
+    name: File / resolve the nightly E2E issue
+    needs: report
+    if: ${{ !cancelled() && github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TITLE: "Nightly E2E full suite failing"
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Open, update, or close the issue
+        run: |
+          set -u
+          open_issue=$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number // empty')
+
+          if [ "${{ needs.report.result }}" = "success" ]; then
+            if [ -n "$open_issue" ]; then
+              gh issue close "$open_issue" --comment "The nightly full E2E suite is green again ([run]($RUN_URL))."
+            fi
+            exit 0
+          fi
+
+          body="The scheduled full Chromium E2E suite failed. This check is advisory on pull requests and does not block merge; a failure on main or on the nightly run is a regression (or a flake the smoke gate does not cover).
+
+          Run: $RUN_URL"
+
+          if [ -n "$open_issue" ]; then
+            gh issue comment "$open_issue" --body "$body"
+          else
+            gh issue create --title "$TITLE" --label bug --label robustness --body "$body"
+          fi

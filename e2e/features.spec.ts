@@ -28,60 +28,64 @@ test.afterEach(() => {
   ).toEqual([]);
 });
 
-test("toolbar exposes overlay toggles and flips their state", async ({
-  page,
-}) => {
-  const items = page.locator(".toolbar__item");
-  // Borders, Cities, Time zones, Plates, Volcanoes, Earthquakes, plus
-  // Sharper imagery and Atmosphere glow in Settings.
-  await expect(items).toHaveCount(8);
-  await expect(
-    page.locator('.toolbar__item[data-overlay="graticule"]')
-  ).toHaveCount(0);
+test(
+  "toolbar exposes overlay toggles and flips their state",
+  { tag: "@smoke" },
+  async ({ page }) => {
+    const items = page.locator(".toolbar__item");
+    // Borders, Cities, Time zones, Plates, Volcanoes, Earthquakes, plus
+    // Sharper imagery and Atmosphere glow in Settings.
+    await expect(items).toHaveCount(8);
+    await expect(
+      page.locator('.toolbar__item[data-overlay="graticule"]')
+    ).toHaveCount(0);
 
-  const borders = page.locator('.toolbar__item[data-overlay="borders"]');
-  const before = await borders.getAttribute("aria-pressed");
-  await borders.click();
-  await expect(borders).toHaveAttribute(
-    "aria-pressed",
-    before === "true" ? "false" : "true"
-  );
-});
+    const borders = page.locator('.toolbar__item[data-overlay="borders"]');
+    const before = await borders.getAttribute("aria-pressed");
+    await borders.click();
+    await expect(borders).toHaveAttribute(
+      "aria-pressed",
+      before === "true" ? "false" : "true"
+    );
+  }
+);
 
-test("phone sheet advertises the toggles hidden past its edge", async ({
-  page,
-}) => {
-  // At 390px the panel is a collapsed sheet. Opening it shows the cards and
-  // the labeled rows, and the rest sit below the fold. The fade marks that
-  // edge; scrolling the sheet body is what reaches the last toggle.
-  await page.setViewportSize({ width: 390, height: 844 });
-  const toolbar = page.locator(".toolbar");
-  await expect(toolbar).toHaveClass(/is-collapsed/);
-  await expect(toolbar).toHaveAttribute("data-overflow", "none");
+test(
+  "phone sheet advertises the toggles hidden past its edge",
+  { tag: "@smoke" },
+  async ({ page }) => {
+    // At 390px the panel is a collapsed sheet. Opening it shows the cards and
+    // the labeled rows, and the rest sit below the fold. The fade marks that
+    // edge; scrolling the sheet body is what reaches the last toggle.
+    await page.setViewportSize({ width: 390, height: 844 });
+    const toolbar = page.locator(".toolbar");
+    await expect(toolbar).toHaveClass(/is-collapsed/);
+    await expect(toolbar).toHaveAttribute("data-overflow", "none");
 
-  await page.locator(".toolbar__handle").click();
-  await expect(toolbar).not.toHaveClass(/is-collapsed/);
-  await expect(toolbar).toHaveAttribute("data-overflow", "end");
+    await page.locator(".toolbar__handle").click();
+    await expect(toolbar).not.toHaveClass(/is-collapsed/);
+    await expect(toolbar).toHaveAttribute("data-overflow", "end");
 
-  await page.locator(".toolbar__fold--settings summary").click();
-  const last = page.locator(".toolbar .toolbar__item").last();
-  await expect(last).toHaveAttribute("data-overlay", "atmosphere");
-  await last.scrollIntoViewIfNeeded();
+    await page.locator(".toolbar__fold--settings summary").click();
+    const last = page.locator(".toolbar .toolbar__item").last();
+    await expect(last).toHaveAttribute("data-overlay", "atmosphere");
+    await last.scrollIntoViewIfNeeded();
 
-  await expect(toolbar).toHaveAttribute("data-overflow", "start");
+    await expect(toolbar).toHaveAttribute("data-overflow", "start");
 
-  const box = await last.boundingBox();
-  if (!box) throw new Error("last toolbar item has no bounding box");
-  const hit = await page.evaluate(
-    ([x, y]) =>
-      document
-        .elementFromPoint(x, y)
-        ?.closest(".toolbar__item")
-        ?.getAttribute("data-overlay") ?? null,
-    [box.x + box.width / 2, box.y + box.height / 2] as [number, number]
-  );
-  expect(hit).toBe("atmosphere");
-});
+    const box = await last.boundingBox();
+    if (!box) throw new Error("last toolbar item has no bounding box");
+    const hit = await page.evaluate(
+      ([x, y]) =>
+        document
+          .elementFromPoint(x, y)
+          ?.closest(".toolbar__item")
+          ?.getAttribute("data-overlay") ?? null,
+      [box.x + box.width / 2, box.y + box.height / 2] as [number, number]
+    );
+    expect(hit).toBe("atmosphere");
+  }
+);
 
 test("geology overlays load their bundled datasets on first enable", async ({
   page,
@@ -197,29 +201,31 @@ test("land-cover layer steps by year with a class-swatch legend", async ({
   await expect(page.locator(".timeline__readout")).toHaveText(String(year - 1));
 });
 
-test("timeline stepper buttons move one month and disable at the ends", async ({
-  page,
-}) => {
-  await expect(page.getByRole("slider", { name: "Month" })).toBeVisible();
+test(
+  "timeline stepper buttons move one month and disable at the ends",
+  { tag: "@smoke" },
+  async ({ page }) => {
+    await expect(page.getByRole("slider", { name: "Month" })).toBeVisible();
 
-  const readout = page.locator(".timeline__readout");
-  const prev = page.locator('.timeline__step[aria-label^="Previous"]');
-  const next = page.locator('.timeline__step[aria-label^="Next"]');
+    const readout = page.locator(".timeline__readout");
+    const prev = page.locator('.timeline__step[aria-label^="Previous"]');
+    const next = page.locator('.timeline__step[aria-label^="Next"]');
 
-  // Boot lands on the newest month, so forward is a dead end and back isn't.
-  await expect(next).toBeDisabled();
-  await expect(prev).toBeEnabled();
+    // Boot lands on the newest month, so forward is a dead end and back isn't.
+    await expect(next).toBeDisabled();
+    await expect(prev).toBeEnabled();
 
-  const start = await readout.textContent();
-  await prev.click();
-  await expect(readout).not.toHaveText(start ?? "");
-  await expect(next).toBeEnabled();
+    const start = await readout.textContent();
+    await prev.click();
+    await expect(readout).not.toHaveText(start ?? "");
+    await expect(next).toBeEnabled();
 
-  // Stepping forward again returns to the newest month and re-disables.
-  await next.click();
-  await expect(readout).toHaveText(start ?? "");
-  await expect(next).toBeDisabled();
-});
+    // Stepping forward again returns to the newest month and re-disables.
+    await next.click();
+    await expect(readout).toHaveText(start ?? "");
+    await expect(next).toBeDisabled();
+  }
+);
 
 test("? opens the keyboard-shortcuts overlay and Esc closes it", async ({
   page,
@@ -567,62 +573,64 @@ test("search shows failure and no-results states", async ({ page }) => {
   await expect(page.locator(".search__message")).toHaveCount(0);
 });
 
-test("search traces an exact returned boundary without a study-region box", async ({
-  page,
-}) => {
-  let highResolutionRequests = 0;
-  page.on("request", (request) => {
-    if (request.url().includes("HLS_S30_Nadir_BRDF_Adjusted_Reflectance")) {
-      highResolutionRequests++;
-    }
-  });
-  await page.route("**nominatim**", (route) =>
-    route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify([
-        {
-          name: "Exactville",
-          display_name: "Exactville, Example State, Example Country",
-          lat: "34.0000",
-          lon: "-118.0000",
-          type: "city",
-          category: "boundary",
-          boundingbox: ["33.9", "34.1", "-118.2", "-117.8"],
-          geojson: {
-            type: "Polygon",
-            coordinates: [
-              [
-                [-118.2, 33.9],
-                [-117.8, 33.9],
-                [-117.8, 34.1],
-                [-118.2, 33.9],
+test(
+  "search traces an exact returned boundary without a study-region box",
+  { tag: "@smoke" },
+  async ({ page }) => {
+    let highResolutionRequests = 0;
+    page.on("request", (request) => {
+      if (request.url().includes("HLS_S30_Nadir_BRDF_Adjusted_Reflectance")) {
+        highResolutionRequests++;
+      }
+    });
+    await page.route("**nominatim**", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify([
+          {
+            name: "Exactville",
+            display_name: "Exactville, Example State, Example Country",
+            lat: "34.0000",
+            lon: "-118.0000",
+            type: "city",
+            category: "boundary",
+            boundingbox: ["33.9", "34.1", "-118.2", "-117.8"],
+            geojson: {
+              type: "Polygon",
+              coordinates: [
+                [
+                  [-118.2, 33.9],
+                  [-117.8, 33.9],
+                  [-117.8, 34.1],
+                  [-118.2, 33.9],
+                ],
               ],
-            ],
+            },
           },
-        },
-      ]),
-    })
-  );
+        ]),
+      })
+    );
 
-  const input = page.locator(".search__input");
-  await input.fill("Exactville");
-  await expect(page.locator(".search__result--world")).toBeVisible({
-    timeout: 15_000,
-  });
-  await input.press("Enter");
-  await page.locator(".search__result", { hasText: "Exactville" }).click();
+    const input = page.locator(".search__input");
+    await input.fill("Exactville");
+    await expect(page.locator(".search__result--world")).toBeVisible({
+      timeout: 15_000,
+    });
+    await input.press("Enter");
+    await page.locator(".search__result", { hasText: "Exactville" }).click();
 
-  await expect(input).toHaveValue("Exactville");
-  await expect(page.locator("#study-chip")).not.toHaveClass(/is-visible/);
-  const insights = page.locator("#place-insights");
-  await expect(insights).toHaveClass(/is-open/);
-  await expect(insights).toContainText("Vegetation");
-  await expect(insights).toContainText("Precipitation");
-  await expect(insights).toContainText("Soil moisture");
-  await expect(insights).toContainText("Air temperature");
-  await page.waitForTimeout(500);
-  expect(highResolutionRequests).toBe(0);
-});
+    await expect(input).toHaveValue("Exactville");
+    await expect(page.locator("#study-chip")).not.toHaveClass(/is-visible/);
+    const insights = page.locator("#place-insights");
+    await expect(insights).toHaveClass(/is-open/);
+    await expect(insights).toContainText("Vegetation");
+    await expect(insights).toContainText("Precipitation");
+    await expect(insights).toContainText("Soil moisture");
+    await expect(insights).toContainText("Air temperature");
+    await page.waitForTimeout(500);
+    expect(highResolutionRequests).toBe(0);
+  }
+);
 
 test("the place panel counts earthquakes inside the boundary for the chosen years", async ({
   page,
@@ -731,7 +739,17 @@ test("restores the last session; a URL hash still wins", async ({ page }) => {
     .locator(".layer-selector__option", { hasText: "Lush vegetation" })
     .click();
   await page.locator('.toolbar__item[data-overlay="borders"]').click();
-  await page.waitForTimeout(700); // debounced persistence
+  // scheduleHashSync writes the session 400ms after the last change. Poll
+  // the write instead of sleeping a fixed 700ms, which a slow runner can
+  // outlive and then restore the previous session.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const raw = localStorage.getItem("roamingeye:session") ?? "";
+        return raw.includes('"layer":"evi"') && raw.includes('"borders"');
+      })
+    )
+    .toBe(true);
 
   // Plain revisit (no hash): the session restores. waitUntil commit — the
   // interactive gate (render + curtain) is what matters, not the load event.
@@ -775,19 +793,23 @@ test("imagery failure offers a retry that recovers", async ({ page }) => {
   );
 });
 
-test("layer picker is arrow-key navigable", async ({ page }) => {
-  await page.locator(".layer-selector__trigger").click();
-  // The selected option (NDVI) receives focus on open.
-  await expect(
-    page.locator('.layer-selector__option[aria-selected="true"]')
-  ).toBeFocused();
+test(
+  "layer picker is arrow-key navigable",
+  { tag: "@smoke" },
+  async ({ page }) => {
+    await page.locator(".layer-selector__trigger").click();
+    // The selected option (NDVI) receives focus on open.
+    await expect(
+      page.locator('.layer-selector__option[aria-selected="true"]')
+    ).toBeFocused();
 
-  await page.keyboard.press("ArrowDown");
-  await page.keyboard.press("Enter");
-  await expect(page.locator(".layer-selector__current")).toHaveText(
-    "Lush vegetation"
-  );
-});
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".layer-selector__current")).toHaveText(
+      "Lush vegetation"
+    );
+  }
+);
 
 test("comparison mode pins a month and sweeps a divider", async ({ page }) => {
   const button = page.locator(".compare-button");

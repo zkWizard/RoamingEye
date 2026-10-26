@@ -123,7 +123,8 @@ The dev server is also exposed on your local network, so you can open the printe
 ```bash
 npm run build        # type-check + production build
 npm run test         # unit tests (Vitest)
-npm run test:e2e     # browser smoke + feature tests (Playwright)
+npm run test:e2e:smoke  # required critical-path smoke (Playwright)
+npm run test:e2e        # full browser suite (Playwright)
 ```
 
 ---

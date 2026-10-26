@@ -1,0 +1,16 @@
+# Required E2E smoke (the `E2E smoke (WebGL)` check).
+# One Playwright test per line: `path › title`
+# Tag the test `{ tag: "@smoke" }` and update this file in the same change.
+# e2e/smoke-set.test.ts fails if the two drift.
+#
+# Critical path:
+#   boot and a live globe, search, the layer menu, the overlay panel,
+#   timeline stepping, and the phone sheet.
+
+e2e/smoke.spec.ts › loads without app console errors or page errors
+e2e/smoke.spec.ts › renders a sized canvas with a live WebGL context
+e2e/features.spec.ts › search traces an exact returned boundary without a study-region box
+e2e/features.spec.ts › layer picker is arrow-key navigable
+e2e/features.spec.ts › toolbar exposes overlay toggles and flips their state
+e2e/features.spec.ts › timeline stepper buttons move one month and disable at the ends
+e2e/features.spec.ts › phone sheet advertises the toggles hidden past its edge

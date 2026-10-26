@@ -19,6 +19,7 @@
     "test": "vitest run --pool=threads --maxWorkers=4",
     "test:watch": "vitest",
     "test:e2e": "playwright test --project=chromium",
+    "test:e2e:smoke": "playwright test --project=chromium --grep @smoke",
     "test:e2e:engines": "playwright test --project=webkit --project=firefox",
     "test:contract": "vitest run --config vitest.contract.config.ts",
     "test:soak": "playwright test --config playwright.soak.config.ts",

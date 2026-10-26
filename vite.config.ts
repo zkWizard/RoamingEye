@@ -86,6 +86,8 @@ export default defineConfig({
     // Unit tests run in Node — they cover pure logic (math/geo/data), not
     // rendering. See CONTRIBUTING.md for what is and isn't unit-testable here.
     environment: "node",
-    include: ["src/**/*.{test,spec}.ts"],
+    // e2e/**/*.test.ts is the smoke-set guard and the imagery-fixture check.
+    // Playwright specs are *.spec.ts and stay out of Vitest.
+    include: ["src/**/*.{test,spec}.ts", "e2e/**/*.test.ts"],
   },
 });

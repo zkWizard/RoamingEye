@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { awaitAppInteractive } from "./boot";
+import { fulfillImageryLocally } from "./gibs-fixture";
 
 /**
  * The probe's "Copy CSV" is the app's third copy control, and it was the only
@@ -21,23 +22,28 @@ import { awaitAppInteractive } from "./boot";
  * failed" and stops. A reader who hears nothing cannot tell that outcome from
  * the successful one, and would paste whatever the clipboard held before.
  *
- * Both paths are asserted against ONE finished probe: reaching an enabled CSV
- * costs ~30s of sampling, and a second probe would buy nothing but a second
- * wait. Viewport is taller than the 1280x720 default for the reason
- * probe-keyboard.spec.ts is: at 720 the bottom HUD covers the middle of the
- * window, which is the aim Enter charts.
+ * Both paths are asserted against ONE finished probe: a second probe would
+ * buy nothing but a second wait. The series itself is sampled from the local
+ * imagery fixture (e2e/gibs-fixture.ts), not live GIBS — a full record used
+ * to take ~30s and time out at 90s, then 150s, whenever the terrain mesh
+ * filled the browser's sockets. With the fixture the copy button enables in
+ * about 35s; 60s is the wait and 90s is the test ceiling. The viewport is
+ * taller than the 1280x720 default for the reason probe-keyboard.spec.ts is:
+ * at 720 the bottom HUD
+ * covers the middle of the window, which is the aim Enter charts.
  */
 
 test.use({
   viewport: { width: 1280, height: 900 },
   permissions: ["clipboard-read", "clipboard-write"],
 });
-test.setTimeout(210_000);
+test.setTimeout(90_000);
 
 test("both outcomes of the probe CSV copy are spoken", async ({ page }) => {
   // NDVI rather than the boot default: the CSV enables only once a numeric
   // series has settled, and a categorical layer never enables it at all
   // (land cover counts classes, so there is nothing to chart or export).
+  await fulfillImageryLocally(page);
   await page.goto("/#layer=ndvi");
   await awaitAppInteractive(page);
 
@@ -53,8 +59,7 @@ test("both outcomes of the probe CSV copy are spoken", async ({ page }) => {
   // rather than silently testing the wrong button.
   const download = page.locator(".probe__footer button").nth(0);
   const copy = page.locator(".probe__footer button").nth(1);
-  // A full numeric series, and the runner may still be fetching terrain tiles.
-  await expect(copy).toBeEnabled({ timeout: 150_000 });
+  await expect(copy).toBeEnabled({ timeout: 60_000 });
   await expect(download).toHaveText("Download CSV");
   await expect(copy).toHaveText("Copy CSV");
 
