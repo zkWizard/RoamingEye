@@ -161,13 +161,7 @@ import type { ClipSubject } from "./ui/ClipRecorder";
 import { LEGENDS, legendTicks } from "./lib/legend";
 import { ActionMenu } from "./ui/ActionMenu";
 import { loadAdmin1Index, loadCountryIndex } from "./lib/countryIndex";
-import {
-  flyToDistance,
-  longitudesInGeometry,
-  placePickMonthIndex,
-  rotateSpeedForDistance,
-  stepGlobeView,
-} from "./lib/navigation";
+import { rotateSpeedForDistance, stepGlobeView } from "./lib/navigation";
 
 /**
  * RoamingEye
@@ -1266,31 +1260,39 @@ if (searchEl) {
   new SearchBox(
     searchEl,
     (result) => {
-      const monthIndex = placePickMonthIndex(
-        months.length,
-        LAYERS[currentLayer].static === true
+      // Framing lives in its own chunk so the first paint stays under budget.
+      void import("./lib/placeFrame").then(
+        ({ flyToDistance, longitudesInGeometry, placePickMonthIndex }) => {
+          const monthIndex = placePickMonthIndex(
+            months.length,
+            LAYERS[currentLayer].static === true
+          );
+          if (monthIndex !== null) timeSlider?.seek(monthIndex);
+          flyer.flyTo(
+            result.lat,
+            result.lon,
+            flyToDistance(
+              result.boundingBox,
+              longitudesInGeometry(result.geometry)
+            )
+          );
+          highlight.show({
+            lat: result.lat,
+            lon: result.lon,
+            geometry: result.geometry,
+          });
+          // A search result can be a postcode, city, state, or country. Nominatim
+          // already returns its polygon when one is mapped, and LocationHighlight
+          // traces that exact geometry. Do not drape the old fixed 1.2° study patch:
+          // its rectangular footprint obscures the boundary the user asked for.
+          studyRegion.hide();
+          studyChip?.hide();
+          runPlaceInsights(result);
+          // The place panel reads the latest months; the chart reads the active
+          // layer's whole record for the same place, replacing any earlier chart.
+          chartPlace?.(result);
+        }
       );
-      if (monthIndex !== null) timeSlider?.seek(monthIndex);
-      flyer.flyTo(
-        result.lat,
-        result.lon,
-        flyToDistance(result.boundingBox, longitudesInGeometry(result.geometry))
-      );
-      highlight.show({
-        lat: result.lat,
-        lon: result.lon,
-        geometry: result.geometry,
-      });
-      // A search result can be a postcode, city, state, or country. Nominatim
-      // already returns its polygon when one is mapped, and LocationHighlight
-      // traces that exact geometry. Do not drape the old fixed 1.2° study patch:
-      // its rectangular footprint obscures the boundary the user asked for.
-      studyRegion.hide();
-      studyChip?.hide();
-      runPlaceInsights(result);
-      // The place panel reads the latest months; the chart reads the active
-      // layer's whole record for the same place, replacing any earlier chart.
-      chartPlace?.(result);
     },
     (message) => announcer.announce(message)
   );

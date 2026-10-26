@@ -1,10 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  flyToDistance,
-  longitudeSpanDegrees,
-  longitudeSpanOfSamples,
-  longitudesInGeometry,
-  placePickMonthIndex,
   rotateSpeedForDistance,
   stepGlobeView,
   BASE_ROTATE_SPEED,
@@ -14,6 +9,13 @@ import {
   MAX_FLY_DISTANCE,
   ZOOM_STEP,
 } from "./navigation";
+import {
+  flyToDistance,
+  longitudeSpanDegrees,
+  longitudeSpanOfSamples,
+  longitudesInGeometry,
+  placePickMonthIndex,
+} from "./placeFrame";
 import { LAYERS, isAvailable, monthRangeForLayer } from "./timeline";
 
 describe("flyToDistance", () => {
