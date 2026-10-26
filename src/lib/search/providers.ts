@@ -1,5 +1,6 @@
 import { geocode } from "../geocoding";
 import { plainLayerName } from "../plainLanguage";
+import { comparisonSearchProvider } from "../thenNowSearch";
 import { LAYER_ORDER, LAYERS, type LayerId } from "../timeline";
 import { STORIES } from "../stories";
 import { parseCoordinateQuery } from "./coordinates";
@@ -190,6 +191,7 @@ function nominatimProvider(): SearchProvider {
 export function searchProviders(): SearchProvider[] {
   void loadPlaceCatalog();
   return [
+    comparisonSearchProvider(),
     coordinateProvider(),
     dateProvider(),
     ...placeProviders(),

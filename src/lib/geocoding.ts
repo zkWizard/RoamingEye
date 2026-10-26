@@ -169,7 +169,11 @@ const nominatimGate = makeGate(1000);
 /**
  * Build the Nominatim search URL (pure — unit-tested).
  */
-export function buildSearchUrl(query: string, limit = 5): string {
+export function buildSearchUrl(
+  query: string,
+  limit = 5,
+  layer?: string
+): string {
   const params = new URLSearchParams({
     q: query,
     format: "jsonv2",
@@ -178,6 +182,9 @@ export function buildSearchUrl(query: string, limit = 5): string {
     "accept-language": "en",
     limit: String(limit),
   });
+  // `natural` drops businesses that share a famous name (the warehouses
+  // Nominatim ranks above the Amazon River). Place search leaves it unset.
+  if (layer) params.set("layer", layer);
   return `${endpoint}?${params.toString()}`;
 }
 
@@ -225,9 +232,11 @@ export function bboxOutline(
 
 export async function geocode(
   query: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  layer?: string
 ): Promise<GeoResult[]> {
-  const key = query.trim().toLowerCase();
+  const trimmed = query.trim().toLowerCase();
+  const key = layer ? `${layer}:${trimmed}` : trimmed;
   const cached = resultCache.get(key);
   if (cached) return cached; // cache hits bypass the gate — no network touched
   await nominatimGate();
@@ -238,11 +247,14 @@ export async function geocode(
     );
   }
   // One retry only — Nominatim's public endpoint is rate-limited.
-  const items = await fetchJson<NominatimItem[]>(buildSearchUrl(query), {
-    signal,
-    retries: 1,
-    timeoutMs: 12000,
-  });
+  const items = await fetchJson<NominatimItem[]>(
+    buildSearchUrl(query, 5, layer),
+    {
+      signal,
+      retries: 1,
+      timeoutMs: 12000,
+    }
+  );
   const results = items.map(toResult);
   resultCache.set(key, results); // successful responses only
   return results;
