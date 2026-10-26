@@ -34,7 +34,18 @@ const hashish = fc.oneof(
   fc
     .array(
       fc.tuple(
-        fc.constantFrom("layer", "t", "lat", "lon", "alt", "probe", "pin", "x"),
+        fc.constantFrom(
+          "layer",
+          "t",
+          "lat",
+          "lon",
+          "alt",
+          "probe",
+          "pin",
+          "place",
+          "q",
+          "x"
+        ),
         fc.string()
       ),
       { maxLength: 6 }
@@ -78,6 +89,27 @@ describe("decodeViewState (URL hash — attacker-controllable)", () => {
           expect(Math.abs(b.north)).toBeLessThanOrEqual(85);
           expect(b.east - b.west).toBeLessThanOrEqual(180);
         }
+        if (state.place) {
+          expect(state.place.name.length).toBeGreaterThan(0);
+          expect(state.place.name.length).toBeLessThanOrEqual(160);
+          expect(Math.abs(state.place.lat)).toBeLessThanOrEqual(90);
+          expect(Math.abs(state.place.lon)).toBeLessThanOrEqual(180);
+          if (state.place.osm) {
+            expect(state.place.osm).toMatch(/^[NWR][1-9]\d{0,15}$/);
+          }
+          if (state.place.bbox) {
+            const [south, north, west, east] = state.place.bbox;
+            expect(north).toBeGreaterThan(south);
+            expect(Math.abs(south)).toBeLessThanOrEqual(90);
+            expect(Math.abs(north)).toBeLessThanOrEqual(90);
+            expect(Math.abs(west)).toBeLessThanOrEqual(180);
+            expect(Math.abs(east)).toBeLessThanOrEqual(180);
+          }
+        }
+        if (state.query !== undefined) {
+          expect(state.query.length).toBeGreaterThan(0);
+          expect(state.query.length).toBeLessThanOrEqual(200);
+        }
       })
     );
   });
@@ -91,6 +123,45 @@ const arbYm = fc.record({
 });
 const deg2 = (maxHundredths: number): fc.Arbitrary<number> =>
   fc.integer({ min: -maxHundredths, max: maxHundredths }).map((n) => n / 100);
+const deg4 = (maxTenThousandths: number): fc.Arbitrary<number> =>
+  fc
+    .integer({ min: -maxTenThousandths, max: maxTenThousandths })
+    .map((n) => n / 10000);
+// Printable ASCII, trimmed, so it survives the encoder's label cleaning
+// unchanged — including commas, which a place name is allowed to contain.
+const arbLabel = (max: number): fc.Arbitrary<string> =>
+  fc
+    .array(
+      fc
+        .integer({ min: 32, max: 126 })
+        .map((code) => String.fromCharCode(code)),
+      { minLength: 1, maxLength: max }
+    )
+    .map((chars) => chars.join("").trim())
+    .filter((label) => label.length > 0 && label.length <= max);
+const arbBbox: fc.Arbitrary<[number, number, number, number]> = fc
+  .tuple(
+    fc.integer({ min: -880000, max: 880000 }),
+    fc.integer({ min: 100, max: 20000 }),
+    fc.integer({ min: -1800000, max: 1700000 }),
+    fc.integer({ min: 100, max: 200000 })
+  )
+  .map(([south, dLat, west, dLon]) => {
+    let east = west + dLon;
+    if (east > 1800000) east -= 3600000;
+    return [
+      south / 10000,
+      (south + dLat) / 10000,
+      west / 10000,
+      east / 10000,
+    ] as [number, number, number, number];
+  });
+const arbOsm = fc
+  .tuple(
+    fc.constantFrom("N", "W", "R"),
+    fc.integer({ min: 1, max: 2_000_000_000 })
+  )
+  .map(([prefix, id]) => `${prefix}${id}`);
 const arbViewState: fc.Arbitrary<ViewState> = fc.record(
   {
     layer: fc.constantFrom(...LAYER_IDS),
@@ -129,6 +200,17 @@ const arbViewState: fc.Arbitrary<ViewState> = fc.record(
         }))
     ),
     pin: arbYm,
+    place: fc.record(
+      {
+        name: arbLabel(40),
+        lat: deg4(900000),
+        lon: deg4(1800000),
+        bbox: arbBbox,
+        osm: arbOsm,
+      },
+      { requiredKeys: ["name", "lat", "lon"] }
+    ),
+    query: arbLabel(80),
   },
   { requiredKeys: [] }
 );

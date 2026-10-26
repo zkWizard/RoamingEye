@@ -21,7 +21,9 @@ import {
 import {
   encodeViewState,
   decodeViewState,
+  sharedPlaceFrom,
   type ProbeShare,
+  type SharedPlace,
 } from "./lib/viewState";
 import { latLngToVector3, vector3ToLatLng, formatLatLng } from "./lib/geo";
 import {
@@ -91,7 +93,7 @@ import {
   snowIlluminationCsvHeaders,
   snowIlluminationNote,
 } from "./lib/snowCoverIllumination";
-import type { GeoResult } from "./lib/geocoding";
+import { bboxOutline, lookupPlace, type GeoResult } from "./lib/geocoding";
 import {
   geometryBounds,
   isAreaGeometry,
@@ -1159,6 +1161,45 @@ canvas.addEventListener("keydown", (e) => {
 // An open probe's location, mirrored into the shareable hash — a link then
 // reproduces the analysis, not just the view. Maintained by the probe section.
 let probeShare: ProbeShare | undefined;
+// The searched place, mirrored into the hash. Set when a search lands and
+// when a shared link restores one; cleared when a different analysis replaces
+// the place chart. `placeGeneration` drops a lookup that resolves after the
+// reader has already moved on.
+let sharedPlace: SharedPlace | undefined = initialView.place;
+let sharedQuery: string | undefined = initialView.query;
+let placeGeneration = 0;
+
+function adoptSearchResult(result: GeoResult, fromUser: boolean): void {
+  const place = sharedPlaceFrom(result);
+  if (!place) return;
+  if (fromUser) placeGeneration += 1;
+  sharedPlace = place;
+  // A restore already carries the sender's query. Only a new search replaces it.
+  if (fromUser || sharedQuery === undefined) sharedQuery = place.name;
+}
+
+function clearSharedSearch(): void {
+  placeGeneration += 1;
+  sharedPlace = undefined;
+  sharedQuery = undefined;
+}
+
+function resultFromSharedPlace(
+  place: SharedPlace,
+  geometry: GeoGeometry | null
+): GeoResult {
+  return {
+    name: place.name,
+    displayName: place.name,
+    lat: place.lat,
+    lon: place.lon,
+    type: "",
+    category: "",
+    boundingBox: place.bbox ?? null,
+    geometry,
+    osm: place.osm,
+  };
+}
 
 function currentViewState() {
   const subpoint = vector3ToLatLng(camera.position);
@@ -1173,6 +1214,8 @@ function currentViewState() {
     },
     probe: probeShare,
     pin: compare.active ? compare.pinned : undefined,
+    place: sharedPlace,
+    query: sharedQuery,
   };
 }
 
@@ -1268,6 +1311,7 @@ if (searchEl) {
         (message) => announcer.announce(message),
         {
           onPlace: (result) => {
+            adoptSearchResult(result, true);
             // Framing stays out of the first-paint chunk.
             void import("./lib/placeFrame").then(
               ({
@@ -1470,6 +1514,10 @@ if (probeEl) {
       probeAbort?.abort();
       probeShare = undefined;
       chartedPlace = undefined;
+      // The reader closed the chart, so the link should stop reproducing it.
+      // A layer switch closes the panel too, but that path does not come
+      // through here — it reopens the same place on the new layer.
+      clearSharedSearch();
       drawer.clear();
       scheduleHashSync();
     },
@@ -2072,12 +2120,11 @@ if (probeEl) {
     probeTarget = undefined; // the mode toggle is hidden for region charts
     chartedPlace = undefined; // chartPlace re-marks it when a search asked
     const footprint = place ? "searched-boundary" : "drawn-region";
-    // The box travels in the link with the chart it explains. It used to be
-    // dropped here, while the CSV this same view stamps a `view_url` into
-    // declared its bounds in a `# region:` header — so the file's own
-    // reproduction link reopened the globe with no chart at all. A boundary
-    // has no link form yet (its polygon is far too large for a hash), so its
-    // link reopens the place's view without the chart.
+    // The box travels in the link with the chart it explains. A drawn region
+    // is the box itself (`probe=`). A searched place's polygon is too large
+    // for a hash, so the link carries `place=` instead and the restore below
+    // reopens this same chart from one Nominatim lookup.
+    if (!place) clearSharedSearch();
     probeShare = place ? undefined : { kind: "region", bounds };
     if (place) drawer.clear(); // a place's chart replaces a drawn box's
     scheduleHashSync();
@@ -2484,6 +2531,7 @@ if (probeEl) {
   };
 
   chartPlace = (result) => {
+    adoptSearchResult(result, false);
     const geometry = result.geometry;
     const extent =
       geometry && isAreaGeometry(geometry) ? geometryBounds(geometry) : null;
@@ -2492,11 +2540,72 @@ if (probeEl) {
     chartedPlace = result;
   };
 
+  // A shared place link: one Nominatim /lookup for the outline (lighter than
+  // the 1.3 MB admin-1 file, and it is the polygon that was searched, cities
+  // included). The box in the hash is the outline when that lookup fails.
+  // Deferred until the first imagery lands, same as a shared probe — the
+  // chart's fetches would otherwise compete with boot.
+  if (initialView.place) {
+    const generation = placeGeneration;
+    const restoreSharedPlace = (): void => {
+      if (!firstLoadDone) {
+        setTimeout(restoreSharedPlace, 300);
+        return;
+      }
+      void finishSharedPlace(generation);
+    };
+    const finishSharedPlace = async (generation: number): Promise<void> => {
+      const place = sharedPlace;
+      if (!place || generation !== placeGeneration) return;
+      let geometry: GeoGeometry | null = null;
+      if (place.osm) {
+        try {
+          geometry = (await lookupPlace(place.osm))?.geometry ?? null;
+        } catch (err) {
+          if (!isAbortError(err)) {
+            console.warn("RoamingEye: place outline lookup failed", err);
+          }
+        }
+      }
+      if (!sharedPlace || generation !== placeGeneration) return;
+      if (!isAreaGeometry(geometry) && sharedPlace.bbox) {
+        geometry = bboxOutline(sharedPlace.bbox);
+      }
+      const result = resultFromSharedPlace(sharedPlace, geometry);
+      if (!initialView.camera) {
+        const { flyToDistance, longitudesInGeometry } = await import(
+          "./lib/placeFrame"
+        );
+        flyer.flyTo(
+          result.lat,
+          result.lon,
+          flyToDistance(
+            result.boundingBox,
+            longitudesInGeometry(result.geometry)
+          )
+        );
+      }
+      highlight.show({
+        lat: result.lat,
+        lon: result.lon,
+        geometry: result.geometry,
+      });
+      studyRegion.hide();
+      studyChip?.hide();
+      runPlaceInsights(result);
+      chartPlace?.(result);
+    };
+    restoreSharedPlace();
+  }
+
   // Restore a shared probe: rerun the sampling at the linked point so the
   // recipient sees the same chart the sender did. Deferred until the first
   // globe imagery has landed — the probe's ~300 fetches would otherwise
   // compete with the initial load on the same connection pool.
-  if (initialView.probe) {
+  // A place link charts the searched boundary, which replaces a point or
+  // drawn-region probe. Restoring both would fetch two series and keep
+  // whichever finished last.
+  if (initialView.probe && !initialView.place) {
     const target = initialView.probe;
     const restoreWhenReady = (): void => {
       if (!firstLoadDone) {
@@ -2541,6 +2650,7 @@ if (probeEl) {
     const hit = probeRaycaster.intersectObject(earth, false)[0];
     if (!hit) return;
     const { lat, lon } = vector3ToLatLng(hit.point);
+    clearSharedSearch();
     runProbe(lat, lon);
   });
 
@@ -2575,6 +2685,7 @@ if (probeEl) {
     }
     if (!controls.enabled) return; // a flight owns the camera
     e.preventDefault(); // Space would otherwise scroll the page
+    clearSharedSearch();
     highlight.show({ lat, lon, geometry: null });
     runProbe(lat, lon);
   });
@@ -2933,6 +3044,9 @@ if (storiesEl) {
     play: (story) => {
       dismissIntro();
       clearTimeout(storyStart);
+      // A story is its own view. Leaving a searched place in the hash would
+      // reopen that chart on top of the story the link claims to play.
+      clearSharedSearch();
       if (currentLayer !== story.layer) {
         switchLayer(story.layer, { fromStory: true });
       } else {
