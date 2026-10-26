@@ -324,13 +324,17 @@ export class SearchBox {
 
     this.setActive(-1);
     this.setOpen(this.rows.length > 0);
-    if (mode === "suggestions") {
-      if (hits.length === 1) this.announce("1 suggestion");
-      else if (hits.length > 1) this.announce(`${hits.length} suggestions`);
-    } else if (hits.length === 1) this.announce("1 match");
-    else if (hits.length > 1) this.announce(`${hits.length} matches`);
-    else if (explicit.length > 0) {
-      this.announce(explicit[0].label?.(query) ?? "Search all places");
+    // Suggestions open because the field took focus, including a tab stop on
+    // the way to another control. A count in the shared announcer would be
+    // the first thing the next action hears ("12 suggestions", then "Link
+    // copied"). The list itself is the suggestion. A query still announces
+    // how many matches came back.
+    if (mode === "matches") {
+      if (hits.length === 1) this.announce("1 match");
+      else if (hits.length > 1) this.announce(`${hits.length} matches`);
+      else if (explicit.length > 0) {
+        this.announce(explicit[0].label?.(query) ?? "Search all places");
+      }
     }
 
     if (!this.submitOnArrival) return;
