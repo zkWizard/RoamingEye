@@ -41,7 +41,11 @@ test("picking a story event plays that story", async ({ page }) => {
   await awaitAppInteractive(page);
 
   await page.locator(".search__input").fill("Black Summer");
-  const row = page.locator(".search__result", { hasText: "Black Summer" });
+  // The story and the event both match. The event row is the one whose
+  // subtitle names the category; picking it plays the linked story.
+  const row = page
+    .locator(".search__result", { hasText: "Black Summer" })
+    .filter({ hasText: "Wildfire" });
   await expect(row).toBeVisible({ timeout: 15_000 });
   await row.click();
 
