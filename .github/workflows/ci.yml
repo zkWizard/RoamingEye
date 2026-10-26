@@ -235,7 +235,9 @@ jobs:
       # fonts with software under any license, MIT included; its conditions
       # (don't sell the font alone, rename a modified font, keep the license
       # with the files, which Fontsource does) don't constrain the app.
+      # "Public Domain" is jsonify, pulled in only by patch-package (dev). It
+      # is the same grant as Unlicense/CC0 and is not in the shipped tree.
       - name: License allowlist (shipped code)
         run: npx --yes license-checker-rseidelsohn@4.4.2 --production --onlyAllow "MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;CC0-1.0;Unlicense;OFL-1.1"
       - name: License allowlist (full dev tree)
-        run: npx --yes license-checker-rseidelsohn@4.4.2 --onlyAllow "MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;CC0-1.0;CC-BY-4.0;Unlicense;BlueOak-1.0.0;MPL-2.0;Python-2.0;OFL-1.1"
+        run: npx --yes license-checker-rseidelsohn@4.4.2 --onlyAllow "MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;CC0-1.0;CC-BY-4.0;Unlicense;BlueOak-1.0.0;MPL-2.0;Python-2.0;OFL-1.1;Public Domain"
