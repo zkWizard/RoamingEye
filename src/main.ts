@@ -2573,9 +2573,8 @@ if (probeEl) {
       }
       const result = resultFromSharedPlace(sharedPlace, geometry);
       if (!initialView.camera) {
-        const { flyToDistance, longitudesInGeometry } = await import(
-          "./lib/placeFrame"
-        );
+        const { flyToDistance, longitudesInGeometry } =
+          await import("./lib/placeFrame");
         flyer.flyTo(
           result.lat,
           result.lon,

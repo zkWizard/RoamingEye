@@ -11,9 +11,9 @@ import { gzipSync } from "node:zlib";
 
 const ASSETS = join(process.cwd(), "dist", "assets");
 const BUDGETS_KB = {
-  // App code — everything that isn't the vendor chunk. Main's entry chunk
-  // is 59.9 kB; the place hash has to be encoded on every view write, so
-  // it stays in this chunk.
+  // App code — everything that isn't the vendor or terrain chunk.
+  // The entry chunk is 60.5 kB gzip: the place hash is encoded on every
+  // view write, so it stays here, past main's 60 kB cap.
   app: 62,
   // three.js vendor chunk: changes only on dependency bumps, caches long.
   three: 170,
