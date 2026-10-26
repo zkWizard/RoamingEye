@@ -12,28 +12,29 @@ import { awaitAppInteractive } from "./boot";
  */
 
 const card = (page: Page) => page.locator(".stories__card");
-const invite = (page: Page) => page.locator(".stories__invite");
-const borders = (page: Page) => page.locator('.toolbar__item[title="Borders"]');
+const intro = (page: Page) => page.locator("#intro");
+const borders = (page: Page) =>
+  page.locator('.toolbar__item[data-overlay="borders"]');
 
-test("a first visit is offered the stories in one line", async ({ page }) => {
+test("a first visit plays a short introduction once", async ({ page }) => {
   await page.goto("/");
-  await awaitAppInteractive(page);
-  await expect(invite(page)).toBeVisible();
+  await awaitAppInteractive(page, 30_000, { keepIntro: true });
+  await expect(intro(page)).toBeVisible();
   await expect(card(page)).toBeHidden();
+  await expect(intro(page).locator(".intro__caption")).toContainText(/green/i);
 
-  // One line, not a card: it must stay out of the globe's middle.
-  const box = await invite(page).boundingBox();
-  expect(box!.height).toBeLessThanOrEqual(44);
+  // A caption in the corner, not a card over the middle of the globe.
+  const box = await intro(page).boundingBox();
+  expect(box!.height).toBeLessThanOrEqual(160);
+  expect(box!.x + box!.width).toBeLessThan(520);
 
-  await invite(page).click();
-  await expect(card(page)).toBeVisible();
-  await expect(invite(page)).toBeHidden();
+  await page.locator("#intro-skip").click();
+  await expect(intro(page)).toBeHidden();
 
-  // Answered once, it does not come back.
-  await card(page).locator(".stories__close").click();
+  // Skipped once, it does not come back.
   await page.reload();
-  await awaitAppInteractive(page);
-  await expect(invite(page)).toBeHidden();
+  await awaitAppInteractive(page, 30_000, { keepIntro: true });
+  await expect(intro(page)).toBeHidden();
 });
 
 test("a story plays its months on its layer, and closing undoes it", async ({
@@ -43,12 +44,13 @@ test("a story plays its months on its layer, and closing undoes it", async ({
   await awaitAppInteractive(page);
   await expect(borders(page)).toHaveAttribute("aria-pressed", "false");
 
-  await invite(page).click();
+  await page.locator("#more-button").click();
+  await page.locator("#stories-link").click();
   await expect(card(page).locator(".stories__title")).toHaveText(
     "Canada's smoke summer"
   );
   await expect(page.locator(".layer-selector__current")).toHaveText(
-    "Aerosols (AOD)"
+    "Smoke & dust in the air"
   );
   // The aerosol field hides the coastlines, so the story draws borders.
   await expect(borders(page)).toHaveAttribute("aria-pressed", "true");
@@ -92,7 +94,7 @@ test("picking a layer yourself ends the story", async ({ page }) => {
 
   await page.locator(".layer-selector__trigger").click();
   await page
-    .locator(".layer-selector__option", { hasText: "Land surface temp" })
+    .locator(".layer-selector__option", { hasText: "Land temperature" })
     .click();
   await expect(card(page)).toBeHidden();
 });

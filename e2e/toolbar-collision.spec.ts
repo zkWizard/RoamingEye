@@ -56,24 +56,25 @@ test.describe("toolbar never steals the top-right buttons", () => {
     }) => {
       await boot(page, w, h);
 
-      // Premise: this viewport is above the short-window breakpoint, so the
-      // column is centred here — the layout the collision lived in. Without
-      // this the spec would keep passing if the breakpoint simply swallowed
-      // the whole band, which is a different fix with a different cost.
-      const centred = await page.evaluate(
-        () =>
-          getComputedStyle(document.querySelector("#toolbar")!).top !== "200px"
+      // Premise: the panel sits under the actions pill, which is where
+      // Compare lives. A panel that climbs back over that pill is the
+      // collision this spec exists to catch.
+      const clear = await page.evaluate(() => {
+        const bar = document.querySelector("#toolbar")!.getBoundingClientRect();
+        const actions = document
+          .querySelector(".actions")!
+          .getBoundingClientRect();
+        return bar.top >= actions.bottom - 1;
+      });
+      expect(clear, `the panel covers the actions pill at ${w}x${h}`).toBe(
+        true
       );
-      expect(
-        centred || h > 820,
-        `${h}px should be above the short-window breakpoint`
-      ).toBeTruthy();
 
       expect(await ownerAtCentre(page, ".compare-button")).toBe("itself");
 
       // The user-facing outcome: press Compare where it is drawn and comparison
       // mode opens, with the imagery toggles left alone.
-      const hd = page.locator('.toolbar__item[title="HD tiles"]');
+      const hd = page.locator('.toolbar__item[data-overlay="hd"]');
       const before = await hd.getAttribute("aria-pressed");
       const box = (await page.locator(".compare-button").boundingBox())!;
       await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
@@ -137,19 +138,9 @@ test.describe("toolbar never steals the top-right buttons", () => {
     await boot(page, 1440, 1080);
     const box = await page.locator("#toolbar").evaluate((el) => ({
       top: el.getBoundingClientRect().top,
-      // The integer pair Toolbar.updateOverflow() measures — a fractional
-      // getBoundingClientRect height never equals the rounded scrollHeight.
-      client: el.clientHeight,
-      scroll: el.scrollHeight,
     }));
-    // Nothing is capped or scrolled once the window is tall enough, and the
-    // bar still clears the buttons.
-    expect(box.scroll - box.client).toBeLessThanOrEqual(2);
-    expect(box.top).toBeGreaterThan(189);
-    await expect(page.locator("#toolbar")).toHaveAttribute(
-      "data-overflow",
-      "none"
-    );
+    // The panel stays under the actions pill even when the window is tall.
+    expect(box.top).toBeGreaterThan(120);
     expect(await ownerAtCentre(page, ".compare-button")).toBe("itself");
   });
 });

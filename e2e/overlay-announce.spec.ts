@@ -52,7 +52,7 @@ test("a slow overlay enable announces that it landed", async ({ page }) => {
   await expect(region).toHaveText("");
 
   await watchAnnouncements(page);
-  const quakes = page.getByRole("button", { name: "Quakes" });
+  const quakes = page.locator('.toolbar__item[data-overlay="quakes"]');
   await quakes.click();
 
   // Nothing yet: the data has not arrived, and saying so early would be the
@@ -60,8 +60,8 @@ test("a slow overlay enable announces that it landed", async ({ page }) => {
   await expect(page.locator(".toolbar__item[aria-busy='true']")).toBeVisible();
   expect(await announced(page)).toEqual([]);
 
-  await expect(region).toHaveText("Quakes shown", { timeout: 15_000 });
-  expect(await announced(page)).toEqual(["Quakes shown"]);
+  await expect(region).toHaveText("Earthquakes shown", { timeout: 15_000 });
+  expect(await announced(page)).toEqual(["Earthquakes shown"]);
 });
 
 test("toggling without a wait announces nothing", async ({ page }) => {
@@ -76,12 +76,12 @@ test("toggling without a wait announces nothing", async ({ page }) => {
   await page.goto("/");
   await awaitAppInteractive(page);
 
-  const quakes = page.getByRole("button", { name: "Quakes" });
+  const quakes = page.locator('.toolbar__item[data-overlay="quakes"]');
   // Prime the overlay so its loader is memoized and the next enable resolves
   // from cache rather than the network.
   await quakes.click();
   await expect(quakes).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator(".announcer")).toHaveText("Quakes shown", {
+  await expect(page.locator(".announcer")).toHaveText("Earthquakes shown", {
     timeout: 15_000,
   });
 

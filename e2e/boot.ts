@@ -21,7 +21,8 @@ declare global {
  */
 export async function awaitAppInteractive(
   page: Page,
-  timeout = 30_000
+  timeout = 30_000,
+  options?: { keepIntro?: boolean }
 ): Promise<void> {
   await page.waitForFunction(
     () => {
@@ -42,6 +43,17 @@ export async function awaitAppInteractive(
     null,
     { timeout }
   );
+  // Picture cards arrive in their own chunk. Layout tests measure the panel
+  // after they are in the document, including while a phone sheet is closed.
+  await page
+    .locator(".view-card")
+    .first()
+    .waitFor({ state: "attached", timeout });
+  // A first visit starts a short timelapse after the curtain lifts.
+  // Tests that boot a quiet newest month dismiss it before that seek.
+  if (options?.keepIntro) return;
+  const skip = page.locator("#intro-skip");
+  if (await skip.isVisible()) await skip.click();
 }
 
 /**

@@ -38,10 +38,11 @@ const announced = (page: Page) =>
 /**
  * Walk the tab ring from the top of the document until the focused element is
  * the requested stepper. Keyboard only — the point is that this control is
- * reached without a pointer, roughly two dozen stops into the page.
+ * reached without a pointer. The map panel's picture cards sit ahead of the
+ * dock, so the walk is longer than the old icon column (about fifty stops).
  */
 async function tabToStepper(page: Page, label: "Previous" | "Next") {
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 64; i++) {
     await page.keyboard.press("Tab");
     const onTarget = await page.evaluate((want) => {
       const el = document.activeElement;
@@ -53,7 +54,7 @@ async function tabToStepper(page: Page, label: "Previous" | "Next") {
     }, label);
     if (onTarget) return;
   }
-  throw new Error(`${label} stepper never took focus in 40 tab stops`);
+  throw new Error(`${label} stepper never took focus in 64 tab stops`);
 }
 
 const readout = (page: Page) => page.locator(".timeline__readout").innerText();

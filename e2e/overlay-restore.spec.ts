@@ -57,7 +57,7 @@ test("a restored overlay whose feed fails does not claim to be drawn", async ({
   await page.goto("/");
   await awaitAppInteractive(page);
 
-  const quakes = page.getByRole("button", { name: "Quakes" });
+  const quakes = page.locator('.toolbar__item[data-overlay="quakes"]');
   // `fetchJson` retries twice after the first attempt, so the failure is only
   // final once the last one has been refused — wait for the state, not a
   // fixed delay.
@@ -102,7 +102,7 @@ test("a restored overlay whose feed answers stays on", async ({ page }) => {
   await page.goto("/");
   await awaitAppInteractive(page);
 
-  const quakes = page.getByRole("button", { name: "Quakes" });
+  const quakes = page.locator('.toolbar__item[data-overlay="quakes"]');
   await expect(quakes).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".legend__keys")).toContainText("Quake depth");
 });

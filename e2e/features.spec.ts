@@ -32,14 +32,14 @@ test("toolbar exposes overlay toggles and flips their state", async ({
   page,
 }) => {
   const items = page.locator(".toolbar__item");
-  // HD tiles, Grid, Borders, Cities, Atmosphere, Plates, Volcanoes, Quakes,
-  // My location.
-  await expect(items).toHaveCount(9);
-  await expect(page.locator('.toolbar__item[title="My location"]')).toHaveCount(
-    1
-  );
+  // Borders, Cities, Time zones, Plates, Volcanoes, Earthquakes, plus
+  // Sharper imagery and Atmosphere glow in Settings.
+  await expect(items).toHaveCount(8);
+  await expect(
+    page.locator('.toolbar__item[data-overlay="graticule"]')
+  ).toHaveCount(0);
 
-  const borders = page.locator('.toolbar__item[title="Borders"]');
+  const borders = page.locator('.toolbar__item[data-overlay="borders"]');
   const before = await borders.getAttribute("aria-pressed");
   await borders.click();
   await expect(borders).toHaveAttribute(
@@ -48,25 +48,28 @@ test("toolbar exposes overlay toggles and flips their state", async ({
   );
 });
 
-test("phone toolbar advertises the toggles hidden past its edge", async ({
+test("phone sheet advertises the toggles hidden past its edge", async ({
   page,
 }) => {
-  // At 390px the bottom bar shows six of the nine toggles and scrolls for the
-  // rest. Tab reaches the hidden ones (focus scrolls them in); a thumb needs
-  // to be told they exist, so each edge with items behind it gets a fade.
+  // At 390px the panel is a collapsed sheet. Opening it shows the cards and
+  // the labeled rows, and the rest sit below the fold. The fade marks that
+  // edge; scrolling the sheet body is what reaches the last toggle.
   await page.setViewportSize({ width: 390, height: 844 });
   const toolbar = page.locator(".toolbar");
+  await expect(toolbar).toHaveClass(/is-collapsed/);
+  await expect(toolbar).toHaveAttribute("data-overflow", "none");
+
+  await page.locator(".toolbar__handle").click();
+  await expect(toolbar).not.toHaveClass(/is-collapsed/);
   await expect(toolbar).toHaveAttribute("data-overflow", "end");
 
+  await page.locator(".toolbar__fold--settings summary").click();
   const last = page.locator(".toolbar .toolbar__item").last();
-  await expect(last).toHaveAttribute("title", "My location");
+  await expect(last).toHaveAttribute("data-overlay", "atmosphere");
   await last.scrollIntoViewIfNeeded();
 
-  // Scrolled to the far end: nothing left to the right, so that fade goes.
   await expect(toolbar).toHaveAttribute("data-overflow", "start");
 
-  // The fade is paint-only — the item it sat over is still clickable, and a
-  // tap must reach the button rather than a decoration above it.
   const box = await last.boundingBox();
   if (!box) throw new Error("last toolbar item has no bounding box");
   const hit = await page.evaluate(
@@ -74,20 +77,10 @@ test("phone toolbar advertises the toggles hidden past its edge", async ({
       document
         .elementFromPoint(x, y)
         ?.closest(".toolbar__item")
-        ?.getAttribute("title") ?? null,
+        ?.getAttribute("data-overlay") ?? null,
     [box.x + box.width / 2, box.y + box.height / 2] as [number, number]
   );
-  expect(hit).toBe("My location");
-
-  // A desktop window with room for the whole column has nothing hidden, so
-  // there is no fade at all. It has to be a genuinely tall one — 1080, not the
-  // 900 this used to say. The column is capped whenever centring it would put
-  // its top edge over the Share/Save/Compare buttons, and at nine toggles that
-  // is every window shorter than ~1009px, so 900 was still a capped, scrolling
-  // column. See e2e/toolbar-overflow.spec.ts for the capped case and
-  // e2e/toolbar-collision.spec.ts for the collision the cap exists to prevent.
-  await page.setViewportSize({ width: 1280, height: 1080 });
-  await expect(toolbar).toHaveAttribute("data-overflow", "none");
+  expect(hit).toBe("atmosphere");
 });
 
 test("geology overlays load their bundled datasets on first enable", async ({
@@ -114,7 +107,8 @@ test("geology overlays load their bundled datasets on first enable", async ({
 test("HD tile streaming is on by default (RFC-001 milestone 6)", async ({
   page,
 }) => {
-  const hd = page.locator('.toolbar__item[title="HD tiles"]');
+  await page.locator(".toolbar__fold--settings summary").click();
+  const hd = page.locator('.toolbar__item[data-overlay="hd"]');
   await expect(hd).toHaveAttribute("aria-pressed", "true");
   // From orbit nothing streams (the base texture is already as sharp), so
   // the default view must not fire any WMTS tile requests.
@@ -518,14 +512,14 @@ test("an overlay whose feed fails says so and can be retried", async ({
     return route.abort();
   });
 
-  const quakes = page.locator('.toolbar__item[title="Quakes"]');
+  const quakes = page.locator('.toolbar__item[data-overlay="quakes"]');
   await expect(quakes).toHaveAttribute("aria-pressed", "false");
 
   await quakes.click();
 
   const toast = page.locator(".error-toast");
   await expect(toast).toBeVisible();
-  await expect(toast).toContainText("Couldn't load Quakes");
+  await expect(toast).toContainText("Couldn't load Earthquakes");
   // The button must not claim to be showing data it never received.
   await expect(quakes).toHaveAttribute("aria-pressed", "false");
 
@@ -717,12 +711,12 @@ test("restores the last session; a URL hash still wins", async ({ page }) => {
   // network speed — give it room rather than letting GIBS latency decide.
   test.setTimeout(120_000);
 
-  // Change the working context: EVI layer + Grid overlay.
+  // Change the working context: lush vegetation + Borders overlay.
   await page.locator(".layer-selector__trigger").click();
   await page
-    .locator(".layer-selector__option", { hasText: "Vegetation (EVI)" })
+    .locator(".layer-selector__option", { hasText: "Lush vegetation" })
     .click();
-  await page.locator('.toolbar__item[title="Grid"]').click();
+  await page.locator('.toolbar__item[data-overlay="borders"]').click();
   await page.waitForTimeout(700); // debounced persistence
 
   // Plain revisit (no hash): the session restores. waitUntil commit — the
@@ -730,19 +724,18 @@ test("restores the last session; a URL hash still wins", async ({ page }) => {
   await page.goto("/", { waitUntil: "commit" });
   await awaitAppInteractive(page);
   await expect(page.locator(".layer-selector__current")).toHaveText(
-    "Vegetation (EVI)"
+    "Lush vegetation"
   );
-  await expect(page.locator('.toolbar__item[title="Grid"]')).toHaveAttribute(
-    "aria-pressed",
-    "true"
-  );
+  await expect(
+    page.locator('.toolbar__item[data-overlay="borders"]')
+  ).toHaveAttribute("aria-pressed", "true");
 
   // An explicit hash outranks the stored session.
   await page.goto("/#layer=snow", { waitUntil: "commit" });
   await page.reload({ waitUntil: "commit" });
   await awaitAppInteractive(page);
   await expect(page.locator(".layer-selector__current")).toHaveText(
-    "Snow cover"
+    "Snow & ice"
   );
 });
 
@@ -778,7 +771,7 @@ test("layer picker is arrow-key navigable", async ({ page }) => {
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   await expect(page.locator(".layer-selector__current")).toHaveText(
-    "Vegetation (EVI)"
+    "Lush vegetation"
   );
 });
 
@@ -813,7 +806,9 @@ test("comparison mode pins a month and sweeps a divider", async ({ page }) => {
 
   // Static layers have no time dimension — compare must refuse.
   await page.locator(".layer-selector__trigger").click();
-  await page.locator(".layer-selector__option", { hasText: "Terrain" }).click();
+  await page
+    .locator(".layer-selector__option", { hasText: "Land shape" })
+    .click();
   await button.click();
   await expect(button).toHaveAttribute("aria-pressed", "false");
   await expect(divider).not.toHaveClass(/is-visible/);
