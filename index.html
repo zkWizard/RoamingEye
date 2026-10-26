@@ -36,6 +36,14 @@
     />
 
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Open the tile connections during the first paint. The photograph,
+         the elevation, and the NASA overlay each live on their own host. -->
+    <link rel="preconnect" href="https://server.arcgisonline.com" crossorigin />
+    <link rel="dns-prefetch" href="https://server.arcgisonline.com" />
+    <link rel="preconnect" href="https://gibs.earthdata.nasa.gov" crossorigin />
+    <link rel="dns-prefetch" href="https://gibs.earthdata.nasa.gov" />
+    <link rel="preconnect" href="https://s3.amazonaws.com" crossorigin />
+    <link rel="dns-prefetch" href="https://s3.amazonaws.com" />
     <!-- Browser chrome colour for the first paint only, guessed from the OS
          preference because no script has run yet — the same fallback the theme
          resolver uses. ThemeToggle collapses these two into one tag keyed to

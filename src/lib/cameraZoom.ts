@@ -39,7 +39,13 @@ export const MAX_CAMERA_DISTANCE = 4.5;
  * reciprocal (zoom in). Large enough that street level is a short spin of the
  * wheel, small enough that a city passes through districts on the way.
  */
-export const ALTITUDE_ZOOM_STEP = 1.4;
+export const ALTITUDE_ZOOM_STEP = 1.85;
+/**
+ * How quickly a wheel zoom glides to the altitude it asked for, per second.
+ * The wheel sets a destination; the camera eases there instead of jumping,
+ * so a spin stays one continuous move while the sharper tiles catch up.
+ */
+export const ZOOM_EASE_RATE = 16;
 /** Search frames no closer than this, so a city opens as a city. Zoom continues. */
 export const MIN_FLY_ALTITUDE_M = 1_800;
 
@@ -132,6 +138,34 @@ export function pinchAltitudeFactor(
   const lo = Math.pow(ALTITUDE_ZOOM_STEP, -6);
   const hi = Math.pow(ALTITUDE_ZOOM_STEP, 6);
   return Math.min(hi, Math.max(lo, raw));
+}
+
+/**
+ * Glide `current` toward `target` (both geocentric distances). One frame
+ * closes a fraction of the remaining altitude, so a burst of wheel ticks
+ * stacks into one coast instead of a staircase. A long frame is capped so a
+ * hitch cannot skip the whole glide.
+ */
+export function easedAltitudeDistance(
+  current: number,
+  target: number,
+  surfaceRadius: number,
+  deltaSeconds: number,
+  rate = ZOOM_EASE_RATE
+): { distance: number; settled: boolean } {
+  if (!(deltaSeconds > 0) || !Number.isFinite(target)) {
+    return { distance: current, settled: false };
+  }
+  const agl = Math.max(current - surfaceRadius, 0);
+  const targetAgl = Math.max(target - surfaceRadius, 0);
+  const alpha = 1 - Math.exp(-rate * Math.min(deltaSeconds, 0.05));
+  const next = agl + (targetAgl - agl) * alpha;
+  const span = Math.max(Math.abs(targetAgl - agl), 1e-8);
+  const settled = Math.abs(next - targetAgl) <= Math.max(span * 0.012, 1e-7);
+  return {
+    distance: surfaceRadius + (settled ? targetAgl : next),
+    settled,
+  };
 }
 
 /** Ground metres per screen pixel at the nadir, for a perspective camera. */
