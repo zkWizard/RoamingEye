@@ -190,7 +190,7 @@ test("a date, a layer, and a story resolve without the geocoder", async ({
   ).toBeVisible();
   await input.press("Enter");
   await expect(page.locator(".layer-selector__current")).toHaveText(
-    "Snow cover"
+    "Snow & ice"
   );
 
   await input.fill("Sahel");
