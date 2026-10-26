@@ -177,10 +177,16 @@ function normalize(value: string): string {
     .trim();
 }
 
-/** A short token has to be its own word, so "ian" does not match "australian". */
+/**
+ * A token matches a word or the start of one. "ian" does not match
+ * "australian", and "quito" does not match "mosquito".
+ */
 function tokenIn(hay: string, token: string): boolean {
-  if (token.length > 3) return hay.includes(token);
-  return new RegExp(`(?:^| )${token}(?: |$)`).test(hay);
+  return hay
+    .split(" ")
+    .some((word) =>
+      token.length <= 3 ? word === token : word.startsWith(token)
+    );
 }
 
 /**

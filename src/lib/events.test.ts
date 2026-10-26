@@ -97,6 +97,19 @@ describe("searchEvents", () => {
     expect(searchEvents(INDEX, "ian")[0]?.id).not.toBe("australian");
   });
 
+  it("does not match a place inside a longer word", () => {
+    const mosquito = event({
+      id: "mosquito",
+      name: "Mosquito Fire (2022)",
+      aliases: ["mosquito fire"],
+      category: "wildfire",
+    });
+    expect(searchEvents([...INDEX, mosquito], "Quito")).toEqual([]);
+    expect(searchEvents([...INDEX, mosquito], "Mosquito")[0]?.id).toBe(
+      "mosquito"
+    );
+  });
+
   it("puts a later event ahead of an earlier one with the same name", () => {
     const earlier = event({
       id: "ian-2003",
@@ -238,6 +251,8 @@ describe("bundled events index", () => {
 
   it("leaves the place-search fixture query to Nominatim", () => {
     expect(searchEvents(events, "Qui")).toEqual([]);
+    // "quito" sits inside Mosquito Fire and Chiquitos; it is not its own event.
+    expect(searchEvents(events, "Quito")).toEqual([]);
   });
 
   it("covers every category the layer map names", () => {
