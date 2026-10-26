@@ -2954,7 +2954,12 @@ if (storiesEl) {
   const introCaption = intro?.querySelector<HTMLElement>(".intro__caption");
   intro
     ?.querySelector<HTMLButtonElement>("#intro-skip")
-    ?.addEventListener("click", () => dismissIntro());
+    ?.addEventListener("click", () => {
+      dismissIntro();
+      // The tour has already stepped into older months by the time Skip is
+      // pressed. Skipping it means "show me now": the newest published month.
+      timeSlider?.seek(months.length - 1);
+    });
 
   // A returning visitor has a session; a first visit with a bare URL has
   // nothing to go on. The caption plays once, and Skip (or any card) retires

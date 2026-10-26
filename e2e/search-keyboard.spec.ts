@@ -120,15 +120,19 @@ test("picking a place jumps to the newest published month", async ({
   const readout = page.locator(".timeline__readout");
   const prev = page.locator('.timeline__step[aria-label^="Previous"]');
   const next = page.locator('.timeline__step[aria-label^="Next"]');
-  const newest = (await readout.textContent()) ?? "";
+  // Skip can land after the first-visit tour has stepped backward, and the
+  // freshness probe can extend the record a moment later. The forward step
+  // is off only when the scrubber is sitting on the newest published month.
+  await expect(next).toBeDisabled({ timeout: 20_000 });
   await prev.click();
-  await expect(readout).not.toHaveText(newest);
+  await expect(next).toBeEnabled();
+  const older = (await readout.textContent()) ?? "";
 
   await openResults(page);
   await page.locator(".search__input").press("Enter");
 
-  await expect(readout).toHaveText(newest);
-  await expect(next).toBeDisabled();
+  await expect(next).toBeDisabled({ timeout: 20_000 });
+  await expect(readout).not.toHaveText(older);
 });
 
 test("Escape closes the popup and reports it collapsed", async ({ page }) => {
