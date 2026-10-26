@@ -203,8 +203,11 @@ test("a date, a layer, and a story resolve without the geocoder", async ({
   );
 
   await input.fill("Sahel");
+  // The story title and the Sahel change place both contain this word.
   await expect(
-    page.locator(".search__result-name", { hasText: "Sahel" })
+    page.locator(".search__result-name", {
+      hasText: "The monsoon greens the Sahel",
+    })
   ).toBeVisible();
   await input.press("Enter");
   await expect(page.locator(".stories__title")).toContainText("Sahel");
