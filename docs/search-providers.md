@@ -40,7 +40,7 @@ An empty, focused field asks each provider for `suggest()` instead of `search()`
 
 `searchProviders()` in `src/lib/search/providers.ts` is the list the app mounts. Append to it, or pass a different list into `SearchBox` if a test or a second field needs one. Either way the box is unchanged.
 
-The built-in list, in order: coordinates, dates, cities, countries, states, volcanoes, stories, layers, then Nominatim (explicit).
+The built-in list, in order: coordinates, dates, cities, countries, states, volcanoes, stories, layers, then Nominatim (explicit). A layer row is titled with the name the picker shows (`Snow & ice`) and still matches the scientific label (`Snow cover`).
 
 ## Example: an events provider
 

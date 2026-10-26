@@ -1,4 +1,5 @@
 import { geocode } from "../geocoding";
+import { plainLayerName } from "../plainLanguage";
 import { LAYER_ORDER, LAYERS, type LayerId } from "../timeline";
 import { STORIES } from "../stories";
 import { parseCoordinateQuery } from "./coordinates";
@@ -71,15 +72,21 @@ function layerProvider(): SearchProvider {
       const hits: SearchHit[] = [];
       for (const id of LAYER_ORDER) {
         const layer = LAYERS[id];
+        const plain = plainLayerName(id);
         const label = matchScore(query, layer.label);
+        const spoken = matchScore(query, plain);
         const byId = matchScore(query, id);
-        const score = Math.max(label ?? 0, byId === null ? 0 : byId + 20);
+        const score = Math.max(
+          label ?? 0,
+          spoken ?? 0,
+          byId === null ? 0 : byId + 20
+        );
         if (score <= 0) continue;
         hits.push({
           id,
           group: "Layers",
-          title: layer.label,
-          subtitle: layer.category,
+          title: plain,
+          subtitle: plain === layer.label ? layer.category : layer.label,
           score,
           data: { type: "layer", layerId: id satisfies LayerId },
         });
