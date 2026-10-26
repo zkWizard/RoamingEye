@@ -15,8 +15,9 @@ const BUDGETS_KB = {
   app: 60,
   // three.js vendor chunk: changes only on dependency bumps, caches long.
   three: 170,
-  // 3d-tiles-renderer: the streamed satellite/terrain globe. Vendor, caches long.
-  tiles: 45,
+  // 3d-tiles-renderer, loaded on demand with the terrain globe.
+  // Measured 37.6 kB gzip (2026-10-26); the headroom is for a patch, not a feature.
+  terrain: 40,
 };
 
 const chunks = readdirSync(ASSETS).filter((f) => f.endsWith(".js"));
@@ -32,8 +33,8 @@ for (const file of chunks) {
   totalKb += gzKb;
   const budgetKb = file.startsWith("three-")
     ? BUDGETS_KB.three
-    : file.startsWith("tiles-")
-      ? BUDGETS_KB.tiles
+    : file.startsWith("terrain-")
+      ? BUDGETS_KB.terrain
       : BUDGETS_KB.app;
   const ok = gzKb <= budgetKb;
   if (!ok) failed = true;
