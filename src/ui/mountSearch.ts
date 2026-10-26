@@ -31,6 +31,8 @@ export function mountSearch(
   announce: (message: string) => void,
   handlers: SearchHandlers
 ): { focus(): void } {
+  let previewToken = 0;
+  let previewAbort: AbortController | undefined;
   const box = new SearchBox(
     container,
     [recentSearchProvider(handlers.recent), ...searchProviders()],
@@ -38,7 +40,39 @@ export function mountSearch(
       handlers.onRemember(hit);
       applyHit(hit, handlers);
     },
-    announce
+    announce,
+    (hit) => {
+      previewAbort?.abort();
+      previewAbort = undefined;
+      const token = ++previewToken;
+      if (!hit || hit.data.type !== "place") return;
+      const { geometry, lat, lon } = hit.data;
+      // Points have no area to sample. Leave the subtitle; do not invent one.
+      if (
+        !geometry ||
+        (geometry.type !== "Polygon" && geometry.type !== "MultiPolygon")
+      ) {
+        return;
+      }
+      const abort = new AbortController();
+      previewAbort = abort;
+      const hitId = hit.id;
+      // The sampler stays in the place chunk. This import is the boundary.
+      void import("../place/placeInsightsController")
+        .then((mod) => {
+          if (token !== previewToken || abort.signal.aborted) return null;
+          return mod.previewPlaceChange(geometry, lat, lon, abort.signal);
+        })
+        .then((preview) => {
+          if (!preview || token !== previewToken || abort.signal.aborted)
+            return;
+          box.showChangePreview(hitId, preview);
+        })
+        .catch((error: unknown) => {
+          if (token !== previewToken) return;
+          console.warn("RoamingEye: change preview failed", error);
+        });
+    }
   );
   return { focus: () => box.focus() };
 }

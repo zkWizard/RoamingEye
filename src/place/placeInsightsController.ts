@@ -36,6 +36,10 @@ import {
 import { parsePlateBoundaries, type PlateBoundary } from "../lib/plates";
 import { parseVolcanoDataset, type VolcanoDataset } from "../lib/volcanoes";
 import type { GeoResult } from "../lib/geocoding";
+import {
+  describeChangePreview,
+  type ChangePreview,
+} from "../lib/search/changePreview";
 import { fetchJson, fetchWithRetry, isAbortError } from "../lib/net";
 import { ProbeSampler } from "../probe/ProbeSampler";
 import { PlaceInsights } from "../ui/PlaceInsights";
@@ -129,6 +133,71 @@ export function runPlaceInsights(
   loadVolcanoes(s);
   loadPlates(s);
   showRange(s, range);
+}
+
+/**
+ * One change line for a highlighted search row.
+ *
+ * Vegetation only, over the same 20-year window the place panel opens on,
+ * sampled at the two endpoint years. A highlight that moves aborts this
+ * through `signal`. A point (no area) and a year the record cannot fill
+ * return null — the row keeps its ordinary subtitle rather than a made-up
+ * percent. The search chunk imports this module only when a row is highlighted.
+ */
+export async function previewPlaceChange(
+  geometry: GeoGeometry,
+  lat: number,
+  lon: number,
+  signal: AbortSignal
+): Promise<ChangePreview | null> {
+  if (!isAreaGeometry(geometry)) return null;
+  const metric = PLACE_CHANGE_METRICS.find((item) => item.layerId === "ndvi");
+  if (!metric) return null;
+  const published = usableYears("ndvi");
+  if (published.length < 2) return null;
+  const bounds = {
+    from: published[0],
+    to: published[published.length - 1],
+  };
+  const range = effectiveYears(published, presetRange("20y", bounds));
+  if (!range) return null;
+
+  const abort = new AbortController();
+  const stop = () => abort.abort();
+  if (signal.aborted) abort.abort();
+  else signal.addEventListener("abort", stop, { once: true });
+
+  const local: PlaceSession = {
+    result: {
+      name: "",
+      displayName: "",
+      lat,
+      lon,
+      type: "",
+      category: "",
+      boundingBox: null,
+      geometry,
+    },
+    geometry,
+    abort,
+    annual: new Map(),
+    quakes: new Map(),
+    generation: 0,
+  };
+  try {
+    const [fromValue, toValue] = await Promise.all([
+      annual(local, "ndvi", range.from),
+      annual(local, "ndvi", range.to),
+    ]);
+    if (signal.aborted || fromValue === null || toValue === null) return null;
+    return describeChangePreview(metric, range.from, fromValue, toValue);
+  } catch (error) {
+    if (isAbortError(error) || signal.aborted) return null;
+    console.warn("RoamingEye: change preview failed", error);
+    return null;
+  } finally {
+    signal.removeEventListener("abort", stop);
+  }
 }
 
 /** Mark the card for the layer now on the globe. */

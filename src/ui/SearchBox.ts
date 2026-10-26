@@ -6,6 +6,7 @@ import {
 } from "../lib/search/query";
 import type { SearchHit, SearchProvider } from "../lib/search/provider";
 import type { ResultRow } from "../lib/search/query";
+import { sparklinePoints } from "../lib/search/sparkline";
 import { ICONS } from "./icons";
 import { ThinkingOrb } from "./ThinkingOrb";
 
@@ -42,6 +43,8 @@ export class SearchBox {
   private options: HTMLLIElement[] = [];
   private rows: ResultRow[] = [];
   private activeIndex = -1;
+  /** Id of the hit last reported to `onActive`, so a repeat highlight is quiet. */
+  private activeHitId: string | null = null;
   private generation = 0;
   private query = "";
   /** Enter arrived before the rows did: take the top hit once they land. */
@@ -55,7 +58,8 @@ export class SearchBox {
     container: HTMLElement,
     private readonly providers: readonly SearchProvider[],
     private readonly onSelect: (hit: SearchHit) => void,
-    private readonly announce: (message: string) => void = () => {}
+    private readonly announce: (message: string) => void = () => {},
+    private readonly onActive: (hit: SearchHit | null) => void = () => {}
   ) {
     container.classList.add("search");
     this.root = container;
@@ -449,6 +453,44 @@ export class SearchBox {
     } else {
       this.input.removeAttribute("aria-activedescendant");
     }
+    this.publishActive();
+  }
+
+  /** Tell the app which row is highlighted, once per hit. */
+  private publishActive(): void {
+    const row = this.activeIndex >= 0 ? this.rows[this.activeIndex] : undefined;
+    const hit = row?.kind === "hit" ? (row.hit ?? null) : null;
+    const id = hit?.id ?? null;
+    if (id === this.activeHitId) return;
+    this.activeHitId = id;
+    this.onActive(hit);
+  }
+
+  /**
+   * A change line for one highlighted place. The box draws it; it does not
+   * sample. A row that is no longer highlighted is left alone.
+   */
+  showChangePreview(
+    hitId: string,
+    preview: { text: string; values: readonly number[] }
+  ): void {
+    const index = this.rows.findIndex((row) => row.hit?.id === hitId);
+    if (index < 0 || index !== this.activeIndex) return;
+    const li = this.options[index];
+    if (!li) return;
+    let sub = li.querySelector<HTMLElement>(".search__result-sub");
+    if (!sub) {
+      sub = document.createElement("span");
+      sub.className = "search__result-sub";
+      li.appendChild(sub);
+    }
+    sub.replaceChildren();
+    const spark = sparklineElement(preview.values);
+    if (spark) sub.appendChild(spark);
+    const label = document.createElement("span");
+    label.className = "search__result-change";
+    label.textContent = preview.text;
+    sub.appendChild(label);
   }
 
   private activate(index: number): void {
@@ -497,6 +539,10 @@ export class SearchBox {
     this.activeIndex = -1;
     this.input.removeAttribute("aria-activedescendant");
     this.setOpen(false);
+    if (this.activeHitId !== null) {
+      this.activeHitId = null;
+      this.onActive(null);
+    }
   }
 
   private clear(): void {
@@ -504,6 +550,22 @@ export class SearchBox {
     this.query = "";
     this.closeResults();
   }
+}
+
+const SPARK_WIDTH = 48;
+const SPARK_HEIGHT = 16;
+
+function sparklineElement(values: readonly number[]): SVGSVGElement | null {
+  const points = sparklinePoints(values, SPARK_WIDTH, SPARK_HEIGHT);
+  if (!points) return null;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "search__spark");
+  svg.setAttribute("viewBox", `0 0 ${SPARK_WIDTH} ${SPARK_HEIGHT}`);
+  svg.setAttribute("aria-hidden", "true");
+  const line = document.createElementNS(svg.namespaceURI, "polyline");
+  line.setAttribute("points", points);
+  svg.appendChild(line);
+  return svg;
 }
 
 function escapeHtml(text: string): string {
