@@ -39,6 +39,8 @@ export interface SearchHandlers {
   onEvent: (eventId: string) => void;
   onThenNow: (pick: ThenNowPick) => void;
   onPlaceCompare: (pick: PlaceComparePick) => void;
+  /** The layer on the globe, so "Houston vs Austin" keeps the map the user is on. */
+  layer?: () => LayerId;
 }
 
 /** Mount the search field and return a way to focus it from a shortcut. */
@@ -51,7 +53,7 @@ export function mountSearch(
   let previewAbort: AbortController | undefined;
   const box = new SearchBox(
     container,
-    [recentSearchProvider(handlers.recent), ...searchProviders()],
+    [recentSearchProvider(handlers.recent), ...searchProviders(handlers.layer)],
     (hit) => {
       handlers.onRemember(hit);
       applyHit(hit, handlers);

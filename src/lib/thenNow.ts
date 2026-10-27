@@ -12,7 +12,9 @@ import { LAYERS, type LayerId, type YearMonth } from "./timeline";
  *   vegetation, August of each year.
  * - Two places ("Houston vs Austin rainfall 2026", "compare Houston and
  *   Austin", "Houston versus Austin"). Both are shown on one layer and one
- *   month. No date means the latest published month of that layer.
+ *   month. No date means the latest month that layer can actually show.
+ *   With no phenomenon word, the layer already on the globe is used when
+ *   that layer can be compared.
  *
  * A year between the place names is a month comparison, not a second place:
  * "Amazon 2005 vs 2020" stays a vegetation swipe.
@@ -266,7 +268,10 @@ export interface PlaceCompareQuery {
   requested: { year: number | null; month: number | null };
 }
 
-export function parsePlaceCompare(input: string): PlaceCompareQuery | null {
+export function parsePlaceCompare(
+  input: string,
+  activeLayer?: LayerId
+): PlaceCompareQuery | null {
   const raw = collapse(input);
   if (raw.length < 5) return null;
   const years = [...new Set(yearsIn(raw))];
@@ -276,10 +281,18 @@ export function parsePlaceCompare(input: string): PlaceCompareQuery | null {
   const phenomenon = phenomenonIn(raw);
   return {
     ...names,
-    layer: phenomenon?.layer ?? DEFAULT_LAYER,
+    layer: phenomenon?.layer ?? comparableLayer(activeLayer) ?? DEFAULT_LAYER,
     defaultMonth: phenomenon?.month ?? DEFAULT_MONTH,
     requested: { year: years[0] ?? null, month: namedMonthIn(raw) ?? null },
   };
+}
+
+/** Terrain and land cover have nothing month-to-month to put on the card. */
+function comparableLayer(id: LayerId | undefined): LayerId | undefined {
+  if (!id) return undefined;
+  const layer = LAYERS[id];
+  if (layer.static || layer.categorical) return undefined;
+  return id;
 }
 
 /**

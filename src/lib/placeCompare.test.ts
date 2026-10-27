@@ -59,25 +59,33 @@ describe("resolvePlaceCompareMonth", () => {
 });
 
 describe("describePlaceCompare", () => {
-  it("names both places and the fallback in the suggestion", () => {
+  const today = { year: 2026, month: 10 };
+
+  it("names rain for the season month when that month has finished", () => {
     const described = describePlaceCompare(
-      parsed("Houston vs Austin rainfall 2026")
+      parsed("Houston vs Austin rainfall 2026"),
+      today
     );
     expect(described.title).toBe("Houston vs Austin");
-    expect(described.subtitle).toContain("Precipitation");
-    expect(described.subtitle).toContain("Sep 2026 isn't published yet");
-    expect(described.subtitle).toContain("latest available month");
-    expect(described.subtitle).not.toContain("Showing");
+    expect(described.subtitle).toBe("Rain · Sep 2026");
   });
 
-  it("names the latest month when no date is given", () => {
+  it("names the latest complete month when no date is given", () => {
     const described = describePlaceCompare(
-      parsed("compare Houston and Austin heat")
+      parsed("compare Houston and Austin heat"),
+      today
     );
     expect(described.title).toBe("Houston vs Austin");
-    expect(described.subtitle).toContain("Land surface temp");
-    expect(described.subtitle).toContain("latest available month");
-    expect(described.subtitle).not.toContain("isn't published");
+    expect(described.subtitle).toBe("Air temperature · latest complete month");
+  });
+
+  it("says a future rain month is not complete yet", () => {
+    const described = describePlaceCompare(
+      parsed("Houston vs Austin rainfall October 2026"),
+      today
+    );
+    expect(described.subtitle).toContain("Oct 2026 isn't complete yet");
+    expect(described.subtitle).toContain("latest complete month");
   });
 });
 

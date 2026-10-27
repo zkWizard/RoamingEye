@@ -104,7 +104,7 @@ import { isAbortError, isOnline, OfflineError } from "./lib/net";
 import { nextPixelRatio } from "./lib/perf";
 import { ProbeSampler } from "./probe/ProbeSampler";
 import { ProbePanel } from "./ui/ProbePanel";
-import { dismissPlaceCompare } from "./ui/placeCompareBridge";
+import { dismissPlaceCompare, frameComparePins } from "./ui/placeCompareBridge";
 import { CompareController } from "./scene/CompareController";
 import { CompareControls } from "./ui/CompareControls";
 import {
@@ -1672,6 +1672,7 @@ if (searchEl) {
                 console.warn("RoamingEye: comparison failed to load", err)
             );
           },
+          layer: () => currentLayer,
         }
       );
       focusSearch = () => mounted.focus();
@@ -1771,6 +1772,7 @@ function comparisonHost() {
     months: () => months,
     prepareLayer(id: LayerId) {
       closeProbe?.();
+      dismissIntro();
       dismissPlaceCompare();
       if (currentLayer !== id) switchLayer(id);
       else {
@@ -1778,7 +1780,21 @@ function comparisonHost() {
         compareControls?.exit();
       }
     },
-    seek: (index: number) => timeSlider?.seek(index),
+    seek: (index: number) => {
+      // setIndex does not tell the slider listener. That listener closes a
+      // place comparison, which is right for a person scrubbing and wrong
+      // for the comparison moving to its own month.
+      const clamped = Math.min(months.length - 1, Math.max(0, index));
+      currentIndex = clamped;
+      timeSlider?.setIndex(clamped);
+      refreshGlobe();
+      ensureWarm(clamped);
+      if (studyRegion.active && !playing) {
+        studyRegion.setMonth(months[currentIndex]);
+      }
+      compareControls?.setLiveMonth(LAYERS[currentLayer], months[currentIndex]);
+      scheduleHashSync();
+    },
     fly: (lat: number, lon: number, distance: number) =>
       flyer.flyTo(lat, lon, distance),
     endFlight: () => endFlight(),
@@ -1788,6 +1804,10 @@ function comparisonHost() {
         lon: result.lon,
         geometry: result.geometry,
       }),
+    clearHighlight: () => highlight.clear(),
+    attach: (object: object) => {
+      scene.add(object as THREE.Object3D);
+    },
     hideStudy: () => {
       studyRegion.hide();
       studyChip?.hide();
@@ -3659,6 +3679,7 @@ const renderFrame = (): void => {
   }
   wasFlying = flyer.isFlying;
   highlight.update(camera.position.length()); // keep the marker a constant size
+  frameComparePins(camera);
   for (const overlay of overlays) overlay.update?.(camera, window.innerHeight);
   // Up close the month is draped on the terrain, so the sphere must not
   // cover it. It stays in the scene: hover, probe, and region drawing

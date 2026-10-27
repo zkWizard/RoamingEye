@@ -1,18 +1,39 @@
 import { geocode, type GeoResult } from "./geocoding";
 import { flyToDistance } from "./placeFrame";
 import {
-  describePlaceDifference,
   pairFocus,
-  placePreviewUrl,
-  previewBounds,
   resolvePlaceCompareMonth,
   unionBounds,
 } from "./placeCompare";
 import { ProbeSampler } from "../probe/ProbeSampler";
+import { ComparePins } from "../scene/ComparePins";
+import type { PlaceCompareCard, PlaceNumber } from "../ui/PlaceComparePanel";
+import { onFrameComparePins } from "../ui/placeCompareBridge";
 import {
+  chartWindow,
+  formatRain,
+  formatScaled,
+  formatTemp,
+  fullMonthLabel,
+  isPointClimateLayer,
+  measureName,
+  rainSentence,
+  scaledSentence,
+  selectPairMonth,
+  tempSentence,
+  valueChart,
+  variableForLayer,
+  type ChartPoint,
+  type ClimateQuery,
+} from "./compareClimate";
+import { loadMonthlyClimate } from "./openMeteoClimate";
+import { PROBE_SCALES, scaleValue } from "./probe";
+import {
+  addMonths,
   formatTimelineLabel,
   LAYERS,
   nearestMonthIndex,
+  utcYearMonth,
   type LayerId,
   type YearMonth,
 } from "./timeline";
@@ -53,6 +74,9 @@ export interface ComparisonHost {
   fly(lat: number, lon: number, distance: number): void;
   endFlight(): void;
   showHighlight(result: GeoResult): void;
+  clearHighlight(): void;
+  /** Add the comparison pins to the globe. Called once. */
+  attach(object: object): void;
   hideStudy(): void;
   enableMonthCompare(earlier: YearMonth): void;
   clearSharedSearch(): void;
@@ -62,6 +86,7 @@ export interface ComparisonHost {
 let generation = 0;
 let geocodeAbort: AbortController | undefined;
 let panel: PlaceComparePanel | undefined;
+let pins: ComparePins | undefined;
 
 function comparisonPanel(): PlaceComparePanel {
   if (!panel) {
@@ -69,8 +94,21 @@ function comparisonPanel(): PlaceComparePanel {
     panel = new PlaceComparePanel(
       parent instanceof HTMLElement ? parent : document.body
     );
+    panel.setOnClose(() => pins?.hide());
   }
   return panel;
+}
+
+function placePins(host: ComparisonHost): ComparePins {
+  if (!pins) {
+    const parent = document.querySelector("#app");
+    pins = new ComparePins(
+      parent instanceof HTMLElement ? parent : document.body
+    );
+    host.attach(pins.object);
+    onFrameComparePins((camera) => pins?.update(camera));
+  }
+  return pins;
 }
 
 function isLayerId(id: string): id is LayerId {
@@ -174,7 +212,7 @@ export async function openPlaceCompare(
   geocodeAbort?.abort();
   const abort = new AbortController();
   geocodeAbort = abort;
-  if (LAYERS[layerId].static) {
+  if (LAYERS[layerId].static || LAYERS[layerId].categorical) {
     host.announce("That layer has no months to compare.");
     return;
   }
@@ -182,35 +220,24 @@ export async function openPlaceCompare(
   host.clearSharedSearch();
   host.prepareLayer(layerId);
   host.hideStudy();
+  host.clearHighlight();
   if (!still(token)) return;
 
-  const query = {
-    placeA: pick.placeA,
-    placeB: pick.placeB,
-    layer: layerId,
-    defaultMonth: pick.defaultMonth,
+  const climateQuery: ClimateQuery = {
     requested: { year: pick.year, month: pick.month },
+    defaultMonth: pick.defaultMonth,
   };
-  const resolved = resolvePlaceCompareMonth(host.months(), query);
-  if (!resolved) {
-    host.announce("This layer has no published months.");
-    return;
-  }
-  const layer = LAYERS[layerId];
-  const monthLabel = formatTimelineLabel(layer, resolved.month);
-  host.seek(nearestMonthIndex([...host.months()], resolved.month));
-  host.scheduleHashSync();
-
   const view = comparisonPanel();
   view.show({
-    placeA: pick.placeA,
-    placeB: pick.placeB,
-    layerLabel: layer.label,
-    monthLabel,
-    note: resolved.note ?? "",
-    readout: `Reading ${pick.placeA} and ${pick.placeB}…`,
+    title: `${pick.placeA} vs ${pick.placeB}`,
+    meta: "",
+    sentence: `Reading ${pick.placeA} and ${pick.placeB}…`,
+    note: "",
+    source: "",
+    mapNote: "",
+    places: null,
+    chart: null,
   });
-  if (resolved.note) host.announce(resolved.note);
 
   let placeA: GeoResult | undefined;
   let placeB: GeoResult | undefined;
@@ -223,12 +250,16 @@ export async function openPlaceCompare(
     if (interrupted(err)) {
       const text =
         "The place lookup was interrupted. Choose the comparison again.";
-      view.setReadout(text);
+      showStatus(view, `${pick.placeA} vs ${pick.placeB}`, text);
       host.announce(text);
       return;
     }
     console.warn("RoamingEye: comparison geocode failed", err);
-    view.setReadout("Search unavailable — check connection.");
+    showStatus(
+      view,
+      `${pick.placeA} vs ${pick.placeB}`,
+      "Search unavailable — check connection."
+    );
     host.announce("Search unavailable — check connection");
     return;
   }
@@ -236,7 +267,7 @@ export async function openPlaceCompare(
   if (!placeA || !placeB) {
     const missing = !placeA ? pick.placeA : pick.placeB;
     const text = `No place found for ${missing}.`;
-    view.setReadout(text);
+    showStatus(view, `${pick.placeA} vs ${pick.placeB}`, text);
     host.announce(text);
     return;
   }
@@ -245,67 +276,327 @@ export async function openPlaceCompare(
   const framed = unionBounds(placeA, placeB);
   host.endFlight();
   // A city-pair box is only a couple of degrees. The single-place formula
-  // then sits on the ground between them; a regional floor keeps both in view.
-  const distance = framed ? Math.max(flyToDistance(framed), 1.55) : 2.2;
-  host.fly(focus.lat, focus.lon, distance);
-  const alt = `${layer.label}, ${monthLabel}`;
-  view.setImages(
-    placePreviewUrl(
-      layer,
-      resolved.month,
-      previewBounds(placeA.boundingBox, placeA.lat, placeA.lon)
-    ),
-    placePreviewUrl(
-      layer,
-      resolved.month,
-      previewBounds(placeB.boundingBox, placeB.lat, placeB.lon)
-    ),
-    `${placeA.name}, ${alt}`,
-    `${placeB.name}, ${alt}`
+  // then sits on the ground between them; a regional floor keeps both in view
+  // and leaves room for the card on the left.
+  const distance = framed ? Math.max(flyToDistance(framed), 2.8) : 3.2;
+  // On a phone the card and the dock cover the lower half of the canvas, and
+  // the camera target is drawn at the canvas centre. Aim south of the pair so
+  // both cities land in the open map above the card.
+  const stacked = window.matchMedia(
+    "(max-width: 540px), (max-height: 460px)"
+  ).matches;
+  const aimLat = stacked ? Math.max(-75, focus.lat - 18) : focus.lat;
+  host.fly(aimLat, focus.lon, distance);
+  if (!still(token)) return;
+  placePins(host).show(
+    { name: placeA.name, lat: placeA.lat, lon: placeA.lon },
+    { name: placeB.name, lat: placeB.lat, lon: placeB.lon }
   );
 
   try {
-    const sampler = new ProbeSampler();
-    const [sampleA, sampleB] = await Promise.all([
-      sampler.sample(layer, [resolved.month], placeA.lat, placeA.lon, {
-        signal: abort.signal,
-      }),
-      sampler.sample(layer, [resolved.month], placeB.lat, placeB.lon, {
-        signal: abort.signal,
-      }),
-    ]);
+    const card = isPointClimateLayer(layerId)
+      ? await climateCard(
+          layerId,
+          placeA,
+          placeB,
+          climateQuery,
+          host,
+          abort.signal
+        )
+      : await probeCard(
+          layerId,
+          placeA,
+          placeB,
+          climateQuery,
+          host,
+          abort.signal
+        );
     if (!still(token) || abort.signal.aborted) return;
-    if (
-      sampleA.transportFailureByMonth[0] ||
-      sampleB.transportFailureByMonth[0]
-    ) {
-      const text = resolved.note
-        ? `${resolved.note} Couldn't read the imagery just now.`
-        : "Couldn't read the imagery just now.";
-      view.setReadout(text);
+    if (!card) {
+      const text = "This layer has no published months.";
+      showStatus(view, `${placeA.name} vs ${placeB.name}`, text);
       host.announce(text);
       return;
     }
-    const difference = describePlaceDifference({
-      placeA: pick.placeA,
-      placeB: pick.placeB,
-      layer: layerId,
-      monthLabel,
-      valueA: sampleA.values[0] ?? null,
-      valueB: sampleB.values[0] ?? null,
-      note: null,
-    });
-    view.setReadout(difference);
-    host.announce(
-      resolved.note ? `${resolved.note} ${difference}` : difference
-    );
+    view.show(card);
+    host.announce(card.note ? `${card.note} ${card.sentence}` : card.sentence);
   } catch (err) {
     if (!still(token) || abort.signal.aborted) return;
-    console.warn("RoamingEye: place comparison sample failed", err);
-    view.setReadout(
-      resolved.note
-        ? `${resolved.note} Couldn't read the imagery just now.`
-        : "Couldn't read the imagery just now."
+    console.warn("RoamingEye: place comparison failed", err);
+    const text = "Couldn't read that comparison just now.";
+    showStatus(view, `${placeA.name} vs ${placeB.name}`, text);
+    host.announce(text);
+  }
+}
+
+function showStatus(
+  view: PlaceComparePanel,
+  title: string,
+  sentence: string
+): void {
+  view.show({
+    title,
+    meta: "",
+    sentence,
+    note: "",
+    source: "",
+    mapNote: "",
+    places: null,
+    chart: null,
+  });
+}
+
+async function climateCard(
+  layerId: LayerId,
+  placeA: GeoResult,
+  placeB: GeoResult,
+  query: ClimateQuery,
+  host: ComparisonHost,
+  signal: AbortSignal
+): Promise<PlaceCompareCard | undefined> {
+  const today = utcYearMonth();
+  const variable = variableForLayer(layerId);
+  const [left, right] = await Promise.allSettled([
+    loadMonthlyClimate(placeA.lat, placeA.lon, query, today, signal),
+    loadMonthlyClimate(placeB.lat, placeB.lon, query, today, signal),
+  ]);
+  if (signal.aborted) return undefined;
+  const monthsA = left.status === "fulfilled" ? left.value : [];
+  const monthsB = right.status === "fulfilled" ? right.value : [];
+  if (monthsA.length === 0 && monthsB.length === 0) {
+    throw left.status === "rejected"
+      ? left.reason
+      : new Error("Open-Meteo returned no months");
+  }
+  const selected = selectPairMonth(monthsA, monthsB, query, variable, today);
+  if (!selected) {
+    return baseCard(
+      placeA,
+      placeB,
+      measureName(layerId),
+      "",
+      `No ${measureName(layerId).toLowerCase()} reading for ${placeA.name} and ${placeB.name}.`,
+      null,
+      climateSource(layerId),
+      ""
     );
   }
+  const monthLabel = fullMonthLabel(selected.month);
+  const sentence =
+    layerId === "precip"
+      ? rainSentence(
+          placeA.name,
+          placeB.name,
+          monthLabel,
+          selected.valueA,
+          selected.valueB
+        )
+      : tempSentence(
+          placeA.name,
+          placeB.name,
+          monthLabel,
+          selected.valueA,
+          selected.valueB
+        );
+  const window = chartWindow(selected.month, monthsA, monthsB, variable);
+  seekImagery(host, selected.month);
+  return {
+    ...baseCard(
+      placeA,
+      placeB,
+      measureName(layerId),
+      monthLabel,
+      sentence,
+      [
+        figure(placeA.name, selected.valueA, layerId),
+        figure(placeB.name, selected.valueB, layerId),
+      ],
+      climateSource(layerId),
+      imageryNote(host, layerId, selected.month)
+    ),
+    note: selected.note ?? "",
+    chart: {
+      ...window,
+      zeroBased: layerId === "precip",
+      label: `${measureName(layerId)} for the 12 months ending ${monthLabel}. ${placeA.name} in blue, ${placeB.name} in gold.`,
+    },
+  };
+}
+
+async function probeCard(
+  layerId: LayerId,
+  placeA: GeoResult,
+  placeB: GeoResult,
+  query: ClimateQuery,
+  host: ComparisonHost,
+  signal: AbortSignal
+): Promise<PlaceCompareCard | undefined> {
+  const layer = LAYERS[layerId];
+  const resolved = resolvePlaceCompareMonth(host.months(), {
+    placeA: placeA.name,
+    placeB: placeB.name,
+    layer: layerId,
+    defaultMonth: query.defaultMonth,
+    requested: query.requested,
+  });
+  if (!resolved) return undefined;
+  seekImagery(host, resolved.month);
+  const [seriesA, seriesB] = await Promise.all([
+    readProbe(
+      layer,
+      resolved.month,
+      host.months(),
+      placeA.lat,
+      placeA.lon,
+      signal
+    ),
+    readProbe(
+      layer,
+      resolved.month,
+      host.months(),
+      placeB.lat,
+      placeB.lon,
+      signal
+    ),
+  ]);
+  const monthLabel = formatTimelineLabel(layer, resolved.month);
+  const valueA = pointAt(seriesA, resolved.month);
+  const valueB = pointAt(seriesB, resolved.month);
+  const scale = PROBE_SCALES[layerId];
+  const chart = valueChart(resolved.month, seriesA, seriesB);
+  return {
+    title: `${placeA.name} vs ${placeB.name}`,
+    meta: `${layer.label} · ${monthLabel}`,
+    sentence: scaledSentence(
+      layerId,
+      placeA.name,
+      placeB.name,
+      monthLabel,
+      valueA,
+      valueB,
+      scale
+    ),
+    note: resolved.note ?? "",
+    source: "Approximate, read from the map colors.",
+    mapNote: "",
+    places: [
+      figure(placeA.name, valueA, layerId),
+      figure(placeB.name, valueB, layerId),
+    ],
+    chart: {
+      ...chart,
+      zeroBased: scale.unit !== "°C",
+      label: `${layer.label} for the 12 months ending ${monthLabel}. ${placeA.name} in blue, ${placeB.name} in gold.`,
+    },
+  };
+}
+
+function baseCard(
+  placeA: GeoResult,
+  placeB: GeoResult,
+  measure: string,
+  monthLabel: string,
+  sentence: string,
+  places: readonly [PlaceNumber, PlaceNumber] | null,
+  source: string,
+  mapNote: string
+): PlaceCompareCard {
+  return {
+    title: `${placeA.name} vs ${placeB.name}`,
+    meta: monthLabel ? `${measure} · ${monthLabel}` : measure,
+    sentence,
+    note: "",
+    source,
+    mapNote,
+    places,
+    chart: null,
+  };
+}
+
+function figure(
+  name: string,
+  value: number | null,
+  layerId: LayerId
+): PlaceNumber {
+  if (value === null) return { name, primary: "—", secondary: "" };
+  if (layerId === "precip") {
+    const rain = formatRain(value);
+    return { name, primary: rain.primary, secondary: rain.secondary };
+  }
+  if (layerId === "lst" || layerId === "airtemp") {
+    const temp = formatTemp(value);
+    return { name, primary: temp.primary, secondary: temp.secondary };
+  }
+  const scaled = formatScaled(value, PROBE_SCALES[layerId]);
+  return { name, primary: scaled.primary, secondary: scaled.secondary };
+}
+
+function climateSource(layerId: LayerId): string {
+  if (layerId === "precip") return "ERA5 reanalysis via Open-Meteo";
+  return "ERA5 reanalysis via Open-Meteo · 2 m air temperature";
+}
+
+function seekImagery(host: ComparisonHost, month: YearMonth): void {
+  const months = host.months();
+  if (months.length === 0) return;
+  host.seek(nearestMonthIndex([...months], month));
+  host.scheduleHashSync();
+}
+
+function imageryNote(
+  host: ComparisonHost,
+  layerId: LayerId,
+  shown: YearMonth
+): string {
+  const months = host.months();
+  if (months.length === 0) return "";
+  const imagery = months[nearestMonthIndex([...months], shown)];
+  if (!imagery) return "";
+  if (imagery.year === shown.year && imagery.month === shown.month) return "";
+  return `Map shows ${formatTimelineLabel(LAYERS[layerId], imagery)}.`;
+}
+
+async function readProbe(
+  layer: (typeof LAYERS)[LayerId],
+  focus: YearMonth,
+  available: readonly YearMonth[],
+  lat: number,
+  lon: number,
+  signal: AbortSignal
+): Promise<ChartPoint[]> {
+  const wanted: YearMonth[] = [];
+  for (let i = 11; i >= 0; i--) wanted.push(addMonths(focus, -i));
+  const present = wanted.filter((ym) =>
+    available.some(
+      (month) => month.year === ym.year && month.month === ym.month
+    )
+  );
+  const blanks = wanted.map((ym) => ({ ...ym, value: null }));
+  if (present.length === 0) return blanks;
+  const sample = await new ProbeSampler().sample(layer, present, lat, lon, {
+    signal,
+  });
+  const scale = PROBE_SCALES[layer.id];
+  return wanted.map((ym) => {
+    const index = present.findIndex(
+      (month) => month.year === ym.year && month.month === ym.month
+    );
+    if (index < 0) return { ...ym, value: null };
+    const raw = sample.values[index];
+    if (
+      raw === null ||
+      raw === undefined ||
+      sample.transportFailureByMonth[index]
+    ) {
+      return { ...ym, value: null };
+    }
+    return { ...ym, value: scaleValue(raw, scale) };
+  });
+}
+
+function pointAt(series: readonly ChartPoint[], ym: YearMonth): number | null {
+  const point = series.find(
+    (row) => row.year === ym.year && row.month === ym.month
+  );
+  return point?.value ?? null;
 }

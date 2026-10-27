@@ -1,5 +1,6 @@
 import { describePlaceCompare } from "./placeCompare";
 import type { SearchHit, SearchProvider } from "./search/provider";
+import type { LayerId } from "./timeline";
 import { describeThenNow, parsePlaceCompare, parseThenNow } from "./thenNow";
 
 /**
@@ -7,12 +8,14 @@ import { describeThenNow, parsePlaceCompare, parseThenNow } from "./thenNow";
  * the row appears while the query is still being typed and a keystroke never
  * spends a Nominatim request. Geocoding happens when the row is picked.
  */
-export function comparisonSearchProvider(): SearchProvider {
+export function comparisonSearchProvider(
+  activeLayer?: () => LayerId
+): SearchProvider {
   return {
     id: "comparisons",
     when: "instant",
     search(query) {
-      const places = parsePlaceCompare(query);
+      const places = parsePlaceCompare(query, activeLayer?.());
       if (places) {
         const described = describePlaceCompare(places);
         return [

@@ -119,18 +119,33 @@ test("Houston vs Austin rainfall 2026 offers a comparison while typing", async (
       body: JSON.stringify([stubPlace(name, lat, lon, box)]),
     });
   });
+  await page.route("**/archive-api.open-meteo.com/**", (route) => {
+    const url = route.request().url();
+    const austin = url.includes("latitude=30.27");
+    const days = Array.from(
+      { length: 30 },
+      (_, index) => `2026-09-${String(index + 1).padStart(2, "0")}`
+    );
+    const rain = austin ? 0.4 : 6;
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        daily: {
+          time: days,
+          precipitation_sum: days.map(() => rain),
+          temperature_2m_mean: days.map(() => (austin ? 30.8 : 27.5)),
+        },
+      }),
+    });
+  });
   await page.goto("/");
   await awaitAppInteractive(page);
 
   await page.locator(".search__input").fill("Houston vs Austin rainfall 2026");
   const row = page.locator(".search__result", { hasText: "Houston vs Austin" });
   await expect(row).toBeVisible();
-  await expect(row.locator(".search__result-sub")).toContainText(
-    "Precipitation"
-  );
-  await expect(row.locator(".search__result-sub")).toContainText(
-    "isn't published yet"
-  );
+  await expect(row.locator(".search__result-sub")).toContainText("Rain");
+  await expect(row.locator(".search__result-sub")).toContainText("Sep 2026");
   await expect(
     page.locator(".search__result--world", { hasText: "Search all places" })
   ).toBeVisible();
@@ -138,22 +153,32 @@ test("Houston vs Austin rainfall 2026 offers a comparison while typing", async (
 
   const panel = page.locator(".place-compare.is-open");
   await expect(panel).toBeVisible();
-  await expect(panel.locator("figcaption").nth(0)).toHaveText("Houston");
-  await expect(panel.locator("figcaption").nth(1)).toHaveText("Austin");
-  await expect(panel.locator(".place-compare__note")).toContainText(
-    "isn't published yet"
+  await expect(panel.locator(".place-compare__name").nth(0)).toContainText(
+    "Houston"
   );
-  await expect(panel.locator(".place-compare__note")).toContainText(
-    "latest available month"
+  await expect(panel.locator(".place-compare__name").nth(1)).toContainText(
+    "Austin"
   );
+  await expect(panel.locator(".place-compare__primary").nth(0)).toContainText(
+    "180 mm"
+  );
+  await expect(panel.locator(".place-compare__primary").nth(1)).toContainText(
+    "12 mm"
+  );
+  await expect(panel.locator(".place-compare__sentence")).toContainText(
+    "more rain than Austin"
+  );
+  await expect(panel.locator(".place-compare__sentence")).not.toContainText(
+    "0.0"
+  );
+  await expect(panel.locator(".place-compare__source")).toContainText(
+    "Open-Meteo"
+  );
+  await expect(page.locator(".compare-pin--a")).toHaveText("Houston");
   await expect
     .poll(async () => page.evaluate(() => location.hash), { timeout: 15_000 })
     .toMatch(/layer=precip/);
-  await expect(
-    panel.locator(".place-compare__maps img").nth(0)
-  ).toHaveAttribute("src", /^https:\/\/gibs\.earthdata\.nasa\.gov\//);
-  await expect(panel.locator(".place-compare__readout")).not.toHaveText(
-    /Reading/,
-    { timeout: 30_000 }
-  );
+  await panel.locator(".place-compare__collapse").click();
+  await expect(panel).toHaveClass(/is-collapsed/);
+  await expect(panel.locator(".place-compare__sentence")).toBeHidden();
 });
