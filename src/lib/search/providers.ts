@@ -188,10 +188,10 @@ function nominatimProvider(): SearchProvider {
  * own list into the search box — without editing the box. See
  * `docs/search-providers.md`.
  */
-export function searchProviders(): SearchProvider[] {
+export function searchProviders(activeLayer?: () => LayerId): SearchProvider[] {
   void loadPlaceCatalog();
   return [
-    comparisonSearchProvider(),
+    comparisonSearchProvider(activeLayer),
     coordinateProvider(),
     dateProvider(),
     ...placeProviders(),

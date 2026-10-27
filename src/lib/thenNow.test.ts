@@ -240,4 +240,19 @@ describe("parsePlaceCompare", () => {
     expect(parsePlaceCompare("Quito")).toBeNull();
     expect(parsePlaceCompare("Houston vs Austin 2010 vs 2020")).toBeNull();
   });
+
+  it("keeps the layer already on the globe when the query names none", () => {
+    expect(parsePlaceCompare("Houston versus Austin", "precip")).toMatchObject({
+      layer: "precip",
+    });
+    expect(parsePlaceCompare("Houston vs Austin rainfall", "ndvi")?.layer).toBe(
+      "precip"
+    );
+    expect(parsePlaceCompare("Houston versus Austin", "terrain")?.layer).toBe(
+      "ndvi"
+    );
+    expect(parsePlaceCompare("Houston versus Austin", "landcover")?.layer).toBe(
+      "ndvi"
+    );
+  });
 });

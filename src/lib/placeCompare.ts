@@ -1,9 +1,11 @@
+import { isPointClimateLayer, pointClimateSuggestion } from "./compareClimate";
 import { formatProbeValue, PROBE_SCALES, quantizationStep } from "./probe";
 import {
   formatTimelineLabel,
   gibsWmsUrl,
   LAYERS,
   monthRangeForLayer,
+  utcYearMonth,
   ymToIndex,
   type LayerConfig,
   type LayerId,
@@ -89,11 +91,27 @@ function unavailableNote(
 }
 
 /** The suggestion row: both places, the layer, and the month that will open. */
-export function describePlaceCompare(query: PlaceCompareQuery): {
+export function describePlaceCompare(
+  query: PlaceCompareQuery,
+  today: YearMonth = utcYearMonth()
+): {
   title: string;
   subtitle: string;
 } {
   const title = `${query.placeA} vs ${query.placeB}`;
+  if (isPointClimateLayer(query.layer)) {
+    return {
+      title,
+      subtitle: pointClimateSuggestion(
+        {
+          layer: query.layer,
+          requested: query.requested,
+          defaultMonth: query.defaultMonth,
+        },
+        today
+      ),
+    };
+  }
   const layer = LAYERS[query.layer];
   const resolved = resolvePlaceCompareMonth(monthRangeForLayer(layer), query);
   if (!resolved) return { title, subtitle: layer.label };

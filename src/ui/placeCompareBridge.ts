@@ -8,3 +8,14 @@ export function onDismissPlaceCompare(fn: () => void): void {
 export function dismissPlaceCompare(): void {
   dismiss();
 }
+
+/** The render loop projects comparison pins. The pin owner registers this. */
+let framePins: ((camera: object) => void) | undefined;
+
+export function onFrameComparePins(fn: (camera: object) => void): void {
+  framePins = fn;
+}
+
+export function frameComparePins(camera: object): void {
+  framePins?.(camera);
+}
