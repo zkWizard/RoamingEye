@@ -1,0 +1,1 @@
+var e=()=>{};function t(t){e=t}function n(){e()}var r;function i(e){r=e}function a(e){r?.(e)}export{i,a as n,t as r,n as t};

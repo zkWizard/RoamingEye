@@ -1,0 +1,1 @@
+var e=`roamingeye:stories-welcome`;function t(){try{return localStorage.getItem(e)===`done`}catch{return!1}}function n(){try{localStorage.setItem(e,`done`)}catch{}}export{t as n,n as t};
