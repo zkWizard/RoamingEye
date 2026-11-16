@@ -1,6 +1,7 @@
 import type { GeoResult } from "../lib/geocoding";
 import type { GeoGeometry } from "../lib/geojson";
 import type { PlaceComparePick, ThenNowPick } from "../lib/openComparisons";
+import { parsePlaceCompare } from "../lib/thenNow";
 import { recentSearchProvider } from "../lib/search/recent";
 import type { SearchHit } from "../lib/search/provider";
 import { searchProviders } from "../lib/search/providers";
@@ -91,7 +92,32 @@ export function mountSearch(
         });
     }
   );
+  restoreSharedCompare(handlers);
   return { focus: () => box.focus() };
+}
+
+/** A shared link with a place-vs-place query opens that card on the hash month. */
+function restoreSharedCompare(handlers: SearchHandlers): void {
+  const params = new URLSearchParams(location.hash.replace(/^#/, ""));
+  if (params.get("story")) return;
+  const query = params.get("q");
+  if (!query) return;
+  const parsed = parsePlaceCompare(query, handlers.layer?.());
+  if (!parsed) return;
+  const t = params.get("t")?.match(/^(\d{4})-(\d{2})$/);
+  const month = t ? Number(t[2]) : 0;
+  const lockedMonth =
+    t && month >= 1 && month <= 12 ? { year: Number(t[1]), month } : null;
+  handlers.onPlaceCompare({
+    placeA: parsed.placeA,
+    placeB: parsed.placeB,
+    layerId: parsed.layer,
+    year: parsed.requested.year,
+    month: parsed.requested.month,
+    defaultMonth: parsed.defaultMonth,
+    query,
+    lockedMonth,
+  });
 }
 
 function applyHit(hit: SearchHit, handlers: SearchHandlers): void {
@@ -142,6 +168,7 @@ function applyHit(hit: SearchHit, handlers: SearchHandlers): void {
         year: data.year,
         month: data.month,
         defaultMonth: data.defaultMonth,
+        query: data.query,
       });
       return;
   }

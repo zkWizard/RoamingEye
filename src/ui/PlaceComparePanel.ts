@@ -1,6 +1,5 @@
 import { chartBounds } from "../lib/compareClimate";
 import { ICONS } from "./icons";
-import { onDismissPlaceCompare } from "./placeCompareBridge";
 
 export interface PlaceNumber {
   name: string;
@@ -103,7 +102,6 @@ export class PlaceComparePanel {
 
     this.root.append(header, body);
     parent.append(this.root);
-    onDismissPlaceCompare(() => this.hide());
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape" || !this.root.classList.contains("is-open")) {
         return;

@@ -33,6 +33,7 @@ export function comparisonSearchProvider(
               year: places.requested.year,
               month: places.requested.month,
               defaultMonth: places.defaultMonth,
+              query: query.trim(),
             },
           },
         ];

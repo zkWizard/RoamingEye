@@ -1818,6 +1818,9 @@ function comparisonHost() {
       compareControls?.setLiveMonth(LAYERS[currentLayer], months[currentIndex]);
     },
     clearSharedSearch: () => clearSharedSearch(),
+    noteQuery: (query: string) => {
+      sharedQuery = query;
+    },
     scheduleHashSync: () => scheduleHashSync(),
   };
 }

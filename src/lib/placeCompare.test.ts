@@ -56,6 +56,28 @@ describe("resolvePlaceCompareMonth", () => {
     expect(resolved?.month).toEqual(latest);
     expect(resolved?.note).toContain("isn't in this layer's record");
   });
+
+  it("keeps a shared link's month instead of the query's season", () => {
+    const resolved = resolvePlaceCompareMonth(
+      precip,
+      parsed("Houston vs Austin rainfall 2026"),
+      { year: 2020, month: 3 }
+    );
+    expect(resolved).toEqual({
+      month: { year: 2020, month: 3 },
+      note: null,
+    });
+  });
+
+  it("snaps a shared month the layer never published onto the globe's month", () => {
+    const resolved = resolvePlaceCompareMonth(
+      precip,
+      parsed("Houston vs Austin rainfall March 2020"),
+      { year: 2026, month: 9 }
+    );
+    expect(resolved?.month).toEqual(latest);
+    expect(resolved?.month).not.toEqual({ year: 2026, month: 9 });
+  });
 });
 
 describe("describePlaceCompare", () => {

@@ -1,14 +1,13 @@
 import { geocode, type GeoResult } from "./geocoding";
-import { flyToDistance } from "./placeFrame";
-import {
-  pairFocus,
-  resolvePlaceCompareMonth,
-  unionBounds,
-} from "./placeCompare";
+import { flyToDistance, framePair, type FrameOcclusion } from "./placeFrame";
+import { resolvePlaceCompareMonth } from "./placeCompare";
 import { ProbeSampler } from "../probe/ProbeSampler";
 import { ComparePins } from "../scene/ComparePins";
 import type { PlaceCompareCard, PlaceNumber } from "../ui/PlaceComparePanel";
-import { onFrameComparePins } from "../ui/placeCompareBridge";
+import {
+  onDismissPlaceCompare,
+  onFrameComparePins,
+} from "../ui/placeCompareBridge";
 import {
   chartWindow,
   formatRain,
@@ -17,14 +16,15 @@ import {
   fullMonthLabel,
   isPointClimateLayer,
   measureName,
+  monthValue,
   rainSentence,
   scaledSentence,
-  selectPairMonth,
   tempSentence,
   valueChart,
   variableForLayer,
   type ChartPoint,
   type ClimateQuery,
+  type MonthClimate,
 } from "./compareClimate";
 import { loadMonthlyClimate } from "./openMeteoClimate";
 import { PROBE_SCALES, scaleValue } from "./probe";
@@ -32,8 +32,10 @@ import {
   addMonths,
   formatTimelineLabel,
   LAYERS,
+  MONTH_NAMES,
   nearestMonthIndex,
   utcYearMonth,
+  ymEqual,
   type LayerId,
   type YearMonth,
 } from "./timeline";
@@ -62,6 +64,13 @@ export interface PlaceComparePick {
   year: number | null;
   month: number | null;
   defaultMonth: number;
+  /** The typed query, so a shared link can open the same comparison. */
+  query?: string;
+  /**
+   * Month the globe is already showing. A shared link passes the hash
+   * month so the card does not resolve a different one on reload.
+   */
+  lockedMonth?: YearMonth | null;
 }
 
 export interface ComparisonHost {
@@ -80,6 +89,8 @@ export interface ComparisonHost {
   hideStudy(): void;
   enableMonthCompare(earlier: YearMonth): void;
   clearSharedSearch(): void;
+  /** Remember the comparison query so the share link reopens it. */
+  noteQuery(query: string): void;
   scheduleHashSync(): void;
 }
 
@@ -87,14 +98,50 @@ let generation = 0;
 let geocodeAbort: AbortController | undefined;
 let panel: PlaceComparePanel | undefined;
 let pins: ComparePins | undefined;
+let active: ActiveCompare | undefined;
+/** A scrub that landed before the card's numbers did. */
+let scrub: { token: number; month: YearMonth } | undefined;
+let watchingTimeline = false;
 
-function comparisonPanel(): PlaceComparePanel {
+interface ClimateBundle {
+  monthsA: MonthClimate[];
+  monthsB: MonthClimate[];
+}
+
+interface ProbeBundle {
+  seriesA: ChartPoint[];
+  seriesB: ChartPoint[];
+}
+
+interface ActiveCompare {
+  token: number;
+  layerId: LayerId;
+  placeA: GeoResult;
+  placeB: GeoResult;
+  /** Month the card is describing. Null while the first read is in flight. */
+  shown: YearMonth | null;
+  /** Timeline month when this comparison took the globe over. */
+  openedAt: YearMonth | null;
+  climate: ClimateBundle | null;
+  probe: ProbeBundle | null;
+  host: ComparisonHost;
+}
+
+function comparisonPanel(host: ComparisonHost): PlaceComparePanel {
   if (!panel) {
     const parent = document.querySelector("#app");
     panel = new PlaceComparePanel(
       parent instanceof HTMLElement ? parent : document.body
     );
-    panel.setOnClose(() => pins?.hide());
+    panel.setOnClose(() => {
+      pins?.hide();
+      active = undefined;
+      scrub = undefined;
+      host.clearSharedSearch();
+      host.scheduleHashSync();
+    });
+    onDismissPlaceCompare(() => onGlobeDismiss());
+    watchTimeline();
   }
   return panel;
 }
@@ -219,6 +266,9 @@ export async function openPlaceCompare(
 
   host.clearSharedSearch();
   host.prepareLayer(layerId);
+  // prepareLayer dismisses the previous card, and that close clears the
+  // shared query. Record this comparison after that, or the link loses it.
+  if (pick.query) host.noteQuery(pick.query);
   host.hideStudy();
   host.clearHighlight();
   if (!still(token)) return;
@@ -227,7 +277,7 @@ export async function openPlaceCompare(
     requested: { year: pick.year, month: pick.month },
     defaultMonth: pick.defaultMonth,
   };
-  const view = comparisonPanel();
+  const view = comparisonPanel(host);
   view.show({
     title: `${pick.placeA} vs ${pick.placeB}`,
     meta: "",
@@ -272,52 +322,79 @@ export async function openPlaceCompare(
     return;
   }
 
-  const focus = pairFocus(placeA, placeB);
-  const framed = unionBounds(placeA, placeB);
+  const pose = framePair(
+    { lat: placeA.lat, lon: placeA.lon },
+    { lat: placeB.lat, lon: placeB.lon },
+    compareViewport()
+  );
   host.endFlight();
-  // A city-pair box is only a couple of degrees. The single-place formula
-  // then sits on the ground between them; a regional floor keeps both in view
-  // and leaves room for the card on the left.
-  const distance = framed ? Math.max(flyToDistance(framed), 2.8) : 3.2;
-  // On a phone the card and the dock cover the lower half of the canvas, and
-  // the camera target is drawn at the canvas centre. Aim south of the pair so
-  // both cities land in the open map above the card.
-  const stacked = window.matchMedia(
-    "(max-width: 540px), (max-height: 460px)"
-  ).matches;
-  const aimLat = stacked ? Math.max(-75, focus.lat - 18) : focus.lat;
-  host.fly(aimLat, focus.lon, distance);
+  host.fly(pose.lat, pose.lon, pose.distance);
   if (!still(token)) return;
   placePins(host).show(
     { name: placeA.name, lat: placeA.lat, lon: placeA.lon },
     { name: placeB.name, lat: placeB.lat, lon: placeB.lon }
   );
 
+  const placeQuery = {
+    placeA: placeA.name,
+    placeB: placeB.name,
+    layer: layerId,
+    defaultMonth: pick.defaultMonth,
+    requested: climateQuery.requested,
+  };
+  const choice = resolvePlaceCompareMonth(
+    host.months(),
+    placeQuery,
+    pick.lockedMonth
+  );
+  if (!choice) {
+    const text = "This layer has no published months.";
+    showStatus(view, `${placeA.name} vs ${placeB.name}`, text);
+    host.announce(text);
+    return;
+  }
+  active = {
+    token,
+    layerId,
+    placeA,
+    placeB,
+    shown: null,
+    openedAt: readTimelineMonth(),
+    climate: null,
+    probe: null,
+    host,
+  };
+
   try {
-    const card = isPointClimateLayer(layerId)
-      ? await climateCard(
-          layerId,
-          placeA,
-          placeB,
-          climateQuery,
-          host,
-          abort.signal
-        )
-      : await probeCard(
-          layerId,
-          placeA,
-          placeB,
-          climateQuery,
-          host,
-          abort.signal
-        );
-    if (!still(token) || abort.signal.aborted) return;
-    if (!card) {
-      const text = "This layer has no published months.";
-      showStatus(view, `${placeA.name} vs ${placeB.name}`, text);
-      host.announce(text);
-      return;
+    if (isPointClimateLayer(layerId)) {
+      const bundle = await loadClimatePair(
+        placeA,
+        placeB,
+        climateQuery,
+        abort.signal
+      );
+      if (!still(token) || abort.signal.aborted || !active) return;
+      active.climate = bundle;
+    } else {
+      const bundle = await loadProbePair(
+        layerId,
+        placeA,
+        placeB,
+        choice.month,
+        host.months(),
+        abort.signal
+      );
+      if (!still(token) || abort.signal.aborted || !active) return;
+      active.probe = bundle;
     }
+    if (!still(token) || !active || active.token !== token) return;
+    const followed = scrub?.token === token ? scrub.month : null;
+    const month = followed ?? choice.month;
+    const note = followed ? "" : (choice.note ?? "");
+    // The scrub already moved the globe. Seeking again would undo it.
+    if (!followed) seekImagery(host, month);
+    active.shown = month;
+    const card = cardFor(active, month, note);
     view.show(card);
     host.announce(card.note ? `${card.note} ${card.sentence}` : card.sentence);
   } catch (err) {
@@ -346,21 +423,18 @@ function showStatus(
   });
 }
 
-async function climateCard(
-  layerId: LayerId,
+async function loadClimatePair(
   placeA: GeoResult,
   placeB: GeoResult,
   query: ClimateQuery,
-  host: ComparisonHost,
   signal: AbortSignal
-): Promise<PlaceCompareCard | undefined> {
+): Promise<ClimateBundle> {
   const today = utcYearMonth();
-  const variable = variableForLayer(layerId);
   const [left, right] = await Promise.allSettled([
     loadMonthlyClimate(placeA.lat, placeA.lon, query, today, signal),
     loadMonthlyClimate(placeB.lat, placeB.lon, query, today, signal),
   ]);
-  if (signal.aborted) return undefined;
+  if (signal.aborted) return { monthsA: [], monthsB: [] };
   const monthsA = left.status === "fulfilled" ? left.value : [];
   const monthsB = right.status === "fulfilled" ? right.value : [];
   if (monthsA.length === 0 && monthsB.length === 0) {
@@ -368,102 +442,97 @@ async function climateCard(
       ? left.reason
       : new Error("Open-Meteo returned no months");
   }
-  const selected = selectPairMonth(monthsA, monthsB, query, variable, today);
-  if (!selected) {
-    return baseCard(
-      placeA,
-      placeB,
-      measureName(layerId),
-      "",
-      `No ${measureName(layerId).toLowerCase()} reading for ${placeA.name} and ${placeB.name}.`,
-      null,
-      climateSource(layerId),
-      ""
-    );
-  }
-  const monthLabel = fullMonthLabel(selected.month);
+  return { monthsA, monthsB };
+}
+
+async function loadProbePair(
+  layerId: LayerId,
+  placeA: GeoResult,
+  placeB: GeoResult,
+  focus: YearMonth,
+  available: readonly YearMonth[],
+  signal: AbortSignal
+): Promise<ProbeBundle> {
+  const layer = LAYERS[layerId];
+  const [seriesA, seriesB] = await Promise.all([
+    readProbe(layer, focus, available, placeA.lat, placeA.lon, signal),
+    readProbe(layer, focus, available, placeB.lat, placeB.lon, signal),
+  ]);
+  return { seriesA, seriesB };
+}
+
+function cardFor(
+  session: ActiveCompare,
+  month: YearMonth,
+  note: string
+): PlaceCompareCard {
+  if (session.climate) return climateView(session, month, note);
+  if (session.probe) return probeView(session, month, note);
+  return baseCard(
+    session.placeA,
+    session.placeB,
+    measureName(session.layerId),
+    "",
+    `Reading ${session.placeA.name} and ${session.placeB.name}…`,
+    null,
+    "",
+    ""
+  );
+}
+
+function climateView(
+  session: ActiveCompare,
+  month: YearMonth,
+  note: string
+): PlaceCompareCard {
+  const { layerId, placeA, placeB } = session;
+  const bundle = session.climate ?? { monthsA: [], monthsB: [] };
+  const variable = variableForLayer(layerId);
+  const valueA = monthValue(bundle.monthsA, month, variable);
+  const valueB = monthValue(bundle.monthsB, month, variable);
+  const prose = fullMonthLabel(month);
+  const short = formatTimelineLabel(LAYERS[layerId], month);
   const sentence =
     layerId === "precip"
-      ? rainSentence(
-          placeA.name,
-          placeB.name,
-          monthLabel,
-          selected.valueA,
-          selected.valueB
-        )
-      : tempSentence(
-          placeA.name,
-          placeB.name,
-          monthLabel,
-          selected.valueA,
-          selected.valueB
-        );
-  const window = chartWindow(selected.month, monthsA, monthsB, variable);
-  seekImagery(host, selected.month);
+      ? rainSentence(placeA.name, placeB.name, prose, valueA, valueB)
+      : tempSentence(placeA.name, placeB.name, prose, valueA, valueB);
+  const window = chartWindow(month, bundle.monthsA, bundle.monthsB, variable);
   return {
     ...baseCard(
       placeA,
       placeB,
       measureName(layerId),
-      monthLabel,
+      short,
       sentence,
       [
-        figure(placeA.name, selected.valueA, layerId),
-        figure(placeB.name, selected.valueB, layerId),
+        figure(placeA.name, valueA, layerId),
+        figure(placeB.name, valueB, layerId),
       ],
       climateSource(layerId),
-      imageryNote(host, layerId, selected.month)
+      ""
     ),
-    note: selected.note ?? "",
+    note,
     chart: {
       ...window,
       zeroBased: layerId === "precip",
-      label: `${measureName(layerId)} for the 12 months ending ${monthLabel}. ${placeA.name} in blue, ${placeB.name} in gold.`,
+      label: `${measureName(layerId)} for the 12 months ending ${prose}. ${placeA.name} in blue, ${placeB.name} in gold.`,
     },
   };
 }
 
-async function probeCard(
-  layerId: LayerId,
-  placeA: GeoResult,
-  placeB: GeoResult,
-  query: ClimateQuery,
-  host: ComparisonHost,
-  signal: AbortSignal
-): Promise<PlaceCompareCard | undefined> {
+function probeView(
+  session: ActiveCompare,
+  month: YearMonth,
+  note: string
+): PlaceCompareCard {
+  const { layerId, placeA, placeB } = session;
+  const bundle = session.probe ?? { seriesA: [], seriesB: [] };
   const layer = LAYERS[layerId];
-  const resolved = resolvePlaceCompareMonth(host.months(), {
-    placeA: placeA.name,
-    placeB: placeB.name,
-    layer: layerId,
-    defaultMonth: query.defaultMonth,
-    requested: query.requested,
-  });
-  if (!resolved) return undefined;
-  seekImagery(host, resolved.month);
-  const [seriesA, seriesB] = await Promise.all([
-    readProbe(
-      layer,
-      resolved.month,
-      host.months(),
-      placeA.lat,
-      placeA.lon,
-      signal
-    ),
-    readProbe(
-      layer,
-      resolved.month,
-      host.months(),
-      placeB.lat,
-      placeB.lon,
-      signal
-    ),
-  ]);
-  const monthLabel = formatTimelineLabel(layer, resolved.month);
-  const valueA = pointAt(seriesA, resolved.month);
-  const valueB = pointAt(seriesB, resolved.month);
+  const monthLabel = formatTimelineLabel(layer, month);
+  const valueA = pointAt(bundle.seriesA, month);
+  const valueB = pointAt(bundle.seriesB, month);
   const scale = PROBE_SCALES[layerId];
-  const chart = valueChart(resolved.month, seriesA, seriesB);
+  const chart = valueChart(month, bundle.seriesA, bundle.seriesB);
   return {
     title: `${placeA.name} vs ${placeB.name}`,
     meta: `${layer.label} · ${monthLabel}`,
@@ -476,7 +545,7 @@ async function probeCard(
       valueB,
       scale
     ),
-    note: resolved.note ?? "",
+    note,
     source: "Approximate, read from the map colors.",
     mapNote: "",
     places: [
@@ -543,17 +612,139 @@ function seekImagery(host: ComparisonHost, month: YearMonth): void {
   host.scheduleHashSync();
 }
 
-function imageryNote(
-  host: ComparisonHost,
-  layerId: LayerId,
-  shown: YearMonth
-): string {
-  const months = host.months();
-  if (months.length === 0) return "";
-  const imagery = months[nearestMonthIndex([...months], shown)];
-  if (!imagery) return "";
-  if (imagery.year === shown.year && imagery.month === shown.month) return "";
-  return `Map shows ${formatTimelineLabel(LAYERS[layerId], imagery)}.`;
+function onGlobeDismiss(): void {
+  if (!active || active.token !== generation || !panel) {
+    panel?.hide();
+    return;
+  }
+  const live = readTimelineMonth();
+  if (!active.shown) {
+    if (live && active.openedAt && !ymEqual(live, active.openedAt)) {
+      scrub = { token: active.token, month: live };
+      return;
+    }
+    panel.hide();
+    return;
+  }
+  if (live && !ymEqual(live, active.shown)) {
+    followMonth(live);
+    return;
+  }
+  panel.hide();
+}
+
+function followMonth(month: YearMonth): void {
+  if (!active || active.token !== generation || !panel) return;
+  scrub = { token: active.token, month };
+  if (!active.climate && !active.probe) return;
+  active.shown = month;
+  const card = cardFor(active, month, "");
+  panel.show(card);
+  active.host.announce(card.sentence);
+}
+
+function readTimelineMonth(): YearMonth | null {
+  const text =
+    document.querySelector(".timeline__readout")?.textContent?.trim() ?? "";
+  const match = /^([A-Za-z]{3}) (\d{4})$/.exec(text);
+  if (!match) return null;
+  const month = (MONTH_NAMES as readonly string[]).indexOf(match[1]) + 1;
+  if (month < 1) return null;
+  const year = Number(match[2]);
+  if (!Number.isInteger(year)) return null;
+  return { year, month };
+}
+
+function watchTimeline(): void {
+  if (watchingTimeline || typeof MutationObserver === "undefined") return;
+  const root = document.querySelector("#timeline");
+  if (!root) return;
+  watchingTimeline = true;
+  const observer = new MutationObserver(() => {
+    const live = readTimelineMonth();
+    if (!live || !active || active.token !== generation || !active.shown)
+      return;
+    if (ymEqual(live, active.shown)) return;
+    followMonth(live);
+  });
+  observer.observe(root, {
+    subtree: true,
+    childList: true,
+    characterData: true,
+  });
+}
+
+/** Globe camera field of view. Kept in step with the camera in main.ts. */
+const GLOBE_FOV = 45;
+
+function compareViewport(): {
+  fovDeg: number;
+  aspect: number;
+  occlude: FrameOcclusion;
+  padding: number;
+} {
+  const w = Math.max(1, window.innerWidth);
+  const h = Math.max(1, window.innerHeight);
+  const occlude: FrameOcclusion = { top: 0, right: 0, bottom: 0, left: 0 };
+  const take = (selector: string) => {
+    const el = document.querySelector(selector);
+    if (!(el instanceof HTMLElement)) return;
+    if (el.hidden || getComputedStyle(el).display === "none") return;
+    absorbChrome(occlude, reservedRect(el), w, h);
+  };
+  take(".overlay--top");
+  take(".overlay--bottom");
+  take(".place-compare.is-open");
+  take(".toolbar:not(.is-collapsed)");
+  // A collapsed phone sheet is only a handle, but it still covers the bottom.
+  take(".toolbar.is-collapsed");
+  // Pin markers are drawn larger than the point. A bottom sheet that ends
+  // exactly at the label still covers the circle.
+  if (occlude.bottom > 0.35)
+    occlude.bottom = Math.min(0.8, occlude.bottom + 0.1);
+  return { fovDeg: GLOBE_FOV, aspect: w / h, occlude, padding: 0.05 };
+}
+
+function reservedRect(el: HTMLElement): DOMRect {
+  const rect = el.getBoundingClientRect();
+  const style = getComputedStyle(el);
+  const maxH = Number.parseFloat(style.maxHeight);
+  // A bottom sheet grows upward. Measure the tallest it is allowed to be,
+  // not the short "Reading…" card, or the pins land under the full card.
+  if (
+    Number.isFinite(maxH) &&
+    maxH > rect.height + 1 &&
+    style.top === "auto" &&
+    style.bottom !== "auto"
+  ) {
+    return new DOMRect(rect.x, rect.bottom - maxH, rect.width, maxH);
+  }
+  return rect;
+}
+
+function absorbChrome(
+  occlude: FrameOcclusion,
+  rect: DOMRect,
+  w: number,
+  h: number
+): void {
+  if (rect.width < 8 || rect.height < 8) return;
+  const widthFrac = rect.width / w;
+  const heightFrac = rect.height / h;
+  const touchesLeft = rect.left < w * 0.08;
+  const touchesRight = rect.right > w * 0.92;
+  if (touchesLeft && !touchesRight && widthFrac < 0.55) {
+    occlude.left = Math.max(occlude.left, rect.right / w);
+  }
+  if (touchesRight && !touchesLeft && widthFrac < 0.55) {
+    occlude.right = Math.max(occlude.right, (w - rect.left) / w);
+  }
+  if (rect.top < h * 0.08 && widthFrac > 0.5 && heightFrac < 0.34) {
+    occlude.top = Math.max(occlude.top, rect.bottom / h);
+  }
+  if (widthFrac > 0.62 && rect.top > h * 0.18) {
+    occlude.bottom = Math.max(occlude.bottom, (h - rect.top) / h);
+  }
 }
 
 async function readProbe(

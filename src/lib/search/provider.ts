@@ -63,6 +63,8 @@ export type SearchAction =
       year: number | null;
       month: number | null;
       defaultMonth: number;
+      /** The query that produced the row, for the share link. */
+      query?: string;
     };
 
 /**
