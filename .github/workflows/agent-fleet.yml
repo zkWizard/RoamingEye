@@ -38,7 +38,11 @@ jobs:
       - run: npm run verify
       - name: Install Playwright (Chromium)
         run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      # Same required WebGL gate as ci.yml (the @smoke set). The full suite
+      # is the nightly advisory workflow and was blocking this draft on a
+      # keyboard-zoom assertion while spending about an hour on shards that
+      # do not decide whether the catalog can open a review.
+      - run: npm run test:e2e:smoke
       - name: Open a draft catalog review
         # Creating the draft PR needs "Allow GitHub Actions to create and
         # approve pull requests" enabled under Settings -> Actions -> General;

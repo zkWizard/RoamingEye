@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { awaitAppInteractive } from "./boot";
+import { awaitAppInteractive, awaitHashSettled } from "./boot";
 
 /**
  * The place-insights subsystem loads as its own chunk on the first search that
@@ -113,6 +113,15 @@ test("a failed place-insights load is worded, and a reload recovers it", async (
 
   // The remedy the message names does work. The failed search is in the
   // hash, so the fresh page restores that place and loads the chunk itself.
+  // That write shares the 400ms camera debounce. A fast run reaches reload
+  // while the write is still queued, and the fresh page then has no place
+  // to reopen. Wait until the hash has actually taken the place.
+  await expect
+    .poll(async () => page.evaluate(() => location.hash.includes("place=")), {
+      timeout: 10_000,
+    })
+    .toBe(true);
+  await awaitHashSettled(page);
   // Searching again would click through the panel that restore just opened.
   await page.unroute(CHUNK);
   await page.reload();
