@@ -1,8 +1,8 @@
 diff --git a/node_modules/3d-tiles-renderer/src/three/plugins/images/ImageOverlayPlugin.js b/node_modules/3d-tiles-renderer/src/three/plugins/images/ImageOverlayPlugin.js
-index 5d9e63a..5fdc93e 100644
+index 0d93ca4..b4fb350 100644
 --- a/node_modules/3d-tiles-renderer/src/three/plugins/images/ImageOverlayPlugin.js
 +++ b/node_modules/3d-tiles-renderer/src/three/plugins/images/ImageOverlayPlugin.js
-@@ -235,7 +235,11 @@ export class ImageOverlayPlugin {
+@@ -236,7 +236,11 @@ export class ImageOverlayPlugin {
  				if ( tileInfo.has( tile ) ) {
  
  					const { range } = tileInfo.get( tile );
@@ -15,7 +15,7 @@ index 5d9e63a..5fdc93e 100644
  
  				}
  
-@@ -1065,7 +1069,7 @@ export class ImageOverlayPlugin {
+@@ -1089,7 +1093,7 @@ export class ImageOverlayPlugin {
  
  		// check if the overlay or tile have been disposed since starting this function
  		// if the tileController is not present then the tile has been disposed of already
@@ -24,7 +24,7 @@ index 5d9e63a..5fdc93e 100644
  
  			return;
  
-@@ -1073,6 +1077,7 @@ export class ImageOverlayPlugin {
+@@ -1097,6 +1101,7 @@ export class ImageOverlayPlugin {
  
  		// find all meshes to project on and ensure matrices are up to date
  		const meshes = [];
@@ -32,7 +32,7 @@ index 5d9e63a..5fdc93e 100644
  		scene.updateMatrixWorld();
  		scene.traverse( c => {
  
-@@ -1167,7 +1172,7 @@ export class ImageOverlayPlugin {
+@@ -1191,7 +1196,7 @@ export class ImageOverlayPlugin {
  			.add( { tile, overlay }, async () => {
  
  				// check if the overlay has been disposed since starting this function
@@ -41,7 +41,7 @@ index 5d9e63a..5fdc93e 100644
  
  					return null;
  
-@@ -1177,7 +1182,7 @@ export class ImageOverlayPlugin {
+@@ -1201,7 +1206,7 @@ export class ImageOverlayPlugin {
  				const regionTarget = await overlay.getTexture( range );
  
  				// check if the overlay has been disposed since starting this function
@@ -50,7 +50,7 @@ index 5d9e63a..5fdc93e 100644
  
  					return null;
  
-@@ -1334,6 +1339,15 @@ export class ImageOverlayPlugin {
+@@ -1358,6 +1363,15 @@ export class ImageOverlayPlugin {
  				params.layerMaps.value[ i ] = target !== null ? target : null;
  				params.layerInfo.value[ i ] = overlay;
  
@@ -66,7 +66,7 @@ index 5d9e63a..5fdc93e 100644
  				// mark per-layer defines
  				material.defines[ `LAYER_${ i }_EXISTS` ] = Number( target !== null );
  				material.defines[ `LAYER_${ i }_ALPHA_INVERT` ] = Number( overlay.alphaInvert );
-@@ -1500,15 +1514,15 @@ export class ImageOverlay {
+@@ -1524,15 +1538,15 @@ export class ImageOverlay {
  
  	lockTextureSafe( range ) {
  

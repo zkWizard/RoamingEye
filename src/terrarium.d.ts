@@ -1,4 +1,4 @@
-// 3d-tiles-renderer 0.5.3 exports TerrariumMeshPlugin but ships no typings for it.
+// 3d-tiles-renderer 0.5.4 exports TerrariumMeshPlugin but ships no typings for it.
 import "3d-tiles-renderer/plugins";
 
 declare module "3d-tiles-renderer/plugins" {
