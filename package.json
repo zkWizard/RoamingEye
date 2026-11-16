@@ -10,7 +10,7 @@
   "scripts": {
     "postinstall": "patch-package",
     "dev": "vite",
-    "build": "tsc --noEmit && vite build && node scripts/check-bundle-size.mjs",
+    "build": "tsc --noEmit && node scripts/write-sitemap.mjs && vite build && node scripts/check-bundle-size.mjs && node scripts/check-seo-output.mjs",
     "preview": "vite preview --port 4173",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
