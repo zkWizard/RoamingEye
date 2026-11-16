@@ -40,6 +40,8 @@ export interface SearchHandlers {
   onEvent: (eventId: string) => void;
   onThenNow: (pick: ThenNowPick) => void;
   onPlaceCompare: (pick: PlaceComparePick) => void;
+  /** A chosen hit, before the branch that flies or opens it. */
+  onSearch?: () => void;
   /** The layer on the globe, so "Houston vs Austin" keeps the map the user is on. */
   layer?: () => LayerId;
 }
@@ -121,6 +123,7 @@ function restoreSharedCompare(handlers: SearchHandlers): void {
 }
 
 function applyHit(hit: SearchHit, handlers: SearchHandlers): void {
+  handlers.onSearch?.();
   const data = hit.data;
   switch (data.type) {
     case "place":

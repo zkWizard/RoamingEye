@@ -3,6 +3,7 @@ import { defineConfig } from "vite";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import pkg from "./package.json";
+import { ANALYTICS_ENABLED } from "./src/analytics/config.ts";
 
 // 3d-tiles-renderer resolves to its ES sources rather than its prebuilt bundles,
 // so the fixes in patches/ (applied by patch-package on install) take effect.
@@ -33,6 +34,10 @@ export default defineConfig({
   // (FAIR4RS R1.2). Single source of truth: package.json.
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
+    // Inlined from src/analytics/config.ts so the entry chunk can skip the
+    // analytics chunk while the beacon token is empty, without a shared file
+    // that every visit would download.
+    __ANALYTICS_ENABLED__: JSON.stringify(ANALYTICS_ENABLED),
   },
   resolve: { alias: tilesAliases },
   // Pre-bundling would read the prebuilt bundles and skip the patched sources.

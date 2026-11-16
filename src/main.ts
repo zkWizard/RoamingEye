@@ -178,6 +178,7 @@ import {
   wheelAltitudeFactor,
 } from "./lib/cameraZoom";
 import type { EarthEvent } from "./lib/events";
+import { pageview, record } from "./analytics";
 
 /**
  * RoamingEye
@@ -635,6 +636,7 @@ function buildTimeline(): void {
     (message) => announcer.announce(message),
     {
       isFrameReady: () => imageryReady,
+      onUserScrub: () => record("scrub"),
       onPlayingChange: (isPlaying) => {
         playing = isPlaying;
         if (isPlaying) playbackArmed = true;
@@ -1355,8 +1357,11 @@ function currentShareUrl(): string {
 
 const shareEl = document.querySelector<HTMLElement>("#share");
 if (shareEl) {
-  new ShareButton(shareEl, currentShareUrl, (message) =>
-    announcer.announce(message)
+  new ShareButton(
+    shareEl,
+    currentShareUrl,
+    (message) => announcer.announce(message),
+    () => record("share")
   );
 }
 
@@ -1673,6 +1678,7 @@ if (searchEl) {
             );
           },
           layer: () => currentLayer,
+          onSearch: () => record("search"),
         }
       );
       focusSearch = () => mounted.focus();
@@ -1731,6 +1737,7 @@ if (compareEl && compareDividerEl) {
         const layer = LAYERS[currentLayer];
         if (layer.static) return false; // one image regardless of month
         compare.enable(layer, months[currentIndex]);
+        record("compare");
         compareControls?.showDivider(
           layer,
           months[currentIndex],
@@ -1814,6 +1821,7 @@ function comparisonHost() {
     },
     enableMonthCompare: (earlier: YearMonth) => {
       compare.enable(LAYERS[currentLayer], earlier);
+      record("compare");
       compareControls?.restore(LAYERS[currentLayer], earlier, compare.split);
       compareControls?.setLiveMonth(LAYERS[currentLayer], months[currentIndex]);
     },
@@ -3040,6 +3048,7 @@ if (probeEl) {
         : new THREE.Vector3(resolved.x, resolved.y, resolved.z);
     const { lat, lon } = vector3ToLatLng(point);
     clearSharedSearch();
+    record("probe");
     runProbe(lat, lon);
   });
 
@@ -3076,6 +3085,7 @@ if (probeEl) {
     e.preventDefault(); // Space would otherwise scroll the page
     clearSharedSearch();
     highlight.show({ lat, lon, geometry: null });
+    record("probe");
     runProbe(lat, lon);
   });
 }
@@ -3738,6 +3748,10 @@ window.__RENDERER_STATS__ = () => ({
   textures: renderer.info.memory.textures,
   geometries: renderer.info.memory.geometries,
 });
+
+// Pageview is scheduled after the globe is already running. With the shipped
+// config (Cloudflare selected, no beacon token) this returns immediately.
+pageview();
 
 // Pause rendering while the tab is hidden — no reason to burn GPU/battery on
 // a globe nobody can see. Data work (freshness probe, in-flight sampling) is
