@@ -1,0 +1,1 @@
+function e(e){let t;return()=>t??=e().catch(e=>{throw t=void 0,e})}export{e as t};
