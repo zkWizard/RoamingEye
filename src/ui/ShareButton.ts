@@ -23,7 +23,8 @@ export class ShareButton {
   constructor(
     container: HTMLElement,
     getShareUrl: () => string,
-    private readonly announce?: (message: string) => void
+    private readonly announce?: (message: string) => void,
+    private readonly onShare?: () => void
   ) {
     this.button = document.createElement("button");
     this.button.type = "button";
@@ -40,6 +41,7 @@ export class ShareButton {
       `<span class="share-button__label">Share view</span>`;
 
     this.button.addEventListener("click", () => {
+      this.onShare?.();
       void this.copy(getShareUrl());
     });
 

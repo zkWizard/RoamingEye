@@ -15,6 +15,11 @@ export interface TimeSliderOptions {
   isFrameReady?: () => boolean;
   /** Told whenever playback starts or stops, for any reason. */
   onPlayingChange?: (playing: boolean) => void;
+  /**
+   * The visitor moved the month: a drag, a step, an arrow key, or starting
+   * playback. Story playback and programmatic seeks do not call this.
+   */
+  onUserScrub?: () => void;
 }
 
 /**
@@ -46,6 +51,9 @@ export class TimeSlider {
   private labelEvery = 0;
   /** Base label for the forward stepper, before the end-of-record suffix. */
   private readonly nextStepLabel: string;
+  private readonly onUserScrub?: () => void;
+  /** A drag counts as one scrub, on the first month it actually changes. */
+  private scrubNoted = false;
 
   constructor(
     container: HTMLElement,
@@ -65,6 +73,8 @@ export class TimeSlider {
     this.months = months;
     this.onChange = onChange;
     this.index = Math.min(months.length - 1, Math.max(0, initialIndex));
+
+    this.onUserScrub = options.onUserScrub;
 
     container.classList.add("timeline");
     container.innerHTML = "";
@@ -168,7 +178,9 @@ export class TimeSlider {
   }
 
   toggle(): void {
+    const starting = !this.playing;
     this.player.toggle();
+    if (starting && this.playing) this.onUserScrub?.();
   }
 
   /**
@@ -217,13 +229,9 @@ export class TimeSlider {
       const before = this.index;
       const next = this.index + delta;
       this.update(Math.min(this.months.length - 1, Math.max(0, next)), true);
-      // Focus is on this button, not the track, so the slider's own value is
-      // never read back: the month the press produced reached only the pixels
-      // of the readout. Say exactly what the readout now shows, and only when
-      // the press actually moved — a clamped press at the end of the record
-      // has its own explanation on the button's label.
       if (this.index !== before) {
         this.announce?.(this.formatLabel(this.months[this.index]));
+        this.onUserScrub?.();
       }
     });
     return btn;
@@ -302,6 +310,7 @@ export class TimeSlider {
     const end = (e: PointerEvent) => {
       if (!this.dragging) return;
       this.dragging = false;
+      this.scrubNoted = false;
       if (this.track.hasPointerCapture(e.pointerId)) {
         this.track.releasePointerCapture(e.pointerId);
       }
@@ -342,7 +351,9 @@ export class TimeSlider {
       }
       e.preventDefault();
       this.pause();
+      const before = this.index;
       this.update(Math.min(this.months.length - 1, Math.max(0, next)), true);
+      if (this.index !== before) this.onUserScrub?.();
     });
   }
 
@@ -376,7 +387,11 @@ export class TimeSlider {
   private setFromClientX(clientX: number): void {
     const rect = this.track.getBoundingClientRect();
     const fraction = (clientX - rect.left) / rect.width;
+    const before = this.index;
     this.update(fractionToIndex(fraction, this.months.length), true);
+    if (this.index === before || this.scrubNoted) return;
+    this.scrubNoted = true;
+    this.onUserScrub?.();
   }
 
   /** Programmatically move the handle without firing onChange. */

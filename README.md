@@ -140,6 +140,14 @@ A lightweight, dependency-honest stack — no heavy GIS frameworks:
 
 For a contributor's tour of the codebase, see [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
+## Privacy
+
+RoamingEye ships with analytics off. There is no account and no cookie. A
+Cloudflare Web Analytics beacon can be turned on with one line in
+[`src/analytics/config.ts`](src/analytics/config.ts). That beacon counts
+pageviews. The event names, the other adapters, and the privacy rules are in
+[`docs/analytics.md`](docs/analytics.md).
+
 ---
 
 ## 🤝 Contributing
