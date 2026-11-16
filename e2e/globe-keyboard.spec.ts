@@ -113,14 +113,22 @@ test("plus and minus zoom, within the same bounds as the wheel", async ({
   await primed(page);
   const start = await view(page);
 
+  // Boot altitude (hash alt 2.2) is close enough to the far bound that one
+  // minus press clamps there (hash alt 3.5). A plus from the clamp lands at
+  // 3.5/1.85, not the altitude the minus left, so +/- only undo each other
+  // away from that bound. Step in first, where neither press hits a clamp.
+  await page.keyboard.press("+");
+  await expect.poll(async () => (await view(page)).alt).toBeLessThan(start.alt);
+  const closer = await view(page);
+
   await page.keyboard.press("-");
   await expect
     .poll(async () => (await view(page)).alt)
-    .toBeGreaterThan(start.alt);
+    .toBeGreaterThan(closer.alt);
   await page.keyboard.press("+");
   await expect
     .poll(async () => (await view(page)).alt)
-    .toBeCloseTo(start.alt, 1);
+    .toBeCloseTo(closer.alt, 1);
 
   // The far bound is OrbitControls' maxDistance (4.5 from the centre, so an
   // altitude of 3.5): pressing past it must settle, not drift.
@@ -136,14 +144,26 @@ test("Enter charts the point in the middle of the view", async ({ page }) => {
 
   await page.keyboard.press("Enter");
 
-  // The panel opens on the point the arrows steered to — the same subpoint
+  // The panel opens on the point the arrows steered to, the same subpoint
   // the hash already recorded as the camera position.
   const panel = page.locator("#probe-panel");
   await expect(panel).toHaveClass(/is-open/);
   await expect(panel).toHaveAttribute("aria-hidden", "false");
-  // The probe coordinates reach the hash on the same 400ms debounce.
-  await expect.poll(async () => (await probed(page)) !== null).toBe(true);
-  const target = await probed(page);
+  // The probe coordinates ride the same 400ms hash debounce as the camera.
+  // Charting then samples the series on the main thread, so that timer can
+  // fire several seconds late. The default 5s poll expires while the write
+  // is still queued (the page is busy, so the check itself is slow). Keep
+  // polling until the hash has actually taken the point.
+  let target: { lat: number; lon: number } | null = null;
+  await expect
+    .poll(
+      async () => {
+        target = await probed(page);
+        return target !== null;
+      },
+      { timeout: 15_000, intervals: [250, 500, 1_000] }
+    )
+    .toBe(true);
   expect(target).not.toBeNull();
   expect(target!.lat).toBeCloseTo(aimed.lat, 1);
   expect(target!.lon).toBeCloseTo(aimed.lon, 1);
