@@ -87,7 +87,12 @@ export default defineConfig({
     // rendering. See CONTRIBUTING.md for what is and isn't unit-testable here.
     environment: "node",
     // e2e/**/*.test.ts is the smoke-set guard and the imagery-fixture check.
+    // scripts/**/*.test.mjs checks the sitemap and the head tags.
     // Playwright specs are *.spec.ts and stay out of Vitest.
-    include: ["src/**/*.{test,spec}.ts", "e2e/**/*.test.ts"],
+    include: [
+      "src/**/*.{test,spec}.ts",
+      "e2e/**/*.test.ts",
+      "scripts/**/*.test.mjs",
+    ],
   },
 });

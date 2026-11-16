@@ -6,18 +6,23 @@
          (WCAG 2.1 SC 1.4.4). The globe canvas opts out of browser gestures
          itself via touch-action: none, so page zoom only applies to UI chrome. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RoamingEye: scrub decades of NASA data on a 3D globe</title>
     <meta
       name="description"
-      content="RoamingEye — roam a 3D Earth and scrub through monthly satellite data to watch the seasons change over years."
+      content="Scrub decades of NASA satellite data on a 3D globe. Click anywhere to see that place's history. Free, and no account needed."
     />
-    <title>RoamingEye</title>
+    <link rel="canonical" href="https://roamingeye.org/" />
 
     <!-- Social sharing cards. og:image/og:url must be absolute URLs. -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="RoamingEye — a 3D Earth you can roam" />
+    <meta property="og:site_name" content="RoamingEye" />
+    <meta
+      property="og:title"
+      content="RoamingEye: scrub decades of NASA data on a 3D globe"
+    />
     <meta
       property="og:description"
-      content="Scrub through years of monthly NASA satellite data and watch the seasons change across a 3D globe. Open source, open data."
+      content="Scrub decades of NASA satellite data on a 3D globe. Click anywhere to see that place's history. Free, and no account needed."
     />
     <meta
       property="og:image"
@@ -25,17 +30,42 @@
     />
     <meta property="og:url" content="https://roamingeye.org/" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="RoamingEye — a 3D Earth you can roam" />
+    <meta
+      name="twitter:title"
+      content="RoamingEye: scrub decades of NASA data on a 3D globe"
+    />
     <meta
       name="twitter:description"
-      content="Scrub through years of monthly NASA satellite data and watch the seasons change across a 3D globe."
+      content="Scrub decades of NASA satellite data on a 3D globe. Click anywhere to see that place's history. Free, and no account needed."
     />
     <meta
       name="twitter:image"
       content="https://roamingeye.org/social-card.jpg"
     />
+    <meta name="twitter:url" content="https://roamingeye.org/" />
+    <!-- Same facts as the title and description, for crawlers that read JSON-LD. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "RoamingEye",
+        "url": "https://roamingeye.org/",
+        "description": "Scrub decades of NASA satellite data on a 3D globe. Click anywhere to see that place's history. Free, and no account needed.",
+        "applicationCategory": "EducationalApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires a browser with WebGL",
+        "isAccessibleForFree": true,
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    </script>
 
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+    <link rel="manifest" href="/manifest.json" />
     <!-- Open the tile connections during the first paint. The photograph,
          the elevation, and the NASA overlay each live on their own host. -->
     <link rel="preconnect" href="https://server.arcgisonline.com" crossorigin />
