@@ -5,6 +5,7 @@ import {
   gibsWmsUrl,
   LAYERS,
   monthRangeForLayer,
+  nearestMonthIndex,
   utcYearMonth,
   ymToIndex,
   type LayerConfig,
@@ -26,6 +27,41 @@ import type { PlaceCompareQuery } from "./thenNow";
  * the one the query named.
  */
 export function resolvePlaceCompareMonth(
+  months: readonly YearMonth[],
+  query: PlaceCompareQuery,
+  /**
+   * Month already on the globe, from a shared link or a scrub. The card
+   * names this month so it cannot drift from the imagery. A month the
+   * layer does not publish snaps to the nearest one the globe can draw.
+   */
+  locked?: YearMonth | null
+): { month: YearMonth; note: string | null } | undefined {
+  if (months.length === 0) return undefined;
+  const natural = resolveUnlockedMonth(months, query);
+  if (!isYearMonth(locked)) return natural;
+  const month = months[nearestMonthIndex([...months], locked)];
+  if (!month) return natural;
+  if (
+    natural &&
+    natural.month.year === month.year &&
+    natural.month.month === month.month
+  ) {
+    return natural;
+  }
+  return { month, note: null };
+}
+
+function isYearMonth(value: YearMonth | null | undefined): value is YearMonth {
+  return (
+    !!value &&
+    Number.isInteger(value.year) &&
+    Number.isInteger(value.month) &&
+    value.month >= 1 &&
+    value.month <= 12
+  );
+}
+
+function resolveUnlockedMonth(
   months: readonly YearMonth[],
   query: PlaceCompareQuery
 ): { month: YearMonth; note: string | null } | undefined {

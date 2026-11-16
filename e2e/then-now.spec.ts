@@ -119,13 +119,23 @@ test("Houston vs Austin rainfall 2026 offers a comparison while typing", async (
       body: JSON.stringify([stubPlace(name, lat, lon, box)]),
     });
   });
+  // Pin GLDAS at June 2026 so the card's month does not follow a live
+  // DescribeDomains answer (a 31-day month would change the millimetre totals).
+  await page.route("**DescribeDomains**", (route) => {
+    const layer =
+      new URL(route.request().url()).searchParams.get("LAYER") ?? "";
+    const end = layer.includes("GLDAS") ? "2026-06-01" : "2026-07-01";
+    return route.fulfill({
+      contentType: "text/xml",
+      body: `<Domain>2000-01-01/${end}/P1M</Domain>`,
+    });
+  });
   await page.route("**/archive-api.open-meteo.com/**", (route) => {
-    const url = route.request().url();
-    const austin = url.includes("latitude=30.27");
-    const days = Array.from(
-      { length: 30 },
-      (_, index) => `2026-09-${String(index + 1).padStart(2, "0")}`
-    );
+    const url = new URL(route.request().url());
+    const austin = (url.searchParams.get("latitude") ?? "").startsWith("30.27");
+    const start = url.searchParams.get("start_date") ?? "2026-06-01";
+    const end = url.searchParams.get("end_date") ?? "2026-06-30";
+    const days = eachUtcDay(start, end);
     const rain = austin ? 0.4 : 6;
     return route.fulfill({
       contentType: "application/json",
@@ -178,7 +188,22 @@ test("Houston vs Austin rainfall 2026 offers a comparison while typing", async (
   await expect
     .poll(async () => page.evaluate(() => location.hash), { timeout: 15_000 })
     .toMatch(/layer=precip/);
+  await expect(panel.locator(".place-compare__meta")).toContainText("Jun 2026");
+  await expect(page.locator(".timeline__readout")).toHaveText("Jun 2026");
+  await expect(page.locator("#provenance")).toContainText("Jun 2026");
+  await expect(panel.locator(".place-compare__map-note")).toBeHidden();
   await panel.locator(".place-compare__collapse").click();
   await expect(panel).toHaveClass(/is-collapsed/);
   await expect(panel.locator(".place-compare__sentence")).toBeHidden();
 });
+
+function eachUtcDay(start: string, end: string): string[] {
+  const days: string[] = [];
+  const cursor = new Date(`${start}T00:00:00Z`);
+  const last = new Date(`${end}T00:00:00Z`);
+  while (cursor.getTime() <= last.getTime() && days.length < 800) {
+    days.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return days;
+}
