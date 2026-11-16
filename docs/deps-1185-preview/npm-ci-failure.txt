@@ -1,0 +1,43 @@
+npm ci postinstall failed on Dependabot PR 1185
+(3d-tiles-renderer 0.5.3 -> 0.5.4)
+
+> roamingeye@1.1.0 postinstall
+> patch-package
+
+patch-package 8.0.1
+Applying patches...
+
+**ERROR** Failed to apply patch for package 3d-tiles-renderer at path
+
+    node_modules/3d-tiles-renderer
+
+  This error was caused because 3d-tiles-renderer has changed since you
+  made the patch file for it. This introduced conflicts with your patch,
+  just like a merge conflict in Git when separate incompatible changes are
+  made to the same piece of code.
+
+  Maybe this means your patch file is no longer necessary, in which case
+  hooray! Just delete it!
+
+  Otherwise, you need to generate a new patch file.
+
+  To generate a new one, just repeat the steps you made to generate the first
+  one.
+
+  i.e. manually make the appropriate file changes, then run
+
+    patch-package 3d-tiles-renderer
+
+  Info:
+    Patch file: patches/3d-tiles-renderer+0.5.3.patch
+    Patch was made for version: 0.5.3
+    Installed version: 0.5.4
+
+---
+patch-package finished with 1 error(s).
+npm error code 1
+npm error command failed
+npm error command sh -c patch-package
+
+Source: GitHub Actions job "Build" on commit a3bca7864bca73ac2ecb99966cdcaf8d5a2c2da1
+(run 42569540451). Reproduced locally with the 0.5.4 lockfile and the 0.5.3 patch.

@@ -461,7 +461,7 @@ export class TerrainGlobe {
   }
 
   /**
-   * Overlay removal races tile loads in 3d-tiles-renderer 0.5.3. The patch
+   * Overlay removal races tile loads in 3d-tiles-renderer 0.5.4. The patch
    * covers the null tile controller; this covers a throw so a swap cannot
    * take the render loop down with it.
    */
