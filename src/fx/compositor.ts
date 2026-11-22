@@ -34,7 +34,8 @@ float luma(vec3 c) {
 }
 
 float grain(vec2 uv) {
-  return fract(sin(dot(uv * uResolution + uTime, vec2(12.9898, 78.233))) * 43758.5453);
+  vec2 p = floor(uv * uResolution + vec2(uTime * 48.0, uTime * 29.0));
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
 
 vec3 thermal(float t) {
@@ -53,17 +54,29 @@ vec3 thermal(float t) {
 }
 
 vec3 night(vec2 uv) {
+  vec2 px = 2.0 / uResolution;
   float l = luma(texture2D(uFrame, uv).rgb);
-  l = clamp(pow(max(l, 0.0), 0.45) * 1.15, 0.0, 1.0);
-  float vig = smoothstep(0.35, 0.85, length(uv - 0.5));
-  float n = grain(uv);
-  return vec3(0.08, 1.0, 0.32) * l * (1.0 - vig * 0.55) + (n - 0.5) * 0.05;
+  float nearby = max(
+    max(luma(texture2D(uFrame, uv + vec2(px.x, 0.0)).rgb), luma(texture2D(uFrame, uv - vec2(px.x, 0.0)).rgb)),
+    max(luma(texture2D(uFrame, uv + vec2(0.0, px.y)).rgb), luma(texture2D(uFrame, uv - vec2(0.0, px.y)).rgb))
+  );
+  float g = smoothstep(0.2, 0.75, l);
+  g = pow(g, 2.6);
+  float spark = smoothstep(0.58, 0.9, max(l, nearby));
+  g = clamp(g + spark * 0.4, 0.0, 1.0);
+  g = clamp(g + (grain(uv) - 0.5) * 0.09 * (0.2 + g), 0.0, 1.0);
+  float vig = smoothstep(0.18, 0.62, length(uv - 0.5));
+  vec3 phosphor = vec3(0.04, 0.42, 0.08) * g + vec3(0.35, 1.0, 0.45) * spark * g;
+  return phosphor * (1.0 - vig);
 }
 
 vec3 noir(vec2 uv) {
   float l = luma(texture2D(uFrame, uv).rgb);
-  l = smoothstep(0.08, 0.82, l);
-  return vec3(l) + (grain(uv) - 0.5) * 0.05;
+  l = smoothstep(0.16, 0.7, l);
+  l = pow(l, 1.25);
+  float vig = smoothstep(0.4, 0.9, length(uv - 0.5));
+  l = clamp(l * (1.0 - vig * 0.7) + (grain(uv) - 0.5) * 0.035, 0.0, 1.0);
+  return vec3(l * 0.92, l * 0.9, l * 0.86);
 }
 
 vec3 crt(vec2 uv) {
@@ -79,9 +92,10 @@ vec3 crt(vec2 uv) {
     texture2D(uFrame, curved).g,
     texture2D(uFrame, curved - vec2(shift, 0.0)).b
   );
-  float scan = 0.78 + 0.22 * sin(curved.y * uResolution.y * 3.14159);
-  float vig = smoothstep(0.4, 0.95, length(uv - 0.5));
-  return col * scan * (1.0 - vig * 0.35);
+  float scan = 0.72 + 0.28 * sin(curved.y * uResolution.y * 3.14159);
+  float vig = smoothstep(0.35, 0.85, length(uv - 0.5));
+  vec3 graded = pow(max(col, vec3(0.0)), vec3(1.2)) * 0.85;
+  return graded * scan * (1.0 - vig * 0.72);
 }
 
 vec3 blueprint(vec2 uv) {
@@ -90,7 +104,7 @@ vec3 blueprint(vec2 uv) {
   float gx = luma(texture2D(uFrame, uv + vec2(px.x, 0.0)).rgb) - luma(texture2D(uFrame, uv - vec2(px.x, 0.0)).rgb);
   float gy = luma(texture2D(uFrame, uv + vec2(0.0, px.y)).rgb) - luma(texture2D(uFrame, uv - vec2(0.0, px.y)).rgb);
   float edge = smoothstep(0.03, 0.18, length(vec2(gx, gy)));
-  float shape = smoothstep(0.12, 0.5, l);
+  float shape = smoothstep(0.22, 0.62, l);
   float grid = 0.0;
   if (fract(uv.x * 36.0) > 0.96 || fract(uv.y * 24.0) > 0.96) grid = 0.22;
   vec3 paper = vec3(0.03, 0.16, 0.42);
