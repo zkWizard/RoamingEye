@@ -28,7 +28,18 @@ export function mountRadar(
   credit.target = "_blank";
   credit.rel = "noopener";
   credit.textContent = "RainViewer";
-  chip.append(toggle, credit);
+  const legend = document.createElement("div");
+  legend.className = "radar-legend";
+  const light = document.createElement("span");
+  light.textContent = "Light";
+  const bar = document.createElement("div");
+  bar.className = "radar-legend__bar";
+  bar.setAttribute("role", "img");
+  bar.setAttribute("aria-label", "Radar from light rain to heavy rain");
+  const heavy = document.createElement("span");
+  heavy.textContent = "Heavy";
+  legend.append(light, bar, heavy);
+  chip.append(toggle, legend, credit);
   slot.append(chip);
 
   toggle.addEventListener("click", () => {

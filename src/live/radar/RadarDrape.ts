@@ -25,7 +25,7 @@ import {
 import { startRadarPlay, stepRadarPlay, type RadarPlay } from "./loop";
 
 const FRAME_MS = 800;
-const RADIUS = GLOBE_RADIUS * 1.0011;
+const RADIUS = GLOBE_RADIUS * 1.0022;
 
 type RadarMesh = Mesh<BufferGeometry, MeshBasicMaterial>;
 
@@ -47,7 +47,9 @@ export class RadarDrape {
   private lastStep = 0;
   private viewKey = "";
 
-  constructor(private readonly fetchImpl: typeof fetch = fetch) {}
+  constructor(private readonly fetchImpl: typeof fetch = fetch) {
+    this.loader.setCrossOrigin("anonymous");
+  }
 
   async load(): Promise<void> {
     const response = await this.fetchImpl.call(globalThis, RAINVIEWER_MAPS);
@@ -134,12 +136,19 @@ export class RadarDrape {
   }
 
   private swapTexture(tile: ShownTile, url: string): void {
-    const map = this.loader.load(url);
-    map.colorSpace = SRGBColorSpace;
-    tile.mesh.material.map?.dispose();
-    tile.mesh.material.map = map;
-    tile.mesh.material.needsUpdate = true;
     tile.url = url;
+    const map = this.loader.load(url, () => {
+      if (tile.url !== url) {
+        map.dispose();
+        return;
+      }
+      const previous = tile.mesh.material.map;
+      tile.mesh.material.map = map;
+      tile.mesh.material.opacity = 1;
+      tile.mesh.material.needsUpdate = true;
+      if (previous && previous !== map) previous.dispose();
+    });
+    map.colorSpace = SRGBColorSpace;
   }
 }
 
@@ -179,6 +188,7 @@ function buildTileMesh(bounds: {
   const material = new MeshBasicMaterial({
     transparent: true,
     depthWrite: false,
+    opacity: 0,
   });
   return new Mesh(geometry, material);
 }

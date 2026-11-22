@@ -53,7 +53,7 @@ export async function mountWindOverlay(
     update(camera: PerspectiveCamera) {
       const active = root.visible && !document.hidden;
       hud.root.hidden = !root.visible;
-      simulation.update(performance.now(), active);
+      simulation.update(performance.now(), active, camera.position.length());
       radar?.update(camera, active);
       if (!active) return;
       const now = Date.now();
