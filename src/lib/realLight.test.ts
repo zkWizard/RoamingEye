@@ -45,6 +45,50 @@ describe("displayRgb", () => {
     expect(noon).toEqual(albedo);
   });
 
+  it("spreads the terminator over a soft band", () => {
+    const green = { r: 0.05, g: 0.12, b: 0.02 };
+    const lum = (c: { r: number; g: number; b: number }) =>
+      0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    const steps = [-0.3, -0.1, 0.05, 0.2, 0.45].map((nDotL) =>
+      lum(
+        displayRgb(green, "shaded", {
+          nDotL,
+          nightFloor: SCIENCE_NIGHT_FLOOR,
+          coolNight: true,
+        })
+      )
+    );
+    for (let i = 1; i < steps.length; i++) {
+      expect(steps[i]).toBeGreaterThan(steps[i - 1]);
+    }
+  });
+
+  it("keeps a dark green darker at night and at the twilight band", () => {
+    const green = { r: 0.05, g: 0.12, b: 0.02 };
+    const lum = (c: { r: number; g: number; b: number }) =>
+      0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    const day = displayRgb(green, "shaded", {
+      nDotL: 1,
+      nightFloor: SCIENCE_NIGHT_FLOOR,
+      coolNight: true,
+    });
+    const night = displayRgb(green, "shaded", {
+      nDotL: -1,
+      nightFloor: SCIENCE_NIGHT_FLOOR,
+      coolNight: true,
+    });
+    const twilight = displayRgb(green, "shaded", {
+      nDotL: 0,
+      nightFloor: SCIENCE_NIGHT_FLOOR,
+      coolNight: true,
+    });
+    expect(lum(night)).toBeCloseTo(lum(green) * SCIENCE_NIGHT_FLOOR, 1);
+    expect(lum(night)).toBeLessThan(lum(day) * 0.55);
+    expect(lum(twilight)).toBeLessThan(lum(day));
+    expect(night.b / night.g).toBeGreaterThan(day.b / day.g);
+    expect(twilight.r).toBeGreaterThan(twilight.b);
+  });
+
   it("warms the terminator", () => {
     const gray = { r: 0.4, g: 0.4, b: 0.4 };
     const twilight = displayRgb(gray, "shaded", { nDotL: 0, glint: 0 });

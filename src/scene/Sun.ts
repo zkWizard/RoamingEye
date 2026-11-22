@@ -8,6 +8,7 @@ import {
   type Mesh,
   type Object3D,
   type Scene,
+  type MeshStandardMaterial,
   type Texture,
   type WebGLRenderer,
 } from "three";
@@ -162,8 +163,10 @@ export function attachSun(hooks: SunHooks): SunHandle {
       uniforms.uNightEmissive.value = value;
     },
     setNightMap(texture) {
-      uniforms.uNightMap.value = texture;
-      uniforms.uHasNight.value = 1;
+      const material = hooks.earthMaterial as MeshStandardMaterial;
+      material.emissive.set(1, 1, 1);
+      material.emissiveMap = texture;
+      material.needsUpdate = true;
     },
     illumination: () => snapshot,
   };

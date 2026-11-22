@@ -27,12 +27,14 @@ first visit in the light theme looked like a pale card. These later frames are
 the default visit: Greenness, 15 Oct 2026, camera over the Americas, clock
 frozen at 15 Nov 2026 16:30 UTC.
 
-Day and night are on for data layers by default. The probe still reads the
-unshaded colormap. The night side of the science sphere picks up NASA Black
-Marble (VIIRS, 2016) after the sun chunk loads. Stars and the scattering limb
-are in both themes, and the canvas is space in both, so the globe is not a
-card. AgX grades the satellite mesh only. The wordmark stays light because it
-sits on that canvas.
+Day and night are on for data layers by default. The night floor is 0.16 in
+linear light, which encodes to about 40% of the day side in sRGB, with a
+slight cool tint. Twilight is scaled by the albedo so a dark green is not
+bleached tan. The probe still reads the unshaded colormap. The limb is a
+shell 1.2% larger than the globe, drawn with the view-ray fresnel so it hugs
+the edge. NASA Black Marble (VIIRS, 2016) is the sphere's emissive map and
+shows only on the night side, after the sun chunk loads. The credits sit on
+a dark plate with light text in both themes, because the canvas is space.
 
 Desktop is 1440x900. Phone is 390x844. `terminator.gif` steps the same view
 through 24 hours, two hours a frame, on 15 Oct 2026.
