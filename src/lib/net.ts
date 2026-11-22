@@ -23,7 +23,30 @@ export function backoffDelay(attempt: number, baseMs: number): number {
 
 /** Whether an error is an abort (so we stop retrying). */
 export function isAbortError(err: unknown): boolean {
-  return err instanceof DOMException && err.name === "AbortError";
+  return (
+    (err instanceof DOMException || err instanceof Error) &&
+    err.name === "AbortError"
+  );
+}
+
+/**
+ * Failures the globe is expected to hit when a tile or a search flight is
+ * cancelled, and that must not become the "Something went wrong" toast.
+ *
+ * Dropping a tile mid-load makes 3d-tiles-renderer read `.signal` on a
+ * controller that is already gone (`Cannot read properties of undefined
+ * (reading 'signal')`). An abort with no reason rejects as
+ * "signal is aborted without reason". Both are the load being cancelled,
+ * not a broken page.
+ */
+export function isBenignGlobeError(err: unknown): boolean {
+  if (isAbortError(err)) return true;
+  const message =
+    err instanceof Error ? err.message : typeof err === "string" ? err : "";
+  return (
+    message.includes("signal is aborted") ||
+    /reading ['"]signal['"]/.test(message)
+  );
 }
 
 // --- Response payload validation ---------------------------------------------

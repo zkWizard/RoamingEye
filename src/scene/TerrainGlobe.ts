@@ -401,11 +401,13 @@ export class TerrainGlobe {
       const { lat, lon } = vector3ToLatLng(camera.position);
       const priority = imageryRequestPriority(url, lat, lon, performance.now());
       const request: RequestInit = { ...options, cache: "force-cache" };
+      // options is null when a tile is dropped mid-load and the plugin
+      // calls fetch again. `options.signal` was the page-level TypeError.
       return this.downloadQueue.add(
         url,
         { priority },
         () => fetch(url, request),
-        options.signal ?? null
+        options?.signal ?? null
       );
     };
     return overlay;
