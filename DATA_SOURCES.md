@@ -148,3 +148,16 @@ per second, derived from `wind_speed_10m` and `wind_direction_10m`. Temperature
 is `temperature_2m` in degrees Celsius. The centre readout samples this grid
 with bilinear interpolation, so it matches the Open-Meteo point at a grid node
 within the 0.01 storage step, and between nodes it follows the grid.
+
+## Live radar: RainViewer
+
+The same Weather now entry loops global radar for the past two hours and the
+nowcast. The browser reads
+[https://api.rainviewer.com/public/weather-maps.json](https://api.rainviewer.com/public/weather-maps.json)
+(keyless, CORS-open) and drapes the XYZ tiles up to RainViewer's maximum zoom
+of 7. The play/pause chip is separate from the monthly timeline and does not
+change the selected month.
+
+RainViewer requires attribution wherever the tiles are shown. The chip links
+to [RainViewer](https://www.rainviewer.com/), and the Data providers panel
+lists the same credit.

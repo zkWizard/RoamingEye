@@ -5000,6 +5000,30 @@ body {
   outline-offset: 2px;
 }
 
+.radar-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.radar-chip__play {
+  font: inherit;
+  font-size: 0.72rem;
+  color: var(--fg);
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  padding: 0.28rem 0.65rem;
+  cursor: pointer;
+}
+.radar-chip__play[aria-pressed="false"] {
+  border-color: var(--accent);
+}
+.radar-chip a {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
 @media (max-width: 540px), (max-height: 460px) {
   .weather-readout {
     top: 34%;
