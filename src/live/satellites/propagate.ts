@@ -8,6 +8,9 @@
 import {
   degreesLat,
   degreesLong,
+  degreesToRadians,
+  ecfToLookAngles,
+  eciToEcf,
   eciToGeodetic,
 } from "../../../node_modules/satellite.js/dist/transforms.js";
 import {
@@ -95,4 +98,118 @@ export function propagateRecord(
   if (!satrec) return null;
   const date = new Date(timeMs);
   return propagateSatrec(satrec, date, gstime(date));
+}
+
+export interface TrackPaths {
+  /** One revolution at display altitude: lat, lon, altKm. */
+  orbit: Float32Array;
+  /** The next 90 minutes on the ground: lat, lon. */
+  ground: Float32Array;
+}
+
+/** Orbit (one revolution) and the next 90 minutes of ground track. */
+export function trackPaths(
+  record: GpRecord,
+  timeMs: number
+): TrackPaths | null {
+  const satrec = satrecFromRecord(record);
+  if (!satrec || !(record.MEAN_MOTION > 0)) return null;
+  const periodMs = (1440 / record.MEAN_MOTION) * 60_000;
+  const orbitSteps = 96;
+  const orbit = new Float32Array(orbitSteps * 3);
+  for (let step = 0; step < orbitSteps; step += 1) {
+    const state = propagateSatrec(
+      satrec,
+      new Date(timeMs + (periodMs * step) / orbitSteps),
+      gstime(new Date(timeMs + (periodMs * step) / orbitSteps))
+    );
+    const offset = step * 3;
+    if (!state) {
+      orbit[offset] = Number.NaN;
+      continue;
+    }
+    orbit[offset] = state.lat;
+    orbit[offset + 1] = state.lon;
+    orbit[offset + 2] = state.altKm;
+  }
+  const groundSteps = 90;
+  const ground = new Float32Array(groundSteps * 2);
+  for (let step = 0; step < groundSteps; step += 1) {
+    const when = timeMs + step * 60_000;
+    const state = propagateSatrec(
+      satrec,
+      new Date(when),
+      gstime(new Date(when))
+    );
+    const offset = step * 2;
+    if (!state) {
+      ground[offset] = Number.NaN;
+      continue;
+    }
+    ground[offset] = state.lat;
+    ground[offset + 1] = state.lon;
+  }
+  return { orbit, ground };
+}
+
+export interface VisiblePass {
+  startMs: number;
+  durationMin: number;
+  peakElevationDeg: number;
+}
+
+const PASS_ELEVATION_DEG = 10;
+const PASS_STEP_MS = 30_000;
+const PASS_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The next time the satellite climbs above 10 degrees for an observer.
+ * Samples every 30 seconds for a day. Returns null when no pass falls in
+ * the window.
+ */
+export function nextVisiblePass(
+  record: GpRecord,
+  timeMs: number,
+  observerLat: number,
+  observerLon: number
+): VisiblePass | null {
+  const satrec = satrecFromRecord(record);
+  if (!satrec) return null;
+  const observer = {
+    longitude: degreesToRadians(observerLon),
+    latitude: degreesToRadians(observerLat),
+    height: 0,
+  };
+  let open = false;
+  let startMs = 0;
+  let peak = 0;
+  for (
+    let when = timeMs;
+    when <= timeMs + PASS_WINDOW_MS;
+    when += PASS_STEP_MS
+  ) {
+    const date = new Date(when);
+    const pv = propagate(satrec, date);
+    const elevation = pv
+      ? (ecfToLookAngles(observer, eciToEcf(pv.position, gstime(date)))
+          .elevation *
+          180) /
+        Math.PI
+      : Number.NaN;
+    const up = Number.isFinite(elevation) && elevation >= PASS_ELEVATION_DEG;
+    if (up) {
+      if (!open) {
+        open = true;
+        startMs = when;
+        peak = elevation;
+      } else if (elevation > peak) peak = elevation;
+    } else if (open) {
+      return {
+        startMs,
+        durationMin: (when - startMs) / 60_000,
+        peakElevationDeg: peak,
+      };
+    }
+  }
+  return null;
 }

@@ -1,6 +1,12 @@
-import type { SatRec } from "satellite.js";
+import type { GpRecord } from "./elements";
 import type { WorkerRequest } from "./messages";
-import { propagateGroup, satrecsFromRecords } from "./propagate";
+import {
+  nextVisiblePass,
+  propagateGroup,
+  satrecsFromRecords,
+  trackPaths,
+} from "./propagate";
+import type { SatRec } from "../../../node_modules/satellite.js/dist/propagation/SatRec.js";
 import { isAllowedGroup, samplesFromGroups } from "./workerGuard";
 
 interface WorkerScope {
@@ -9,8 +15,13 @@ interface WorkerScope {
   location: { origin: string };
 }
 
+interface LoadedGroup {
+  satrecs: (SatRec | null)[];
+  records: GpRecord[];
+}
+
 const scope = self as unknown as WorkerScope;
-const loaded = new Map<string, (SatRec | null)[]>();
+const loaded = new Map<string, LoadedGroup>();
 
 scope.onmessage = (event: MessageEvent<WorkerRequest>) => {
   // Chrome reports a dedicated worker's owner as an empty origin. Other
@@ -38,9 +49,15 @@ scope.onmessage = (event: MessageEvent<WorkerRequest>) => {
       return;
     }
     try {
-      loaded.set(message.group, satrecsFromRecords(message.records));
-      const count = loaded.get(message.group)?.length ?? 0;
-      scope.postMessage({ type: "loaded", group: message.group, count });
+      loaded.set(message.group, {
+        satrecs: satrecsFromRecords(message.records),
+        records: message.records,
+      });
+      scope.postMessage({
+        type: "loaded",
+        group: message.group,
+        count: message.records.length,
+      });
     } catch (err) {
       scope.postMessage({
         type: "failed",
@@ -51,11 +68,51 @@ scope.onmessage = (event: MessageEvent<WorkerRequest>) => {
     return;
   }
 
+  if (message.type === "paths") {
+    const group = isAllowedGroup(message.group)
+      ? loaded.get(message.group)
+      : undefined;
+    const record = group?.records[message.index];
+    const paths = record ? trackPaths(record, message.timeMs) : null;
+    if (!paths) {
+      scope.postMessage({
+        type: "paths",
+        id: message.id,
+        orbit: new ArrayBuffer(0),
+        ground: new ArrayBuffer(0),
+      });
+      return;
+    }
+    const orbit = paths.orbit.buffer as ArrayBuffer;
+    const ground = paths.ground.buffer as ArrayBuffer;
+    scope.postMessage({ type: "paths", id: message.id, orbit, ground }, [
+      orbit,
+      ground,
+    ]);
+    return;
+  }
+
+  if (message.type === "pass") {
+    const group = isAllowedGroup(message.group)
+      ? loaded.get(message.group)
+      : undefined;
+    const record = group?.records[message.index];
+    const pass = record
+      ? nextVisiblePass(record, message.timeMs, message.lat, message.lon)
+      : null;
+    if (!pass) {
+      scope.postMessage({ type: "pass-none", id: message.id });
+      return;
+    }
+    scope.postMessage({ type: "pass", id: message.id, ...pass });
+    return;
+  }
+
   const transfer: ArrayBuffer[] = [];
   const samples = samplesFromGroups(message.groups, (groupId) => {
-    const satrecs = loaded.get(groupId);
-    if (!satrecs) return null;
-    const values = propagateGroup(satrecs, message.timeMs);
+    const group = loaded.get(groupId);
+    if (!group) return null;
+    const values = propagateGroup(group.satrecs, message.timeMs);
     const buffer = values.buffer as ArrayBuffer;
     transfer.push(buffer);
     return buffer;

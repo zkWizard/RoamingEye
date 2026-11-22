@@ -10,6 +10,7 @@ import { hotspotProvider } from "./hotspots";
 import { pointBox } from "./outline";
 import { matchScore } from "./rank";
 import { eventSearchProvider } from "../eventSearch";
+import { issSearchHit } from "./satellites";
 import type { SearchHit, SearchProvider } from "./provider";
 
 const PLACE_GROUPS = [
@@ -62,6 +63,17 @@ function storyProvider(): SearchProvider {
         });
       }
       return hits.sort((a, b) => b.score - a.score).slice(0, 4);
+    },
+  };
+}
+
+function satelliteProvider(): SearchProvider {
+  return {
+    id: "satellites",
+    when: "instant",
+    search(query) {
+      const hit = issSearchHit(query);
+      return hit ? [hit] : [];
     },
   };
 }
@@ -197,6 +209,7 @@ export function searchProviders(activeLayer?: () => LayerId): SearchProvider[] {
     ...placeProviders(),
     storyProvider(),
     layerProvider(),
+    satelliteProvider(),
     hotspotProvider(),
     eventSearchProvider(),
     nominatimProvider(),

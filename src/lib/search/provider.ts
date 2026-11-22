@@ -46,6 +46,7 @@ export type SearchAction =
       lon: number;
     }
   | { type: "event"; eventId: string }
+  | { type: "satellite"; noradId: number; name: string }
   | {
       type: "then-now";
       place: string;

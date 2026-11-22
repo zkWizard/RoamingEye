@@ -42,6 +42,34 @@ export interface MapOverlay {
   ensureLoaded?(): Promise<void>;
   /** Per-frame hook for view-dependent overlays (throttle internally). */
   update?(camera: PerspectiveCamera, viewportHeightPx: number): void;
+  /**
+   * Pointer pick. Implementations must not raycast every marker: a spatial
+   * hash or an id buffer, then a test of the few candidates near the cursor.
+   */
+  pick?(
+    clientX: number,
+    clientY: number,
+    camera: PerspectiveCamera,
+    viewportWidth: number,
+    viewportHeight: number
+  ): OverlaySelection | null;
+}
+
+/** One selectable thing an overlay can hand to the tracker card. */
+export interface OverlaySelection {
+  id: string;
+  title: string;
+  lat: number;
+  lon: number;
+  /** World position of the marker, for the highlight ring. */
+  x: number;
+  y: number;
+  z: number;
+  /** Screen distance from the pointer, in CSS pixels. */
+  screenDist: number;
+  fields: { label: string; value: string }[];
+  /** Extra line under the fields, such as the next pass. */
+  note?: string;
 }
 
 /**

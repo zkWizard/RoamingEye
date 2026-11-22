@@ -38,6 +38,7 @@ export interface SearchHandlers {
     signal: AbortSignal
   ) => Promise<{ text: string; values: readonly number[] } | null>;
   onEvent: (eventId: string) => void;
+  onSatellite?: (noradId: number, name: string) => void;
   onThenNow: (pick: ThenNowPick) => void;
   onPlaceCompare: (pick: PlaceComparePick) => void;
   /** A chosen hit, before the branch that flies or opens it. */
@@ -152,6 +153,9 @@ function applyHit(hit: SearchHit, handlers: SearchHandlers): void {
       return;
     case "event":
       handlers.onEvent(data.eventId);
+      return;
+    case "satellite":
+      handlers.onSatellite?.(data.noradId, data.name);
       return;
     case "then-now":
       handlers.onThenNow({
