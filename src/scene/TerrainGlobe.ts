@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import { Group, Mesh, PerspectiveCamera, Vector2, WebGLRenderer } from "three";
 import { TilesRenderer } from "3d-tiles-renderer";
 import {
   ImageOverlayPlugin,
@@ -103,14 +103,14 @@ interface InitializableOverlay extends XYZTilesOverlay {
  * north, so the group is scaled and turned −90° about X.
  */
 export class TerrainGlobe {
-  readonly object: THREE.Group;
+  readonly object: Group;
   /** This frame the science sphere should not draw; the mesh is carrying the month. */
   scienceDraped = false;
 
   private readonly tiles: TilesRenderer;
   private readonly terrain: TerrariumMeshPlugin;
   private readonly imageOverlays: ImageOverlayPlugin;
-  private readonly bufferSize = new THREE.Vector2();
+  private readonly bufferSize = new Vector2();
   private desired: ScienceRequest | null = null;
   private science: XYZTilesOverlay | null = null;
   private scienceKey = "";
@@ -124,8 +124,8 @@ export class TerrainGlobe {
   private scienceHeldBack = false;
 
   constructor(
-    private readonly camera: THREE.PerspectiveCamera,
-    private readonly renderer: THREE.WebGLRenderer,
+    private readonly camera: PerspectiveCamera,
+    private readonly renderer: WebGLRenderer,
     globeRadius: number
   ) {
     const tiles = new TilesRenderer();
@@ -165,7 +165,7 @@ export class TerrainGlobe {
     // tiles renderer already culls with the elevation-aware bounds.
     tiles.addEventListener("load-model", ({ scene }) => {
       scene.traverse((child) => {
-        if (!(child instanceof THREE.Mesh)) return;
+        if (!(child instanceof Mesh)) return;
         child.frustumCulled = false;
         // Layer 1 receives the terrain fill light (see main.ts).
         child.layers.enable(1);

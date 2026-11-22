@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import { PerspectiveCamera, Vector3 } from "three";
 import type { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { latLngToVector3 } from "../lib/geo";
 
@@ -11,11 +11,11 @@ export class CameraFlyer {
   private active = false;
   private elapsed = 0;
   private duration = 1.4;
-  private readonly startPos = new THREE.Vector3();
-  private readonly endPos = new THREE.Vector3();
+  private readonly startPos = new Vector3();
+  private readonly endPos = new Vector3();
 
   constructor(
-    private readonly camera: THREE.PerspectiveCamera,
+    private readonly camera: PerspectiveCamera,
     private readonly controls: OrbitControls,
     /** prefers-reduced-motion: place the camera instantly, no tween. */
     private readonly instant = false

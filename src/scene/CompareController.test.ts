@@ -1,4 +1,13 @@
-import * as THREE from "three";
+import {
+  MeshStandardMaterial,
+  Object3D,
+  PerspectiveCamera,
+  Scene,
+  Texture,
+  TextureLoader,
+  Vector2,
+  WebGLRenderer,
+} from "three";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CompareController } from "./CompareController";
 import { LAYERS } from "../lib/timeline";
@@ -13,35 +22,35 @@ import { LAYERS } from "../lib/timeline";
 /** Record what each scissored pass would actually draw. */
 interface Pass {
   hdVisible: boolean;
-  map: THREE.Texture | null;
+  map: Texture | null;
 }
 
-function stubLoader(texture: THREE.Texture): void {
-  vi.spyOn(THREE.TextureLoader.prototype, "load").mockImplementation(function (
+function stubLoader(texture: Texture): void {
+  vi.spyOn(TextureLoader.prototype, "load").mockImplementation(function (
     _url: string,
-    onLoad?: (data: THREE.Texture) => void
+    onLoad?: (data: Texture) => void
   ) {
     onLoad?.(texture);
     return texture;
-  } as THREE.TextureLoader["load"]);
+  } as TextureLoader["load"]);
 }
 
-function fakeRenderer(record: () => void): THREE.WebGLRenderer {
+function fakeRenderer(record: () => void): WebGLRenderer {
   return {
-    getSize: (target: THREE.Vector2) => target.set(800, 400),
+    getSize: (target: Vector2) => target.set(800, 400),
     setScissorTest: () => {},
     setScissor: () => {},
     render: () => record(),
-  } as unknown as THREE.WebGLRenderer;
+  } as unknown as WebGLRenderer;
 }
 
-function splitPasses(hd: THREE.Object3D): {
+function splitPasses(hd: Object3D): {
   passes: Pass[];
-  material: THREE.MeshStandardMaterial;
+  material: MeshStandardMaterial;
 } {
-  const liveTexture = new THREE.Texture();
-  const pinnedTexture = new THREE.Texture();
-  const material = new THREE.MeshStandardMaterial({ map: liveTexture });
+  const liveTexture = new Texture();
+  const pinnedTexture = new Texture();
+  const material = new MeshStandardMaterial({ map: liveTexture });
   stubLoader(pinnedTexture);
 
   const controller = new CompareController(material, 1);
@@ -52,12 +61,7 @@ function splitPasses(hd: THREE.Object3D): {
   const renderer = fakeRenderer(() =>
     passes.push({ hdVisible: hd.visible, map: material.map })
   );
-  controller.renderSplit(
-    renderer,
-    new THREE.Scene(),
-    new THREE.PerspectiveCamera(),
-    [hd]
-  );
+  controller.renderSplit(renderer, new Scene(), new PerspectiveCamera(), [hd]);
   expect(passes.map((pass) => pass.map)).toEqual([pinnedTexture, liveTexture]);
   return { passes, material };
 }
@@ -68,7 +72,7 @@ describe("CompareController.renderSplit", () => {
   });
 
   it("suppresses live-only imagery on BOTH sides of the split", () => {
-    const hd = new THREE.Object3D();
+    const hd = new Object3D();
     hd.visible = true;
 
     const { passes } = splitPasses(hd);
@@ -80,21 +84,21 @@ describe("CompareController.renderSplit", () => {
   });
 
   it("restores the live-only overlay's own visibility after the split", () => {
-    const shown = new THREE.Object3D();
+    const shown = new Object3D();
     shown.visible = true;
     expect(splitPasses(shown).passes).toHaveLength(2);
     expect(shown.visible).toBe(true);
 
     // An overlay the user turned off stays off — the split saves and restores
     // the real state rather than switching tiles back on.
-    const hidden = new THREE.Object3D();
+    const hidden = new Object3D();
     hidden.visible = false;
     expect(splitPasses(hidden).passes).toHaveLength(2);
     expect(hidden.visible).toBe(false);
   });
 
   it("hands the globe material back its live texture", () => {
-    const hd = new THREE.Object3D();
+    const hd = new Object3D();
     const { passes, material } = splitPasses(hd);
     expect(material.map).toBe(passes[1].map);
   });

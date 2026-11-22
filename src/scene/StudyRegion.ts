@@ -1,4 +1,14 @@
-import * as THREE from "three";
+import {
+  BufferGeometry,
+  CanvasTexture,
+  DoubleSide,
+  Float32BufferAttribute,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  SRGBColorSpace,
+  Texture,
+} from "three";
 import { latLngToVector3 } from "../lib/geo";
 import {
   allocateBoundsPartWidths,
@@ -27,8 +37,8 @@ interface StudyCallbacks {
  * sphere-segment mesh just above the base globe.
  */
 export class StudyRegion {
-  readonly object = new THREE.Group();
-  private mesh: THREE.Mesh | undefined;
+  readonly object = new Group();
+  private mesh: Mesh | undefined;
   private bounds: Bounds | undefined;
   private monthKey: string | undefined;
 
@@ -182,14 +192,14 @@ export class StudyRegion {
         bitmaps[i].close();
         x += widths[i];
       }
-      this.applyTexture(new THREE.CanvasTexture(canvas), seq, onApplied);
+      this.applyTexture(new CanvasTexture(canvas), seq, onApplied);
     } catch (err) {
       if (!isAbortError(err)) this.textureFailed(date, seq);
     }
   }
 
   private applyTexture(
-    texture: THREE.Texture,
+    texture: Texture,
     seq: number,
     onApplied: () => void
   ): void {
@@ -198,9 +208,9 @@ export class StudyRegion {
       texture.dispose();
       return;
     }
-    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.colorSpace = SRGBColorSpace;
     texture.anisotropy = this.maxAnisotropy;
-    const material = mesh.material as THREE.MeshBasicMaterial;
+    const material = mesh.material as MeshBasicMaterial;
     material.map?.dispose();
     material.map = texture;
     material.color.set(0xffffff);
@@ -249,19 +259,16 @@ export class StudyRegion {
       }
     }
 
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(positions, 3)
-    );
-    geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
+    geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
     geometry.setIndex(indices);
 
-    const material = new THREE.MeshBasicMaterial({
+    const material = new MeshBasicMaterial({
       color: 0x222222, // placeholder until imagery loads
-      side: THREE.DoubleSide, // robust against patch winding orientation
+      side: DoubleSide, // robust against patch winding orientation
     });
-    this.mesh = new THREE.Mesh(geometry, material);
+    this.mesh = new Mesh(geometry, material);
     this.object.add(this.mesh);
   }
 
@@ -269,7 +276,7 @@ export class StudyRegion {
     if (!this.mesh) return;
     this.object.remove(this.mesh);
     this.mesh.geometry.dispose();
-    const material = this.mesh.material as THREE.MeshBasicMaterial;
+    const material = this.mesh.material as MeshBasicMaterial;
     material.map?.dispose();
     material.dispose();
     this.mesh = undefined;

@@ -1,4 +1,10 @@
-import * as THREE from "three";
+import {
+  BufferGeometry,
+  Float32BufferAttribute,
+  Group,
+  LineBasicMaterial,
+  LineSegments,
+} from "three";
 import { fetchJson } from "../lib/net";
 import { plateBoundarySegmentHoverLabel } from "../lib/plateBoundaryHover";
 import { plateBoundaryRenderGeometry } from "../lib/plateBoundaryRendering";
@@ -23,7 +29,7 @@ export class PlateBoundariesOverlay implements MapOverlay {
   readonly id = "plates";
   readonly label = "Plates";
   readonly icon = ICONS.plates;
-  readonly object = new THREE.Group();
+  readonly object = new Group();
 
   /**
    * Names the plate pair of a hovered boundary once the linework has loaded.
@@ -55,17 +61,14 @@ export class PlateBoundariesOverlay implements MapOverlay {
       this.radius
     );
 
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(positions, 3)
-    );
-    const material = new THREE.LineBasicMaterial({
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
+    const material = new LineBasicMaterial({
       color: 0xff9d4d, // warm orange: reads as "geology" against any layer
       transparent: true,
       opacity: 0.7,
     });
-    const lines = new THREE.LineSegments(geometry, material);
+    const lines = new LineSegments(geometry, material);
     this.object.add(lines);
     this.hoverSource = {
       lines,

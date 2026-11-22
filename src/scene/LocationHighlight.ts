@@ -1,4 +1,16 @@
-import * as THREE from "three";
+import {
+  BufferGeometry,
+  Float32BufferAttribute,
+  Group,
+  LineBasicMaterial,
+  LineSegments,
+  Mesh,
+  MeshBasicMaterial,
+  Object3D,
+  Points,
+  PointsMaterial,
+  SphereGeometry,
+} from "three";
 import { latLngToVector3 } from "../lib/geo";
 import { geometryToRings, type GeoGeometry } from "../lib/geojson";
 import { GLOBE_RADIUS } from "../overlays/types";
@@ -15,13 +27,13 @@ export interface HighlightTarget {
  * Only one search target is shown at a time.
  */
 export class LocationHighlight {
-  readonly object = new THREE.Group();
-  private current: THREE.Group | undefined;
-  private marker: THREE.Mesh | undefined;
+  readonly object = new Group();
+  private current: Group | undefined;
+  private marker: Mesh | undefined;
 
   show(target: HighlightTarget): void {
     this.clear();
-    const group = new THREE.Group();
+    const group = new Group();
     const radius = GLOBE_RADIUS * 1.006;
 
     const hasBoundary =
@@ -69,10 +81,10 @@ export class LocationHighlight {
     this.marker?.scale.setScalar(Math.max(0.0006, aboveSurface * 0.0045));
   }
 
-  private makeMarker(lat: number, lon: number): THREE.Mesh {
-    const marker = new THREE.Mesh(
-      new THREE.SphereGeometry(1, 16, 16), // unit sphere; sized via update()
-      new THREE.MeshBasicMaterial({ color: 0xffd166 })
+  private makeMarker(lat: number, lon: number): Mesh {
+    const marker = new Mesh(
+      new SphereGeometry(1, 16, 16), // unit sphere; sized via update()
+      new MeshBasicMaterial({ color: 0xffd166 })
     );
     marker.position.copy(latLngToVector3(lat, lon, GLOBE_RADIUS * 1.013));
     marker.scale.setScalar(0.009);
@@ -80,15 +92,12 @@ export class LocationHighlight {
   }
 }
 
-function makeBoundaryLine(positions: number[]): THREE.LineSegments {
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute(
-    "position",
-    new THREE.Float32BufferAttribute(positions, 3)
-  );
-  return new THREE.LineSegments(
+function makeBoundaryLine(positions: number[]): LineSegments {
+  const geometry = new BufferGeometry();
+  geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
+  return new LineSegments(
     geometry,
-    new THREE.LineBasicMaterial({
+    new LineBasicMaterial({
       color: 0xffd166,
       depthTest: false,
       depthWrite: false,
@@ -96,15 +105,12 @@ function makeBoundaryLine(positions: number[]): THREE.LineSegments {
   );
 }
 
-function makeBoundaryPoints(positions: number[]): THREE.Points {
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute(
-    "position",
-    new THREE.Float32BufferAttribute(positions, 3)
-  );
-  return new THREE.Points(
+function makeBoundaryPoints(positions: number[]): Points {
+  const geometry = new BufferGeometry();
+  geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
+  return new Points(
     geometry,
-    new THREE.PointsMaterial({
+    new PointsMaterial({
       color: 0xffd166,
       size: 5,
       sizeAttenuation: false,
@@ -147,9 +153,9 @@ function appendInterpolatedRingPoints(
   }
 }
 
-function disposeTree(root: THREE.Object3D): void {
+function disposeTree(root: Object3D): void {
   root.traverse((obj) => {
-    const mesh = obj as Partial<THREE.Mesh>;
+    const mesh = obj as Partial<Mesh>;
     mesh.geometry?.dispose();
     const material = mesh.material;
     if (Array.isArray(material)) material.forEach((m) => m.dispose());

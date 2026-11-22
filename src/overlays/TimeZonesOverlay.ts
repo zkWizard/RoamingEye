@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import { Group, PerspectiveCamera, Vector3 } from "three";
 import { latLngToVector3 } from "../lib/geo";
 import { fetchJson } from "../lib/net";
 import { ICONS } from "../ui/icons";
@@ -9,8 +9,8 @@ const FRONT_FACING_DOT = 0.2;
 
 interface ZoneLabel {
   el: HTMLSpanElement;
-  position: THREE.Vector3;
-  normal: THREE.Vector3;
+  position: Vector3;
+  normal: Vector3;
 }
 
 /**
@@ -23,13 +23,13 @@ export class TimeZonesOverlay implements MapOverlay {
   readonly label = "Time zones";
   readonly detail = "UTC offset of each region";
   readonly icon = ICONS.timezones;
-  readonly object = new THREE.Group();
+  readonly object = new Group();
 
   private labelLayer: HTMLDivElement | undefined;
   private halo: typeof import("./haloLines") | undefined;
   private labels: ZoneLabel[] = [];
-  private readonly projected = new THREE.Vector3();
-  private readonly cameraDir = new THREE.Vector3();
+  private readonly projected = new Vector3();
+  private readonly cameraDir = new Vector3();
   private readonly radius = GLOBE_RADIUS * 1.0018;
 
   constructor(
@@ -44,7 +44,7 @@ export class TimeZonesOverlay implements MapOverlay {
     return this.loadOnce();
   }
 
-  update(camera: THREE.PerspectiveCamera, viewportHeightPx: number): void {
+  update(camera: PerspectiveCamera, viewportHeightPx: number): void {
     this.halo?.setHaloResolution(
       this.object,
       window.innerWidth,

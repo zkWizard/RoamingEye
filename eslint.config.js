@@ -36,6 +36,22 @@ export default tseslint.config(
       },
     },
   },
+  // A namespace import of three marks every export as used, so the vendor
+  // chunk cannot tree-shake. Named imports keep one shared copy and drop
+  // the renderers, loaders, and extras this app never touches.
+  {
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "ImportDeclaration[source.value='three'] > ImportNamespaceSpecifier",
+          message:
+            'Import named exports from "three". A namespace import keeps the whole library in the bundle.',
+        },
+      ],
+    },
+  },
   // Prettier last: turn off all formatting-related lint rules so Prettier owns
   // formatting and the two tools never fight.
   prettier

@@ -1,4 +1,11 @@
-import * as THREE from "three";
+import {
+  AdditiveBlending,
+  BackSide,
+  Color,
+  Mesh,
+  ShaderMaterial,
+  SphereGeometry,
+} from "three";
 import { ICONS } from "../ui/icons";
 import { GLOBE_RADIUS, type MapOverlay } from "./types";
 
@@ -12,16 +19,16 @@ export class AtmosphereOverlay implements MapOverlay {
   readonly detail = "A soft blue edge around the globe";
   readonly group = "settings" as const;
   readonly icon = ICONS.atmosphere;
-  readonly object: THREE.Mesh;
+  readonly object: Mesh;
   readonly defaultOn = true;
 
   constructor(radius = GLOBE_RADIUS * 1.16) {
-    const material = new THREE.ShaderMaterial({
+    const material = new ShaderMaterial({
       transparent: true,
-      side: THREE.BackSide,
-      blending: THREE.AdditiveBlending,
+      side: BackSide,
+      blending: AdditiveBlending,
       depthWrite: false,
-      uniforms: { uColor: { value: new THREE.Color(0x4ea1ff) } },
+      uniforms: { uColor: { value: new Color(0x4ea1ff) } },
       vertexShader: /* glsl */ `
         varying vec3 vNormal;
         varying vec3 vView;
@@ -45,10 +52,7 @@ export class AtmosphereOverlay implements MapOverlay {
       `,
     });
 
-    this.object = new THREE.Mesh(
-      new THREE.SphereGeometry(radius, 64, 64),
-      material
-    );
+    this.object = new Mesh(new SphereGeometry(radius, 64, 64), material);
     this.object.visible = false;
   }
 }

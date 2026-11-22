@@ -4,7 +4,26 @@
 // between a reader's machine and CI.
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
-import * as THREE from "three";
+import {
+  AmbientLight,
+  BufferAttribute,
+  BufferGeometry,
+  Color,
+  DirectionalLight,
+  Mesh,
+  MeshStandardMaterial,
+  Object3D,
+  PerspectiveCamera,
+  Points,
+  PointsMaterial,
+  Raycaster,
+  Scene,
+  SphereGeometry,
+  Timer,
+  Vector2,
+  Vector3,
+  WebGLRenderer,
+} from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import {
   LAYERS,
@@ -270,9 +289,9 @@ function webglUnavailable(err: unknown): never {
   }
   throw err instanceof Error ? err : new Error(String(err));
 }
-let renderer: THREE.WebGLRenderer;
+let renderer: WebGLRenderer;
 try {
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer = new WebGLRenderer({ canvas, antialias: true });
 } catch (err) {
   webglUnavailable(err);
 }
@@ -280,9 +299,9 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 
 // --- Scene & camera ---------------------------------------------------------
-const scene = new THREE.Scene();
+const scene = new Scene();
 
-const camera = new THREE.PerspectiveCamera(
+const camera = new PerspectiveCamera(
   45,
   window.innerWidth / window.innerHeight,
   0.01, // near plane small enough to get right down to the surface
@@ -293,9 +312,9 @@ camera.position.set(0, 0, 3.2);
 // --- Lighting ---------------------------------------------------------------
 // Strong ambient so the whole globe stays readable (satellite-eye feel),
 // plus a soft directional light for a little dimensionality.
-scene.add(new THREE.AmbientLight(0xffffff, 1.1));
+scene.add(new AmbientLight(0xffffff, 1.1));
 
-const sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
+const sunLight = new DirectionalLight(0xffffff, 1.0);
 sunLight.position.set(5, 3, 5);
 scene.add(sunLight);
 
@@ -303,7 +322,7 @@ scene.add(sunLight);
 // sit on layer 1. This fill brings Esri water and land back up to a readable
 // satellite brightness; the sphere keeps the lights above, which were tuned
 // for its Standard material.
-const terrainFill = new THREE.AmbientLight(0xffffff, 1.35);
+const terrainFill = new AmbientLight(0xffffff, 1.35);
 terrainFill.layers.set(1);
 scene.add(terrainFill);
 camera.layers.enable(1);
@@ -315,8 +334,8 @@ scene.add(starfield);
 // --- Theme (light/dark) -------------------------------------------------------
 // The DOM theme is CSS-variable driven; the WebGL side mirrors it here: a
 // space-dark or daylight clear color, and stars only against a night sky.
-const SPACE_BG = new THREE.Color(0x05070d); // matches --bg (dark)
-const DAY_BG = new THREE.Color(0xeaf0f8); // matches --bg (light)
+const SPACE_BG = new Color(0x05070d); // matches --bg (dark)
+const DAY_BG = new Color(0xeaf0f8); // matches --bg (light)
 
 function applyTheme(theme: Theme): void {
   const dark = theme === "dark";
@@ -336,9 +355,9 @@ if (themeEl) {
 // until the first composite arrives (GlobeTextureManager tints it white).
 // The mesh stays the raycast target for hover, probe, and region drawing
 // even when a close view stops it drawing (see TerrainGlobe).
-const earth = new THREE.Mesh(
-  new THREE.SphereGeometry(EARTH_RADIUS, 96, 96),
-  new THREE.MeshStandardMaterial({
+const earth = new Mesh(
+  new SphereGeometry(EARTH_RADIUS, 96, 96),
+  new MeshStandardMaterial({
     color: 0x111418,
     roughness: 1,
     metalness: 0,
@@ -1892,7 +1911,7 @@ function comparisonHost() {
       }),
     clearHighlight: () => highlight.clear(),
     attach: (object: object) => {
-      scene.add(object as THREE.Object3D);
+      scene.add(object as Object3D);
     },
     hideStudy: () => {
       studyRegion.hide();
@@ -3096,7 +3115,7 @@ if (probeEl) {
   }
 
   // A click is a pointer that barely travels; anything longer is a rotate/zoom.
-  const probeRaycaster = new THREE.Raycaster();
+  const probeRaycaster = new Raycaster();
   let probeDownX = 0;
   let probeDownY = 0;
   let probeSuppressed = false;
@@ -3109,7 +3128,7 @@ if (probeEl) {
     if (probeSuppressed) return;
     if (Math.hypot(e.clientX - probeDownX, e.clientY - probeDownY) > 6) return;
     const rect = canvas.getBoundingClientRect();
-    const ndc = new THREE.Vector2(
+    const ndc = new Vector2(
       ((e.clientX - rect.left) / rect.width) * 2 - 1,
       -((e.clientY - rect.top) / rect.height) * 2 + 1
     );
@@ -3127,7 +3146,7 @@ if (probeEl) {
     const point =
       camLength >= 1 && meshHit
         ? meshHit.point
-        : new THREE.Vector3(resolved.x, resolved.y, resolved.z);
+        : new Vector3(resolved.x, resolved.y, resolved.z);
     const { lat, lon } = vector3ToLatLng(point);
     clearSharedSearch();
     record("probe");
@@ -3784,7 +3803,7 @@ function adaptResolution(now: number): void {
 // can show. Cleared by restoring the toolbar's own on/off choice.
 let hdHeldForDrape = false;
 let atmosphereHeldForClose = false;
-const timer = new THREE.Timer();
+const timer = new Timer();
 let signalledReady = false;
 let wasFlying = false;
 const renderFrame = (): void => {
@@ -3931,7 +3950,7 @@ function setStatus(text: string): void {
   else delete statusEl.dataset.currency;
 }
 
-function createStarfield(): THREE.Points {
+function createStarfield(): Points {
   const starCount = 1500;
   const positions = new Float32Array(starCount * 3);
 
@@ -3945,10 +3964,10 @@ function createStarfield(): THREE.Points {
     positions[i * 3 + 2] = r * Math.cos(phi);
   }
 
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  const geometry = new BufferGeometry();
+  geometry.setAttribute("position", new BufferAttribute(positions, 3));
 
-  const material = new THREE.PointsMaterial({
+  const material = new PointsMaterial({
     color: 0xffffff,
     size: 0.12,
     sizeAttenuation: true,
@@ -3956,5 +3975,5 @@ function createStarfield(): THREE.Points {
     opacity: 0.8,
   });
 
-  return new THREE.Points(geometry, material);
+  return new Points(geometry, material);
 }

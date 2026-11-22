@@ -1,4 +1,14 @@
-import * as THREE from "three";
+import {
+  Camera,
+  MeshStandardMaterial,
+  Object3D,
+  SRGBColorSpace,
+  Scene,
+  Texture,
+  TextureLoader,
+  Vector2,
+  WebGLRenderer,
+} from "three";
 import { gibsWmsUrl, type LayerConfig, type YearMonth } from "../lib/timeline";
 
 /**
@@ -15,14 +25,14 @@ export class CompareController {
   /** Divider position as a fraction of the viewport width. */
   split = 0.5;
 
-  private readonly loader = new THREE.TextureLoader();
-  private texture: THREE.Texture | undefined;
+  private readonly loader = new TextureLoader();
+  private texture: Texture | undefined;
   private _pinned: YearMonth | undefined;
   private _active = false;
   private seq = 0;
 
   constructor(
-    private readonly material: THREE.MeshStandardMaterial,
+    private readonly material: MeshStandardMaterial,
     private readonly maxAnisotropy: number,
     /** Fires when the pinned texture finishes loading (or fails). */
     private readonly onReadyChange?: (ready: boolean) => void
@@ -59,7 +69,7 @@ export class CompareController {
           texture.dispose();
           return;
         }
-        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.colorSpace = SRGBColorSpace;
         texture.anisotropy = this.maxAnisotropy;
         this.texture = texture;
         this.onReadyChange?.(true);
@@ -102,13 +112,13 @@ export class CompareController {
    * Exiting compare restores them (visibility is saved and put back here).
    */
   renderSplit(
-    renderer: THREE.WebGLRenderer,
-    scene: THREE.Scene,
-    camera: THREE.Camera,
-    liveOnly: THREE.Object3D[] = []
+    renderer: WebGLRenderer,
+    scene: Scene,
+    camera: Camera,
+    liveOnly: Object3D[] = []
   ): void {
     if (!this.texture) return;
-    const size = renderer.getSize(new THREE.Vector2());
+    const size = renderer.getSize(new Vector2());
     const splitX = Math.round(size.x * this.split);
     const live = this.material.map;
     // Swapping between two loaded textures reuses the same shader program;

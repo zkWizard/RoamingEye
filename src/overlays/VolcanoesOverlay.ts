@@ -1,4 +1,14 @@
-import * as THREE from "three";
+import {
+  BufferGeometry,
+  CanvasTexture,
+  Color,
+  Float32BufferAttribute,
+  Group,
+  Points,
+  PointsMaterial,
+  SRGBColorSpace,
+  Texture,
+} from "three";
 import { latLngToVector3 } from "../lib/geo";
 import { fetchJson } from "../lib/net";
 import {
@@ -31,17 +41,14 @@ import {
  */
 
 const CLASS_COLORS = Object.fromEntries(
-  Object.entries(ERUPTION_CLASS_COLORS).map(([k, hex]) => [
-    k,
-    new THREE.Color(hex),
-  ])
-) as Record<EruptionClass, THREE.Color>;
+  Object.entries(ERUPTION_CLASS_COLORS).map(([k, hex]) => [k, new Color(hex)])
+) as Record<EruptionClass, Color>;
 
 export class VolcanoesOverlay implements MapOverlay {
   readonly id = "volcanoes";
   readonly label = "Volcanoes";
   readonly icon = ICONS.volcanoes;
-  readonly object = new THREE.Group();
+  readonly object = new Group();
 
   /** Set once loaded — lets the HoverInspector describe the marker under the cursor. */
   hoverSource: HoverPointSource | undefined;
@@ -75,7 +82,7 @@ export class VolcanoesOverlay implements MapOverlay {
     };
   }
 
-  private buildPoints(volcanoes: readonly Volcano[]): THREE.Points {
+  private buildPoints(volcanoes: readonly Volcano[]): Points {
     const positions: number[] = [];
     const colors: number[] = [];
     for (const v of volcanoes) {
@@ -85,14 +92,11 @@ export class VolcanoesOverlay implements MapOverlay {
       colors.push(c.r, c.g, c.b);
     }
 
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(positions, 3)
-    );
-    geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
+    geometry.setAttribute("color", new Float32BufferAttribute(colors, 3));
 
-    const material = new THREE.PointsMaterial({
+    const material = new PointsMaterial({
       size: 0.024,
       vertexColors: true,
       sizeAttenuation: true,
@@ -100,12 +104,12 @@ export class VolcanoesOverlay implements MapOverlay {
       transparent: true,
       depthWrite: false,
     });
-    return new THREE.Points(geometry, material);
+    return new Points(geometry, material);
   }
 }
 
 /** A soft upward triangle sprite — the map symbol for a volcano. */
-function makeTriangleTexture(): THREE.Texture {
+function makeTriangleTexture(): Texture {
   const size = 64;
   const canvas = document.createElement("canvas");
   canvas.width = size;
@@ -120,7 +124,7 @@ function makeTriangleTexture(): THREE.Texture {
     ctx.fillStyle = "rgba(255,255,255,0.95)";
     ctx.fill();
   }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
   return texture;
 }

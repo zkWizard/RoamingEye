@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import * as THREE from "three";
+import { Camera, PerspectiveCamera, Spherical, Vector3 } from "three";
 import {
   GlobeMomentum,
   coastDistance,
@@ -17,7 +17,7 @@ const ROTATE_SPEED = 0.45;
 
 const stubControls = (): OrbitLike & { updates: number } => {
   const controls = {
-    target: new THREE.Vector3(),
+    target: new Vector3(),
     enabled: true,
     rotateSpeed: ROTATE_SPEED,
     updates: 0,
@@ -35,15 +35,15 @@ const at = (t: number, x: number, y = 300): PointerLike => ({
   clientY: y,
 });
 
-const azimuthOf = (camera: THREE.Camera): number =>
-  new THREE.Spherical().setFromVector3(camera.position).theta;
+const azimuthOf = (camera: Camera): number =>
+  new Spherical().setFromVector3(camera.position).theta;
 
 /** px/s of pointer travel → rad/s of globe turn, as OrbitControls maps it. */
 const radPerSec = (pxPerSec: number): number =>
   (2 * Math.PI * pxPerSec * ROTATE_SPEED) / HEIGHT;
 
 const setup = (coast = true) => {
-  const camera = new THREE.PerspectiveCamera();
+  const camera = new PerspectiveCamera();
   camera.position.set(0, 0, 3);
   const controls = stubControls();
   const momentum = new GlobeMomentum(

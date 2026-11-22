@@ -1,4 +1,10 @@
-import * as THREE from "three";
+import {
+  LinearFilter,
+  LinearMipmapLinearFilter,
+  MeshStandardMaterial,
+  SRGBColorSpace,
+  Texture,
+} from "three";
 import { isAbortError } from "../lib/net";
 import { loadAbortableTexture } from "../lib/textures";
 
@@ -44,13 +50,13 @@ interface ManagerOptions {
 }
 
 export class GlobeTextureManager {
-  private readonly material: THREE.MeshStandardMaterial;
+  private readonly material: MeshStandardMaterial;
   private readonly anisotropy: number;
 
   // Preview textures are kept for the whole current range; sharp textures are
   // a small LRU set (insertion order == recency).
-  private readonly previewCache = new Map<string, THREE.Texture>();
-  private readonly sharpCache = new Map<string, THREE.Texture>();
+  private readonly previewCache = new Map<string, Texture>();
+  private readonly sharpCache = new Map<string, Texture>();
 
   private readonly preview: GibsImageOptions;
   private readonly sharp: GibsImageOptions;
@@ -73,7 +79,7 @@ export class GlobeTextureManager {
   private prefetchAbort: AbortController | undefined;
 
   constructor(
-    material: THREE.MeshStandardMaterial,
+    material: MeshStandardMaterial,
     maxAnisotropy: number,
     options: ManagerOptions = {}
   ) {
@@ -283,14 +289,14 @@ export class GlobeTextureManager {
       });
   }
 
-  private apply(texture: THREE.Texture): void {
+  private apply(texture: Texture): void {
     // Mipmaps are generated when a texture is actually shown, not when it is
     // prefetched. A minified monthly colormap (land temperature especially)
     // shimmers without them, and an unshown preview should not pay for a
     // chain it may never display.
     if (!texture.generateMipmaps) {
       texture.generateMipmaps = true;
-      texture.minFilter = THREE.LinearMipmapLinearFilter;
+      texture.minFilter = LinearMipmapLinearFilter;
       texture.needsUpdate = true;
     }
     this.material.map = texture;
@@ -298,21 +304,21 @@ export class GlobeTextureManager {
     this.material.needsUpdate = true;
   }
 
-  private prep(texture: THREE.Texture, isPreview: boolean): void {
-    texture.colorSpace = THREE.SRGBColorSpace;
+  private prep(texture: Texture, isPreview: boolean): void {
+    texture.colorSpace = SRGBColorSpace;
     if (isPreview) {
       // Stay cheap in the cache. apply() builds the mip chain once this
       // texture is actually on the globe.
       texture.generateMipmaps = false;
-      texture.minFilter = THREE.LinearFilter;
+      texture.minFilter = LinearFilter;
     } else {
       texture.anisotropy = this.anisotropy; // crisp limb on the settled month
       texture.generateMipmaps = true;
-      texture.minFilter = THREE.LinearMipmapLinearFilter;
+      texture.minFilter = LinearMipmapLinearFilter;
     }
   }
 
-  private touchPreview(key: string, texture: THREE.Texture): void {
+  private touchPreview(key: string, texture: Texture): void {
     this.previewCache.delete(key);
     this.previewCache.set(key, texture);
   }
@@ -328,7 +334,7 @@ export class GlobeTextureManager {
     }
   }
 
-  private touchSharp(key: string, texture: THREE.Texture): void {
+  private touchSharp(key: string, texture: Texture): void {
     this.sharpCache.delete(key);
     this.sharpCache.set(key, texture);
   }
