@@ -80,12 +80,20 @@ describe("wind loader", () => {
     const sample = sampleWind(field, 10, 20);
     expect(sample?.speed).toBeCloseTo(6, 1);
     expect(sample?.directionDeg).toBeCloseTo(180, 0);
-    expect(calls.some((url) => url.includes("api.open-meteo.com"))).toBe(true);
+    expect(calls.some((url) => openMeteoHost(url))).toBe(true);
     const encoded = encodeWindField(field.header, field.u, field.v, field.t);
     const round = decodeWindBinary(encoded.buffer, field.header);
     expect(sampleWind(round, 10, 20)?.speed).toBeCloseTo(6, 1);
   });
 });
+
+function openMeteoHost(url: string): boolean {
+  try {
+    return new URL(url).hostname === "api.open-meteo.com";
+  } catch {
+    return false;
+  }
+}
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {

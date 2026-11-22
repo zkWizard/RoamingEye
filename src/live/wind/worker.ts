@@ -6,6 +6,13 @@ interface WindWorkerRequest {
 }
 
 self.onmessage = (event: MessageEvent<WindWorkerRequest>) => {
+  // Chrome reports a dedicated worker's owner as an empty origin. Other
+  // engines report the page origin. Any other origin is not our owner.
+  const ownOrigin = self.location.origin;
+  if (event.origin !== "" && event.origin !== ownOrigin) {
+    self.postMessage({ error: "Wind worker rejected an unexpected origin" });
+    return;
+  }
   try {
     const field = decodeWindBinary(event.data.buffer, event.data.header);
     self.postMessage({
