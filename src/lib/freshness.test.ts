@@ -5,6 +5,7 @@ import {
   parseLatestFromDomains,
   refreshDataLatest,
   FRESHNESS_FAMILIES,
+  freshnessProbeFrom,
 } from "./freshness";
 import {
   LAYERS,
@@ -304,6 +305,23 @@ describe("refreshDataLatest (per-product families)", () => {
     respondByLayer({ aerosol: day(addMonths(baseline, -3)) });
     await expect(refreshDataLatest()).resolves.toBe(false);
     expect(monthRangeForLayer(LAYERS.aerosol).at(-1)).toEqual(baseline);
+  });
+
+  it("asks SST from its compiled end, which trails the global baseline", () => {
+    // The catalog contract used to pass DATA_LATEST here. SST's live domain
+    // ends at its compiled April 2026 pin, so a window opened at the July
+    // baseline starts in June and GIBS returns an empty time domain. Boot
+    // asks from this floor and still parses April. The two must stay the
+    // same function.
+    const family = FRESHNESS_FAMILIES.find((f) => f.probe === "sst");
+    expect(family).toBeDefined();
+    const from = freshnessProbeFrom(family!);
+    expect(from).toEqual(LAYERS.sst.latest);
+    expect(compareYm(from, DATA_LATEST)).toBeLessThan(0);
+    const open = addMonths(from, -1);
+    expect(describeDomainsUrl("sst", from)).toContain(
+      `TIME=${open.year}-${String(open.month).padStart(2, "0")}-01/`
+    );
   });
 
   it("asks a lagging family about its own baseline, not the global month", () => {

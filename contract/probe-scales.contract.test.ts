@@ -9,6 +9,7 @@ import {
   type CalibratedLayerId,
 } from "../src/lib/colormap";
 import { PROBE_SCALES } from "../src/lib/probe";
+import { MEASURED_VEGETATION_RAMP } from "../src/lib/vegetationIndexRamp";
 
 /**
  * Probe-scale contract check: the physical ranges PROBE_SCALES pins were
@@ -16,6 +17,15 @@ import { PROBE_SCALES } from "../src/lib/probe";
  * re-render a palette — new range, new units, a non-linear ramp — and every
  * probe value would silently mis-scale. This re-derives each calibrated
  * layer's scale from the live XML and fails naming the layer and the drift.
+ *
+ * NDVI is the exception to the linear-ramp ceiling. GIBS spaces
+ * MODIS_L3_NDVI unevenly (0.005-wide bins below 0.3, then 0.0075, then
+ * 0.01), a deviation of 0.129 of span. The legend stops sit on that ramp's
+ * value fractions, so the linear position-to-value step still recovers all
+ * 140 published colours (RMSE 0.024). Requiring deviation under 0.02 here
+ * rejects that real shape. This check pins NDVI to the deviation
+ * vegetationIndexRamp already commits, and the vegetation-index contract
+ * re-measures the inversion. A palette that actually moved still fails.
  *
  * Network-touching by design; runs weekly via catalog-check.yml alongside
  * the catalog contract (same npm run test:contract).
@@ -64,12 +74,22 @@ describe("GIBS colormap ↔ PROBE_SCALES contract", () => {
         expect(scale.unit, `${id} unit`).toBe(ramp.units);
       }
 
-      // Linearity: the probe maps ramp position to value linearly; a
-      // re-rendered non-linear ramp (log precip, say) breaks that promise.
-      expect(
-        linearityDeviation(ramp.bins),
-        `${id} ramp linear-in-value`
-      ).toBeLessThan(MAX_LINEARITY_DEVIATION);
+      // Linearity: the probe maps ramp position to value linearly. That is
+      // honest for a uniform ramp, and for NDVI because its stops are placed
+      // at the ramp's value fractions rather than at uniform bin indexes.
+      const deviation = linearityDeviation(ramp.bins);
+      if (id === "ndvi") {
+        const pinned = MEASURED_VEGETATION_RAMP.ndvi.linearityDeviation;
+        expect(
+          deviation,
+          `${id} ramp linearity drifted from the value-fraction legend pin ` +
+            `${pinned} (update the NDVI legend and vegetationIndexRamp)`
+        ).toBeCloseTo(pinned, 2);
+      } else {
+        expect(deviation, `${id} ramp linear-in-value`).toBeLessThan(
+          MAX_LINEARITY_DEVIATION
+        );
+      }
     });
   }
 });

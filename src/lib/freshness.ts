@@ -70,6 +70,15 @@ export const FRESHNESS_FAMILIES: FreshnessFamily[] = [
   { probe: "airtemp", layers: ["airtemp"], product: "M2TMNXSLV" },
   { probe: "aerosol", layers: ["aerosol"], product: "M2TMNXAER" },
   { probe: "precip", layers: ["precip", "soil"], product: "GLDAS_NOAH025_M" },
+  // Re-verified against GIBS DescribeDomains on 2026-11-22. The monthly
+  // MODIS L3 SST family (Aqua and Terra, 4 km and 9 km, day and night) still
+  // ends at 2026-04. There is no newer monthly SST layer in the catalog:
+  // the layers that are current through November 2026 are daily swaths
+  // (MODIS/VIIRS L2) or daily GHRSST analyses, which are a different product
+  // than this clear-sky monthly composite. Boot asks from this compiled
+  // floor, not from DATA_LATEST. A window opened at the global baseline
+  // starts after April and comes back empty, which is the stall, not a
+  // dead probe.
   { probe: "sst", layers: ["sst"], product: "MODIS_Aqua_SST_9km_Day" },
 ];
 
@@ -78,12 +87,27 @@ export const FRESHNESS_FAMILIES: FreshnessFamily[] = [
  * so a value written by one refresh can never become the floor a later
  * refresh falls back to. Every probe layer carries a verified compiled
  * `latest` (2026-08-15), so no family resolves its floor through the global
- * baseline any more; the `?? global` fallback below stays as a guard for a
- * layer added without one.
+ * baseline any more; the `?? DATA_LATEST` fallback in `freshnessProbeFrom`
+ * stays as a guard for a layer added without one.
  */
 const COMPILED_FLOOR = new Map<LayerId, YearMonth | undefined>(
   FRESHNESS_FAMILIES.map((f) => [f.probe, LAYERS[f.probe].latest])
 );
+
+/**
+ * The month a family's boot probe asks DescribeDomains from.
+ *
+ * This is the probe layer's compiled `latest`, captured above before any
+ * pin, and the global baseline only when a layer was added without one.
+ * The contract suite must use this same anchor. DescribeDomains intersects
+ * the requested TIME range with the layer's domain, so a window opened at
+ * DATA_LATEST starts after a lagging product's last granule and returns
+ * `<Domain></Domain><Size>0</Size>`. That empty answer is the stall. The
+ * boot probe, asked from this floor, still parses the real end.
+ */
+export function freshnessProbeFrom(family: FreshnessFamily): YearMonth {
+  return COMPILED_FLOOR.get(family.probe) ?? DATA_LATEST;
+}
 
 /** DescribeDomains URL for a layer's time domain (exported for tests). */
 export function describeDomainsUrl(layerId: LayerId, from: YearMonth): string {
@@ -167,7 +191,7 @@ export async function refreshDataLatest(
   const global = DATA_LATEST;
   /** The month this family falls back to, and must beat to move anything. */
   const floorFor = (family: FreshnessFamily): YearMonth =>
-    COMPILED_FLOOR.get(family.probe) ?? global;
+    freshnessProbeFrom(family);
   const results = await Promise.allSettled(
     FRESHNESS_FAMILIES.map(async (family) => {
       const res = await fetchWithRetry(
