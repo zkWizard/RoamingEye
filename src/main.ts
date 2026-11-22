@@ -1910,6 +1910,10 @@ function comparisonHost() {
 }
 
 // --- Point probe (click → time series) ----------------------------------------
+// The draw button arms synchronously once this settles, which is before the
+// ready flag. The science notes stay out of this load.
+let drawerReady: Promise<void> = Promise.resolve();
+
 // Click anywhere on the globe to chart the active layer's approximate value at
 // that point across its full published record, with a provenance-stamped CSV.
 // Values come from inverting the layer's colormap on the same preview imagery
@@ -1955,38 +1959,46 @@ if (probeEl) {
   let drawer: RegionDrawer | undefined;
   let notes!: typeof import("./probe/scienceNotes");
   let probeToolsPromise: Promise<void> | undefined;
+  let drawerPromise: Promise<void> | undefined;
 
-  function ensureProbeTools(): Promise<void> {
-    if (probeToolsReady) return Promise.resolve();
-    probeToolsPromise ??= (async () => {
-      const [panelMod, samplerMod, drawerMod, notesMod] = await Promise.all([
-        import("./ui/ProbePanel"),
-        import("./probe/ProbeSampler"),
-        import("./scene/RegionDrawer"),
-        import("./probe/scienceNotes"),
-      ]);
-      notes = notesMod;
+  function ensureDrawer(): Promise<void> {
+    if (drawer) return Promise.resolve();
+    drawerPromise ??= (async () => {
       const globe = canvas;
-      const probeRoot = probeEl;
-      if (!globe || !probeRoot) return;
-      drawer = new drawerMod.RegionDrawer(globe, camera, earth, {
+      if (!globe) return;
+      const { RegionDrawer: Drawer } = await import("./scene/RegionDrawer");
+      const next = new Drawer(globe, camera, earth, {
         onModeChange: (armed) => {
           controls.enabled = !armed;
           regionButton?.setActive(armed);
-          // Naming both gestures: the button that arms this is an ordinary button,
-          // so a keyboard reaches draw mode perfectly well, and used to land on an
-          // instruction it could not carry out.
           setStatus(armed ? "Drag a box, or press Enter at two corners" : "");
-          // Every gesture this mode accepts happens on the globe, and arming it
-          // leaves focus on the button, so hand focus over, the way opening a
-          // dialog does. Disarming leaves focus alone: Escape should not yank it
-          // away from whatever the user moved on to.
           if (armed) globe.focus();
         },
         onComplete: (bounds) => runRegionProbe(bounds),
       });
-      regionDrawer = drawer;
-      scene.add(drawer.object);
+      drawer = next;
+      regionDrawer = next;
+      scene.add(next.object);
+    })();
+    return drawerPromise;
+  }
+
+  // Arming has to be synchronous: Enter on the draw button moves focus to
+  // the globe before the next key, which is the second corner.
+  drawerReady = ensureDrawer();
+
+  function ensureProbeTools(): Promise<void> {
+    if (probeToolsReady) return Promise.resolve();
+    probeToolsPromise ??= (async () => {
+      const [panelMod, samplerMod, notesMod] = await Promise.all([
+        import("./ui/ProbePanel"),
+        import("./probe/ProbeSampler"),
+        import("./probe/scienceNotes"),
+        ensureDrawer(),
+      ]);
+      notes = notesMod;
+      const probeRoot = probeEl;
+      if (!probeRoot) return;
       panel = new panelMod.ProbePanel(
         probeRoot,
         () => {
@@ -2014,7 +2026,11 @@ if (probeEl) {
 
   if (drawEl) {
     regionButton = new RegionButton(drawEl, (on) => {
-      void ensureProbeTools().then(() => drawer?.setArmed(on));
+      if (drawer) {
+        drawer.setArmed(on);
+        return;
+      }
+      void ensureDrawer().then(() => drawer?.setArmed(on));
     });
   }
   document.addEventListener("keydown", (e) => {
@@ -3946,7 +3962,11 @@ const renderFrame = (): void => {
   }
   adaptResolution(performance.now());
 };
-const moreToolsReady = Promise.all([mountThemeToggle(), mountExport()]);
+const moreToolsReady = Promise.all([
+  mountThemeToggle(),
+  mountExport(),
+  drawerReady,
+]);
 renderer.setAnimationLoop(renderFrame);
 window.__RENDER_ACTIVE__ = true;
 // Read-only GPU-resource counters for the soak e2e (see e2e/soak.spec.ts):
