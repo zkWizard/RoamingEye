@@ -46,73 +46,6 @@ import {
   type SharedPlace,
 } from "./lib/viewState";
 import { latLngToVector3, vector3ToLatLng, formatLatLng } from "./lib/geo";
-import {
-  buildProbeCsv,
-  normalizeLon,
-  PROBE_SCALES,
-  scaleValue,
-} from "./lib/probe";
-import {
-  inversionAccuracyCsvHeaders,
-  probeInversionAccuracy,
-} from "./lib/probeInversionAccuracy";
-import {
-  probeSstColdEndAccuracy,
-  sstColdEndAccuracyCsvHeaders,
-} from "./lib/sstColdEndAccuracy";
-import { uncalibratedVegetationAccuracyCsvHeaders } from "./lib/vegetationIndexRamp";
-import { unvalidatedInversionCsvHeaders } from "./lib/unvalidatedInversionAccuracy";
-import { vegetationSamplingIdentityCsvHeaders } from "./lib/vegetationObservingConstraints";
-import {
-  probeSstExtremeCensoring,
-  sstExtremeBoundPrefix,
-  sstExtremeCensoringCsvHeaders,
-} from "./lib/probeSstExtremeCensoring";
-import {
-  aerosolCeilingBoundPrefix,
-  aerosolCeilingCensoringCsvHeaders,
-  probeAerosolCeilingCensoring,
-} from "./lib/probeAerosolCeilingCensoring";
-import {
-  lstExtremeBoundPrefix,
-  lstExtremeCensoringCsvHeaders,
-  probeLstExtremeCensoring,
-} from "./lib/probeLstExtremeCensoring";
-import { averagedAerosolCensoringCsvHeaders } from "./lib/probeAerosolAveragedCensoring";
-import { averagedLstCensoringCsvHeaders } from "./lib/probeLstAveragedCensoring";
-import {
-  probeRecordGaps,
-  probeRecordGapsCsvHeaders,
-} from "./lib/probeRecordGaps";
-import { probeRetrievalFailureNote } from "./lib/probeRetrievalFailure";
-import { emptyAtmosphereProbeNote } from "./lib/atmosphereProbeDomain";
-import { marineAveragedSstCensoringCsvHeaders } from "./lib/marineAveragedSstCensoring";
-import { averagedSstSupportNote } from "./lib/marineAveragedSstSupport";
-import { sstNativeSupportNote } from "./lib/sstNativeSupport";
-import { vegetationAveragedSupportNote } from "./lib/vegetationAveragedSupport";
-import { vegetationChartedRecordNote } from "./lib/vegetationChartedRecord";
-import { gldasAveragedSupportNote } from "./lib/gldasAveragedSupport";
-import { gldasChartedRecordNote } from "./lib/gldasChartedRecord";
-import { airTemperatureAveragedSupportNote } from "./lib/airTemperatureAveragedSupport";
-import { airTemperatureChartedRecordNote } from "./lib/airTemperatureChartedRecord";
-import { snowAveragedSupportNote } from "./lib/snowAveragedSupport";
-import { snowChartedRecordNote } from "./lib/snowChartedRecord";
-import { emptyMarineProbeNote } from "./lib/marineProbeDomain";
-import { emptySnowProbeNote } from "./lib/snowProbeAbsence";
-import { emptyVegetationProbeNote } from "./lib/vegetationProbeAbsence";
-import { emptySoilProbeNote } from "./lib/soilProbeDomain";
-import { emptyLstProbeNote } from "./lib/lstProbeDomain";
-import {
-  seasonalSamplingBalance,
-  seasonalSamplingCsvHeaders,
-} from "./lib/seasonalSamplingBalance";
-import { sstSamplingIdentityCsvHeaders } from "./lib/seaSurfaceTemperatureSamplingIdentity";
-import { sstObservingConstraintCsvHeaders } from "./lib/sstObservingConstraints";
-import { lstSamplingIdentityCsvHeaders } from "./lib/lstObservingConstraints";
-import {
-  snowIlluminationCsvHeaders,
-  snowIlluminationNote,
-} from "./lib/snowCoverIllumination";
 import { bboxOutline, lookupPlace, type GeoResult } from "./lib/geocoding";
 import {
   geometryBounds,
@@ -122,8 +55,8 @@ import {
 import { refreshDataLatest } from "./lib/freshness";
 import { isAbortError, isOnline, OfflineError } from "./lib/net";
 import { nextPixelRatio } from "./lib/perf";
-import { ProbeSampler } from "./probe/ProbeSampler";
-import { ProbePanel } from "./ui/ProbePanel";
+import type { ProbeSampler } from "./probe/ProbeSampler";
+import type { ProbePanel } from "./ui/ProbePanel";
 import { dismissPlaceCompare, frameComparePins } from "./ui/placeCompareBridge";
 import { CompareController } from "./scene/CompareController";
 import { CompareControls } from "./ui/CompareControls";
@@ -134,9 +67,11 @@ import {
   resolvePinnedMonth,
 } from "./lib/compare";
 import { ShareButton } from "./ui/ShareButton";
-import { ExportControls } from "./ui/ExportControls";
-import { ThemeToggle } from "./ui/ThemeToggle";
-import type { Theme } from "./lib/theme";
+import {
+  resolveInitialTheme,
+  THEME_STORAGE_KEY,
+  type Theme,
+} from "./lib/theme";
 import { GlobeTextureManager } from "./textures/GlobeTextureManager";
 import { TimeSlider } from "./ui/TimeSlider";
 import { dataCurrencyNote } from "./ui/dataCurrency";
@@ -144,17 +79,19 @@ import { LayerSelector } from "./ui/LayerSelector";
 import { Toolbar } from "./ui/Toolbar";
 import { Legend } from "./ui/Legend";
 import type { MapOverlay } from "./overlays/types";
-import { BordersOverlay } from "./overlays/BordersOverlay";
-import { CitiesOverlay } from "./overlays/CitiesOverlay";
 import { AtmosphereOverlay } from "./overlays/AtmosphereOverlay";
 import {
   EARTHQUAKE_HOVER_SOURCE_COUNT,
   EarthquakesOverlay,
 } from "./overlays/EarthquakesOverlay";
-import { PlateBoundariesOverlay } from "./overlays/PlateBoundariesOverlay";
-import { VolcanoesOverlay } from "./overlays/VolcanoesOverlay";
+import {
+  lazyBorders,
+  lazyCities,
+  lazyPlateBoundaries,
+  lazyTimeZones,
+  lazyVolcanoes,
+} from "./overlays/lazyMapOverlay";
 import { TiledImageryOverlay } from "./overlays/TiledImageryOverlay";
-import { TimeZonesOverlay } from "./overlays/TimeZonesOverlay";
 import { createLiveWeatherOverlay } from "./live/weatherMenu";
 import { plainLayerName } from "./lib/plainLanguage";
 import type { ViewCard } from "./ui/viewCards";
@@ -163,7 +100,7 @@ import { CameraFlyer } from "./scene/CameraFlyer";
 import { GlobeMomentum } from "./scene/GlobeMomentum";
 import { LocationHighlight } from "./scene/LocationHighlight";
 import { HoverInspector } from "./scene/HoverInspector";
-import { RegionDrawer } from "./scene/RegionDrawer";
+import type { RegionDrawer } from "./scene/RegionDrawer";
 import { RegionButton } from "./ui/RegionButton";
 import { ErrorToast } from "./ui/ErrorToast";
 import { Announcer } from "./ui/Announcer";
@@ -176,9 +113,9 @@ import {
 } from "./lib/sessionState";
 import type { SearchHit } from "./lib/search/provider";
 import type { Bounds } from "./lib/imagery";
-import { StudyRegion } from "./scene/StudyRegion";
+import { lazyStudyRegion } from "./scene/lazyStudyRegion";
 import { StudyChip } from "./ui/StudyChip";
-import { ShortcutsOverlay } from "./ui/ShortcutsOverlay";
+import type { ShortcutsOverlay } from "./ui/ShortcutsOverlay";
 import { ThinkingOrb } from "./ui/ThinkingOrb";
 import type { StoryCard, StoryCardHandlers } from "./ui/StoryCard";
 import { markStoriesWelcomed, storiesWelcomed } from "./lib/storiesWelcome";
@@ -346,9 +283,29 @@ function applyTheme(theme: Theme): void {
 }
 
 const themeEl = document.querySelector<HTMLElement>("#theme-toggle");
-if (themeEl) {
-  // Constructing the toggle applies the initial theme (calls applyTheme once).
-  new ThemeToggle(themeEl, applyTheme);
+// The toggle class arrives with the More menu. The first frame still has to
+// paint the saved theme, which is a storage read and one attribute.
+{
+  let stored: string | null;
+  try {
+    stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+  } catch {
+    stored = null;
+  }
+  const initial = resolveInitialTheme(
+    stored,
+    window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true
+  );
+  document.documentElement.setAttribute("data-theme", initial);
+  applyTheme(initial);
+}
+
+function mountThemeToggle(): void {
+  if (!themeEl || themeEl.childElementCount > 0) return;
+  void import("./ui/ThemeToggle").then(({ ThemeToggle }) => {
+    if (themeEl.childElementCount > 0) return;
+    new ThemeToggle(themeEl, applyTheme);
+  });
 }
 
 // --- Earth ------------------------------------------------------------------
@@ -407,9 +364,9 @@ const hdTiles = new TiledImageryOverlay(
 const errorToast = new ErrorToast();
 const announcer = new Announcer();
 
-const citiesOverlay = new CitiesOverlay();
-const plateBoundariesOverlay = new PlateBoundariesOverlay();
-const volcanoesOverlay = new VolcanoesOverlay();
+const citiesOverlay = lazyCities();
+const plateBoundariesOverlay = lazyPlateBoundaries();
+const volcanoesOverlay = lazyVolcanoes();
 const earthquakesOverlay = new EarthquakesOverlay();
 const atmosphereOverlay = new AtmosphereOverlay();
 const liveWeatherRoot = new Group();
@@ -417,15 +374,16 @@ liveWeatherRoot.visible = false;
 const liveWeather = createLiveWeatherOverlay(liveWeatherRoot, renderer);
 const overlays: MapOverlay[] = [
   hdTiles,
-  new BordersOverlay(),
+  lazyBorders(),
   citiesOverlay,
   atmosphereOverlay,
-  // The geology trio — plate boundaries, volcanoes, and live seismicity line
-  // up on the globe to tell the plate-tectonics story.
+  // The geology trio. Plates, volcanoes, and time zones stay out of the
+  // entry chunk until the visitor turns them on. US counties already load
+  // from the borders overlay the same way.
   plateBoundariesOverlay,
   volcanoesOverlay,
   earthquakesOverlay,
-  new TimeZonesOverlay(),
+  lazyTimeZones(),
   liveWeather,
 ];
 for (const overlay of overlays) scene.add(overlay.object);
@@ -441,7 +399,7 @@ function exitStudyRegion(): void {
 const studyChip = studyChipEl
   ? new StudyChip(studyChipEl, exitStudyRegion)
   : null;
-const studyRegion = new StudyRegion(renderer.capabilities.getMaxAnisotropy(), {
+const studyRegion = lazyStudyRegion(renderer.capabilities.getMaxAnisotropy(), {
   onLoadingChange: (loading) =>
     setStatus(loading ? "Loading high-res imagery…" : ""),
   onStatus: (text) => studyChip?.setDetail(text),
@@ -720,6 +678,12 @@ document.addEventListener("keydown", (e) => {
 });
 
 const legend = legendEl ? new Legend(legendEl, currentLayer) : undefined;
+// The science chunk is the probe notes. A compare or a legend press is the
+// other way it is first needed, so start it then rather than at boot.
+function touchScience(): void {
+  void import("./probe/scienceNotes");
+}
+legendEl?.addEventListener("pointerdown", () => touchScience(), { once: true });
 hdTiles.onVisibleCoverageChange(({ requested, loaded, failed }) => {
   legend?.setTerrainTileCoverage(requested, loaded, failed);
 });
@@ -859,53 +823,57 @@ function updateProvenance(): void {
   )}`;
 }
 
-if (exportEl) {
-  new ExportControls(
-    exportEl,
-    {
-      downloadPng: () => {
-        // Render a fresh frame and read the canvas in the same task — the
-        // drawing buffer isn't preserved between frames. An active comparison
-        // exports exactly what's on screen, divider split included.
-        if (compare.showing) {
-          compare.renderSplit(renderer, scene, camera, [hdTiles.object]);
-        } else {
-          renderer.render(scene, camera);
-        }
-        canvas.toBlob((blob) => {
-          // A successful save reports itself through the browser's own download
-          // chrome, so it needs no message of ours. A failed encode fires no
-          // download at all — without this the press is answered by nothing
-          // whatsoever, on every channel. The toast is `role="alert"`, so the
-          // one line covers both the user who would have seen the file appear
-          // and the one who would have heard it.
-          if (!blob) {
-            errorToast.show("Couldn't save the PNG. Try again.");
-            return;
+function mountExport(): void {
+  if (!exportEl || exportEl.childElementCount > 0) return;
+  void import("./ui/ExportControls").then(({ ExportControls }) => {
+    if (!exportEl || !canvas || exportEl.childElementCount > 0) return;
+    new ExportControls(
+      exportEl,
+      {
+        downloadPng: () => {
+          // Render a fresh frame and read the canvas in the same task — the
+          // drawing buffer isn't preserved between frames. An active comparison
+          // exports exactly what's on screen, divider split included.
+          if (compare.showing) {
+            compare.renderSplit(renderer, scene, camera, [hdTiles.object]);
+          } else {
+            renderer.render(scene, camera);
           }
-          const ym = months[currentIndex];
-          const a = document.createElement("a");
-          a.href = URL.createObjectURL(blob);
-          // Version in the filename: a figure in a slide deck stays traceable
-          // to the software that rendered it, months later. `showing` (not
-          // `active`) is the right gate here — it is the pinned texture landing
-          // that puts a second month into the pixels being read back.
-          a.download = `roamingeye_${currentLayer}_${exportMonthStamp(ym, compare.showing ? compare.pinned : undefined)}_v${__APP_VERSION__}.png`;
-          a.click();
-          URL.revokeObjectURL(a.href);
-        }, "image/png");
+          canvas.toBlob((blob) => {
+            // A successful save reports itself through the browser's own download
+            // chrome, so it needs no message of ours. A failed encode fires no
+            // download at all — without this the press is answered by nothing
+            // whatsoever, on every channel. The toast is `role="alert"`, so the
+            // one line covers both the user who would have seen the file appear
+            // and the one who would have heard it.
+            if (!blob) {
+              errorToast.show("Couldn't save the PNG. Try again.");
+              return;
+            }
+            const ym = months[currentIndex];
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            // Version in the filename: a figure in a slide deck stays traceable
+            // to the software that rendered it, months later. `showing` (not
+            // `active`) is the right gate here — it is the pinned texture landing
+            // that puts a second month into the pixels being read back.
+            a.download = `roamingeye_${currentLayer}_${exportMonthStamp(ym, compare.showing ? compare.pinned : undefined)}_v${__APP_VERSION__}.png`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+          }, "image/png");
+        },
+        // A comparison is built from two GetMap requests, so the copied URL has
+        // to name both months — `showing` again, for the same reason as the PNG.
+        imageryUrl: () =>
+          imageryUrlExport(
+            LAYERS[currentLayer],
+            months[currentIndex],
+            compare.showing ? compare.pinned : undefined
+          ),
       },
-      // A comparison is built from two GetMap requests, so the copied URL has
-      // to name both months — `showing` again, for the same reason as the PNG.
-      imageryUrl: () =>
-        imageryUrlExport(
-          LAYERS[currentLayer],
-          months[currentIndex],
-          compare.showing ? compare.pinned : undefined
-        ),
-    },
-    (message) => announcer.announce(message)
-  );
+      (message) => announcer.announce(message)
+    );
+  });
 }
 
 // Intended overlay on/off state — tracked separately from object.visible
@@ -1837,6 +1805,7 @@ if (compareEl && compareDividerEl) {
     compareDividerEl,
     {
       onEnable: () => {
+        touchScience();
         dismissPlaceCompare();
         const layer = LAYERS[currentLayer];
         if (layer.static) return false; // one image regardless of month
@@ -1978,58 +1947,87 @@ if (probeEl) {
   // probe panel. OrbitControls pauses while the drawer owns the drag.
   const drawEl = document.querySelector<HTMLElement>("#draw");
   let regionButton: RegionButton | undefined;
-  const drawer = new RegionDrawer(canvas, camera, earth, {
-    onModeChange: (armed) => {
-      controls.enabled = !armed;
-      regionButton?.setActive(armed);
-      // Naming both gestures: the button that arms this is an ordinary button,
-      // so a keyboard reaches draw mode perfectly well, and used to land on an
-      // instruction it could not carry out.
-      setStatus(armed ? "Drag a box, or press Enter at two corners" : "");
-      // Every gesture this mode accepts happens on the globe, and arming it
-      // leaves focus on the button — so hand focus over, the way opening a
-      // dialog does. Disarming leaves focus alone: Escape should not yank it
-      // away from whatever the user moved on to.
-      if (armed) canvas.focus();
-    },
-    onComplete: (bounds) => runRegionProbe(bounds),
-  });
-  regionDrawer = drawer;
-  scene.add(drawer.object);
+  // Assigned together on the first probe or draw. The flag is what callers
+  // test; the values stay unset until that load finishes.
+  let probeToolsReady = false;
+  let panel!: ProbePanel;
+  let sampler!: ProbeSampler;
+  let drawer: RegionDrawer | undefined;
+  let notes!: typeof import("./probe/scienceNotes");
+  let probeToolsPromise: Promise<void> | undefined;
+
+  function ensureProbeTools(): Promise<void> {
+    if (probeToolsReady) return Promise.resolve();
+    probeToolsPromise ??= (async () => {
+      const [panelMod, samplerMod, drawerMod, notesMod] = await Promise.all([
+        import("./ui/ProbePanel"),
+        import("./probe/ProbeSampler"),
+        import("./scene/RegionDrawer"),
+        import("./probe/scienceNotes"),
+      ]);
+      notes = notesMod;
+      const globe = canvas;
+      const probeRoot = probeEl;
+      if (!globe || !probeRoot) return;
+      drawer = new drawerMod.RegionDrawer(globe, camera, earth, {
+        onModeChange: (armed) => {
+          controls.enabled = !armed;
+          regionButton?.setActive(armed);
+          // Naming both gestures: the button that arms this is an ordinary button,
+          // so a keyboard reaches draw mode perfectly well, and used to land on an
+          // instruction it could not carry out.
+          setStatus(armed ? "Drag a box, or press Enter at two corners" : "");
+          // Every gesture this mode accepts happens on the globe, and arming it
+          // leaves focus on the button, so hand focus over, the way opening a
+          // dialog does. Disarming leaves focus alone: Escape should not yank it
+          // away from whatever the user moved on to.
+          if (armed) globe.focus();
+        },
+        onComplete: (bounds) => runRegionProbe(bounds),
+      });
+      regionDrawer = drawer;
+      scene.add(drawer.object);
+      panel = new panelMod.ProbePanel(
+        probeRoot,
+        () => {
+          probeAbort?.abort();
+          probeShare = undefined;
+          chartedPlace = undefined;
+          // The reader closed the chart, so the link should stop reproducing it.
+          // A layer switch closes the panel too, but that path does not come
+          // through here — it reopens the same place on the new layer.
+          clearSharedSearch();
+          drawer?.clear();
+          scheduleHashSync();
+        },
+        // Mode toggle (point ↔ area) re-samples the same location.
+        () => {
+          if (probeTarget) runProbe(probeTarget.lat, probeTarget.lon);
+        },
+        (message) => announcer.announce(message)
+      );
+      sampler = new samplerMod.ProbeSampler(PROBE_IMAGE);
+      probeToolsReady = true;
+    })();
+    return probeToolsPromise;
+  }
+
   if (drawEl) {
-    regionButton = new RegionButton(drawEl, (on) => drawer.setArmed(on));
+    regionButton = new RegionButton(drawEl, (on) => {
+      void ensureProbeTools().then(() => drawer?.setArmed(on));
+    });
   }
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") drawer.setArmed(false);
+    if (e.key === "Escape") drawer?.setArmed(false);
   });
 
-  const panel = new ProbePanel(
-    probeEl,
-    () => {
-      probeAbort?.abort();
-      probeShare = undefined;
-      chartedPlace = undefined;
-      // The reader closed the chart, so the link should stop reproducing it.
-      // A layer switch closes the panel too, but that path does not come
-      // through here — it reopens the same place on the new layer.
-      clearSharedSearch();
-      drawer.clear();
-      scheduleHashSync();
-    },
-    // Mode toggle (point ↔ area) re-samples the same location.
-    () => {
-      if (probeTarget) runProbe(probeTarget.lat, probeTarget.lon);
-    },
-    (message) => announcer.announce(message)
-  );
-  const sampler = new ProbeSampler(PROBE_IMAGE);
   closeProbe = () => {
     probeAbort?.abort();
     probeShare = undefined;
     chartedPlace = undefined;
-    drawer.setArmed(false);
-    drawer.clear();
-    panel.close();
+    drawer?.setArmed(false);
+    drawer?.clear();
+    panel?.close();
   };
 
   /**
@@ -2180,6 +2178,10 @@ if (probeEl) {
   };
 
   const runProbe = (lat: number, lon: number): void => {
+    if (!probeToolsReady || !drawer) {
+      void ensureProbeTools().then(() => runProbe(lat, lon));
+      return;
+    }
     const layer = LAYERS[currentLayer];
     const mode = panel.mode;
     probeTarget = { lat, lon };
@@ -2198,7 +2200,8 @@ if (probeEl) {
     // months it cannot have observed at all. Name them before the chart fills
     // in, so a polar-winter gap — or a filled dark-month value — is not read
     // as a snow measurement. Null, and free, everywhere equatorward of 63.3°.
-    const darkness = layer.id === "snow" ? snowIlluminationNote(lat) : null;
+    const darkness =
+      layer.id === "snow" ? notes.snowIlluminationNote(lat) : null;
     // The panel yields the space on the way IN only — see foldHudForOverlay.
     const probeWasOpen = panel.isOpen;
     panel.open(
@@ -2234,7 +2237,7 @@ if (probeEl) {
     probeAbort?.abort();
     const abort = (probeAbort = new AbortController());
     const probeMonths = monthRangeForLayer(layer);
-    const scale = PROBE_SCALES[layer.id];
+    const scale = notes.PROBE_SCALES[layer.id];
     panel.beginSeries(probeMonths, scale, { layerId: layer.id, latitude: lat });
 
     let lastDraw = 0;
@@ -2266,7 +2269,7 @@ if (probeEl) {
         // has no share to report, so it passes none and stays silent. The
         // charted series comes too: a month the box returned nothing for
         // reports a zero share, and the mean never saw it.
-        const sstSupportNote = averagedSstSupportNote(
+        const sstSupportNote = notes.averagedSstSupportNote(
           layer.id,
           "sampled-area",
           values,
@@ -2287,12 +2290,12 @@ if (probeEl) {
         // clause in any partial case at all. Same composition as the snow and
         // GLDAS pairs below.
         const vegetationSupportNote =
-          vegetationAveragedSupportNote(
+          notes.vegetationAveragedSupportNote(
             layer.id,
             "sampled-area",
             values,
             mode === "area" ? validFractions : null
-          ) ?? vegetationChartedRecordNote(layer.id, values);
+          ) ?? notes.vegetationChartedRecordNote(layer.id, values);
         // And once more for snow, where the undrawn pixels are the percent-0
         // ones GIBS leaves transparent — so an area mean is the mean where
         // snow was drawn, and the undrawn share moves with the melt season
@@ -2307,12 +2310,12 @@ if (probeEl) {
         // defers to it and speaks for the point probe — which passes no shares
         // and so had no snow clause in any partial case at all.
         const snowSupportNote =
-          snowAveragedSupportNote(
+          notes.snowAveragedSupportNote(
             layer.id,
             "sampled-area",
             values,
             mode === "area" ? validFractions : null
-          ) ?? snowChartedRecordNote(layer.id, values);
+          ) ?? notes.snowChartedRecordNote(layer.id, values);
         // And the two water-cycle layers, the last averaged ones charting a
         // bare mean. GLDAS is solved on land cells only, and its ramp discards
         // both the sub-zero fill and the open top bin, so an area mean covers
@@ -2329,12 +2332,12 @@ if (probeEl) {
         // probe, which passes no shares and so had no clause in any partial
         // case at all. Same composition as snow's pair, one line above.
         const gldasSupportNote =
-          gldasAveragedSupportNote(
+          notes.gldasAveragedSupportNote(
             layer.id,
             "sampled-area",
             values,
             mode === "area" ? validFractions : null
-          ) ?? gldasChartedRecordNote(layer.id, values);
+          ) ?? notes.gldasChartedRecordNote(layer.id, values);
         // And air temperature, the last averaged layer charting a bare mean.
         // Nothing is missing by domain here — MERRA-2 spans land and ocean —
         // but its ramp is closed at BOTH ends and both open catch-alls are
@@ -2350,19 +2353,19 @@ if (probeEl) {
         // alone — and because both discarded ends are physically reachable
         // monthly means, unlike GLDAS's nonphysical sub-zero fill, the record
         // is bracketed inward from both sides: the maximum need not be its
-        // warmest month nor the minimum its coldest. `emptyAtmosphereProbeNote`
+        // warmest month nor the minimum its coldest. `notes.emptyAtmosphereProbeNote`
         // owns only the WHOLLY empty record, so the partial one had no clause
         // here at all. The share clause above already names the mechanism for
         // an averaged footprint, so this defers to it and speaks for the point
         // probe, which passes no shares. Same composition as the three pairs
         // above.
         const airtempSupportNote =
-          airTemperatureAveragedSupportNote(
+          notes.airTemperatureAveragedSupportNote(
             layer.id,
             "sampled-area",
             values,
             mode === "area" ? validFractions : null
-          ) ?? airTemperatureChartedRecordNote(layer.id, values);
+          ) ?? notes.airTemperatureChartedRecordNote(layer.id, values);
         // An area value is a mean of per-pixel decodes and a point value a
         // median, so only the area footprint carries censoring the end-cap
         // screen cannot see. Shared by the status line and the export.
@@ -2370,13 +2373,13 @@ if (probeEl) {
         // The physical series the file writes, not the 0..1 gradient positions
         // held here — every screen below judges the record as exported.
         const physical = values.map((v) =>
-          v === null ? null : scaleValue(v, scale)
+          v === null ? null : notes.scaleValue(v, scale)
         );
-        const sstCensoring = probeSstExtremeCensoring(layer.id, physical);
+        const sstCensoring = notes.probeSstExtremeCensoring(layer.id, physical);
         // The aerosol ramp has the same problem at one end: its top bin is open,
         // so a heavy-loading month decodes to a lower bound. The status line has
         // marked those since the end-cap screen shipped; the file did not.
-        const aerosolCensoring = probeAerosolCeilingCensoring(
+        const aerosolCensoring = notes.probeAerosolCeilingCensoring(
           layer.id,
           physical
         );
@@ -2384,10 +2387,10 @@ if (probeEl) {
         // desert-summer month decodes to a one-sided bound in either
         // direction. The status line has marked those since the extreme screen
         // shipped; the file did not.
-        const lstCensoring = probeLstExtremeCensoring(layer.id, physical);
+        const lstCensoring = notes.probeLstExtremeCensoring(layer.id, physical);
         panel.finish(
           () =>
-            buildProbeCsv(
+            notes.buildProbeCsv(
               {
                 layerLabel: layer.label,
                 wmsLayer: layer.wmsLayer,
@@ -2416,8 +2419,8 @@ if (probeEl) {
                 // outside either ±, and it is exactly the coldest rows that reach
                 // the cap.
                 inversionAccuracyHeaders: [
-                  ...inversionAccuracyCsvHeaders(
-                    probeInversionAccuracy(layer.id, scale)
+                  ...notes.inversionAccuracyCsvHeaders(
+                    notes.probeInversionAccuracy(layer.id, scale)
                   ),
                   // That builder is keyed to the calibrated layers, so it
                   // writes nothing for EVI — whose error against GIBS's
@@ -2426,9 +2429,9 @@ if (probeEl) {
                   // already says so; the file outlives the session and needs
                   // it more. Empty for every layer the line above speaks for,
                   // so the two can never both state an accuracy.
-                  ...uncalibratedVegetationAccuracyCsvHeaders(
+                  ...notes.uncalibratedVegetationAccuracyCsvHeaders(
                     layer.id,
-                    probeInversionAccuracy(layer.id, scale).status
+                    notes.probeInversionAccuracy(layer.id, scale).status
                   ),
                   // Neither builder above covers snow: it is ramp-inverted on a
                   // calibrated scale but no colormap document has ever been
@@ -2436,19 +2439,23 @@ if (probeEl) {
                   // declare" beside a file that states an RMSE, so the absence
                   // is written out rather than left to be inferred. Empty for
                   // every layer either line above speaks for.
-                  ...unvalidatedInversionCsvHeaders(
+                  ...notes.unvalidatedInversionCsvHeaders(
                     layer.id,
-                    probeInversionAccuracy(layer.id, scale).status
+                    notes.probeInversionAccuracy(layer.id, scale).status
                   ),
-                  ...sstColdEndAccuracyCsvHeaders(
-                    probeSstColdEndAccuracy(layer.id, physical, sstCensoring)
+                  ...notes.sstColdEndAccuracyCsvHeaders(
+                    notes.probeSstColdEndAccuracy(
+                      layer.id,
+                      physical,
+                      sstCensoring
+                    )
                   ),
                 ],
                 // The status line already qualifies the on-screen month
                 // count; the exported file outlives the session, so it
                 // carries the same correction.
-                recordGapHeaders: probeRecordGapsCsvHeaders(
-                  probeRecordGaps(layer.id, probeMonths)
+                recordGapHeaders: notes.probeRecordGapsCsvHeaders(
+                  notes.probeRecordGaps(layer.id, probeMonths)
                 ),
                 // Same reasoning for *which* moments the values sample and
                 // *what quantity* they are: the probe states the SST and the
@@ -2486,11 +2493,11 @@ if (probeEl) {
                 // nothing. The drawn-region export below passes no latitude and
                 // stays silent: a box spans a range of them and has no one sun.
                 samplingIdentityHeaders: [
-                  ...sstSamplingIdentityCsvHeaders(layer.id),
-                  ...sstObservingConstraintCsvHeaders(layer.id),
-                  ...lstSamplingIdentityCsvHeaders(layer.id),
-                  ...vegetationSamplingIdentityCsvHeaders(layer.id),
-                  ...snowIlluminationCsvHeaders(layer.id, lat),
+                  ...notes.sstSamplingIdentityCsvHeaders(layer.id),
+                  ...notes.sstObservingConstraintCsvHeaders(layer.id),
+                  ...notes.lstSamplingIdentityCsvHeaders(layer.id),
+                  ...notes.vegetationSamplingIdentityCsvHeaders(layer.id),
+                  ...notes.snowIlluminationCsvHeaders(layer.id, lat),
                 ],
                 // And the same for the rows themselves: the status line prints
                 // an inequality in front of every censored statistic, while a
@@ -2501,23 +2508,23 @@ if (probeEl) {
                 // aerosol or lst or none of them, so at most one list is
                 // non-empty.
                 censoringHeaders: [
-                  ...sstExtremeCensoringCsvHeaders(sstCensoring),
-                  ...aerosolCeilingCensoringCsvHeaders(aerosolCensoring),
-                  ...lstExtremeCensoringCsvHeaders(lstCensoring),
+                  ...notes.sstExtremeCensoringCsvHeaders(sstCensoring),
+                  ...notes.aerosolCeilingCensoringCsvHeaders(aerosolCensoring),
+                  ...notes.lstExtremeCensoringCsvHeaders(lstCensoring),
                 ],
                 // And that screen reads the area mean, not the pixels it
                 // averaged, so an unflagged row is not an uncensored one. A
                 // point probe's median needs no such correction.
                 averagedCensoringHeaders: [
-                  ...marineAveragedSstCensoringCsvHeaders(
+                  ...notes.marineAveragedSstCensoringCsvHeaders(
                     averagedFootprint,
                     sstCensoring
                   ),
-                  ...averagedAerosolCensoringCsvHeaders(
+                  ...notes.averagedAerosolCensoringCsvHeaders(
                     averagedFootprint,
                     aerosolCensoring
                   ),
-                  ...averagedLstCensoringCsvHeaders(
+                  ...notes.averagedLstCensoringCsvHeaders(
                     averagedFootprint,
                     lstCensoring
                   ),
@@ -2536,12 +2543,12 @@ if (probeEl) {
                 // this file states no other mean, which makes these two the
                 // only ones in it and leaves nothing else to carry the caveat.
                 // Empty for every uncensored record and every closed ramp.
-                seasonalSamplingHeaders: seasonalSamplingCsvHeaders(
-                  seasonalSamplingBalance(probeMonths, physical),
+                seasonalSamplingHeaders: notes.seasonalSamplingCsvHeaders(
+                  notes.seasonalSamplingBalance(probeMonths, physical),
                   scale,
-                  sstExtremeBoundPrefix(sstCensoring, "mean") ||
-                    aerosolCeilingBoundPrefix(aerosolCensoring, "mean") ||
-                    lstExtremeBoundPrefix(lstCensoring, "mean")
+                  notes.sstExtremeBoundPrefix(sstCensoring, "mean") ||
+                    notes.aerosolCeilingBoundPrefix(aerosolCensoring, "mean") ||
+                    notes.lstExtremeBoundPrefix(lstCensoring, "mean")
                 ),
               },
               probeMonths,
@@ -2572,13 +2579,17 @@ if (probeEl) {
           // covers, and a record whose imagery never arrived is no evidence
           // about the product at all. Silent unless the record is empty AND a
           // month failed on transport, so at most one of the two is rendered.
-          probeRetrievalFailureNote(values, transportFailureMonths) ??
-            emptyAtmosphereProbeNote(layer.id, values) ??
-            emptyLstProbeNote(layer.id, values) ??
-            emptyMarineProbeNote(layer.id, values, sstSupportNote) ??
-            emptySnowProbeNote(layer.id, values, snowSupportNote) ??
-            emptyVegetationProbeNote(layer.id, values, vegetationSupportNote) ??
-            emptySoilProbeNote(layer.id, values),
+          notes.probeRetrievalFailureNote(values, transportFailureMonths) ??
+            notes.emptyAtmosphereProbeNote(layer.id, values) ??
+            notes.emptyLstProbeNote(layer.id, values) ??
+            notes.emptyMarineProbeNote(layer.id, values, sstSupportNote) ??
+            notes.emptySnowProbeNote(layer.id, values, snowSupportNote) ??
+            notes.emptyVegetationProbeNote(
+              layer.id,
+              values,
+              vegetationSupportNote
+            ) ??
+            notes.emptySoilProbeNote(layer.id, values),
           // Each note is gated on its own layer, so at most one is ever a
           // string — the fallback picks the one that spoke.
           sstSupportNote ??
@@ -2611,6 +2622,10 @@ if (probeEl) {
     bounds: Bounds,
     place?: GeoResult & { geometry: GeoGeometry }
   ): void => {
+    if (!probeToolsReady || !drawer) {
+      void ensureProbeTools().then(() => runRegionProbe(bounds, place));
+      return;
+    }
     const layer = LAYERS[currentLayer];
     probeTarget = undefined; // the mode toggle is hidden for region charts
     chartedPlace = undefined; // a click replaces a place chart
@@ -2628,10 +2643,13 @@ if (probeEl) {
       plainLayerName(layer.id),
       place
         ? `${place.name} · mean inside the searched boundary`
-        : // normalizeLon: a box drawn across the antimeridian carries
+        : // notes.normalizeLon: a box drawn across the antimeridian carries
           // continuous longitudes (east > 180); display them as real ones.
-          `Drawn region · mean over ${formatLatLng({ lat: bounds.south, lon: normalizeLon(bounds.west) })} → ` +
-            formatLatLng({ lat: bounds.north, lon: normalizeLon(bounds.east) })
+          `Drawn region · mean over ${formatLatLng({ lat: bounds.south, lon: notes.normalizeLon(bounds.west) })} → ` +
+            formatLatLng({
+              lat: bounds.north,
+              lon: notes.normalizeLon(bounds.east),
+            })
     );
     if (!regionProbeWasOpen) foldHudForOverlay?.();
     panel.setModeToggleVisible(false);
@@ -2664,7 +2682,7 @@ if (probeEl) {
     probeAbort?.abort();
     const abort = (probeAbort = new AbortController());
     const probeMonths = monthRangeForLayer(layer);
-    const scale = PROBE_SCALES[layer.id];
+    const scale = notes.PROBE_SCALES[layer.id];
     panel.beginSeries(probeMonths, scale, { layerId: layer.id });
 
     let lastDraw = 0;
@@ -2715,7 +2733,7 @@ if (probeEl) {
         // those pixels are rejected rather than averaged in — so a coastal
         // box charts the water it found, not the box. The CSV already
         // carries this share per month; state it on the panel too.
-        const sstSupportNote = averagedSstSupportNote(
+        const sstSupportNote = notes.averagedSstSupportNote(
           layer.id,
           footprint,
           values,
@@ -2729,7 +2747,7 @@ if (probeEl) {
         // The place panel states this for a searched boundary; the series
         // surface did not. Silent unless the geometry actually qualifies the
         // mean, and only where there is a charted mean to qualify.
-        const sstNativeNote = sstNativeSupportNote(
+        const sstNativeNote = notes.sstNativeSupportNote(
           layer.id,
           footprint,
           bounds,
@@ -2747,12 +2765,12 @@ if (probeEl) {
         // fully still reports nothing about the months that dropped out
         // entirely. This covers exactly that case and defers otherwise.
         const vegetationSupportNote =
-          vegetationAveragedSupportNote(
+          notes.vegetationAveragedSupportNote(
             layer.id,
             footprint,
             values,
             validFractions
-          ) ?? vegetationChartedRecordNote(layer.id, values);
+          ) ?? notes.vegetationChartedRecordNote(layer.id, values);
         // And the same for snow: GIBS leaves percent 0 transparent, so a box's
         // snow-free ground is rejected rather than averaged in as 0% — the
         // charted mean covers the drawn patches only, and the share it covers
@@ -2761,12 +2779,12 @@ if (probeEl) {
         // loses whole months to the same transparent band, and the share clause
         // above speaks first whenever it has something to say.
         const snowSupportNote =
-          snowAveragedSupportNote(
+          notes.snowAveragedSupportNote(
             layer.id,
             footprint,
             values,
             validFractions
-          ) ?? snowChartedRecordNote(layer.id, values);
+          ) ?? notes.snowChartedRecordNote(layer.id, values);
         // And the same for the two water-cycle layers — see the point/area
         // path. A drawn box gets the clause for the same reason a sampled one
         // does: GLDAS carries no value off land, and its ramp's discarded caps
@@ -2777,12 +2795,12 @@ if (probeEl) {
         // charted months alone and a month at or above the open top bin is
         // among the discarded. Defers to the share clause when that spoke.
         const gldasSupportNote =
-          gldasAveragedSupportNote(
+          notes.gldasAveragedSupportNote(
             layer.id,
             footprint,
             values,
             validFractions
-          ) ?? gldasChartedRecordNote(layer.id, values);
+          ) ?? notes.gldasChartedRecordNote(layer.id, values);
         // And air temperature — see the point/area path. A drawn box gets the
         // clause for the same reason a sampled one does: the rendered ramp is
         // closed at both ends, so the share the mean covers is not a share of
@@ -2791,20 +2809,20 @@ if (probeEl) {
         // caps drop whole months out of the charted series, and a drawn region
         // whose share clause is silent still charts a partial record.
         const airtempSupportNote =
-          airTemperatureAveragedSupportNote(
+          notes.airTemperatureAveragedSupportNote(
             layer.id,
             footprint,
             values,
             validFractions
-          ) ?? airTemperatureChartedRecordNote(layer.id, values);
+          ) ?? notes.airTemperatureChartedRecordNote(layer.id, values);
         // The physical series the file writes, not the 0..1 gradient positions
         // held here. Shared by the status line and the export.
         const physical = values.map((v) =>
-          v === null ? null : scaleValue(v, scale)
+          v === null ? null : notes.scaleValue(v, scale)
         );
-        const sstCensoring = probeSstExtremeCensoring(layer.id, physical);
+        const sstCensoring = notes.probeSstExtremeCensoring(layer.id, physical);
         // Same for the aerosol ramp's open top bin — see the point/area path.
-        const aerosolCensoring = probeAerosolCeilingCensoring(
+        const aerosolCensoring = notes.probeAerosolCeilingCensoring(
           layer.id,
           physical
         );
@@ -2812,10 +2830,10 @@ if (probeEl) {
         // desert-summer month decodes to a one-sided bound in either
         // direction. The status line has marked those since the extreme screen
         // shipped; the file did not.
-        const lstCensoring = probeLstExtremeCensoring(layer.id, physical);
+        const lstCensoring = notes.probeLstExtremeCensoring(layer.id, physical);
         panel.finish(
           () =>
-            buildProbeCsv(
+            notes.buildProbeCsv(
               {
                 layerLabel: layer.label,
                 wmsLayer: layer.wmsLayer,
@@ -2852,8 +2870,8 @@ if (probeEl) {
                 // outside either ±, and it is exactly the coldest rows that reach
                 // the cap.
                 inversionAccuracyHeaders: [
-                  ...inversionAccuracyCsvHeaders(
-                    probeInversionAccuracy(layer.id, scale)
+                  ...notes.inversionAccuracyCsvHeaders(
+                    notes.probeInversionAccuracy(layer.id, scale)
                   ),
                   // That builder is keyed to the calibrated layers, so it
                   // writes nothing for EVI — whose error against GIBS's
@@ -2862,9 +2880,9 @@ if (probeEl) {
                   // already says so; the file outlives the session and needs
                   // it more. Empty for every layer the line above speaks for,
                   // so the two can never both state an accuracy.
-                  ...uncalibratedVegetationAccuracyCsvHeaders(
+                  ...notes.uncalibratedVegetationAccuracyCsvHeaders(
                     layer.id,
-                    probeInversionAccuracy(layer.id, scale).status
+                    notes.probeInversionAccuracy(layer.id, scale).status
                   ),
                   // Neither builder above covers snow: it is ramp-inverted on a
                   // calibrated scale but no colormap document has ever been
@@ -2872,19 +2890,23 @@ if (probeEl) {
                   // declare" beside a file that states an RMSE, so the absence
                   // is written out rather than left to be inferred. Empty for
                   // every layer either line above speaks for.
-                  ...unvalidatedInversionCsvHeaders(
+                  ...notes.unvalidatedInversionCsvHeaders(
                     layer.id,
-                    probeInversionAccuracy(layer.id, scale).status
+                    notes.probeInversionAccuracy(layer.id, scale).status
                   ),
-                  ...sstColdEndAccuracyCsvHeaders(
-                    probeSstColdEndAccuracy(layer.id, physical, sstCensoring)
+                  ...notes.sstColdEndAccuracyCsvHeaders(
+                    notes.probeSstColdEndAccuracy(
+                      layer.id,
+                      physical,
+                      sstCensoring
+                    )
                   ),
                 ],
                 // The status line already qualifies the on-screen month
                 // count; the exported file outlives the session, so it
                 // carries the same correction.
-                recordGapHeaders: probeRecordGapsCsvHeaders(
-                  probeRecordGaps(layer.id, probeMonths)
+                recordGapHeaders: notes.probeRecordGapsCsvHeaders(
+                  notes.probeRecordGaps(layer.id, probeMonths)
                 ),
                 // Same reasoning for *which* moments the values sample and
                 // *what quantity* they are: the probe states the SST and the
@@ -2909,10 +2931,10 @@ if (probeEl) {
                 // or lst or a vegetation index or none of them, so only one
                 // product's lists contribute.
                 samplingIdentityHeaders: [
-                  ...sstSamplingIdentityCsvHeaders(layer.id),
-                  ...sstObservingConstraintCsvHeaders(layer.id),
-                  ...lstSamplingIdentityCsvHeaders(layer.id),
-                  ...vegetationSamplingIdentityCsvHeaders(layer.id),
+                  ...notes.sstSamplingIdentityCsvHeaders(layer.id),
+                  ...notes.sstObservingConstraintCsvHeaders(layer.id),
+                  ...notes.lstSamplingIdentityCsvHeaders(layer.id),
+                  ...notes.vegetationSamplingIdentityCsvHeaders(layer.id),
                 ],
                 // And the same for the rows themselves: the status line prints
                 // an inequality in front of every censored statistic, while a
@@ -2923,22 +2945,25 @@ if (probeEl) {
                 // aerosol or lst or none of them, so at most one list is
                 // non-empty.
                 censoringHeaders: [
-                  ...sstExtremeCensoringCsvHeaders(sstCensoring),
-                  ...aerosolCeilingCensoringCsvHeaders(aerosolCensoring),
-                  ...lstExtremeCensoringCsvHeaders(lstCensoring),
+                  ...notes.sstExtremeCensoringCsvHeaders(sstCensoring),
+                  ...notes.aerosolCeilingCensoringCsvHeaders(aerosolCensoring),
+                  ...notes.lstExtremeCensoringCsvHeaders(lstCensoring),
                 ],
                 // And that screen reads the region mean, not the pixels it
                 // averaged, so an unflagged row is not an uncensored one.
                 averagedCensoringHeaders: [
-                  ...marineAveragedSstCensoringCsvHeaders(
+                  ...notes.marineAveragedSstCensoringCsvHeaders(
                     footprint,
                     sstCensoring
                   ),
-                  ...averagedAerosolCensoringCsvHeaders(
+                  ...notes.averagedAerosolCensoringCsvHeaders(
                     footprint,
                     aerosolCensoring
                   ),
-                  ...averagedLstCensoringCsvHeaders(footprint, lstCensoring),
+                  ...notes.averagedLstCensoringCsvHeaders(
+                    footprint,
+                    lstCensoring
+                  ),
                 ],
                 // A drawn box spans latitudes and can straddle hemispheres, so
                 // the balance is measured on the region's own charted series
@@ -2951,12 +2976,12 @@ if (probeEl) {
                 // true of a re-weighting of those means as of their average.
                 // The averaged-censoring lines above already say that silence
                 // here is not evidence the region held no capped pixel.
-                seasonalSamplingHeaders: seasonalSamplingCsvHeaders(
-                  seasonalSamplingBalance(probeMonths, physical),
+                seasonalSamplingHeaders: notes.seasonalSamplingCsvHeaders(
+                  notes.seasonalSamplingBalance(probeMonths, physical),
                   scale,
-                  sstExtremeBoundPrefix(sstCensoring, "mean") ||
-                    aerosolCeilingBoundPrefix(aerosolCensoring, "mean") ||
-                    lstExtremeBoundPrefix(lstCensoring, "mean")
+                  notes.sstExtremeBoundPrefix(sstCensoring, "mean") ||
+                    notes.aerosolCeilingBoundPrefix(aerosolCensoring, "mean") ||
+                    notes.lstExtremeBoundPrefix(lstCensoring, "mean")
                 ),
               },
               probeMonths,
@@ -2966,7 +2991,7 @@ if (probeEl) {
             ),
           place
             ? `roamingeye_place_${layer.id}_${place.lat.toFixed(3)}_${place.lon.toFixed(3)}.csv`
-            : `roamingeye_region_${layer.id}_${bounds.south.toFixed(2)}_${normalizeLon(bounds.west).toFixed(2)}_${bounds.north.toFixed(2)}_${normalizeLon(bounds.east).toFixed(2)}.csv`,
+            : `roamingeye_region_${layer.id}_${bounds.south.toFixed(2)}_${notes.normalizeLon(bounds.west).toFixed(2)}_${bounds.north.toFixed(2)}_${notes.normalizeLon(bounds.east).toFixed(2)}.csv`,
           // A drawn region that returned nothing is normally explained by the
           // support clause; the marine, snow and vegetation notes only speak
           // when it did not — a region always supplies shares, so those three
@@ -2985,13 +3010,17 @@ if (probeEl) {
           // covers, and a record whose imagery never arrived is no evidence
           // about the product at all. Silent unless the record is empty AND a
           // month failed on transport, so at most one of the two is rendered.
-          probeRetrievalFailureNote(values, transportFailureMonths) ??
-            emptyAtmosphereProbeNote(layer.id, values) ??
-            emptyLstProbeNote(layer.id, values) ??
-            emptyMarineProbeNote(layer.id, values, sstSupportNote) ??
-            emptySnowProbeNote(layer.id, values, snowSupportNote) ??
-            emptyVegetationProbeNote(layer.id, values, vegetationSupportNote) ??
-            emptySoilProbeNote(layer.id, values),
+          notes.probeRetrievalFailureNote(values, transportFailureMonths) ??
+            notes.emptyAtmosphereProbeNote(layer.id, values) ??
+            notes.emptyLstProbeNote(layer.id, values) ??
+            notes.emptyMarineProbeNote(layer.id, values, sstSupportNote) ??
+            notes.emptySnowProbeNote(layer.id, values, snowSupportNote) ??
+            notes.emptyVegetationProbeNote(
+              layer.id,
+              values,
+              vegetationSupportNote
+            ) ??
+            notes.emptySoilProbeNote(layer.id, values),
           // Each note is gated on its own layer, so at most one layer's notes
           // are ever strings — the fallback picks the one that spoke. SST is
           // the one layer with two clauses on this axis: the share it covered
@@ -3104,18 +3133,20 @@ if (probeEl) {
         setTimeout(restoreWhenReady, 300);
         return;
       }
-      if (target.kind === "region") {
-        // Redraw the box first: nothing dragged it, and the chart's caption
-        // names those corners as what it averaged over.
-        drawer.show(target.bounds);
-        runRegionProbe(target.bounds);
-        return;
-      }
-      // Before the sampling, not after: runProbe reads the panel's mode to
-      // choose the statistic, so adopting it afterwards would chart a point
-      // median under an area caption.
-      panel.restoreMode(target.mode);
-      runProbe(target.lat, target.lon);
+      void ensureProbeTools().then(() => {
+        if (target.kind === "region") {
+          // Redraw the box first: nothing dragged it, and the chart's caption
+          // names those corners as what it averaged over.
+          drawer?.show(target.bounds);
+          runRegionProbe(target.bounds);
+          return;
+        }
+        // Before the sampling, not after: runProbe reads the panel's mode to
+        // choose the statistic, so adopting it afterwards would chart a point
+        // median under an area caption.
+        panel?.restoreMode(target.mode);
+        runProbe(target.lat, target.lon);
+      });
     };
     restoreWhenReady();
   }
@@ -3128,7 +3159,7 @@ if (probeEl) {
   canvas.addEventListener("pointerdown", (e) => {
     probeDownX = e.clientX;
     probeDownY = e.clientY;
-    probeSuppressed = drawer.active; // that gesture belongs to the drawer
+    probeSuppressed = drawer?.active ?? false; // that gesture belongs to the drawer
   });
   canvas.addEventListener("pointerup", (e) => {
     if (probeSuppressed) return;
@@ -3173,7 +3204,7 @@ if (probeEl) {
     const { lat, lon } = vector3ToLatLng(camera.position);
     // In draw mode the same key takes a corner instead of a point: two
     // presses, with the arrows between them, are a drag a keyboard can make.
-    if (drawer.active) {
+    if (drawer?.active) {
       e.preventDefault();
       const outcome = drawer.markCorner({ lat, lon });
       if (outcome === "anchored") {
@@ -3421,15 +3452,30 @@ if (fleetPageEl && fleetLinkEl) {
 // --- The actions pill's More menu --------------------------------------------
 const moreButtonEl = document.querySelector<HTMLElement>("#more-button");
 const moreMenuEl = document.querySelector<HTMLElement>("#more-menu");
-if (moreButtonEl && moreMenuEl) new ActionMenu(moreButtonEl, moreMenuEl);
+if (moreButtonEl && moreMenuEl) {
+  new ActionMenu(moreButtonEl, moreMenuEl);
+  // The theme row is built by a chunk that is not on the first-frame path.
+  const mountMoreTools = (): void => {
+    mountThemeToggle();
+    mountExport();
+  };
+  moreButtonEl.addEventListener("pointerdown", mountMoreTools);
+  moreButtonEl.addEventListener("focus", mountMoreTools);
+}
 
 // --- Keyboard shortcuts overlay -----------------------------------------------
 const shortcutsPageEl = document.querySelector<HTMLElement>("#shortcuts-page");
 if (shortcutsPageEl) {
-  const shortcuts = new ShortcutsOverlay(shortcutsPageEl);
+  let shortcutsPromise: Promise<ShortcutsOverlay> | undefined;
+  const shortcuts = (): Promise<ShortcutsOverlay> =>
+    (shortcutsPromise ??= import("./ui/ShortcutsOverlay").then(
+      ({ ShortcutsOverlay: Overlay }) => new Overlay(shortcutsPageEl)
+    ));
   document
     .querySelector<HTMLElement>("#shortcuts-link")
-    ?.addEventListener("click", () => shortcuts.open());
+    ?.addEventListener("click", () => {
+      void shortcuts().then((overlay) => overlay.open());
+    });
   document.addEventListener("keydown", (e) => {
     if (e.key !== "?") return;
     const target = e.target as HTMLElement | null;
@@ -3443,7 +3489,7 @@ if (shortcutsPageEl) {
       return;
     }
     e.preventDefault();
-    shortcuts.toggle();
+    void shortcuts().then((overlay) => overlay.toggle());
   });
 }
 

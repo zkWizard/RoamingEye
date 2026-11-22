@@ -29,8 +29,6 @@ import {
   type Earthquake,
   type EarthquakeFeedSnapshot,
 } from "../lib/earthquakes";
-import { reportedDepthBasisNote } from "../lib/seismicFixedDepth";
-import { networkGeometryNote } from "../lib/seismicNetworkGeometry";
 
 /**
  * Live seismicity: the last 30 days of M4.5+ earthquakes from the USGS feed.
@@ -92,6 +90,11 @@ export class EarthquakesOverlay implements MapOverlay {
   }
 
   private async load(): Promise<void> {
+    const [{ reportedDepthBasisNote }, { networkGeometryNote }] =
+      await Promise.all([
+        import("../lib/seismicFixedDepth"),
+        import("../lib/seismicNetworkGeometry"),
+      ]);
     this.feedSnapshot = parseEarthquakeFeedSnapshot(
       await fetchJson<unknown>(this.url)
     );

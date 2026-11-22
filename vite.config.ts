@@ -48,6 +48,14 @@ export default defineConfig({
     port: 5173,
   },
   build: {
+    // The science chunk is for probe, compare, and legend notes. It must not
+    // be fetched with the first frame. Dynamic import still lists it as a
+    // dependency Vite would otherwise preload.
+    modulePreload: {
+      resolveDependencies(_filename, deps) {
+        return deps.filter((dep) => !dep.includes("science-"));
+      },
+    },
     // three.js alone minifies past vite's 500 kB default; 600 keeps the
     // warning meaningful (it fires again if the vendor chunk keeps growing).
     chunkSizeWarningLimit: 600,
@@ -98,7 +106,7 @@ export default defineConfig({
             // load at boot. Naming them keeps the split deliberate.
             {
               name: "science",
-              test: /src[\\/](probe[\\/]ProbeSampler|lib[\\/](aerosolLoading|averagedRampCensoring|briefValueUncertainty|coverageAdequacy|geojson|gldasRampSaturation|lstRampCensoring|marineAveragedSstCensoring|marineCoverage|net|plateBoundaryHover|plates|probeRetrievalFailure|seawaterFreezingPoint|seismicFixedDepth|seismicNetworkGeometry|snowCover|snowCoverIllumination|spatialSupport|sstNativeSupport|sstObservingConstraints|sstRampCensoring|validation|vegetationObservingConstraints|volcanoContext))\.ts$/,
+              test: /src[\\/](probe[\\/](ProbeSampler|scienceNotes)|lib[\\/](aerosolLoading|averagedRampCensoring|briefValueUncertainty|coverageAdequacy|gldasRampSaturation|lstRampCensoring|marineAveragedSstCensoring|marineCoverage|plateBoundaryHover|plates|probeRetrievalFailure|seawaterFreezingPoint|seismicFixedDepth|seismicNetworkGeometry|snowCover|snowCoverIllumination|spatialSupport|sstNativeSupport|sstObservingConstraints|sstRampCensoring|validation|vegetationObservingConstraints|volcanoContext))\.ts$/,
             },
           ],
         },
