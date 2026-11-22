@@ -1,4 +1,11 @@
-import * as THREE from "three";
+import {
+  Camera,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  SphereGeometry,
+  Vector3,
+} from "three";
 import { latLngToVector3 } from "../lib/geo";
 import { GLOBE_RADIUS } from "../overlays/types";
 
@@ -10,9 +17,9 @@ export interface PinPlace {
 
 interface PinLabel {
   el: HTMLElement;
-  position: THREE.Vector3;
-  normal: THREE.Vector3;
-  marker: THREE.Mesh;
+  position: Vector3;
+  normal: Vector3;
+  marker: Mesh;
 }
 
 const COLORS = [0x4ea1ff, 0xffb020] as const;
@@ -24,12 +31,12 @@ const FRONT_FACING_DOT = 0.18;
  * reading; these marks only show where the numbers sit on the globe.
  */
 export class ComparePins {
-  readonly object = new THREE.Group();
+  readonly object = new Group();
   private readonly layer: HTMLDivElement;
   private readonly labels: PinLabel[] = [];
-  private readonly geometry = new THREE.SphereGeometry(1, 18, 18);
-  private readonly projected = new THREE.Vector3();
-  private readonly cameraDir = new THREE.Vector3();
+  private readonly geometry = new SphereGeometry(1, 18, 18);
+  private readonly projected = new Vector3();
+  private readonly cameraDir = new Vector3();
 
   constructor(parent: HTMLElement) {
     this.layer = document.createElement("div");
@@ -43,9 +50,9 @@ export class ComparePins {
     this.hide();
     this.layer.hidden = false;
     [placeA, placeB].forEach((place, index) => {
-      const marker = new THREE.Mesh(
+      const marker = new Mesh(
         this.geometry,
-        new THREE.MeshBasicMaterial({
+        new MeshBasicMaterial({
           color: COLORS[index],
           depthTest: false,
           depthWrite: false,
@@ -84,7 +91,7 @@ export class ComparePins {
 
   /** Project labels and keep the pins a steady size. `camera` is the globe camera. */
   update(camera: object): void {
-    if (!(camera instanceof THREE.Camera) || this.labels.length === 0) return;
+    if (!(camera instanceof Camera) || this.labels.length === 0) return;
     const distance = camera.position.length();
     const above = Math.max(0, distance - GLOBE_RADIUS);
     const scale = Math.max(0.008, above * 0.016);

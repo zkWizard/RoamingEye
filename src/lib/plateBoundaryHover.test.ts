@@ -1,4 +1,10 @@
-import * as THREE from "three";
+import {
+  BufferGeometry,
+  Float32BufferAttribute,
+  LineBasicMaterial,
+  LineSegments,
+  Raycaster,
+} from "three";
 import { describe, expect, it } from "vitest";
 import { latLngToVector3 } from "./geo";
 import {
@@ -170,17 +176,11 @@ describe("hover integration with the rendered LineSegments", () => {
       boundaries,
       radius
     );
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(positions, 3)
-    );
-    const lines = new THREE.LineSegments(
-      geometry,
-      new THREE.LineBasicMaterial()
-    );
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
+    const lines = new LineSegments(geometry, new LineBasicMaterial());
 
-    const raycaster = new THREE.Raycaster();
+    const raycaster = new Raycaster();
     raycaster.params.Line.threshold = 0.006;
 
     const expectations: Array<[number, number, string]> = [

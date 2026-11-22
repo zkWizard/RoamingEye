@@ -1,4 +1,13 @@
-import * as THREE from "three";
+import {
+  BufferGeometry,
+  CanvasTexture,
+  Float32BufferAttribute,
+  Group,
+  Points,
+  PointsMaterial,
+  SRGBColorSpace,
+  Texture,
+} from "three";
 import { latLngToVector3 } from "../lib/geo";
 import { ICONS } from "../ui/icons";
 import { GLOBE_RADIUS, type HoverPointSource, type MapOverlay } from "./types";
@@ -53,7 +62,7 @@ export class UserLocationOverlay implements MapOverlay {
   readonly id = "you-are-here";
   readonly label = "My location";
   readonly icon = ICONS.pin;
-  readonly object = new THREE.Group();
+  readonly object = new Group();
   readonly ephemeral = true;
   // `onError` below already words the failure — a permission denial, a browser
   // without geolocation — better than a generic "couldn't load" ever could.
@@ -109,12 +118,12 @@ export class UserLocationOverlay implements MapOverlay {
   private placePin(lat: number, lon: number): void {
     this.object.clear();
     const p = latLngToVector3(lat, lon, this.radius);
-    const geometry = new THREE.BufferGeometry();
+    const geometry = new BufferGeometry();
     geometry.setAttribute(
       "position",
-      new THREE.Float32BufferAttribute([p.x, p.y, p.z], 3)
+      new Float32BufferAttribute([p.x, p.y, p.z], 3)
     );
-    const material = new THREE.PointsMaterial({
+    const material = new PointsMaterial({
       size: 0.05,
       color: PIN_COLOR,
       transparent: true,
@@ -124,7 +133,7 @@ export class UserLocationOverlay implements MapOverlay {
     const texture = makePinTexture();
     if (texture) material.map = texture;
 
-    const points = new THREE.Points(geometry, material);
+    const points = new Points(geometry, material);
     this.object.add(points);
     this.hoverSource = { points, describe: () => "You are here!" };
   }
@@ -135,7 +144,7 @@ export class UserLocationOverlay implements MapOverlay {
  * red). Null when there's no DOM (unit tests run headless) — the pin still
  * renders as a plain coloured point there.
  */
-function makePinTexture(): THREE.Texture | null {
+function makePinTexture(): Texture | null {
   if (typeof document === "undefined") return null;
   const size = 64;
   const canvas = document.createElement("canvas");
@@ -160,7 +169,7 @@ function makePinTexture(): THREE.Texture | null {
   ctx.fillStyle = "rgba(0,0,0,0.35)";
   ctx.fill();
 
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
   return texture;
 }

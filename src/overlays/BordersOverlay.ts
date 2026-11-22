@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import { Group, Object3D, PerspectiveCamera } from "three";
 import { parseBorderLines } from "../lib/borderLines";
 import { geometryToRings, type GeoGeometry } from "../lib/geojson";
 import { fetchJson } from "../lib/net";
@@ -35,15 +35,15 @@ export class BordersOverlay implements MapOverlay {
   readonly label = "Borders";
   readonly detail = "Countries, states, US counties up close";
   readonly icon = ICONS.borders;
-  readonly object = new THREE.Group();
+  readonly object = new Group();
 
-  private states: THREE.Object3D | null = null;
-  private detailMesh: THREE.Object3D | null = null;
+  private states: Object3D | null = null;
+  private detailMesh: Object3D | null = null;
   private statesStarted = false;
   private detailStarted = false;
   private halo: typeof import("./haloLines") | undefined;
   /** County sync, loaded only after the camera has moved in close. */
-  private us?: (camera: THREE.PerspectiveCamera) => void;
+  private us?: (camera: PerspectiveCamera) => void;
 
   constructor(
     private readonly countriesUrl = `${import.meta.env.BASE_URL}data/countries.geojson`,
@@ -59,7 +59,7 @@ export class BordersOverlay implements MapOverlay {
     return this.loadOnce();
   }
 
-  update(camera: THREE.PerspectiveCamera): void {
+  update(camera: PerspectiveCamera): void {
     this.halo?.setHaloResolution(
       this.object,
       window.innerWidth,
@@ -81,7 +81,7 @@ export class BordersOverlay implements MapOverlay {
     }
   }
 
-  private loadUs(camera: THREE.PerspectiveCamera): void {
+  private loadUs(camera: PerspectiveCamera): void {
     this.us = () => undefined;
     void import("./usCounties")
       .then((mod) => {
@@ -124,7 +124,7 @@ export class BordersOverlay implements MapOverlay {
     url: string,
     radius: number,
     widthPx: number
-  ): Promise<THREE.Object3D | null> {
+  ): Promise<Object3D | null> {
     const lines = parseBorderLines(await fetchJson<unknown>(url));
     return this.addLines(lines, radius, widthPx);
   }
@@ -133,7 +133,7 @@ export class BordersOverlay implements MapOverlay {
     lines: ReadonlyArray<ReadonlyArray<readonly [number, number]>>,
     radius: number,
     widthPx: number
-  ): Promise<THREE.Object3D | null> {
+  ): Promise<Object3D | null> {
     this.halo ??= await import("./haloLines");
     const mesh = this.halo.haloLineMesh(lines, radius, {
       ...BORDER_STYLE,

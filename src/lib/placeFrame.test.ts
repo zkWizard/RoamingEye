@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import * as THREE from "three";
+import { PerspectiveCamera } from "three";
 import { latLngToVector3 } from "./geo";
 import { framePair, type FrameOcclusion } from "./placeFrame";
 
@@ -25,7 +25,7 @@ function project(
   fov: number,
   aspect: number
 ): { x: number; y: number } {
-  const camera = new THREE.PerspectiveCamera(fov, aspect, 0.01, 100);
+  const camera = new PerspectiveCamera(fov, aspect, 0.01, 100);
   camera.position.copy(latLngToVector3(pose.lat, pose.lon, pose.distance));
   camera.up.set(0, 1, 0);
   camera.lookAt(0, 0, 0);

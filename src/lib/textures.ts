@@ -1,10 +1,10 @@
-import * as THREE from "three";
+import { Texture } from "three";
 import { fetchBlob } from "./net";
 
 /**
  * Cancellable texture loading for imagery.
  *
- * THREE.TextureLoader rides an <img> element, which cannot be aborted: a
+ * TextureLoader rides an <img> element, which cannot be aborted: a
  * user scrubbing across months kept paying for every superseded download —
  * the seq/generation guards prevented stale textures from ever being
  * APPLIED, but the bytes still crossed the wire, against NASA GIBS (a
@@ -57,13 +57,13 @@ export async function loadAbortableBitmap(
   return bitmap;
 }
 
-/** Fetch a URL into a THREE.Texture, abortable via `signal` (see above). */
+/** Fetch a URL into a Texture, abortable via `signal` (see above). */
 export async function loadAbortableTexture(
   url: string,
   options: LoadTextureOptions = {}
-): Promise<THREE.Texture> {
+): Promise<Texture> {
   const bitmap = await loadAbortableBitmap(url, options, true);
-  const texture = new THREE.Texture(bitmap);
+  const texture = new Texture(bitmap);
   texture.flipY = false;
   texture.needsUpdate = true;
   return texture;

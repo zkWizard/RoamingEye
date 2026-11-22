@@ -1,4 +1,14 @@
-import * as THREE from "three";
+import {
+  BufferGeometry,
+  DoubleSide,
+  Float32BufferAttribute,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  PerspectiveCamera,
+  SRGBColorSpace,
+  Texture,
+} from "three";
 import { latLngToVector3, vector3ToLatLng } from "../lib/geo";
 import { loadAbortableTexture } from "../lib/textures";
 import {
@@ -59,7 +69,7 @@ const PREFETCH_TILES = 12;
 
 /** A tile currently draped on the globe. */
 interface ShownTile {
-  mesh: THREE.Mesh;
+  mesh: Mesh;
   /** Cache key of the texture the mesh displays (an ancestor's, if provisional). */
   textureKey: string;
   /** True while showing an ancestor stand-in instead of the tile's own texture. */
@@ -78,11 +88,11 @@ export class TiledImageryOverlay implements MapOverlay {
   readonly detail = "Lets the satellite photo show through up close";
   readonly group = "settings" as const;
   readonly icon = ICONS.hd;
-  readonly object = new THREE.Group();
+  readonly object = new Group();
   /** Streaming is the default rendering path (RFC-001 milestone 6). */
   readonly defaultOn = true;
 
-  private readonly textures = new Map<string, THREE.Texture>(); // LRU
+  private readonly textures = new Map<string, Texture>(); // LRU
   private readonly shown = new Map<string, ShownTile>(); // by address key
   private readonly loading = new Set<string>();
   private readonly retries = new TileRetryLedger();
@@ -137,7 +147,7 @@ export class TiledImageryOverlay implements MapOverlay {
    * Per-frame hook (cheap, self-throttled): recompute the wanted tile set
    * when the camera has meaningfully moved, then create/remove tile meshes.
    */
-  update(camera: THREE.PerspectiveCamera, viewportHeightPx: number): void {
+  update(camera: PerspectiveCamera, viewportHeightPx: number): void {
     if (!this.object.visible || !this.layer?.wmts) return;
     const now = performance.now();
     if (now - this.lastUpdate < 250) return;
@@ -218,7 +228,7 @@ export class TiledImageryOverlay implements MapOverlay {
     if (!entry) return;
     this.object.remove(entry.mesh);
     entry.mesh.geometry.dispose();
-    (entry.mesh.material as THREE.MeshBasicMaterial).dispose();
+    (entry.mesh.material as MeshBasicMaterial).dispose();
     // Textures belong to the LRU cache, not the mesh — not disposed here.
     this.shown.delete(addrKey);
   }
@@ -348,7 +358,7 @@ export class TiledImageryOverlay implements MapOverlay {
             texture.dispose(); // superseded by a layer/month change
           } else {
             this.retries.recordSuccess(job.key);
-            texture.colorSpace = THREE.SRGBColorSpace;
+            texture.colorSpace = SRGBColorSpace;
             texture.anisotropy = this.maxAnisotropy;
             this.touch(job.key, texture);
             // Only drape it if the view still wants it — the camera may have
@@ -410,7 +420,7 @@ export class TiledImageryOverlay implements MapOverlay {
   private show(
     tile: TileAddress,
     textureKey: string,
-    texture: THREE.Texture,
+    texture: Texture,
     uvRect: UvRect | null,
     provisional = false
   ): void {
@@ -452,19 +462,16 @@ export class TiledImageryOverlay implements MapOverlay {
       }
     }
 
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(positions, 3)
-    );
-    geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
+    geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
     geometry.setIndex(indices);
 
-    const mesh = new THREE.Mesh(
+    const mesh = new Mesh(
       geometry,
-      new THREE.MeshBasicMaterial({
+      new MeshBasicMaterial({
         map: texture,
-        side: THREE.DoubleSide, // robust against patch winding orientation
+        side: DoubleSide, // robust against patch winding orientation
         transparent: true, // PNG no-data shows the satellite globe below
       })
     );
@@ -476,7 +483,7 @@ export class TiledImageryOverlay implements MapOverlay {
     return `${this.layer?.id}:${time}:${tile.level}:${tile.row}:${tile.col}`;
   }
 
-  private touch(key: string, texture: THREE.Texture): void {
+  private touch(key: string, texture: Texture): void {
     this.textures.delete(key);
     this.textures.set(key, texture);
   }

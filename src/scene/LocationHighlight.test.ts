@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import { Group, LineSegments, Mesh, Points } from "three";
 import { describe, expect, it } from "vitest";
 import { LocationHighlight } from "./LocationHighlight";
 
@@ -21,10 +21,10 @@ describe("LocationHighlight", () => {
       },
     });
 
-    const target = highlight.object.children[0] as THREE.Group;
+    const target = highlight.object.children[0] as Group;
     expect(target.children).toHaveLength(2);
-    expect(target.children[0]).toBeInstanceOf(THREE.LineSegments);
-    expect(target.children[1]).toBeInstanceOf(THREE.Points);
+    expect(target.children[0]).toBeInstanceOf(LineSegments);
+    expect(target.children[1]).toBeInstanceOf(Points);
   });
 
   it("traces a state-sized boundary without overflowing the call stack", () => {
@@ -46,8 +46,8 @@ describe("LocationHighlight", () => {
       geometry: { type: "Polygon", coordinates: [ring] },
     });
 
-    const target = highlight.object.children[0] as THREE.Group;
-    const points = target.children[1] as THREE.Points;
+    const target = highlight.object.children[0] as Group;
+    const points = target.children[1] as Points;
     expect(points.geometry.getAttribute("position").count).toBe(vertices);
   });
 
@@ -55,8 +55,8 @@ describe("LocationHighlight", () => {
     const highlight = new LocationHighlight();
     highlight.show({ lat: 34, lon: -118, geometry: null });
 
-    const target = highlight.object.children[0] as THREE.Group;
+    const target = highlight.object.children[0] as Group;
     expect(target.children).toHaveLength(1);
-    expect(target.children[0]).toBeInstanceOf(THREE.Mesh);
+    expect(target.children[0]).toBeInstanceOf(Mesh);
   });
 });

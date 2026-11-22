@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import { MathUtils, Vector3 } from "three";
 import { latLngToVector3 } from "./geo";
 import type { Position } from "./geojson";
 import type { PlateBoundary } from "./plates";
@@ -92,7 +92,7 @@ function appendGreatCircleEdge(
 
   const subdivisions = Math.max(
     1,
-    Math.ceil(THREE.MathUtils.radToDeg(angle) / maxSegmentDegrees - 1e-10)
+    Math.ceil(MathUtils.radToDeg(angle) / maxSegmentDegrees - 1e-10)
   );
   let previous = a;
   for (let step = 1; step <= subdivisions; step++) {
@@ -114,14 +114,14 @@ function appendGreatCircleEdge(
 }
 
 function slerpOnSphere(
-  start: THREE.Vector3,
-  end: THREE.Vector3,
+  start: Vector3,
+  end: Vector3,
   fraction: number,
   radius: number
-): THREE.Vector3 {
+): Vector3 {
   const startUnit = start.clone().normalize();
   const endUnit = end.clone().normalize();
-  const dot = THREE.MathUtils.clamp(startUnit.dot(endUnit), -1, 1);
+  const dot = MathUtils.clamp(startUnit.dot(endUnit), -1, 1);
   const angle = Math.acos(dot);
 
   if (angle < 1e-9) return startUnit.multiplyScalar(radius);
@@ -129,9 +129,7 @@ function slerpOnSphere(
   const sinAngle = Math.sin(angle);
   if (Math.abs(sinAngle) < 1e-9) {
     const axis =
-      Math.abs(startUnit.x) < 0.9
-        ? new THREE.Vector3(1, 0, 0)
-        : new THREE.Vector3(0, 1, 0);
+      Math.abs(startUnit.x) < 0.9 ? new Vector3(1, 0, 0) : new Vector3(0, 1, 0);
     return startUnit
       .clone()
       .applyAxisAngle(axis.cross(startUnit).normalize(), Math.PI * fraction)

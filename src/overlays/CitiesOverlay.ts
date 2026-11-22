@@ -1,4 +1,15 @@
-import * as THREE from "three";
+import {
+  BufferGeometry,
+  CanvasTexture,
+  Float32BufferAttribute,
+  Group,
+  PerspectiveCamera,
+  Points,
+  PointsMaterial,
+  SRGBColorSpace,
+  Texture,
+  Vector3,
+} from "three";
 import { latLngToVector3 } from "../lib/geo";
 import { fetchJson } from "../lib/net";
 import {
@@ -20,9 +31,9 @@ const FRONT_FACING_DOT = 0.25;
 
 interface CityLabel {
   el: HTMLSpanElement;
-  position: THREE.Vector3;
+  position: Vector3;
   /** Unit surface normal at the city — for the far-side test. */
-  normal: THREE.Vector3;
+  normal: Vector3;
 }
 
 /**
@@ -34,15 +45,15 @@ export class CitiesOverlay implements MapOverlay {
   readonly id = "cities";
   readonly label = "Cities";
   readonly icon = ICONS.cities;
-  readonly object = new THREE.Group();
+  readonly object = new Group();
 
   /** Set once loaded — lets the HoverInspector name the dot under the cursor. */
   hoverSource: HoverPointSource | undefined;
 
   private labelLayer: HTMLDivElement | undefined;
   private labels: CityLabel[] = [];
-  private readonly projected = new THREE.Vector3();
-  private readonly cameraDir = new THREE.Vector3();
+  private readonly projected = new Vector3();
+  private readonly cameraDir = new Vector3();
 
   constructor(
     // BASE_URL-aware so the fetch works when the site is hosted on a subpath.
@@ -59,7 +70,7 @@ export class CitiesOverlay implements MapOverlay {
   }
 
   /** Project the label positions for the current view (render-loop hook). */
-  update(camera: THREE.PerspectiveCamera, viewportHeightPx: number): void {
+  update(camera: PerspectiveCamera, viewportHeightPx: number): void {
     const layer = this.labelLayer;
     if (!layer) return;
     const opacity = this.object.visible
@@ -94,12 +105,9 @@ export class CitiesOverlay implements MapOverlay {
       positions.push(v.x, v.y, v.z);
     }
 
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(positions, 3)
-    );
-    const material = new THREE.PointsMaterial({
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
+    const material = new PointsMaterial({
       color: 0x9fe8ff,
       size: 0.022,
       sizeAttenuation: true,
@@ -107,7 +115,7 @@ export class CitiesOverlay implements MapOverlay {
       transparent: true,
       depthWrite: false,
     });
-    const points = new THREE.Points(geometry, material);
+    const points = new Points(geometry, material);
     this.object.add(points);
     this.hoverSource = {
       points,
@@ -140,7 +148,7 @@ export class CitiesOverlay implements MapOverlay {
   }
 }
 
-function makeDotTexture(): THREE.Texture {
+function makeDotTexture(): Texture {
   const size = 64;
   const canvas = document.createElement("canvas");
   canvas.width = size;
@@ -161,7 +169,7 @@ function makeDotTexture(): THREE.Texture {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, size, size);
   }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
   return texture;
 }

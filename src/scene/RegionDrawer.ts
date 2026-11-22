@@ -1,4 +1,16 @@
-import * as THREE from "three";
+import {
+  BufferGeometry,
+  Float32BufferAttribute,
+  Group,
+  LineBasicMaterial,
+  LineLoop,
+  Material,
+  Mesh,
+  PerspectiveCamera,
+  Raycaster,
+  Vector2,
+  Vector3,
+} from "three";
 import { resolveGroundPoint } from "../lib/cameraZoom";
 import { vector3ToLatLng, latLngToVector3, type LatLng } from "../lib/geo";
 import { dragBounds, boundsUsable } from "../lib/probe";
@@ -26,18 +38,18 @@ export type CornerOutcome = "anchored" | "completed" | "rejected";
  * corners alone, taken from wherever the arrow keys have aimed the camera.
  */
 export class RegionDrawer {
-  readonly object = new THREE.Group();
+  readonly object = new Group();
 
-  private readonly raycaster = new THREE.Raycaster();
-  private readonly ndc = new THREE.Vector2();
+  private readonly raycaster = new Raycaster();
+  private readonly ndc = new Vector2();
   private armed = false;
   private anchor: LatLng | undefined;
-  private outline: THREE.LineLoop | undefined;
+  private outline: LineLoop | undefined;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
-    private readonly camera: THREE.PerspectiveCamera,
-    private readonly earth: THREE.Mesh,
+    private readonly camera: PerspectiveCamera,
+    private readonly earth: Mesh,
     private readonly callbacks: {
       /** Fired when the drawer arms/disarms — disable OrbitControls while on. */
       onModeChange: (armed: boolean) => void;
@@ -120,7 +132,7 @@ export class RegionDrawer {
     if (!this.outline) return;
     this.object.remove(this.outline);
     this.outline.geometry.dispose();
-    (this.outline.material as THREE.Material).dispose();
+    (this.outline.material as Material).dispose();
     this.outline = undefined;
   }
 
@@ -170,9 +182,7 @@ export class RegionDrawer {
         : null
     );
     if (!resolved) return undefined;
-    return vector3ToLatLng(
-      new THREE.Vector3(resolved.x, resolved.y, resolved.z)
-    );
+    return vector3ToLatLng(new Vector3(resolved.x, resolved.y, resolved.z));
   }
 
   private showOutline(bounds: Bounds): void {
@@ -201,14 +211,11 @@ export class RegionDrawer {
       push(bounds.north - t * (bounds.north - bounds.south), bounds.west);
     }
 
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(positions, 3)
-    );
-    this.outline = new THREE.LineLoop(
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
+    this.outline = new LineLoop(
       geometry,
-      new THREE.LineBasicMaterial({ color: 0x4ea1ff })
+      new LineBasicMaterial({ color: 0x4ea1ff })
     );
     this.outline.userData.bounds = bounds;
     this.object.add(this.outline);

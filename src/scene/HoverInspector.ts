@@ -1,4 +1,11 @@
-import * as THREE from "three";
+import {
+  Mesh,
+  Object3D,
+  PerspectiveCamera,
+  Raycaster,
+  Vector2,
+  Vector3,
+} from "three";
 import { resolveGroundPoint } from "../lib/cameraZoom";
 import { vector3ToLatLng, formatLatLng } from "../lib/geo";
 import type {
@@ -30,9 +37,9 @@ const FAR_SIDE_SLACK = 0.05;
  * dragging (rotate/zoom) or off the globe.
  */
 export class HoverInspector {
-  private readonly raycaster = new THREE.Raycaster();
-  private readonly ndc = new THREE.Vector2();
-  private readonly scratch = new THREE.Vector3();
+  private readonly raycaster = new Raycaster();
+  private readonly ndc = new Vector2();
+  private readonly scratch = new Vector3();
   private readonly sources: Array<() => HoverPointSource | undefined> = [];
   private readonly lineSources: Array<() => HoverLineSource | undefined> = [];
   private countryIndex: CountryIndex | undefined;
@@ -43,8 +50,8 @@ export class HoverInspector {
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
-    private readonly camera: THREE.PerspectiveCamera,
-    private readonly earth: THREE.Mesh,
+    private readonly camera: PerspectiveCamera,
+    private readonly earth: Mesh,
     private readonly tooltip: HTMLElement
   ) {
     this.raycaster.params.Points.threshold = POINT_THRESHOLD;
@@ -261,7 +268,7 @@ export class HoverInspector {
    * and a hit is the far side of the planet, so the ray meets the ellipsoid
    * under the camera instead.
    */
-  private groundUnderRay(): { point: THREE.Vector3; distance: number } | null {
+  private groundUnderRay(): { point: Vector3; distance: number } | null {
     const meshHit = this.raycaster.intersectObject(this.earth, false)[0];
     const length = this.camera.position.length();
     if (length >= 1) {
@@ -350,8 +357,8 @@ function clamp(v: number, lo: number, hi: number): number {
 }
 
 /** Overlays toggle visibility on their group, so check the whole ancestry. */
-function isShown(object: THREE.Object3D): boolean {
-  for (let o: THREE.Object3D | null = object; o; o = o.parent) {
+function isShown(object: Object3D): boolean {
+  for (let o: Object3D | null = object; o; o = o.parent) {
     if (!o.visible) return false;
   }
   return true;

@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import { Camera, Spherical, Vector3 } from "three";
 
 /**
  * Momentum for the globe drag.
@@ -92,7 +92,7 @@ export function releaseVelocity(
 
 /** The part of OrbitControls this needs. */
 export interface OrbitLike {
-  target: THREE.Vector3;
+  target: Vector3;
   enabled: boolean;
   rotateSpeed: number;
   update(): boolean;
@@ -112,11 +112,11 @@ export class GlobeMomentum {
   private vAzimuth = 0; // rad/s
   private vPolar = 0; // rad/s
   private lastTick: number | undefined;
-  private readonly offset = new THREE.Vector3();
-  private readonly spherical = new THREE.Spherical();
+  private readonly offset = new Vector3();
+  private readonly spherical = new Spherical();
 
   constructor(
-    private readonly camera: THREE.Camera,
+    private readonly camera: Camera,
     private readonly controls: OrbitLike,
     /** The drag surface. OrbitControls scales a drag by its height. */
     private readonly surface: { clientHeight: number },

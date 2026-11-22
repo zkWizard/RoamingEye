@@ -1,4 +1,14 @@
-import * as THREE from "three";
+import {
+  BufferGeometry,
+  Color,
+  Float32BufferAttribute,
+  Mesh,
+  Object3D,
+  ShaderMaterial,
+  Vector2,
+  Vector3,
+  type ColorRepresentation,
+} from "three";
 import { latLngToVector3 } from "../lib/geo";
 
 /**
@@ -10,8 +20,8 @@ import { latLngToVector3 } from "../lib/geo";
 
 export interface HaloStyle {
   widthPx: number;
-  core: THREE.ColorRepresentation;
-  halo: THREE.ColorRepresentation;
+  core: ColorRepresentation;
+  halo: ColorRepresentation;
 }
 
 const VERTEX = /* glsl */ `
@@ -68,13 +78,13 @@ export function haloLineMesh(
   polylines: ReadonlyArray<ReadonlyArray<readonly [number, number]>>,
   radius: number,
   style: HaloStyle
-): THREE.Mesh | null {
+): Mesh | null {
   const starts: number[] = [];
   const ends: number[] = [];
   const sides: number[] = [];
   const alongs: number[] = [];
-  const a = new THREE.Vector3();
-  const b = new THREE.Vector3();
+  const a = new Vector3();
+  const b = new Vector3();
 
   for (const line of polylines) {
     for (let i = 0; i + 1 < line.length; i++) {
@@ -94,46 +104,43 @@ export function haloLineMesh(
   }
   if (starts.length === 0) return null;
 
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("start", new THREE.Float32BufferAttribute(starts, 3));
-  geometry.setAttribute("end", new THREE.Float32BufferAttribute(ends, 3));
-  geometry.setAttribute("side", new THREE.Float32BufferAttribute(sides, 1));
-  geometry.setAttribute("along", new THREE.Float32BufferAttribute(alongs, 1));
+  const geometry = new BufferGeometry();
+  geometry.setAttribute("start", new Float32BufferAttribute(starts, 3));
+  geometry.setAttribute("end", new Float32BufferAttribute(ends, 3));
+  geometry.setAttribute("side", new Float32BufferAttribute(sides, 1));
+  geometry.setAttribute("along", new Float32BufferAttribute(alongs, 1));
 
-  const material = new THREE.ShaderMaterial({
+  const material = new ShaderMaterial({
     transparent: true,
     depthWrite: false,
     uniforms: {
       uWidth: { value: style.widthPx },
       uResolution: {
-        value: new THREE.Vector2(
+        value: new Vector2(
           typeof window === "undefined" ? 1 : window.innerWidth,
           typeof window === "undefined" ? 1 : window.innerHeight
         ),
       },
-      uCore: { value: new THREE.Color(style.core) },
-      uHalo: { value: new THREE.Color(style.halo) },
+      uCore: { value: new Color(style.core) },
+      uHalo: { value: new Color(style.halo) },
     },
     vertexShader: VERTEX,
     fragmentShader: FRAGMENT,
   });
 
-  const mesh = new THREE.Mesh(geometry, material);
+  const mesh = new Mesh(geometry, material);
   mesh.frustumCulled = false;
   return mesh;
 }
 
 export function setHaloResolution(
-  object: THREE.Object3D,
+  object: Object3D,
   width: number,
   height: number
 ): void {
   object.traverse((child) => {
-    const material = (child as THREE.Mesh).material;
-    if (
-      material instanceof THREE.ShaderMaterial &&
-      material.uniforms.uResolution
-    ) {
+    const material = (child as Mesh).material;
+    if (material instanceof ShaderMaterial && material.uniforms.uResolution) {
       material.uniforms.uResolution.value.set(width, height);
     }
   });

@@ -1,4 +1,14 @@
-import * as THREE from "three";
+import {
+  BufferGeometry,
+  CanvasTexture,
+  Color,
+  Float32BufferAttribute,
+  Group,
+  Points,
+  PointsMaterial,
+  SRGBColorSpace,
+  Texture,
+} from "three";
 import {
   GLOBE_RADIUS,
   once,
@@ -33,11 +43,8 @@ import { networkGeometryNote } from "../lib/seismicNetworkGeometry";
  */
 
 const DEPTH_COLORS = Object.fromEntries(
-  Object.entries(DEPTH_CLASS_COLORS).map(([k, hex]) => [
-    k,
-    new THREE.Color(hex),
-  ])
-) as Record<DepthClass, THREE.Color>;
+  Object.entries(DEPTH_CLASS_COLORS).map(([k, hex]) => [k, new Color(hex)])
+) as Record<DepthClass, Color>;
 
 /**
  * Magnitude buckets → point size (unit-sphere scene units), largest first.
@@ -58,7 +65,7 @@ export class EarthquakesOverlay implements MapOverlay {
   readonly label = "Earthquakes";
   readonly detail = "Last 30 days (live)";
   readonly icon = ICONS.quakes;
-  readonly object = new THREE.Group();
+  readonly object = new Group();
 
   /** One hover source per magnitude-size bucket, in rendered point order. */
   readonly hoverSources: Array<HoverPointSource | undefined> = new Array(
@@ -122,7 +129,7 @@ export class EarthquakesOverlay implements MapOverlay {
     }
   }
 
-  private buildPoints(quakes: Earthquake[], size: number): THREE.Points {
+  private buildPoints(quakes: Earthquake[], size: number): Points {
     const positions: number[] = [];
     const colors: number[] = [];
     for (const q of quakes) {
@@ -132,14 +139,11 @@ export class EarthquakesOverlay implements MapOverlay {
       colors.push(c.r, c.g, c.b);
     }
 
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(positions, 3)
-    );
-    geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
+    geometry.setAttribute("color", new Float32BufferAttribute(colors, 3));
 
-    const material = new THREE.PointsMaterial({
+    const material = new PointsMaterial({
       size,
       vertexColors: true,
       sizeAttenuation: true,
@@ -147,12 +151,12 @@ export class EarthquakesOverlay implements MapOverlay {
       transparent: true,
       depthWrite: false,
     });
-    return new THREE.Points(geometry, material);
+    return new Points(geometry, material);
   }
 }
 
 /** A soft ring sprite so overlapping epicenters read as clusters, not blobs. */
-function makeRingTexture(): THREE.Texture {
+function makeRingTexture(): Texture {
   const size = 64;
   const canvas = document.createElement("canvas");
   canvas.width = size;
@@ -168,7 +172,7 @@ function makeRingTexture(): THREE.Texture {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, size, size);
   }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
   return texture;
 }
