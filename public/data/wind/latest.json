@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "time": "2026-11-22T06:15:00Z",
+  "lat0": -90,
+  "lon0": -180,
+  "dLat": 2.5,
+  "dLon": 2.5,
+  "nLat": 73,
+  "nLon": 144,
+  "encoding": "int16le",
+  "scale": 0.01,
+  "order": [
+    "u",
+    "v",
+    "t"
+  ],
+  "missing": -32768,
+  "source": "open-meteo"
+}
