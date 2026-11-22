@@ -34,8 +34,9 @@ export interface MonthRef {
 /**
  * Which clock each surface should use.
  *
- * The satellite base map is "now". A monthly science layer is the 15th of
- * the selected month at 12:00 UTC, the middle of the compositing window.
+ * The satellite base map is "now". A monthly science layer keeps the 15th,
+ * so the declination belongs to that month, and the hour of `now`, so the
+ * terminator moves through the day instead of sitting at noon.
  */
 export interface IlluminationQuery {
   now: Date;
@@ -186,9 +187,23 @@ export function sunDirection(date: Date): SunVector {
   };
 }
 
-/** 15th of the month at 12:00 UTC. The middle of a monthly composite. */
-export function monthlyLayerInstant(month: MonthRef): Date {
-  return new Date(Date.UTC(month.year, month.month - 1, 15, 12, 0, 0, 0));
+/**
+ * 15th of the month. Noon when no clock is passed (the middle of the
+ * composite). With a clock, the hour is that clock's UTC time, so a live
+ * view keeps the month's season and still turns with the day.
+ */
+export function monthlyLayerInstant(month: MonthRef, clock?: Date): Date {
+  return new Date(
+    Date.UTC(
+      month.year,
+      month.month - 1,
+      15,
+      clock ? clock.getUTCHours() : 12,
+      clock ? clock.getUTCMinutes() : 0,
+      clock ? clock.getUTCSeconds() : 0,
+      clock ? clock.getUTCMilliseconds() : 0
+    )
+  );
 }
 
 /**
@@ -200,7 +215,7 @@ export function illuminationInstants(
 ): IlluminationInstants {
   const monthly =
     query.monthlyLayerVisible && query.month
-      ? monthlyLayerInstant(query.month)
+      ? monthlyLayerInstant(query.month, query.now)
       : null;
   return { satellite: query.now, monthly };
 }

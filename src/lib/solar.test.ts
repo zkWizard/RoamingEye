@@ -108,7 +108,7 @@ describe("sunDirection", () => {
 });
 
 describe("illuminationInstants", () => {
-  it("uses now for the satellite map and noon on the 15th for a monthly layer", () => {
+  it("uses now for the satellite map and that hour on the 15th for a monthly layer", () => {
     const now = new Date("2026-11-22T05:48:00Z");
     const instants = illuminationInstants({
       now,
@@ -116,7 +116,7 @@ describe("illuminationInstants", () => {
       monthlyLayerVisible: true,
     });
     expect(instants.satellite).toBe(now);
-    expect(instants.monthly?.toISOString()).toBe("2026-07-15T12:00:00.000Z");
+    expect(instants.monthly?.toISOString()).toBe("2026-07-15T05:48:00.000Z");
   });
 
   it("drops the monthly instant when the month is not what is on screen", () => {
@@ -132,5 +132,13 @@ describe("illuminationInstants", () => {
   it("builds the monthly instant on the 15th at 12:00 UTC", () => {
     const instant = monthlyLayerInstant({ year: 2024, month: 1 });
     expect(instant.toISOString()).toBe("2024-01-15T12:00:00.000Z");
+  });
+
+  it("keeps the month and takes the hour from the clock", () => {
+    const instant = monthlyLayerInstant(
+      { year: 2024, month: 1 },
+      new Date("2026-11-22T18:30:00Z")
+    );
+    expect(instant.toISOString()).toBe("2024-01-15T18:30:00.000Z");
   });
 });

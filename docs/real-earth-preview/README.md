@@ -19,3 +19,23 @@ SwiftShader frame rate on the whole-Earth view, 2.5 s of frames: 8 fps before,
 Entry chunk after this change: 58.8 kB gzip, below main and the 60 kB
 budget. The sun chunk is lazy at 4.4 kB gzip and loads with the terrain globe,
 after the first frame.
+
+## First view, in space
+
+The frames above light the satellite oceans and leave Greenness flat, so a
+first visit in the light theme looked like a pale card. These later frames are
+the default visit: Greenness, 15 Oct 2026, camera over the Americas, clock
+frozen at 15 Nov 2026 16:30 UTC.
+
+Day and night are on for data layers by default. The probe still reads the
+unshaded colormap. The night side of the science sphere picks up NASA Black
+Marble (VIIRS, 2016) after the sun chunk loads. Stars and the scattering limb
+are in both themes, and the canvas is space in both, so the globe is not a
+card. AgX grades the satellite mesh only. The wordmark stays light because it
+sits on that canvas.
+
+Desktop is 1440x900. Phone is 390x844. `terminator.gif` steps the same view
+through 24 hours, two hours a frame, on 15 Oct 2026.
+
+The sky chunk, the night-lights fetch, and the sun chunk stay off the entry
+path.
