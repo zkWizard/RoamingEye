@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { awaitAppInteractive } from "./boot";
+import { awaitAppInteractive, awaitLiveMenu } from "./boot";
 
 /**
  * A phone held in landscape can reach the nine map overlays.
@@ -77,6 +77,7 @@ for (const size of LANDSCAPE) {
     await page.setViewportSize({ width: size.width, height: size.height });
     await page.goto("/");
     await awaitAppInteractive(page);
+    await awaitLiveMenu(page);
 
     await page.locator(".toolbar__handle").click();
     await page.locator(".toolbar__fold--settings summary").click();

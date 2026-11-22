@@ -49,16 +49,6 @@ export async function awaitAppInteractive(
     .locator(".view-card")
     .first()
     .waitFor({ state: "attached", timeout });
-  // The Live menu chunk loads on the first press in the map menu, or when
-  // the link already asks to track a satellite.
-  const hash = await page.evaluate(() => location.hash);
-  if (!hash.includes("track=")) {
-    await page.locator("#toolbar").dispatchEvent("pointerdown");
-  }
-  await page.locator(".toolbar__fold--live").waitFor({
-    state: "attached",
-    timeout,
-  });
   // A first visit starts a short timelapse after the curtain lifts.
   // Tests that boot a quiet newest month dismiss it before that seek.
   if (options?.keepIntro) return;
@@ -69,6 +59,33 @@ export async function awaitAppInteractive(
   await page.evaluate(() => {
     document.getElementById("time-hint")?.setAttribute("hidden", "");
   });
+}
+
+/**
+ * The Live menu chunk loads on the first press in the map menu, or when the
+ * link already asks to track a satellite. Tests that count those toggles call
+ * this. Other tests leave the chunk unloaded so boot stays as quick as before.
+ */
+export async function awaitLiveMenu(
+  page: Page,
+  timeout = 30_000
+): Promise<void> {
+  const hash = await page.evaluate(() => location.hash);
+  if (!hash.includes("track=")) {
+    await page.locator("#toolbar").dispatchEvent("pointerdown");
+  }
+  // Weather now builds the Live fold at startup, so the fold existing is
+  // not proof the satellite chunk has arrived. Wait for one of its toggles,
+  // then open the fold. Weather leaves it closed.
+  await page.locator('.toolbar__item[data-overlay="sat-starlink"]').waitFor({
+    state: "attached",
+    timeout,
+  });
+  await page
+    .locator(".toolbar__fold--live")
+    .evaluate((fold: HTMLDetailsElement) => {
+      fold.open = true;
+    });
 }
 
 /**
