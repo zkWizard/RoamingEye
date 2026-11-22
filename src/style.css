@@ -612,6 +612,9 @@ body {
      globe's aim. */
   width: fit-content;
   max-width: 100%;
+  /* Open-Meteo and CelesTrak share this line. A hair of tighter tracking
+     keeps it under 90 percent of a 1280px overlay, which is the plate cap. */
+  letter-spacing: -0.04em;
   margin-inline: auto;
   position: relative;
   z-index: 0;
