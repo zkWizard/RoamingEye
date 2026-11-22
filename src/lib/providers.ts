@@ -329,6 +329,17 @@ export const PROVIDERS: Provider[] = [
       "Keyless forecast API for 10 m wind and 2 m temperature. A nightly job stores a 2.5 degree global grid so a visit loads one file. The grid is the forecast, not the ERA5 archive.",
   },
   {
+    name: "RainViewer",
+    org: "RainViewer",
+    region: "Global",
+    group: "Open datasets & services",
+    url: "https://www.rainviewer.com/",
+    license: "Attribution required",
+    use: "core",
+    description:
+      "Keyless global radar tiles for the past two hours and the nowcast. The Weather now loop credits RainViewer on the radar chip.",
+  },
+  {
     name: "Smithsonian Global Volcanism Program",
     org: "Smithsonian Institution",
     region: "USA",

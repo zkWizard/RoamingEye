@@ -24,6 +24,17 @@ export async function mountWindOverlay(
   let showTemperature = false;
   let lastReadout = "";
   let lastAgeAt = 0;
+  let radar: {
+    update(camera: PerspectiveCamera, active: boolean): void;
+  } | null = null;
+  void import("../radar/mount").then(
+    ({ mountRadar }) => {
+      radar = mountRadar(root, hud.extra);
+    },
+    () => {
+      // Wind still runs if the radar chunk cannot load.
+    }
+  );
 
   hud.temperature.addEventListener("click", () => {
     showTemperature = !showTemperature;
@@ -43,6 +54,7 @@ export async function mountWindOverlay(
       const active = root.visible && !document.hidden;
       hud.root.hidden = !root.visible;
       simulation.update(performance.now(), active);
+      radar?.update(camera, active);
       if (!active) return;
       const now = Date.now();
       if (now - lastAgeAt > 30_000) {
@@ -70,6 +82,7 @@ interface Hud {
   high: HTMLElement;
   age: HTMLElement;
   temperature: HTMLButtonElement;
+  extra: HTMLElement;
 }
 
 function paintRamp(hud: Hud, temperature: boolean): void {
@@ -128,7 +141,7 @@ function createHud(field: WindField): Hud {
   card.append(title, scale, age, temperature, extra);
   root.append(readout, card);
 
-  const hud = { root, readout, ramp, low, high, age, temperature };
+  const hud = { root, readout, ramp, low, high, age, temperature, extra };
   paintRamp(hud, false);
   return hud;
 }
