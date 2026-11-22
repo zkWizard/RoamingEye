@@ -11,10 +11,11 @@ export interface MapOverlay {
   /** Second line in the menu, for a fact the short name cannot carry. */
   readonly detail?: string;
   /**
-   * "settings" parks the toggle in the collapsed Settings fold. Map details
-   * is the default.
+   * "settings" parks the toggle in the collapsed Settings fold. "live" parks
+   * it in the Live fold (weather, and satellites when that layer is present).
+   * Map details is the default.
    */
-  readonly group?: "details" | "settings";
+  readonly group?: "details" | "settings" | "live";
   /** Inline SVG markup for the toolbar icon. */
   readonly icon: string;
   /** The renderable object; shown/hidden via its `.visible`. */

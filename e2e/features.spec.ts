@@ -33,9 +33,9 @@ test(
   { tag: "@smoke" },
   async ({ page }) => {
     const items = page.locator(".toolbar__item");
-    // Borders, Cities, Time zones, Plates, Volcanoes, Earthquakes, plus
-    // Sharper imagery and Atmosphere glow in Settings.
-    await expect(items).toHaveCount(8);
+    // Borders, Cities, Time zones, Plates, Volcanoes, Earthquakes, Weather now
+    // in Live, plus Sharper imagery and Atmosphere glow in Settings.
+    await expect(items).toHaveCount(9);
     await expect(
       page.locator('.toolbar__item[data-overlay="graticule"]')
     ).toHaveCount(0);

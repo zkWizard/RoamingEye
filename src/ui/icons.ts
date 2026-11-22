@@ -28,6 +28,9 @@ export const ICONS = {
   volcanoes: wrap(
     `<path d="M9.5 9 4 20h16L14.5 9"/><path d="M9.5 9c1 .9 2-.9 2.5 0s1.7.9 2.5 0"/><path d="M12 5.5v0M9 3.5v0M15 3.5v0"/>`
   ),
+  wind: wrap(
+    `<path d="M4 8.5h8.5a2.2 2.2 0 1 0-2-2.2"/><path d="M4 12.5h12.5a2.2 2.2 0 1 1-2 2.2"/><path d="M4 16.5h6"/>`
+  ),
   hd: wrap(
     `<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7.5 9.5v5M11 9.5v5M7.5 12H11"/><path d="M14 9.5v5h1.8a2.5 2.5 0 0 0 0-5H14Z"/>`
   ),

@@ -154,6 +154,7 @@ import { PlateBoundariesOverlay } from "./overlays/PlateBoundariesOverlay";
 import { VolcanoesOverlay } from "./overlays/VolcanoesOverlay";
 import { TiledImageryOverlay } from "./overlays/TiledImageryOverlay";
 import { TimeZonesOverlay } from "./overlays/TimeZonesOverlay";
+import { createLiveWeatherOverlay } from "./live/weatherMenu";
 import { plainLayerName } from "./lib/plainLanguage";
 import type { ViewCard } from "./ui/viewCards";
 import type { TerrainGlobe } from "./scene/TerrainGlobe";
@@ -410,6 +411,9 @@ const plateBoundariesOverlay = new PlateBoundariesOverlay();
 const volcanoesOverlay = new VolcanoesOverlay();
 const earthquakesOverlay = new EarthquakesOverlay();
 const atmosphereOverlay = new AtmosphereOverlay();
+const liveWeatherRoot = new THREE.Group();
+liveWeatherRoot.visible = false;
+const liveWeather = createLiveWeatherOverlay(liveWeatherRoot, renderer);
 const overlays: MapOverlay[] = [
   hdTiles,
   new BordersOverlay(),
@@ -421,6 +425,7 @@ const overlays: MapOverlay[] = [
   volcanoesOverlay,
   earthquakesOverlay,
   new TimeZonesOverlay(),
+  liveWeather,
 ];
 for (const overlay of overlays) scene.add(overlay.object);
 

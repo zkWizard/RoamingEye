@@ -62,6 +62,11 @@ export class Toolbar {
     this.body.appendChild(
       this.buildFold("Map details", overlays, onToggle, isOn, "details", true)
     );
+    if (overlays.some((overlay) => overlay.group === "live")) {
+      this.body.appendChild(
+        this.buildFold("Live", overlays, onToggle, isOn, "live", false)
+      );
+    }
     this.body.appendChild(
       this.buildFold("Settings", overlays, onToggle, isOn, "settings", false)
     );
@@ -205,7 +210,7 @@ export class Toolbar {
     overlays: MapOverlay[],
     onToggle: (overlay: MapOverlay, on: boolean) => void,
     isOn: (overlay: MapOverlay) => boolean,
-    group: "details" | "settings",
+    group: "details" | "settings" | "live",
     open: boolean
   ): HTMLElement {
     const fold = document.createElement("details");

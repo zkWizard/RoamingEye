@@ -123,3 +123,24 @@ orange), 1 CE–1899 (amber), or Holocene-evidence only (violet). Cite as:
 
 Together, **earthquakes + volcanoes + plate boundaries** (plus the shaded-relief
 terrain layer) put the whole plate-tectonics narrative on one globe.
+
+## Live wind: Open-Meteo
+
+The Weather now overlay draws animated wind from a 2.5 degree global grid of
+10 m wind and 2 m temperature. A nightly GitHub Action
+(`.github/workflows/wind-field.yml`, `scripts/build-wind-field.mjs`) fetches the
+[Open-Meteo](https://open-meteo.com/) forecast API in batched multi-coordinate
+requests and commits `public/data/wind/latest.bin` plus a JSON header. The
+browser loads that pair in one visit. Open-Meteo is only called from the
+browser when the file is missing, and then only for a coarser grid.
+
+Open-Meteo is keyless and CORS-open. The forecast data is
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Credit: Weather data
+by [Open-Meteo](https://open-meteo.com/).
+
+Wind direction in the file is the meteorological convention (the direction the
+wind comes from). The components are eastward `u` and northward `v`, in metres
+per second, derived from `wind_speed_10m` and `wind_direction_10m`. Temperature
+is `temperature_2m` in degrees Celsius. The centre readout samples this grid
+with bilinear interpolation, so it matches the Open-Meteo point at a grid node
+within the 0.01 storage step, and between nodes it follows the grid.
