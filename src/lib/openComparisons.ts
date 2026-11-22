@@ -1,5 +1,10 @@
 import { geocode, type GeoResult } from "./geocoding";
-import { flyToDistance, framePair, type FrameOcclusion } from "./placeFrame";
+import {
+  flyToDistance,
+  framePair,
+  longitudesInGeometry,
+  type FrameOcclusion,
+} from "./placeFrame";
 import { resolvePlaceCompareMonth } from "./placeCompare";
 import { ProbeSampler } from "../probe/ProbeSampler";
 import { ComparePins } from "../scene/ComparePins";
@@ -55,6 +60,18 @@ export interface ThenNowPick {
   earlierMonth: number;
   laterYear: number | null;
   laterMonth: number;
+  /**
+   * `tight` frames the place itself. The default backs up when the box is
+   * small, which suits a river and leaves a city too far away to read.
+   */
+  fit?: "tight";
+  /**
+   * Closest the camera may sit, as a distance from the globe's centre.
+   * A city outline otherwise opens on one pixel of a coarse layer.
+   */
+  minDistance?: number;
+  /** Overlay ids to turn on once the place is the subject, such as borders. */
+  overlays?: readonly string[];
 }
 
 export interface PlaceComparePick {
@@ -87,6 +104,8 @@ export interface ComparisonHost {
   /** Add the comparison pins to the globe. Called once. */
   attach(object: object): void;
   hideStudy(): void;
+  /** Turn a map overlay on. Optional so older hosts keep working. */
+  pressOverlay?(id: string): void;
   enableMonthCompare(earlier: YearMonth): void;
   clearSharedSearch(): void;
   /** Remember the comparison query so the share link reopens it. */
@@ -224,6 +243,7 @@ export async function openThenNow(
 
   host.clearSharedSearch();
   host.prepareLayer(query.layer);
+  for (const id of pick.overlays ?? []) host.pressOverlay?.(id);
   host.hideStudy();
   host.endFlight();
   const box = place.boundingBox;
@@ -232,8 +252,16 @@ export async function openThenNow(
     : 0;
   // A river segment is a few tenths of a degree. Frame the landscape around
   // it; a state-sized box already frames itself.
+  const framed =
+    pick.fit === "tight"
+      ? flyToDistance(box, longitudesInGeometry(place.geometry))
+      : box && span < 4
+        ? Math.max(flyToDistance(box), 1.65)
+        : flyToDistance(box);
   const distance =
-    box && span < 4 ? Math.max(flyToDistance(box), 1.65) : flyToDistance(box);
+    pick.minDistance === undefined
+      ? framed
+      : Math.max(framed, pick.minDistance);
   host.fly(place.lat, place.lon, distance);
   host.showHighlight(place);
 

@@ -54,6 +54,11 @@ export async function awaitAppInteractive(
   if (options?.keepIntro) return;
   const skip = page.locator("#intro-skip");
   if (await skip.isVisible()) await skip.click();
+  // The slider hint stays until a real scrub. Tests that boot a quiet dock
+  // hide it here so a layout check still measures the dock it always did.
+  await page.evaluate(() => {
+    document.getElementById("time-hint")?.setAttribute("hidden", "");
+  });
 }
 
 /**

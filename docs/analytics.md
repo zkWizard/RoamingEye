@@ -39,15 +39,18 @@ not an identifier. It dies with the tab. It is not a cookie.
 
 Names are stable. Dashboards and tests should use these strings.
 
-| Name           | When it fires                                                                                         |
-| -------------- | ----------------------------------------------------------------------------------------------------- |
-| `pageview`     | Once, when the app boots. Pathname only.                                                              |
-| `first_search` | The first time in this tab that a search result is chosen.                                            |
-| `first_scrub`  | The first time in this tab that the visitor moves the timeline (drag, step, arrow key, or play).      |
-| `first_probe`  | The first time in this tab that the visitor charts a point (click the globe, or Enter / Space on it). |
-| `compare`      | Each time the visitor turns month comparison on, including a "then and now" choice.                   |
-| `share`        | Each time the visitor uses Share view.                                                                |
-| `activated`    | Once, when the visitor has done a search or a scrub and at least one other action.                    |
+| Name                   | When it fires                                                                                                           |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `pageview`             | Once, when the app boots. Pathname only.                                                                                |
+| `first_search`         | The first time in this tab that a search result is chosen.                                                              |
+| `first_scrub`          | The first time in this tab that the visitor moves the timeline (drag, step, arrow key, or play).                        |
+| `first_probe`          | The first time in this tab that the visitor charts a point (click the globe, or Enter / Space on it).                   |
+| `compare`              | Each time the visitor turns month comparison on, including a "then and now" choice.                                     |
+| `share`                | Each time the visitor uses Share view.                                                                                  |
+| `activated`            | Once, when the visitor has done a search or a scrub and at least one other action.                                      |
+| `story_autoplay_start` | The first-visit story starts playing on its own.                                                                        |
+| `story_autoplay_skip`  | The visitor presses Stop on that autoplaying story.                                                                     |
+| `example_search_tap`   | The visitor taps a welcome example. The prop `example` is the chip id (`houston-austin`, `arctic-ice`, `growing-city`). |
 
 `first_search`, `first_scrub`, `first_probe`, and `activated` fire once per
 tab session. A second search does not send `first_search` again. `compare`
@@ -72,8 +75,14 @@ The public functions are `pageview()`, `track(event, props?)`, and
 `record(action)`. Call sites use `record` with `search`, `scrub`, `probe`,
 `compare`, or `share`. `record` is what emits the names in the table.
 `track` sends an event name as given. Props are optional short tokens
-(`button`, `yes`). Place names and free text are dropped. None of the built-in
-events send props.
+(`button`, `yes`). Place names and free text are dropped. `example_search_tap`
+sends one prop, `example`, set to the chip id. The other built-in events send
+no props.
+
+`story_autoplay_start`, `story_autoplay_skip`, and `example_search_tap` are
+not activation actions. They do not change `activated`. An example tap also
+calls `record("search")`, so it still counts as the search in that metric.
+Stopping the welcome story, or letting it play, is not a scrub.
 
 ## Enabling a provider
 

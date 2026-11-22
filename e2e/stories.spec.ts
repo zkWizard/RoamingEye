@@ -5,7 +5,7 @@ import { awaitAppInteractive } from "./boot";
  * Stories: curated time-lapses (src/lib/stories.ts) that show a new visitor
  * what RoamingEye is for without first teaching them the controls.
  *
- * Held here: a first visit is offered them in one line, not a card over the
+ * Held here: a first visit is offered a short welcome, not a card over the
  * globe; a story switches the layer, turns on the overlays it needs, and
  * plays its months; its link replays it; Next and Close work; closing undoes
  * the overlays it switched on; and a layer the reader picks ends story mode.
@@ -22,11 +22,9 @@ test("a first visit plays a short introduction once", async ({ page }) => {
   await expect(intro(page)).toBeVisible();
   await expect(card(page)).toBeHidden();
   await expect(intro(page).locator(".intro__caption")).toContainText(/green/i);
-
-  // A caption in the corner, not a card over the middle of the globe.
-  const box = await intro(page).boundingBox();
-  expect(box!.height).toBeLessThanOrEqual(160);
-  expect(box!.x + box!.width).toBeLessThan(520);
+  await expect(page.locator(".timeline__play")).toHaveClass(/is-playing/, {
+    timeout: 15_000,
+  });
 
   await page.locator("#intro-skip").click();
   await expect(intro(page)).toBeHidden();
@@ -106,6 +104,6 @@ test("the stories are one tap away in the More menu", async ({ page }) => {
   await page.locator("#stories-link").click();
   await expect(card(page)).toBeVisible();
   await expect(card(page).locator(".stories__eyebrow")).toContainText(
-    "Story 1 of 6"
+    "Story 1 of 7"
   );
 });

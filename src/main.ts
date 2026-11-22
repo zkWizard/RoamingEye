@@ -161,6 +161,12 @@ import { ShortcutsOverlay } from "./ui/ShortcutsOverlay";
 import { ThinkingOrb } from "./ui/ThinkingOrb";
 import type { StoryCard, StoryCardHandlers } from "./ui/StoryCard";
 import { markStoriesWelcomed, storiesWelcomed } from "./lib/storiesWelcome";
+import type { Story } from "./lib/stories";
+import {
+  shouldOfferWelcome,
+  TIME_HINT_KEY,
+  WELCOME_STORY_ID,
+} from "./lib/firstVisit";
 import type { ClipSubject } from "./ui/ClipRecorder";
 import { LEGENDS, legendTicks } from "./lib/legend";
 import { ActionMenu } from "./ui/ActionMenu";
@@ -178,7 +184,7 @@ import {
   wheelAltitudeFactor,
 } from "./lib/cameraZoom";
 import type { EarthEvent } from "./lib/events";
-import { pageview, record } from "./analytics";
+import { pageview, record, track } from "./analytics";
 
 /**
  * RoamingEye
@@ -636,7 +642,10 @@ function buildTimeline(): void {
     (message) => announcer.announce(message),
     {
       isFrameReady: () => imageryReady,
-      onUserScrub: () => record("scrub"),
+      onUserScrub: () => {
+        record("scrub");
+        dismissTimeHint();
+      },
       onPlayingChange: (isPlaying) => {
         playing = isPlaying;
         if (isPlaying) playbackArmed = true;
@@ -658,6 +667,12 @@ function buildTimeline(): void {
   // layer, so the resting caption is re-stated wherever the slider is rebuilt:
   // boot, layer switch, and the freshness probe extending the range.
   setStatus("");
+  const hint = document.getElementById("time-hint");
+  if (hint && !hint.hidden) {
+    timelineEl
+      .querySelector(".timeline__track")
+      ?.setAttribute("aria-describedby", "time-hint");
+  }
 }
 buildTimeline();
 
@@ -945,16 +960,80 @@ async function toggleOverlay(
 // the bar it built: a restored overlay whose load fails has to un-press its own
 // button, and the restore loop runs after this block.
 let toolbar: Toolbar | null = null;
-let introTimer: ReturnType<typeof setTimeout> | undefined;
-let introStop: ReturnType<typeof setTimeout> | undefined;
+/** Stops a welcome story's flight and playback. The stories block fills this in. */
+let stopStoryMotion: () => void = () => undefined;
 /** Assigned once the stories block is up; view cards call it by id. */
 let playStory: (id: string) => void = () => undefined;
 
+function dismissTimeHint(): void {
+  const hint = document.getElementById("time-hint");
+  if (hint) hint.hidden = true;
+  document
+    .querySelector(".timeline__track")
+    ?.removeAttribute("aria-describedby");
+  try {
+    localStorage.setItem(TIME_HINT_KEY, "done");
+  } catch {
+    /* private mode: the hint returns next visit */
+  }
+}
+
+function showTimeHint(): void {
+  try {
+    if (localStorage.getItem(TIME_HINT_KEY) === "done") return;
+  } catch {
+    return;
+  }
+  const hint = document.getElementById("time-hint");
+  if (!hint) return;
+  hint.hidden = false;
+  document
+    .querySelector(".timeline__track")
+    ?.setAttribute("aria-describedby", "time-hint");
+}
+
+/** Drop the inline phone placement so a later story card uses the stylesheet. */
+function clearWelcomePlacement(): void {
+  const stories = document.querySelector<HTMLElement>("#stories");
+  if (!stories) return;
+  stories.style.top = "";
+  stories.style.bottom = "";
+  stories.style.left = "";
+  stories.style.width = "";
+}
+
+/**
+ * On a phone the welcome sits just above the dock, in the thumb zone, and
+ * leaves the middle of the globe clear. A wide window keeps the corner the
+ * stylesheet already chose.
+ */
+function placeWelcome(): void {
+  const stories = document.querySelector<HTMLElement>("#stories");
+  if (!stories) return;
+  const phone = window.matchMedia(
+    "(max-width: 540px), (max-height: 460px)"
+  ).matches;
+  if (!phone) {
+    clearWelcomePlacement();
+    return;
+  }
+  const dock = document.querySelector(".overlay--bottom");
+  if (!dock) return;
+  const hint = document.getElementById("time-hint");
+  const hintH = hint && !hint.hidden ? hint.offsetHeight + 8 : 0;
+  const top = dock.getBoundingClientRect().top;
+  stories.style.top = "auto";
+  stories.style.left = "0.75rem";
+  stories.style.width = "calc(100vw - 1.5rem)";
+  stories.style.bottom = `${Math.round(window.innerHeight - top + hintH + 10)}px`;
+}
+
 function dismissIntro(): void {
-  clearTimeout(introTimer);
-  clearTimeout(introStop);
+  stopStoryMotion();
   timeSlider?.pause();
   markStoriesWelcomed();
+  clearWelcomePlacement();
+  document.getElementById("app")?.classList.remove("is-welcome");
   const intro = document.querySelector<HTMLElement>("#intro");
   if (!intro) return;
   // Skip sits in the middle of the tab order. Hiding it while it holds focus
@@ -1818,6 +1897,9 @@ function comparisonHost() {
     hideStudy: () => {
       studyRegion.hide();
       studyChip?.hide();
+    },
+    pressOverlay: (id: string) => {
+      toolbar?.press(id, true);
     },
     enableMonthCompare: (earlier: YearMonth) => {
       compare.enable(LAYERS[currentLayer], earlier);
@@ -3431,6 +3513,43 @@ if (storiesEl) {
   // and the playback it scheduled for after the camera arrives.
   let storyOverlays: string[] = [];
   let storyStart: ReturnType<typeof setTimeout> | undefined;
+  stopStoryMotion = () => {
+    clearTimeout(storyStart);
+    timeSlider?.pause();
+    endFlight();
+  };
+  /** Fly to a story and play its months. Does not retire the welcome card. */
+  const runStory = (story: Story): void => {
+    clearTimeout(storyStart);
+    // A story is its own view. Leaving a searched place in the hash would
+    // reopen that chart on top of the story the link claims to play.
+    clearSharedSearch();
+    if (currentLayer !== story.layer) {
+      switchLayer(story.layer, { fromStory: true });
+    } else {
+      closeProbe?.();
+      compareControls?.exit();
+    }
+    for (const id of story.overlays ?? []) {
+      if (toolbar?.press(id, true)) storyOverlays.push(id);
+    }
+    endFlight();
+    flyer.flyTo(
+      story.camera.lat,
+      story.camera.lon,
+      EARTH_RADIUS + story.camera.alt
+    );
+    const from = nearestMonthIndex(months, story.from);
+    const to = nearestMonthIndex(months, story.to);
+    timeSlider?.pause();
+    // Play once the camera has arrived, so the story opens on its place
+    // rather than on the flight there (instant under reduced motion).
+    storyStart = setTimeout(
+      () => timeSlider?.playRange(from, to),
+      reduceMotion ? 0 : 1500
+    );
+    scheduleHashSync();
+  };
   const handlers: StoryCardHandlers = {
     save: (story, replay) =>
       saveClip({
@@ -3442,35 +3561,7 @@ if (storiesEl) {
     announce: (message) => announcer.announce(message),
     play: (story) => {
       dismissIntro();
-      clearTimeout(storyStart);
-      // A story is its own view. Leaving a searched place in the hash would
-      // reopen that chart on top of the story the link claims to play.
-      clearSharedSearch();
-      if (currentLayer !== story.layer) {
-        switchLayer(story.layer, { fromStory: true });
-      } else {
-        closeProbe?.();
-        compareControls?.exit();
-      }
-      for (const id of story.overlays ?? []) {
-        if (toolbar?.press(id, true)) storyOverlays.push(id);
-      }
-      endFlight();
-      flyer.flyTo(
-        story.camera.lat,
-        story.camera.lon,
-        EARTH_RADIUS + story.camera.alt
-      );
-      const from = nearestMonthIndex(months, story.from);
-      const to = nearestMonthIndex(months, story.to);
-      timeSlider?.pause();
-      // Play once the camera has arrived, so the story opens on its place
-      // rather than on the flight there (instant under reduced motion).
-      storyStart = setTimeout(
-        () => timeSlider?.playRange(from, to),
-        reduceMotion ? 0 : 1500
-      );
-      scheduleHashSync();
+      runStory(story);
     },
     end: () => {
       clearTimeout(storyStart);
@@ -3521,43 +3612,78 @@ if (storiesEl) {
 
   const intro = document.querySelector<HTMLElement>("#intro");
   const introCaption = intro?.querySelector<HTMLElement>(".intro__caption");
+  const introSkip = intro?.querySelector<HTMLButtonElement>("#intro-skip");
+  let welcomeAutoplayed = false;
+  introSkip?.addEventListener("click", () => {
+    const skippedAutoplay = welcomeAutoplayed;
+    dismissIntro();
+    // The tour has already stepped into older months. Stopping it means
+    // "show me now": the newest published month.
+    timeSlider?.seek(months.length - 1);
+    if (skippedAutoplay) track("story_autoplay_skip");
+  });
   intro
-    ?.querySelector<HTMLButtonElement>("#intro-skip")
-    ?.addEventListener("click", () => {
-      dismissIntro();
-      // The tour has already stepped into older months by the time Skip is
-      // pressed. Skipping it means "show me now": the newest published month.
-      timeSlider?.seek(months.length - 1);
+    ?.querySelectorAll<HTMLButtonElement>(".intro__example")
+    .forEach((button) => {
+      button.addEventListener("click", () => {
+        const id = button.dataset.example;
+        if (!id) return;
+        dismissIntro();
+        track("example_search_tap", { example: id });
+        record("search");
+        void import("./ui/welcomeExamples").then(
+          ({ runWelcomeExample }) => {
+            runWelcomeExample(id, {
+              ...comparisonHost(),
+              playStory,
+            });
+          },
+          (err) => console.warn("RoamingEye: example search failed", err)
+        );
+      });
     });
+  // A grab on the globe stops the welcome flight. The card stays, so the
+  // examples are still one tap away, and the globe is theirs.
+  canvas.addEventListener("pointerdown", () => {
+    if (intro?.hidden !== false) return;
+    stopStoryMotion();
+  });
 
-  // A returning visitor has a session; a first visit with a bare URL has
-  // nothing to go on. The caption plays once, and Skip (or any card) retires
-  // it for good (lib/storiesWelcome.ts).
-  const firstVisit =
-    storedSession.layer === undefined && !window.location.hash.slice(1);
+  // A returning visitor has a session. A shared link has a hash or a query.
+  // Either skips the welcome (lib/firstVisit.ts).
+  const offerWelcome = shouldOfferWelcome({
+    welcomed: storiesWelcomed(),
+    hasSessionLayer: storedSession.layer !== undefined,
+    hash: window.location.hash,
+    search: window.location.search,
+  });
+  const placeIfWelcome = (): void => {
+    if (intro?.hidden === false) placeWelcome();
+  };
+  window.addEventListener("resize", placeIfWelcome);
   afterFirstLoad.push(() => {
     const story = initialView.story;
     if (story) withCard((card) => card.showById(story));
-    else if (firstVisit && intro && !storiesWelcomed()) {
-      const phone = window.matchMedia(
-        "(max-width: 540px), (max-height: 460px)"
-      ).matches;
-      if (introCaption) {
-        introCaption.textContent = phone
-          ? "This is how green the planet was over the last couple of years. Skip this, or open Map and tap a picture."
-          : "This is how green the planet was over the last couple of years. Skip this, or tap a picture on the right.";
-      }
+    else if (offerWelcome && intro && introCaption && introSkip) {
+      const mode = reduceMotion ? "still" : "playing";
+      introCaption.textContent = introCaption.dataset[mode] ?? "";
+      const label = introSkip.dataset[mode];
+      if (label) introSkip.textContent = label;
+      document.getElementById("app")?.classList.add("is-welcome");
+      markStoriesWelcomed();
+      showTimeHint();
+      placeWelcome();
       intro.hidden = false;
-      // The curtain fades for 0.6s after this runs. Waiting past that keeps
-      // the month still until a test (or a person) has had a chance to skip,
-      // and then the tour itself lasts about ten seconds.
-      introTimer = setTimeout(() => {
-        if (!reduceMotion) {
-          const end = currentIndex;
-          timeSlider?.playRange(Math.max(0, end - 24), end);
-        }
-        introStop = setTimeout(() => dismissIntro(), 10_000);
-      }, 1600);
+      if (introCaption.textContent)
+        announcer.announce(introCaption.textContent);
+      if (!reduceMotion) {
+        welcomeAutoplayed = true;
+        track("story_autoplay_start");
+        void import("./lib/stories").then(({ storyById }) => {
+          const welcome = storyById(WELCOME_STORY_ID);
+          if (welcome && intro.hidden === false) runStory(welcome);
+        });
+      }
     }
   });
 }

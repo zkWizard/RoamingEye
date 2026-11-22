@@ -689,6 +689,7 @@ body {
 .view-card__open:focus-visible,
 .view-card__action:focus-visible,
 .intro__skip:focus-visible,
+.intro__example:focus-visible,
 .controls__collapse:focus-visible,
 .layer-selector__trigger:focus-visible,
 .status-retry:focus-visible {
@@ -4266,12 +4267,12 @@ body {
 
 .intro {
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
   gap: 0.7rem;
-  padding: 0.75rem 0.8rem;
+  padding: 0.8rem;
   background: var(--panel-bg);
   border: 1px solid var(--control-border);
-  border-radius: 14px;
+  border-radius: 16px;
   box-shadow: var(--surface-edge), var(--surface-shadow);
   backdrop-filter: var(--material-blur);
 }
@@ -4280,25 +4281,131 @@ body {
   display: none;
 }
 
+.intro__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+
 .intro__caption {
   margin: 0;
   min-width: 0;
-  font-size: 0.84rem;
+  font-size: 0.92rem;
   line-height: 1.4;
   color: var(--fg);
 }
 
 .intro__skip {
   flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 0.95rem;
   font: inherit;
-  font-size: 0.75rem;
+  font-size: 0.84rem;
   font-weight: 650;
   color: var(--bg);
   background: var(--fg);
   border: 0;
   border-radius: 999px;
-  padding: 0.35rem 0.75rem;
   cursor: pointer;
+}
+
+/* One row on a phone so the card stays in the thumb zone. A desktop window
+   stacks them, where there is room beside the globe. */
+.intro__examples {
+  display: flex;
+  gap: 0.45rem;
+  margin: 0 -0.15rem;
+  padding: 0 0.15rem 0.1rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.intro__examples::-webkit-scrollbar {
+  display: none;
+}
+
+.intro__example {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  min-height: 44px;
+  max-width: 16rem;
+  padding: 0.45rem 0.85rem;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: left;
+  color: var(--fg);
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.intro__example:hover {
+  border-color: var(--control-border-hover);
+}
+
+@media (min-width: 541px) and (min-height: 461px) {
+  .intro__examples {
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .intro__example {
+    max-width: none;
+  }
+}
+
+/* A phone held upright has room to show every example at once. Stacking
+   them keeps each label whole, in the thumb zone, with the planet still
+   open above the card. A short landscape screen stays on one scrolling row. */
+@media (max-width: 540px) and (min-height: 461px) {
+  .intro {
+    gap: 0.45rem;
+    padding: 0.65rem 0.7rem;
+  }
+
+  .intro__examples {
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .intro__example {
+    max-width: none;
+    white-space: normal;
+  }
+}
+
+/* The slider's own sentence, until the visitor moves it. It floats just
+   above the dock and does not take taps, so the globe underneath still
+   drags. */
+.time-hint {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: calc(100% + 0.45rem);
+  transform: translateX(-50%);
+  margin: 0;
+  max-width: calc(100vw - 2rem);
+  padding: 0.45rem 0.9rem;
+  font-size: 0.84rem;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--fg);
+  white-space: nowrap;
+  background: var(--panel-bg-strong);
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  box-shadow: var(--surface-edge), var(--surface-shadow);
+  backdrop-filter: var(--material-blur);
+  pointer-events: none;
+}
+
+.time-hint[hidden] {
+  display: none;
 }
 
 .stories__invite[hidden],

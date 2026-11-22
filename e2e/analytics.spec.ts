@@ -35,6 +35,7 @@ test("a normal visit loads no analytics provider", async ({ page }) => {
 
 test("activation events reach a mock provider", async ({ page }) => {
   await page.addInitScript(() => {
+    localStorage.setItem("roamingeye:stories-welcome", "done");
     window.__reLog = [];
     window.__reAnalytics = (event) => {
       window.__reLog?.push(event);

@@ -96,6 +96,16 @@ export const STORIES: readonly Story[] = [
     to: { year: 2024, month: 6 },
     camera: { lat: 60, lon: 40, alt: 1.8 },
   },
+  {
+    id: "arctic-ice",
+    title: "Ice returns to the Arctic",
+    blurb:
+      "From the September low, snow and ice spread back across the Arctic Ocean through the winter.",
+    layer: "snow",
+    from: { year: 2023, month: 9 },
+    to: { year: 2024, month: 3 },
+    camera: { lat: 78, lon: -40, alt: 1.35 },
+  },
 ];
 
 const BY_ID = new Map(STORIES.map((story) => [story.id, story]));

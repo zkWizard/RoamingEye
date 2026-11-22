@@ -41,6 +41,7 @@ const STORY_CATEGORY = {
   "black-summer-2019": "wildfire",
   "sahel-monsoon-2024": "monsoon",
   "northern-snow-2023": "snow",
+  "arctic-ice": "snow",
 };
 
 const EONET = "https://eonet.gsfc.nasa.gov/api/v3/events";
