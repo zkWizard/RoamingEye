@@ -1,4 +1,33 @@
-import * as THREE from "three";
+import {
+  AddEquation,
+  BufferGeometry,
+  ClampToEdgeWrapping,
+  Color,
+  CustomBlending,
+  DataTexture,
+  Float32BufferAttribute,
+  FloatType,
+  Group,
+  LinearFilter,
+  Mesh,
+  NearestFilter,
+  NoColorSpace,
+  OneFactor,
+  OrthographicCamera,
+  PlaneGeometry,
+  Points,
+  RGBAFormat,
+  RepeatWrapping,
+  Scene,
+  ShaderMaterial,
+  SphereGeometry,
+  Texture,
+  UnsignedByteType,
+  Vector2,
+  WebGLRenderer,
+  WebGLRenderTarget,
+  type IUniform,
+} from "three";
 import { fieldToRgba, type WindField } from "./field";
 import { GLOBE_RADIUS } from "../../overlays/types";
 import {
@@ -39,22 +68,22 @@ function makeTarget(
   width: number,
   height: number,
   nearest: boolean
-): THREE.WebGLRenderTarget {
-  const filter = nearest ? THREE.NearestFilter : THREE.LinearFilter;
-  const target = new THREE.WebGLRenderTarget(width, height, {
-    format: THREE.RGBAFormat,
-    type: THREE.UnsignedByteType,
+): WebGLRenderTarget {
+  const filter = nearest ? NearestFilter : LinearFilter;
+  const target = new WebGLRenderTarget(width, height, {
+    format: RGBAFormat,
+    type: UnsignedByteType,
     depthBuffer: false,
     stencilBuffer: false,
     magFilter: filter,
     minFilter: filter,
     generateMipmaps: false,
   });
-  target.texture.colorSpace = THREE.NoColorSpace;
+  target.texture.colorSpace = NoColorSpace;
   return target;
 }
 
-function fieldUniforms(field: WindField): Record<string, THREE.IUniform> {
+function fieldUniforms(field: WindField): Record<string, IUniform> {
   const { lat0, lon0, dLat, dLon, nLat, nLon } = field.header;
   return {
     uLat0: { value: lat0 },
@@ -71,32 +100,32 @@ function fieldUniforms(field: WindField): Record<string, THREE.IUniform> {
  * accumulate in a second ping-pong target that is draped on the globe.
  */
 export class WindSimulation {
-  readonly object = new THREE.Group();
-  private readonly renderer: THREE.WebGLRenderer;
+  readonly object = new Group();
+  private readonly renderer: WebGLRenderer;
   // Near 0 would put the fullscreen quad on the far plane and clip it, so the
   // advection and fade passes would draw nothing.
-  private readonly ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
-  private readonly quadScene = new THREE.Scene();
-  private readonly stampScene = new THREE.Scene();
-  private readonly savedClear = new THREE.Color();
-  private fieldTexture: THREE.DataTexture;
-  private stateRead: THREE.Texture;
-  private seedTexture: THREE.DataTexture | null = null;
-  private stateA: THREE.WebGLRenderTarget;
-  private stateB: THREE.WebGLRenderTarget;
-  private trailA: THREE.WebGLRenderTarget;
-  private trailB: THREE.WebGLRenderTarget;
-  private advectMat: THREE.ShaderMaterial;
-  private fadeMat: THREE.ShaderMaterial;
-  private stampMat: THREE.ShaderMaterial;
-  private displayMat: THREE.ShaderMaterial;
-  private points: THREE.Points;
+  private readonly ortho = new OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+  private readonly quadScene = new Scene();
+  private readonly stampScene = new Scene();
+  private readonly savedClear = new Color();
+  private fieldTexture: DataTexture;
+  private stateRead: Texture;
+  private seedTexture: DataTexture | null = null;
+  private stateA: WebGLRenderTarget;
+  private stateB: WebGLRenderTarget;
+  private trailA: WebGLRenderTarget;
+  private trailB: WebGLRenderTarget;
+  private advectMat: ShaderMaterial;
+  private fadeMat: ShaderMaterial;
+  private stampMat: ShaderMaterial;
+  private displayMat: ShaderMaterial;
+  private points: Points;
   private count: number;
   private lastNow = 0;
   private lastTierCheck = 0;
   private seed = Math.random() * 1000;
 
-  constructor(renderer: THREE.WebGLRenderer, field: WindField) {
+  constructor(renderer: WebGLRenderer, field: WindField) {
     if (!renderer.capabilities.isWebGL2) {
       throw new Error("Wind needs WebGL2");
     }
@@ -113,7 +142,7 @@ export class WindSimulation {
     this.stateRead = this.seedState(grid.width, grid.height);
 
     const shared = fieldUniforms(field);
-    this.advectMat = new THREE.ShaderMaterial({
+    this.advectMat = new ShaderMaterial({
       uniforms: {
         ...shared,
         uState: { value: this.stateRead },
@@ -127,7 +156,7 @@ export class WindSimulation {
       depthTest: false,
       depthWrite: false,
     });
-    this.fadeMat = new THREE.ShaderMaterial({
+    this.fadeMat = new ShaderMaterial({
       uniforms: {
         uTex: { value: this.trailA.texture },
         uDecay: { value: 1 },
@@ -137,12 +166,12 @@ export class WindSimulation {
       depthTest: false,
       depthWrite: false,
     });
-    this.stampMat = new THREE.ShaderMaterial({
+    this.stampMat = new ShaderMaterial({
       uniforms: {
         ...shared,
         uState: { value: this.stateRead },
         uField: { value: this.fieldTexture },
-        uStateSize: { value: new THREE.Vector2(grid.width, grid.height) },
+        uStateSize: { value: new Vector2(grid.width, grid.height) },
         uPointSize: { value: this.count <= WIND_PARTICLES_LOW ? 2.6 : 3.4 },
         uMode: { value: 0 },
       },
@@ -151,15 +180,15 @@ export class WindSimulation {
       transparent: true,
       depthTest: false,
       depthWrite: false,
-      blending: THREE.CustomBlending,
-      blendEquation: THREE.AddEquation,
-      blendSrc: THREE.OneFactor,
-      blendDst: THREE.OneFactor,
-      blendEquationAlpha: THREE.AddEquation,
-      blendSrcAlpha: THREE.OneFactor,
-      blendDstAlpha: THREE.OneFactor,
+      blending: CustomBlending,
+      blendEquation: AddEquation,
+      blendSrc: OneFactor,
+      blendDst: OneFactor,
+      blendEquationAlpha: AddEquation,
+      blendSrcAlpha: OneFactor,
+      blendDstAlpha: OneFactor,
     });
-    this.displayMat = new THREE.ShaderMaterial({
+    this.displayMat = new ShaderMaterial({
       uniforms: { uTrail: { value: this.trailA.texture } },
       vertexShader: DISPLAY_VERT,
       fragmentShader: DISPLAY_FRAG,
@@ -168,14 +197,14 @@ export class WindSimulation {
       toneMapped: false,
     });
 
-    const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.advectMat);
+    const quad = new Mesh(new PlaneGeometry(2, 2), this.advectMat);
     quad.frustumCulled = false;
     this.quadScene.add(quad);
     this.points = this.makePoints(grid.width, grid.height);
     this.stampScene.add(this.points);
 
-    const shell = new THREE.Mesh(
-      new THREE.SphereGeometry(GLOBE_RADIUS * 1.0015, 96, 64),
+    const shell = new Mesh(
+      new SphereGeometry(GLOBE_RADIUS * 1.0015, 96, 64),
       this.displayMat
     );
     shell.frustumCulled = false;
@@ -221,7 +250,7 @@ export class WindSimulation {
     this.displayMat.dispose();
     this.points.geometry.dispose();
     const shell = this.object.children[0];
-    if (shell instanceof THREE.Mesh) shell.geometry.dispose();
+    if (shell instanceof Mesh) shell.geometry.dispose();
   }
 
   private desiredCount(): number {
@@ -251,7 +280,7 @@ export class WindSimulation {
     this.trailA = makeTarget(trail.width, trail.height, false);
     this.trailB = makeTarget(trail.width, trail.height, false);
     this.stateRead = this.seedState(grid.width, grid.height);
-    (this.stampMat.uniforms.uStateSize.value as THREE.Vector2).set(
+    (this.stampMat.uniforms.uStateSize.value as Vector2).set(
       grid.width,
       grid.height
     );
@@ -265,26 +294,20 @@ export class WindSimulation {
     this.clearTarget(this.trailB);
   }
 
-  private uploadField(field: WindField): THREE.DataTexture {
+  private uploadField(field: WindField): DataTexture {
     const { nLon, nLat } = field.header;
     const rgba = fieldToRgba(field);
-    const texture = new THREE.DataTexture(
-      rgba,
-      nLon,
-      nLat,
-      THREE.RGBAFormat,
-      THREE.FloatType
-    );
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.ClampToEdgeWrapping;
-    texture.magFilter = THREE.NearestFilter;
-    texture.minFilter = THREE.NearestFilter;
-    texture.colorSpace = THREE.NoColorSpace;
+    const texture = new DataTexture(rgba, nLon, nLat, RGBAFormat, FloatType);
+    texture.wrapS = RepeatWrapping;
+    texture.wrapT = ClampToEdgeWrapping;
+    texture.magFilter = NearestFilter;
+    texture.minFilter = NearestFilter;
+    texture.colorSpace = NoColorSpace;
     texture.needsUpdate = true;
     return texture;
   }
 
-  private seedState(width: number, height: number): THREE.DataTexture {
+  private seedState(width: number, height: number): DataTexture {
     const data = new Uint8Array(width * height * 4);
     for (let i = 0; i < width * height; i++) {
       const lon = Math.random() * 360 - 180;
@@ -296,27 +319,27 @@ export class WindSimulation {
       data[i * 4 + 2] = latHi;
       data[i * 4 + 3] = latLo;
     }
-    const texture = new THREE.DataTexture(data, width, height);
+    const texture = new DataTexture(data, width, height);
     this.seedTexture?.dispose();
     this.seedTexture = texture;
-    texture.magFilter = THREE.NearestFilter;
-    texture.minFilter = THREE.NearestFilter;
-    texture.colorSpace = THREE.NoColorSpace;
+    texture.magFilter = NearestFilter;
+    texture.minFilter = NearestFilter;
+    texture.colorSpace = NoColorSpace;
     texture.needsUpdate = true;
     return texture;
   }
 
-  private makePoints(width: number, height: number): THREE.Points {
+  private makePoints(width: number, height: number): Points {
     const count = width * height;
     const ids = new Float32Array(count);
     for (let i = 0; i < count; i++) ids[i] = i;
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("aIndex", new THREE.Float32BufferAttribute(ids, 1));
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("aIndex", new Float32BufferAttribute(ids, 1));
     geometry.setAttribute(
       "position",
-      new THREE.Float32BufferAttribute(new Float32Array(count * 3), 3)
+      new Float32BufferAttribute(new Float32Array(count * 3), 3)
     );
-    const points = new THREE.Points(geometry, this.stampMat);
+    const points = new Points(geometry, this.stampMat);
     points.frustumCulled = false;
     return points;
   }
@@ -329,7 +352,7 @@ export class WindSimulation {
     this.advectMat.uniforms.uSeed.value = this.seed += dtSeconds;
     const stateWrite =
       this.stateRead === this.stateA.texture ? this.stateB : this.stateA;
-    (this.quadScene.children[0] as THREE.Mesh).material = this.advectMat;
+    (this.quadScene.children[0] as Mesh).material = this.advectMat;
     this.pass(stateWrite, this.quadScene, true);
 
     const decay = Math.pow(0.5, dtSeconds / TRAIL_HALF_LIFE_SEC);
@@ -339,7 +362,7 @@ export class WindSimulation {
     const trailWrite = showingA ? this.trailB : this.trailA;
     this.fadeMat.uniforms.uTex.value = trailRead.texture;
     this.fadeMat.uniforms.uDecay.value = decay;
-    (this.quadScene.children[0] as THREE.Mesh).material = this.fadeMat;
+    (this.quadScene.children[0] as Mesh).material = this.fadeMat;
     this.pass(trailWrite, this.quadScene, true);
     this.stampMat.uniforms.uState.value = stateWrite.texture;
     this.pass(trailWrite, this.stampScene, false);
@@ -353,13 +376,13 @@ export class WindSimulation {
     }
   }
 
-  private clearTarget(target: THREE.WebGLRenderTarget): void {
+  private clearTarget(target: WebGLRenderTarget): void {
     this.pass(target, this.quadScene, true, true);
   }
 
   private pass(
-    target: THREE.WebGLRenderTarget,
-    scene: THREE.Scene,
+    target: WebGLRenderTarget,
+    scene: Scene,
     clear: boolean,
     blank = false
   ): void {
