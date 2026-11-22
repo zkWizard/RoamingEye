@@ -41,6 +41,7 @@ import {
   type ProbeShare,
   type SharedPlace,
 } from "./lib/viewState";
+import type { LookId } from "./fx/looks";
 import { latLngToVector3, vector3ToLatLng, formatLatLng } from "./lib/geo";
 import { bboxOutline, lookupPlace, type GeoResult } from "./lib/geocoding";
 import {
@@ -449,6 +450,8 @@ if (tooltipEl) {
 // per-layer (the hash layer is resolved first) and the slider rebuilds on
 // layer switch.
 const initialView = decodeViewState(window.location.hash);
+let currentLook: LookId = initialView.look ?? "natural";
+let presentLook: ((draw: (gl: WebGLRenderer) => void) => void) | null = null;
 // The last session's working context (layer/month/overlays) restores on a
 // plain revisit; an explicit URL hash always wins. localStorage can throw
 // (private mode) — degrade to defaults, never break boot.
@@ -838,14 +841,11 @@ function mountExport(): Promise<void> {
       exportEl,
       {
         downloadPng: () => {
-          // Render a fresh frame and read the canvas in the same task — the
+          // Render a fresh frame and read the canvas in the same task. The
           // drawing buffer isn't preserved between frames. An active comparison
-          // exports exactly what's on screen, divider split included.
-          if (compare.showing) {
-            compare.renderSplit(renderer, scene, camera, [hdTiles.object]);
-          } else {
-            renderer.render(scene, camera);
-          }
+          // exports exactly what's on screen, divider split included. A look
+          // is already in that frame.
+          drawScene();
           canvas.toBlob((blob) => {
             // A successful save reports itself through the browser's own download
             // chrome, so it needs no message of ours. A failed encode fires no
@@ -1501,6 +1501,7 @@ function currentViewState() {
     pin: compare.active ? compare.pinned : undefined,
     place: sharedPlace,
     query: sharedQuery,
+    look: currentLook === "natural" ? undefined : currentLook,
   };
 }
 
@@ -4126,6 +4127,42 @@ function adaptResolution(now: number): void {
   }
 }
 
+// The scene, then a look when one is selected. Natural draws the scene and
+// stops, so the extra pass is not run and its chunk stays unloaded.
+function drawScene(): void {
+  const draw = (gl: WebGLRenderer): void => {
+    if (compare.showing) {
+      compare.renderSplit(gl, scene, camera, [hdTiles.object]);
+    } else {
+      gl.render(scene, camera);
+    }
+  };
+  if (presentLook) presentLook(draw);
+  else draw(renderer);
+}
+
+let looksReady: Promise<void> | null = null;
+function installLooks(): void {
+  if (looksReady) return;
+  const host = document.querySelector<HTMLElement>(
+    ".toolbar__fold--settings .toolbar__list"
+  );
+  looksReady = import("./fx/mountLooks").then(({ mountLooks }) => {
+    const handle = mountLooks({
+      renderer,
+      host,
+      initial: currentLook,
+      onChange: (id) => {
+        currentLook = id;
+        presentLook = id === "natural" ? null : (draw) => handle.present(draw);
+        scheduleHashSync();
+      },
+    });
+    presentLook =
+      currentLook === "natural" ? null : (draw) => handle.present(draw);
+  });
+}
+
 // --- Render loop ------------------------------------------------------------
 // Set while a close view has hidden the HD-tile patches so the terrain drape
 // can show. Cleared by restoring the toolbar's own on/off choice.
@@ -4206,12 +4243,9 @@ const renderFrame = (): void => {
   // HD tiles only ever stream the live month, so a comparison suppresses them
   // on both sides and both months render from their own full-globe texture —
   // a like-for-like split (see CompareController.renderSplit).
-  if (compare.showing) {
-    compare.renderSplit(renderer, scene, camera, [hdTiles.object]);
-  } else {
-    renderer.render(scene, camera);
-  }
+  drawScene();
   // Read the drawing buffer while it is still this frame's (a clip recording).
+  // drawScene has already applied the look, so the clip gets that frame.
   for (const draw of frameHooks) draw();
 
   if (!signalledReady) {
@@ -4235,6 +4269,10 @@ const moreToolsReady = Promise.all([
   mountExport(),
   drawerReady,
 ]);
+document
+  .querySelector(".toolbar__fold--settings")
+  ?.addEventListener("toggle", () => installLooks(), { once: true });
+if (currentLook !== "natural") installLooks();
 renderer.setAnimationLoop(renderFrame);
 window.__RENDER_ACTIVE__ = true;
 

@@ -1,3 +1,4 @@
+import { isLookId, type LookId } from "../fx/looks";
 import { LAYERS, type LayerId, type YearMonth } from "./timeline";
 // Type-only: the bounds shape drawn regions already travel in. Keeping this
 // module's runtime imports to timeline.ts alone is deliberate — it sits in the
@@ -136,6 +137,12 @@ export interface ViewState {
    * shared link can show what was asked as well as where it landed.
    */
   query?: string;
+  /**
+   * A one-tap look (Night vision, Thermal, and the rest). Absent means
+   * Natural, so a link written before looks existed still opens the globe
+   * as it always did.
+   */
+  look?: LookId;
 }
 
 const MONTH_RE = /^(\d{4})-(\d{2})$/;
@@ -343,6 +350,9 @@ export function encodeViewState(state: ViewState): string {
     const query = cleanLabel(state.query, QUERY_MAX);
     if (query) params.set("q", query);
   }
+  if (state.look && state.look !== "natural" && isLookId(state.look)) {
+    params.set("look", state.look);
+  }
   return params.toString();
 }
 
@@ -465,6 +475,9 @@ export function decodeViewState(hash: string): ViewState {
     const decoded = cleanLabel(query, QUERY_MAX);
     if (decoded) state.query = decoded;
   }
+
+  const look = params.get("look");
+  if (look && isLookId(look) && look !== "natural") state.look = look;
 
   return state;
 }

@@ -16,6 +16,11 @@ describe("encodeViewState", () => {
     expect(encodeViewState({ layer: "snow" })).toBe("layer=snow");
   });
 
+  it("writes a look and leaves Natural off the link", () => {
+    expect(encodeViewState({ look: "thermal" })).toBe("look=thermal");
+    expect(encodeViewState({ look: "natural" })).toBe("");
+  });
+
   it("zero-pads single-digit months", () => {
     expect(encodeViewState({ month: { year: 2021, month: 3 } })).toBe(
       "t=2021-03"
@@ -41,6 +46,9 @@ describe("decodeViewState", () => {
     expect(decodeViewState("")).toEqual({});
     expect(decodeViewState("#not&even&params")).toEqual({});
     expect(decodeViewState("#layer=plutonium")).toEqual({});
+    expect(decodeViewState("#look=plasma")).toEqual({});
+    expect(decodeViewState("#look=natural")).toEqual({});
+    expect(decodeViewState("#look=night")).toEqual({ look: "night" });
   });
 
   it("drops malformed fields but keeps valid ones", () => {
