@@ -9,4 +9,5 @@ same view, desktop and phone.
 - `after-noir-desktop.png`, `after-noir-phone.png`: Noir.
 - `after-crt-desktop.png`, `after-crt-phone.png`: Retro CRT.
 - `after-blueprint-desktop.png`, `after-blueprint-phone.png`: Blueprint.
+- `after-cinematic-desktop.png`, `after-cinematic-phone.png`: Cinematic, with bloom, vignette, grain, and letterbox.
 - `after-picker-desktop.png`, `after-picker-phone.png`: the Look row in Settings.
