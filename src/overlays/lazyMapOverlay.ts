@@ -27,6 +27,9 @@ export function lazyMapOverlay(
 
   const ensureLoaded = once(async () => {
     const next = (await load()) as MapOverlay & Hoverable;
+    // The class fetch is only the first half. The overlay's own ensureLoaded
+    // is the data fetch the toolbar's waiting state has to cover.
+    if (next.ensureLoaded) await next.ensureLoaded();
     next.object.visible = true;
     object.add(next.object);
     impl = next;

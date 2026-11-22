@@ -300,9 +300,9 @@ const themeEl = document.querySelector<HTMLElement>("#theme-toggle");
   applyTheme(initial);
 }
 
-function mountThemeToggle(): void {
-  if (!themeEl || themeEl.childElementCount > 0) return;
-  void import("./ui/ThemeToggle").then(({ ThemeToggle }) => {
+function mountThemeToggle(): Promise<void> {
+  if (!themeEl || themeEl.childElementCount > 0) return Promise.resolve();
+  return import("./ui/ThemeToggle").then(({ ThemeToggle }) => {
     if (themeEl.childElementCount > 0) return;
     new ThemeToggle(themeEl, applyTheme);
   });
@@ -823,9 +823,9 @@ function updateProvenance(): void {
   )}`;
 }
 
-function mountExport(): void {
-  if (!exportEl || exportEl.childElementCount > 0) return;
-  void import("./ui/ExportControls").then(({ ExportControls }) => {
+function mountExport(): Promise<void> {
+  if (!exportEl || exportEl.childElementCount > 0) return Promise.resolve();
+  return import("./ui/ExportControls").then(({ ExportControls }) => {
     if (!exportEl || !canvas || exportEl.childElementCount > 0) return;
     new ExportControls(
       exportEl,
@@ -3932,10 +3932,21 @@ const renderFrame = (): void => {
 
   if (!signalledReady) {
     signalledReady = true;
-    window.__APP_READY__ = true;
+    // The globe is already drawing. The ready flag waits for the More-menu
+    // rows, which live in their own chunks, so a test that opens the menu
+    // on the first tick still finds the export and theme buttons.
+    void moreToolsReady.then(
+      () => {
+        window.__APP_READY__ = true;
+      },
+      () => {
+        window.__APP_READY__ = true;
+      }
+    );
   }
   adaptResolution(performance.now());
 };
+const moreToolsReady = Promise.all([mountThemeToggle(), mountExport()]);
 renderer.setAnimationLoop(renderFrame);
 window.__RENDER_ACTIVE__ = true;
 // Read-only GPU-resource counters for the soak e2e (see e2e/soak.spec.ts):
