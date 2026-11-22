@@ -216,6 +216,7 @@ export class Toolbar {
     const fold = document.createElement("details");
     fold.className = "toolbar__fold";
     if (group === "settings") fold.classList.add("toolbar__fold--settings");
+    if (group === "live") fold.classList.add("toolbar__fold--live");
     fold.open = open;
     const summary = document.createElement("summary");
     summary.textContent = title;

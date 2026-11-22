@@ -80,6 +80,7 @@ for (const size of LANDSCAPE) {
 
     await page.locator(".toolbar__handle").click();
     await page.locator(".toolbar__fold--settings summary").click();
+    await page.locator(".toolbar__fold--live summary").click();
 
     const items = page.locator(".toolbar__item");
     await expect(items).toHaveCount(OVERLAY_COUNT);
