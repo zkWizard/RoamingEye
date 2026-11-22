@@ -220,13 +220,48 @@
         </div>
       </nav>
 
-      <!-- Curated time-lapses (StoryCard.ts) and the first-visit caption. -->
+      <!-- Curated time-lapses (StoryCard.ts) and the first-visit welcome. -->
       <div id="stories" class="stories">
-        <div id="intro" class="intro" hidden>
-          <p class="intro__caption"></p>
-          <button id="intro-skip" type="button" class="intro__skip">
-            Skip
-          </button>
+        <div id="intro" class="intro" hidden role="region" aria-label="Welcome">
+          <div class="intro__top">
+            <p
+              class="intro__caption"
+              data-playing="Watch the green spread north as the summer rains arrive. Stop whenever you like."
+              data-still="The Earth changes through the year. Try one of these."
+            ></p>
+            <button
+              id="intro-skip"
+              type="button"
+              class="intro__skip"
+              data-playing="Stop"
+              data-still="Close"
+            >
+              Stop
+            </button>
+          </div>
+          <div class="intro__examples" role="group" aria-label="Try a search">
+            <button
+              type="button"
+              class="intro__example"
+              data-example="houston-austin"
+            >
+              Houston vs Austin rainfall
+            </button>
+            <button
+              type="button"
+              class="intro__example"
+              data-example="arctic-ice"
+            >
+              Watch the Arctic ice
+            </button>
+            <button
+              type="button"
+              class="intro__example"
+              data-example="growing-city"
+            >
+              Then vs now: a fast-growing city
+            </button>
+          </div>
         </div>
       </div>
 
@@ -243,6 +278,9 @@
       <aside id="place-insights"></aside>
 
       <div class="overlay overlay--bottom">
+        <p id="time-hint" class="time-hint" hidden>
+          Drag to travel through time
+        </p>
         <div id="controls" class="controls">
           <!-- Shown only where the dock still competes with the middle of the
                view (phones); style.css keeps both the button and the collapsed
