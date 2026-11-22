@@ -268,7 +268,10 @@ camera.layers.enable(1);
 // arrive with the sky chunk, after this first frame.
 const SPACE_BG = new Color(0x05070d); // matches --bg (dark)
 
-function applyTheme(_theme?: Theme): void {
+function applyTheme(theme: Theme): void {
+  // The canvas stays space in both themes. The argument is the page theme,
+  // which the toggle passes and the first paint also calls with.
+  void theme;
   renderer.setClearColor(SPACE_BG, 1);
 }
 
