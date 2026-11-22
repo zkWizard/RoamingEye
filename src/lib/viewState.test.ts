@@ -59,6 +59,24 @@ describe("decodeViewState", () => {
     });
   });
 
+  it("keeps pitch and heading off a nadir link and round-trips a tilt", () => {
+    expect(encodeViewState({ camera: { lat: 10, lon: 20, alt: 2 } })).toBe(
+      "lat=10.00&lon=20.00&alt=2.00"
+    );
+    const tilted = encodeViewState({
+      camera: { lat: 28, lon: 86, alt: 0.4, pitch: 55, hdg: -20 },
+    });
+    expect(tilted).toContain("pitch=55.0");
+    expect(tilted).toContain("hdg=-20.0");
+    expect(decodeViewState(`#${tilted}`).camera).toMatchObject({
+      pitch: 55,
+      hdg: -20,
+    });
+    expect(decodeViewState("#lat=1&lon=2&alt=1&pitch=99").camera?.pitch).toBe(
+      80
+    );
+  });
+
   it("rejects out-of-range months and altitudes", () => {
     expect(decodeViewState("#t=2024-13").month).toBeUndefined();
     expect(decodeViewState("#t=0000-05").month).toBeUndefined();

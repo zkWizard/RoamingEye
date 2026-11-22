@@ -178,7 +178,13 @@ export class GlobeMomentum {
     this.samples.length = 0;
   }
 
-  /** Once per frame, after `controls.update()`. */
+  /**
+   * Once per frame, after `controls.update()`.
+   *
+   * The camera here is the nadir orbit: a tilted view is put back on that
+   * orbit before the controls run, and pitched again after this tick. Coasting
+   * a tilted eye would read the pitch as a new ground point.
+   */
   tick(now: number): void {
     const dtMs = this.lastTick === undefined ? 0 : now - this.lastTick;
     this.lastTick = now;

@@ -35,6 +35,32 @@ describe("CameraFlyer reduced-motion (instant) mode", () => {
   });
 });
 
+describe("CameraFlyer gaze", () => {
+  it("blends pitch and heading and lands on the nadir orbit", () => {
+    const camera = new PerspectiveCamera();
+    camera.position.set(0, 0, 3.2);
+    const flyer = new CameraFlyer(camera, stubControls(), false);
+    flyer.armGaze(0, 170);
+    flyer.flyTo(48.86, 2.35, 1.8, 1, { pitch: 55, heading: -170 });
+
+    flyer.update(0.5);
+    const mid = flyer.takeGaze();
+    // 170 -> -170 takes the short way across ±180, not the long way through 0.
+    expect(Math.abs(Math.abs(mid?.heading ?? 0) - 180)).toBeLessThan(1);
+    expect(mid?.pitch).toBeCloseTo(27.5, 0);
+
+    flyer.update(0.6);
+    expect(flyer.isFlying).toBe(false);
+    const expected = latLngToVector3(48.86, 2.35, 1)
+      .normalize()
+      .multiplyScalar(1.8);
+    expect(camera.position.distanceTo(expected)).toBeLessThan(1e-6);
+    const landed = flyer.takeGaze();
+    expect(landed?.pitch).toBeCloseTo(55);
+    expect(landed?.heading).toBeCloseTo(-170);
+  });
+});
+
 describe("CameraFlyer.cancel", () => {
   it("stops mid-flight where the camera is and hands the controls back", () => {
     const camera = new PerspectiveCamera();

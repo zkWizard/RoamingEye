@@ -238,8 +238,9 @@ export class HoverInspector {
    * volcano, and the spoken aim said the same. That is 1,196 bundled GVP
    * volcanoes and the live USGS feed reachable by pointer alone.
    *
-   * The aim is the camera subpoint, and `camera.lookAt(0, 0, 0)` puts that at
-   * NDC (0, 0) by construction, so the pointer's own hit test answers for the
+   * The aim is the ground point in the middle of the view. Looking at that
+   * point (the origin, when the view is straight down) puts it at NDC (0, 0),
+   * so the pointer's own hit test answers for the
    * reticle unchanged: same sources, same thresholds, same marker-over-line
    * precedence. Sharing the ray is what keeps the two readouts from drifting.
    *
