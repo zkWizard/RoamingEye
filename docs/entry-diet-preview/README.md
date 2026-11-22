@@ -60,6 +60,41 @@ Phone after
 
 ![Phone first frame after tree-shake](after-tree-shake-phone-390x844.png)
 
+## Defer the first frame
+
+The science chunk is no longer modulepreloaded. It loads on the first probe,
+compare, or legend press. Plates, volcanoes, time zones, cities, and borders
+load when turned on. US counties were already loaded that way. The region
+drawer, study region, shortcuts, export, and theme toggle are dynamic imports.
+The theme itself is applied before the toggle chunk arrives.
+
+Eager JS is the entry chunk plus every modulepreload.
+
+|                     |   Entry |    three | science in the preload |    Eager |
+| ------------------- | ------: | -------: | ---------------------- | -------: |
+| After tree-shake    | 58.4 kB | 142.5 kB | yes, 31.2 kB           | 241.7 kB |
+| After this deferral | 35.1 kB | 142.5 kB | no                     | 186.7 kB |
+
+```text
+ok  index-vMSyTgEn.js: 35.1 kB gzip (budget 50 kB)
+ok  science-wG0bpBYD.js: 45.5 kB gzip (budget 50 kB)
+ok  three-CF0q1FIn.js: 142.5 kB gzip (budget 148 kB)
+     total JS: 387.6 kB gzip
+```
+
+The app budget is 50. Measured entry plus 3 kB is under that floor.
+
+Desktop after the deferral, with the first-visit story playing
+
+![Desktop first frame after deferral](after-defer-desktop-1440x900.png)
+
+Phone after the deferral
+
+![Phone first frame after deferral](after-defer-phone-390x844.png)
+
+One local preview run: desktop globe ready 457 ms, imagery curtain up 3512 ms.
+Phone globe ready 206 ms, imagery curtain up 2479 ms.
+
 ## Opening seconds (desktop, before)
 
 200 ms is the curtain. 600 ms is still the curtain. 1200 ms is the first
