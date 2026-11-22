@@ -9,7 +9,7 @@
 
 export const RAYLEIGH = [0.3, 0.52, 1] as const;
 export const WARM = [1, 0.42, 0.22] as const;
-export const RIM_POWER = 2.4;
+export const RIM_POWER = 3.6;
 export const DAY_LO = -0.08;
 export const DAY_HI = 0.4;
 export const NIGHT_LO = -0.6;

@@ -22,7 +22,7 @@ export class AtmosphereOverlay implements MapOverlay {
   readonly object: Mesh;
   readonly defaultOn = true;
 
-  constructor(radius = GLOBE_RADIUS * 1.16) {
+  constructor(radius = GLOBE_RADIUS * 1.012) {
     const material = new ShaderMaterial({
       transparent: true,
       side: BackSide,

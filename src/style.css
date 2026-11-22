@@ -605,7 +605,9 @@ body {
 .attribution {
   margin-top: 0.35rem;
   font-size: 0.75rem;
-  color: var(--muted);
+  /* The canvas is space in both themes, so the credits use light ink on a
+     dark plate instead of the light theme's dark-on-white pair. */
+  color: #d5deea;
   /* Shrink the row's box to the credits it holds instead of the overlay's full
      width. The text was always centred, so nothing moves; what changes is that
      the plate below can hug the line rather than slab the whole footer. This is
@@ -653,7 +655,7 @@ body {
   inset: -0.3rem -0.55rem;
   z-index: -1;
   border-radius: 10px;
-  background: var(--panel-bg-strong);
+  background: rgba(6, 10, 18, 0.88);
   backdrop-filter: var(--material-blur);
 }
 
@@ -670,7 +672,7 @@ body {
 }
 
 .attribution a {
-  color: var(--muted);
+  color: #d5deea;
   pointer-events: auto; /* keep the link clickable */
 }
 

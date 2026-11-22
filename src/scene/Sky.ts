@@ -1,8 +1,8 @@
 import {
   AdditiveBlending,
-  BackSide,
   BufferAttribute,
   BufferGeometry,
+  FrontSide,
   Points,
   ShaderMaterial,
   Vector3,
@@ -57,10 +57,11 @@ const ATMOSPHERE_VERTEX = /* glsl */ `
   varying float vSun;
   uniform vec3 uSun;
   void main() {
-    vec3 radial = normalize(position);
-    vRim = 1.0 - abs(dot(radial, normalize(cameraPosition)));
-    vSun = dot(radial, normalize(uSun));
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vec3 n = normalize(normalMatrix * normal);
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    vRim = 1.0 - abs(dot(n, normalize(-mv.xyz)));
+    vSun = dot(normalize(position), normalize(uSun));
+    gl_Position = projectionMatrix * mv;
   }
 `;
 
@@ -78,9 +79,10 @@ export function mountScattering(mesh: Mesh): AtmosphereLight {
   const sun = new Vector3(1, 0.15, 0.35);
   const material = new ShaderMaterial({
     transparent: true,
-    side: BackSide,
+    side: FrontSide,
     blending: AdditiveBlending,
     depthWrite: false,
+    depthTest: false,
     toneMapped: false,
     uniforms: {
       uSun: { value: sun },

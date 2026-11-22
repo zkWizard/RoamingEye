@@ -133,12 +133,12 @@ if (uRealLight > 0.5) {
   if (reImageryCover <= 0.0 && reScienceCover <= 0.0) {
     imagery = diffuseColor.rgb;
   }
-  vec3 lit = reShade(imagery, uSunImagery, 1.0, uNightEmissive, RE_NIGHT_FLOOR, vec3(0.0), normal, vViewPosition);
+  vec3 lit = reShade(imagery, uSunImagery, 1.0, uNightEmissive, RE_NIGHT_FLOOR, 0.0, vec3(0.0), normal, vViewPosition);
   vec3 outc = lit;
   if (reScienceCover > 0.001) {
     vec3 sci = reScienceStraight / max(reScienceCover, 0.001);
     if (uScienceLight > 0.5) {
-      sci = reShade(sci, uSunScience, 0.0, 0.0, RE_SCIENCE_FLOOR, vec3(0.0), normal, vViewPosition);
+      sci = reShade(sci, uSunScience, 0.0, 0.0, RE_SCIENCE_FLOOR, 1.0, vec3(0.0), normal, vViewPosition);
     }
     outc = sci * reScienceCover + lit * (1.0 - reScienceCover);
   }
@@ -150,11 +150,10 @@ if (uRealLight > 0.5) {
 const SCIENCE_LIGHT = /* glsl */ `
 if (uRealLight > 0.5) {
   if (uScienceLight > 0.5) {
-    vec3 nightLights = vec3(0.0);
-    #ifdef USE_UV
-      if (uHasNight > 0.5) nightLights = texture2D(uNightMap, vMapUv).rgb * 1.8;
-    #endif
-    outgoingLight = reShade(diffuseColor.rgb, uSunScience, 0.0, 0.0, RE_SCIENCE_FLOOR, nightLights, normal, vViewPosition);
+    vec3 nightLights = totalEmissiveRadiance;
+    float city = smoothstep(0.05, 0.35, max(nightLights.r, max(nightLights.g, nightLights.b)));
+    nightLights *= city * 4.0;
+    outgoingLight = reShade(diffuseColor.rgb, uSunScience, 0.0, 0.0, RE_SCIENCE_FLOOR, 1.0, nightLights, normal, vViewPosition);
   } else {
     outgoingLight = diffuseColor.rgb;
   }
@@ -238,7 +237,7 @@ if (uRealLight > 0.5) {
   if (uScienceLight > 0.5) {
     vec3 nrm = normalize(mat3(viewMatrix) * normalize(vReWorld));
     vec3 viewPos = -(viewMatrix * vec4(vReWorld, 1.0)).xyz;
-    outgoingLight = reShade(diffuseColor.rgb, uSunScience, 0.0, 0.0, RE_SCIENCE_FLOOR, vec3(0.0), nrm, viewPos);
+    outgoingLight = reShade(diffuseColor.rgb, uSunScience, 0.0, 0.0, RE_SCIENCE_FLOOR, 1.0, vec3(0.0), nrm, viewPos);
   } else {
     outgoingLight = diffuseColor.rgb;
   }
