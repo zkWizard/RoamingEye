@@ -10,6 +10,7 @@ export const LOOKS = [
   { id: "noir", label: "Noir" },
   { id: "crt", label: "Retro CRT" },
   { id: "blueprint", label: "Blueprint" },
+  { id: "cinematic", label: "Cinematic" },
 ] as const;
 
 export type LookId = (typeof LOOKS)[number]["id"];
@@ -33,6 +34,8 @@ export function lookMode(id: LookId): number {
       return 4;
     case "blueprint":
       return 5;
+    case "cinematic":
+      return 6;
     default:
       return 0;
   }

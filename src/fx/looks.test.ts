@@ -10,6 +10,7 @@ describe("looks", () => {
       "Noir",
       "Retro CRT",
       "Blueprint",
+      "Cinematic",
     ]);
   });
 
@@ -24,5 +25,6 @@ describe("looks", () => {
     expect(lookMode("natural")).toBe(0);
     expect(lookMode("thermal")).toBe(2);
     expect(lookMode("blueprint")).toBe(5);
+    expect(lookMode("cinematic")).toBe(6);
   });
 });
