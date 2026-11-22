@@ -27,6 +27,13 @@ export interface CameraState {
   lon: number;
   /** Camera altitude above the surface, in Earth radii. */
   alt: number;
+  /**
+   * Degrees from straight down. Omitted when the view is nadir, so older
+   * links stay byte-for-byte what they were.
+   */
+  pitch?: number;
+  /** Degrees clockwise from north. Omitted when the view is north-up. */
+  hdg?: number;
 }
 
 /**
@@ -296,6 +303,15 @@ export function encodeViewState(state: ViewState): string {
     params.set("lat", state.camera.lat.toFixed(digits.ll));
     params.set("lon", state.camera.lon.toFixed(digits.ll));
     params.set("alt", state.camera.alt.toFixed(digits.alt));
+    if (
+      state.camera.pitch !== undefined &&
+      Math.abs(state.camera.pitch) >= 0.05
+    ) {
+      params.set("pitch", state.camera.pitch.toFixed(1));
+    }
+    if (state.camera.hdg !== undefined && Math.abs(state.camera.hdg) >= 0.05) {
+      params.set("hdg", state.camera.hdg.toFixed(1));
+    }
   }
   if (state.probe?.kind === "region") {
     // S W N E — the same order and precision the probe CSV prints its
@@ -380,6 +396,15 @@ export function decodeViewState(hash: string): ViewState {
     alt <= 20
   ) {
     state.camera = { lat, lon, alt };
+    const pitch = Number(params.get("pitch"));
+    const hdg = Number(params.get("hdg"));
+    if (params.has("pitch") && Number.isFinite(pitch)) {
+      state.camera.pitch = Math.min(80, Math.max(0, pitch));
+    }
+    if (params.has("hdg") && Number.isFinite(hdg)) {
+      const wrapped = ((((hdg + 180) % 360) + 360) % 360) - 180;
+      state.camera.hdg = Math.abs(wrapped) < 1e-8 ? 0 : wrapped;
+    }
   }
 
   // Two components is the pre-mode link format, still in the wild in saved

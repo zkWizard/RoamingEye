@@ -137,6 +137,14 @@ import {
   resolveGroundPoint,
   wheelAltitudeFactor,
 } from "./lib/cameraZoom";
+import {
+  PITCH_3D_DEG,
+  applyPose,
+  clampPitch,
+  eyeLatLon,
+  rangeToClearGround,
+  wrapHeading,
+} from "./lib/cameraPose";
 import type { EarthEvent } from "./lib/events";
 import { pageview, record, track } from "./analytics";
 
@@ -151,6 +159,8 @@ declare global {
   interface Window {
     /** Set to true after the first render — used by the e2e smoke test. */
     __APP_READY__?: boolean;
+    __VIEW_PITCH__?: number;
+    __VIEW_HDG__?: number;
     /** Whether the render loop is running (false while the tab is hidden). */
     __RENDER_ACTIVE__?: boolean;
     /** GPU-resource counters for the soak e2e's leak canary. */
@@ -461,6 +471,8 @@ if (restoredMonth) {
   currentIndex = nearestMonthIndex(months, restoredMonth);
 }
 currentIndex = clampIndexToLayer(months, currentIndex, LAYERS[currentLayer]);
+let gazePitch = clampPitch(initialView.camera?.pitch ?? 0);
+let gazeHeading = wrapHeading(initialView.camera?.hdg ?? 0);
 if (initialView.camera) {
   const { lat, lon, alt } = initialView.camera;
   camera.position.copy(latLngToVector3(lat, lon, EARTH_RADIUS + alt));
@@ -1186,6 +1198,8 @@ let zoomTarget: number | null = null;
 
 /** Multiply altitude above the ellipsoid. `factor` < 1 zooms in. */
 function applyAltitudeZoom(factor: number): void {
+  // A tilted eye is not the orbit. Zoom the nadir distance, then pitch again.
+  restoreNadirCamera();
   const { lat, lon } = vector3ToLatLng(camera.position);
   const next = altitudeZoomDistance(
     camera.position.length(),
@@ -1196,10 +1210,12 @@ function applyAltitudeZoom(factor: number): void {
   camera.position.normalize().multiplyScalar(next);
   camera.lookAt(0, 0, 0);
   controls.update();
+  enforceCameraLimits();
 }
 
 /** Aim the glide at a new altitude. Reduced motion lands there immediately. */
 function queueAltitudeZoom(factor: number): void {
+  restoreNadirCamera();
   const { lat, lon } = vector3ToLatLng(camera.position);
   const surface = ellipsoidRadiusUnits(lat);
   const limits = {
@@ -1213,6 +1229,7 @@ function queueAltitudeZoom(factor: number): void {
     camera.position.normalize().multiplyScalar(next);
     camera.lookAt(0, 0, 0);
     controls.update();
+    enforceCameraLimits();
     return;
   }
   zoomTarget = next;
@@ -1236,19 +1253,87 @@ function tickAltitudeZoom(delta: number): void {
   if (step.settled) zoomTarget = null;
 }
 
+function poseIsTilted(): boolean {
+  return gazePitch >= 0.05 || Math.abs(gazeHeading) >= 0.05;
+}
+
+/** Ground point in the middle of the view. While pitched, that is the orbit target. */
+function aimLatLon(): { lat: number; lon: number } {
+  if (poseIsTilted()) return { lat: nadirLat, lon: nadirLon };
+  return vector3ToLatLng(camera.position);
+}
+
+/** Put the nadir camera back so OrbitControls can orbit the ground point. */
+function restoreNadirCamera(): void {
+  if (!poseIsTilted()) return;
+  camera.position.copy(latLngToVector3(nadirLat, nadirLon, nadirDistance));
+  camera.lookAt(0, 0, 0);
+}
+
+let nadirLat = 0;
+let nadirLon = 0;
+let nadirDistance = camera.position.length();
+{
+  const boot = vector3ToLatLng(camera.position);
+  nadirLat = boot.lat;
+  nadirLon = boot.lon;
+}
+
+function rememberNadir(): void {
+  const ll = vector3ToLatLng(camera.position);
+  nadirLat = ll.lat;
+  nadirLon = ll.lon;
+  nadirDistance = camera.position.length();
+}
+
+function applyGaze(): void {
+  const surface = ellipsoidRadiusUnits(nadirLat);
+  let distance = nadirDistance;
+  if (poseIsTilted()) {
+    const pose = {
+      lat: nadirLat,
+      lon: nadirLon,
+      distance,
+      pitch: gazePitch,
+      heading: gazeHeading,
+    };
+    const eye = eyeLatLon(pose, surface);
+    const floor = localCameraFloor(eye.lat, eye.lon);
+    distance = Math.min(
+      MAX_CAMERA_DISTANCE,
+      rangeToClearGround(pose, surface, floor)
+    );
+    nadirDistance = distance;
+  }
+  applyPose(
+    camera,
+    {
+      lat: nadirLat,
+      lon: nadirLon,
+      distance,
+      pitch: gazePitch,
+      heading: gazeHeading,
+    },
+    surface
+  );
+  window.__VIEW_PITCH__ = gazePitch;
+  window.__VIEW_HDG__ = gazeHeading;
+}
+
 /** Keep the camera above the ground under it, and fit the depth planes to that. */
 function enforceCameraLimits(): void {
-  const { lat, lon } = vector3ToLatLng(camera.position);
-  const floor = localCameraFloor(lat, lon);
-  const length = camera.position.length();
-  const next = Math.min(MAX_CAMERA_DISTANCE, Math.max(floor, length));
-  if (Math.abs(next - length) > 1e-8) {
-    camera.position.normalize().multiplyScalar(next);
+  rememberNadir();
+  const floor = localCameraFloor(nadirLat, nadirLon);
+  const next = Math.min(MAX_CAMERA_DISTANCE, Math.max(floor, nadirDistance));
+  if (Math.abs(next - nadirDistance) > 1e-8) {
+    nadirDistance = next;
+    camera.position.copy(latLngToVector3(nadirLat, nadirLon, nadirDistance));
     camera.lookAt(0, 0, 0);
   }
+  applyGaze();
   const planes = clipPlanes(
     camera.position.length(),
-    ellipsoidRadiusUnits(lat)
+    ellipsoidRadiusUnits(nadirLat)
   );
   if (camera.near !== planes.near || camera.far !== planes.far) {
     camera.near = planes.near;
@@ -1278,7 +1363,7 @@ const syncKeyboardAim = (moved: boolean): void => {
     tooltipEl?.classList.remove("is-aimed");
     return;
   }
-  inspector.aimAt(vector3ToLatLng(camera.position));
+  inspector.aimAt(aimLatLon());
   reticleEl?.classList.add("is-visible");
   tooltipEl?.classList.add("is-aimed");
   if (!moved) return;
@@ -1290,7 +1375,7 @@ const syncKeyboardAim = (moved: boolean): void => {
     if (!inspector || !canvas.matches(":focus-visible")) return;
     // `nameAim`, not `describe`: a screen-reader user arrowing a volcano into
     // the middle of the view must hear that it is a volcano, not its latitude.
-    announcer.announce(inspector.nameAim(vector3ToLatLng(camera.position)));
+    announcer.announce(inspector.nameAim(aimLatLon()));
   }, 700);
 };
 
@@ -1318,6 +1403,7 @@ canvas.addEventListener("keydown", (e) => {
   // are still the way its keyboard corners are aimed, so they keep working
   // while it is armed.
   if (!controls.enabled && !flyer.isFlying && !regionDrawer?.active) return;
+  restoreNadirCamera();
   const subpoint = vector3ToLatLng(camera.position);
   const next = stepGlobeView(
     { ...subpoint, distance: camera.position.length() },
@@ -1337,6 +1423,7 @@ canvas.addEventListener("keydown", (e) => {
     .multiplyScalar(next.distance);
   camera.lookAt(0, 0, 0);
   controls.update(); // adopt the new position and fire `change` → hash sync
+  enforceCameraLimits();
   // With a corner already down, the box rubber-bands to the new subpoint —
   // the keyboard's version of dragging with the button held.
   regionDrawer?.stretchTo({ lat: next.lat, lon: next.lon });
@@ -1393,7 +1480,12 @@ function resultFromSharedPlace(
 }
 
 function currentViewState() {
-  const subpoint = vector3ToLatLng(camera.position);
+  const subpoint = poseIsTilted()
+    ? { lat: nadirLat, lon: nadirLon }
+    : vector3ToLatLng(camera.position);
+  const alt = poseIsTilted()
+    ? nadirDistance - EARTH_RADIUS
+    : camera.position.length() - EARTH_RADIUS;
   return {
     story: storyCard?.activeId,
     layer: currentLayer,
@@ -1401,7 +1493,9 @@ function currentViewState() {
     camera: {
       lat: subpoint.lat,
       lon: subpoint.lon,
-      alt: camera.position.length() - EARTH_RADIUS,
+      alt,
+      ...(gazePitch >= 0.05 ? { pitch: gazePitch } : {}),
+      ...(Math.abs(gazeHeading) >= 0.05 ? { hdg: gazeHeading } : {}),
     },
     probe: probeShare,
     pin: compare.active ? compare.pinned : undefined,
@@ -1492,8 +1586,37 @@ const takeBackCamera = (e: Event): void => {
 // taken back) must leave the controls off rather than hand the drag back to
 // OrbitControls and have it rotate the globe under the box being drawn.
 function endFlight(): void {
+  // A press takes a flight back. Flattening a settled tilt here would leave
+  // the straight-down camera in place for the rest of the gesture, so the
+  // click that follows would raycast the wrong pose.
+  if (!flyer.isFlying) return;
+  if (poseIsTilted()) restoreNadirCamera();
   flyer.cancel();
   if (regionDrawer?.active) controls.enabled = false;
+  else if (poseIsTilted()) enforceCameraLimits();
+}
+
+/** Fly the ground point. Pitch and heading ride along instead of snapping flat. */
+function flyToView(
+  lat: number,
+  lon: number,
+  distance: number,
+  duration?: number
+): void {
+  restoreNadirCamera();
+  flyer.armGaze(gazePitch, gazeHeading);
+  flyer.flyTo(lat, lon, distance, duration, {
+    pitch: gazePitch,
+    heading: gazeHeading,
+  });
+  if (!flyer.isFlying) {
+    const landed = flyer.takeGaze();
+    if (landed) {
+      gazePitch = clampPitch(landed.pitch);
+      gazeHeading = wrapHeading(landed.heading);
+    }
+    enforceCameraLimits();
+  }
 }
 window.addEventListener("pointerdown", takeBackCamera, { capture: true });
 window.addEventListener("wheel", takeBackCamera, {
@@ -1522,23 +1645,15 @@ canvas.addEventListener(
 const momentum = new GlobeMomentum(camera, controls, canvas, !reduceMotion);
 const globePointers = new Set<number>();
 const pinchPoints = new Map<number, { x: number; y: number }>();
-let pinchSpan = 0;
-
-function pinchSpanOf(points: Map<number, { x: number; y: number }>): number {
-  const pts = [...points.values()];
-  const a = pts[0];
-  const b = pts[1];
-  if (!a || !b) return 0;
-  return Math.hypot(a.x - b.x, a.y - b.y);
-}
-
 canvas.addEventListener("pointerdown", (e) => {
   globePointers.add(e.pointerId);
   pinchPoints.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (globePointers.size === 1) momentum.grab(e);
   else {
     momentum.stop();
-    pinchSpan = pinchSpanOf(pinchPoints);
+    // Two fingers tilt, twist, or pinch. OrbitControls must not also spin.
+    controls.enabled = false;
+    twoFinger = twoFingerFrame();
   }
 });
 window.addEventListener("pointermove", (e) => {
@@ -1546,17 +1661,30 @@ window.addEventListener("pointermove", (e) => {
     pinchPoints.set(e.pointerId, { x: e.clientX, y: e.clientY });
   }
   if (globePointers.size >= 2 && pinchPoints.size >= 2) {
-    const next = pinchSpanOf(pinchPoints);
-    if (pinchSpan > 0 && next > 0 && (controls.enabled || flyer.isFlying)) {
-      endFlight();
-      if (controls.enabled) {
-        // The fingers own the altitude. A leftover wheel glide would
-        // drag the ground away from the pinch.
-        zoomTarget = null;
-        applyAltitudeZoom(pinchAltitudeFactor(pinchSpan, next));
+    const next = twoFingerFrame();
+    if (next && twoFinger) {
+      if (flyer.isFlying) endFlight();
+      const dSpan = Math.abs(Math.log(next.span / Math.max(twoFinger.span, 1)));
+      let dAng = next.angle - twoFinger.angle;
+      if (dAng > Math.PI) dAng -= Math.PI * 2;
+      if (dAng < -Math.PI) dAng += Math.PI * 2;
+      const dY = next.midY - twoFinger.midY;
+      zoomTarget = null;
+      if (
+        dSpan > 0.02 &&
+        dSpan > Math.abs(dAng) &&
+        dSpan > Math.abs(dY) / 400
+      ) {
+        applyAltitudeZoom(pinchAltitudeFactor(twoFinger.span, next.span));
+      } else if (Math.abs(dAng) > 0.02) {
+        gazeHeading = wrapHeading(gazeHeading + (dAng * 180) / Math.PI);
+        commitTilt();
+      } else if (Math.abs(dY) > 2) {
+        gazePitch = clampPitch(gazePitch + dY * 0.22);
+        commitTilt();
       }
     }
-    pinchSpan = next;
+    twoFinger = next;
     return;
   }
   if (globePointers.size === 1 && globePointers.has(e.pointerId)) {
@@ -1568,13 +1696,111 @@ window.addEventListener("pointerup", (e) => {
   if (globePointers.delete(e.pointerId) && globePointers.size === 0) {
     momentum.release(e);
   }
-  pinchSpan = pinchSpanOf(pinchPoints);
+  if (globePointers.size < 2 && !regionDrawer?.active && !tiltPointer) {
+    controls.enabled = true;
+  }
+  twoFinger = twoFingerFrame();
 });
 window.addEventListener("pointercancel", (e) => {
   pinchPoints.delete(e.pointerId);
   if (globePointers.delete(e.pointerId)) momentum.stop();
-  pinchSpan = pinchSpanOf(pinchPoints);
+  twoFinger = twoFingerFrame();
 });
+
+// Right-drag tilts. Ctrl-drag (or a two-finger twist, below) turns the
+// heading. Left-drag stays the globe orbit OrbitControls already owns.
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+let tiltPointer: {
+  id: number;
+  x: number;
+  y: number;
+  mode: "pitch" | "heading";
+} | null = null;
+
+function commitTilt(): void {
+  restoreNadirCamera();
+  enforceCameraLimits();
+  scheduleHashSync();
+}
+
+canvas.addEventListener(
+  "pointerdown",
+  (e) => {
+    const heading = e.button === 0 && (e.ctrlKey || e.metaKey);
+    const pitch = e.button === 2;
+    if (!heading && !pitch) return;
+    if (!controls.enabled && !flyer.isFlying) return;
+    e.preventDefault();
+    e.stopPropagation();
+    endFlight();
+    momentum.stop();
+    controls.enabled = false;
+    tiltPointer = {
+      id: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      mode: pitch ? "pitch" : "heading",
+    };
+  },
+  { capture: true }
+);
+window.addEventListener("pointermove", (e) => {
+  if (!tiltPointer || e.pointerId !== tiltPointer.id) return;
+  const dx = e.clientX - tiltPointer.x;
+  const dy = e.clientY - tiltPointer.y;
+  tiltPointer.x = e.clientX;
+  tiltPointer.y = e.clientY;
+  if (tiltPointer.mode === "pitch") {
+    gazePitch = clampPitch(gazePitch + dy * 0.28);
+  } else {
+    gazeHeading = wrapHeading(gazeHeading + dx * 0.35);
+  }
+  commitTilt();
+});
+window.addEventListener("pointerup", (e) => {
+  if (!tiltPointer || e.pointerId !== tiltPointer.id) return;
+  tiltPointer = null;
+  if (!regionDrawer?.active) controls.enabled = true;
+});
+
+let twoFinger: { span: number; angle: number; midY: number } | null = null;
+
+requestAnimationFrame(() => {
+  void import("./scene/tiltUi")
+    .then(({ mountTiltUi }) => {
+      mountTiltUi({
+        getPitch: () => gazePitch,
+        getHeading: () => gazeHeading,
+        toggle3d: () => {
+          gazePitch = gazePitch >= 5 ? 0 : PITCH_3D_DEG;
+          commitTilt();
+        },
+        northUp: () => {
+          gazeHeading = 0;
+          commitTilt();
+        },
+      });
+    })
+    .catch((err: unknown) => {
+      console.warn("RoamingEye: tilt controls failed to load", err);
+    });
+});
+
+function twoFingerFrame(): {
+  span: number;
+  angle: number;
+  midY: number;
+} | null {
+  const pts = [...pinchPoints.values()];
+  if (pts.length < 2) return null;
+  const a = pts[0];
+  const b = pts[1];
+  return {
+    span: Math.hypot(a.x - b.x, a.y - b.y),
+    angle: Math.atan2(b.y - a.y, b.x - a.x),
+    midY: (a.y + b.y) / 2,
+  };
+}
 
 // Assigned once the stories block builds the card. Search can ask for a story
 // before that block runs; the call itself is always later, after boot.
@@ -1612,7 +1838,7 @@ function seekEvent(event: EarthEvent): void {
     : null;
   // Framing stays out of the first-paint chunk, same as a place pick.
   void import("./lib/placeFrame").then(({ flyToDistance }) => {
-    flyer.flyTo(event.lat, event.lon, flyToDistance(box));
+    flyToView(event.lat, event.lon, flyToDistance(box));
   });
   timeSlider?.goTo(nearestMonthIndex(months, event.month));
   scheduleHashSync();
@@ -1650,7 +1876,7 @@ if (searchEl) {
                   LAYERS[currentLayer].static === true
                 );
                 if (monthIndex !== null) timeSlider?.seek(monthIndex);
-                flyer.flyTo(
+                flyToView(
                   result.lat,
                   result.lon,
                   flyToDistance(
@@ -1699,7 +1925,7 @@ if (searchEl) {
                 );
                 if (monthIndex !== null) timeSlider?.seek(monthIndex);
                 const pad = 0.4;
-                flyer.flyTo(
+                flyToView(
                   hotspot.lat,
                   hotspot.lon,
                   flyToDistance([
@@ -1910,7 +2136,7 @@ function comparisonHost() {
       scheduleHashSync();
     },
     fly: (lat: number, lon: number, distance: number) =>
-      flyer.flyTo(lat, lon, distance),
+      flyToView(lat, lon, distance),
     endFlight: () => endFlight(),
     showHighlight: (result: GeoResult) =>
       highlight.show({
@@ -3149,7 +3375,7 @@ if (probeEl) {
       if (!initialView.camera) {
         const { flyToDistance, longitudesInGeometry } =
           await import("./lib/placeFrame");
-        flyer.flyTo(
+        flyToView(
           result.lat,
           result.lon,
           flyToDistance(
@@ -3251,7 +3477,7 @@ if (probeEl) {
   canvas.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" && e.key !== " ") return;
     if (e.altKey || e.ctrlKey || e.metaKey) return;
-    const { lat, lon } = vector3ToLatLng(camera.position);
+    const { lat, lon } = aimLatLon();
     // In draw mode the same key takes a corner instead of a point: two
     // presses, with the arrows between them, are a drag a keyboard can make.
     if (drawer?.active) {
@@ -3655,7 +3881,7 @@ if (storiesEl) {
       if (toolbar?.press(id, true)) storyOverlays.push(id);
     }
     endFlight();
-    flyer.flyTo(
+    flyToView(
       story.camera.lat,
       story.camera.lon,
       EARTH_RADIUS + story.camera.alt
@@ -3911,7 +4137,13 @@ let wasFlying = false;
 const renderFrame = (): void => {
   timer.update();
   const delta = timer.getDelta();
+  restoreNadirCamera();
   flyer.update(delta);
+  const flown = flyer.takeGaze();
+  if (flown) {
+    gazePitch = clampPitch(flown.pitch);
+    gazeHeading = wrapHeading(flown.heading);
+  }
   // Follow moves the camera here, before OrbitControls reads that position.
   liveFrame?.();
   // A flight owns the camera. A wheel glide coasts only once the flight
