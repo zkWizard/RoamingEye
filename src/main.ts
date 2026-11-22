@@ -6,8 +6,6 @@ import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
 import {
   AmbientLight,
-  BufferAttribute,
-  BufferGeometry,
   Color,
   DirectionalLight,
   Group,
@@ -15,8 +13,6 @@ import {
   MeshStandardMaterial,
   Object3D,
   PerspectiveCamera,
-  Points,
-  PointsMaterial,
   Raycaster,
   Scene,
   SphereGeometry,
@@ -266,20 +262,17 @@ terrainFill.layers.set(1);
 scene.add(terrainFill);
 camera.layers.enable(1);
 
-// --- Starfield backdrop -----------------------------------------------------
-const starfield = createStarfield();
-scene.add(starfield);
-
 // --- Theme (light/dark) -------------------------------------------------------
 // The DOM theme is CSS-variable driven; the WebGL side mirrors it here: a
-// space-dark or daylight clear color, and stars only against a night sky.
+// space-dark or daylight clear color. Stars (dark only) arrive with the sky
+// chunk, after this first frame.
 const SPACE_BG = new Color(0x05070d); // matches --bg (dark)
 const DAY_BG = new Color(0xeaf0f8); // matches --bg (light)
+let skyDark = true;
 
 function applyTheme(theme: Theme): void {
-  const dark = theme === "dark";
-  renderer.setClearColor(dark ? SPACE_BG : DAY_BG, 1);
-  starfield.visible = dark;
+  skyDark = theme === "dark";
+  renderer.setClearColor(skyDark ? SPACE_BG : DAY_BG, 1);
 }
 
 const themeEl = document.querySelector<HTMLElement>("#theme-toggle");
@@ -321,6 +314,8 @@ const earth = new Mesh(
     roughness: 1,
     metalness: 0,
     transparent: true,
+    // Colormap layers draw here. Filmic grading stays on the satellite mesh.
+    toneMapped: false,
   })
 );
 scene.add(earth);
@@ -4010,6 +4005,23 @@ const moreToolsReady = Promise.all([
 ]);
 renderer.setAnimationLoop(renderFrame);
 window.__RENDER_ACTIVE__ = true;
+
+// Stars, the scattering limb, and filmic grading load after this first frame.
+requestAnimationFrame(() => {
+  void import("./scene/skyBoot")
+    .then(({ bootSky }) => {
+      bootSky({
+        scene,
+        renderer,
+        atmosphere: atmosphereOverlay.object,
+        isDark: () => skyDark,
+        scienceOnTerrain: () => terrainGlobe?.scienceDraped === true,
+      });
+    })
+    .catch((err: unknown) => {
+      console.warn("RoamingEye: sky failed to load", err);
+    });
+});
 // Read-only GPU-resource counters for the soak e2e (see e2e/soak.spec.ts):
 // un-disposed textures/geometries survive GC and accumulate until the WebGL
 // context dies, so the leak canary watches the renderer's own bookkeeping.
@@ -4072,32 +4084,4 @@ function setStatus(text: string): void {
   const currency = text ? "" : note.fresh ? "fresh" : "delayed";
   if (currency) statusEl.dataset.currency = currency;
   else delete statusEl.dataset.currency;
-}
-
-function createStarfield(): Points {
-  const starCount = 1500;
-  const positions = new Float32Array(starCount * 3);
-
-  for (let i = 0; i < starCount; i++) {
-    // Scatter stars on a large sphere shell around the scene.
-    const r = 40 + Math.random() * 30;
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
-    positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-    positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-    positions[i * 3 + 2] = r * Math.cos(phi);
-  }
-
-  const geometry = new BufferGeometry();
-  geometry.setAttribute("position", new BufferAttribute(positions, 3));
-
-  const material = new PointsMaterial({
-    color: 0xffffff,
-    size: 0.12,
-    sizeAttenuation: true,
-    transparent: true,
-    opacity: 0.8,
-  });
-
-  return new Points(geometry, material);
 }

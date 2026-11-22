@@ -474,6 +474,8 @@ export class TiledImageryOverlay implements MapOverlay {
         map: texture,
         side: DoubleSide, // robust against patch winding orientation
         transparent: true, // PNG no-data shows the satellite globe below
+        // Data tiles keep the colormap. Tone mapping is for the satellite mesh.
+        toneMapped: false,
       })
     );
     this.shown.set(akey, { mesh, textureKey, provisional });
