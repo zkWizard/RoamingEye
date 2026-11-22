@@ -6,6 +6,8 @@ on:
     # frequent runs only churn timestamps and review bandwidth.
     - cron: "23 5 * * *"
   workflow_dispatch:
+  # Temporary: proves the token fix on this pull request. Removed before merge.
+  pull_request:
 
 permissions:
   contents: read
