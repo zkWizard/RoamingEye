@@ -1155,22 +1155,29 @@ if (toolbarEl) {
 }
 for (const overlay of overlays) restoreOverlay(overlay);
 
-// Satellites (and their SGP4 worker) load in their own chunk. The hook only
-// registers the Live toggles; nothing is fetched until one is turned on.
-void import("./live/satellites/boot").then(
-  ({ bootLiveSatellites }) => {
-    bootLiveSatellites({
-      scene,
-      overlays,
-      toolbar,
-      onToggle: onOverlayToggle,
-      isOn: (overlay) => overlayState.has(overlay.id),
-      restore: restoreOverlay,
-    });
+// The satellite menu stays out of the entry chunk. It loads on the first
+// press in the map menu, or when a link already carries track=.
+let liveBoot: Promise<void> | undefined;
+const ensureLiveSatellites = () =>
+  (liveBoot ??= import("./live/satellites/boot").then(
+    ({ bootLiveSatellites }) => {
+      bootLiveSatellites({
+        scene,
+        overlays,
+        toolbar: toolbarEl,
+        onToggle: onOverlayToggle,
+        isOn: (overlay) => overlayState.has(overlay.id),
+        restore: restoreOverlay,
+      });
+    }
+  ));
+if (location.hash.includes("track=")) void ensureLiveSatellites();
+toolbarEl?.addEventListener(
+  "pointerdown",
+  () => {
+    void ensureLiveSatellites();
   },
-  (err: unknown) => {
-    console.warn("RoamingEye: live satellites failed to load", err);
-  }
+  { capture: true, once: true }
 );
 
 // --- Controls (rotate + zoom) -----------------------------------------------
