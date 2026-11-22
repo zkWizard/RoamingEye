@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { awaitAppInteractive } from "./boot";
+import { awaitAppInteractive, showWelcome } from "./boot";
 
 /**
  * Stories: curated time-lapses (src/lib/stories.ts) that show a new visitor
@@ -17,6 +17,8 @@ const borders = (page: Page) =>
   page.locator('.toolbar__item[data-overlay="borders"]');
 
 test("a first visit plays a short introduction once", async ({ page }) => {
+  // The suite boots as a returning visitor. This spec is the welcome.
+  await showWelcome(page);
   await page.goto("/");
   await awaitAppInteractive(page, 30_000, { keepIntro: true });
   await expect(intro(page)).toBeVisible();

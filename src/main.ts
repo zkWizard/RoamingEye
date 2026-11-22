@@ -988,6 +988,20 @@ function clearWelcomePlacement(): void {
   stories.style.bottom = "";
   stories.style.left = "";
   stories.style.width = "";
+  stories.style.overflow = "";
+  stories.style.maxHeight = "";
+  const intro = stories.querySelector<HTMLElement>("#intro");
+  if (intro) {
+    intro.style.height = "";
+    intro.style.maxHeight = "";
+    intro.style.minHeight = "";
+  }
+  const examples = stories.querySelector<HTMLElement>(".intro__examples");
+  if (examples) {
+    examples.style.flex = "";
+    examples.style.minHeight = "";
+    examples.style.overflowY = "";
+  }
 }
 
 /**
@@ -1010,10 +1024,37 @@ function placeWelcome(): void {
   const hint = document.getElementById("time-hint");
   const hintH = hint && !hint.hidden ? hint.offsetHeight + 8 : 0;
   const top = dock.getBoundingClientRect().top;
+  stories.style.overflow = "";
+  stories.style.maxHeight = "";
+  const intro = stories.querySelector<HTMLElement>("#intro");
+  const examples = stories.querySelector<HTMLElement>(".intro__examples");
+  if (intro) {
+    intro.style.height = "";
+    intro.style.maxHeight = "";
+    intro.style.minHeight = "";
+  }
+  if (examples) {
+    examples.style.flex = "";
+    examples.style.minHeight = "";
+    examples.style.overflowY = "";
+  }
   stories.style.top = "auto";
   stories.style.left = "0.75rem";
   stories.style.width = "calc(100vw - 1.5rem)";
   stories.style.bottom = `${Math.round(window.innerHeight - top + hintH + 10)}px`;
+  // A stacked card is taller than the band above the dock on a short phone.
+  // Anchored only at the bottom, it used to grow off the top: Stop sat above
+  // the screen (so it could not be pressed) and the card covered the actions.
+  // There is no band tall enough for the card and the dock together, so keep
+  // the actions clear and let the card overlap the dock. The examples scroll
+  // if a very short window still caps the card.
+  const actions = document.querySelector("#actions");
+  const floor = Math.round((actions?.getBoundingClientRect().bottom ?? 0) + 12);
+  if (stories.getBoundingClientRect().top >= floor) return;
+  stories.style.top = `${floor}px`;
+  stories.style.bottom = "auto";
+  stories.style.maxHeight = `calc(100vh - ${floor + 12}px)`;
+  stories.style.overflow = "auto";
 }
 
 function dismissIntro(): void {
@@ -3793,8 +3834,10 @@ if (storiesEl) {
       document.getElementById("app")?.classList.add("is-welcome");
       markStoriesWelcomed();
       showTimeHint();
-      placeWelcome();
       intro.hidden = false;
+      // After the card is shown: while it was hidden it had no height, so a
+      // measurement then could not see it covering the actions.
+      placeWelcome();
       if (introCaption.textContent)
         announcer.announce(introCaption.textContent);
       if (!reduceMotion) {

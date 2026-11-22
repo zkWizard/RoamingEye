@@ -1,5 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
-import { awaitAppInteractive } from "./boot";
+import { awaitAppInteractive, showWelcome } from "./boot";
+
+test.beforeEach(async ({ page }) => {
+  await showWelcome(page);
+});
 
 /**
  * The first 30 seconds: a short story plays on its own, three plain searches
@@ -173,4 +177,27 @@ test("a phone welcome keeps 44px targets off the middle of the globe", async ({
   // card, and the card stays above the time slider.
   expect(introBox!.y).toBeGreaterThan(actions!.y + actions!.height + 120);
   expect(introBox!.y + introBox!.height).toBeLessThan(dock!.y);
+});
+
+test("a short phone keeps Stop on screen and off the actions", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.goto("/");
+  await awaitAppInteractive(page, 30_000, { keepIntro: true });
+  await expect(page.locator("#intro")).toBeVisible();
+
+  const skip = await page.locator("#intro-skip").boundingBox();
+  expect(skip!.y).toBeGreaterThanOrEqual(0);
+  expect(skip!.y + skip!.height).toBeLessThanOrEqual(568);
+  const hit = await page.evaluate(() => {
+    const more = document.querySelector("#more-button")!;
+    const r = more.getBoundingClientRect();
+    const at = document.elementFromPoint(
+      r.left + r.width / 2,
+      r.top + r.height / 2
+    );
+    return at === more || more.contains(at);
+  });
+  expect(hit, "the welcome card covers the More button").toBe(true);
 });
