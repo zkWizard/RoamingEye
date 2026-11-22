@@ -10,6 +10,7 @@ import {
   BufferGeometry,
   Color,
   DirectionalLight,
+  Group,
   Mesh,
   MeshStandardMaterial,
   Object3D,
@@ -411,7 +412,7 @@ const plateBoundariesOverlay = new PlateBoundariesOverlay();
 const volcanoesOverlay = new VolcanoesOverlay();
 const earthquakesOverlay = new EarthquakesOverlay();
 const atmosphereOverlay = new AtmosphereOverlay();
-const liveWeatherRoot = new THREE.Group();
+const liveWeatherRoot = new Group();
 liveWeatherRoot.visible = false;
 const liveWeather = createLiveWeatherOverlay(liveWeatherRoot, renderer);
 const overlays: MapOverlay[] = [
