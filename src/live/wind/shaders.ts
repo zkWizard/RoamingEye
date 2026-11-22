@@ -143,8 +143,10 @@ void main() {
   float speed = length(w.rg);
   vec3 color = uMode < 0.5 ? rampSpeed(speed) : rampTemp(w.b);
   vec2 pc = gl_PointCoord * 2.0 - 1.0;
-  float falloff = smoothstep(1.0, 0.2, dot(pc, pc));
-  float alpha = 0.42 * falloff;
+  float falloff = smoothstep(1.0, 0.2, length(pc));
+  // Premultiplied. The trail stores color * alpha so a later fade stays
+  // transparent instead of turning black.
+  float alpha = 0.62 * falloff;
   gl_FragColor = vec4(color * alpha, alpha);
 }
 `;
@@ -162,8 +164,11 @@ precision highp float;
 uniform sampler2D uTrail;
 varying vec2 vUv;
 void main() {
+  // c is premultiplied. Cap the coverage at 0.6 so the basemap stays visible,
+  // and scale rgb with alpha so the fade does not leave a black shell.
   vec4 c = texture2D(uTrail, vUv);
-  if (c.a < 0.015) discard;
-  gl_FragColor = vec4(c.rgb, min(c.a, 0.92));
+  if (c.a < 0.03) discard;
+  float a = min(c.a, 0.6);
+  gl_FragColor = vec4(c.rgb * (a / c.a), a);
 }
 `;

@@ -75,7 +75,8 @@ describe("radar tiles", () => {
     expect(radarTilesForView(0, 0, 1)).toHaveLength(4);
     const close = radarTilesForView(40, -74, 6);
     expect(close.every((tile) => tile.z === 6)).toBe(true);
-    expect(close.length).toBeLessThan(20);
+    expect(close.length).toBeGreaterThan(9);
+    expect(close.length).toBeLessThan(60);
     const tile = radarTileAt(51.5, -0.1, 3);
     const bounds = radarTileBounds(tile.z, tile.x, tile.y);
     expect(bounds.west).toBeLessThanOrEqual(-0.1);

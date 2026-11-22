@@ -26,6 +26,15 @@ export function trailTextureSize(count: number): {
   width: number;
   height: number;
 } {
-  if (count <= WIND_PARTICLES_LOW) return { width: 512, height: 256 };
-  return { width: 1024, height: 512 };
+  if (count <= WIND_PARTICLES_LOW) return { width: 1024, height: 512 };
+  return { width: 2048, height: 1024 };
+}
+
+/**
+ * Point size in trail-texture pixels. A close camera uses a smaller stamp so
+ * the same world streak does not become a block when the texture is magnified.
+ */
+export function windPointSize(distance: number): number {
+  const safe = Number.isFinite(distance) ? distance : 3;
+  return Math.min(1.35, Math.max(0.65, 0.4 * safe));
 }

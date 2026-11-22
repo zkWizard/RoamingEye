@@ -134,7 +134,7 @@ export function radarTilesForView(
     return tiles;
   }
   const center = radarTileAt(lat, lon, z);
-  const radius = z <= 4 ? 2 : 1;
+  const radius = z >= 7 ? 2 : 3;
   const tiles: { z: number; x: number; y: number }[] = [];
   for (let dx = -radius; dx <= radius; dx++) {
     for (let dy = -radius; dy <= radius; dy++) {
@@ -169,11 +169,10 @@ function tileLat(y: number, n: number): number {
 
 /** Coarse zoom from camera distance in globe radii. Never above the radar cap. */
 export function radarZoomForDistance(distance: number): number {
-  if (distance > 2.6) return 1;
-  if (distance > 2.1) return 2;
-  if (distance > 1.7) return 3;
-  if (distance > 1.4) return 4;
-  if (distance > 1.18) return 5;
-  if (distance > 1.08) return 6;
+  if (distance > 2.8) return 2;
+  if (distance > 2.2) return 3;
+  if (distance > 1.75) return 4;
+  if (distance > 1.45) return 5;
+  if (distance > 1.18) return 6;
   return RADAR_MAX_ZOOM;
 }

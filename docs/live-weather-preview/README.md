@@ -11,3 +11,13 @@ Radar frames land with the second pull request.
 - `after-phone.png`: the phone layout, with the legend above the timeline.
 - `after-attribution.png`: the Open-Meteo credit in the footer.
 - `wind-motion.gif`: a short loop of the particles moving.
+
+The quality pass compares the same kind of view before and after the trail
+composite was fixed. Before shots are the smeared cyan field with black
+ocean patches. After shots are thin streaks in the legend colours, with
+the radar legend on the weather card.
+
+- `before-quality-earth.png`, `after-quality-earth.png`: the whole Earth.
+- `before-quality-europe.png`, `after-quality-europe.png`: a close view of Europe.
+- `before-quality-storm.png`, `after-quality-storm.png`: the storm south of Africa.
+- `before-quality-phone.png`, `after-quality-phone.png`: the phone layout.

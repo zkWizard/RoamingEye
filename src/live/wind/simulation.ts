@@ -11,8 +11,10 @@ import {
   LinearFilter,
   Mesh,
   NearestFilter,
+  NoBlending,
   NoColorSpace,
   OneFactor,
+  OneMinusSrcAlphaFactor,
   OrthographicCamera,
   PlaneGeometry,
   Points,
@@ -43,13 +45,13 @@ import {
   particleGrid,
   trailTextureSize,
   windParticleCount,
-  WIND_PARTICLES_LOW,
+  windPointSize,
 } from "./tier";
 
 /** Model hours advanced per real second, so the flow is visible on the globe. */
-export const SIM_HOURS_PER_SECOND = 42;
-const TRAIL_HALF_LIFE_SEC = 2.6;
-const WARMUP_STEPS = 18;
+export const SIM_HOURS_PER_SECOND = 18;
+const TRAIL_HALF_LIFE_SEC = 0.95;
+const WARMUP_STEPS = 10;
 
 export type WindColorMode = "speed" | "temperature";
 
@@ -165,6 +167,7 @@ export class WindSimulation {
       fragmentShader: FADE_FRAG,
       depthTest: false,
       depthWrite: false,
+      blending: NoBlending,
     });
     this.stampMat = new ShaderMaterial({
       uniforms: {
@@ -172,7 +175,7 @@ export class WindSimulation {
         uState: { value: this.stateRead },
         uField: { value: this.fieldTexture },
         uStateSize: { value: new Vector2(grid.width, grid.height) },
-        uPointSize: { value: this.count <= WIND_PARTICLES_LOW ? 2.6 : 3.4 },
+        uPointSize: { value: windPointSize(3.2) },
         uMode: { value: 0 },
       },
       vertexShader: STAMP_VERT,
@@ -180,13 +183,14 @@ export class WindSimulation {
       transparent: true,
       depthTest: false,
       depthWrite: false,
+      premultipliedAlpha: true,
       blending: CustomBlending,
       blendEquation: AddEquation,
       blendSrc: OneFactor,
-      blendDst: OneFactor,
+      blendDst: OneMinusSrcAlphaFactor,
       blendEquationAlpha: AddEquation,
       blendSrcAlpha: OneFactor,
-      blendDstAlpha: OneFactor,
+      blendDstAlpha: OneMinusSrcAlphaFactor,
     });
     this.displayMat = new ShaderMaterial({
       uniforms: { uTrail: { value: this.trailA.texture } },
@@ -195,6 +199,14 @@ export class WindSimulation {
       transparent: true,
       depthWrite: false,
       toneMapped: false,
+      premultipliedAlpha: true,
+      blending: CustomBlending,
+      blendEquation: AddEquation,
+      blendSrc: OneFactor,
+      blendDst: OneMinusSrcAlphaFactor,
+      blendEquationAlpha: AddEquation,
+      blendSrcAlpha: OneFactor,
+      blendDstAlpha: OneMinusSrcAlphaFactor,
     });
 
     const quad = new Mesh(new PlaneGeometry(2, 2), this.advectMat);
@@ -221,7 +233,7 @@ export class WindSimulation {
     this.clearTarget(this.trailB);
   }
 
-  update(now: number, active: boolean): void {
+  update(now: number, active: boolean, distance = 3.2): void {
     if (!active || document.hidden) {
       this.lastNow = now;
       return;
@@ -233,6 +245,7 @@ export class WindSimulation {
     const dt = Math.min(0.05, Math.max(0, (now - this.lastNow) / 1000));
     this.lastNow = now;
     if (dt <= 0) return;
+    this.stampMat.uniforms.uPointSize.value = windPointSize(distance);
     this.step(dt);
   }
 
@@ -284,8 +297,7 @@ export class WindSimulation {
       grid.width,
       grid.height
     );
-    this.stampMat.uniforms.uPointSize.value =
-      count <= WIND_PARTICLES_LOW ? 2.6 : 3.4;
+    this.stampMat.uniforms.uPointSize.value = windPointSize(3.2);
     this.stampScene.remove(this.points);
     this.points.geometry.dispose();
     this.points = this.makePoints(grid.width, grid.height);

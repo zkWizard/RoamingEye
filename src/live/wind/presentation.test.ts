@@ -7,7 +7,7 @@ import {
   TEMP_STOPS,
 } from "./ramp";
 import { compass16, formatWindReadout, updatedAgoLabel } from "./readout";
-import { windParticleCount } from "./tier";
+import { windParticleCount, windPointSize } from "./tier";
 import { componentsFromSpeedDirection, speedAndDirection } from "./field";
 
 describe("colour ramps", () => {
@@ -84,5 +84,11 @@ describe("particle tier", () => {
         maxPixelRatio: 2,
       })
     ).toBe(10_000);
+  });
+
+  it("stamps a smaller point when the camera is close", () => {
+    expect(windPointSize(3.2)).toBeGreaterThan(windPointSize(1.3));
+    expect(windPointSize(1.2)).toBeGreaterThanOrEqual(0.65);
+    expect(windPointSize(4)).toBeLessThanOrEqual(1.35);
   });
 });
