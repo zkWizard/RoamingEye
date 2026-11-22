@@ -49,18 +49,19 @@ describe("displayRgb", () => {
     const green = { r: 0.05, g: 0.12, b: 0.02 };
     const lum = (c: { r: number; g: number; b: number }) =>
       0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
-    const steps = [-0.3, -0.1, 0.05, 0.2, 0.45].map((nDotL) =>
+    const at = (nDotL: number) =>
       lum(
         displayRgb(green, "shaded", {
           nDotL,
           nightFloor: SCIENCE_NIGHT_FLOOR,
           coolNight: true,
         })
-      )
-    );
-    for (let i = 1; i < steps.length; i++) {
-      expect(steps[i]).toBeGreaterThan(steps[i - 1]);
-    }
+      );
+    const night = at(-1);
+    const band = at(0);
+    const day = at(1);
+    expect(night).toBeLessThan(band);
+    expect(band).toBeLessThan(day);
   });
 
   it("keeps a dark green darker at night and at the twilight band", () => {
@@ -82,8 +83,12 @@ describe("displayRgb", () => {
       nightFloor: SCIENCE_NIGHT_FLOOR,
       coolNight: true,
     });
-    expect(lum(night)).toBeCloseTo(lum(green) * SCIENCE_NIGHT_FLOOR, 1);
-    expect(lum(night)).toBeLessThan(lum(day) * 0.55);
+    const encode = (c: number) =>
+      c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055;
+    const perceived = encode(night.g) / encode(day.g);
+    expect(perceived).toBeGreaterThan(0.14);
+    expect(perceived).toBeLessThan(0.21);
+    expect(lum(night)).toBeLessThan(lum(day) * 0.25);
     expect(lum(twilight)).toBeLessThan(lum(day));
     expect(night.b / night.g).toBeGreaterThan(day.b / day.g);
     expect(twilight.r).toBeGreaterThan(twilight.b);

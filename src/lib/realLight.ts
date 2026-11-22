@@ -18,10 +18,11 @@ export interface RgbUnit {
 /** Night side brightness as a fraction of the day-side albedo. Satellite base. */
 export const NIGHT_FLOOR = 0.25;
 /**
- * Linear night floor for a colormap. 0.16 encodes to about 40% of the day
- * side in sRGB, which is what a screenshot reads as. The probe never uses it.
+ * Linear night floor for a colormap. 0.045 encodes to about 17% of the day
+ * side in sRGB, so the far night side reads as night. It is a multiply, so
+ * the hue stays. The probe never uses it.
  */
-export const SCIENCE_NIGHT_FLOOR = 0.16;
+export const SCIENCE_NIGHT_FLOOR = 0.045;
 /**
  * Soft terminator, in ndotl. About fifteen degrees of solar zenith, so the
  * edge is a gradient rather than a cut. Below the low edge is night; above
@@ -36,8 +37,11 @@ export const TWILIGHT_PEAK_HI = 0.04;
 export const TWILIGHT_HI = 0.22;
 export const TWILIGHT_COLOR: RgbUnit = { r: 1, g: 0.42, b: 0.16 };
 export const TWILIGHT_GAIN = 0.38;
-/** Night side of a colormap, slightly blue so it reads as shadow not fog. */
-export const NIGHT_TINT: RgbUnit = { r: 0.78, g: 0.88, b: 1 };
+/**
+ * Cool multiply on the night side. Each channel stays a fraction of itself,
+ * so a green stays green and a brown stays brown, only a little bluer.
+ */
+export const NIGHT_TINT: RgbUnit = { r: 0.86, g: 0.93, b: 1.08 };
 /** Ocean glint. Thresholds are on linear albedo, matching the shader. */
 export const WATER_LUMA_LO = 0.05;
 export const WATER_LUMA_HI = 0.28;
@@ -98,9 +102,10 @@ export function displayRgb(
   const twilight =
     smoothstep(TWILIGHT_LO, TWILIGHT_PEAK_LO, input.nDotL) *
     (1 - smoothstep(TWILIGHT_PEAK_HI, TWILIGHT_HI, input.nDotL));
-  // Scale the warm add by the albedo. A flat add of twilight on a dark
-  // colormap is brighter than noon once sRGB encodes it.
-  const twScale = Math.max(albedo.r, albedo.g, albedo.b);
+  // A flat add of twilight on a dark colormap encodes brighter than noon.
+  // Scaling by the albedo keeps that from happening, and the floor keeps the
+  // band visible on a dark green.
+  const twScale = Math.max(albedo.r, albedo.g, albedo.b, 0.28);
   const glintOn = input.glint ?? 0;
   const spec =
     Math.pow(Math.max(input.nDotH ?? 0, 0), GLINT_POWER) *
@@ -146,7 +151,7 @@ vec3 reShade(vec3 albedo, vec3 sunWorld, float glintOn, float emissive, float ni
   if (coolNight > 0.5) tint = mix(vec3(${NIGHT_TINT.r}, ${NIGHT_TINT.g}, ${NIGHT_TINT.b}), vec3(1.0), day);
   float tw = smoothstep(${TWILIGHT_LO}, ${TWILIGHT_PEAK_LO}, ndl)
     * (1.0 - smoothstep(${TWILIGHT_PEAK_HI}, ${TWILIGHT_HI}, ndl));
-  float twScale = max(albedo.r, max(albedo.g, albedo.b));
+  float twScale = max(max(albedo.r, max(albedo.g, albedo.b)), 0.28);
   vec3 color = albedo * shade * tint;
   color += vec3(${TWILIGHT_COLOR.r}, ${TWILIGHT_COLOR.g}, ${TWILIGHT_COLOR.b}) * tw * ${TWILIGHT_GAIN} * twScale;
   float luma = dot(albedo, vec3(0.2126, 0.7152, 0.0722));
