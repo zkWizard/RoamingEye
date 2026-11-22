@@ -5261,3 +5261,8 @@ body {
   color: var(--bg);
   border-color: transparent;
 }
+
+html.is-footage,
+html.is-footage body {
+  background: #05070d;
+}

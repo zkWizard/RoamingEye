@@ -286,6 +286,12 @@ function applyTheme(theme: Theme): void {
   renderer.setClearColor(SPACE_BG, 1);
 }
 
+function setFootage(on: boolean): void {
+  // The sky chunk draws the stars. A look only darkens the page behind the
+  // canvas, so a light theme does not show through as a pale card.
+  document.documentElement.classList.toggle("is-footage", on);
+}
+
 const themeEl = document.querySelector<HTMLElement>("#theme-toggle");
 // The toggle class arrives with the More menu. The first frame still has to
 // paint the saved theme, which is a storage read and one attribute.
@@ -452,6 +458,7 @@ if (tooltipEl) {
 const initialView = decodeViewState(window.location.hash);
 let currentLook: LookId = initialView.look ?? "natural";
 let presentLook: ((draw: (gl: WebGLRenderer) => void) => void) | null = null;
+if (currentLook !== "natural") setFootage(true);
 // The last session's working context (layer/month/overlays) restores on a
 // plain revisit; an explicit URL hash always wins. localStorage can throw
 // (private mode) — degrade to defaults, never break boot.
@@ -4154,6 +4161,7 @@ function installLooks(): void {
       initial: currentLook,
       onChange: (id) => {
         currentLook = id;
+        setFootage(id !== "natural");
         presentLook = id === "natural" ? null : (draw) => handle.present(draw);
         scheduleHashSync();
       },
