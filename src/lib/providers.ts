@@ -315,6 +315,17 @@ export const PROVIDERS: Provider[] = [
       "Real-time global seismicity feeds — source of our live earthquakes overlay (M4.5+, last 30 days).",
   },
   {
+    name: "Open-Meteo",
+    org: "Open-Meteo",
+    region: "Global",
+    group: "Open datasets & services",
+    url: "https://open-meteo.com/",
+    license: "CC BY 4.0",
+    use: "core",
+    description:
+      "Keyless forecast API for 10 m wind and 2 m temperature. A nightly job stores a 2.5 degree global grid so a visit loads one file. CC BY 4.0.",
+  },
+  {
     name: "Smithsonian Global Volcanism Program",
     org: "Smithsonian Institution",
     region: "USA",
