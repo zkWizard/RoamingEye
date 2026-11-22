@@ -1155,31 +1155,6 @@ if (toolbarEl) {
 }
 for (const overlay of overlays) restoreOverlay(overlay);
 
-// The satellite menu stays out of the entry chunk. It loads on the first
-// press in the map menu, or when a link already carries track=.
-let liveBoot: Promise<void> | undefined;
-const ensureLiveSatellites = () =>
-  (liveBoot ??= import("./live/satellites/boot").then(
-    ({ bootLiveSatellites }) => {
-      bootLiveSatellites({
-        scene,
-        overlays,
-        toolbar: toolbarEl,
-        onToggle: onOverlayToggle,
-        isOn: (overlay) => overlayState.has(overlay.id),
-        restore: restoreOverlay,
-      });
-    }
-  ));
-if (location.hash.includes("track=")) void ensureLiveSatellites();
-toolbarEl?.addEventListener(
-  "pointerdown",
-  () => {
-    void ensureLiveSatellites();
-  },
-  { capture: true, once: true }
-);
-
 // --- Controls (rotate + zoom) -----------------------------------------------
 const controls = new OrbitControls(camera, renderer.domElement);
 // No damping: the drag tracks the pointer 1:1. Damping made the ground trail
@@ -1475,6 +1450,39 @@ const reduceMotion = window.matchMedia(
 const flyer = new CameraFlyer(camera, controls, reduceMotion);
 controls.addEventListener("change", scheduleHashSync);
 
+// Satellites stay out of the entry chunk. The chunk loads when a link asks
+// to track one, when search asks, or the first time the map menu is touched.
+let liveFrame: (() => void) | undefined;
+let liveBoot:
+  Promise<{ followNorad(noradId: number): Promise<void> }> | undefined;
+const ensureLiveSatellites = () =>
+  (liveBoot ??= import("./live/satellites/boot").then(
+    ({ bootLiveSatellites }) =>
+      bootLiveSatellites(
+        scene,
+        canvas,
+        camera,
+        controls,
+        overlays,
+        toolbarEl,
+        onOverlayToggle,
+        (overlay) => overlayState.has(overlay.id),
+        restoreOverlay,
+        reduceMotion,
+        (hook) => {
+          liveFrame = hook;
+        }
+      )
+  ));
+if (location.hash.includes("track=")) void ensureLiveSatellites();
+toolbarEl?.addEventListener(
+  "pointerdown",
+  () => {
+    void ensureLiveSatellites();
+  },
+  { capture: true, once: true }
+);
+
 // A flight used to hold the controls off for its full 1.4 s, so a press on the
 // globe mid-flight did nothing and the user waited out an animation they had
 // already changed their mind about. A press or wheel on the globe now takes
@@ -1752,6 +1760,9 @@ if (searchEl) {
               },
               () => null
             );
+          },
+          onSatellite: (noradId) => {
+            void ensureLiveSatellites().then((api) => api.followNorad(noradId));
           },
           onEvent: (eventId) => {
             void import("./lib/eventSearch").then(({ eventFromId }) => {
@@ -3906,6 +3917,8 @@ const renderFrame = (): void => {
   timer.update();
   const delta = timer.getDelta();
   flyer.update(delta);
+  // Follow moves the camera here, before OrbitControls reads that position.
+  liveFrame?.();
   // A flight owns the camera. A wheel glide coasts only once the flight
   // has handed it back; the controls update below adopts the new altitude.
   if (flyer.isFlying) zoomTarget = null;

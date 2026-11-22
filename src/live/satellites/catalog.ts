@@ -46,6 +46,10 @@ export class SatelliteCatalog {
   >();
   private tickId = 0;
   private tickInFlight = false;
+  private readonly jobs = new Map<
+    number,
+    { resolve: (message: WorkerResponse) => void; reject: (err: Error) => void }
+  >();
   private readonly visible = new Set<string>();
   private readonly latest = new Map<string, SatSample>();
   private readonly previous = new Map<string, SatSample>();
@@ -94,6 +98,60 @@ export class SatelliteCatalog {
     return { previous: this.previous.get(groupId) ?? null, current };
   }
 
+  paths(
+    groupId: string,
+    index: number,
+    timeMs: number
+  ): Promise<{ orbit: Float32Array; ground: Float32Array } | null> {
+    return this.job({ type: "paths", group: groupId, index, timeMs }).then(
+      (message) => {
+        if (message.type !== "paths" || message.orbit.byteLength === 0)
+          return null;
+        return {
+          orbit: new Float32Array(message.orbit),
+          ground: new Float32Array(message.ground),
+        };
+      }
+    );
+  }
+
+  nextPass(
+    groupId: string,
+    index: number,
+    timeMs: number,
+    lat: number,
+    lon: number
+  ): Promise<{
+    startMs: number;
+    durationMin: number;
+    peakElevationDeg: number;
+  } | null> {
+    return this.job({
+      type: "pass",
+      group: groupId,
+      index,
+      timeMs,
+      lat,
+      lon,
+    }).then((message) => (message.type === "pass" ? message : null));
+  }
+
+  private job(message: {
+    type: "paths" | "pass";
+    group: string;
+    index: number;
+    timeMs: number;
+    lat?: number;
+    lon?: number;
+  }): Promise<WorkerResponse> {
+    const worker = this.ensureWorker();
+    const id = ++this.tickId;
+    return new Promise((resolve, reject) => {
+      this.jobs.set(id, { resolve, reject });
+      worker.postMessage({ ...message, id });
+    });
+  }
+
   private async fetchAndLoad(groupId: string): Promise<GpRecord[]> {
     const store = await this.store();
     const records = await loadGroup(groupId, {
@@ -139,6 +197,8 @@ export class SatelliteCatalog {
     this.pendingLoads.clear();
     for (const pending of this.pendingTicks.values()) pending.reject(err);
     this.pendingTicks.clear();
+    for (const pending of this.jobs.values()) pending.reject(err);
+    this.jobs.clear();
     this.tickInFlight = false;
   }
 
@@ -172,6 +232,17 @@ export class SatelliteCatalog {
       pending?.reject(new Error(message.message));
       return;
     }
+    if (
+      message.type === "paths" ||
+      message.type === "pass" ||
+      message.type === "pass-none"
+    ) {
+      const job = this.jobs.get(message.id);
+      this.jobs.delete(message.id);
+      job?.resolve(message);
+      return;
+    }
+    if (message.type !== "positions") return;
     for (const [group, buffer] of Object.entries(message.samples)) {
       const values = new Float32Array(buffer);
       const prev = this.latest.get(group);

@@ -7,11 +7,22 @@ import {
   Points,
   PointsMaterial,
   SRGBColorSpace,
+  Vector3,
   type PerspectiveCamera,
 } from "three";
-import { once, type MapOverlay } from "../../overlays/types";
+import {
+  once,
+  type MapOverlay,
+  type OverlaySelection,
+} from "../../overlays/types";
 import { satelliteCatalog, type SatSample } from "./catalog";
-import { lerpLon, orbitCountLabel, writePointBuffer } from "./display";
+import {
+  latLonAltToXYZ,
+  lerpLon,
+  orbitCountLabel,
+  writePointBuffer,
+} from "./display";
+import { pickNearest } from "./pick";
 import {
   drawStride,
   SATELLITE_GROUPS,
@@ -90,7 +101,11 @@ export class SatelliteGroupOverlay implements MapOverlay {
   private lat = new Float32Array(0);
   private lon = new Float32Array(0);
   private alt = new Float32Array(0);
+  private names: string[] = [];
+  private ids: number[] = [];
+  private speeds = new Float32Array(0);
   private countLabel = "";
+  private readonly scratch = new Vector3();
 
   constructor(private readonly spec: SatelliteGroup) {
     this.id = satelliteOverlayId(spec.id);
@@ -101,6 +116,101 @@ export class SatelliteGroupOverlay implements MapOverlay {
 
   ensureLoaded(): Promise<void> {
     return this.loadOnce();
+  }
+
+  get groupId(): string {
+    return this.spec.id;
+  }
+
+  indexOfNorad(noradId: number): number {
+    return this.ids.indexOf(noradId);
+  }
+
+  selectionAt(index: number): OverlaySelection | null {
+    const fix = this.fixAt(index);
+    if (!fix) return null;
+    return {
+      id: `${this.id}:${this.ids[index] ?? index}`,
+      title: this.names[index] ?? this.label,
+      lat: fix.lat,
+      lon: fix.lon,
+      x: fix.x,
+      y: fix.y,
+      z: fix.z,
+      screenDist: 0,
+      fields: this.fields(index),
+    };
+  }
+
+  /** Latest fix for a loaded satellite, in world space. */
+  fixAt(
+    index: number
+  ): { lat: number; lon: number; x: number; y: number; z: number } | null {
+    const lat = this.lat[index];
+    const lon = this.lon[index];
+    const alt = this.alt[index];
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(alt))
+      return null;
+    const [x, y, z] = latLonAltToXYZ(lat, lon, alt);
+    return { lat, lon, x, y, z };
+  }
+
+  pick(
+    clientX: number,
+    clientY: number,
+    camera: PerspectiveCamera,
+    viewportWidth: number,
+    viewportHeight: number
+  ): OverlaySelection | null {
+    if (!this.object.visible || this.lat.length === 0) return null;
+    const rect = { width: viewportWidth, height: viewportHeight };
+    const screen: { x: number; y: number }[] = new Array(this.lat.length);
+    for (let index = 0; index < this.lat.length; index += 1) {
+      const fix = this.fixAt(index);
+      if (!fix) {
+        screen[index] = { x: Number.NaN, y: Number.NaN };
+        continue;
+      }
+      this.scratch.set(fix.x, fix.y, fix.z).project(camera);
+      screen[index] = {
+        x: (this.scratch.x * 0.5 + 0.5) * rect.width,
+        y: (-this.scratch.y * 0.5 + 0.5) * rect.height,
+      };
+    }
+    const found = pickNearest(screen, clientX, clientY);
+    if (found === null) return null;
+    const fix = this.fixAt(found);
+    const point = screen[found];
+    if (!fix || !point) return null;
+    return {
+      id: `${this.id}:${this.ids[found] ?? found}`,
+      title: this.names[found] ?? this.label,
+      lat: fix.lat,
+      lon: fix.lon,
+      x: fix.x,
+      y: fix.y,
+      z: fix.z,
+      screenDist: Math.hypot(point.x - clientX, point.y - clientY),
+      fields: this.fields(found),
+    };
+  }
+
+  private fields(index: number): { label: string; value: string }[] {
+    const alt = this.alt[index];
+    const speed = this.speeds[index];
+    const rows = [
+      { label: "NORAD", value: String(this.ids[index] ?? "") },
+      {
+        label: "Altitude",
+        value: Number.isFinite(alt) ? `${Math.round(alt)} km` : "unknown",
+      },
+      {
+        label: "Speed",
+        value: Number.isFinite(speed) ? `${speed.toFixed(2)} km/s` : "unknown",
+      },
+      { label: "Type", value: this.spec.label },
+    ];
+    return rows;
   }
 
   update(camera: PerspectiveCamera): void {
@@ -118,6 +228,8 @@ export class SatelliteGroupOverlay implements MapOverlay {
 
   private async load(): Promise<void> {
     const records = await satelliteCatalog().ensureGroup(this.spec.id);
+    this.names = records.map((record) => record.OBJECT_NAME);
+    this.ids = records.map((record) => record.NORAD_CAT_ID);
     this.allocate(records.length);
     const pair = satelliteCatalog().sample(this.spec.id);
     if (pair) this.draw(pair.previous, pair.current, Date.now(), null);
@@ -127,6 +239,7 @@ export class SatelliteGroupOverlay implements MapOverlay {
     this.lat = new Float32Array(count);
     this.lon = new Float32Array(count);
     this.alt = new Float32Array(count);
+    this.speeds = new Float32Array(count);
     const positions = new Float32Array(count * 3);
     const geometry = new BufferGeometry();
     const attr = new BufferAttribute(positions, 3);
@@ -170,6 +283,7 @@ export class SatelliteGroupOverlay implements MapOverlay {
       const lat1 = current.values[offset];
       const lon1 = current.values[offset + 1];
       const alt1 = current.values[offset + 2];
+      const speed1 = current.values[offset + 3];
       if (
         !Number.isFinite(lat1) ||
         !Number.isFinite(lon1) ||
@@ -178,12 +292,14 @@ export class SatelliteGroupOverlay implements MapOverlay {
         this.lat[index] = Number.NaN;
         this.lon[index] = Number.NaN;
         this.alt[index] = Number.NaN;
+        this.speeds[index] = Number.NaN;
         continue;
       }
       if (!previous || span === 0) {
         this.lat[index] = lat1;
         this.lon[index] = lon1;
         this.alt[index] = alt1;
+        this.speeds[index] = speed1;
         continue;
       }
       const lat0 = previous.values[offset];
@@ -197,11 +313,13 @@ export class SatelliteGroupOverlay implements MapOverlay {
         this.lat[index] = lat1;
         this.lon[index] = lon1;
         this.alt[index] = alt1;
+        this.speeds[index] = speed1;
         continue;
       }
       this.lat[index] = lat0 + (lat1 - lat0) * t;
       this.lon[index] = lerpLon(lon0, lon1, t);
       this.alt[index] = alt0 + (alt1 - alt0) * t;
+      this.speeds[index] = speed1;
     }
     const position = camera?.position;
     const written = writePointBuffer({
