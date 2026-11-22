@@ -27,14 +27,14 @@ first visit in the light theme looked like a pale card. These later frames are
 the default visit: Greenness, 15 Oct 2026, camera over the Americas, clock
 frozen at 15 Nov 2026 16:30 UTC.
 
-Day and night are on for data layers by default. The night floor is 0.16 in
-linear light, which encodes to about 40% of the day side in sRGB, with a
-slight cool tint. Twilight is scaled by the albedo so a dark green is not
-bleached tan. The probe still reads the unshaded colormap. The limb is a
-shell 1.2% larger than the globe, drawn with the view-ray fresnel so it hugs
-the edge. NASA Black Marble (VIIRS, 2016) is the sphere's emissive map and
-shows only on the night side, after the sun chunk loads. The credits sit on
-a dark plate with light text in both themes, because the canvas is space.
+Day and night are on for data layers by default. The night floor is 0.045 in
+linear light, about 17% of the day side once sRGB encodes it, and it is a
+multiply with a cool tint so the hue stays. Twilight is a warm band across
+the terminator. The probe still reads the unshaded colormap. The limb is a
+shell 1.2% larger than the globe. NASA Black Marble (VIIRS, 2016) is added
+only on the bright city pixels of the night side. The credits sit on a dark
+plate in both themes. These frames look at 20 N, 25 E, 15 Nov 2026 16:30 UTC,
+so the evening terminator crosses Africa and the night side is in frame.
 
 Desktop is 1440x900. Phone is 390x844. `terminator.gif` steps the same view
 through 24 hours, two hours a frame, on 15 Oct 2026.
