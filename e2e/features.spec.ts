@@ -33,9 +33,14 @@ test(
   { tag: "@smoke" },
   async ({ page }) => {
     const items = page.locator(".toolbar__item");
+    // Real light arrives with the sun chunk, just after the first frame.
+    await expect(
+      page.locator('.toolbar__item[data-overlay="real-light"]')
+    ).toHaveCount(1);
     // Borders, Cities, Time zones, Plates, Volcanoes, Earthquakes, Weather now
-    // in Live, plus Sharper imagery and Atmosphere glow in Settings.
-    await expect(items).toHaveCount(9);
+    // in Live, plus Sharper imagery, Real light, Light the data, and
+    // Atmosphere glow in Settings.
+    await expect(items).toHaveCount(11);
     await expect(
       page.locator('.toolbar__item[data-overlay="graticule"]')
     ).toHaveCount(0);

@@ -114,6 +114,7 @@ export class TiledImageryOverlay implements MapOverlay {
   private coverageListener?: (coverage: VisibleTileCoverage) => void;
 
   constructor(private readonly maxAnisotropy = 1) {
+    this.object.name = "hd-tiles";
     this.object.visible = false;
   }
 

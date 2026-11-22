@@ -1,4 +1,12 @@
-import { Group, Mesh, PerspectiveCamera, Vector2, WebGLRenderer } from "three";
+import {
+  Group,
+  Material,
+  Mesh,
+  PerspectiveCamera,
+  Scene,
+  Vector2,
+  WebGLRenderer,
+} from "three";
 import { TilesRenderer } from "3d-tiles-renderer";
 import {
   ImageOverlayPlugin,
@@ -122,6 +130,11 @@ export class TerrainGlobe {
   private sampling = false;
   /** The science overlay was removed because the view no longer needs it. */
   private scienceHeldBack = false;
+  /**
+   * Day and night shading, installed when the sun chunk loads. Re-applied to
+   * every tile: 3d-tiles-renderer builds a fresh material per model.
+   */
+  private realLightPatch: ((material: Material) => void) | null = null;
 
   constructor(
     private readonly camera: PerspectiveCamera,
@@ -169,6 +182,7 @@ export class TerrainGlobe {
         child.frustumCulled = false;
         // Layer 1 receives the terrain fill light (see main.ts).
         child.layers.enable(1);
+        this.applyRealLight(child.material);
       });
     });
 
@@ -182,6 +196,40 @@ export class TerrainGlobe {
     this.terrain = terrain;
     this.imageOverlays = imageOverlays;
     this.object = group;
+    // The sun chunk starts once this group is on the scene. Nothing here is
+    // referenced from the entry chunk.
+    requestAnimationFrame(() => {
+      const parent = this.object.parent;
+      if (!parent) return;
+      void import("./realLightBoot")
+        .then(({ bootFromScene }) => {
+          bootFromScene(parent as Scene, this);
+        })
+        .catch((err: unknown) => {
+          console.warn("RoamingEye: sun lighting failed to load", err);
+        });
+    });
+  }
+
+  /**
+   * Shade terrain imagery with the real sun. Called again for each tile from
+   * the load-model handler, because the renderer swaps materials as tiles arrive.
+   */
+  setRealLightPatch(patch: (material: Material) => void): void {
+    this.realLightPatch = patch;
+    this.object.traverse((child) => {
+      if (child instanceof Mesh) this.applyRealLight(child.material);
+    });
+  }
+
+  private applyRealLight(material: Material | Material[]): void {
+    const patch = this.realLightPatch;
+    if (!patch) return;
+    if (Array.isArray(material)) {
+      for (const entry of material) patch(entry);
+    } else {
+      patch(material);
+    }
   }
 
   /**
