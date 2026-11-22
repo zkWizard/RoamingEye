@@ -1,6 +1,12 @@
 import type { MapOverlay } from "../overlays/types";
 import type { ViewCard } from "./viewCards";
 import type { LayerId } from "../lib/timeline";
+import {
+  initialThumb,
+  thumbOnError,
+  thumbOnLoad,
+  type ThumbDecision,
+} from "./thumbnailFallback";
 
 export interface ToolbarHandlers {
   /** Switch the globe to this card's layer and overlays. */
@@ -154,22 +160,23 @@ export class Toolbar {
     const open = document.createElement("button");
     open.type = "button";
     open.className = "view-card__open";
+    const box = document.createElement("span");
+    box.className = "view-card__thumbbox";
+    box.dataset.layer = card.thumbnailLayer;
     const img = document.createElement("img");
     img.className = "view-card__thumb";
     img.alt = "";
     img.width = 280;
     img.height = 150;
-    img.loading = "lazy";
     img.decoding = "async";
-    img.src = thumbnail(card.thumbnailLayer);
-    img.addEventListener("error", () => img.classList.add("is-missing"));
+    box.appendChild(img);
     const title = document.createElement("span");
     title.className = "view-card__title";
     title.textContent = card.title;
     const blurb = document.createElement("span");
     blurb.className = "view-card__blurb";
     blurb.textContent = card.blurb;
-    open.append(img, title, blurb);
+    open.append(box, title, blurb);
     open.addEventListener("click", () => this.handlers.onView?.(card));
 
     const actions = document.createElement("div");
@@ -185,6 +192,45 @@ export class Toolbar {
     article.append(open, actions);
     this.cards.set(card.id, article);
     grid.appendChild(article);
+    // Src goes on only after the card is in the document, and without
+    // loading=lazy. A lazy image created detached (or clipped by this
+    // scrollport, or by the phone sheet's display:none) has its GetMap
+    // aborted, and the abort is a permanent error — a different card each
+    // time, depending on which request was still in flight. Eight small
+    // previews are cheap enough to load directly.
+    this.paintThumbnail(box, img, thumbnail(card.thumbnailLayer));
+  }
+
+  /**
+   * Keep the bitmap invisible until it decodes. The gradient on the box is
+   * the same size either way, so a failure cannot show the broken-image icon
+   * or move the card.
+   */
+  private paintThumbnail(
+    box: HTMLElement,
+    img: HTMLImageElement,
+    url: string
+  ): void {
+    let failures = 0;
+    const apply = (decision: ThumbDecision): void => {
+      img.classList.toggle("is-ready", decision.showImage);
+      box.classList.toggle("is-fallback", decision.fallback);
+      if (decision.src === null) img.removeAttribute("src");
+      else if (decision.src && img.getAttribute("src") !== decision.src) {
+        img.src = decision.src;
+      }
+    };
+    img.addEventListener("load", () => {
+      if (box.classList.contains("is-fallback")) return;
+      apply(thumbOnLoad(img.naturalWidth));
+    });
+    img.addEventListener("error", () => {
+      if (box.classList.contains("is-fallback")) return;
+      const decision = thumbOnError(url, failures);
+      failures += 1;
+      apply(decision);
+    });
+    apply(initialThumb(url));
   }
 
   private cardAction(

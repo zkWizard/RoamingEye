@@ -76,7 +76,11 @@ export const VIEW_CARDS: readonly ViewCard[] = [
   },
 ];
 
-/** A small world preview. June 2024 is inside every monthly layer's record. */
+/**
+ * A small world preview. June 2024 is inside every monthly layer's record,
+ * and this string is finished before the card assigns `img.src` — a date is
+ * never filled in afterwards. A failed fetch is handled by thumbnailFallback.
+ */
 export function viewCardThumbnail(layerId: LayerId): string {
   const layer = LAYERS[layerId];
   const params = new URLSearchParams({
