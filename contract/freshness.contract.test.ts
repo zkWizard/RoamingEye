@@ -2,15 +2,20 @@ import { describe, it, expect } from "vitest";
 import {
   FRESHNESS_FAMILIES,
   describeDomainsUrl,
+  freshnessProbeFrom,
   parseLatestFromDomains,
 } from "../src/lib/freshness";
 import { DATA_LATEST, LAYERS, compareYm } from "../src/lib/timeline";
 
 /**
  * Freshness contract: the boot-time DescribeDomains probe (lib/freshness.ts)
- * must keep working for EVERY product family it verifies — MOD13A3
- * (ndvi/evi), MOD11C3 (lst), MOD10CM (snow). If GIBS changes the endpoint,
- * the XML shape, or a layer identifier, this weekly check names the family
+ * must keep working for EVERY product family it verifies. The request uses
+ * the same compiled floor boot uses (`freshnessProbeFrom`). Anchoring the
+ * window on DATA_LATEST instead asks for months a lagging product has not
+ * published, and GIBS answers with an empty domain. That empty answer is a
+ * stall (the timeline already says how many months behind), not a dead
+ * probe. An empty answer from the boot window means the endpoint, the XML
+ * shape, or the layer identifier changed, and this check names the family
  * before users boot into a timeline that can't self-update.
  *
  * Network-touching by design (runs via catalog-check.yml, not `npm run
@@ -33,14 +38,22 @@ async function fetchDomains(url: string): Promise<string> {
 describe("DescribeDomains freshness contract (live GIBS)", () => {
   for (const family of FRESHNESS_FAMILIES) {
     it(`${family.product} (${family.probe}) answers with a parseable, sane time domain`, async () => {
-      const xml = await fetchDomains(
-        describeDomainsUrl(family.probe, DATA_LATEST)
-      );
+      // Same anchor as refreshDataLatest. DATA_LATEST is the wrong one for a
+      // family whose compiled end trails the global baseline: the requested
+      // range then starts after the last granule and the body is
+      // `<Domain></Domain><Size>0</Size>`.
+      const from = freshnessProbeFrom(family);
+      const xml = await fetchDomains(describeDomainsUrl(family.probe, from));
       const latest = parseLatestFromDomains(xml);
+      const anchor = `${from.year}-${String(from.month).padStart(2, "0")}`;
       expect(
         latest,
-        `${family.product}: DescribeDomains response no longer parses — ` +
-          `boot freshness for ${family.layers.join("/")} is dead:\n` +
+        `${family.product} (${LAYERS[family.probe].wmsLayer}): DescribeDomains ` +
+          `for the boot window anchored at ${anchor} returned no usable time. ` +
+          `An empty <Domain></Domain><Size>0</Size> means this layer publishes ` +
+          `nothing in that window (retired, renamed, or the identifier no ` +
+          `longer has a time domain), so boot freshness for ` +
+          `${family.layers.join("/")} is dead:\n` +
           xml.slice(0, 500)
       ).not.toBeNull();
       // Sanity, not freshness: the verified end may trail the compiled

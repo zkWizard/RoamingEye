@@ -155,9 +155,15 @@ export function linearityDeviation(bins: ColormapRamp["bins"]): number {
 }
 
 /**
- * The ceiling on linearityDeviation for a layer to stay `calibrated`.
- * Live values at derivation time (2026-07-09): 0% everywhere except SST's
- * 0.16% — an order of magnitude of headroom without letting a genuinely
- * non-linear re-render (e.g. a log precip ramp) slip through.
+ * The ceiling on linearityDeviation for a calibrated layer whose legend does
+ * not itself encode the ramp's value spacing. Live values at derivation time
+ * (2026-07-09): 0% everywhere except SST's 0.16%, an order of magnitude of
+ * headroom without letting a genuinely non-linear re-render (e.g. a log
+ * precip ramp) slip through.
+ *
+ * NDVI is calibrated and still sits above this ceiling (0.129). Its legend
+ * stops are placed on MODIS_L3_NDVI's value fractions, so the uneven bins
+ * are not what a reader or the probe inherits. The probe-scale contract pins
+ * that deviation instead of applying this ceiling. See vegetationIndexRamp.
  */
 export const MAX_LINEARITY_DEVIATION = 0.02;

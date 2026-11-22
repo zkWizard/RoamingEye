@@ -402,11 +402,15 @@ const scaleFraction = (label: string): ProbeScale => ({
 
 /**
  * Physical ranges below were derived 2026-07-09 from the colormap metadata
- * GIBS itself renders the tiles with (colormaps/v1.3 — see lib/colormap.ts),
- * every ramp verified linear-in-value (worst deviation 0.16%, SST).
+ * GIBS itself renders the tiles with (colormaps/v1.3 — see lib/colormap.ts).
+ * Every ramp except NDVI is linear-in-value (worst linear deviation 0.16%,
+ * SST). NDVI's bins are uneven (deviation 0.129) and its legend stops sit on
+ * the ramp's value fractions, so the linear position-to-value step still
+ * recovers the published colours (see vegetationIndexRamp).
  * Precipitation converts GIBS's kg/m²/s to mm/day (SCALE_CONVERSIONS).
- * The weekly contract suite re-derives all six from the live documents, so
- * an upstream palette change fails CI instead of silently mis-scaling.
+ * The weekly contract suite re-derives the ranges from the live documents and
+ * checks linearity against that rule, so an upstream palette change fails CI
+ * instead of silently mis-scaling.
  */
 export const PROBE_SCALES: Record<LayerId, ProbeScale> = {
   ndvi: { label: "NDVI (approx.)", min: 0, max: 1, unit: "", calibrated: true },

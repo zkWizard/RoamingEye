@@ -173,7 +173,8 @@ const MOD13A3_UNPUBLISHED_MONTHS: readonly YearMonth[] = [
  *
  * GIBS advertises this layer's time dimension as five disjoint ranges —
  * 2002-07/2022-10, 2023-01/2023-05, 2023-07/2023-09, 2023-11/2025-11 and
- * 2026-01/2026-04, all P1M (WMTS GetCapabilities, verified 2026-08-11). Each
+ * 2026-01/2026-04, all P1M (WMTS GetCapabilities, verified 2026-08-11 and
+ * again on 2026-11-22; the end has not moved). Each
  * of the five months below sits between two of them and answers HTTP 404,
  * while every month on either side of every gap serves normally.
  *
@@ -371,9 +372,10 @@ export const LAYERS: Record<LayerId, LayerConfig> = {
     },
     wmts: { set: "2km", maxLevel: 5, ext: "png" },
     start: { year: 2002, month: 7 },
-    // Re-verified against GIBS DescribeDomains 2026-08-15 (unchanged);
-    // extended at boot by its own freshness family, so this pin is the
-    // fallback rather than the ceiling.
+    // Re-verified against GIBS DescribeDomains 2026-11-22 (still 2026-04).
+    // Extended at boot by its own freshness family, so this pin is the
+    // fallback rather than the ceiling. The whole MODIS L3 monthly SST
+    // family shares this end; nothing newer and still monthly has replaced it.
     latest: { year: 2026, month: 4 },
     unpublished: MODIS_AQUA_SST_DAY_UNPUBLISHED_MONTHS,
     // Both sampling gates, not just the diurnal one: a thermal-infrared
