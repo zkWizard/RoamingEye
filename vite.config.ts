@@ -64,12 +64,30 @@ export default defineConfig({
         // Budgets enforced post-build by scripts/check-bundle-size.mjs.
         advancedChunks: {
           groups: [
-            { name: "three", test: /node_modules[\\/]three[\\/]/ },
+            // three's core, plus OrbitControls, which the first frame uses.
+            // A higher priority than tiles-extras so OrbitControls is not
+            // swept into the lazy addon chunk.
+            {
+              name: "three",
+              priority: 30,
+              test: /node_modules[\\/]three[\\/](?:(?!examples[\\/]).*|examples[\\/]jsm[\\/]controls[\\/]OrbitControls\.js$)/,
+            },
+            // GLTFLoader and the other three addons are imported only by the
+            // lazy terrain globe. Captured before the terrain group, whose
+            // default is to swallow dependencies, so they stay out of both
+            // the eager three chunk and the terrain budget.
+            {
+              name: "tiles-extras",
+              priority: 20,
+              includeDependenciesRecursively: false,
+              test: /node_modules[\\/]three[\\/]examples[\\/]/,
+            },
             // The streamed terrain/imagery globe: vendor code, cached like three.
             // Named apart from src/lib/tiles.ts, which Vite also emits as a
             // chunk whose filename starts with "tiles-".
             {
               name: "terrain",
+              priority: 10,
               test: /node_modules[\\/]3d-tiles-renderer[\\/]/,
             },
             // The sampler, the probe chart's notes and the overlays' hover
