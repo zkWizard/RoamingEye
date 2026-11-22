@@ -43,7 +43,7 @@ test("failed thumbnails retry once and show the layer gradient", async ({
 }) => {
   let requests = 0;
   let retries = 0;
-  await page.route(/gibs\.earthdata\.nasa\.gov/, (route) => {
+  await page.route("**gibs.earthdata.nasa.gov**", (route) => {
     const url = route.request().url();
     if (!isThumbnail(url)) return route.continue();
     requests += 1;
@@ -73,7 +73,7 @@ test("failed thumbnails retry once and show the layer gradient", async ({
 });
 
 test("a decoded thumbnail is shown over the gradient", async ({ page }) => {
-  await page.route(/gibs\.earthdata\.nasa\.gov/, (route) => {
+  await page.route("**gibs.earthdata.nasa.gov**", (route) => {
     if (!isThumbnail(route.request().url())) return route.continue();
     return route.fulfill({
       status: 200,
