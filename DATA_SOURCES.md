@@ -136,7 +136,11 @@ browser when the file is missing, and then only for a coarser grid.
 
 Open-Meteo is keyless and CORS-open. The forecast data is
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Credit: Weather data
-by [Open-Meteo](https://open-meteo.com/).
+by [Open-Meteo](https://open-meteo.com/). The same credit is in the footer,
+and the licence link is on the Open-Meteo card in Data providers. This grid
+uses the forecast API (`wind_speed_10m`, `wind_direction_10m`,
+`temperature_2m`). It does not use the ERA5 historical archive, so it does
+not carry a Copernicus credit.
 
 Wind direction in the file is the meteorological convention (the direction the
 wind comes from). The components are eastward `u` and northward `v`, in metres
