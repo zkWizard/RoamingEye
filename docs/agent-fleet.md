@@ -53,9 +53,42 @@ steps from cached records without making network calls.
 
 ## Automation and safety
 
-`.github/workflows/agent-fleet.yml` runs every 30 minutes and on demand. It gives the
-catalog job narrowly scoped `contents: write` and `pull-requests: write`
-permissions solely to create a signed, **draft** PR. It never pushes to `main`.
+`.github/workflows/agent-fleet.yml` runs daily at 05:23 UTC and on demand.
+The catalog job has `contents: write` so it can force-push
+`agents/catalog-refresh`, and `pull-requests: write` so it can open a signed
+**draft** pull request. It never pushes to `main`.
+
+Status, history, QA, and review-queue files re-stamp on every run. The
+workflow opens a review only when `catalog/inbox.json`,
+`catalog/verified-tools.json`, `catalog/mapped-tools.json`, or
+`catalog/edited-tools.json` changed. It commits those curated records, then
+force-pushes `agents/catalog-refresh`.
+
+If an open pull request for that branch already exists, the push updates it
+and the job stops there. Otherwise the workflow opens a draft pull request.
+
+Opening a pull request needs a token this repository allows to create one.
+Set the Actions secret `CATALOG_FLEET_TOKEN` to either of these:
+
+- A fine-grained personal access token for this repository, with pull
+  requests read and write. This is the durable choice. Contents access can
+  stay read-only, because the workflow token still does the git push.
+- A GitHub App installation token with the same pull request access.
+  Installation tokens expire after one hour, so a token stored once will
+  stop working before the next daily run.
+
+When `CATALOG_FLEET_TOKEN` is unset, the workflow tries the default
+`GITHUB_TOKEN`. That call succeeds when the repository allows GitHub Actions
+to create and approve pull requests (Settings > Actions > General). With
+that setting off, GitHub refuses the default token. The job then stays
+green: it prints a warning and writes this compare link to the job summary,
+so a person can open the pull request in one step. The next run updates
+that pull request.
+
+<https://github.com/zkWizard/RoamingEye/compare/main...agents/catalog-refresh>
+
+A configured token that fails for any other reason still fails the job.
+
 All generated text is rendered as DOM text, not HTML, and all catalog records
 remain committed, inspectable static data.
 
