@@ -142,7 +142,7 @@ export class Tracker {
   }
 
   setPaths(orbit: Float32Array | null, ground: Float32Array | null): void {
-    writeLatLonAlt(this.orbit, orbit, true);
+    writeLatLonAlt(this.orbit, orbit);
     writeLatLon(this.ground, ground);
   }
 
@@ -314,28 +314,18 @@ function makeLine(color: number, vertexColors: boolean): Line {
   return line;
 }
 
-function writeLatLonAlt(
-  line: Line,
-  packed: Float32Array | null,
-  useAltitude: boolean
-): void {
+function writeLatLonAlt(line: Line, packed: Float32Array | null): void {
   if (!packed || packed.length < 6) {
     line.visible = false;
     return;
   }
   const positions: number[] = [];
-  const stride = useAltitude ? 3 : 2;
-  for (let offset = 0; offset + stride - 1 < packed.length; offset += stride) {
+  for (let offset = 0; offset + 2 < packed.length; offset += 3) {
     const lat = packed[offset];
     const lon = packed[offset + 1];
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-    const alt = useAltitude ? packed[offset + 2] : 0;
-    const [x, y, z] = useAltitude
-      ? latLonAltToXYZ(lat, lon, Number.isFinite(alt) ? alt : 0)
-      : (() => {
-          const v = latLngToVector3(lat, lon, 1.004);
-          return [v.x, v.y, v.z] as [number, number, number];
-        })();
+    const alt = packed[offset + 2];
+    const [x, y, z] = latLonAltToXYZ(lat, lon, Number.isFinite(alt) ? alt : 0);
     positions.push(x, y, z);
   }
   const geometry = line.geometry as BufferGeometry;
