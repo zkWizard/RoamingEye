@@ -340,6 +340,17 @@ export const PROVIDERS: Provider[] = [
       "Keyless global radar tiles for the past two hours and the nowcast. The Weather now loop credits RainViewer on the radar chip.",
   },
   {
+    name: "CelesTrak",
+    org: "CelesTrak",
+    region: "Global",
+    group: "Open datasets & services",
+    url: "https://celestrak.org/",
+    license: "Open (attribution)",
+    use: "core",
+    description:
+      "GP orbital elements for the live satellites layer. One fetch per group each two hours, cached in the browser. No key.",
+  },
+  {
     name: "Smithsonian Global Volcanism Program",
     org: "Smithsonian Institution",
     region: "USA",

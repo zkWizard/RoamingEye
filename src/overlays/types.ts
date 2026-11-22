@@ -13,7 +13,7 @@ export interface MapOverlay {
   /**
    * "settings" parks the toggle in the collapsed Settings fold. "live" parks
    * it in the Live fold (weather, and satellites when that layer is present).
-   * Map details is the default.
+   * Map details is the default. The name "live" is shared; do not rename it.
    */
   readonly group?: "details" | "settings" | "live";
   /** Inline SVG markup for the toolbar icon. */

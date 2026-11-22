@@ -161,3 +161,18 @@ change the selected month.
 RainViewer requires attribution wherever the tiles are shown. The chip links
 to [RainViewer](https://www.rainviewer.com/), and the Data providers panel
 lists the same credit.
+
+## Satellites: CelesTrak
+
+The live satellites layer reads [CelesTrak](https://celestrak.org/) GP
+(general perturbations) elements as JSON, one group at a time:
+
+`https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=json`
+
+Groups: `stations`, `starlink`, `gps-ops`, `weather`, `resource`, `visual`.
+The service is keyless and sends `Access-Control-Allow-Origin: *`, so the
+browser calls it directly. CelesTrak asks callers not to fetch a group more
+than once every two hours. Each group is cached in IndexedDB for two hours,
+and a second request inside that window is served from the cache. Positions
+are propagated in the browser with SGP4 (`satellite.js`) inside a Web Worker.
+No account and no API key. Cite CelesTrak, and the footer does.

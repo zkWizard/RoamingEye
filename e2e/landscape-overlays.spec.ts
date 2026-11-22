@@ -34,8 +34,8 @@ const LANDSCAPE = [
   { name: "667x375", width: 667, height: 375 },
 ];
 
-/** The count is the assertion: nine is the whole overlay set, including Weather now. */
-const OVERLAY_COUNT = 9;
+/** Weather now, six satellite classes, and the settings toggles including real light. */
+const OVERLAY_COUNT = 17;
 
 /* A control is reached when a tap aimed at it lands on it. The point aimed at
    is the centre of a LINE box rather than the centre of the union box
