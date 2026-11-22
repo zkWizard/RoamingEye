@@ -3,7 +3,7 @@
  * outgrows its gzip budget, so bundle growth is a deliberate decision (bump
  * the numbers here in the same PR that justifies them), never an accident.
  *
- * Budgets vs. current (2026-11-22, #638): app 58.4 kB, three 142.5 kB,
+ * Budgets vs. current (2026-11-22, #638): app 35.1 kB, three 142.5 kB,
  * terrain 36.6 kB gzipped. The July 2026 header said app ~34 kB and
  * three ~137 kB, which no longer matches a build.
  */
@@ -13,10 +13,10 @@ import { gzipSync } from "node:zlib";
 
 const ASSETS = join(process.cwd(), "dist", "assets");
 const BUDGETS_KB = {
-  // App code — everything that isn't the vendor or terrain chunk.
-  // Search loads in its own chunk, so encoding the place hash on each view
-  // write leaves the entry chunk at 56.3 kB gzip, inside the 60 kB cap.
-  app: 60,
+  // App code, everything that isn't the vendor or terrain chunk.
+  // Measured 35.1 kB gzip for the entry after the first-frame deferrals.
+  // The cap is that size plus 3 kB, and it does not go below 50.
+  app: 50,
   // three.js vendor chunk. Measured 142.5 kB gzip on 2026-11-22 after
   // named imports, with GLTFLoader moved to the lazy tiles-extras chunk.
   // The cap is that size plus 5 kB, rounded up to a whole number.
