@@ -16,7 +16,7 @@ import { GLOBE_RADIUS, type MapOverlay } from "./types";
 export class AtmosphereOverlay implements MapOverlay {
   readonly id = "atmosphere";
   readonly label = "Atmosphere glow";
-  readonly detail = "A soft blue edge around the globe";
+  readonly detail = "Blue day limb, warm twilight, dark night";
   readonly group = "settings" as const;
   readonly icon = ICONS.atmosphere;
   readonly object: Mesh;
@@ -53,6 +53,7 @@ export class AtmosphereOverlay implements MapOverlay {
     });
 
     this.object = new Mesh(new SphereGeometry(radius, 64, 64), material);
+    this.object.name = "atmosphere";
     this.object.visible = false;
   }
 }
