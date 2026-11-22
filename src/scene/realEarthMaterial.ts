@@ -150,9 +150,16 @@ if (uRealLight > 0.5) {
 const SCIENCE_LIGHT = /* glsl */ `
 if (uRealLight > 0.5) {
   if (uScienceLight > 0.5) {
-    vec3 nightLights = totalEmissiveRadiance;
-    float city = smoothstep(0.05, 0.35, max(nightLights.r, max(nightLights.g, nightLights.b)));
-    nightLights *= city * 4.0;
+    vec3 nightLights = vec3(0.0);
+    if (uHasNight > 0.5) {
+      vec3 p = normalize(vNightWorld);
+      float u = atan(p.z, -p.x) / 6.2831853;
+      if (u < 0.0) u += 1.0;
+      float v = asin(clamp(p.y, -1.0, 1.0)) / 3.14159265 + 0.5;
+      vec3 raw = texture2D(uNightMap, vec2(u, v)).rgb;
+      float city = smoothstep(0.18, 0.55, max(raw.r, max(raw.g, raw.b)));
+      nightLights = raw * vec3(1.15, 0.92, 0.62) * city * 5.0;
+    }
     outgoingLight = reShade(diffuseColor.rgb, uSunScience, 0.0, 0.0, RE_SCIENCE_FLOOR, 1.0, nightLights, normal, vViewPosition);
   } else {
     outgoingLight = diffuseColor.rgb;
@@ -224,7 +231,16 @@ export function patchScienceMaterial(
 ): void {
   if (material.userData[PATCHED]) return;
   chain(material, (shader) => {
-    declare(shader, uniforms, "");
+    declare(shader, uniforms, "varying vec3 vNightWorld;");
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        "#include <common>",
+        "#include <common>\nvarying vec3 vNightWorld;"
+      )
+      .replace(
+        "#include <project_vertex>",
+        "#include <project_vertex>\n\tvNightWorld = position;"
+      );
     shader.fragmentShader = shader.fragmentShader.replace(
       "#include <opaque_fragment>",
       SCIENCE_LIGHT
