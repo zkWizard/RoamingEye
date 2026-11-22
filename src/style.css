@@ -3011,6 +3011,14 @@ body {
   font-size: 0.72rem;
   color: var(--accent);
 }
+.providers__card a.providers__name {
+  color: inherit;
+  text-decoration: none;
+}
+.providers__meta a {
+  color: inherit;
+  text-underline-offset: 2px;
+}
 .providers__desc {
   margin-top: 0.45rem;
   font-size: 0.8rem;

@@ -203,25 +203,46 @@ export class ProvidersPage {
       const grid = document.createElement("div");
       grid.className = "providers__grid";
       for (const p of inGroup) {
-        const card = document.createElement("a");
+        const card = p.licenseUrl
+          ? document.createElement("article")
+          : document.createElement("a");
         card.className = "providers__card";
-        card.href = p.url;
-        card.target = "_blank";
-        card.rel = "noopener";
+        if (card instanceof HTMLAnchorElement) {
+          card.href = p.url;
+          card.target = "_blank";
+          card.rel = "noopener";
+        }
         card.title = USE_LABEL[p.use];
 
         const head = document.createElement("div");
         head.className = "providers__card-head";
-        const name = document.createElement("span");
+        const name = p.licenseUrl
+          ? document.createElement("a")
+          : document.createElement("span");
         name.className = "providers__name";
         name.textContent = p.name;
+        if (name instanceof HTMLAnchorElement) {
+          name.href = p.url;
+          name.target = "_blank";
+          name.rel = "noopener";
+        }
         const dot = document.createElement("span");
         dot.className = `providers__dot providers__dot--${p.use}`;
         head.append(name, dot);
 
         const meta = document.createElement("div");
         meta.className = "providers__meta";
-        meta.textContent = `${p.org} · ${p.region} · ${p.license}`;
+        meta.append(`${p.org} · ${p.region} · `);
+        if (p.licenseUrl) {
+          const licence = document.createElement("a");
+          licence.href = p.licenseUrl;
+          licence.target = "_blank";
+          licence.rel = "noopener";
+          licence.textContent = p.license;
+          meta.append(licence);
+        } else {
+          meta.append(p.license);
+        }
 
         const desc = document.createElement("p");
         desc.className = "providers__desc";

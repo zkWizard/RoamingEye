@@ -27,6 +27,11 @@ describe("PROVIDERS catalogue", () => {
     expect(core.some((n) => n.includes("Natural Earth"))).toBe(true);
     expect(core.some((n) => n.includes("Esri"))).toBe(true);
     expect(core.some((n) => n.includes("AWS Terrain"))).toBe(true);
+    const meteo = PROVIDERS.find((p) => p.name === "Open-Meteo");
+    expect(meteo?.url).toBe("https://open-meteo.com/");
+    expect(meteo?.licenseUrl).toBe(
+      "https://creativecommons.org/licenses/by/4.0/"
+    );
   });
 });
 

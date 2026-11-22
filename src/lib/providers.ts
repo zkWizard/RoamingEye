@@ -44,6 +44,8 @@ export interface Provider {
   group: string;
   url: string;
   license: string;
+  /** When set, the licence name in the providers panel links here. */
+  licenseUrl?: string;
   use: ProviderUse;
   description: string;
 }
@@ -321,9 +323,10 @@ export const PROVIDERS: Provider[] = [
     group: "Open datasets & services",
     url: "https://open-meteo.com/",
     license: "CC BY 4.0",
+    licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
     use: "core",
     description:
-      "Keyless forecast API for 10 m wind and 2 m temperature. A nightly job stores a 2.5 degree global grid so a visit loads one file. CC BY 4.0.",
+      "Keyless forecast API for 10 m wind and 2 m temperature. A nightly job stores a 2.5 degree global grid so a visit loads one file. The grid is the forecast, not the ERA5 archive.",
   },
   {
     name: "Smithsonian Global Volcanism Program",
