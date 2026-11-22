@@ -8,6 +8,7 @@ import {
   type Mesh,
   type Object3D,
   type Scene,
+  type Texture,
   type WebGLRenderer,
 } from "three";
 import {
@@ -47,6 +48,8 @@ export interface IlluminationSnapshot {
   satellite: SunVector;
   /** Null when no monthly layer is showing. The direction then matches satellite. */
   monthly: SunVector | null;
+  /** The direction actually shading the globe this frame. */
+  shown: SunVector;
 }
 
 export interface SunHandle {
@@ -55,6 +58,8 @@ export interface SunHandle {
    * raise this once it has a lights texture. 0 leaves the night side dimmed.
    */
   setNightEmissive(value: number): void;
+  /** Black Marble (or any night-lights map). Sampled on the science sphere. */
+  setNightMap(texture: Texture): void;
   /** Latest sun directions, for the atmosphere and anything that follows. */
   illumination(): IlluminationSnapshot;
 }
@@ -86,6 +91,7 @@ export function attachSun(hooks: SunHooks): SunHandle {
   let snapshot: IlluminationSnapshot = {
     satellite: { x: 1, y: 0, z: 0 },
     monthly: null,
+    shown: { x: 1, y: 0, z: 0 },
   };
 
   const update = (): void => {
@@ -98,12 +104,13 @@ export function attachSun(hooks: SunHooks): SunHandle {
     const instants = illuminationInstants(clock);
     const satellite = sunDirection(instants.satellite);
     const monthly = instants.monthly ? sunDirection(instants.monthly) : null;
-    snapshot = { satellite, monthly };
-    toVector(satellite, uniforms.uSunImagery.value);
-    toVector(monthly ?? satellite, uniforms.uSunScience.value);
+    const aim = scienceLight && monthly ? monthly : satellite;
+    snapshot = { satellite, monthly, shown: aim };
+    // One terminator across the satellite oceans and the data on land.
+    toVector(aim, uniforms.uSunImagery.value);
+    toVector(aim, uniforms.uSunScience.value);
 
     if (realLight) {
-      const aim = scienceLight && monthly ? monthly : satellite;
       hooks.sunLight.position.copy(toVector(aim, scratch)).multiplyScalar(8);
     } else {
       hooks.sunLight.position.copy(FIXED);
@@ -113,9 +120,9 @@ export function attachSun(hooks: SunHooks): SunHandle {
       const terrain = hooks.getTerrain();
       if (terrain) {
         terrainBound = true;
-        terrain.setRealLightPatch((material) =>
-          patchTerrainMaterial(material, uniforms)
-        );
+        terrain.setRealLightPatch((material) => {
+          patchTerrainMaterial(material, uniforms);
+        });
       }
     }
 
@@ -153,6 +160,10 @@ export function attachSun(hooks: SunHooks): SunHandle {
   const handle: SunHandle = {
     setNightEmissive(value: number) {
       uniforms.uNightEmissive.value = value;
+    },
+    setNightMap(texture) {
+      uniforms.uNightMap.value = texture;
+      uniforms.uHasNight.value = 1;
     },
     illumination: () => snapshot,
   };

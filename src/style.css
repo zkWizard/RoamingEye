@@ -253,10 +253,14 @@ body {
   font-size: clamp(1.4rem, 4vw, 2rem);
   font-weight: 500;
   letter-spacing: -0.02em;
+  /* The wordmark floats on the space canvas in both themes, so it keeps the
+     light ink. Panel text still follows --fg. */
+  color: #e8eef7;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.55);
 }
 
 .brand span {
-  color: var(--accent);
+  color: #4ea1ff;
 }
 
 /* --- Actions: one pill of view actions, top right --------------------------
@@ -658,7 +662,10 @@ body {
    that lands at every width. Both set the same value, so the plate is on either
    way — but anything that wants to turn it back OFF for a size in dark theme
    has to say so here, not there. */
-:root[data-theme="dark"] .attribution::before {
+/* The canvas is space in both themes, so the credits need the plate at every
+   width, not only in dark theme and on a phone. */
+:root[data-theme="dark"] .attribution::before,
+:root[data-theme="light"] .attribution::before {
   content: "";
 }
 

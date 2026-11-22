@@ -7,16 +7,18 @@ import {
 
 describe("real light share query", () => {
   it("omits the default and names a change", () => {
-    expect(formatLightQuery({ real: true, science: false })).toBe("");
+    expect(formatLightQuery({ real: true, science: true })).toBe("");
     expect(formatLightQuery({ real: false, science: false })).toBe("light=off");
-    expect(formatLightQuery({ real: true, science: true })).toBe(
-      "light=science"
-    );
+    expect(formatLightQuery({ real: true, science: false })).toBe("light=flat");
   });
 
   it("reads only the two choices a link is allowed to carry", () => {
     expect(parseLightQuery("#layer=ndvi&light=off")).toEqual({
       real: false,
+      science: false,
+    });
+    expect(parseLightQuery("light=flat")).toEqual({
+      real: true,
       science: false,
     });
     expect(parseLightQuery("light=science")).toEqual({

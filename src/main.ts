@@ -263,16 +263,13 @@ scene.add(terrainFill);
 camera.layers.enable(1);
 
 // --- Theme (light/dark) -------------------------------------------------------
-// The DOM theme is CSS-variable driven; the WebGL side mirrors it here: a
-// space-dark or daylight clear color. Stars (dark only) arrive with the sky
-// chunk, after this first frame.
+// The page chrome follows the theme. The globe itself stays in space in both,
+// so a light theme is not a pale card behind the Earth. Stars and the limb
+// arrive with the sky chunk, after this first frame.
 const SPACE_BG = new Color(0x05070d); // matches --bg (dark)
-const DAY_BG = new Color(0xeaf0f8); // matches --bg (light)
-let skyDark = true;
 
-function applyTheme(theme: Theme): void {
-  skyDark = theme === "dark";
-  renderer.setClearColor(skyDark ? SPACE_BG : DAY_BG, 1);
+function applyTheme(_theme?: Theme): void {
+  renderer.setClearColor(SPACE_BG, 1);
 }
 
 const themeEl = document.querySelector<HTMLElement>("#theme-toggle");
@@ -4014,7 +4011,6 @@ requestAnimationFrame(() => {
         scene,
         renderer,
         atmosphere: atmosphereOverlay.object,
-        isDark: () => skyDark,
         scienceOnTerrain: () => terrainGlobe?.scienceDraped === true,
       });
     })

@@ -2,7 +2,13 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { buildColormapLut, hexToRgb, invertColormap } from "./probe";
 import { LEGENDS } from "./legend";
-import { displayRgb, NIGHT_FLOOR, realLightGlsl, waterMask } from "./realLight";
+import {
+  displayRgb,
+  NIGHT_FLOOR,
+  SCIENCE_NIGHT_FLOOR,
+  realLightGlsl,
+  waterMask,
+} from "./realLight";
 
 const NDVI_GREEN = hexToRgb("#126e01");
 
@@ -83,8 +89,10 @@ describe("science colours and the probe", () => {
 });
 
 describe("realLightGlsl", () => {
-  it("bakes the night floor into the shader", () => {
-    expect(realLightGlsl()).toContain(String(NIGHT_FLOOR));
+  it("bakes both night floors into the shader", () => {
+    const source = realLightGlsl();
+    expect(source).toContain(String(NIGHT_FLOOR));
+    expect(source).toContain(String(SCIENCE_NIGHT_FLOOR));
   });
 
   it("still matches the overlay blend published by 3d-tiles-renderer", () => {

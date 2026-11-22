@@ -253,9 +253,9 @@ test.describe("attribution contrast", () => {
       await page.waitForTimeout(400);
     };
 
-    // Light theme: the phone layout lifts the row onto the imagery, so the
-    // plate is on; above the breakpoint the backdrop is the flat page colour at
-    // 5.54:1 and a plate would be decoration rather than contrast.
+    // The canvas is space in both themes, so the plate stays on past the
+    // phone breakpoint. Light chrome no longer means a pale page behind
+    // the credits.
     await setWidth(540);
     expect(
       await plateOn(),
@@ -264,8 +264,8 @@ test.describe("attribution contrast", () => {
     await setWidth(541);
     expect(
       await plateOn(),
-      "the light-theme plate leaked past the phone breakpoint"
-    ).toBe(false);
+      "the light-theme plate is missing once the globe sits in space"
+    ).toBe(true);
 
     // Dark theme: the globe reaches the row at every size, so the plate is on
     // at every size — the breakpoint stops governing it.

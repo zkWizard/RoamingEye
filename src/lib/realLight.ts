@@ -15,8 +15,13 @@ export interface RgbUnit {
   b: number;
 }
 
-/** Night side brightness as a fraction of the day-side albedo. */
+/** Night side brightness as a fraction of the day-side albedo. Satellite base. */
 export const NIGHT_FLOOR = 0.25;
+/**
+ * Gentler floor for a colormap. Dark enough that day and night read at a
+ * glance, light enough that the ramp is still a ramp. The probe never uses it.
+ */
+export const SCIENCE_NIGHT_FLOOR = 0.4;
 /** Soft terminator, in ndotl. Below the low edge is night; above the high edge is day. */
 export const TERMINATOR_LO = -0.15;
 export const TERMINATOR_HI = 0.2;
@@ -61,6 +66,10 @@ export interface ShadeInput {
    * Night-side emissive gain. 0 until a lights texture drives it (issue #1200).
    */
   nightEmissive?: number;
+  /** City lights, already in linear colour, added on the night side. */
+  nightLights?: RgbUnit;
+  /** Defaults to the satellite floor. Science passes the gentler one. */
+  nightFloor?: number;
 }
 
 /**
@@ -73,7 +82,9 @@ export function displayRgb(
 ): RgbUnit {
   if (mode === "flat") return { r: albedo.r, g: albedo.g, b: albedo.b };
   const day = smoothstep(TERMINATOR_LO, TERMINATOR_HI, input.nDotL);
-  const shade = NIGHT_FLOOR + (1 - NIGHT_FLOOR) * day;
+  const floor = input.nightFloor ?? NIGHT_FLOOR;
+  const shade = floor + (1 - floor) * day;
+  const lights = input.nightLights ?? { r: 0, g: 0, b: 0 };
   const twilight =
     smoothstep(TWILIGHT_LO, TWILIGHT_PEAK_LO, input.nDotL) *
     (1 - smoothstep(TWILIGHT_PEAK_HI, TWILIGHT_HI, input.nDotL));
@@ -90,29 +101,34 @@ export function displayRgb(
       albedo.r * shade +
       TWILIGHT_COLOR.r * twilight * TWILIGHT_GAIN +
       GLINT_COLOR.r * spec +
-      emissive,
+      emissive +
+      lights.r * (1 - day),
     g:
       albedo.g * shade +
       TWILIGHT_COLOR.g * twilight * TWILIGHT_GAIN +
       GLINT_COLOR.g * spec +
-      0.93 * emissive,
+      0.93 * emissive +
+      lights.g * (1 - day),
     b:
       albedo.b * shade +
       TWILIGHT_COLOR.b * twilight * TWILIGHT_GAIN +
       GLINT_COLOR.b * spec +
-      0.78 * emissive,
+      0.78 * emissive +
+      lights.b * (1 - day),
   };
 }
 
 /** GLSL twin of {@link displayRgb}. Constants are interpolated from this module. */
 export function realLightGlsl(): string {
   return /* glsl */ `
-vec3 reShade(vec3 albedo, vec3 sunWorld, float glintOn, float emissive, vec3 nrm, vec3 viewPos) {
+const float RE_NIGHT_FLOOR = ${NIGHT_FLOOR};
+const float RE_SCIENCE_FLOOR = ${SCIENCE_NIGHT_FLOOR};
+vec3 reShade(vec3 albedo, vec3 sunWorld, float glintOn, float emissive, float nightFloor, vec3 nightLights, vec3 nrm, vec3 viewPos) {
   vec3 sunV = normalize((viewMatrix * vec4(sunWorld, 0.0)).xyz);
   vec3 n = normalize(nrm);
   float ndl = dot(n, sunV);
   float day = smoothstep(${TERMINATOR_LO}, ${TERMINATOR_HI}, ndl);
-  float shade = mix(${NIGHT_FLOOR}, 1.0, day);
+  float shade = mix(nightFloor, 1.0, day);
   float tw = smoothstep(${TWILIGHT_LO}, ${TWILIGHT_PEAK_LO}, ndl)
     * (1.0 - smoothstep(${TWILIGHT_PEAK_HI}, ${TWILIGHT_HI}, ndl));
   vec3 color = albedo * shade;
@@ -126,6 +142,7 @@ vec3 reShade(vec3 albedo, vec3 sunWorld, float glintOn, float emissive, vec3 nrm
   float spec = pow(max(dot(n, halfDir), 0.0), ${GLINT_POWER}.0);
   color += vec3(${GLINT_COLOR.r}, ${GLINT_COLOR.g}, ${GLINT_COLOR.b}) * spec * water * day * glintOn * ${GLINT_GAIN};
   color += vec3(1.0, 0.93, 0.78) * emissive * (1.0 - day);
+  color += nightLights * (1.0 - day);
   return color;
 }
 `;

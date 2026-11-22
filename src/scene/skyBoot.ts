@@ -1,5 +1,6 @@
 import {
-  ACESFilmicToneMapping,
+  AgXToneMapping,
+  SRGBColorSpace,
   type BufferGeometry,
   type Camera,
   type Group,
@@ -24,14 +25,11 @@ export interface SkyHooks {
   scene: Scene;
   renderer: WebGLRenderer;
   atmosphere: Mesh;
-  /** Dark theme paints stars and a stronger limb. */
-  isDark: () => boolean;
-  /** Close views drape a data layer on the terrain mesh. Leave those colours flat. */
+  /** Close views drape a data layer on the terrain mesh. Leave those colours ungraded. */
   scienceOnTerrain: () => boolean;
 }
 
-const DARK_GAIN = 0.9;
-const LIGHT_GAIN = 0.42;
+const LIMB_GAIN = 0.9;
 
 function materialsOf(object: Object3D): Material[] | null {
   if (!("material" in object)) return null;
@@ -49,19 +47,36 @@ function underTerrain(object: Object3D): boolean {
   return false;
 }
 
+function paintTone(object: Object3D, imagery: boolean): void {
+  const materials = materialsOf(object);
+  if (!materials) return;
+  for (const material of materials) {
+    if (material.toneMapped !== imagery) material.toneMapped = imagery;
+  }
+}
+
 /**
- * ACES on the satellite mesh only. Science colours, overlays, stars, and the
- * limb stay in the values the rest of the app already chose.
+ * AgX on the satellite mesh only. Science colours, overlays, stars, and the
+ * limb stay in the values the rest of the app already chose. Walks the scene
+ * once, then only the terrain group when a data drape starts or stops.
  */
-function applyToneMapping(root: Object3D, scienceOnTerrain: boolean): void {
-  root.traverse((object) => {
-    const materials = materialsOf(object);
-    if (!materials) return;
-    const imagery = underTerrain(object) && !scienceOnTerrain;
-    for (const material of materials) {
-      if (material.toneMapped !== imagery) material.toneMapped = imagery;
+function toneMapper(scene: Scene, scienceOnTerrain: () => boolean): () => void {
+  let scanned = false;
+  let draped: boolean | null = null;
+  return () => {
+    const onTerrain = scienceOnTerrain();
+    if (!scanned) {
+      scanned = true;
+      scene.traverse((object) => {
+        paintTone(object, underTerrain(object) && !onTerrain);
+      });
+    } else if (draped !== onTerrain) {
+      scene.getObjectByName("terrain-globe")?.traverse((object) => {
+        paintTone(object, !onTerrain);
+      });
     }
-  });
+    draped = onTerrain;
+  };
 }
 
 export function bootSky(hooks: SkyHooks): void {
@@ -69,8 +84,10 @@ export function bootSky(hooks: SkyHooks): void {
   hooks.scene.add(stars);
   const limb: AtmosphereLight = mountScattering(hooks.atmosphere);
 
-  hooks.renderer.toneMapping = ACESFilmicToneMapping;
+  hooks.renderer.outputColorSpace = SRGBColorSpace;
+  hooks.renderer.toneMapping = AgXToneMapping;
   hooks.renderer.toneMappingExposure = 1;
+  const syncTone = toneMapper(hooks.scene, hooks.scienceOnTerrain);
 
   const previous = hooks.scene.onBeforeRender;
   hooks.scene.onBeforeRender = function (
@@ -83,11 +100,10 @@ export function bootSky(hooks: SkyHooks): void {
     group: Group
   ) {
     previous.call(this, renderer, scene, camera, geometry, material, group);
-    const dark = hooks.isDark();
-    stars.visible = dark;
-    limb.setGain(dark ? DARK_GAIN : LIGHT_GAIN);
-    const sun = getSun()?.illumination().satellite;
+    stars.visible = true;
+    limb.setGain(LIMB_GAIN);
+    const sun = getSun()?.illumination().shown;
     if (sun) limb.setSun(sun.x, sun.y, sun.z);
-    applyToneMapping(hooks.scene, hooks.scienceOnTerrain());
+    syncTone();
   };
 }

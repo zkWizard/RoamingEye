@@ -28,10 +28,13 @@ export interface LightChoice {
   science: boolean;
 }
 
-/** Empty when the choice is the default (satellite lit, science flat). */
+/**
+ * Empty when the choice is the default: the satellite is lit, and data
+ * layers get a gentle day and night so the first view reads as a planet.
+ */
 export function formatLightQuery(choice: LightChoice): string {
   if (!choice.real) return "light=off";
-  if (choice.science) return "light=science";
+  if (!choice.science) return "light=flat";
   return "";
 }
 
@@ -44,6 +47,8 @@ export function parseLightQuery(hash: string): LightChoice | null {
     return null;
   }
   if (light === "off") return { real: false, science: false };
+  if (light === "flat") return { real: true, science: false };
+  // Links written when shading data was the exception, not the default.
   if (light === "science") return { real: true, science: true };
   return null;
 }
@@ -209,7 +214,7 @@ export function bootFromScene(scene: Scene, terrain: SceneSun): void {
   if (!sunLight || !earthMaterial) return;
 
   const fromHash = parseLightQuery(window.location.hash);
-  let choice = fromHash ?? readStoredLight() ?? { real: true, science: false };
+  let choice = fromHash ?? readStoredLight() ?? { real: true, science: true };
   if (fromHash) writeStoredLight(choice);
   const current = (): LightChoice => choice;
 
@@ -237,7 +242,7 @@ export function bootFromScene(scene: Scene, terrain: SceneSun): void {
     settingsButton(
       "science-light",
       "Light the data",
-      "Also shade data layers. Off keeps their colours exact",
+      "Day and night on the data. Off leaves the map flat",
       choice.science,
       (on) => {
         choice = { ...choice, science: on };
@@ -258,7 +263,7 @@ export function bootFromScene(scene: Scene, terrain: SceneSun): void {
     });
   };
 
-  attachSun({
+  const sun = attachSun({
     scene,
     sunLight,
     earthMaterial,
@@ -268,4 +273,9 @@ export function bootFromScene(scene: Scene, terrain: SceneSun): void {
     getRealLight: () => choice.real,
     getScienceLight: () => choice.science,
   });
+  void import("./nightLights")
+    .then(({ loadNightLights }) => loadNightLights(sun))
+    .catch((err: unknown) => {
+      console.warn("RoamingEye: night lights failed to load", err);
+    });
 }
