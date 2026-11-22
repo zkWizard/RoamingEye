@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { awaitAppInteractive } from "./boot";
+import { awaitAppInteractive, awaitLiveMenu } from "./boot";
 
 declare global {
   interface Window {
@@ -68,11 +68,10 @@ test(
     await stubCelesTrak(page, fetches);
     await page.goto("/");
     await awaitAppInteractive(page);
+    await awaitLiveMenu(page);
 
     const live = page.locator(".toolbar__fold--live");
     await expect(live).toContainText("Live");
-    await page.locator('.toolbar__item[data-overlay="sat-starlink"]').waitFor();
-    await live.locator("summary").click();
     // Weather now is already in the fold. The six satellite classes join it.
     await expect(live.locator(".toolbar__item")).toHaveCount(7);
 
@@ -102,7 +101,7 @@ test("a reload inside two hours does not fetch the group again", async ({
   await stubCelesTrak(page, fetches);
   await page.goto("/");
   await awaitAppInteractive(page);
-  await page.locator(".toolbar__fold--live summary").click();
+  await awaitLiveMenu(page);
   const starlink = page.locator('.toolbar__item[data-overlay="sat-starlink"]');
   await starlink.click();
   await expect
@@ -114,6 +113,7 @@ test("a reload inside two hours does not fetch the group again", async ({
 
   await page.reload();
   await awaitAppInteractive(page);
+  await awaitLiveMenu(page);
   await expect(starlink).toHaveAttribute("aria-pressed", "true");
   await expect
     .poll(() =>

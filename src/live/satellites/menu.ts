@@ -74,10 +74,28 @@ function buildToggle(
     ? `${overlay.label}: ${overlay.detail}`
     : overlay.label;
   button.setAttribute("aria-pressed", String(on));
-  const text = overlay.detail
-    ? `<span class="toolbar__text"><span class="toolbar__label">${overlay.label}</span><span class="toolbar__detail">${overlay.detail}</span></span>`
-    : `<span class="toolbar__text"><span class="toolbar__label">${overlay.label}</span></span>`;
-  button.innerHTML = `<span class="toolbar__icon">${overlay.icon}</span>${text}`;
+
+  const icon = document.createElement("span");
+  icon.className = "toolbar__icon";
+  const svg = new DOMParser().parseFromString(
+    overlay.icon,
+    "image/svg+xml"
+  ).documentElement;
+  if (svg.tagName.toLowerCase() === "svg") icon.append(svg);
+
+  const text = document.createElement("span");
+  text.className = "toolbar__text";
+  const label = document.createElement("span");
+  label.className = "toolbar__label";
+  label.textContent = overlay.label;
+  text.append(label);
+  if (overlay.detail) {
+    const detail = document.createElement("span");
+    detail.className = "toolbar__detail";
+    detail.textContent = overlay.detail;
+    text.append(detail);
+  }
+  button.append(icon, text);
   button.addEventListener("click", () => {
     if (button.dataset.state === "pending") return;
     const next = button.getAttribute("aria-pressed") !== "true";

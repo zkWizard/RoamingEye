@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { awaitAppInteractive } from "./boot";
+import { awaitAppInteractive, awaitLiveMenu } from "./boot";
 import { chooseFromMoreMenu } from "./actions";
 import { globePoint } from "./globe";
 
@@ -32,6 +32,7 @@ test(
   "toolbar exposes overlay toggles and flips their state",
   { tag: "@smoke" },
   async ({ page }) => {
+    await awaitLiveMenu(page);
     const items = page.locator(".toolbar__item");
     // Real light arrives with the sun chunk, just after the first frame.
     await expect(
