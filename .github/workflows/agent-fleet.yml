@@ -44,15 +44,15 @@ jobs:
       # do not decide whether the catalog can open a review.
       - run: npm run test:e2e:smoke
       - name: Open a draft catalog review
-        # Push uses the checkout credential (contents: write). Opening a
-        # pull request uses CATALOG_FLEET_TOKEN when that secret is set:
-        # a fine-grained PAT or a GitHub App installation token with pull
-        # request write on this repository. See docs/agent-fleet.md.
-        # Without the secret, the default token is used. If the repository
-        # forbids Actions from creating pull requests, the branch is still
-        # updated and this step warns instead of failing.
+        # Push uses the checkout credential (contents: write). gh uses
+        # GH_TOKEN. An unset CATALOG_FLEET_TOKEN secret is empty, and the
+        # runner then omits the automatic GITHUB_TOKEN for this step, so
+        # the token is chosen here and passed explicitly. The fleet secret
+        # wins only when it is non-empty. See docs/agent-fleet.md.
         env:
-          CATALOG_FLEET_TOKEN: ${{ secrets.CATALOG_FLEET_TOKEN }}
+          GH_TOKEN: ${{ secrets.CATALOG_FLEET_TOKEN != '' && secrets.CATALOG_FLEET_TOKEN || github.token }}
+          TOKEN_KIND: ${{ secrets.CATALOG_FLEET_TOKEN != '' && 'secret' || 'default' }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -80,20 +80,32 @@ jobs:
             exit 0
           fi
 
+          # Choose the token before publishing. Every expansion below uses
+          # ${var:-} so `set -u` does not abort on an empty secret. The
+          # workflow sets GH_TOKEN and TOKEN_KIND; a local run can instead
+          # set CATALOG_FLEET_TOKEN and GITHUB_TOKEN.
+          if [ "${TOKEN_KIND:-}" = "secret" ] && [ -n "${GH_TOKEN:-}" ]; then
+            token_kind="secret"
+          elif [ -n "${CATALOG_FLEET_TOKEN:-}" ]; then
+            export GH_TOKEN="$CATALOG_FLEET_TOKEN"
+            token_kind="secret"
+          elif [ -n "${GITHUB_TOKEN:-}" ]; then
+            export GH_TOKEN="$GITHUB_TOKEN"
+            token_kind="default"
+          elif [ -n "${GH_TOKEN:-}" ]; then
+            token_kind="default"
+          else
+            echo "::error title=Catalog pull request was not opened::GITHUB_TOKEN is required to query pull requests."
+            write_summary "No token was available to query pull requests, so ${branch} was not updated."
+            exit 1
+          fi
+
           git config user.name "roamingeye-catalog-bot[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B "$branch"
           git add catalog public/data
           git commit -s -m "chore: refresh reviewed software catalog"
           git push --force origin "$branch"
-
-          if [ -n "${CATALOG_FLEET_TOKEN:-}" ]; then
-            export GH_TOKEN="$CATALOG_FLEET_TOKEN"
-            token_kind="secret"
-          else
-            export GH_TOKEN="${GITHUB_TOKEN:?GITHUB_TOKEN is required to query pull requests}"
-            token_kind="default"
-          fi
 
           existing_url="$(
             gh pr list \

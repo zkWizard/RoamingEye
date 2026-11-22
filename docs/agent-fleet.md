@@ -77,13 +77,20 @@ Set the Actions secret `CATALOG_FLEET_TOKEN` to either of these:
   Installation tokens expire after one hour, so a token stored once will
   stop working before the next daily run.
 
-When `CATALOG_FLEET_TOKEN` is unset, the workflow tries the default
-`GITHUB_TOKEN`. That call succeeds when the repository allows GitHub Actions
-to create and approve pull requests (Settings > Actions > General). With
-that setting off, GitHub refuses the default token. The job then stays
-green: it prints a warning and writes this compare link to the job summary,
-so a person can open the pull request in one step. The next run updates
-that pull request.
+When `CATALOG_FLEET_TOKEN` is unset, the workflow uses the default
+`github.token` and passes it to the step as `GH_TOKEN` and `GITHUB_TOKEN`.
+The secret is not copied into the step environment when it is empty. An
+empty secret is what the runner supplies for a secret that was never
+configured, and that empty value drops the automatic `GITHUB_TOKEN`, which
+made `gh pr list` abort under `set -u`. The fleet secret is selected only
+when it is non-empty.
+
+The default token can open a pull request when the repository allows
+GitHub Actions to create and approve pull requests (Settings > Actions >
+General). With that setting off, GitHub refuses the default token. The job
+then stays green: it prints a warning and writes this compare link to the
+job summary, so a person can open the pull request in one step. The next
+run updates that pull request.
 
 <https://github.com/zkWizard/RoamingEye/compare/main...agents/catalog-refresh>
 
