@@ -49,8 +49,12 @@ export async function awaitAppInteractive(
     .locator(".view-card")
     .first()
     .waitFor({ state: "attached", timeout });
-  // The Live menu arrives in its own chunk. Layout specs measure the panel
-  // after those toggles are in the document, or a late insert shifts the fold.
+  // The Live menu chunk loads on the first press in the map menu, or when
+  // the link already asks to track a satellite.
+  const hash = await page.evaluate(() => location.hash);
+  if (!hash.includes("track=")) {
+    await page.locator("#toolbar").dispatchEvent("pointerdown");
+  }
   await page.locator(".toolbar__fold--live").waitFor({
     state: "attached",
     timeout,

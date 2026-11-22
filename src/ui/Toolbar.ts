@@ -31,10 +31,6 @@ export class Toolbar {
   private sheetOpen = false;
   private storiesLoaded = false;
   private activeLayer: LayerId | undefined;
-  private readonly folds = new Map<
-    "details" | "settings" | "live",
-    HTMLElement
-  >();
 
   constructor(
     container: HTMLElement,
@@ -110,59 +106,6 @@ export class Toolbar {
 
   setPressed(overlayId: string, on: boolean): void {
     this.buttons.get(overlayId)?.setAttribute("aria-pressed", String(on));
-  }
-
-  /** Replace the second line under a toggle, for a live count. */
-  setDetail(overlayId: string, detail: string): void {
-    const button = this.buttons.get(overlayId);
-    if (!button) return;
-    const label = button.querySelector(".toolbar__label")?.textContent ?? "";
-    let detailEl = button.querySelector(".toolbar__detail");
-    if (!detailEl) {
-      detailEl = document.createElement("span");
-      detailEl.className = "toolbar__detail";
-      button.querySelector(".toolbar__text")?.append(detailEl);
-    }
-    if (detailEl.textContent === detail) return;
-    detailEl.textContent = detail;
-    button.title = detail ? `${label}: ${detail}` : label;
-  }
-
-  /**
-   * Add a toggle after the menu was built. Live layers register this way so
-   * their chunk stays off the entry path. The Live fold is created the first
-   * time one arrives, and it sits above Settings.
-   */
-  addOverlay(
-    overlay: MapOverlay,
-    onToggle: (overlay: MapOverlay, on: boolean) => void,
-    isOn: (overlay: MapOverlay) => boolean
-  ): void {
-    const group = overlay.group ?? "details";
-    let fold = this.folds.get(group);
-    if (!fold) {
-      const title =
-        group === "live"
-          ? "Live"
-          : group === "settings"
-            ? "Settings"
-            : "Map details";
-      fold = this.buildFold(
-        title,
-        [overlay],
-        onToggle,
-        isOn,
-        group,
-        group !== "settings"
-      );
-      this.placeFold(fold, group);
-    } else {
-      fold
-        .querySelector(".toolbar__list")
-        ?.append(this.buildToggle(overlay, onToggle, isOn));
-    }
-    this.updateOverflow();
-    this.publishHeight();
   }
 
   setPending(overlayId: string, pending: boolean): void {
@@ -274,7 +217,6 @@ export class Toolbar {
     fold.className = "toolbar__fold";
     if (group === "settings") fold.classList.add("toolbar__fold--settings");
     if (group === "live") fold.classList.add("toolbar__fold--live");
-    this.folds.set(group, fold);
     fold.open = open;
     const summary = document.createElement("summary");
     summary.textContent = title;
@@ -290,19 +232,6 @@ export class Toolbar {
     fold.appendChild(list);
     fold.addEventListener("toggle", () => this.updateOverflow());
     return fold;
-  }
-
-  private placeFold(
-    fold: HTMLElement,
-    group: "details" | "settings" | "live"
-  ): void {
-    if (group === "live") {
-      const settings = this.folds.get("settings");
-      if (settings) this.body.insertBefore(fold, settings);
-      else this.body.appendChild(fold);
-      return;
-    }
-    this.body.appendChild(fold);
   }
 
   private buildToggle(

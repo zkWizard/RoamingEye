@@ -10,7 +10,6 @@ import {
   type PerspectiveCamera,
 } from "three";
 import { once, type MapOverlay } from "../../overlays/types";
-import { ICONS } from "../../ui/icons";
 import { satelliteCatalog, type SatSample } from "./catalog";
 import { lerpLon, orbitCountLabel, writePointBuffer } from "./display";
 import {
@@ -25,6 +24,12 @@ declare global {
     __SATELLITE_POINTS__?: Record<string, number>;
   }
 }
+
+const SATELLITE_ICON =
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
+  `<rect x="9" y="9" width="6" height="6" rx="1"/>` +
+  `<path d="M9 10.5H4.5M15 10.5h4.5M9 13.5H4.5M15 13.5h4.5"/>` +
+  `<path d="M4.5 9.2v5.6M19.5 9.2v5.6"/></svg>`;
 
 let disc: CanvasTexture | undefined;
 
@@ -73,7 +78,7 @@ export class SatelliteGroupOverlay implements MapOverlay {
   readonly id: string;
   readonly label: string;
   readonly detail: string;
-  readonly icon = ICONS.satellite;
+  readonly icon = SATELLITE_ICON;
   readonly group = "live" as const;
   readonly object = new Group();
 
