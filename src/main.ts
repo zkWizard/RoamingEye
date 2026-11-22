@@ -1066,57 +1066,82 @@ function applyView(
   }
 }
 
+function onOverlayToggle(overlay: MapOverlay, on: boolean): void {
+  // Ephemeral overlays (geolocation) are never persisted — a returning
+  // visitor shouldn't be silently re-prompted for their location.
+  if (!overlay.ephemeral) {
+    if (on) overlayState.add(overlay.id);
+    else overlayState.delete(overlay.id);
+    saveSession();
+  }
+  legend?.setOverlayKey(overlay.id, on);
+
+  // An enable that has to fetch — or ask the browser where we are — used to
+  // look exactly like a settled one for the whole wait. Mark it busy, but
+  // only once the wait is long enough to be worth reporting, so an
+  // already-cached overlay never flashes a spinner on its way to instant.
+  let pendingTimer: ReturnType<typeof setTimeout> | undefined;
+  // Whether we actually told the user to wait, as opposed to merely
+  // scheduling to. Only a wait that was announced needs an ending.
+  let saidWaiting = false;
+  if (on && overlay.ensureLoaded) {
+    pendingTimer = setTimeout(() => {
+      saidWaiting = true;
+      toolbar?.setPending(overlay.id, true);
+    }, PENDING_INDICATOR_DELAY_MS);
+  }
+
+  void toggleOverlay(overlay, on, true).then((ok) => {
+    if (pendingTimer !== undefined) clearTimeout(pendingTimer);
+    toolbar?.setPending(overlay.id, false);
+    if (on && !ok) {
+      // The enable didn't take (permission denied, load error) — snap the
+      // button back and drop the (already-toasted) key.
+      toolbar?.setPressed(overlay.id, false);
+      legend?.setOverlayKey(overlay.id, false);
+      return;
+    }
+    // The press flipped `aria-pressed` immediately, which is right for the
+    // control but claims the overlay is drawn before its data exists — on
+    // a slow feed, seconds before. `aria-busy` then said "waiting", and
+    // its removal said nothing at all: the arrival of the markers is a
+    // change on the globe, and the globe is not something a screen reader
+    // can read. Only failure had a voice (the toast), so the one outcome a
+    // user could hear was the bad one. Say when it worked, on exactly the
+    // enables that admitted to waiting — announcing the instant, cached
+    // ones would be chatter over a state `aria-pressed` already carried.
+    if (saidWaiting) announcer.announce(`${overlay.label} shown`);
+  });
+}
+
+function restoreOverlay(overlay: MapOverlay): void {
+  if (!overlayState.has(overlay.id)) return;
+  legend?.setOverlayKey(overlay.id, true);
+  void toggleOverlay(overlay, true).then((ok) => {
+    if (ok) return;
+    // The restore didn't take. Until now this branch was discarded, so the
+    // failure showed up only as an absence: the button the toolbar built
+    // from the stored session stayed pressed and the legend kept the key
+    // that was set optimistically one line above — on the earthquakes feed,
+    // a two-channel key naming depth bands and magnitude sizes for markers
+    // that are not on the globe. A press that fails already snaps itself
+    // back (see the toggle handler above); a restore has exactly the same
+    // obligation, and more reason to meet it, because the user did not make
+    // the gesture and so has nothing to explain what they are looking at.
+    // The stored session is deliberately left alone: the id stays in
+    // `overlayState`, so a feed that was merely unreachable this once comes
+    // back on the next boot rather than being silently forgotten. That also
+    // makes the button an honest retry — pressing it re-runs the load.
+    toolbar?.setPressed(overlay.id, false);
+    legend?.setOverlayKey(overlay.id, false);
+  });
+}
+
 if (toolbarEl) {
   toolbar = new Toolbar(
     toolbarEl,
     overlays,
-    (overlay, on) => {
-      // Ephemeral overlays (geolocation) are never persisted — a returning
-      // visitor shouldn't be silently re-prompted for their location.
-      if (!overlay.ephemeral) {
-        if (on) overlayState.add(overlay.id);
-        else overlayState.delete(overlay.id);
-        saveSession();
-      }
-      legend?.setOverlayKey(overlay.id, on);
-
-      // An enable that has to fetch — or ask the browser where we are — used to
-      // look exactly like a settled one for the whole wait. Mark it busy, but
-      // only once the wait is long enough to be worth reporting, so an
-      // already-cached overlay never flashes a spinner on its way to instant.
-      let pendingTimer: ReturnType<typeof setTimeout> | undefined;
-      // Whether we actually told the user to wait, as opposed to merely
-      // scheduling to. Only a wait that was announced needs an ending.
-      let saidWaiting = false;
-      if (on && overlay.ensureLoaded) {
-        pendingTimer = setTimeout(() => {
-          saidWaiting = true;
-          toolbar?.setPending(overlay.id, true);
-        }, PENDING_INDICATOR_DELAY_MS);
-      }
-
-      void toggleOverlay(overlay, on, true).then((ok) => {
-        if (pendingTimer !== undefined) clearTimeout(pendingTimer);
-        toolbar?.setPending(overlay.id, false);
-        if (on && !ok) {
-          // The enable didn't take (permission denied, load error) — snap the
-          // button back and drop the (already-toasted) key.
-          toolbar?.setPressed(overlay.id, false);
-          legend?.setOverlayKey(overlay.id, false);
-          return;
-        }
-        // The press flipped `aria-pressed` immediately, which is right for the
-        // control but claims the overlay is drawn before its data exists — on
-        // a slow feed, seconds before. `aria-busy` then said "waiting", and
-        // its removal said nothing at all: the arrival of the markers is a
-        // change on the globe, and the globe is not something a screen reader
-        // can read. Only failure had a voice (the toast), so the one outcome a
-        // user could hear was the bad one. Say when it worked, on exactly the
-        // enables that admitted to waiting — announcing the instant, cached
-        // ones would be chatter over a state `aria-pressed` already carried.
-        if (saidWaiting) announcer.announce(`${overlay.label} shown`);
-      });
-    },
+    onOverlayToggle,
     (overlay) => overlayState.has(overlay.id),
     {
       onView: (card) => applyView(card),
@@ -1128,29 +1153,25 @@ if (toolbarEl) {
   );
   toolbar.setActiveLayer(currentLayer);
 }
-for (const overlay of overlays) {
-  if (overlayState.has(overlay.id)) {
-    legend?.setOverlayKey(overlay.id, true);
-    void toggleOverlay(overlay, true).then((ok) => {
-      if (ok) return;
-      // The restore didn't take. Until now this branch was discarded, so the
-      // failure showed up only as an absence: the button the toolbar built
-      // from the stored session stayed pressed and the legend kept the key
-      // that was set optimistically one line above — on the earthquakes feed,
-      // a two-channel key naming depth bands and magnitude sizes for markers
-      // that are not on the globe. A press that fails already snaps itself
-      // back (see the toggle handler above); a restore has exactly the same
-      // obligation, and more reason to meet it, because the user did not make
-      // the gesture and so has nothing to explain what they are looking at.
-      // The stored session is deliberately left alone: the id stays in
-      // `overlayState`, so a feed that was merely unreachable this once comes
-      // back on the next boot rather than being silently forgotten. That also
-      // makes the button an honest retry — pressing it re-runs the load.
-      toolbar?.setPressed(overlay.id, false);
-      legend?.setOverlayKey(overlay.id, false);
+for (const overlay of overlays) restoreOverlay(overlay);
+
+// Satellites (and their SGP4 worker) load in their own chunk. The hook only
+// registers the Live toggles; nothing is fetched until one is turned on.
+void import("./live/satellites/boot").then(
+  ({ bootLiveSatellites }) => {
+    bootLiveSatellites({
+      scene,
+      overlays,
+      toolbar,
+      onToggle: onOverlayToggle,
+      isOn: (overlay) => overlayState.has(overlay.id),
+      restore: restoreOverlay,
     });
+  },
+  (err: unknown) => {
+    console.warn("RoamingEye: live satellites failed to load", err);
   }
-}
+);
 
 // --- Controls (rotate + zoom) -----------------------------------------------
 const controls = new OrbitControls(camera, renderer.domElement);

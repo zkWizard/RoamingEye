@@ -12,5 +12,6 @@ e2e/smoke.spec.ts › renders a sized canvas with a live WebGL context
 e2e/features.spec.ts › search traces an exact returned boundary without a study-region box
 e2e/features.spec.ts › layer picker is arrow-key navigable
 e2e/features.spec.ts › toolbar exposes overlay toggles and flips their state
+e2e/satellites.spec.ts › turning on Starlink draws the constellation
 e2e/features.spec.ts › timeline stepper buttons move one month and disable at the ends
 e2e/features.spec.ts › phone sheet advertises the toggles hidden past its edge

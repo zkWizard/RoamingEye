@@ -49,6 +49,12 @@ export async function awaitAppInteractive(
     .locator(".view-card")
     .first()
     .waitFor({ state: "attached", timeout });
+  // The Live menu arrives in its own chunk. Layout specs measure the panel
+  // after those toggles are in the document, or a late insert shifts the fold.
+  await page.locator(".toolbar__fold--live").waitFor({
+    state: "attached",
+    timeout,
+  });
   // A first visit starts a short timelapse after the curtain lifts.
   // Tests that boot a quiet newest month dismiss it before that seek.
   if (options?.keepIntro) return;

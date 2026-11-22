@@ -37,10 +37,9 @@ test(
     await expect(
       page.locator('.toolbar__item[data-overlay="real-light"]')
     ).toHaveCount(1);
-    // Borders, Cities, Time zones, Plates, Volcanoes, Earthquakes, Weather now
-    // in Live, plus Sharper imagery, Real light, Light the data, and
-    // Atmosphere glow in Settings.
-    await expect(items).toHaveCount(11);
+    // Six map details, Weather now, six satellite classes, plus Sharper
+    // imagery, Real light, Light the data, and Atmosphere glow in Settings.
+    await expect(items).toHaveCount(17);
     await expect(
       page.locator('.toolbar__item[data-overlay="graticule"]')
     ).toHaveCount(0);

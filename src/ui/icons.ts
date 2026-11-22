@@ -47,6 +47,9 @@ export const ICONS = {
   pin: wrap(
     `<path d="M12 21s7-5.5 7-11a7 7 0 1 0-14 0c0 5.5 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/>`
   ),
+  satellite: wrap(
+    `<rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 10.5H4.5M15 10.5h4.5M9 13.5H4.5M15 13.5h4.5"/><path d="M4.5 9.2v5.6M19.5 9.2v5.6"/>`
+  ),
   draw: wrap(
     `<path d="M4 8V6.5A2.5 2.5 0 0 1 6.5 4H8M16 4h1.5A2.5 2.5 0 0 1 20 6.5V8M20 16v1.5a2.5 2.5 0 0 1-2.5 2.5H16M8 20H6.5A2.5 2.5 0 0 1 4 17.5V16"/><path d="M11 4h2M11 20h2M4 11v2M20 11v2"/>`
   ),
