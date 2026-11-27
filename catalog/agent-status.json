@@ -1,35 +1,35 @@
 {
   "version": 1,
-  "completedAt": "2026-07-12T22:11:45.327Z",
+  "completedAt": "2026-11-27T15:13:57.161Z",
   "status": "passed",
   "agents": [
     {
       "id": "scout",
       "label": "Scout",
       "status": "passed",
-      "startedAt": "2026-07-12T22:11:32.837Z",
-      "completedAt": "2026-07-12T22:11:34.604Z",
+      "startedAt": "2026-11-27T15:13:43.086Z",
+      "completedAt": "2026-11-27T15:13:44.721Z",
       "metrics": {
-        "added": 0
+        "added": 4
       }
     },
     {
       "id": "verifier",
       "label": "Verifier",
       "status": "passed",
-      "startedAt": "2026-07-12T22:11:34.604Z",
-      "completedAt": "2026-07-12T22:11:45.306Z",
+      "startedAt": "2026-11-27T15:13:44.721Z",
+      "completedAt": "2026-11-27T15:13:57.157Z",
       "metrics": {
         "verified": 7,
-        "review": 43
+        "review": 47
       }
     },
     {
       "id": "workflow-mapper",
       "label": "Workflow Mapper",
       "status": "passed",
-      "startedAt": "2026-07-12T22:11:45.306Z",
-      "completedAt": "2026-07-12T22:11:45.311Z",
+      "startedAt": "2026-11-27T15:13:57.157Z",
+      "completedAt": "2026-11-27T15:13:57.158Z",
       "metrics": {
         "mapped": 7
       }
@@ -38,8 +38,8 @@
       "id": "access-editor",
       "label": "Access Editor",
       "status": "passed",
-      "startedAt": "2026-07-12T22:11:45.311Z",
-      "completedAt": "2026-07-12T22:11:45.315Z",
+      "startedAt": "2026-11-27T15:13:57.158Z",
+      "completedAt": "2026-11-27T15:13:57.159Z",
       "metrics": {
         "edited": 7
       }
@@ -48,8 +48,8 @@
       "id": "experience-builder",
       "label": "Experience Builder",
       "status": "passed",
-      "startedAt": "2026-07-12T22:11:45.315Z",
-      "completedAt": "2026-07-12T22:11:45.322Z",
+      "startedAt": "2026-11-27T15:13:57.159Z",
+      "completedAt": "2026-11-27T15:13:57.160Z",
       "metrics": {
         "published": 7
       }
@@ -58,8 +58,8 @@
       "id": "qa-release",
       "label": "QA / Release",
       "status": "passed",
-      "startedAt": "2026-07-12T22:11:45.322Z",
-      "completedAt": "2026-07-12T22:11:45.327Z",
+      "startedAt": "2026-11-27T15:13:57.160Z",
+      "completedAt": "2026-11-27T15:13:57.161Z",
       "metrics": {
         "version": 1,
         "tools": 7
