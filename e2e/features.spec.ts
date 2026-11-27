@@ -67,7 +67,15 @@ test(
     await expect(toolbar).toHaveClass(/is-collapsed/);
     await expect(toolbar).toHaveAttribute("data-overflow", "none");
 
-    await page.locator(".toolbar__handle").click();
+    const compact = await page.evaluate(() =>
+      document.getElementById("app")?.classList.contains("mobile-compact-ui")
+    );
+    if (compact) {
+      await page.locator("#more-button").click();
+      await page.locator("#map-overlays-link").click();
+    } else {
+      await page.locator(".toolbar__handle").click();
+    }
     await expect(toolbar).not.toHaveClass(/is-collapsed/);
     await expect(toolbar).toHaveAttribute("data-overflow", "end");
 
