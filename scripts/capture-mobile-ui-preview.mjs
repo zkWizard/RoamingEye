@@ -39,7 +39,31 @@ async function main() {
   await browser.close();
 }
 
-main().catch((err) => {
+async function captureDesktopAfter() {
+  const browser = await chromium.launch();
+  const page = await browser.newPage({
+    viewport: { width: 1280, height: 900 },
+  });
+  await page.goto("http://localhost:4173/", { waitUntil: "load" });
+  await page.waitForFunction(
+    () =>
+      window.__APP_READY__ === true &&
+      window.getComputedStyle(document.querySelector("#loader")).visibility ===
+        "hidden"
+  );
+  const skip = page.locator("#intro-skip");
+  if (await skip.isVisible()) await skip.click();
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${OUT}/after-desktop-1280x900.png` });
+  await browser.close();
+}
+
+async function run() {
+  await main();
+  await captureDesktopAfter();
+}
+
+run().catch((err) => {
   console.error(err);
   process.exit(1);
 });

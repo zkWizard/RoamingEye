@@ -5233,7 +5233,20 @@ body {
     gap: 0.5rem;
   }
 
+  #app.mobile-compact-ui .overlay--top {
+    padding: clamp(0.75rem, 2vw, 1.25rem);
+    padding-bottom: 0.3rem;
+  }
+
+  #app.mobile-compact-ui .brand {
+    display: block;
+    font-size: 1.15rem;
+    line-height: 1.2;
+    pointer-events: auto;
+  }
+
   #app.mobile-compact-ui .search {
+    top: calc(clamp(0.75rem, 2vw, 1.25rem) + 1.65rem);
     left: clamp(0.75rem, 2vw, 1.25rem);
     right: calc(clamp(0.75rem, 2vw, 1.25rem) + 44px + 0.4rem);
     width: auto;
@@ -5242,7 +5255,7 @@ body {
   #app.mobile-compact-ui .actions {
     left: auto;
     width: auto;
-    top: clamp(0.75rem, 2vw, 1.25rem);
+    top: calc(clamp(0.75rem, 2vw, 1.25rem) + 1.65rem);
     right: clamp(0.75rem, 2vw, 1.25rem);
   }
 
@@ -5299,7 +5312,7 @@ body {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 0;
+    gap: 0.25rem;
     padding: 0.15rem max(0.5rem, env(safe-area-inset-left, 0px))
       max(0.35rem, env(safe-area-inset-bottom, 0px))
       max(0.5rem, env(safe-area-inset-right, 0px));
@@ -5338,11 +5351,12 @@ body {
     width: 100%;
     max-width: none;
     margin: 0;
-    padding: 0.1rem 0.25rem 0;
+    padding: 0.45rem 0.25rem 0;
     font-size: 0.66rem;
     letter-spacing: -0.02em;
     pointer-events: auto;
-    z-index: 1;
+    z-index: 0;
+    border-top: 1px solid var(--control-border);
     background: transparent;
   }
 
@@ -5412,9 +5426,9 @@ body {
     grid-template-areas:
       "layer play month spacer fold"
       "track track track track track";
-    padding: 0.35rem 0.35rem 0.15rem;
+    padding: 0.35rem 0.35rem 0.35rem;
     min-height: 64px;
-    max-height: 72px;
+    max-height: 78px;
   }
 
   #app.mobile-compact-ui
@@ -5524,7 +5538,7 @@ body {
   }
 
   #app.mobile-compact-ui .probe {
-    top: clamp(5.75rem, 17vh, 8.5rem);
+    top: clamp(6.5rem, 18vh, 9.25rem);
     bottom: auto;
     left: 50%;
     transform: translate(-50%, 0);
