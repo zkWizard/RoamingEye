@@ -40,8 +40,9 @@ const PHONES = [
   { name: "phone breakpoint", width: 540, height: 900 },
 ];
 
-/** Every link and button in the attribution row, in DOM order. */
+/** Credits affordances: compact info on phone, full row at wider widths. */
 const ATTRIBUTION = [
+  "#attribution-info",
   "#providers-link",
   '.attribution a[href$="/RoamingEye"]',
   '.attribution a[href*="issues"]',
@@ -111,7 +112,9 @@ test.describe("phone attribution clearance", () => {
           document.querySelector(".toolbar")?.getBoundingClientRect().top ?? 0
       );
 
-      for (const selector of ATTRIBUTION) {
+      const selectors =
+        phone.width <= 540 ? ["#attribution-info"] : ATTRIBUTION;
+      for (const selector of selectors) {
         const result = await ownsItsCentre(page, selector);
         expect(result.found, `${selector} missing at ${phone.name}`).toBe(true);
         expect(
@@ -138,7 +141,11 @@ test.describe("phone attribution clearance", () => {
     // Drive the real pointer at the button's own coordinates rather than
     // locator.click(), which retries and scrolls; the defect was that the tap
     // at those coordinates reached the toolbar, and only a raw click shows it.
-    const box = await page.locator("#providers-link").boundingBox();
+    const compact = await page.evaluate(() =>
+      document.getElementById("app")?.classList.contains("mobile-compact-ui")
+    );
+    const target = compact ? "#attribution-info" : "#providers-link";
+    const box = await page.locator(target).boundingBox();
     expect(box).not.toBeNull();
     await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
 

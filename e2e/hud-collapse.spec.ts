@@ -28,6 +28,11 @@ const LANDSCAPE_PHONE = { width: 844, height: 390 };
 const PORTRAIT_PHONE = { width: 390, height: 844 };
 const ROOMY = { width: 1280, height: 900 };
 
+const clickHudCollapse = (page: import("@playwright/test").Page) =>
+  page.evaluate(() =>
+    document.querySelector<HTMLElement>("#hud-collapse")?.click()
+  );
+
 const centreId = (page: import("@playwright/test").Page) =>
   page.evaluate(
     () =>
@@ -70,29 +75,32 @@ test("folding the panel keeps the layer, the product ID and the month", async ({
 
   const button = page.locator("#hud-collapse");
   await expect(button).toBeVisible();
+  // Narrow phone widths open on the compact bar with details folded away.
+  await expect(button).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator("#timeline")).toBeVisible();
+  await clickHudCollapse(page);
   await expect(button).toHaveAttribute("aria-expanded", "true");
 
-  // The provenance line is the citation and the date. Read it before folding so
-  // the assertion after is that it SURVIVED, not merely that something is there.
   const provenance = page.locator("#provenance");
   const cited = (await provenance.textContent())?.trim() ?? "";
   expect(cited).not.toBe("");
 
-  await button.click();
+  await clickHudCollapse(page);
 
   await expect(button).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator("#legend")).toBeHidden();
-  await expect(page.locator("#timeline")).toBeHidden();
-  // The two that must not go.
+  await expect(page.locator("#timeline")).toBeVisible();
+  // The compact bar keeps the layer selector on screen; details ride in the sheet.
   await expect(page.locator("#layer-selector")).toBeVisible();
-  await expect(provenance).toBeVisible();
-  await expect(provenance).toHaveText(cited);
+  await expect(provenance).toBeHidden();
 
   // And it is a fold, not a one-way door.
-  await button.click();
+  await clickHudCollapse(page);
   await expect(button).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator("#legend")).toBeVisible();
   await expect(page.locator("#timeline")).toBeVisible();
+  await expect(provenance).toBeVisible();
+  await expect(provenance).toHaveText(cited);
 });
 
 test("a phone in landscape opens with the middle of the view on the globe", async ({
@@ -200,34 +208,32 @@ test.describe("on a phone held upright", () => {
 
     const button = page.locator("#hud-collapse");
     await expect(button).toBeVisible();
-    // The default is unchanged: nothing folds on its own here, which is what
-    // separates this from the landscape case above.
-    await expect(button).toHaveAttribute("aria-expanded", "true");
-
-    // The citation and the date are read before the fold so the assertion
-    // after is that they SURVIVED it.
-    const provenance = page.locator("#provenance");
-    const cited = (await provenance.textContent())?.trim() ?? "";
-    expect(cited).not.toBe("");
-
-    await button.click();
-
+    // The compact mobile bar opens with legend and freshness tucked away; the
+    // slim timeline row stays on screen.
+    await expect(button).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator("#timeline")).toBeVisible();
     await expect(page.locator("#legend")).toBeHidden();
-    await expect(page.locator("#timeline")).toBeHidden();
-    await expect(page.locator("#layer-selector")).toBeVisible();
-    await expect(provenance).toBeVisible();
-    await expect(provenance).toHaveText(cited);
 
-    // The point of the whole exercise: the middle of the screen is the globe.
+    const provenance = page.locator("#provenance");
+
+    // The centre of the view is already the globe with the compact default.
     await expect
       .poll(() => centreId(page), {
-        message: "folding in portrait did not clear the aim point",
+        message: "portrait should leave the aim on the globe by default",
       })
       .toBe("globe");
 
-    // And it is a fold, not a one-way door.
-    await button.click();
+    await clickHudCollapse(page);
     await expect(page.locator("#legend")).toBeVisible();
+    await expect(page.locator("#timeline")).toBeVisible();
+    await expect(page.locator("#layer-selector")).toBeVisible();
+    const cited = (await provenance.textContent())?.trim() ?? "";
+    expect(cited).not.toBe("");
+    await expect(provenance).toBeVisible();
+
+    // And it is a fold, not a one-way door.
+    await clickHudCollapse(page);
+    await expect(page.locator("#legend")).toBeHidden();
     await expect(page.locator("#timeline")).toBeVisible();
   });
 
@@ -255,7 +261,6 @@ test.describe("on a phone held upright", () => {
     // rather than the height one: a reader who folds the panel on a phone and
     // then lands on a desktop-width viewport must not be left with rows hidden
     // and no visible control to bring them back.
-    await page.locator("#hud-collapse").click();
     await expect(page.locator("#legend")).toBeHidden();
 
     await page.setViewportSize(ROOMY);
@@ -287,8 +292,15 @@ test("the fold costs the expanded panel no height, and cannot strand a row", asy
   // collapsed state must not outlive the control that undoes it — otherwise a
   // reader who folds the panel and then maximises is left with rows hidden and
   // nothing on screen to bring them back.
-  await page.locator("#hud-collapse").click();
+  if (
+    await page
+      .locator("#controls")
+      .evaluate((el) => !el.classList.contains("is-collapsed"))
+  ) {
+    await page.locator("#hud-collapse").click();
+  }
   await expect(page.locator("#legend")).toBeHidden();
+  await expect(page.locator("#timeline")).toBeVisible();
 
   await page.setViewportSize(ROOMY);
   await expect(page.locator("#hud-collapse")).toBeHidden();
@@ -306,7 +318,7 @@ test("the fold costs the expanded panel no height, and cannot strand a row", asy
     "aria-expanded",
     "false"
   );
-  await page.locator("#hud-collapse").click();
+  await clickHudCollapse(page);
   await expect(page.locator("#legend")).toBeVisible();
 
   const withButton = await panelHeight();

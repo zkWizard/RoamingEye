@@ -3683,9 +3683,14 @@ if (hudCollapseEl && controlsEl) {
     syncHeader();
     hudCollapseEl.innerHTML = collapsed ? CHEVRON_UP : CHEVRON_DOWN;
     hudCollapseEl.setAttribute("aria-expanded", String(!collapsed));
+    const onPhone = crowdedWidth?.matches ?? false;
     const label = collapsed
-      ? "Show the scale and timeline"
-      : "Hide the scale and timeline";
+      ? onPhone
+        ? "Show legend and data details"
+        : "Show the scale and timeline"
+      : onPhone
+        ? "Hide legend and data details"
+        : "Hide the scale and timeline";
     hudCollapseEl.setAttribute("aria-label", label);
     hudCollapseEl.title = label;
     // No announcement: `aria-expanded` already carries this, and announcing
@@ -3710,7 +3715,11 @@ if (hudCollapseEl && controlsEl) {
   // of, so the two belong to one layout rather than to two thresholds.
   const SHORT_VIEWPORT = "(max-height: 460px)";
   const shortViewport = window.matchMedia?.(SHORT_VIEWPORT);
-  applyCollapsed(shortViewport?.matches ?? false);
+  const CROWDED_WIDTH = "(max-width: 540px)";
+  const crowdedWidth = window.matchMedia?.(CROWDED_WIDTH);
+  applyCollapsed(
+    (shortViewport?.matches ?? false) || (crowdedWidth?.matches ?? false)
+  );
   hudCollapseEl.addEventListener("click", () =>
     applyCollapsed(!controlsEl.classList.contains("is-collapsed"))
   );
@@ -3731,9 +3740,8 @@ if (hudCollapseEl && controlsEl) {
   // is also the fold's own width arm, so the gesture is offered exactly where
   // it is available — no new breakpoint, and a no-op if the reader has already
   // folded it.
-  const CROWDED_VIEWPORT = "(max-width: 540px)";
   foldHudForOverlay = () => {
-    if (!window.matchMedia?.(CROWDED_VIEWPORT).matches) return;
+    if (!crowdedWidth?.matches) return;
     if (controlsEl.classList.contains("is-collapsed")) return;
     applyCollapsed(true);
   };
@@ -3751,6 +3759,41 @@ if (providersPageEl && providersLinkEl) {
   lazyPanel(providersPageEl, providersLinkEl, "the data providers", () =>
     import("./ui/ProvidersPage").then((m) => m.ProvidersPage)
   );
+}
+
+// --- Mobile compact chrome ---------------------------------------------------
+const appShellEl = document.querySelector<HTMLElement>("#app");
+const actionsEl = document.querySelector<HTMLElement>("#actions");
+const attributionInfoEl =
+  document.querySelector<HTMLElement>("#attribution-info");
+const MOBILE_COMPACT = "(max-width: 540px)";
+const mobileCompactMq = window.matchMedia?.(MOBILE_COMPACT);
+
+type MountAnchor = { parent: Node; next: ChildNode | null };
+const mobileActionAnchors = new Map<HTMLElement, MountAnchor>();
+
+const syncMobileDockHeight = (): void => {
+  if (!appShellEl || !controlsEl || !mobileCompactMq?.matches) return;
+  const h = controlsEl.getBoundingClientRect().height;
+  appShellEl.style.setProperty("--mobile-dock-height", `${Math.round(h)}px`);
+};
+
+const syncMobileCompact = (): void => {
+  const on = mobileCompactMq?.matches ?? false;
+  appShellEl?.classList.toggle("mobile-compact-ui", on);
+  syncMobileDockHeight();
+};
+
+mobileCompactMq?.addEventListener("change", syncMobileCompact);
+syncMobileCompact();
+if (controlsEl) {
+  new ResizeObserver(() => syncMobileDockHeight()).observe(controlsEl, {
+    box: "border-box",
+  });
+}
+
+if (attributionInfoEl && providersLinkEl) {
+  attributionInfoEl.addEventListener("click", () => providersLinkEl.click());
 }
 
 // Software discovery is static and review-gated: the finder reads only the
@@ -3772,6 +3815,34 @@ const moreButtonEl = document.querySelector<HTMLElement>("#more-button");
 const moreMenuEl = document.querySelector<HTMLElement>("#more-menu");
 if (moreButtonEl && moreMenuEl) {
   new ActionMenu(moreButtonEl, moreMenuEl);
+  const syncMobileActions = (): void => {
+    if (!actionsEl) return;
+    const on = mobileCompactMq?.matches ?? false;
+    const mounts = ["#draw", "#compare", "#share"]
+      .map((sel) => document.querySelector<HTMLElement>(sel))
+      .filter((el): el is HTMLElement => el !== null);
+    const sep = actionsEl.querySelector<HTMLElement>(".actions__sep");
+    if (on) {
+      for (const el of mounts) {
+        if (!mobileActionAnchors.has(el)) {
+          mobileActionAnchors.set(el, {
+            parent: el.parentNode!,
+            next: el.nextSibling,
+          });
+        }
+        moreMenuEl.insertBefore(el, moreMenuEl.firstChild);
+      }
+      sep?.setAttribute("hidden", "");
+    } else {
+      for (const el of mounts) {
+        const anchor = mobileActionAnchors.get(el);
+        if (anchor) anchor.parent.insertBefore(el, anchor.next);
+      }
+      sep?.removeAttribute("hidden");
+    }
+  };
+  mobileCompactMq?.addEventListener("change", syncMobileActions);
+  syncMobileActions();
   // The theme row is built by a chunk that is not on the first-frame path.
   const mountMoreTools = (): void => {
     mountThemeToggle();

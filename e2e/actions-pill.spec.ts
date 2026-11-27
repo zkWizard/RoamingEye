@@ -181,6 +181,9 @@ const settle = (page: Page) =>
       )
   );
 
+const MOBILE_PILL_WIDTH = 540;
+const PILL_ONLY = [".draw-button", ".compare-button", ".share-button"];
+
 async function sweep(page: Page, sizes: Size[], floor: number) {
   const failures: string[] = [];
   for (const size of sizes) {
@@ -188,8 +191,10 @@ async function sweep(page: Page, sizes: Size[], floor: number) {
     await page.waitForFunction((w) => innerWidth === w, size.width);
     await settle(page);
     const at = `${size.width}x${size.height}`;
+    const compactPill = size.width <= MOBILE_PILL_WIDTH;
 
     for (const sel of SEGMENTS) {
+      if (compactPill && PILL_ONLY.includes(sel)) continue;
       const r = await reachable(page, sel);
       if (!r.centre) failures.push(`${at} ${sel}: centre is ${r.thief}`);
       else if (r.width < floor || r.height < floor)
@@ -211,7 +216,8 @@ async function sweep(page: Page, sizes: Size[], floor: number) {
     }
 
     await openMoreMenu(page);
-    for (const sel of MENU_ROWS) {
+    const menuRows = compactPill ? [...PILL_ONLY, ...MENU_ROWS] : MENU_ROWS;
+    for (const sel of menuRows) {
       const r = await reachable(page, sel);
       if (!r.centre) failures.push(`${at} ${sel}: centre is ${r.thief}`);
       else if (r.height < floor)

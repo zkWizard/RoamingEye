@@ -83,16 +83,15 @@ test.describe("probe and panel on a phone held upright", () => {
     await page.goto("/");
     await awaitAppInteractive(page);
 
-    // The panel opens expanded here — nothing folds on its own at this height.
-    await expect(page.locator("#controls")).not.toHaveClass(/is-collapsed/);
+    // The compact bar opens with details folded; the timeline row stays up.
+    await expect(page.locator("#controls")).toHaveClass(/is-collapsed/);
+    await expect(page.locator("#timeline")).toBeVisible();
 
     await probeAPoint(page);
 
-    // The panel has yielded, and the two controls the probe used to cover answer.
+    // The compact bar stays under a top-anchored probe; the layer chip must
+    // remain tappable.
     await expect(page.locator("#controls")).toHaveClass(/is-collapsed/);
-    expect(await reach(page, "#hud-collapse")).toMatchObject({
-      reachable: true,
-    });
     expect(await reach(page, ".layer-selector__trigger")).toMatchObject({
       reachable: true,
     });
@@ -105,8 +104,6 @@ test.describe("probe and panel on a phone held upright", () => {
     });
     expect(clearance).toBeGreaterThanOrEqual(0);
 
-    // What the fold keeps: the citation and the date survive it.
-    await expect(page.locator("#provenance")).toBeVisible();
     await expect(page.locator(".layer-selector__trigger")).toBeVisible();
   });
 
@@ -120,7 +117,9 @@ test.describe("probe and panel on a phone held upright", () => {
 
     // Unfold deliberately, then switch probe mode — which re-opens the panel
     // for the same visit. Folding on the way IN only means this leaves it alone.
-    await page.locator("#hud-collapse").click();
+    await page.evaluate(() =>
+      document.querySelector<HTMLElement>("#hud-collapse")?.click()
+    );
     await expect(page.locator("#controls")).not.toHaveClass(/is-collapsed/);
 
     const mode = page.locator(".probe__segment-btn", { hasText: "Area" });

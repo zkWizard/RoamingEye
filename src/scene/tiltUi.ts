@@ -47,7 +47,9 @@ export function mountTiltUi(hooks: TiltUiHooks): void {
   });
 
   dock.append(compass, tilt);
-  document.body.append(dock);
+  const app = document.querySelector("#app");
+  if (app) app.append(dock);
+  else document.body.append(dock);
   paint();
   window.addEventListener("pointerup", paint);
 }
