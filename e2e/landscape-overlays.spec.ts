@@ -81,7 +81,8 @@ for (const size of LANDSCAPE) {
 
     await page.locator(".toolbar__handle").click();
     await page.locator(".toolbar__fold--settings summary").click();
-    await page.locator(".toolbar__fold--live summary").click();
+    // awaitLiveMenu already opened Live. Clicking the summary again closes
+    // it, and the toggles underneath stop taking taps.
 
     const items = page.locator(".toolbar__item");
     await expect(items).toHaveCount(OVERLAY_COUNT);

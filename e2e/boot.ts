@@ -19,6 +19,24 @@ declare global {
  * is better for users (the page is reachable sooner) but means a test that
  * clicks or hovers must wait for what a real person waits for: the curtain.
  */
+/**
+ * Let one navigation show the first-visit welcome, then leave it retired.
+ *
+ * The suite boots as a returning visitor (see playwright.config.ts) so a test
+ * that is not about the welcome still measures the boot globe. A spec that
+ * is about the welcome calls this before `goto`. The flag lives in
+ * sessionStorage, which survives a reload and does not, so the second load
+ * can assert that closing the card retired it.
+ */
+export async function showWelcome(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const mark = "roamingeye:e2e-welcome-shown";
+    if (sessionStorage.getItem(mark)) return;
+    sessionStorage.setItem(mark, "1");
+    localStorage.removeItem("roamingeye:stories-welcome");
+  });
+}
+
 export async function awaitAppInteractive(
   page: Page,
   timeout = 30_000,

@@ -297,10 +297,12 @@ test.describe("attribution contrast", () => {
     });
 
     // The credits are one line at this width, so the row — and with it the
-    // plate — should be appreciably narrower than the overlay it sits in.
+    // plate — should stay appreciably narrower than the overlay it sits in.
+    // The Open-Meteo credit lengthens that line to about 91% of a 1280px
+    // footer. A full-width slab is still a failure; 92% keeps the margin.
     expect(
       measured.row,
       `the credits row spans ${measured.row}px of a ${measured.overlay}px overlay; the plate would slab the footer`
-    ).toBeLessThan(measured.overlay * 0.9);
+    ).toBeLessThan(measured.overlay * 0.92);
   });
 });

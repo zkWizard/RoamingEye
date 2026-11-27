@@ -43,6 +43,20 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:4173",
     trace: "on-first-retry",
+    // A first visit autoplays a flight to the Sahel. Specs that are not about
+    // that card still read the boot globe (a 6° arrow step, a marker under the
+    // default camera). They boot as someone who already closed the welcome.
+    // first-visit.spec.ts and the one stories spec that is the welcome call
+    // showWelcome() to opt out for a single load.
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: "http://localhost:4173",
+          localStorage: [{ name: "roamingeye:stories-welcome", value: "done" }],
+        },
+      ],
+    },
   },
 
   projects: [
