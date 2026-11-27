@@ -206,23 +206,23 @@ test.describe("phone attribution clearance", () => {
       return { before, after };
     });
 
-  const compact = await page.evaluate(() =>
-    document.getElementById("app")?.classList.contains("mobile-compact-ui")
-  );
-  if (compact) {
-    // Compact chrome stacks credits under the dock in one sheet; the bar no
-    // longer lifts the overlay independently.
-    const stack = await page.evaluate(() => {
-      const panel = document.querySelector("#controls")!;
-      const credits = document.querySelector(".attribution")!;
-      return {
-        panelBottom: panel.getBoundingClientRect().bottom,
-        creditsTop: credits.getBoundingClientRect().top,
-      };
-    });
-    expect(stack.panelBottom).toBeLessThanOrEqual(stack.creditsTop + 1);
-    return;
-  }
+    const compact = await page.evaluate(() =>
+      document.getElementById("app")?.classList.contains("mobile-compact-ui")
+    );
+    if (compact) {
+      // Compact chrome stacks credits under the dock in one sheet; the bar no
+      // longer lifts the overlay independently.
+      const stack = await page.evaluate(() => {
+        const panel = document.querySelector("#controls")!;
+        const credits = document.querySelector(".attribution")!;
+        return {
+          panelBottom: panel.getBoundingClientRect().bottom,
+          creditsTop: credits.getBoundingClientRect().top,
+        };
+      });
+      expect(stack.panelBottom).toBeLessThanOrEqual(stack.creditsTop + 1);
+      return;
+    }
 
     // The credits line follows the bar, or the reserve is not wired up.
     expect(read.before.credits - read.after.credits).toBeGreaterThan(100);
