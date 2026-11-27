@@ -14,18 +14,27 @@ const GL = [
   "--enable-unsafe-swiftshader",
 ];
 
+const LIGHT = "light=flat";
+const LAYER = "layer=terrain";
+
 const VIEWS = [
   {
     id: "alps",
-    hash: "lat=46.5&lon=8&alt=0.35&pitch=55&hdg=-15&light=flat",
+    hash: `${LAYER}&lat=46.5&lon=8&alt=0.32&pitch=55&hdg=-15&${LIGHT}`,
+    lat: 46.5,
+    lon: 8,
   },
   {
     id: "grand-canyon",
-    hash: "lat=36.1&lon=-112.1&alt=0.34&pitch=55&hdg=40&light=flat",
+    hash: `${LAYER}&lat=36.1&lon=-112.1&alt=0.32&pitch=55&hdg=40&${LIGHT}`,
+    lat: 36.1,
+    lon: -112.1,
   },
   {
     id: "manhattan",
-    hash: "lat=40.758&lon=-73.985&alt=0.33&pitch=55&hdg=95&light=flat",
+    hash: `${LAYER}&lat=40.758&lon=-73.985&alt=0.32&pitch=55&hdg=95&${LIGHT}`,
+    lat: 40.758,
+    lon: -73.985,
   },
 ];
 
@@ -36,23 +45,41 @@ async function snap(page, name) {
   console.log(`wrote ${path}`);
 }
 
-async function settleTiles(page) {
+async function settleView(page) {
   await page.waitForFunction(() => window.__APP_READY__ === true, null, {
     timeout: 60_000,
   });
   await page.waitForSelector("#loader.is-hidden", { timeout: 60_000 });
-  await page.waitForTimeout(16_000);
+  const pitch0 = await page.evaluate(() => window.__VIEW_PITCH__ ?? 0);
+  if (pitch0 < 45) {
+    const tilt = page.locator(".tilt-dock__3d");
+    if (await tilt.isVisible()) await tilt.click();
+  }
+  await page.waitForFunction(() => (window.__VIEW_PITCH__ ?? 0) > 45, null, {
+    timeout: 20_000,
+  });
+  const viewport = page.viewportSize();
+  if (viewport) {
+    const x = Math.round(viewport.width / 2);
+    const y = Math.round(viewport.height * 0.35);
+    await page.mouse.move(x, y);
+    for (let w = 0; w < 6; w++) {
+      await page.mouse.wheel(0, -350);
+      await page.waitForTimeout(400);
+    }
+  }
+  await page.waitForTimeout(12_000);
 }
 
 const browser = await chromium.launch({ args: GL });
 
-for (const { id, hash } of VIEWS) {
+for (const { id, hash, lat, lon } of VIEWS) {
   const desktop = await browser.newPage({
     viewport: { width: 1440, height: 900 },
     deviceScaleFactor: 1,
   });
-  await desktop.goto(`${URL}#${hash}`);
-  await settleTiles(desktop);
+  await desktop.goto(`${URL.replace(/\/$/, "")}/#${hash}`);
+  await settleView(desktop);
   const cities = desktop.locator('.toolbar__item[title="Cities"]');
   if (await cities.isVisible()) await cities.click();
   await desktop.waitForTimeout(3_000);
@@ -67,9 +94,9 @@ const phone = await browser.newPage({
   hasTouch: true,
 });
 await phone.goto(
-  `${URL}#lat=40.758&lon=-73.985&alt=0.33&pitch=55&hdg=95&light=flat`
+  `${URL.replace(/\/$/, "")}/#${LAYER}&lat=40.758&lon=-73.985&alt=0.32&pitch=55&hdg=95&${LIGHT}`
 );
-await settleTiles(phone);
+await settleView(phone);
 const fold = phone.locator("#hud-collapse");
 if (await fold.isVisible()) {
   const expanded = await fold.getAttribute("aria-expanded");
