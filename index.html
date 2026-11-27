@@ -327,42 +327,66 @@
           </div>
         </div>
         <p class="attribution">
-          Imagery: NASA GIBS · © Esri · Terrain: AWS · Seismicity: USGS ·
-          <a
-            href="https://open-meteo.com/"
-            target="_blank"
-            rel="noopener"
-            title="Weather data by Open-Meteo, CC BY 4.0"
-            >Open-Meteo</a
+          <span class="attribution__brief"
+            >Imagery &amp; data: NASA GIBS, Esri, Open-Meteo, RainViewer</span
           >
-          ·
-          <a href="https://celestrak.org/" target="_blank" rel="noopener"
-            >CelesTrak</a
-          >, Borders &amp; places: Natural Earth, US Census · Search: ©
-          OpenStreetMap ·
-          <button id="providers-link" type="button" class="attribution__link">
-            Data providers
-          </button>
-          ·
-          <a
-            href="https://github.com/zkWizard/RoamingEye"
-            target="_blank"
-            rel="noopener"
-            >Open source</a
+          <span class="attribution__long">
+            Imagery: NASA GIBS · © Esri · Terrain: AWS · Seismicity: USGS ·
+            <a
+              href="https://open-meteo.com/"
+              target="_blank"
+              rel="noopener"
+              title="Weather data by Open-Meteo, CC BY 4.0"
+              >Open-Meteo</a
+            >
+            ·
+            <a href="https://celestrak.org/" target="_blank" rel="noopener"
+              >CelesTrak</a
+            >, Borders &amp; places: Natural Earth, US Census · Search: ©
+            OpenStreetMap ·
+            <button id="providers-link" type="button" class="attribution__link">
+              Data providers
+            </button>
+            ·
+            <a
+              href="https://github.com/zkWizard/RoamingEye"
+              target="_blank"
+              rel="noopener"
+              >Open source</a
+            >
+            ·
+            <a
+              href="https://github.com/zkWizard/RoamingEye/issues/new?template=feedback.yml"
+              target="_blank"
+              rel="noopener"
+              >Give feedback</a
+            >
+            ·
+            <!-- The agent fleet's dashboard is internal tooling, so it sits with
+                 the project links here rather than in the header's primary
+                 actions. The id is what main.ts wires the lazy panel to. -->
+            <button id="fleet-link" type="button" class="attribution__link">
+              Fleet status
+            </button>
+          </span>
+          <button
+            id="attribution-info"
+            type="button"
+            class="attribution__info"
+            aria-label="Full data credits"
+            title="Full data credits"
           >
-          ·
-          <a
-            href="https://github.com/zkWizard/RoamingEye/issues/new?template=feedback.yml"
-            target="_blank"
-            rel="noopener"
-            >Give feedback</a
-          >
-          ·
-          <!-- The agent fleet's dashboard is internal tooling, so it sits with
-               the project links here rather than in the header's primary
-               actions. The id is what main.ts wires the lazy panel to. -->
-          <button id="fleet-link" type="button" class="attribution__link">
-            Fleet status
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 11v5M12 8h.01" />
+            </svg>
           </button>
         </p>
       </div>

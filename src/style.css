@@ -1116,6 +1116,11 @@ body {
     display: none;
   }
 
+  /* The compact phone bar keeps the scrubber row visible when details fold. */
+  #app.mobile-compact-ui .controls.is-collapsed > #timeline {
+    display: block;
+  }
+
   /* Folded, what's left fits one row: pill, citation, fold. On a phone held in
      landscape that's the difference between the folded dock covering the
      middle of a 360px view and clearing it. */
@@ -5191,6 +5196,245 @@ body {
   display: flex;
   gap: 0.45rem;
   pointer-events: auto;
+}
+
+/* --- Mobile compact chrome (≤540px) -------------------------------------------
+   One slim timeline bar, legend and freshness in an expandable sheet, compass
+   and tilt floated above the bar on the right, attribution collapsed to one
+   line plus an info affordance, and view actions tucked behind More. */
+.attribution__brief,
+.attribution__info {
+  display: none;
+}
+
+.attribution__long {
+  display: inline;
+}
+
+@media (max-width: 540px) {
+  #app.mobile-compact-ui .actions > #draw,
+  #app.mobile-compact-ui .actions > #compare,
+  #app.mobile-compact-ui .actions > #share,
+  #app.mobile-compact-ui .actions > .actions__sep {
+    display: none !important;
+  }
+
+  #app.mobile-compact-ui .actions {
+    left: auto;
+    width: auto;
+    top: calc(clamp(0.75rem, 2vw, 1.25rem) + 52px);
+  }
+
+  #app.mobile-compact-ui .actions__more-button {
+    width: 44px;
+    min-width: 44px;
+  }
+
+  #app.mobile-compact-ui .actions:has(.actions__menu:not([hidden])) {
+    z-index: 7;
+  }
+
+  #app.mobile-compact-ui .actions__menu > #draw,
+  #app.mobile-compact-ui .actions__menu > #compare,
+  #app.mobile-compact-ui .actions__menu > #share {
+    display: block;
+  }
+
+  #app.mobile-compact-ui .actions__menu .draw-button,
+  #app.mobile-compact-ui .actions__menu .compare-button,
+  #app.mobile-compact-ui .actions__menu .share-button {
+    display: flex;
+    width: 100%;
+    min-height: 44px;
+    padding: 0 0.75rem;
+    font-size: 0.8rem;
+    justify-content: flex-start;
+  }
+
+  #app.mobile-compact-ui .actions__menu .draw-button__icon,
+  #app.mobile-compact-ui .actions__menu .compare-button__icon,
+  #app.mobile-compact-ui .actions__menu .share-button__icon {
+    display: flex;
+  }
+
+  #app.mobile-compact-ui .attribution__brief {
+    display: inline;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  #app.mobile-compact-ui .attribution__long {
+    display: none;
+  }
+
+  #app.mobile-compact-ui .attribution {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+    width: calc(100vw - 1.5rem);
+    max-width: calc(100vw - 1.5rem);
+    margin-top: 0.1rem;
+    font-size: 0.68rem;
+    letter-spacing: -0.02em;
+    padding-bottom: max(0.15rem, env(safe-area-inset-bottom, 0px));
+    pointer-events: auto;
+    z-index: 1;
+  }
+
+  #app.mobile-compact-ui .attribution__info {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 44px;
+    height: 44px;
+    margin: -8px 0;
+    padding: 0;
+    color: var(--fg);
+    background: transparent;
+    border: 0;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+
+  #app.mobile-compact-ui .attribution__info svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  #app.mobile-compact-ui .attribution__info:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  #app.mobile-compact-ui .toolbar__handle-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  #app.mobile-compact-ui .toolbar.is-collapsed .toolbar__handle {
+    min-height: 36px;
+    padding-block: 0.25rem 0.35rem;
+  }
+
+  #app.mobile-compact-ui .controls {
+    width: calc(100vw - 1rem);
+    margin-inline: auto;
+    margin-bottom: 0.35rem;
+    padding: 0.35rem 0.4rem 0.35rem;
+    grid-template-columns:
+      minmax(0, auto) auto minmax(3.4em, auto) minmax(0, 1fr)
+      auto;
+    grid-template-areas: "layer play month track fold";
+    align-items: center;
+  }
+
+  #app.mobile-compact-ui .controls:not(.is-collapsed) {
+    grid-template-areas:
+      "layer play month track fold"
+      "scale scale scale scale scale"
+      "meta meta meta meta meta";
+  }
+
+  #app.mobile-compact-ui
+    .controls.is-collapsed
+    > :not(.controls__collapse):not(#layer-selector):not(#timeline) {
+    display: none;
+  }
+
+  #app.mobile-compact-ui .controls.is-collapsed #legend,
+  #app.mobile-compact-ui .controls.is-collapsed .controls__meta {
+    display: none;
+  }
+
+  #app.mobile-compact-ui .controls.is-collapsed .timeline__steps {
+    display: none;
+  }
+
+  #app.mobile-compact-ui .timeline__steps {
+    display: none;
+  }
+
+  #app.mobile-compact-ui .timeline__track {
+    height: 28px;
+    margin: 0 0.15rem;
+  }
+
+  #app.mobile-compact-ui .timeline__year {
+    display: none;
+  }
+
+  #app.mobile-compact-ui .timeline__readout {
+    min-width: 0;
+    font-size: 0.78rem;
+    padding: 0 0.15rem;
+  }
+
+  #app.mobile-compact-ui .legend__scale,
+  #app.mobile-compact-ui .legend__classes {
+    justify-self: stretch;
+    margin: 0.2rem 0.15rem 0;
+  }
+
+  #app.mobile-compact-ui .legend__bar-wrap {
+    width: 100%;
+  }
+
+  #app.mobile-compact-ui .controls__meta {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin: 0.15rem 0.1rem 0;
+  }
+
+  #app.mobile-compact-ui .controls__info {
+    min-height: 44px;
+    padding: 0.35rem 0.45rem;
+    font-size: 0.72rem;
+  }
+
+  #app.mobile-compact-ui .controls__collapse {
+    align-self: center;
+  }
+
+  .tilt-dock {
+    left: auto;
+    right: max(0.6rem, env(safe-area-inset-right, 0px));
+    bottom: calc(
+      var(--toolbar-height, 3.25rem) + var(--mobile-dock-height, 3.25rem) +
+        5.5rem
+    );
+    flex-direction: column;
+    gap: 0.35rem;
+    z-index: 5;
+  }
+
+  .tilt-dock__compass,
+  .tilt-dock__3d {
+    width: 44px;
+    height: 44px;
+  }
+
+  #app.mobile-compact-ui .probe {
+    top: clamp(5.75rem, 17vh, 8.5rem);
+    bottom: auto;
+    left: 50%;
+    transform: translate(-50%, 0);
+    width: min(360px, calc(100vw - 1.25rem));
+    max-height: min(46vh, 20rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    z-index: 3;
+  }
+
+  #app.mobile-compact-ui .overlay--bottom {
+    padding-left: max(0.5rem, env(safe-area-inset-left, 0px));
+    padding-right: max(0.5rem, env(safe-area-inset-right, 0px));
+  }
 }
 
 .tilt-dock__compass,
