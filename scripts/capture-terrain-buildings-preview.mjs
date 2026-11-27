@@ -21,20 +21,14 @@ const VIEWS = [
   {
     id: "alps",
     hash: `${LAYER}&lat=46.5&lon=8&alt=0.32&pitch=55&hdg=-15&${LIGHT}`,
-    lat: 46.5,
-    lon: 8,
   },
   {
     id: "grand-canyon",
     hash: `${LAYER}&lat=36.1&lon=-112.1&alt=0.32&pitch=55&hdg=40&${LIGHT}`,
-    lat: 36.1,
-    lon: -112.1,
   },
   {
     id: "manhattan",
     hash: `${LAYER}&lat=40.758&lon=-73.985&alt=0.32&pitch=55&hdg=95&${LIGHT}`,
-    lat: 40.758,
-    lon: -73.985,
   },
 ];
 
@@ -73,7 +67,7 @@ async function settleView(page) {
 
 const browser = await chromium.launch({ args: GL });
 
-for (const { id, hash, lat, lon } of VIEWS) {
+for (const { id, hash } of VIEWS) {
   const desktop = await browser.newPage({
     viewport: { width: 1440, height: 900 },
     deviceScaleFactor: 1,
