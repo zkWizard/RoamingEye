@@ -17,10 +17,9 @@ import {
   metresAboveEllipsoid,
   minimumCameraDistance,
   obliqueMetresPerPixel,
-  TERRAIN_HEIGHT_SCALE,
   TERRAIN_SURFACE_SCALE,
   terrainErrorTarget,
-  TILT_TERRAIN_HEIGHT_SCALE,
+  terrainHeightScale,
   WGS84_EQUATORIAL_RADIUS_M,
 } from "../lib/cameraZoom";
 import {
@@ -142,7 +141,9 @@ export class TerrainGlobe {
    */
   private realLightPatch: ((material: Material) => void) | null = null;
   private readonly maxAnisotropy: number;
-  private tilted = false;
+  private buildings:
+    import("./osmBuildings/OsmBuildingsLayer").OsmBuildingsLayer | null = null;
+  private buildingsBoot: Promise<void> | null = null;
 
   constructor(
     private readonly camera: PerspectiveCamera,
@@ -329,16 +330,10 @@ export class TerrainGlobe {
       this.camera.fov,
       pitchDeg
     );
-    const tilted = pitchDeg >= 5;
-    if (tilted !== this.tilted) {
-      this.tilted = tilted;
-      this.terrain.heightScale = tilted
-        ? TILT_TERRAIN_HEIGHT_SCALE
-        : TERRAIN_HEIGHT_SCALE;
-    }
+    this.terrain.heightScale = terrainHeightScale(obliqueMpp, pitchDeg);
     // Recomputed every frame: an orbital target never requests z19, and a
     // street-level target from orbit would refine the whole disc.
-    this.tiles.errorTarget = terrainErrorTarget(obliqueMpp);
+    this.tiles.errorTarget = terrainErrorTarget(obliqueMpp, pitchDeg);
 
     // Ask the predicate as if the drape were ready: that is the camera band,
     // including its hysteresis, and the cue to start (or keep) loading.
@@ -394,6 +389,14 @@ export class TerrainGlobe {
       if (previewDistance != null) this.cancelStaleDownloads();
     }
 
+    this.updateBuildings({
+      lat,
+      lon: vector3ToLatLng(this.camera.position).lon,
+      obliqueMpp,
+      pitchDeg,
+      cameraDistance: distance,
+    });
+
     const ready = this.scienceReady && this.scienceKey === this.desired?.key;
     const draped = !comparing && inBand;
     if (this.science) this.science.opacity = draped && ready ? shown : 0;
@@ -403,7 +406,53 @@ export class TerrainGlobe {
 
   dispose(): void {
     this.generation++;
+    this.buildings?.dispose();
+    this.buildings = null;
     this.tiles.dispose();
+  }
+
+  private updateBuildings(view: {
+    lat: number;
+    lon: number;
+    obliqueMpp: number;
+    pitchDeg: number;
+    cameraDistance: number;
+  }): void {
+    const wants =
+      view.pitchDeg >= 5 && view.obliqueMpp > 0 && view.obliqueMpp < 120;
+    if (!wants) {
+      if (this.buildings) this.buildings.root.visible = false;
+      return;
+    }
+    if (!this.buildingsBoot) {
+      this.buildingsBoot = import("./osmBuildings/OsmBuildingsLayer")
+        .then(({ OsmBuildingsLayer }) => {
+          this.buildings = new OsmBuildingsLayer(
+            this.object,
+            (latDeg, lonDeg) => {
+              const sampled = this.terrain.sampleCartographicElevation(
+                (latDeg * Math.PI) / 180,
+                (lonDeg * Math.PI) / 180
+              );
+              return typeof sampled === "number" && Number.isFinite(sampled)
+                ? sampled
+                : 0;
+            },
+            () => this.terrain.heightScale
+          );
+        })
+        .catch((err: unknown) => {
+          console.warn("RoamingEye: OSM buildings failed to load", err);
+          this.buildingsBoot = null;
+        });
+    }
+    void this.buildingsBoot?.then(() => {
+      this.buildings?.update({
+        ...view,
+        camera: this.camera,
+        viewportHeightPx: this.bufferSize.y,
+      });
+    });
   }
 
   private retireScience(): void {

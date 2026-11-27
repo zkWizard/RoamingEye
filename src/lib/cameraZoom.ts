@@ -203,18 +203,48 @@ export function obliqueMetresPerPixel(
  * imagery actually get requested. The blend keeps a city overview within
  * about one zoom level of the screen without a flood of tiles.
  */
-export function terrainErrorTarget(metresPerPixel: number): number {
+export function terrainErrorTarget(
+  metresPerPixel: number,
+  pitchDeg = 0
+): number {
   if (!(metresPerPixel > 0)) return 8;
   if (metresPerPixel >= 2500) return 8;
-  if (metresPerPixel <= 4) return 1.25;
+  if (metresPerPixel <= 4) {
+    return pitchDeg >= 5 ? 1 : 1.25;
+  }
   const t = (metresPerPixel - 4) / (2500 - 4);
-  return 1.25 + t * (8 - 1.25);
+  let target = 1.25 + t * (8 - 1.25);
+  if (pitchDeg >= 5 && metresPerPixel < 15) {
+    target = Math.min(target, 1 + (metresPerPixel / 15) * 0.25);
+  }
+  return target;
 }
 
 /** True-scale relief on the unit globe. */
 export const TERRAIN_HEIGHT_SCALE = 1;
 /** Vertical exaggeration while the view is pitched for readable relief. */
 export const TILT_TERRAIN_HEIGHT_SCALE = 1.75;
+/** Extra exaggeration at street-level oblique views. */
+export const TILT_TERRAIN_HEIGHT_SCALE_CLOSE = 3;
+
+/**
+ * Terrain vertical scale: true scale when level, zoom-dependent exaggeration when
+ * pitched so distant ridges read modestly and near relief is stronger.
+ */
+export function terrainHeightScale(
+  obliqueMetresPerPixel: number,
+  pitchDeg: number
+): number {
+  if (pitchDeg < 5) return TERRAIN_HEIGHT_SCALE;
+  if (!(obliqueMetresPerPixel > 0)) return TILT_TERRAIN_HEIGHT_SCALE;
+  if (obliqueMetresPerPixel >= 400) return TILT_TERRAIN_HEIGHT_SCALE;
+  if (obliqueMetresPerPixel <= 8) return TILT_TERRAIN_HEIGHT_SCALE_CLOSE;
+  const t = (obliqueMetresPerPixel - 8) / (400 - 8);
+  return (
+    TILT_TERRAIN_HEIGHT_SCALE_CLOSE +
+    t * (TILT_TERRAIN_HEIGHT_SCALE - TILT_TERRAIN_HEIGHT_SCALE_CLOSE)
+  );
+}
 
 /**
  * Near/far for the current altitude. A fixed near of 0.01 is ~64 km, which

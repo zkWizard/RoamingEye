@@ -3,6 +3,7 @@ import {
   parseCityList,
   cityHoverLabel,
   labelOpacity,
+  labelTiltBoost,
   LABEL_COUNT,
 } from "./cities";
 
@@ -67,6 +68,11 @@ describe("labelOpacity", () => {
     expect(labelOpacity(2.15)).toBe(0);
     expect(labelOpacity(3.2)).toBe(0);
     expect(labelOpacity(4.5)).toBe(0);
+  });
+
+  it("boosts legibility under pitch", () => {
+    expect(labelTiltBoost(0)).toBe(1);
+    expect(labelTiltBoost(55)).toBeGreaterThan(1.2);
   });
 
   it("fades linearly between the thresholds", () => {

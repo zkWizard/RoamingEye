@@ -16,6 +16,7 @@ import {
   parseCityList,
   cityHoverLabel,
   labelOpacity,
+  labelTiltBoost,
   LABEL_COUNT,
 } from "../lib/cities";
 import { ICONS } from "../ui/icons";
@@ -70,18 +71,23 @@ export class CitiesOverlay implements MapOverlay {
   }
 
   /** Project the label positions for the current view (render-loop hook). */
-  update(camera: PerspectiveCamera, viewportHeightPx: number): void {
+  update(
+    camera: PerspectiveCamera,
+    viewportHeightPx: number,
+    pitchDeg = 0
+  ): void {
     const layer = this.labelLayer;
     if (!layer) return;
     const opacity = this.object.visible
-      ? labelOpacity(camera.position.length())
+      ? labelOpacity(camera.position.length()) * labelTiltBoost(pitchDeg)
       : 0;
     if (opacity === 0) {
       layer.hidden = true;
       return;
     }
     layer.hidden = false;
-    layer.style.opacity = opacity.toFixed(2);
+    layer.style.opacity = Math.min(1, opacity).toFixed(2);
+    layer.classList.toggle("city-labels--tilted", pitchDeg >= 5);
 
     const width = window.innerWidth;
     this.cameraDir.copy(camera.position).normalize();

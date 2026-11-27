@@ -98,6 +98,12 @@ export default defineConfig({
               priority: 10,
               test: /node_modules[\\/]3d-tiles-renderer[\\/]/,
             },
+            {
+              name: "buildings",
+              priority: 12,
+              includeDependenciesRecursively: true,
+              test: /src[\\/]scene[\\/]osmBuildings[\\/]/,
+            },
             // The sampler, the probe chart's notes and the overlays' hover
             // context: loaded at boot, but not needed to draw the first frame.
             // They used to sit in chunks shared with the old place panel; once
