@@ -17,6 +17,7 @@ import {
   raySpherePoint,
   resolveGroundPoint,
   terrainErrorTarget,
+  terrainHeightScale,
   wheelAltitudeFactor,
 } from "./cameraZoom";
 
@@ -167,6 +168,25 @@ describe("terrain error target", () => {
     const city = terrainErrorTarget(150);
     expect(city).toBeGreaterThan(1.25);
     expect(city).toBeLessThan(3);
+  });
+
+  it("tightens further when pitched at neighbourhood scale", () => {
+    expect(terrainErrorTarget(6, 55)).toBeLessThan(terrainErrorTarget(6, 0));
+    expect(terrainErrorTarget(4, 55)).toBe(1);
+  });
+});
+
+describe("terrain height scale", () => {
+  it("is true scale when level", () => {
+    expect(terrainHeightScale(10, 0)).toBe(1);
+  });
+
+  it("ramps exaggeration in at close oblique range", () => {
+    expect(terrainHeightScale(400, 55)).toBeCloseTo(1.75, 5);
+    expect(terrainHeightScale(8, 55)).toBeCloseTo(3, 5);
+    const mid = terrainHeightScale(80, 55);
+    expect(mid).toBeGreaterThan(1.75);
+    expect(mid).toBeLessThan(3);
   });
 });
 

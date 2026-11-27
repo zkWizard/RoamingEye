@@ -4412,7 +4412,8 @@ const renderFrame = (): void => {
   wasFlying = flyer.isFlying;
   highlight.update(camera.position.length()); // keep the marker a constant size
   frameComparePins(camera);
-  for (const overlay of overlays) overlay.update?.(camera, window.innerHeight);
+  for (const overlay of overlays)
+    overlay.update?.(camera, window.innerHeight, gazePitch);
   // Up close the month is draped on the terrain, so the sphere must not
   // cover it. It stays in the scene: hover, probe, and region drawing
   // raycast it. HD tiles are sphere patches and would hide the relief, so

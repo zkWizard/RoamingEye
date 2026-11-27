@@ -78,3 +78,13 @@ export function labelOpacity(
   if (cameraDistance <= near) return 1;
   return (far - cameraDistance) / (far - near);
 }
+
+/**
+ * When the view tilts, boost label opacity so names stay readable against
+ * oblique terrain and building faces.
+ */
+export function labelTiltBoost(pitchDeg: number): number {
+  if (pitchDeg < 5) return 1;
+  const t = Math.min(1, (pitchDeg - 5) / 50);
+  return 1 + t * 0.35;
+}

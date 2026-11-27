@@ -24,6 +24,8 @@ const BUDGETS_KB = {
   // 3d-tiles-renderer, loaded on demand with the terrain globe.
   // Measured 37.6 kB gzip (2026-10-26); the headroom is for a patch, not a feature.
   terrain: 40,
+  // Lazy OSM building extrusions (OpenFreeMap vector tiles).
+  buildings: 28,
 };
 
 const chunks = readdirSync(ASSETS).filter((f) => f.endsWith(".js"));
@@ -64,7 +66,9 @@ for (const file of chunks) {
     ? BUDGETS_KB.three
     : file.startsWith("terrain-")
       ? BUDGETS_KB.terrain
-      : BUDGETS_KB.app;
+      : file.startsWith("buildings-")
+        ? BUDGETS_KB.buildings
+        : BUDGETS_KB.app;
   const ok = gzKb <= budgetKb;
   if (!ok) failed = true;
   console.log(

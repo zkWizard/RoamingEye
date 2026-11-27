@@ -41,7 +41,11 @@ export interface MapOverlay {
    */
   ensureLoaded?(): Promise<void>;
   /** Per-frame hook for view-dependent overlays (throttle internally). */
-  update?(camera: PerspectiveCamera, viewportHeightPx: number): void;
+  update?(
+    camera: PerspectiveCamera,
+    viewportHeightPx: number,
+    pitchDeg?: number
+  ): void;
   /**
    * Pointer pick. Implementations must not raycast every marker: a spatial
    * hash or an id buffer, then a test of the few candidates near the cursor.
