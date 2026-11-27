@@ -2057,16 +2057,61 @@ body {
   cursor: pointer;
 }
 
+/* The gradient lives on the box, not the img. A failed <img> paints the
+   browser's broken-image icon on top of its own background; opacity stays 0
+   until a decode succeeds, and the box holds 64px so the card does not jump.
+   Colours are the layer legend stops, so a missing preview still reads as
+   that layer. */
+.view-card__thumbbox {
+  display: block;
+  width: 100%;
+  height: 64px;
+  overflow: hidden;
+  background: linear-gradient(160deg, #163024, #101820 55%, #1a140c);
+}
+
+.view-card__thumbbox[data-layer="ndvi"] {
+  background: linear-gradient(135deg, #f1ecec 0%, #a7cc4b 42%, #004800 100%);
+}
+
+.view-card__thumbbox[data-layer="aerosol"] {
+  background: linear-gradient(135deg, #f5f2e9 0%, #e8c977 55%, #8f3a1f 100%);
+}
+
+.view-card__thumbbox[data-layer="snow"] {
+  background: linear-gradient(135deg, #f0f080 0%, #f09680 62%, #ff0000 100%);
+}
+
+.view-card__thumbbox[data-layer="sst"] {
+  background: linear-gradient(135deg, #550249 0%, #2ea3ef 48%, #fa6d00 100%);
+}
+
+.view-card__thumbbox[data-layer="lst"] {
+  background: linear-gradient(135deg, #c200ff 0%, #00ffff 46%, #ff0400 100%);
+}
+
+.view-card__thumbbox[data-layer="precip"] {
+  background: linear-gradient(135deg, #d53e4f 0%, #fae38c 52%, #3288bd 100%);
+}
+
+.view-card__thumbbox[data-layer="soil"] {
+  background: linear-gradient(135deg, #d53e4f 0%, #e6f598 55%, #3288bd 100%);
+}
+
+.view-card__thumbbox[data-layer="terrain"] {
+  background: linear-gradient(135deg, #3e7d47 0%, #b6a86a 58%, #e8e4dc 100%);
+}
+
 .view-card__thumb {
   display: block;
   width: 100%;
   height: 64px;
   object-fit: cover;
-  background: linear-gradient(160deg, #163024, #101820 55%, #1a140c);
+  opacity: 0;
 }
 
-.view-card__thumb.is-missing {
-  height: 64px;
+.view-card__thumb.is-ready {
+  opacity: 1;
 }
 
 .view-card__title {
