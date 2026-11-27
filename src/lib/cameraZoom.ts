@@ -180,6 +180,22 @@ export function nadirMetresPerPixel(
 }
 
 /**
+ * Metres per pixel along the view once the camera pitches. The near ground
+ * under a slanted frustum resolves finer than the nadir figure, which is what
+ * the tile error budget should follow.
+ */
+export function obliqueMetresPerPixel(
+  altitudeMetres: number,
+  viewportHeightPx: number,
+  fovDeg: number,
+  pitchDeg: number
+): number {
+  const pitch = (Math.min(89, Math.max(0, pitchDeg)) * Math.PI) / 180;
+  const nadir = nadirMetresPerPixel(altitudeMetres, viewportHeightPx, fovDeg);
+  return nadir * Math.max(0.22, Math.cos(pitch));
+}
+
+/**
  * Screen-space error target for the terrain tiles, in pixels.
  *
  * 1 px from orbit never settles: the whole disc stays in refinement. Up close
@@ -194,6 +210,11 @@ export function terrainErrorTarget(metresPerPixel: number): number {
   const t = (metresPerPixel - 4) / (2500 - 4);
   return 1.25 + t * (8 - 1.25);
 }
+
+/** True-scale relief on the unit globe. */
+export const TERRAIN_HEIGHT_SCALE = 1;
+/** Vertical exaggeration while the view is pitched for readable relief. */
+export const TILT_TERRAIN_HEIGHT_SCALE = 1.75;
 
 /**
  * Near/far for the current altitude. A fixed near of 0.01 is ~64 km, which

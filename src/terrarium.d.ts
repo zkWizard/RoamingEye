@@ -8,6 +8,8 @@ declare module "3d-tiles-renderer/plugins" {
       maxZoom?: number;
       heightScale?: number;
     });
+    /** Factor applied to metre elevations; live tiles pick this up when it changes. */
+    heightScale: number;
     /** Metres above the ellipsoid, or null before any elevation tile has loaded. */
     sampleCartographicElevation(lat: number, lon: number): number | null;
   }

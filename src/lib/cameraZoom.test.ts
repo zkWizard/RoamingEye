@@ -12,6 +12,7 @@ import {
   minimumCameraDistance,
   easedAltitudeDistance,
   nadirMetresPerPixel,
+  obliqueMetresPerPixel,
   pinchAltitudeFactor,
   raySpherePoint,
   resolveGroundPoint,
@@ -166,6 +167,15 @@ describe("terrain error target", () => {
     const city = terrainErrorTarget(150);
     expect(city).toBeGreaterThan(1.25);
     expect(city).toBeLessThan(3);
+  });
+});
+
+describe("oblique metres per pixel", () => {
+  it("tightens under pitch so the tile budget follows the near ground", () => {
+    const nadir = nadirMetresPerPixel(25_000, 900, 45);
+    const pitched = obliqueMetresPerPixel(25_000, 900, 45, 55);
+    expect(pitched).toBeLessThan(nadir);
+    expect(pitched).toBeCloseTo(nadir * Math.cos((55 * Math.PI) / 180), 5);
   });
 });
 
