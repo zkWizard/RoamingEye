@@ -1,5 +1,5 @@
 diff --git a/node_modules/3d-tiles-renderer/src/three/plugins/images/ImageOverlayPlugin.js b/node_modules/3d-tiles-renderer/src/three/plugins/images/ImageOverlayPlugin.js
-index 0d93ca4..b4fb350 100644
+index 0d93ca4..fbc4ab1 100644
 --- a/node_modules/3d-tiles-renderer/src/three/plugins/images/ImageOverlayPlugin.js
 +++ b/node_modules/3d-tiles-renderer/src/three/plugins/images/ImageOverlayPlugin.js
 @@ -236,7 +236,11 @@ export class ImageOverlayPlugin {
@@ -15,16 +15,73 @@ index 0d93ca4..b4fb350 100644
  
  				}
  
-@@ -1089,7 +1093,7 @@ export class ImageOverlayPlugin {
+@@ -983,6 +987,14 @@ export class ImageOverlayPlugin {
  
- 		// check if the overlay or tile have been disposed since starting this function
- 		// if the tileController is not present then the tile has been disposed of already
--		if ( controller.signal.aborted || tileController.signal.aborted ) {
-+		if ( controller.signal.aborted || ! tileController || tileController.signal.aborted ) {
+ 			this._markNeedsUpdate();
+ 
++		} ).catch( err => {
++
++			// A tile dropped while the overlay was initialising rejects this
++			// chain. Nothing awaits it, so the rejection was the page-level
++			// "reading 'signal'" error.
++			if ( err && ( err.name === 'AbortError' || /signal/.test( String( err.message || '' ) ) ) ) return;
++			console.warn( 'ImageOverlayPlugin: overlay init failed', err );
++
+ 		} );
+ 
+ 	}
+@@ -1017,7 +1029,10 @@ export class ImageOverlayPlugin {
+ 		// This function is resilient to multiple calls in case an overlay is added after a tile starts loading
+ 		// and before it is loaded, meaning this function needs to be called twice to ensure it's initialized.
+ 		const { overlayInfo } = this;
+-		if ( overlayInfo.get( overlay ).tileInfo.has( tile ) ) {
++		const overlayRecord = overlayInfo.get( overlay );
++		// The overlay can already have been removed when a tile is dropped.
++		if ( ! overlayRecord ) return;
++		if ( overlayRecord.tileInfo.has( tile ) ) {
  
  			return;
  
-@@ -1097,6 +1101,7 @@ export class ImageOverlayPlugin {
+@@ -1030,10 +1045,7 @@ export class ImageOverlayPlugin {
+ 			failed: false,
+ 		};
+ 
+-		overlayInfo
+-			.get( overlay )
+-			.tileInfo
+-			.set( tile, info );
++		overlayRecord.tileInfo.set( tile, info );
+ 
+ 		// if the overlay isn't ready then we can't convert the range correctly, yet
+ 		if ( overlay.isReady ) {
+@@ -1077,8 +1089,11 @@ export class ImageOverlayPlugin {
+ 
+ 		const { tiles, overlayInfo, tileControllers } = this;
+ 		const { surface } = tiles;
+-		const { controller, tileInfo } = overlayInfo.get( overlay );
+-		const tileController = tileControllers.get( tile );
++		const overlayRecord = overlayInfo.get( overlay );
++		// Dropped with the tile: the record, or its abort controller, is already gone.
++		if ( ! overlayRecord || ! overlayRecord.controller ) return;
++		const { controller, tileInfo } = overlayRecord;
++		let tileController = tileControllers.get( tile );
+ 
+ 		// wait for the overlay to be completely loaded so projection and tiling are available
+ 		if ( ! overlay.isReady ) {
+@@ -1087,9 +1102,11 @@ export class ImageOverlayPlugin {
+ 
+ 		}
+ 
++		// The tile may have been dropped while that load was in flight.
++		tileController = tileControllers.get( tile );
+ 		// check if the overlay or tile have been disposed since starting this function
+ 		// if the tileController is not present then the tile has been disposed of already
+-		if ( controller.signal.aborted || tileController.signal.aborted ) {
++		if ( ! controller || controller.signal.aborted || ! tileController || tileController.signal.aborted ) {
+ 
+ 			return;
+ 
+@@ -1097,6 +1114,7 @@ export class ImageOverlayPlugin {
  
  		// find all meshes to project on and ensure matrices are up to date
  		const meshes = [];
@@ -32,25 +89,42 @@ index 0d93ca4..b4fb350 100644
  		scene.updateMatrixWorld();
  		scene.traverse( c => {
  
-@@ -1191,7 +1196,7 @@ export class ImageOverlayPlugin {
+@@ -1183,15 +1201,18 @@ export class ImageOverlayPlugin {
+ 	async _fetchTileOverlayTexture( tile, overlay, info ) {
+ 
+ 		const { tiles, overlayInfo, tileControllers, processQueue } = this;
+-		const { controller } = overlayInfo.get( overlay );
+-		const tileController = tileControllers.get( tile );
++		const overlayRecord = overlayInfo.get( overlay );
++		if ( ! overlayRecord || ! overlayRecord.controller ) return;
++		const { controller } = overlayRecord;
+ 		const { range } = info;
+ 
+ 		info.target = await processQueue
  			.add( { tile, overlay }, async () => {
  
- 				// check if the overlay has been disposed since starting this function
+-				// check if the overlay has been disposed since starting this function
 -				if ( controller.signal.aborted || tileController.signal.aborted ) {
-+				if ( controller.signal.aborted || ! tileController || tileController.signal.aborted ) {
++				// Re-read: the tile can be dropped after this callback was queued.
++				const tileController = tileControllers.get( tile );
++				// check if the overlay or tile have been disposed since starting this function
++				if ( ! controller || controller.signal.aborted || ! tileController || tileController.signal.aborted ) {
  
  					return null;
  
-@@ -1201,7 +1206,7 @@ export class ImageOverlayPlugin {
+@@ -1200,8 +1221,9 @@ export class ImageOverlayPlugin {
+ 				// Get the texture from the overlay
  				const regionTarget = await overlay.getTexture( range );
  
- 				// check if the overlay has been disposed since starting this function
+-				// check if the overlay has been disposed since starting this function
 -				if ( controller.signal.aborted || tileController.signal.aborted ) {
-+				if ( controller.signal.aborted || ! tileController || tileController.signal.aborted ) {
++				const liveTile = tileControllers.get( tile );
++				// check if the overlay or tile have been disposed since starting this function
++				if ( ! controller || controller.signal.aborted || ! liveTile || liveTile.signal.aborted ) {
  
  					return null;
  
-@@ -1358,6 +1363,15 @@ export class ImageOverlayPlugin {
+@@ -1358,6 +1380,15 @@ export class ImageOverlayPlugin {
  				params.layerMaps.value[ i ] = target !== null ? target : null;
  				params.layerInfo.value[ i ] = overlay;
  
@@ -66,7 +140,21 @@ index 0d93ca4..b4fb350 100644
  				// mark per-layer defines
  				material.defines[ `LAYER_${ i }_EXISTS` ] = Number( target !== null );
  				material.defines[ `LAYER_${ i }_ALPHA_INVERT` ] = Number( overlay.alphaInvert );
-@@ -1524,15 +1538,15 @@ export class ImageOverlay {
+@@ -1495,8 +1526,12 @@ export class ImageOverlay {
+ 
+ 		}
+ 
++		// A tile dropped mid-load can call fetch with a null init. Reading
++		// `options.signal` then throws "Cannot read properties of null
++		// (reading 'signal')" into the page.
++		const signal = options ? options.signal ?? null : null;
+ 		const item = { priority: - performance.now() };
+-		return this.downloadQueue.add( url, item, () => fetch( url, options ), options.signal );
++		return this.downloadQueue.add( url, item, () => fetch( url, options ?? {} ), signal );
+ 
+ 	}
+ 
+@@ -1524,15 +1559,15 @@ export class ImageOverlay {
  
  	lockTextureSafe( range ) {
  
@@ -87,6 +175,28 @@ index 0d93ca4..b4fb350 100644
 +			result.catch( () => {} );
  
  		}
+ 
+@@ -2196,8 +2231,9 @@ export class CesiumIonOverlay extends TiledImageOverlay {
+ 		}
+ 
+ 		// TODO: we should provide a better way to sort these
++		const signal = options ? options.signal ?? null : null;
+ 		const item = { priority: - performance.now() };
+-		return this.downloadQueue.add( url, item, () => this.auth.fetch( url, options ), options.signal );
++		return this.downloadQueue.add( url, item, () => this.auth.fetch( url, options ?? {} ), signal );
+ 
+ 	}
+ 
+@@ -2271,8 +2307,9 @@ export class GoogleMapsOverlay extends TiledImageOverlay {
+ 
+ 		}
+ 
++		const signal = options ? options.signal ?? null : null;
+ 		const item = { priority: - performance.now() };
+-		return this.downloadQueue.add( url, item, () => this.auth.fetch( url, options ), options.signal );
++		return this.downloadQueue.add( url, item, () => this.auth.fetch( url, options ?? {} ), signal );
+ 
+ 	}
  
 diff --git a/node_modules/3d-tiles-renderer/src/three/plugins/images/sources/RegionImageSource.js b/node_modules/3d-tiles-renderer/src/three/plugins/images/sources/RegionImageSource.js
 index a35c9fd..768a587 100644
@@ -132,4 +242,18 @@ index 3cb1d40..0acab56 100644
 +		texture.minFilter = LinearMipmapLinearFilter;
  		texture.colorSpace = SRGBColorSpace;
  		texture.needsUpdate = true;
+ 
+diff --git a/node_modules/3d-tiles-renderer/src/three/plugins/images/terrain-rgb/TerrainRGBMeshPlugin.js b/node_modules/3d-tiles-renderer/src/three/plugins/images/terrain-rgb/TerrainRGBMeshPlugin.js
+index c15a737..8a7127e 100644
+--- a/node_modules/3d-tiles-renderer/src/three/plugins/images/terrain-rgb/TerrainRGBMeshPlugin.js
++++ b/node_modules/3d-tiles-renderer/src/three/plugins/images/terrain-rgb/TerrainRGBMeshPlugin.js
+@@ -249,7 +249,8 @@ export class TerrainRGBMeshPlugin {
+ 		this._source.fetchData = ( fetchUrl, options ) => {
+ 
+ 			const item = { priority: - performance.now() };
+-			return this.tiles.downloadQueue.add( fetchUrl, item, () => fetch( fetchUrl, options ), options.signal );
++			const signal = options ? options.signal ?? null : null;
++			return this.tiles.downloadQueue.add( fetchUrl, item, () => fetch( fetchUrl, options ?? {} ), signal );
+ 
+ 		};
  

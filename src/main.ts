@@ -50,7 +50,12 @@ import {
   type GeoGeometry,
 } from "./lib/geojson";
 import { refreshDataLatest } from "./lib/freshness";
-import { isAbortError, isOnline, OfflineError } from "./lib/net";
+import {
+  isAbortError,
+  isBenignGlobeError,
+  isOnline,
+  OfflineError,
+} from "./lib/net";
 import { nextPixelRatio } from "./lib/perf";
 import type { ProbeSampler } from "./probe/ProbeSampler";
 import type { ProbePanel } from "./ui/ProbePanel";
@@ -4216,10 +4221,11 @@ if (storiesEl) {
 // (errorToast is constructed early, up by the overlays, so the geolocation
 // overlay can report a denied permission through it.)
 window.addEventListener("error", (e) => {
+  if (isBenignGlobeError(e.error) || isBenignGlobeError(e.message)) return;
   errorToast.show(`Something went wrong: ${e.message}`);
 });
 window.addEventListener("unhandledrejection", (e) => {
-  if (isAbortError(e.reason)) return;
+  if (isBenignGlobeError(e.reason)) return;
   // Offline fast-fails are expected while disconnected — the banner below
   // already tells that story; a toast per background prefetch would be spam.
   if (e.reason instanceof OfflineError) return;

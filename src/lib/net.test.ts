@@ -7,6 +7,7 @@ import {
   fetchWithRetry,
   HttpError,
   isAbortError,
+  isBenignGlobeError,
   isAcceptableContentType,
   isDefinitiveStatus,
   isOnline,
@@ -32,6 +33,42 @@ describe("isAbortError", () => {
   it("ignores other errors", () => {
     expect(isAbortError(new Error("nope"))).toBe(false);
     expect(isAbortError("nope")).toBe(false);
+  });
+});
+
+describe("isBenignGlobeError", () => {
+  it("treats a dropped-tile signal read as noise", () => {
+    expect(
+      isBenignGlobeError(
+        new TypeError("Cannot read properties of undefined (reading 'signal')")
+      )
+    ).toBe(true);
+    expect(
+      isBenignGlobeError(
+        "Uncaught TypeError: Cannot read properties of null (reading 'signal')"
+      )
+    ).toBe(true);
+  });
+
+  it("treats an abort with no reason as noise", () => {
+    const controller = new AbortController();
+    controller.abort();
+    let thrown: unknown;
+    try {
+      controller.signal.throwIfAborted();
+    } catch (err) {
+      thrown = err;
+    }
+    expect(isBenignGlobeError(thrown)).toBe(true);
+    expect(String((thrown as Error).message)).toMatch(
+      /signal is aborted|aborted/
+    );
+  });
+
+  it("still surfaces a real failure", () => {
+    expect(isBenignGlobeError(new Error("Couldn't load the layer"))).toBe(
+      false
+    );
   });
 });
 
