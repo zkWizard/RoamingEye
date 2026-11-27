@@ -1,0 +1,1 @@
+export{mt as CONVENTIONAL_DEFAULT_DEPTHS_KM,ht as reportedDepthBasis,gt as reportedDepthBasisNote,_t as seismicFixedDepthCoverage}from"./science-wG0bpBYD.js";

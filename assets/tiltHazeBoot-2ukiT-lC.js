@@ -1,0 +1,1 @@
+import{p as e,w as t}from"./three-D93lQpqA.js";import{n}from"./cameraPose-DJhCEnZE.js";var r=new e(9676988);function i(e){return i=>{let a=n(i);if(a<5){e.fog&&=null;return}let o=.028+Math.min(1,(a-5)/55)*.055;e.fog instanceof t?(e.fog.density=o,e.fog.color.copy(r)):e.fog=new t(r,o)}}export{i as bootTiltHaze};

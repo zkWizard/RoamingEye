@@ -1,0 +1,1 @@
+var e=`roamingeye:theme`;function t(e){return e===`light`||e===`dark`}function n(e,n){return t(e)?e:n?`dark`:`light`}function r(e){return e===`dark`?`light`:`dark`}export{r as n,n as r,e as t};

@@ -1,0 +1,1 @@
+export{t as eventFromId}from"./eventSearch-DIqHmLHC.js";
