@@ -1325,6 +1325,13 @@ function applyGaze(): void {
   );
   window.__VIEW_PITCH__ = gazePitch;
   window.__VIEW_HDG__ = gazeHeading;
+  if (poseIsTilted()) {
+    maybeCollapseHudForTilt();
+    ensureTiltHazeLoaded();
+    syncTiltHaze?.(gazePitch);
+  } else {
+    syncTiltHaze?.(0);
+  }
 }
 
 /** Keep the camera above the ground under it, and fit the depth planes to that. */
@@ -1725,9 +1732,35 @@ let tiltPointer: {
   mode: "pitch" | "heading";
 } | null = null;
 
+let syncTiltHaze: ((pitch: number) => void) | null = null;
+let collapseHudPanel: ((collapsed: boolean) => void) | null = null;
+
+function maybeCollapseHudForTilt(): void {
+  if (gazePitch < 5) return;
+  if (!window.matchMedia("(max-width: 540px)").matches) return;
+  if (controlsEl?.classList.contains("is-collapsed")) return;
+  collapseHudPanel?.(true);
+}
+
+function ensureTiltHazeLoaded(): void {
+  if (syncTiltHaze || gazePitch < 5) return;
+  void import("./scene/tiltHazeBoot")
+    .then(({ bootTiltHaze }) => {
+      syncTiltHaze = bootTiltHaze(scene);
+      syncTiltHaze(gazePitch);
+    })
+    .catch((err: unknown) => {
+      console.warn("RoamingEye: tilt haze failed to load", err);
+    });
+}
+
 function commitTilt(): void {
   restoreNadirCamera();
   enforceCameraLimits();
+  maybeCollapseHudForTilt();
+  ensureTiltHazeLoaded();
+  syncTiltHaze?.(gazePitch);
+  terrainGlobe?.resharpenTextures();
   scheduleHashSync();
 }
 
@@ -3659,6 +3692,7 @@ if (hudCollapseEl && controlsEl) {
     // what a state attribute reports is the chatter the overlay toggles
     // deliberately avoid.
   };
+  collapseHudPanel = applyCollapsed;
 
   // Everywhere the reader has room, the panel opens with every row showing and
   // nothing folds on its own — that is the whole of the decision above. The one
@@ -4228,7 +4262,8 @@ const renderFrame = (): void => {
     terrainGlobe?.update(
       compare.showing,
       !overlayState.has("hd"),
-      zoomTarget
+      zoomTarget,
+      gazePitch
     ) ?? false;
   earth.material.colorWrite = !scienceDraped;
   earth.material.depthWrite = !scienceDraped;

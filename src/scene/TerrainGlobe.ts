@@ -16,11 +16,17 @@ import {
 import {
   metresAboveEllipsoid,
   minimumCameraDistance,
-  nadirMetresPerPixel,
+  obliqueMetresPerPixel,
+  TERRAIN_HEIGHT_SCALE,
   TERRAIN_SURFACE_SCALE,
   terrainErrorTarget,
+  TILT_TERRAIN_HEIGHT_SCALE,
   WGS84_EQUATORIAL_RADIUS_M,
 } from "../lib/cameraZoom";
+import {
+  sharpenTerrainMaterial,
+  sharpenTerrainObject,
+} from "./terrainTextureSharpen";
 import { vector3ToLatLng } from "../lib/geo";
 import { imageryRequestPriority } from "../lib/imageryPriority";
 import {
@@ -135,12 +141,15 @@ export class TerrainGlobe {
    * every tile: 3d-tiles-renderer builds a fresh material per model.
    */
   private realLightPatch: ((material: Material) => void) | null = null;
+  private readonly maxAnisotropy: number;
+  private tilted = false;
 
   constructor(
     private readonly camera: PerspectiveCamera,
     private readonly renderer: WebGLRenderer,
     globeRadius: number
   ) {
+    this.maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
     const tiles = new TilesRenderer();
     const imageOverlays = new ImageOverlayPlugin({
       renderer,
@@ -182,6 +191,7 @@ export class TerrainGlobe {
         child.frustumCulled = false;
         // Layer 1 receives the terrain fill light (see main.ts).
         child.layers.enable(1);
+        sharpenTerrainMaterial(child.material, this.maxAnisotropy);
         this.applyRealLight(child.material);
       });
     });
@@ -218,8 +228,16 @@ export class TerrainGlobe {
   setRealLightPatch(patch: (material: Material) => void): void {
     this.realLightPatch = patch;
     this.object.traverse((child) => {
-      if (child instanceof Mesh) this.applyRealLight(child.material);
+      if (child instanceof Mesh) {
+        sharpenTerrainMaterial(child.material, this.maxAnisotropy);
+        this.applyRealLight(child.material);
+      }
     });
+  }
+
+  /** Re-apply anisotropic filtering when GPU textures were missed on a prior pass. */
+  resharpenTextures(): void {
+    sharpenTerrainObject(this.object, this.maxAnisotropy);
   }
 
   private applyRealLight(material: Material | Material[]): void {
@@ -298,20 +316,29 @@ export class TerrainGlobe {
      * a zoom into the satellite photo does not spend the glide requesting a
      * science overlay that will be invisible on arrival.
      */
-    previewDistance: number | null = null
+    previewDistance: number | null = null,
+    pitchDeg = 0
   ): boolean {
     const distance = this.camera.position.length();
     const { lat } = vector3ToLatLng(this.camera.position);
     const altitudeM = Math.max(1, metresAboveEllipsoid(distance, lat));
     this.renderer.getDrawingBufferSize(this.bufferSize);
-    const metresPerPixel = nadirMetresPerPixel(
+    const obliqueMpp = obliqueMetresPerPixel(
       altitudeM,
       this.bufferSize.y,
-      this.camera.fov
+      this.camera.fov,
+      pitchDeg
     );
+    const tilted = pitchDeg >= 5;
+    if (tilted !== this.tilted) {
+      this.tilted = tilted;
+      this.terrain.heightScale = tilted
+        ? TILT_TERRAIN_HEIGHT_SCALE
+        : TERRAIN_HEIGHT_SCALE;
+    }
     // Recomputed every frame: an orbital target never requests z19, and a
     // street-level target from orbit would refine the whole disc.
-    this.tiles.errorTarget = terrainErrorTarget(metresPerPixel);
+    this.tiles.errorTarget = terrainErrorTarget(obliqueMpp);
 
     // Ask the predicate as if the drape were ready: that is the camera band,
     // including its hysteresis, and the cue to start (or keep) loading.
@@ -344,14 +371,15 @@ export class TerrainGlobe {
     }
 
     if (!this.sampling) {
-      const street = metresPerPixel < 30;
-      const city = metresPerPixel < 400;
+      const lodMpp = obliqueMpp;
+      const street = lodMpp < 30;
+      const city = lodMpp < 400;
       this.tiles.downloadQueue.maxJobsPerOrigin = street
         ? STREET_JOBS_PER_ORIGIN
         : city
           ? CITY_JOBS_PER_ORIGIN
           : STREAM_JOBS_PER_ORIGIN;
-      this.tiles.parseQueue.maxJobs = metresPerPixel < 80 ? 4 : 2;
+      this.tiles.parseQueue.maxJobs = lodMpp < 80 ? 4 : 2;
       this.tiles.maxTilesProcessed = street
         ? TILES_PROCESSED_STREET
         : city

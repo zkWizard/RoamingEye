@@ -1,17 +1,19 @@
 # Tilt and heading
 
 Straight down, then pitched to 55 degrees over the same ground point.
-The layer is Land shape (ASTER shaded relief). Desktop is 1440x900.
-Phone is 390x844 with the map sheet folded down. The clock is frozen
-near 15:00 local on 21 Jun 2026 so the range is lit from the side.
+The base map is Esri World Imagery on streamed terrain; the monthly
+science drape fades once the photo is finer. Desktop is 1440x900.
+Phone is 390x844 with the dock folded. `light=flat` keeps NASA shading
+off the mesh so relief reads from the photograph and Terrarium height.
 
 `tilt.gif` is a right-drag over the Alps, from straight down toward
 the horizon. The compass (N) points north up. The 3D button is the
 one-tap pitch.
 
-Relief here is true scale. Mountain height is a small fraction of the
-Earth's radius, so the Alps and the Himalaya read as texture until
-the exaggeration pass.
+Before (#1224) is true-scale relief with a nadir tile budget and no
+terrain anisotropy. After (tilt 5b) adds anisotropic imagery, oblique
+LOD, 1.75x vertical exaggeration while pitched, a light horizon haze,
+and auto-folding the dock on small screens when the view tilts.
 
 | Place         | Before                           | After                           | Phone after                   |
 | ------------- | -------------------------------- | ------------------------------- | ----------------------------- |
