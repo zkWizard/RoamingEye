@@ -14,6 +14,9 @@ async function boot(page) {
   );
   const skip = page.locator("#intro-skip");
   if (await skip.isVisible()) await skip.click();
+  await page.waitForTimeout(400);
+  await page.evaluate(() => window.__FIT_MOBILE_GLOBE__?.());
+  await page.waitForTimeout(300);
 }
 
 async function main() {

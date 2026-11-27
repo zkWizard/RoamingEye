@@ -129,6 +129,7 @@ import { loadAdmin1Index, loadCountryIndex } from "./lib/countryIndex";
 import { rotateSpeedForDistance, stepGlobeView } from "./lib/navigation";
 import {
   MAX_CAMERA_DISTANCE,
+  TERRAIN_SURFACE_SCALE,
   altitudeZoomDistance,
   clipPlanes,
   easedAltitudeDistance,
@@ -972,7 +973,13 @@ let stopStoryMotion: () => void = () => undefined;
 /** Assigned once the stories block is up; view cards call it by id. */
 let playStory: (id: string) => void = () => undefined;
 
+let timeHintDismissTimer: ReturnType<typeof setTimeout> | undefined;
+
 function dismissTimeHint(): void {
+  if (timeHintDismissTimer !== undefined) {
+    clearTimeout(timeHintDismissTimer);
+    timeHintDismissTimer = undefined;
+  }
   const hint = document.getElementById("time-hint");
   if (hint) hint.hidden = true;
   document
@@ -997,6 +1004,8 @@ function showTimeHint(): void {
   document
     .querySelector(".timeline__track")
     ?.setAttribute("aria-describedby", "time-hint");
+  if (timeHintDismissTimer !== undefined) clearTimeout(timeHintDismissTimer);
+  timeHintDismissTimer = setTimeout(() => dismissTimeHint(), 6_000);
 }
 
 /** Drop the inline phone placement so a later story card uses the stylesheet. */
@@ -1059,6 +1068,7 @@ function dismissIntro(): void {
     tmp.remove();
   }
   intro.hidden = true;
+  requestAnimationFrame(() => fitMobileGlobeInChrome());
 }
 
 function applyView(
@@ -1332,6 +1342,34 @@ function applyGaze(): void {
   } else {
     syncTiltHaze?.(0);
   }
+}
+
+/** Frame the whole globe between the header and the bottom dock on phones. */
+function fitMobileGlobeInChrome(): void {
+  if (!window.matchMedia("(max-width: 540px)").matches) return;
+  const header = document.querySelector<HTMLElement>(".overlay--top");
+  const dock = document.querySelector<HTMLElement>(".overlay--bottom");
+  const search = document.querySelector<HTMLElement>(".search");
+  if (!header || !dock) return;
+  const top = Math.max(
+    header.getBoundingClientRect().bottom,
+    search?.getBoundingClientRect().bottom ?? 0
+  );
+  const bottom = dock.getBoundingClientRect().top;
+  const avail = Math.max(160, bottom - top);
+  const vFovRad = (camera.fov * Math.PI) / 180;
+  const effectiveVfov = vFovRad * (avail / window.innerHeight);
+  let distance = (TERRAIN_SURFACE_SCALE / Math.sin(effectiveVfov / 2)) * 1.08;
+  const floor = minimumCameraDistance(0, 0);
+  distance = Math.min(MAX_CAMERA_DISTANCE, Math.max(floor, distance));
+  nadirLat = 0;
+  nadirLon = 0;
+  nadirDistance = distance;
+  gazePitch = 0;
+  gazeHeading = 0;
+  applyGaze();
+  controls.target.set(0, 0, 0);
+  controls.update();
 }
 
 /** Keep the camera above the ground under it, and fit the depth planes to that. */
@@ -3782,10 +3820,22 @@ const syncMobileCompact = (): void => {
   const on = mobileCompactMq?.matches ?? false;
   appShellEl?.classList.toggle("mobile-compact-ui", on);
   syncMobileDockHeight();
+  toolbar?.syncChrome();
+  requestAnimationFrame(() => {
+    syncMobileDockHeight();
+    fitMobileGlobeInChrome();
+  });
 };
 
 mobileCompactMq?.addEventListener("change", syncMobileCompact);
 syncMobileCompact();
+window.addEventListener("resize", () => {
+  if (!mobileCompactMq?.matches) return;
+  requestAnimationFrame(fitMobileGlobeInChrome);
+});
+(
+  window as Window & { __FIT_MOBILE_GLOBE__?: () => void }
+).__FIT_MOBILE_GLOBE__ = fitMobileGlobeInChrome;
 if (controlsEl) {
   new ResizeObserver(() => syncMobileDockHeight()).observe(controlsEl, {
     box: "border-box",
@@ -3813,6 +3863,11 @@ if (fleetPageEl && fleetLinkEl) {
 // --- The actions pill's More menu --------------------------------------------
 const moreButtonEl = document.querySelector<HTMLElement>("#more-button");
 const moreMenuEl = document.querySelector<HTMLElement>("#more-menu");
+const mapOverlaysLinkEl =
+  document.querySelector<HTMLButtonElement>("#map-overlays-link");
+const mapOverlaysDividerEl = document.querySelector<HTMLElement>(
+  "#map-overlays-divider"
+);
 if (moreButtonEl && moreMenuEl) {
   new ActionMenu(moreButtonEl, moreMenuEl);
   const syncMobileActions = (): void => {
@@ -3840,9 +3895,16 @@ if (moreButtonEl && moreMenuEl) {
       }
       sep?.removeAttribute("hidden");
     }
+    const showMapItem = on;
+    mapOverlaysLinkEl?.toggleAttribute("hidden", !showMapItem);
+    mapOverlaysDividerEl?.toggleAttribute("hidden", !showMapItem);
   };
   mobileCompactMq?.addEventListener("change", syncMobileActions);
   syncMobileActions();
+  mapOverlaysLinkEl?.addEventListener("click", () => {
+    toolbar?.openSheet();
+    moreButtonEl.click();
+  });
   // The theme row is built by a chunk that is not on the first-frame path.
   const mountMoreTools = (): void => {
     mountThemeToggle();

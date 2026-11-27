@@ -325,9 +325,28 @@ export class Toolbar {
     });
   }
 
+  private usesCompactChrome(): boolean {
+    return (
+      document.getElementById("app")?.classList.contains("mobile-compact-ui") ??
+      false
+    );
+  }
+
+  /** Open the map sheet (phones; compact chrome uses the More menu instead). */
+  openSheet(): void {
+    if (!this.phone.matches) return;
+    this.setSheetOpen(true);
+  }
+
+  /** Re-measure chrome when `mobile-compact-ui` or viewport changes. */
+  syncChrome(): void {
+    this.applySheetMode();
+  }
+
   private applySheetMode(): void {
     const phone = this.phone.matches;
-    this.handle.hidden = !phone;
+    const compact = this.usesCompactChrome();
+    this.handle.hidden = !phone || compact;
     this.container.classList.toggle("is-collapsed", phone && !this.sheetOpen);
     this.handle.setAttribute("aria-expanded", String(!phone || this.sheetOpen));
     this.updateOverflow();
@@ -345,8 +364,14 @@ export class Toolbar {
    * does not jump.
    */
   private publishHeight(): void {
+    const phone = this.phone.matches;
+    const compact = this.usesCompactChrome();
+    if (phone && compact && !this.sheetOpen) {
+      document.documentElement.style.setProperty("--toolbar-height", "0px");
+      return;
+    }
     const source =
-      this.phone.matches && this.sheetOpen ? this.handle : this.container;
+      phone && this.sheetOpen && !compact ? this.handle : this.container;
     const height = source.getBoundingClientRect().height;
     document.documentElement.style.setProperty(
       "--toolbar-height",
