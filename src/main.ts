@@ -4478,6 +4478,7 @@ document
 if (currentLook !== "natural") installLooks();
 renderer.setAnimationLoop(renderFrame);
 window.__RENDER_ACTIVE__ = true;
+if (initialView.camera) requestAnimationFrame(() => applyGaze());
 
 // Stars, the scattering limb, and filmic grading load after this first frame.
 requestAnimationFrame(() => {
