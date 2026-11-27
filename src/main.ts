@@ -1344,19 +1344,44 @@ function applyGaze(): void {
   }
 }
 
-/** Frame the whole globe between the header and the bottom dock on phones. */
-function fitMobileGlobeInChrome(): void {
-  if (!window.matchMedia("(max-width: 540px)").matches) return;
+/** Top/bottom chrome bounding the globe on phones (css px). */
+function mobileGlobeChromeBand(): { top: number; bottom: number } | null {
+  if (!window.matchMedia("(max-width: 540px)").matches) return null;
   const header = document.querySelector<HTMLElement>(".overlay--top");
   const dock = document.querySelector<HTMLElement>(".overlay--bottom");
   const search = document.querySelector<HTMLElement>(".search");
-  if (!header || !dock) return;
+  if (!header || !dock) return null;
   const top = Math.max(
     header.getBoundingClientRect().bottom,
     search?.getBoundingClientRect().bottom ?? 0
   );
   const bottom = dock.getBoundingClientRect().top;
-  const avail = Math.max(160, bottom - top);
+  return { top, bottom };
+}
+
+/** Letterbox the camera to the chrome-safe band so the globe sits in its centre. */
+function syncMobileViewOffset(): void {
+  const band = mobileGlobeChromeBand();
+  if (!band) {
+    camera.clearViewOffset();
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    return;
+  }
+  const fullW = window.innerWidth;
+  const fullH = window.innerHeight;
+  const viewH = Math.max(160, Math.round(band.bottom - band.top));
+  camera.setViewOffset(fullW, fullH, 0, Math.round(band.top), fullW, viewH);
+  camera.aspect = fullW / fullH;
+  camera.updateProjectionMatrix();
+}
+
+/** Frame the whole globe between the header and the bottom dock on phones. */
+function fitMobileGlobeInChrome(): void {
+  const band = mobileGlobeChromeBand();
+  if (!band) return;
+  syncMobileViewOffset();
+  const avail = Math.max(160, band.bottom - band.top);
   const vFovRad = (camera.fov * Math.PI) / 180;
   const effectiveVfov = vFovRad * (avail / window.innerHeight);
   let distance = (TERRAIN_SURFACE_SCALE / Math.sin(effectiveVfov / 2)) * 1.08;
@@ -1370,6 +1395,7 @@ function fitMobileGlobeInChrome(): void {
   applyGaze();
   controls.target.set(0, 0, 0);
   controls.update();
+  syncMobileViewOffset();
 }
 
 /** Keep the camera above the ground under it, and fit the depth planes to that. */
@@ -4499,9 +4525,11 @@ document.addEventListener("visibilitychange", () => {
 
 // --- Resize handling --------------------------------------------------------
 window.addEventListener("resize", () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
+  syncMobileViewOffset();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  if (window.matchMedia("(max-width: 540px)").matches) {
+    requestAnimationFrame(fitMobileGlobeInChrome);
+  }
 });
 
 // --- Helpers ----------------------------------------------------------------
